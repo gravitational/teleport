@@ -259,7 +259,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 	existingConnectors := mockSAMLGetter{
 		existingConnectorName: &types.SAMLConnectorV2{
 			Spec: types.SAMLConnectorSpecV2{
-				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: existingOAuthCreds},
+				Credentials: &types.SAMLConnectorCredentials{Oauth: existingOAuthCreds},
 			},
 		},
 		existingConnectorNoCredsName: &types.SAMLConnectorV2{
@@ -278,7 +278,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 			name:          "existing connector with matching ClientId",
 			connectorName: existingConnectorName,
 			connectorSpec: types.SAMLConnectorSpecV2{
-				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
 					ClientId:     "test-client-id",
 					ClientSecret: "",
 				}},
@@ -295,7 +295,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 			name:          "connector not found",
 			connectorName: "non-existing",
 			connectorSpec: types.SAMLConnectorSpecV2{
-				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
 					ClientId:     "test-client-id",
 					ClientSecret: "",
 				}},
@@ -312,7 +312,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 			name:          "existing connector has no OAuth credentials",
 			connectorName: existingConnectorNoCredsName,
 			connectorSpec: types.SAMLConnectorSpecV2{
-				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
 					ClientId:     "another-client-id",
 					ClientSecret: "",
 				}},
@@ -323,7 +323,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 			name:          "existing connector OAuth ClientId doesn't match",
 			connectorName: existingConnectorName,
 			connectorSpec: types.SAMLConnectorSpecV2{
-				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
 					ClientId:     "another-client-id",
 					ClientSecret: "",
 				}},

@@ -718,7 +718,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
-			Credentials: &types.SAMLConnectorSpecV2_Oauth{
+			Credentials: &types.SAMLConnectorCredentials{
 				Oauth: &types.OAuthClientCredentials{
 					ClientId:     "test-id",
 					ClientSecret: "test-secret",

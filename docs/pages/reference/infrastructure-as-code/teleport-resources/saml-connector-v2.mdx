@@ -116,6 +116,38 @@ revision: "string"
 |name|An object name|string|
 |revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
+## OAuth Client Credentials
+
+Holds the credentials to use for OAuth client credentials grant.
+
+
+Example:
+
+```yaml
+client_id: "string"
+client_secret: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|client_id|ClientID is the client ID to use for OAuth client credentials grant.|string|
+|client_secret|The client secret to use for OAuth client credentials grant.|string|
+
+## SAML Connector Credentials
+
+Holds credentials for a SAML connector to authenticate against the identity provider. Only one type of credential should be specified at a time.
+
+
+Example:
+
+```yaml
+oauth: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|oauth|OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.|[OAuth Client Credentials](#oauth-client-credentials)|
+
 ## SAML Connector MFA Settings
 
 Contains SAML MFA settings.
@@ -179,12 +211,11 @@ user_matchers:
   - "string"
 include_subject: true
 entra_id_groups_provider: # [...]
-: # [...]
+credentials: # [...]
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
-|Credentials|Configures authentication for the connector to authenticate against the identity provider for performing ancillary operations, e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.  Types that are valid to be assigned to Credentials: 	*SAMLConnectorSpecV2_Oauth|[is SAML Connector Spec V2_Credentials](#is-saml-connector-spec-v2_credentials)|
 |acs|A URL for assertion consumer service on the service provider (Teleport's side).|string|
 |allow_idp_initiated|A flag that indicates if the connector can be used for IdP-initiated logins.|Boolean|
 |assertion_key_pair|A key pair used for decrypting SAML assertions.|[Asymmetric Key Pair](#asymmetric-key-pair)|
@@ -192,6 +223,7 @@ entra_id_groups_provider: # [...]
 |audience|Uniquely identifies our service provider.|string|
 |cert|The identity provider certificate PEM. IDP signs `\<Response\>` responses using this certificate.|string|
 |client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSO Client Redirect Settings](#sso-client-redirect-settings)|
+|credentials|SAMLConnectorCredentials configures authentication for the connector to authenticate against the identity provider for performing ancillary operations, e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.|[SAML Connector Credentials](#saml-connector-credentials)|
 |display|Controls how this connector is displayed.|string|
 |entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|string|
 |entity_descriptor_url|A URL that supplies a configuration XML.|string|
@@ -235,9 +267,4 @@ insecure_allowed_cidr_ranges:
 |---|---|---|
 |allowed_https_hostnames|A list of hostnames allowed for https client redirect URLs|[]string|
 |insecure_allowed_cidr_ranges|A list of CIDRs allowed for HTTP or HTTPS client redirect URLs|[]string|
-
-## is SAML Connector Spec V2_Credentials
-
-
-
 

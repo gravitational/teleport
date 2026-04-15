@@ -1594,7 +1594,7 @@ func TestSAMLConnector(t *testing.T) {
 				},
 			},
 			Cert: string(certBytes),
-			Credentials: &types.SAMLConnectorSpecV2_Oauth{
+			Credentials: &types.SAMLConnectorCredentials{
 				Oauth: &types.OAuthClientCredentials{
 					ClientId:     "test-client-id",
 					ClientSecret: "test-client-secret",

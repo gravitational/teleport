@@ -36,7 +36,7 @@ func TestSAMLSecretsStrip(t *testing.T) {
 		EntityDescriptor:         "test",
 		SigningKeyPair:           &types.AsymmetricKeyPair{PrivateKey: "test"},
 		EncryptionKeyPair:        &types.AsymmetricKeyPair{PrivateKey: "test"},
-		Credentials: &types.SAMLConnectorSpecV2_Oauth{
+		Credentials: &types.SAMLConnectorCredentials{
 			Oauth: &types.OAuthClientCredentials{
 				ClientId:     "test-client-id",
 				ClientSecret: "test-client-secret",
@@ -184,12 +184,12 @@ func TestSAMLForceAuthn_Encoding(t *testing.T) {
 func TestSAMLEntraIDCredentialsValidation(t *testing.T) {
 	tests := []struct {
 		name        string
-		credentials *types.SAMLConnectorSpecV2_Oauth
+		credentials *types.SAMLConnectorCredentials
 		assertErr   require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid credentials",
-			credentials: &types.SAMLConnectorSpecV2_Oauth{
+			credentials: &types.SAMLConnectorCredentials{
 				Oauth: &types.OAuthClientCredentials{
 					ClientId:     "test-client-id",
 					ClientSecret: "test-client-secret",
@@ -199,19 +199,24 @@ func TestSAMLEntraIDCredentialsValidation(t *testing.T) {
 		},
 		{
 			name:        "empty credentials",
-			credentials: &types.SAMLConnectorSpecV2_Oauth{},
+			credentials: &types.SAMLConnectorCredentials{},
+			assertErr:   require.NoError,
+		},
+		{
+			name:        "nil credentials",
+			credentials: nil,
 			assertErr:   require.NoError,
 		},
 		{
 			name: "empty OAuth",
-			credentials: &types.SAMLConnectorSpecV2_Oauth{
+			credentials: &types.SAMLConnectorCredentials{
 				Oauth: &types.OAuthClientCredentials{},
 			},
 			assertErr: require.Error,
 		},
 		{
 			name: "empty client ID",
-			credentials: &types.SAMLConnectorSpecV2_Oauth{
+			credentials: &types.SAMLConnectorCredentials{
 				Oauth: &types.OAuthClientCredentials{
 					ClientId:     "",
 					ClientSecret: "test-client-secret",

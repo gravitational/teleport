@@ -4806,6 +4806,26 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
 					Optional:    true,
 				},
+				"credentials": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"oauth": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"client_id": {
+								Description: "ClientID is the client ID to use for OAuth client credentials grant.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"client_secret": {
+								Description: "ClientSecret is the client secret to use for OAuth client credentials grant.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Description: "OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.",
+						Optional:    true,
+					}}),
+					Description: "SAMLConnectorCredentials configures authentication for the connector to authenticate against the identity provider for performing ancillary operations, e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.",
+					Optional:    true,
+				},
 				"display": {
 					Description: "Display controls how this connector is displayed.",
 					Optional:    true,
@@ -4899,23 +4919,6 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 						},
 					}),
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
-					Optional:    true,
-				},
-				"oauth": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"client_id": {
-							Description: "ClientID is the client ID to use for OAuth client credentials grant.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"client_secret": {
-							Description: "ClientSecret is the client secret to use for OAuth client credentials grant.",
-							Optional:    true,
-							Sensitive:   true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-					}),
-					Description: "",
 					Optional:    true,
 				},
 				"preferred_request_binding": {
@@ -47670,7 +47673,6 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 				if !v.Null && !v.Unknown {
 					tf := v
 					obj := &obj.Spec
-					obj.Credentials = nil
 					{
 						a, ok := tf.Attrs["issuer"]
 						if !ok {
@@ -48425,50 +48427,68 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 						}
 					}
 					{
-						a, ok := tf.Attrs["oauth"]
+						a, ok := tf.Attrs["credentials"]
 						if !ok {
-							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.oauth"})
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.credentials"})
 						} else {
 							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.oauth", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.credentials", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
+								obj.Credentials = nil
 								if !v.Null && !v.Unknown {
-									b := &github_com_gravitational_teleport_api_types.OAuthClientCredentials{}
-									obj.Credentials = &github_com_gravitational_teleport_api_types.SAMLConnectorSpecV2_Oauth{Oauth: b}
-									obj := b
 									tf := v
+									obj.Credentials = &github_com_gravitational_teleport_api_types.SAMLConnectorCredentials{}
+									obj := obj.Credentials
 									{
-										a, ok := tf.Attrs["client_id"]
+										a, ok := tf.Attrs["oauth"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.oauth.client_id"})
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.credentials.oauth"})
 										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.credentials.oauth", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 											} else {
-												var t string
+												obj.Oauth = nil
 												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+													tf := v
+													obj.Oauth = &github_com_gravitational_teleport_api_types.OAuthClientCredentials{}
+													obj := obj.Oauth
+													{
+														a, ok := tf.Attrs["client_id"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_id"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.ClientId = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["client_secret"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_secret"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.ClientSecret = t
+															}
+														}
+													}
 												}
-												obj.ClientId = t
-											}
-										}
-									}
-									{
-										a, ok := tf.Attrs["client_secret"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.oauth.client_secret"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											} else {
-												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
-												}
-												obj.ClientSecret = t
 											}
 										}
 									}
@@ -49887,19 +49907,15 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 						}
 					}
 					{
-						a, ok := tf.AttrTypes["oauth"]
+						a, ok := tf.AttrTypes["credentials"]
 						if !ok {
-							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.oauth"})
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.credentials"})
 						} else {
-							obj, ok := obj.Credentials.(*github_com_gravitational_teleport_api_types.SAMLConnectorSpecV2_Oauth)
-							if !ok {
-								obj = &github_com_gravitational_teleport_api_types.SAMLConnectorSpecV2_Oauth{}
-							}
 							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.oauth", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+								diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.credentials", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 							} else {
-								v, ok := tf.Attrs["oauth"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								v, ok := tf.Attrs["credentials"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 								if !ok {
 									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -49911,58 +49927,90 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
 									}
 								}
-								if obj.Oauth == nil {
+								if obj.Credentials == nil {
 									v.Null = true
 								} else {
-									obj := obj.Oauth
+									obj := obj.Credentials
 									tf := &v
 									{
-										t, ok := tf.AttrTypes["client_id"]
+										a, ok := tf.AttrTypes["oauth"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.oauth.client_id"})
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.credentials.oauth"})
 										} else {
-											v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.oauth.client_id", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.credentials.oauth", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["oauth"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
 												}
-												v.Null = string(obj.ClientId) == ""
+												if obj.Oauth == nil {
+													v.Null = true
+												} else {
+													obj := obj.Oauth
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["client_id"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_id"})
+														} else {
+															v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.credentials.oauth.client_id", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.ClientId) == ""
+															}
+															v.Value = string(obj.ClientId)
+															v.Unknown = false
+															tf.Attrs["client_id"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["client_secret"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_secret"})
+														} else {
+															v, ok := tf.Attrs["client_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.credentials.oauth.client_secret", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.credentials.oauth.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.ClientSecret) == ""
+															}
+															v.Value = string(obj.ClientSecret)
+															v.Unknown = false
+															tf.Attrs["client_secret"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["oauth"] = v
 											}
-											v.Value = string(obj.ClientId)
-											v.Unknown = false
-											tf.Attrs["client_id"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["client_secret"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.oauth.client_secret"})
-										} else {
-											v, ok := tf.Attrs["client_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.oauth.client_secret", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												v.Null = string(obj.ClientSecret) == ""
-											}
-											v.Value = string(obj.ClientSecret)
-											v.Unknown = false
-											tf.Attrs["client_secret"] = v
 										}
 									}
 								}
 								v.Unknown = false
-								tf.Attrs["oauth"] = v
+								tf.Attrs["credentials"] = v
 							}
 						}
 					}

@@ -102,6 +102,28 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              credentials:
+                description: SAMLConnectorCredentials configures authentication for
+                  the connector to authenticate against the identity provider for
+                  performing ancillary operations, e.g. for standalone Entra SAML
+                  connectors to authenticate against MS Graph API.
+                nullable: true
+                properties:
+                  oauth:
+                    description: OAuthClientCredentials holds the credentials to use
+                      for OAuth client credentials grant.
+                    nullable: true
+                    properties:
+                      client_id:
+                        description: ClientID is the client ID to use for OAuth client
+                          credentials grant.
+                        type: string
+                      client_secret:
+                        description: ClientSecret is the client secret to use for
+                          OAuth client credentials grant.
+                        type: string
+                    type: object
+                type: object
               display:
                 description: Display controls how this connector is displayed.
                 type: string
@@ -193,18 +215,6 @@ spec:
                   sso:
                     description: SSO is the URL of the identity provider's SSO service.
                       Usually set from EntityDescriptor.
-                    type: string
-                type: object
-              oauth:
-                nullable: true
-                properties:
-                  client_id:
-                    description: ClientID is the client ID to use for OAuth client
-                      credentials grant.
-                    type: string
-                  client_secret:
-                    description: ClientSecret is the client secret to use for OAuth
-                      client credentials grant.
                     type: string
                 type: object
               preferred_request_binding:
