@@ -837,20 +837,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	createUsers := err == nil
 
-	// Adapt send /receive handlers to run as Interceptors.
-	asInterceptor := func(handler func(tdp.Message) error) tdp.Interceptor {
-		return func(message tdp.Message) ([]tdp.Message, error) {
-			return []tdp.Message{message}, handler(message)
-		}
-	}
-
-	// it's important that we set the OnSend and OnRecv handlers prior to
-	// initializing the client so that we capture all relevant data in the
-	// session recording
-	delay := timer()
-	sendInterceptor := asInterceptor(s.makeTDPSendHandler(ctx, recorder, delay, audit))
-	receiveIntercetpr := asInterceptor(s.makeTDPReceiveHandler(ctx, recorder, delay, audit))
-
 	width, height := desktop.GetScreenSize()
 	log = log.With("screen_size", fmt.Sprintf("%dx%d", width, height))
 
@@ -889,6 +875,20 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
+	// Adapt send /receive handlers to run as Interceptors.
+	asInterceptor := func(handler func(tdp.Message) error) tdp.Interceptor {
+		return func(message tdp.Message) ([]tdp.Message, error) {
+			return []tdp.Message{message}, handler(message)
+		}
+	}
+
+	// it's important that we set the OnSend and OnRecv handlers prior to
+	// initializing the client so that we capture all relevant data in the
+	// session recording
+	delay := timer()
+	sendInterceptor := asInterceptor(s.makeTDPSendHandler(ctx, recorder, delay, audit))
+	receiveIntercetpr := asInterceptor(s.makeTDPReceiveHandler(ctx, recorder, delay, audit))
+
 	// These hooks snoop for TDPB messages (ignoring legacy TDP) to create necessary audit events.
 	// The client emits only TDPB messages natively, so as long as we run these hooks *above* the translation
 	// interceptors they will be able to properly interpret inbound/outbound messages for audit.
@@ -910,7 +910,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Height:                height,
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
-		ClientProtocol:        clientProtocol,
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
@@ -1081,7 +1080,7 @@ func (s *WindowsService) makeTDPSendHandler(
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
-					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation", "")
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
 					s.emit(ctx, errorEvent)
 					return err
 				}
@@ -1090,7 +1089,7 @@ func (s *WindowsService) makeTDPSendHandler(
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
-					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation", "")
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
 					s.emit(ctx, errorEvent)
 					return err
 				}
@@ -1121,7 +1120,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 			if errorEvent != nil {
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
-				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation", "")
+				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
 				s.emit(ctx, errorEvent)
 				return err
 			}

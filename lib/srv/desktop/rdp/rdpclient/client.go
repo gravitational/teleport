@@ -170,7 +170,7 @@ type Client struct {
 	mouseX, mouseY uint32
 }
 
-// reads in handshake messages and optionally wraps the connection in a translation layer
+// PrepareConnecton reads in handshake messages and optionally wraps the connection in a translation layer
 // based on the client protocol.
 func PrepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
 	// Read Hello either from tdpb or tdp.
