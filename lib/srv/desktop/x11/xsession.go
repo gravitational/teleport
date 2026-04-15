@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/envutils"
+	sshreexec "github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
@@ -135,6 +136,19 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	stderrR, err := cmd.StderrPipe()
+
+	go func() {
+		childErr, err := sshreexec.ReadChildError(stderrR, nil)
+		if err != nil {
+			cfg.Logger.WarnContext(ctx, "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr != "" {
+			cfg.Logger.WarnContext(ctx, "Child process returned error", "error", childErr)
+		}
+	}()
 
 	if err := cmd.Start(); err != nil {
 		return nil, trace.Wrap(err)
