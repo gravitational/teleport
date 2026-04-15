@@ -32,15 +32,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	"github.com/gravitational/teleport/api/types"
-	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/recorder"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
-	"github.com/gravitational/teleport/lib/srv/desktop/x11"
-	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
@@ -49,20 +40,30 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/srv/desktop/x11"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // LinuxService implements the RDP-based Linux desktop access service.
@@ -263,6 +264,45 @@ func (t *tracker) UpdateClientActivity() {
 	t.lastActivity = t.clock.Now()
 }
 
+// linuxSession encapsulates all state for a single Linux desktop session.
+type linuxSession struct {
+	service   *LinuxService
+	log       *slog.Logger
+	ctx       context.Context
+	cancel    context.CancelFunc
+	tdpConn   *tdp.Conn
+	sessionID session.ID
+	authCtx   *authz.Context
+	identity  tlsca.Identity
+	desktop   *linuxdesktopv1pb.LinuxDesktop
+	netConfig types.ClusterNetworkingConfig
+	authPref  types.AuthPreference
+
+	backend       *x11.Backend
+	screenSize    atomic.Pointer[xproto.Rectangle]
+	xsessions     map[string]string
+	recorder      libevents.SessionPreparerRecorder
+	recordSession bool
+	audit         *desktopSessionAuditor
+	track         tracker
+	cmd           *reexec.CommandExecutor
+
+	sessionStarted bool
+	username       string
+}
+
+func (sess *linuxSession) sendTDPError(message string) {
+	if err := sess.tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
+	}
+}
+
+func (sess *linuxSession) handleClipboardData(data []byte) {
+	sess.tdpConn.WriteMessage(&tdpb.ClipboardData{
+		Data: data,
+	})
+}
+
 // Serve starts serving TLS connections for plainLis. plainLis should be a TCP
 // listener and Serve will handle TLS internally.
 func (s *LinuxService) Serve(plainLis net.Listener) error {
@@ -363,55 +403,54 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 
-	backend, err := x11.NewBackend(ctx, x11.Config{
-		ClipboardDataReceiver: func(data []byte) {
-			tdpConn.WriteMessage(&tdpb.ClipboardData{
-				Data: data,
-			})
-		},
-		Logger: s.cfg.Logger,
-	})
-	if err != nil {
-		log.WarnContext(ctx, "backend creation failed", "error", err)
-		sendTDPError("Couldn't create backend.")
-		return
+	sess := &linuxSession{
+		service:   s,
+		log:       log,
+		ctx:       ctx,
+		cancel:    cancel,
+		tdpConn:   tdpConn,
+		sessionID: sessionID,
+		authCtx:   authCtx,
+		identity:  authCtx.Identity.GetIdentity(),
+		desktop:   desktop,
+		netConfig: netConfig,
+		authPref:  authPref,
 	}
-	defer backend.Close()
 
-	var screenSize atomic.Pointer[xproto.Rectangle]
+	if err := sess.run(); err != nil {
+		log.ErrorContext(ctx, "desktop session ended with error", "error", err)
+	}
+}
+
+func (sess *linuxSession) run() error {
+	s := sess.service
 
 	xsessions, err := x11.GetAvailableXSessions(nil, nil)
 	if err != nil {
-		log.ErrorContext(ctx, "failed to get available xsessions", "error", err)
-		sendTDPError("Couldn't get available xsessions.")
-		return
+		sess.sendTDPError("Couldn't get available xsessions.")
+		return trace.Wrap(err)
 	}
+	sess.xsessions = xsessions
 
-	var username string
-
-	// in order for the session to be recorded, the cluster's session recording mode must
-	// not be "off" and the user's roles must enable recording
 	var recConfig types.SessionRecordingConfig
-	var recordSession bool
-	if !authCtx.Checker.RecordDesktopSession() {
+	if sess.authCtx.Checker.RecordDesktopSession() {
+		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(sess.ctx)
+		if err != nil {
+			sess.sendTDPError("Couldn't get session recording config")
+			return trace.Wrap(err)
+		}
+		sess.recordSession = recConfig.GetMode() != types.RecordOff
+	} else {
 		recConfig = types.DefaultSessionRecordingConfig()
 		recConfig.SetMode(types.RecordOff)
-		log.InfoContext(ctx, "desktop session will not be recorded, user's roles disable recording")
-	} else {
-		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
-		if err != nil {
-			log.ErrorContext(ctx, "failed to get session recording config", "error", err)
-			sendTDPError("Couldn't get session recording config")
-			return
-		}
-		recordSession = recConfig.GetMode() != types.RecordOff
+		sess.log.InfoContext(sess.ctx, "desktop session will not be recorded, user's roles disable recording")
 	}
-	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
+	rec, err := s.newSessionRecorder(recConfig, string(sess.sessionID))
 	if err != nil {
-		log.ErrorContext(ctx, "failed to create session recorder", "error", err)
-		sendTDPError("Couldn't create session recorder")
-		return
+		sess.sendTDPError("Couldn't create session recorder")
+		return trace.Wrap(err)
 	}
+	sess.recorder = rec
 
 	// Closing the stream writer is needed to flush all recorded data
 	// and trigger the upload. Do it in a goroutine since depending on
@@ -419,77 +458,89 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	// the client.
 	defer func() {
 		go func() {
-			if err := recorder.Close(context.Background()); err != nil {
-				log.ErrorContext(context.Background(), "closing stream writer for desktop", "session_id", sessionID.String(), "error", err)
+			if err := sess.recorder.Close(context.Background()); err != nil {
+				sess.log.ErrorContext(context.Background(), "closing stream writer for desktop", "session_id", sess.sessionID.String(), "error", err)
 			}
 		}()
 	}()
 
-	identity := authCtx.Identity.GetIdentity()
-	audit := s.newSessionAuditor(string(sessionID), &identity, "", desktop)
+	sess.audit = s.newSessionAuditor(string(sess.sessionID), &sess.identity, "", sess.desktop)
 
 	delay := timer()
-	tdpConn.OnSend = makeTDPSendHandler(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, tdpConn, audit)
-	tdpConn.OnRecv = makeTDPReceiveHandler(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, tdpConn, audit)
+	sess.tdpConn.OnSend = makeTDPSendHandler(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.tdpConn, sess.audit)
+	sess.tdpConn.OnRecv = makeTDPReceiveHandler(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.tdpConn, sess.audit)
 
-	sessionStarted := false
+	sess.track = tracker{clock: s.cfg.Clock}
+	sess.track.UpdateClientActivity()
 
-	track := tracker{
-		clock: s.cfg.Clock,
+	if err := sess.startMonitor(); err != nil {
+		startEvent := sess.audit.makeLinuxSessionStart(err)
+		s.record(sess.ctx, sess.recorder, startEvent)
+		s.emit(sess.ctx, startEvent)
+		sess.sendTDPError("Couldn't start connection monitor.")
+		return trace.Wrap(err)
 	}
 
-	track.UpdateClientActivity()
+	defer func() {
+		if sess.sessionStarted {
+			endEvent := sess.audit.makeLinuxSessionEnd(sess.recordSession)
+			s.record(context.Background(), sess.recorder, endEvent)
+			s.emit(context.Background(), endEvent)
+		}
+		sess.audit.teardown(context.Background())
+	}()
 
+	sess.backend, err = x11.NewBackend(sess.ctx, x11.Config{
+		ClipboardDataReceiver: sess.handleClipboardData,
+		Logger:                sess.log,
+	})
+	if err != nil {
+		sess.sendTDPError("Couldn't create backend.")
+		return trace.Wrap(err)
+	}
+	defer sess.backend.Close()
+
+	defer func() {
+		if sess.cmd != nil {
+			sess.cmd.Close()
+		}
+	}()
+
+	return sess.messageLoop()
+}
+
+func (sess *linuxSession) startMonitor() error {
+	s := sess.service
 	monitorCfg := srv.MonitorConfig{
-		Context:               ctx,
-		Conn:                  tdpConn,
+		Context:               sess.ctx,
+		Conn:                  sess.tdpConn,
 		Clock:                 s.cfg.Clock,
-		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		DisconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
+		ClientIdleTimeout:     sess.authCtx.Checker.AdjustClientIdleTimeout(sess.netConfig.GetClientIdleTimeout()),
+		DisconnectExpiredCert: sess.authCtx.GetDisconnectCertExpiry(sess.authPref),
 		Logger:                s.cfg.Logger,
 		Emitter:               s.cfg.Emitter,
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
-		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{LinuxDesktop: desktop.GetMetadata().GetName()}),
-		Tracker:               &track,
-		TeleportUser:          identity.Username,
-		UserOriginClusterName: identity.OriginClusterName,
+		LockingMode:           sess.authCtx.Checker.LockingMode(sess.authPref.GetLockingMode()),
+		LockTargets:           append(services.LockTargetsFromTLSIdentity(sess.identity), types.LockTarget{LinuxDesktop: sess.desktop.GetMetadata().GetName()}),
+		Tracker:               &sess.track,
+		TeleportUser:          sess.identity.Username,
+		UserOriginClusterName: sess.identity.OriginClusterName,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
-		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
-		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
+		IdleTimeoutMessage:    sess.netConfig.GetClientIdleTimeoutMessage(),
+		MessageWriter:         &monitorErrorSender{tdpConn: sess.tdpConn},
 	}
+	return srv.StartMonitor(monitorCfg)
+}
 
-	if err := srv.StartMonitor(monitorCfg); err != nil {
-		// if we can't establish a connection monitor then we can't enforce RBAC.
-		// consider this a connection failure and return an error
-		// (in the happy path, rdpc remains open until Wait() completes)
-		startEvent := audit.makeLinuxSessionStart(err)
-		s.record(ctx, recorder, startEvent)
-		s.emit(ctx, startEvent)
-
-		log.ErrorContext(ctx, "failed to start monitor", "error", err)
-		sendTDPError("Couldn't start connection monitor.")
-		return
-	}
-
-	defer func() {
-		if sessionStarted {
-			endEvent := audit.makeLinuxSessionEnd(recordSession)
-			s.record(context.Background(), recorder, endEvent)
-			s.emit(context.Background(), endEvent)
-		}
-		audit.teardown(context.Background())
-	}()
-
+func (sess *linuxSession) messageLoop() error {
 	for {
-		msg, err := tdpConn.ReadMessage()
+		msg, err := sess.tdpConn.ReadMessage()
 		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
-			return
+			return nil
 		}
 		if err != nil {
-			log.ErrorContext(ctx, "got error reading message", "error", err)
-			return
+			return trace.ConnectionProblem(err, "failed to read message")
 		}
 
 		// If the message was due to user input, then we update client activity
@@ -502,257 +553,279 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		case *tdpb.KeyboardButton, *tdpb.MouseMove, *tdpb.MouseButton, *tdpb.MouseWheel,
 			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
 
-			track.UpdateClientActivity()
+			sess.track.UpdateClientActivity()
 		}
 
 		switch m := msg.(type) {
 		case *tdpb.ClientHello:
-			username = m.Username
-			audit.targetUser = username
-			log = log.With("username", username)
-
-			state := authCtx.GetAccessState(authPref)
-			if err := authCtx.Checker.CheckAccess(
-				types.Resource153ToResourceWithLabels(desktop),
-				state,
-				services.NewLinuxDesktopLoginMatcher(username)); err != nil {
-				startEvent := audit.makeLinuxSessionStart(err)
-				s.record(ctx, recorder, startEvent)
-				s.emit(ctx, startEvent)
-				log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
-				sendTDPError("Connection authorization failed.")
-				return
+			if err := sess.handleClientHello(m); err != nil {
+				return trace.Wrap(err)
 			}
-			currentUser, err := user.Current()
-			if err != nil {
-				log.ErrorContext(ctx, "failed to get current user", "error", err)
-				sendTDPError("Internal server error")
-				return
-			}
-			targetUser, err := user.Lookup(username)
-			if err != nil {
-				log.WarnContext(ctx, "couldn't lookup user", "error", err)
-				sendTDPError(fmt.Sprintf("Couldn't find user: %s", username))
-				return
-			}
-			if currentUser.Uid != targetUser.Uid {
-				uid, err := strconv.Atoi(targetUser.Uid)
-				if err != nil {
-					log.ErrorContext(ctx, "couldn't convert uid to int", "error", err)
-					sendTDPError("Internal server error")
-					return
-				}
-				gid, err := strconv.Atoi(targetUser.Gid)
-				if err != nil {
-					log.ErrorContext(ctx, "couldn't convert gid to int", "error", err)
-					sendTDPError("Internal server error")
-					return
-				}
-
-				if err := os.Chown(backend.AuthorityFile, uid, gid); err != nil {
-					log.ErrorContext(ctx, "couldn't change Xauthority file ownership", "error", err)
-					sendTDPError("Internal server error")
-					return
-				}
-			}
-
-			if err := s.trackSession(ctx, &identity, username, string(sessionID)); err != nil {
-				log.ErrorContext(ctx, "failed to track session", "error", err)
-				sendTDPError("Failed to track session.")
-				return
-			}
-
-			startEvent := audit.makeLinuxSessionStart(nil)
-			s.record(context.Background(), recorder, startEvent)
-			s.emit(context.Background(), startEvent)
-
-			sessionStarted = true
-
-			if m.ScreenSpec == nil {
-				log.ErrorContext(ctx, "missing screen spec")
-				sendTDPError("Missing screen specification.")
-				return
-			}
-
-			if m.ScreenSpec.Width > types.MaxRDPScreenWidth || m.ScreenSpec.Height > types.MaxRDPScreenHeight {
-				log.ErrorContext(ctx, "invalid screen size", "width", m.ScreenSpec.Width, "height", m.ScreenSpec.Height)
-				sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
-				return
-			}
-
-			width := uint16(m.ScreenSpec.Width)
-			height := uint16(m.ScreenSpec.Height)
-			screenSize.Store(&xproto.Rectangle{
-				Width:  width,
-				Height: height,
-			})
-			if err := backend.Resize(width, height); err != nil {
-				log.ErrorContext(ctx, "failed to resize screen", "error", err)
-				sendTDPError("Couldn't resize backend.")
-				return
-			}
-			if err := tdpConn.WriteMessage(&tdpb.ServerHello{
-				ActivationSpec: &tdpbv1.ConnectionActivated{
-					IoChannelId:   0,
-					UserChannelId: 0,
-					ScreenWidth:   m.ScreenSpec.Width,
-					ScreenHeight:  m.ScreenSpec.Height,
-				},
-				ClipboardEnabled: true,
-				Sessions:         slices.Collect(maps.Keys(xsessions)),
-			}); err != nil {
-				log.WarnContext(ctx, "failed to send server hello", "error", err)
-				return
-			}
-			go s.processScreenChanges(backend, log, ctx, &screenSize, tdpConn)
 		case *tdpb.SessionSelection:
-			xsession, ok := xsessions[m.Name]
-			if !ok {
-				log.WarnContext(ctx, "failed to get xsession", "name", m.Name)
-				sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Name))
-				return
+			if err := sess.handleSessionSelection(m); err != nil {
+				return trace.Wrap(err)
 			}
-			cmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
-				Logger:         log,
-				Command:        xsession,
-				Username:       identity.Username,
-				Login:          username,
-				ChildLogConfig: s.cfg.ChildLogConfig,
-				Display:        backend.Display,
-				AuthorityFile:  backend.AuthorityFile,
-			})
-			if err != nil {
-				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
-				sendTDPError("Couldn't start Xsession.")
-				return
-			}
-			defer cmd.Close()
-			go func() {
-				err := cmd.Wait()
-				if ctx.Err() != nil {
-					return
-				}
-				if err == nil {
-					sendTDPError("Xsession was terminated")
-				} else {
-					sendTDPError("Xsession was terminated with error")
-				}
-			}()
 		case *tdpb.MouseMove:
-			if err := backend.SendMouseMove(int16(m.X), int16(m.Y)); err != nil {
-				log.ErrorContext(ctx, "failed to send mouse move", "error", err)
-				sendTDPError("Couldn't send mouse move.")
-				return
+			if err := sess.backend.SendMouseMove(int16(m.X), int16(m.Y)); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to send mouse move", "error", err)
+				sess.sendTDPError("Couldn't send mouse move.")
+				return trace.Wrap(err)
 			}
 		case *tdpb.MouseButton:
-			if err := backend.SendMouseButton(byte(m.Button-1), m.Pressed); err != nil {
-				log.ErrorContext(ctx, "failed to send mouse button", "error", err)
-				sendTDPError("Couldn't send mouse button.")
-				return
+			if err := sess.backend.SendMouseButton(byte(m.Button-1), m.Pressed); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to send mouse button", "error", err)
+				sess.sendTDPError("Couldn't send mouse button.")
+				return trace.Wrap(err)
 			}
 		case *tdpb.MouseWheel:
-			if err := backend.SendMouseWheel(int(m.Delta)); err != nil {
-				log.ErrorContext(ctx, "failed to send mouse wheel", "error", err)
-				sendTDPError("Couldn't send mouse wheel event.")
-				return
+			if err := sess.backend.SendMouseWheel(int(m.Delta)); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to send mouse wheel", "error", err)
+				sess.sendTDPError("Couldn't send mouse wheel event.")
+				return trace.Wrap(err)
 			}
 		case *tdpb.KeyboardButton:
-			if err := backend.SendKeyboardButton(byte(m.KeyCode), m.Pressed); err != nil {
-				log.ErrorContext(ctx, "failed to send keyboard button", "error", err)
-				sendTDPError("Couldn't send keyboard button.")
-				return
+			if err := sess.backend.SendKeyboardButton(byte(m.KeyCode), m.Pressed); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to send keyboard button", "error", err)
+				sess.sendTDPError("Couldn't send keyboard button.")
+				return trace.Wrap(err)
 			}
 		case *tdpb.Ping:
-			if err := tdpConn.WriteMessage(m); err != nil {
-				log.ErrorContext(ctx, "failed to send ping message", "error", err)
-				return
+			if err := sess.tdpConn.WriteMessage(m); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to send ping message", "error", err)
+				return trace.Wrap(err)
 			}
 		case *tdpb.ClipboardData:
-			if err := backend.SetClipboardData(m.Data); err != nil {
-				log.ErrorContext(ctx, "failed to set clipboard data", "error", err)
-				sendTDPError("Couldn't set clipboard data.")
-				return
+			if err := sess.backend.SetClipboardData(m.Data); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to set clipboard data", "error", err)
+				sess.sendTDPError("Couldn't set clipboard data.")
+				return trace.Wrap(err)
 			}
 		case *tdpb.ClientScreenSpec:
-			if m.Width > types.MaxRDPScreenWidth || m.Height > types.MaxRDPScreenHeight {
-				log.ErrorContext(ctx, "invalid screen size", "width", m.Width, "height", m.Height)
-				sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
-				return
-			}
-			screenSize.Store(&xproto.Rectangle{
-				Width:  uint16(m.Width),
-				Height: uint16(m.Height),
-			})
-			if err := backend.Resize(uint16(m.Width), uint16(m.Height)); err != nil {
-				log.ErrorContext(ctx, "failed to resize screen", "error", err)
-				sendTDPError("Couldn't resize backend.")
-				return
-			}
-			if err := tdpConn.WriteMessage(&tdpb.ServerHello{
-				ActivationSpec: &tdpbv1.ConnectionActivated{
-					ScreenWidth:  m.Width,
-					ScreenHeight: m.Height,
-				},
-				ClipboardEnabled: true,
-			}); err != nil {
-				log.ErrorContext(ctx, "failed to send server-hello message", "error", err)
-				return
+			if err := sess.handleClientScreenSpec(m); err != nil {
+				return trace.Wrap(err)
 			}
 		default:
-			log.InfoContext(s.closeCtx, "Ignoring message", "message", fmt.Sprintf("%T", msg))
+			sess.log.InfoContext(sess.service.closeCtx, "Ignoring message", "message", fmt.Sprintf("%T", msg))
 		}
 	}
 }
 
-func (s *LinuxService) processScreenChanges(backend *x11.Backend, log *slog.Logger, ctx context.Context, screenSize *atomic.Pointer[xproto.Rectangle], tdpConn *tdp.Conn) {
+func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
+	s := sess.service
+	sess.username = m.Username
+	sess.audit.targetUser = m.Username
+	sess.log = sess.log.With("username", m.Username)
+
+	state := sess.authCtx.GetAccessState(sess.authPref)
+	if err := sess.authCtx.Checker.CheckAccess(
+		types.Resource153ToResourceWithLabels(sess.desktop),
+		state,
+		services.NewLinuxDesktopLoginMatcher(m.Username)); err != nil {
+		startEvent := sess.audit.makeLinuxSessionStart(err)
+		s.record(sess.ctx, sess.recorder, startEvent)
+		s.emit(sess.ctx, startEvent)
+		sess.log.WarnContext(sess.ctx, "authorization failed for Linux desktop connection", "error", err)
+		sess.sendTDPError("Connection authorization failed.")
+		return trace.Wrap(err)
+	}
+
+	if err := sess.changeAuthorityFileOwnership(m); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.trackSession(sess.ctx, &sess.identity, m.Username, string(sess.sessionID)); err != nil {
+		sess.log.ErrorContext(sess.ctx, "failed to track session", "error", err)
+		sess.sendTDPError("Failed to track session.")
+		return trace.Wrap(err)
+	}
+
+	startEvent := sess.audit.makeLinuxSessionStart(nil)
+	s.record(context.Background(), sess.recorder, startEvent)
+	s.emit(context.Background(), startEvent)
+
+	sess.sessionStarted = true
+
+	if m.ScreenSpec == nil {
+		sess.log.ErrorContext(sess.ctx, "missing screen spec")
+		sess.sendTDPError("Missing screen specification.")
+		return trace.BadParameter("missing screen spec")
+	}
+
+	if m.ScreenSpec.Width > types.MaxRDPScreenWidth || m.ScreenSpec.Height > types.MaxRDPScreenHeight {
+		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", m.ScreenSpec.Width, "height", m.ScreenSpec.Height)
+		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
+		return trace.BadParameter("invalid screen size")
+	}
+
+	width := uint16(m.ScreenSpec.Width)
+	height := uint16(m.ScreenSpec.Height)
+	sess.screenSize.Store(&xproto.Rectangle{
+		Width:  width,
+		Height: height,
+	})
+	if err := sess.backend.Resize(width, height); err != nil {
+		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
+		sess.sendTDPError("Couldn't resize backend.")
+		return trace.Wrap(err)
+	}
+	if err := sess.tdpConn.WriteMessage(&tdpb.ServerHello{
+		ActivationSpec: &tdpbv1.ConnectionActivated{
+			IoChannelId:   0,
+			UserChannelId: 0,
+			ScreenWidth:   m.ScreenSpec.Width,
+			ScreenHeight:  m.ScreenSpec.Height,
+		},
+		ClipboardEnabled: true,
+		Sessions:         slices.Collect(maps.Keys(sess.xsessions)),
+	}); err != nil {
+		sess.log.WarnContext(sess.ctx, "failed to send server hello", "error", err)
+		return trace.Wrap(err)
+	}
+	go sess.processScreenChanges()
+	return nil
+}
+
+func (sess *linuxSession) changeAuthorityFileOwnership(m *tdpb.ClientHello) error {
+	currentUser, err := user.Current()
+	if err != nil {
+		sess.log.ErrorContext(sess.ctx, "failed to get current user", "error", err)
+		sess.sendTDPError("Internal server error")
+		return trace.Wrap(err)
+	}
+	targetUser, err := user.Lookup(m.Username)
+	if err != nil {
+		sess.log.WarnContext(sess.ctx, "couldn't lookup user", "error", err)
+		sess.sendTDPError(fmt.Sprintf("Couldn't find user: %s", m.Username))
+		return trace.Wrap(err)
+	}
+	if currentUser.Uid != targetUser.Uid {
+		uid, err := strconv.Atoi(targetUser.Uid)
+		if err != nil {
+			sess.log.ErrorContext(sess.ctx, "couldn't convert uid to int", "error", err)
+			sess.sendTDPError("Internal server error")
+			return trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(targetUser.Gid)
+		if err != nil {
+			sess.log.ErrorContext(sess.ctx, "couldn't convert gid to int", "error", err)
+			sess.sendTDPError("Internal server error")
+			return trace.Wrap(err)
+		}
+
+		if err := os.Chown(sess.backend.AuthorityFile, uid, gid); err != nil {
+			sess.log.ErrorContext(sess.ctx, "couldn't change Xauthority file ownership", "error", err)
+			sess.sendTDPError("Internal server error")
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (sess *linuxSession) handleSessionSelection(m *tdpb.SessionSelection) error {
+	xsession, ok := sess.xsessions[m.Name]
+	if !ok {
+		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", m.Name)
+		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Name))
+		return trace.NotFound("xsession %s not found", m.Name)
+	}
+	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
+		Logger:         sess.log,
+		Command:        xsession,
+		Username:       sess.identity.Username,
+		Login:          sess.username,
+		ChildLogConfig: sess.service.cfg.ChildLogConfig,
+		Display:        sess.backend.Display,
+		AuthorityFile:  sess.backend.AuthorityFile,
+	})
+	if err != nil {
+		sess.log.ErrorContext(sess.ctx, "failed to start Xsession", "error", err)
+		sess.sendTDPError("Couldn't start Xsession.")
+		return trace.Wrap(err)
+	}
+	sess.cmd = cmd
+	go func() {
+		err := cmd.Wait()
+		if sess.ctx.Err() != nil {
+			return
+		}
+		if err == nil {
+			sess.sendTDPError("Xsession was terminated")
+		} else {
+			sess.sendTDPError("Xsession was terminated with error")
+		}
+	}()
+	return nil
+}
+
+func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error {
+	if m.Width > types.MaxRDPScreenWidth || m.Height > types.MaxRDPScreenHeight {
+		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", m.Width, "height", m.Height)
+		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
+		return trace.BadParameter("invalid screen size")
+	}
+	sess.screenSize.Store(&xproto.Rectangle{
+		Width:  uint16(m.Width),
+		Height: uint16(m.Height),
+	})
+	if err := sess.backend.Resize(uint16(m.Width), uint16(m.Height)); err != nil {
+		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
+		sess.sendTDPError("Couldn't resize backend.")
+		return trace.Wrap(err)
+	}
+	if err := sess.tdpConn.WriteMessage(&tdpb.ServerHello{
+		ActivationSpec: &tdpbv1.ConnectionActivated{
+			ScreenWidth:  m.Width,
+			ScreenHeight: m.Height,
+		},
+		ClipboardEnabled: true,
+	}); err != nil {
+		sess.log.ErrorContext(sess.ctx, "failed to send server-hello message", "error", err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (sess *linuxSession) processScreenChanges() {
 	var lastScreenSize *xproto.Rectangle
 	for {
 		start := time.Now()
-		qoiz := time.Duration(0)
-		writing := time.Duration(0)
-		image := time.Duration(0)
 		size := 0
-		changes, err := backend.GetChanges()
-		if err != nil {
-			log.ErrorContext(ctx, "failed to get changes from backend", "error", err)
+		changes, err := sess.backend.GetChanges()
+		if err != nil && !utils.IsOKNetworkError(err) {
+			sess.log.ErrorContext(sess.ctx, "failed to get changes from backend", "error", err)
 			return
 		}
-		currentScreenSize := screenSize.Load()
+		currentScreenSize := sess.screenSize.Load()
 		if lastScreenSize != currentScreenSize && currentScreenSize != nil {
 			lastScreenSize = currentScreenSize
 			changes = []xproto.Rectangle{*currentScreenSize}
 		}
 		for _, change := range changes {
 			size += int(change.Width) * int(change.Height)
-			bi := time.Now()
-			img, err := backend.GetImage(change)
-			if err != nil {
-				log.ErrorContext(ctx, "failed to get image from backend", "error", err)
+			img, err := sess.backend.GetImage(change)
+			if err != nil && !utils.IsOKNetworkError(err) {
+				sess.log.ErrorContext(sess.ctx, "failed to get image from backend", "error", err)
 				return
 			}
-			image += time.Since(bi)
-			fs := time.Now()
 			frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
 			if err != nil {
-				log.ErrorContext(ctx, "failed to encode FastPathPDUs", "error", err)
+				sess.log.ErrorContext(sess.ctx, "failed to encode FastPathPDUs", "error", err)
 				return
 			}
-			qoiz += time.Since(fs)
 			for _, frame := range frames {
-				bi = time.Now()
-				if err := tdpConn.WriteMessage(frame); err != nil {
-					log.ErrorContext(ctx, "failed to send frame", "error", err)
+				if err := sess.tdpConn.WriteMessage(frame); err != nil && !utils.IsOKNetworkError(err) {
+					sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
 					return
 				}
-				writing += time.Since(bi)
 			}
 		}
 		delta := time.Since(start)
-		log.Log(ctx, logutils.TraceLevel, "Frame encoding", "delta", delta, "qoiz", qoiz, "writing", writing, "image", image, "size", size)
+		sess.log.Log(sess.ctx, logutils.TraceLevel, "Frame encoded", "time", delta, "size", size)
 		select {
-		case <-ctx.Done():
+		case <-sess.ctx.Done():
 			return
-		case <-s.cfg.Clock.After(40*time.Millisecond - delta):
+			// We want to keep 25fps, so we want to wait ~40ms between frames
+		case <-sess.service.cfg.Clock.After(40*time.Millisecond - delta):
 		}
 	}
 }

@@ -18,8 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/damage"
@@ -28,6 +26,9 @@ import (
 	"github.com/jezek/xgb/xproto"
 	"github.com/jezek/xgb/xtest"
 	"go.uber.org/atomic"
+
+	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var asciiRE = regexp.MustCompile("[[:^ascii:]]")
@@ -457,7 +458,7 @@ func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupIn
 }
 
 // GetChanges returns regions changed since the last call of this method
-func (x *Backend) GetChanges() ([]xproto.Rectangle, error) {
+func (x *Backend) GetChanges() (rectangles []xproto.Rectangle, err error) {
 	id, err := x.conn.NewId()
 	if err != nil {
 		return nil, trace.Wrap(err)

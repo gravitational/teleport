@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/randr"
 	"github.com/jezek/xgb/xproto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func testConfig() Config {

@@ -21,11 +21,12 @@ import (
 	"log/slog"
 	"net"
 
+	"github.com/gravitational/trace"
+
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // ConnectionConfig contains configuration needed to connect to Windows desktop service.

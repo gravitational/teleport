@@ -11,11 +11,12 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/reexec"
-	"github.com/stretchr/testify/require"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
