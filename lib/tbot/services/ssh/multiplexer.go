@@ -194,7 +194,7 @@ func (s *MultiplexerService) writeArtifacts(
 ) error {
 	dest := s.cfg.Destination.(*destination.Directory)
 
-	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName)
+	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName, s.cfg.DelegationSessionID != "")
 	if err != nil {
 		return trace.Wrap(err, "fetching cluster names")
 	}
