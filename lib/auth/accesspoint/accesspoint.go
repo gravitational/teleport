@@ -73,7 +73,8 @@ type Config struct {
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
-	Apps                    services.Applications
+	Apps            		services.Applications
+	Beams                   services.BeamReader
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -163,6 +164,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
+		Beams:                   cfg.Beams,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
