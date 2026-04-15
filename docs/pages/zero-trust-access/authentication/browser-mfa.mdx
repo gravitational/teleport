@@ -41,17 +41,7 @@ and uses it to complete the original command.
 
 ## Prerequisites
 
-- A Teleport Cloud or a self-hosted cluster with WebAuthn configured.
-
-- A machine with the `tsh` binary installed and a Web browser with [WebAuthn support](
-  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/).
-
-  (!docs/pages/includes/install-tsh.mdx!)
-
-## Step 1/2. Configuration
-
-A Teleport cluster with WebAuthn configured is automatically capable of Browser
-MFA without any additional configuration.
+- A Teleport Cloud cloud or a self-hosted cluster with WebAuthn configured.
 
 <details>
 <summary>Enable WebAuthn</summary>
@@ -79,6 +69,16 @@ $ tctl create -f cap.yaml
 ```
 
 </details>
+
+- A machine with the `tsh` binary installed and a Web browser with [WebAuthn support](
+  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/).
+
+  (!docs/pages/includes/install-tsh.mdx!)
+
+## Step 1/2. Configuration
+
+A Teleport cluster with WebAuthn configured is automatically capable of Browser
+MFA without any additional configuration.
 
 <details>
 <summary>Alternative: disable Browser MFA</summary>
