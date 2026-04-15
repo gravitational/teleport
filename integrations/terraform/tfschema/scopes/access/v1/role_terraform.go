@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
+Copyright 2015-2026 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -659,10 +659,6 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 									tf := v
 									obj.Ssh = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH{}
 									obj := obj.Ssh
-									obj.PermitX11Forwarding = nil
-									obj.ForwardAgent = nil
-									obj.MaxSessions = nil
-									obj.FileCopy = nil
 									{
 										a, ok := tf.Attrs["logins"]
 										if !ok {
@@ -789,13 +785,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.permit_x11_forwarding", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 											} else {
-												var t bool
+												var t *bool
 												if !v.Null && !v.Unknown {
-													t = bool(v.Value)
+													c := bool(v.Value)
+													t = &c
 												}
-												if !v.Null && !v.Unknown {
-													obj.PermitX11Forwarding = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_PermitX11Forwarding{PermitX11Forwarding: t}
-												}
+												obj.PermitX11Forwarding = t
 											}
 										}
 									}
@@ -808,13 +803,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.forward_agent", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 											} else {
-												var t bool
+												var t *bool
 												if !v.Null && !v.Unknown {
-													t = bool(v.Value)
+													c := bool(v.Value)
+													t = &c
 												}
-												if !v.Null && !v.Unknown {
-													obj.ForwardAgent = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_ForwardAgent{ForwardAgent: t}
-												}
+												obj.ForwardAgent = t
 											}
 										}
 									}
@@ -846,7 +840,6 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																	tf := v
 																	obj.Local = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHLocalPortForwarding{}
 																	obj := obj.Local
-																	obj.Enabled = nil
 																	{
 																		a, ok := tf.Attrs["enabled"]
 																		if !ok {
@@ -856,13 +849,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																			if !ok {
 																				diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																			} else {
-																				var t bool
+																				var t *bool
 																				if !v.Null && !v.Unknown {
-																					t = bool(v.Value)
+																					c := bool(v.Value)
+																					t = &c
 																				}
-																				if !v.Null && !v.Unknown {
-																					obj.Enabled = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHLocalPortForwarding_Enabled{Enabled: t}
-																				}
+																				obj.Enabled = t
 																			}
 																		}
 																	}
@@ -884,7 +876,6 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																	tf := v
 																	obj.Remote = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHRemotePortForwarding{}
 																	obj := obj.Remote
-																	obj.Enabled = nil
 																	{
 																		a, ok := tf.Attrs["enabled"]
 																		if !ok {
@@ -894,13 +885,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																			if !ok {
 																				diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																			} else {
-																				var t bool
+																				var t *bool
 																				if !v.Null && !v.Unknown {
-																					t = bool(v.Value)
+																					c := bool(v.Value)
+																					t = &c
 																				}
-																				if !v.Null && !v.Unknown {
-																					obj.Enabled = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHRemotePortForwarding_Enabled{Enabled: t}
-																				}
+																				obj.Enabled = t
 																			}
 																		}
 																	}
@@ -1000,13 +990,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.max_sessions", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 											} else {
-												var t int64
+												var t *int64
 												if !v.Null && !v.Unknown {
-													t = int64(v.Value)
+													c := int64(v.Value)
+													t = &c
 												}
-												if !v.Null && !v.Unknown {
-													obj.MaxSessions = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_MaxSessions{MaxSessions: t}
-												}
+												obj.MaxSessions = t
 											}
 										}
 									}
@@ -1046,13 +1035,12 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.file_copy", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 											} else {
-												var t bool
+												var t *bool
 												if !v.Null && !v.Unknown {
-													t = bool(v.Value)
+													c := bool(v.Value)
+													t = &c
 												}
-												if !v.Null && !v.Unknown {
-													obj.FileCopy = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_FileCopy{FileCopy: t}
-												}
+												obj.FileCopy = t
 											}
 										}
 									}
@@ -2040,10 +2028,6 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.permit_x11_forwarding"})
 										} else {
-											obj, ok := obj.PermitX11Forwarding.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_PermitX11Forwarding)
-											if !ok {
-												obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_PermitX11Forwarding{}
-											}
 											v, ok := tf.Attrs["permit_x11_forwarding"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
@@ -2054,9 +2038,14 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.permit_x11_forwarding", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 												}
-												v.Null = bool(obj.PermitX11Forwarding) == false
+												v.Null = obj.PermitX11Forwarding == nil
 											}
-											v.Value = bool(obj.PermitX11Forwarding)
+											if obj.PermitX11Forwarding == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = bool(*obj.PermitX11Forwarding)
+											}
 											v.Unknown = false
 											tf.Attrs["permit_x11_forwarding"] = v
 										}
@@ -2066,10 +2055,6 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.forward_agent"})
 										} else {
-											obj, ok := obj.ForwardAgent.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_ForwardAgent)
-											if !ok {
-												obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_ForwardAgent{}
-											}
 											v, ok := tf.Attrs["forward_agent"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
@@ -2080,9 +2065,14 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.forward_agent", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 												}
-												v.Null = bool(obj.ForwardAgent) == false
+												v.Null = obj.ForwardAgent == nil
 											}
-											v.Value = bool(obj.ForwardAgent)
+											if obj.ForwardAgent == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = bool(*obj.ForwardAgent)
+											}
 											v.Unknown = false
 											tf.Attrs["forward_agent"] = v
 										}
@@ -2144,10 +2134,6 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled"})
 																		} else {
-																			obj, ok := obj.Enabled.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHLocalPortForwarding_Enabled)
-																			if !ok {
-																				obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHLocalPortForwarding_Enabled{}
-																			}
 																			v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 																			if !ok {
 																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
@@ -2158,9 +2144,14 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				if !ok {
 																					diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																				}
-																				v.Null = bool(obj.Enabled) == false
+																				v.Null = obj.Enabled == nil
 																			}
-																			v.Value = bool(obj.Enabled)
+																			if obj.Enabled == nil {
+																				v.Null = true
+																			} else {
+																				v.Null = false
+																				v.Value = bool(*obj.Enabled)
+																			}
 																			v.Unknown = false
 																			tf.Attrs["enabled"] = v
 																		}
@@ -2202,10 +2193,6 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled"})
 																		} else {
-																			obj, ok := obj.Enabled.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHRemotePortForwarding_Enabled)
-																			if !ok {
-																				obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHRemotePortForwarding_Enabled{}
-																			}
 																			v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 																			if !ok {
 																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
@@ -2216,9 +2203,14 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				if !ok {
 																					diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																				}
-																				v.Null = bool(obj.Enabled) == false
+																				v.Null = obj.Enabled == nil
 																			}
-																			v.Value = bool(obj.Enabled)
+																			if obj.Enabled == nil {
+																				v.Null = true
+																			} else {
+																				v.Null = false
+																				v.Value = bool(*obj.Enabled)
+																			}
 																			v.Unknown = false
 																			tf.Attrs["enabled"] = v
 																		}
@@ -2369,10 +2361,6 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.max_sessions"})
 										} else {
-											obj, ok := obj.MaxSessions.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_MaxSessions)
-											if !ok {
-												obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_MaxSessions{}
-											}
 											v, ok := tf.Attrs["max_sessions"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
@@ -2383,9 +2371,14 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.max_sessions", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 												}
-												v.Null = int64(obj.MaxSessions) == 0
+												v.Null = obj.MaxSessions == nil
 											}
-											v.Value = int64(obj.MaxSessions)
+											if obj.MaxSessions == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = int64(*obj.MaxSessions)
+											}
 											v.Unknown = false
 											tf.Attrs["max_sessions"] = v
 										}
@@ -2448,10 +2441,6 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.file_copy"})
 										} else {
-											obj, ok := obj.FileCopy.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_FileCopy)
-											if !ok {
-												obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH_FileCopy{}
-											}
 											v, ok := tf.Attrs["file_copy"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
@@ -2462,9 +2451,14 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.file_copy", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 												}
-												v.Null = bool(obj.FileCopy) == false
+												v.Null = obj.FileCopy == nil
 											}
-											v.Value = bool(obj.FileCopy)
+											if obj.FileCopy == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = bool(*obj.FileCopy)
+											}
 											v.Unknown = false
 											tf.Attrs["file_copy"] = v
 										}

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
+Copyright 2015-2026 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -529,7 +529,7 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Expires", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
 								}
-								v.Null = false
+								v.Null = obj.Expires == nil
 							}
 							if obj.Expires == nil {
 								v.Null = true
