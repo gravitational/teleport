@@ -955,7 +955,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		UserOriginClusterName: identity.OriginClusterName,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
-		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
+		MessageWriter:         &monitorErrorSender{tdpConn: translatedConn},
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -1393,7 +1393,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 // monitor disconnect messages back to the frontend
 // over the tdp.Conn
 type monitorErrorSender struct {
-	tdpConn *tdp.Conn
+	tdpConn tdp.MessageWriter
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
