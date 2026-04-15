@@ -1,0 +1,135 @@
+---
+title: Delta Sync (preview)
+description: Describes newly supported delta sync mechanism and configuration.
+sidebar_label: Delta Sync (preview)
+sidebar_position: 5
+tags:
+ - identity-governance
+ - azure
+ - privileged-access
+enterprise: Identity Governance
+---
+
+<Admonition type="info" title="Teleport Version">
+  This guide is exclusively written in the context of the 
+  dev build version `v18.7.4-dev.entra-delta-sync.5`.
+</Admonition>
+
+The Teleport Microsoft Entra ID integration pulls full sets of users, groups,
+group members and group ownership every five minutes by default.
+
+In a large Microsoft Entra ID directory, such a frequent and full scan can be
+subjected to [API throttling](https://learn.microsoft.com/en-us/graph/throttling-limits#identity-and-access-service-limits),
+causing degraded performance or even impeding sync functionality altogether.
+
+To avoid frequent full scan of the Microsoft Entra ID directory, a new delta sync 
+mechanism is added to the Teleport Entra ID plugin. 
+
+## Directory sync mechanism 
+
+Teleport now supports a full scan + [sync from now](https://learn.microsoft.com/en-us/graph/delta-query-overview#use-delta-query-to-track-changes-in-a-resource-collection) 
+pattern to discover changes tracked in the Microsoft Graph API delta service. 
+
+The plugin will first fetch the latest delta token for users and groups delta 
+endpoint, and save it in an in-memory cache. Then a full sync scan is performed. 
+
+After the full sync succeeds and in the next delta sync, the plugin will use the 
+previously stored delta token to make the delta query, ensuring to sync any changes
+made in the Microsoft Entra ID directory during the full sync period. 
+
+Each delta sync ends with a new delta token, which will be used in the next delta 
+query.
+
+## Configuration
+
+Deploying Teleport version `v18.7.4-dev.entra-delta-sync.5` enables delta sync 
+by default with the following `sync_intervals` values:
+
+- Delta sync: Runs at every 2 minutes interval.
+- Full sync: Runs at every 60 minutes interval. 
+- Start delay: Adds a random but up to 2 minutes of start delay. 
+
+The configuration parameters are added under a new `sync_intervals` field.
+A reference plugin spec is provided below:
+```bash
+$ tctl get plugins/entra-id-default
+```
+```yaml
+kind: plugin
+metadata:
+  labels:
+    teleport.dev/hosted-plugin: "true"
+  name: entra-id-default
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        access_list_owners_source: 1
+        credentials_source: 1
+        default_owners:
+        - admin
+        entra_app_id: xxx
+        sso_connector_id: entra-id
+        sync_intervals:
+          delta: 2m0s
+          full: 60m0s
+          start_delay: 2m0s
+        tenant_id: xxx
+version: v1
+```
+
+### Updating sync intervals 
+
+The sync intervals can only be changed by directly updating the plugin spec. 
+Below is an example of updating `sync_interval` to increase full sync interval 
+time to six hours. 
+
+```bash
+$ tctl get plugins/entra-id-default
+```
+```yaml
+kind: plugin
+  name: entra-id-default
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        # omitted for brevity
+        ... 
+        sync_intervals:
+          delta: 2m0s
+          full: 6h
+          start_delay: 2m0s
+        tenant_id: xxx
+version: v1
+```
+
+### Disabling sync intervals
+
+Delta sync or full sync can be disabled by providing `0m` (zero minutes) value. 
+
+Note: Disabling full sync interval only omits full sync from the sync schedule. 
+If plugin restarts, for example the Auth service was restarted, or plugin 
+configuration was updated, a full sync is always performed before handing off 
+to the delta sync. 
+
+
+## Limitations
+
+- The plugin status page remains unchanged. It does not provide a UI or status 
+  to distinguish between a full scan or delta scan. However, the Auth service now 
+  logs Entra ID plugin events with a `sync_mode` attribute, which can be used to 
+  distinguish between a `full` or `delta` sync. 
+- Configuration of sync intervals from the UI is not supported.
+- Configuration of sync intervals using `tctl plugins install` command is not supported. 
+  Sync intervals can only be updated by directly updating the plugin spec using 
+  the `tctl edit plugins/entra-id-default` command.
+- When a user account is deleted, if that user as any group membership, the plugin 
+  status page will display an error with "user account for member x not found" message. 
+  User deletion and membership removal is correctly handled but the error is 
+  erroneously propagated, subject to updated status reporting in future versions. 
+
+
+All the limitations mentioned above will be addressed in the future stable release
+versions. 
+
