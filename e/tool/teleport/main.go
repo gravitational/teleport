@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -18,6 +19,8 @@ func init() {
 }
 
 func main() {
+	reexec.MaybeReexec()
+
 	// Set the modules to a default [emodules.EnterpriseModules] so that commands like
 	// teleport version output the appropriate information. The modules will
 	// be specified appropriately and populated with licensing and feature
