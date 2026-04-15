@@ -119,6 +119,30 @@ spec:
     logins: ["{{internal.logins}}"]
 ```
 
+When a user signs into a protected server, the Teleport SSH Service only
+considers the logins available to a user via their roles in the root cluster,
+and ignores any additional logins made available via leaf cluster roles. For
+example, the following leaf cluster role would **not** grant the `additional`
+login:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: admin
+spec:
+  allow:
+    logins: [additional,"{{internal.logins}}"]
+```
+
+This is because, when a user authenticates to a root cluster, Teleport issues an
+SSH certificate to the user that includes only logins listed in the user's roles
+and traits on the root cluster. When the user attempts to log in to a protected
+server on the leaf cluster, the Teleport SSH Service instance in the leaf
+cluster checks the user's SSH certificate. Since that certificate was issued by
+the root cluster, it does not contain any logins that are specific to the leaf
+cluster.
+
 For full details on how variable expansion works in Teleport roles, see the
 [Access Controls
 Reference](../../reference/access-controls/roles.mdx).
