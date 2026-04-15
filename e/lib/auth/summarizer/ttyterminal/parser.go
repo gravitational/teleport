@@ -157,12 +157,10 @@ func (p *parser) handleBracketPasteEnd(token token) error {
 		return p.handleText(token)
 	}
 
-	if p.currentCommand == nil {
-		return trace.BadParameter("unexpected bracket paste end without a current command")
-	}
-
-	if p.bracketPasteDepth <= 0 {
-		return trace.BadParameter("unexpected bracket paste end without matching start")
+	// Some TUI applications (like Claude Code) that run without alternate screen mode emit bracket paste end on exit to
+	// restore terminal state. We can safely ignore these extra bracket paste end tokens.
+	if p.currentCommand == nil || p.bracketPasteDepth <= 0 {
+		return nil
 	}
 
 	p.bracketPasteDepth -= 1
@@ -234,7 +232,9 @@ func (p *parser) emitCurrentCommand() {
 
 func (p *parser) appendTokenToCurrentCommand(token token) error {
 	if p.currentCommand == nil {
-		return trace.BadParameter("no current command to append token to")
+		// Text or control sequences can arrive outside any command context  (e.g. output between commands).
+		// This is normal and can be ignored.
+		return nil
 	}
 
 	switch p.state {

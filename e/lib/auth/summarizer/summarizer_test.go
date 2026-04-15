@@ -1050,10 +1050,11 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 		t.Run(providerName+" provider error", func(t *testing.T) {
 			summary := ingestEnhancedSession(t, providerName+"-cluster", "trigger enhanced error")
 
-			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR, summary.State)
+			// When enhanced summarization fails, we fall back to simple summarization.
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
 			require.Equal(t, providerName+"-model", summary.ModelName)
-			require.Contains(t, summary.ErrorMessage, "enhanced session analysis error")
-			require.Empty(t, summary.Content)
+			require.Empty(t, summary.ErrorMessage)
+			require.NotEmpty(t, summary.Content)
 			require.Nil(t, summary.EnhancedSummary)
 		})
 

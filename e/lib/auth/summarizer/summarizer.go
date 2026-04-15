@@ -466,11 +466,14 @@ func (s *SessionSummarizer) summarizeSession(
 
 	analysis, commands, err := analyzeSessionCommands(ctx, details.provider, s.pool, stream.Commands(), details)
 	if err != nil {
-		return handleError(ctx, log, result, err, "Failed to analyze session commands")
+		log.WarnContext(ctx, "Failed to analyze session commands, falling back to simple summarization", "error", err)
+		closeOnce()
+		return s.summarizeSimple(ctx, log, result, details)
 	}
 
 	if err := closeOnce(); err != nil {
-		return handleError(ctx, log, result, err, "Failed to process session recording stream")
+		log.WarnContext(ctx, "Failed to process session recording stream, falling back to simple summarization", "error", err)
+		return s.summarizeSimple(ctx, log, result, details)
 	}
 
 	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS

@@ -424,6 +424,7 @@ func TestParserErrorHandling(t *testing.T) {
 		ctx := t.Context()
 		parser := newParser()
 
+		// Unmatched bracket paste ends (e.g. from TUI apps cleaning up terminal state) should be silently ignored.
 		tokens := []token{
 			{tokenType: tokenResize, data: []byte("80:24"), timestamp: 0},
 			{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l"), timestamp: 100 * time.Millisecond},
@@ -432,14 +433,15 @@ func TestParserErrorHandling(t *testing.T) {
 		tokenChan := createTokenStream(ctx, tokens)
 
 		err := parser.processTokens(ctx, tokenChan)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "unexpected bracket paste end without a current command")
+		require.NoError(t, err)
 	})
 
 	t.Run("mismatched_bracket_paste", func(t *testing.T) {
 		ctx := t.Context()
 		parser := newParser()
 
+		// An extra bracket paste end after a matched pair (e.g. from a TUI app disabling bracket paste on exit) should be
+		// silently ignored.
 		tokens := []token{
 			{tokenType: tokenResize, data: []byte("80:24"), timestamp: 0},
 			{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h"), timestamp: 100 * time.Millisecond},
@@ -450,8 +452,7 @@ func TestParserErrorHandling(t *testing.T) {
 		tokenChan := createTokenStream(ctx, tokens)
 
 		err := parser.processTokens(ctx, tokenChan)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "unexpected bracket paste end without matching start")
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid_resize_format", func(t *testing.T) {
@@ -494,6 +495,7 @@ func TestParserErrorHandling(t *testing.T) {
 		ctx := t.Context()
 		parser := newParser()
 
+		// Text arriving outside any command context (e.g. output between commands) should be silently ignored.
 		tokens := []token{
 			{tokenType: tokenResize, data: []byte("80:24"), timestamp: 0},
 			{tokenType: tokenText, data: []byte("orphaned text"), timestamp: 100 * time.Millisecond},
@@ -502,8 +504,7 @@ func TestParserErrorHandling(t *testing.T) {
 		tokenChan := createTokenStream(ctx, tokens)
 
 		err := parser.processTokens(ctx, tokenChan)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "no current command to append token to")
+		require.NoError(t, err)
 	})
 }
 
