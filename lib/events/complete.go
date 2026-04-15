@@ -396,6 +396,7 @@ loop:
 				windowsDesktopSessionEnd.DesktopAddr = e.DesktopAddr
 				windowsDesktopSessionEnd.DesktopLabels = e.DesktopLabels
 				windowsDesktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+				windowsDesktopSessionEnd.WindowsUser = e.WindowsUser
 
 			case *events.LinuxDesktopSessionStart:
 				startTime = e.Time
@@ -410,6 +411,7 @@ loop:
 				linuxDesktopSessionEnd.DesktopAddr = e.DesktopAddr
 				linuxDesktopSessionEnd.DesktopLabels = e.DesktopLabels
 				linuxDesktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+				linuxDesktopSessionEnd.LinuxUser = e.LinuxUser
 
 			case *events.SessionStart:
 				sessionType = recordingmetadata.SessionTypeTTY

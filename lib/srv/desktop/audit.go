@@ -228,7 +228,7 @@ func (d *desktopSessionAuditor) makeLinuxSessionStart(err error) *events.LinuxDe
 		DesktopName:        d.getName(),
 		DesktopAddr:        d.getName(),
 		LinuxUser:          d.targetUser,
-		DesktopLabels:      d.linuxDesktop.Metadata.Labels,
+		DesktopLabels:      d.linuxDesktop.GetMetadata().GetLabels(),
 	}
 
 	if err != nil {
@@ -255,7 +255,7 @@ func (d *desktopSessionAuditor) makeLinuxSessionEnd(recorded bool) *events.Linux
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.getName(),
 		LinuxUser:          d.targetUser,
-		DesktopLabels:      d.linuxDesktop.Metadata.Labels,
+		DesktopLabels:      d.linuxDesktop.GetMetadata().GetLabels(),
 		StartTime:          d.startTime,
 		EndTime:            d.clock.Now().UTC(),
 		DesktopName:        d.getName(),

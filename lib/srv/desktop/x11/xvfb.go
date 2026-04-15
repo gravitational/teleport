@@ -213,6 +213,13 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	defer func() {
+		if !success {
+			cancel()
+			cmd.Wait()
+		}
+	}()
+
 	scanner := bufio.NewScanner(stdout)
 	if !scanner.Scan() {
 		return nil, trace.Wrap(scanner.Err(), "reading display string")
@@ -237,6 +244,12 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "connecting to display")
 	}
+
+	defer func() {
+		if !success {
+			conn.Close()
+		}
+	}()
 
 	id, err := conn.NewId()
 	if err != nil {
@@ -353,7 +366,7 @@ func (x *Backend) processClipboardEvents() {
 			if x.config.ClipboardDataReceiver == nil {
 				continue
 			}
-			prop, err := xproto.GetProperty(x.conn, true, x.clipboardWindow, event.Property, event.Target, 0, 1024).Reply()
+			prop, err := xproto.GetProperty(x.conn, true, x.clipboardWindow, event.Property, event.Target, 0, 1024*1024).Reply()
 			if err != nil {
 				x.config.Logger.ErrorContext(x.ctx, "Couldn't get X11 property value", "error", err)
 				continue
@@ -386,18 +399,24 @@ func (x *Backend) Close() error {
 }
 
 func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupInfo, error) {
+	success := false
+
 	dial, err := net.Dial("unix", fmt.Sprintf("/tmp/.X11-unix/X%s", display[1:]))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	defer func() {
+		if !success {
+			dial.Close()
+		}
+	}()
 
 	conn, err := xgb.NewConnNetWithCookieHex(dial, fmt.Sprintf("%x", cookie))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	setup := xproto.Setup(conn)
-
-	success := false
 
 	defer func() {
 		if !success {
@@ -496,6 +515,9 @@ func (x *Backend) SendMouseButton(button byte, pressed bool) error {
 
 // SendMouseWheel sends one wheel step event in the requested direction.
 func (x *Backend) SendMouseWheel(delta int) error {
+	if delta == 0 {
+		return nil
+	}
 	detail := byte(5)
 	if delta > 0 {
 		detail = 4

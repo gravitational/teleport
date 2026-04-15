@@ -26,10 +26,10 @@ func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_
 			Kind:     desktop.Kind,
 			SubKind:  desktop.SubKind,
 			Version:  desktop.Version,
-			Metadata: types.Metadata153ToLegacy(desktop.Metadata),
-			Addr:     desktop.Spec.Addr,
-			Hostname: desktop.Spec.Hostname,
-			ProxyIDs: desktop.Spec.ProxyIds,
+			Metadata: types.Metadata153ToLegacy(desktop.GetMetadata()),
+			Addr:     desktop.GetSpec().GetAddr(),
+			Hostname: desktop.GetSpec().GetHostname(),
+			ProxyIDs: desktop.GetSpec().GetProxyIds(),
 		},
 	}
 }

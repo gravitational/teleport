@@ -105,7 +105,7 @@ export function DesktopSession() {
       return false;
     }
     return desktopActive;
-  }, [clusterId, ctx.desktopService, desktopName, username]);
+  }, [clusterId, ctx.desktopService, desktopName, username, linuxDesktop]);
 
   useEffect(() => {
     fetchAcl();

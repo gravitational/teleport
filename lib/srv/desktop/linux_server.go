@@ -248,6 +248,7 @@ func (s *LinuxService) Close() error {
 type tracker struct {
 	mu           sync.Mutex
 	lastActivity time.Time
+	clock        clockwork.Clock
 }
 
 func (t *tracker) GetClientLastActive() time.Time {
@@ -259,7 +260,7 @@ func (t *tracker) GetClientLastActive() time.Time {
 func (t *tracker) UpdateClientActivity() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.lastActivity = time.Now()
+	t.lastActivity = t.clock.Now()
 }
 
 // Serve starts serving TLS connections for plainLis. plainLis should be a TCP
@@ -282,6 +283,7 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 		}
 		proxyConn, ok := conn.(*tls.Conn)
 		if !ok {
+			conn.Close()
 			return trace.ConnectionProblem(nil, "Got %T from TLS listener, expected *tls.Conn", conn)
 		}
 
@@ -418,7 +420,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	defer func() {
 		go func() {
 			if err := recorder.Close(context.Background()); err != nil {
-				log.ErrorContext(context.Background(), "closing stream writer for desktop", "session_id", sessionID.String())
+				log.ErrorContext(context.Background(), "closing stream writer for desktop", "session_id", sessionID.String(), "error", err)
 			}
 		}()
 	}()
@@ -432,7 +434,9 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	sessionStarted := false
 
-	track := tracker{}
+	track := tracker{
+		clock: s.cfg.Clock,
+	}
 
 	track.UpdateClientActivity()
 
@@ -514,6 +518,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				services.NewLinuxDesktopLoginMatcher(username)); err != nil {
 				startEvent := audit.makeLinuxSessionStart(err)
 				s.record(ctx, recorder, startEvent)
+				s.emit(ctx, startEvent)
 				log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 				sendTDPError("Connection authorization failed.")
 				return
@@ -669,6 +674,11 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				return
 			}
 		case *tdpb.ClientScreenSpec:
+			if m.Width > types.MaxRDPScreenWidth || m.Height > types.MaxRDPScreenHeight {
+				log.ErrorContext(ctx, "invalid screen size", "width", m.Width, "height", m.Height)
+				sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
+				return
+			}
 			screenSize.Store(&xproto.Rectangle{
 				Width:  uint16(m.Width),
 				Height: uint16(m.Height),

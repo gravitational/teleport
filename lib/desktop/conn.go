@@ -63,10 +63,10 @@ func ConnectToLinuxService(ctx context.Context, config *ConnectionConfig) (conn 
 	}
 	conn, err = config.Cluster.DialTCP(reversetunnelclient.DialParams{
 		From:                  config.ClientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: desktop.Spec.Addr},
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: desktop.GetSpec().GetAddr()},
 		ConnType:              types.LinuxDesktopTunnel,
-		ServerID:              desktop.Metadata.Name + "." + config.ClusterName,
-		ProxyIDs:              desktop.Spec.ProxyIds,
+		ServerID:              desktop.GetMetadata().GetName() + "." + config.ClusterName,
+		ProxyIDs:              desktop.GetSpec().GetProxyIds(),
 		OriginalClientDstAddr: config.ClientDstAddr,
 	})
 	if err != nil {

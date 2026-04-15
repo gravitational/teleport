@@ -526,15 +526,15 @@ type Desktop struct {
 }
 
 func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.Metadata.Labels)
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.GetMetadata().GetLabels())
 
 	return Desktop{
 		Kind:            linuxDesktop.GetKind(),
 		OS:              constants.LinuxOS,
-		Name:            linuxDesktop.Spec.Hostname,
-		Addr:            linuxDesktop.Spec.Addr,
+		Name:            linuxDesktop.GetSpec().GetHostname(),
+		Addr:            linuxDesktop.GetSpec().GetAddr(),
 		Labels:          uiLabels,
-		HostID:          linuxDesktop.Metadata.Name,
+		HostID:          linuxDesktop.GetMetadata().GetName(),
 		Logins:          logins,
 		RequiresRequest: requiresRequest,
 	}

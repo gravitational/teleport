@@ -112,12 +112,14 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.Wrap(err)
 	}
 	inw.Close()
+	defer inr.Close()
 
 	outr, outw, err := os.Pipe()
 	if err != nil {
-		inr.Close()
 		return nil, trace.Wrap(err)
 	}
+	defer outw.Close()
+
 	go func() {
 		scanner := bufio.NewScanner(outr)
 		for scanner.Scan() {
@@ -135,9 +137,6 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	if err := cmd.Start(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	inr.Close()
-	outw.Close()
 
 	return cmd, nil
 }

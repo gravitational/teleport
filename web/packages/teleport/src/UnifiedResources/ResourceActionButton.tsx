@@ -119,7 +119,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
 };
 
 const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
-  const linuxDesktop = desktop.kind == 'linux_desktop'
+  const linuxDesktop = desktop.kind === 'linux_desktop'
   const { clusterId } = useStickyClusterId();
   const startRemoteDesktopSession = (username: string, desktopName: string) => {
     let route = linuxDesktop ? cfg.getLinuxDesktopRoute : cfg.getDesktopRoute;
