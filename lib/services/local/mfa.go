@@ -34,6 +34,11 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+// ValidatedMFAChallengeExpiry is the TTL for ValidatedMFAChallenge resources. This value is chosen to be long enough to
+// allow for replication to leaf clusters and retries of replication in the event of transient errors, but short enough
+// to ensure that stale challenges don't persist indefinitely if they fail to replicate.
+const ValidatedMFAChallengeExpiry = 5 * time.Minute
+
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
 	logger  *slog.Logger
@@ -88,7 +93,7 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
-	chal.Metadata.SetExpiry(time.Now().Add(5 * time.Minute))
+	chal.Metadata.SetExpiry(time.Now().Add(ValidatedMFAChallengeExpiry))
 
 	res, err := svc.CreateResource(ctx, challenge)
 	if err != nil {
@@ -155,6 +160,10 @@ func (s *MFAService) ListValidatedMFAChallenges(
 type validatedMFAChallenge mfav1.ValidatedMFAChallenge
 
 func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
+	if r == nil || r.Metadata == nil {
+		return &headerv1.Metadata{}
+	}
+
 	return types.LegacyTo153Metadata(*r.Metadata)
 }
 
@@ -220,4 +229,84 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 	default:
 		return nil
 	}
+}
+
+type validatedMFAChallengeParser struct {
+	baseParser
+}
+
+func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+	return &validatedMFAChallengeParser{
+		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+	}
+}
+
+func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
+	var chal *mfav1.ValidatedMFAChallenge
+
+	switch event.Type {
+	case types.OpDelete:
+		// Inflate key components into a challenge so consumers can access the backend key structure directly from the
+		// concrete resource type.
+		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
+
+		keyComponents := key.Components()
+		if len(keyComponents) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		chal = &mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: types.V1,
+			Metadata: &types.Metadata{
+				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
+			},
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
+			},
+		}
+
+	case types.OpPut:
+		resource, err := UnmarshalValidatedMFAChallenge(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		chal = (*mfav1.ValidatedMFAChallenge)(resource)
+
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+
+	return &validatedMFAChallengeResourceWrapper{
+		Resource: types.LegacyMetadataToResource(chal),
+		inner:    chal,
+	}, nil
+}
+
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
+type validatedMFAChallengeResourceWrapper struct {
+	types.Resource
+
+	inner *mfav1.ValidatedMFAChallenge
+}
+
+func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
+	if r.inner == nil || r.inner.GetSpec() == nil {
+		return ""
+	}
+
+	return r.inner.GetSpec().GetTargetCluster()
+}
+
+func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	if r == nil {
+		return nil
+	}
+
+	return r.inner
 }

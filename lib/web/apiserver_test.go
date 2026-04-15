@@ -189,14 +189,9 @@ type WebSuite struct {
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if reexec.IsReexec() {
-		reexec.RunAndExit(os.Args[1])
-		return
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cryptosuitestest.PrecomputeRSAKeys(ctx)

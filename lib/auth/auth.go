@@ -341,6 +341,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.DatabaseServices == nil {
 		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
 	}
+	if cfg.DelegationSessions == nil {
+		cfg.DelegationSessions, err = local.NewDelegationSessionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
@@ -649,6 +655,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -663,6 +676,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
+		DelegationSessions:              cfg.DelegationSessions,
 		AuditLogSessionStreamer:         cfg.AuditLog,
 		Events:                          cfg.Events,
 		WindowsDesktops:                 cfg.WindowsDesktops,
@@ -711,6 +725,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
+		Beams:                           cfg.Beams,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -2803,7 +2818,10 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
-		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		roles[i], err = services.ApplyTraitsWithContext(req.Roles[i], services.RoleTemplateContext{
+			Username: req.User.GetName(),
+			Traits:   req.User.GetTraits(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3788,6 +3806,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
 				AllowedResourceAccessIDs: allowedResourceAccessIDs,
@@ -3932,6 +3951,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
 		BotInternal:              req.BotInternal,
+		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
@@ -5092,7 +5112,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		allowedResourceAccessIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
+		roleSet, err := services.FetchRolesForUser(userState, a)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

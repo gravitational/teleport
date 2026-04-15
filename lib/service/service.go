@@ -3093,12 +3093,15 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.IdentityInternal
 	cfg.Applications = services.ApplicationsInternal
+	cfg.Beams = services.Beams
+	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices
 	cfg.Databases = services.Databases
+	cfg.DelegationSessions = services.DelegationSessions
 	cfg.DiscoveryConfigs = services.DiscoveryConfigs
 	cfg.DynamicAccess = services.DynamicAccessExt
 	cfg.Events = services.Events

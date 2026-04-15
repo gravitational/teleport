@@ -446,7 +446,7 @@ func (c *FSClientState) Store(ctx context.Context) error {
 			Entries: c.KeyHistory,
 		})
 		if err != nil {
-			return trace.Wrap(err, "marshaling key key history")
+			return trace.Wrap(err, "marshaling key history")
 		}
 
 		if err := c.fs.Write(ctx, KeyHistoryPath, bytes); err != nil {

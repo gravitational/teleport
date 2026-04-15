@@ -8,23 +8,19 @@ locals {
     ? "${var.teleport_discovery_config_name}-${local.teleport_resource_name_suffix}"
     : var.teleport_discovery_config_name
   )
-  trust_role = try({
-    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,
-    external_id = var.discovery_service_iam_credential_source.trust_role.external_id,
-  }, null)
 
-  legacy_aws_matchers = var.match_aws_resource_types == null ? [] : [
+  legacy_aws_matchers = length(var.match_aws_resource_types) == 0 ? [] : [
     {
       types                = var.match_aws_resource_types
-      regions              = coalesce(var.match_aws_regions, ["*"])
-      tags                 = coalesce(var.match_aws_tags, { "*" : ["*"] })
+      regions              = var.match_aws_regions
+      tags                 = var.match_aws_tags
       setup_access_for_arn = ""
       kube_app_discovery   = false
     }
   ]
 
   effective_aws_matchers = (
-    var.aws_matchers != null && length(var.aws_matchers) > 0
+    length(var.aws_matchers) > 0
     ? var.aws_matchers
     : local.legacy_aws_matchers
   )
@@ -32,14 +28,25 @@ locals {
   aws_matchers = [
     for matcher in local.effective_aws_matchers : merge(
       {
-        types       = matcher.types
-        regions     = matcher.regions
-        tags        = try(matcher.tags, { "*" : ["*"] })
-        assume_role = local.trust_role
+        types   = matcher.types
+        regions = matcher.regions
+        tags    = try(matcher.tags, { "*" : ["*"] })
+        assume_role = (
+          var.discovery_service_iam_credential_source.trust_role != null
+          ? {
+            role_arn = one(aws_iam_role.teleport_discovery_service[*].arn)
+            external_id = (
+              var.discovery_service_iam_credential_source.trust_role.external_id != ""
+              ? var.discovery_service_iam_credential_source.trust_role.external_id
+              : null
+            )
+          }
+          : null
+        )
         integration = (
-          local.use_oidc_integration
+          var.discovery_service_iam_credential_source.use_oidc_integration
           ? try(teleport_integration.aws_oidc[0].metadata.name, local.teleport_integration_name)
-          : ""
+          : null
         )
       },
       contains(matcher.types, "ec2") ? {
@@ -78,27 +85,17 @@ resource "teleport_discovery_config" "aws" {
   lifecycle {
     precondition {
       condition = (
-        (var.aws_matchers != null && length(var.aws_matchers) > 0) ||
-        (var.match_aws_resource_types != null && length(var.match_aws_resource_types) > 0)
+        length(var.aws_matchers) > 0
+        || length(var.match_aws_resource_types) > 0
       )
       error_message = "aws_matchers must be set to discover your resources."
     }
     precondition {
       condition = !(
-        var.aws_matchers != null &&
         length(var.aws_matchers) > 0 &&
-        var.match_aws_resource_types != null &&
         length(var.match_aws_resource_types) > 0
       )
       error_message = "aws_matchers and the legacy match_aws_* variables cannot be used together. Merge the legacy match variables into aws_matchers."
-    }
-    precondition {
-      condition = !(
-        var.match_aws_resource_types != null &&
-        contains(var.match_aws_resource_types, "eks") &&
-        (var.match_aws_regions == null || contains(var.match_aws_regions, "*"))
-      )
-      error_message = "EKS discovery does not support wildcard regions. Set match_aws_regions to explicit regions when discovering EKS, or use aws_matchers instead."
     }
     precondition {
       condition = !anytrue([
@@ -106,6 +103,13 @@ resource "teleport_discovery_config" "aws" {
         matcher.setup_access_for_arn != "" && var.discovery_service_iam_credential_source.use_oidc_integration
       ])
       error_message = "setup_access_for_arn requires discovery_service_iam_credential_source.use_oidc_integration to be false. OIDC integration bypasses EKS access entry setup."
+    }
+    precondition {
+      condition = !(
+        var.teleport_discovery_group_name == "cloud-discovery-group"
+        && !var.discovery_service_iam_credential_source.use_oidc_integration
+      )
+      error_message = "The Discovery Service running in a Teleport Cloud cluster must use OIDC integration credentials. Either set discovery_service_iam_credential_source.use_oidc_integration to true or set teleport_discovery_group_name to a discovery group that is not `cloud-discovery-group`."
     }
   }
 

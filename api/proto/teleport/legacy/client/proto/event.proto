@@ -20,6 +20,7 @@ import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/appauthconfig/v1/appauthconfig.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
+import "teleport/beams/v1/beam.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -258,5 +259,7 @@ message Event {
     teleport.summarizer.v1.InferencePolicy InferencePolicy = 93;
     // RetrievalModel is a resource for defining retrieval models.
     teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
+    // Beam is an ephemeral AI-optimized compute environment.
+    teleport.beams.v1.Beam Beam = 95;
   }
 }
