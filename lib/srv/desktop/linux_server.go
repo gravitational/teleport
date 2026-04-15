@@ -805,6 +805,17 @@ func (sess *linuxSession) processScreenChanges() {
 			changes = []xproto.Rectangle{*currentScreenSize}
 		}
 		for _, change := range changes {
+			x := uint16(currentScreenSize.X)
+			y := uint16(currentScreenSize.Y)
+			if x >= currentScreenSize.Width || y >= currentScreenSize.Height {
+				continue
+			}
+			if x+change.Width > currentScreenSize.Width {
+				change.Width = currentScreenSize.Width - x
+			}
+			if y+change.Height > currentScreenSize.Height {
+				change.Height = currentScreenSize.Height - y
+			}
 			changeSize := int(change.Width) * int(change.Height)
 			if changeSize == 0 {
 				continue
