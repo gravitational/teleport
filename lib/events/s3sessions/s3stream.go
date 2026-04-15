@@ -164,7 +164,22 @@ func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) e
 	log.DebugContext(ctx, "Aborting upload")
 	_, err := h.client.AbortMultipartUpload(ctx, req)
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		awsErr := awsutils.ConvertS3Error(err)
+		if !trace.IsNotFound(awsErr) {
+			return awsErr
+		}
+	}
+	if upload.Temporary {
+		_, err = h.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(h.Bucket),
+			Key:    aws.String(uploadKey),
+		})
+		if err != nil {
+			awsErr := awsutils.ConvertS3Error(err)
+			if !trace.IsNotFound(awsErr) {
+				return awsErr
+			}
+		}
 	}
 
 	log.InfoContext(ctx, "Aborted upload")
