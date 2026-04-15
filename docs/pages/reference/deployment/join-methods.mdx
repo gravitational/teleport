@@ -288,8 +288,9 @@ This join method is recommended for on-prem environments
 [without TPMs](#trusted-platform-module-tpm) or cloud platforms
 without a specialized [delegated join method](#delegated-join-methods).
 
-At this time, `bound_keypair` can only be used to join Machine and Workload ID
-bots, and cannot be used to join other Teleport Agent types.
+The `bound_keypair` join method can be used for both bots and nodes as of
+Teleport v18.8, however it offers limited benefits for traditional Teleport
+Agents as they are still ultimately issued long-lived certificates.
 
 (!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
 

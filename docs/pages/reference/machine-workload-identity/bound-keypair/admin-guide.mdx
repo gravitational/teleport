@@ -333,6 +333,145 @@ Frequently rotating static keys can help to mitigate the security tradeoffs of
 `insecure` recovery. See the [concepts page](concepts.mdx#static-keys) for more
 information about static keys.
 
+## Using bound keypair for standard Teleport agents
+
+As of Teleport v18.8, the `bound_keypair` join method supports standard agent
+types as well as Machine & Workload ID bots.
+
+Note that the benefits of bound keypair joining for agents are more limited, so
+most users will still probably prefer to use the traditional `token` join
+method:
+- Agents are ultimately still issued long-lived certificates and do not
+  generally renew these identities outside of limited circumstances.
+- Agent identities don't have access privileges for other Teleport resources, so
+  they don't benefit from the additional protections provided by bound keypair
+  joining.
+- The bound keypair join method is more complex than `token` joining, and does
+  introduce potential new failure modes.
+- Agents can only join via registration secrets (bound keypair's default mode)
+  or static key files. Non-static preregistered keys are not currently
+  supported.
+
+That said, you might consider bound keypair for Agents in certain circumstances:
+- You want an alternative to standard `token`-type tokens that is strictly
+  single-use.
+
+  Bound Keypair tokens (and their registration secrets) are strictly paired to a
+  single host (be it a bot or agent), so providing a bound keypair token and
+  registration secret to a user would only allow them to join a single node.
+- You do not want any shared secrets in your joining process. Bound Keypair's
+  [preregistered keys](./getting-started.mdx#alternative-preregistered-keys)
+  allow you to generate a keypair on the target node itself. Only the public key
+  would ever leave the system, and no secrets or private key material would ever
+  have to leave the host.
+
+### Configuring an agent with a registration secret
+
+First, create `token-bk-agent.yaml`:
+```yaml
+kind: token
+version: v2
+metadata:
+  name: bk-agent
+spec:
+  roles: [Node]
+  join_method: bound_keypair
+  bound_keypair:
+    recovery:
+      mode: standard
+      limit: 1
+```
+
+Adjust `roles` as needed for your node (e.g. `App`, `Kube`, `Db` etc).
+
+Create the token, then fetch it to retrieve the generated registration secret:
+```code
+$ tctl create -f token-bk-agent.yaml
+$ tctl get token/bk-agent --with-secrets
+```
+
+Note the `status.bound_keypair.registration_secret` value. Next, prepare your
+agent's `teleport.yaml`:
+```yaml
+version: v3
+teleport:
+  data_dir: /var/lib/teleport
+  join_params:
+    token_name: bk-agent
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_value: <secret>
+
+      # Alternatively, write the secret to a file and provide a path:
+      # registration_secret_path: /path/to/secret
+
+# ... additional service configuration blocks omitted ...
+```
+
+Note the following fields:
+- `teleport.join_params.token_name`: should match the name of the bound keypair
+  token you created earlier
+- `teleport.join_params.method`: should be `bound_keypair`
+- `teleport.join_params.bound_keypair.registration_secret_value`: contains the
+  secret value you copied from the token earlier.
+- (optional) `teleport.join_params.bound_keypair.registration_secret_path`: a
+  path to a file containing the registration secret if you'd prefer not to write
+  it in `teleport.yaml` directly; cannot be used with
+  `registration_secret_value`.
+
+Ensure the registration secret has been specified (either directly in
+`teleport.yaml` or via the path option), and start `teleport` as usual. The
+agent should join using the bound keypair token. As with bots, it will generate
+a keypair internally and exchange the public key with your Teleport Auth server
+automatically.
+
+### Configuring an agent with a static key
+
+First, on the node, generate a keypair. This requires the `tbot` binary:
+```yaml
+$ tbot keypair create \
+  --proxy-server example.teleport.sh:443 \
+  --static \
+  --static-key-path /path/to/keypair
+```
+
+This command will write a private key to the specified path, and will print the
+public key, like `ssh-ed25519 <data>`.
+
+Next, on your local machine, create `token-bk-agent-static.yaml`:
+```yaml
+kind: token
+version: v2
+metadata:
+  name: bk-agent-static
+spec:
+  roles: [Node]
+  join_method: bound_keypair
+  bound_keypair:
+    onboarding:
+      initial_public_key: <public key>
+    recovery:
+      mode: insecure
+      limit: 1
+```
+
+Back on the node, configure `teleport.yaml` as follows:
+```yaml
+version: v3
+teleport:
+  data_dir: /var/lib/teleport
+  join_params:
+    token_name: bk-agent-static
+    method: bound_keypair
+    bound_keypair:
+      static_key_path: /path/to/keypair
+
+# ... additional service configuration blocks omitted ...
+```
+
+Start the agent as usual (`teleport start -c teleport.yaml` or via your service
+manager of choice) and it should join the cluster.
+
 [rbac]: ../../access-controls/roles.mdx
 [ephemeral]: ../../architecture/machine-id-architecture.mdx#ephemeral-token
 [delegated]: ../../deployment/join-methods.mdx#delegated-join-methods
