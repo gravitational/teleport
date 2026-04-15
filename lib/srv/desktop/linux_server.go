@@ -831,7 +831,7 @@ func (sess *linuxSession) processScreenChanges() {
 					return
 				}
 			}
-			sess.log.DebugContext(sess.ctx, "frames", "size", size, "frames", framesSize)
+			sess.log.DebugContext(sess.ctx, "frames", "size", size, "frames", framesSize, "height", change.Height, "width", change.Width)
 		}
 		delta := time.Since(start)
 		if size > 0 {
