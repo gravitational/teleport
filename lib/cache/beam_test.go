@@ -22,8 +22,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/gravitational/trace"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -69,6 +71,28 @@ func TestBeam(t *testing.T) {
 		cacheList: p.cache.ListBeams,
 		cacheGet:  p.cache.GetBeam,
 	})
+}
+
+func TestBeam_GetBeamByAlias(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	beam := newBeamResource(uuid.NewString(), "warm-orbit", time.Now().Add(1*time.Hour))
+	require.NoError(t, createBeamForCacheTest(ctx, p, beam))
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		got, err := p.cache.GetBeamByAlias(ctx, "warm-orbit")
+		require.NoError(t, err)
+		require.Equal(t, beam.GetMetadata().GetName(), got.GetMetadata().GetName())
+	}, 2*time.Second, 50*time.Millisecond)
+
+	require.Never(t, func() bool {
+		_, err := p.cache.GetBeamByAlias(t.Context(), "tepid-spin")
+		return !trace.IsNotFound(err)
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func newBeamResource(name, alias string, expires time.Time) *beamsv1.Beam {
