@@ -103,6 +103,8 @@ func TestNeedsPathRedirect(t *testing.T) {
 			require.Equal(t, tt.wantRedirect, ok)
 			if tt.wantRedirect {
 				require.Equal(t, tt.wantLocation, location)
+			} else {
+				require.Empty(t, location)
 			}
 		})
 	}
