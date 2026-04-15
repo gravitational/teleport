@@ -195,7 +195,7 @@ func (s *OutputService) generate(ctx context.Context) error {
 	}
 
 	if s.cfg.SSHConfigMode == SSHConfigModeOn {
-		clusterNames, err := internal.GetClusterNames(ctx, impersonatedClient, id.Get().ClusterName)
+		clusterNames, err := internal.GetClusterNames(ctx, impersonatedClient, id.Get().ClusterName, s.cfg.DelegationSessionID != "")
 		if err != nil {
 			return trace.Wrap(err)
 		}
