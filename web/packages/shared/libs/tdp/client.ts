@@ -21,7 +21,12 @@ import { EventEmitter } from 'events';
 import { useEffect } from 'react';
 
 import { Logger } from 'design/logger';
-import type { FastPathProcessor } from 'shared/libs/ironrdp/pkg/ironrdp';
+import init, {
+  FastPathProcessor,
+  init_wasm_log,
+} from 'shared/libs/ironrdp/pkg/ironrdp';
+// Inlines the wasm module as a static asset bundled with our app.
+import wasmUrl from 'shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
 import {
@@ -144,8 +149,6 @@ type RemoveListenerFn = () => void;
 // WASM IronRDP code can only be initialized once; repeated attempts will cause an error.
 // To prevent multiple initializations, we track the initialization status in a global variable.
 let wasmReady: Promise<void> | undefined;
-// The FastPathProcessor is initialized if WebAssembly is supported in the browser.
-let IronRdpFastPathProcessor: typeof FastPathProcessor | undefined;
 
 // Defines which protocol the client will start with.
 type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
@@ -344,13 +347,6 @@ export class TdpClient extends EventEmitter<EventMap> {
       );
     }
 
-    const [ironrdp, { default: wasmUrl }] = await Promise.all([
-      import('shared/libs/ironrdp/pkg/ironrdp'),
-      import('shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline'),
-    ]);
-
-    IronRdpFastPathProcessor = ironrdp.FastPathProcessor;
-
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
@@ -364,8 +360,8 @@ export class TdpClient extends EventEmitter<EventMap> {
       c => c.charCodeAt(0)
     );
 
-    await ironrdp.default({ module_or_path: wasmBytes });
-    ironrdp.init_wasm_log(wasmLogLevel);
+    await init({ module_or_path: wasmBytes });
+    init_wasm_log(wasmLogLevel);
   }
 
   private initFastPathProcessor(
@@ -377,7 +373,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
-    this.fastPathProcessor = new IronRdpFastPathProcessor(
+    this.fastPathProcessor = new FastPathProcessor(
       spec.width,
       spec.height,
       ioChannelId,
