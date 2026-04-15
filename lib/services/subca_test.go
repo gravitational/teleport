@@ -40,26 +40,12 @@ func TestMarshalCertAuthOverrideRoundtrip(t *testing.T) {
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
 	}
 
-	t.Run("regular", func(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
 		val, err := services.MarshalCertAuthorityOverride(want)
 		require.NoError(t, err)
 
 		got, err := services.UnmarshalCertAuthorityOverride(val)
 		require.NoError(t, err)
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
-		}
-	})
-
-	t.Run("dynamic", func(t *testing.T) {
-		val, err := services.MarshalResource(types.Resource153ToLegacy(want))
-		require.NoError(t, err)
-
-		wrapped, err := services.UnmarshalResource(types.KindCertAuthorityOverride, val)
-		require.NoError(t, err)
-		unwrapper, ok := wrapped.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
-		require.True(t, ok, "Wrapped resource has unexpected type: %T", wrapped)
-		got := unwrapper.UnwrapT()
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
 		}
