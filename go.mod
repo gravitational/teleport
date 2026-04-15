@@ -50,7 +50,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/ThalesIgnite/crypto11 v1.2.5
-	github.com/alecthomas/kingpin/v2 v2.4.0 // replaced
+	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/andybalholm/brotli v1.2.0
 	github.com/armon/go-radix v1.0.0
@@ -128,7 +128,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-ldap/ldap/v3 v3.4.12
 	github.com/go-logr/logr v1.4.3
-	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
+	github.com/go-mysql-org/go-mysql v1.9.1
 	github.com/go-piv/piv-go/v2 v2.5.0
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-webauthn/webauthn v0.11.2
@@ -136,7 +136,7 @@ require (
 	github.com/gocql/gocql v1.7.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gofrs/flock v0.13.0
-	github.com/gogo/protobuf v1.3.2 // replaced
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/btree v1.1.3
@@ -155,7 +155,8 @@ require (
 	github.com/grafana/pyroscope-go v1.2.7
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1
 	github.com/gravitational/roundtrip v1.0.3
-	github.com/gravitational/trace v1.5.1
+	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
+	github.com/gravitational/trace v1.5.3
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/guptarohit/asciigraph v0.7.3
@@ -176,13 +177,13 @@ require (
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/jsimonetti/rtnetlink/v2 v2.0.1
 	github.com/json-iterator/go v1.1.12
-	github.com/julienschmidt/httprouter v1.3.0 // replaced
-	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
+	github.com/julienschmidt/httprouter v1.3.0
+	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27
 	github.com/mailgun/mailgun-go/v4 v4.23.0
 	github.com/mark3labs/mcp-go v0.43.0
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mdlayher/netlink v1.8.0
-	github.com/microsoft/go-mssqldb v1.9.3 // replaced
+	github.com/microsoft/go-mssqldb v1.9.3
 	github.com/miekg/pkcs11 v1.1.2
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/moby/api v1.54.1
@@ -206,7 +207,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.5
 	github.com/quic-go/quic-go v0.57.0
-	github.com/redis/go-redis/v9 v9.17.2 // replaced
+	github.com/redis/go-redis/v9 v9.17.2
 	github.com/russellhaering/gosaml2 v0.11.0
 	github.com/russellhaering/goxmldsig v1.6.0
 	github.com/schollz/progressbar/v3 v3.18.0
@@ -227,7 +228,7 @@ require (
 	github.com/tidwall/pretty v1.2.1
 	github.com/tidwall/sjson v1.2.5
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
-	github.com/vulcand/predicate v1.2.0 // replaced
+	github.com/vulcand/predicate v1.2.0
 	github.com/yusufpapurcu/wmi v1.2.4
 	github.com/zclconf/go-cty v1.16.3
 	github.com/zitadel/oidc/v3 v3.45.0
@@ -287,8 +288,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
-
-require github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -633,8 +632,7 @@ require (
 )
 
 // when changing the replace directives make sure to also apply the same changes
-// to integrations/event-handler/go.mod and integrations/terraform/go.mod, and
-// update "ignore" in .github/dependabot.yml.
+// to modules that require github.com/gravitational/teleport
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
@@ -642,6 +640,7 @@ replace (
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.2
 	github.com/gravitational/teleport/api => ./api
+	github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf
 	github.com/hinshun/vt10x => github.com/gravitational/vt10x v0.0.3-teleport.1
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
