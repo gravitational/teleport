@@ -3532,12 +3532,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 
-				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
+				cfg := ui.MakeServerConfig{
 					ClusterName:       cluster.GetName(),
-					Logins:            principals.Logins,
 					RequiresRequest:   enriched.RequiresRequest,
 					SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
-				}))
+				}
+				if principals != nil && principals.Logins != nil {
+					cfg.Logins = principals.Logins
+				}
+
+				unifiedResources = append(unifiedResources, ui.MakeServer(r, cfg))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
@@ -3556,12 +3560,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				InteractiveChecker: h.cfg.DatabaseREPLRegistry,
 				RequiresRequest:    enriched.RequiresRequest,
 				SupportedFeatures:  componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
-				Principals: &ui.DatabasePrincipals{
-					Users:           principals.DBUsers,
-					Names:           principals.DBNames,
-					Roles:           principals.DBRoles,
-					AutoUserEnabled: principals.DBAutoUserEnabled,
-				},
 			}
 			if principals != nil {
 				cfg.Principals = &ui.DatabasePrincipals{
@@ -3588,17 +3586,20 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				// let the current proxy user is connected to override the dns name
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
-
-			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
+			cfg := ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: proxyDNSName,
 				AppClusterName:    cluster.GetName(),
-				AWSRoles:          principals.AWSRoleARNs,
 				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.logger,
 				RequiresRequest:   enriched.RequiresRequest,
 				SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
-			})
+			}
+			if principals != nil {
+				cfg.AWSRoles = principals.AWSRoleARNs
+			}
+
+			app := ui.MakeApp(r.GetApp(), cfg)
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resources are shown as

@@ -5937,6 +5937,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
+	// Consolidate all resource IDs into the new ResourceAccessIDs field and
+	// clear the old ResourceIDs field to prevent GetAllRequestedResourceIDs()
+	// from merging both and producing duplicates.
+	req.SetRequestedResourceIDs(nil)
 	req.SetRequestedResourceAccessIDs(requestedResourceAccessIDs)
 
 	if err := a.checkResourcesRequestable(ctx, types.RiskyExtractResourceIDs(requestedResourceAccessIDs)); err != nil {

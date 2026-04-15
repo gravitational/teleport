@@ -233,6 +233,14 @@ func roleAllowingDatabaseRoles(roles []string) types.Role {
 	})
 }
 
+func roleAllowingDatabaseRolesAndNames(roles, names []string) types.Role {
+	return roleAllowingDatabase(func(rv *types.RoleV6) {
+		rv.Spec.Allow.DatabaseRoles = slices.Clone(roles)
+		rv.Spec.Allow.DatabaseNames = slices.Clone(names)
+		rv.Spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	})
+}
+
 func roleAllowingDatabaseAll(users, names, roles []string) types.Role {
 	return roleAllowingDatabase(func(rv *types.RoleV6) {
 		rv.Spec.Allow.DatabaseUsers = slices.Clone(users)
@@ -888,6 +896,7 @@ func TestMatcherFromConstraints_Database_WildcardRoles(t *testing.T) {
 		Details: &types.ResourceConstraints_Database{
 			Database: &types.DatabaseResourceConstraints{
 				Roles: []string{types.Wildcard},
+				Names: []string{"dev"},
 			},
 		},
 	}
@@ -897,7 +906,7 @@ func TestMatcherFromConstraints_Database_WildcardRoles(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Wildcard roles — any role should match.
-	role1 := roleAllowingDatabaseRoles([]string{"anything"})
+	role1 := roleAllowingDatabaseRolesAndNames([]string{"anything"}, []string{"dev"})
 	ok, err := m.Match(role1, types.Allow)
 	require.NoError(t, err)
 	require.True(t, ok)

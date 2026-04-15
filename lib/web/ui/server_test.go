@@ -841,11 +841,11 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 	interactiveChecker := &mockDatabaseInteractiveChecker{}
 
 	for name, tc := range map[string]struct {
-		roles      services.RoleSet
-		db         *types.DatabaseV3
+		roles        services.RoleSet
+		db           *types.DatabaseV3
 		assertResult require.ValueAssertionFunc
-		username   string
-		principals *DatabasePrincipals
+		username     string
+		principals   *DatabasePrincipals
 	}{
 		"names wildcard": {
 			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),

@@ -288,9 +288,13 @@ func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints, db t
 	}
 
 	if len(dimensionMatchers) == 0 {
-		// Unreachable: Validate() ensures at least one dimension is non-empty.
-		// Return nil so callers treat this as "no constraint matcher".
+		// Usually unreachable: Validate() ensures at least one dimension is non-empty.
+		// If only one dimension is specified, though, and has a Wildcard value, we should
+		// return an always-true matcher here so callers treat this as == "no constraints".
 		return nil
+		//return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+		//	return true, nil
+		//})
 	}
 	if len(dimensionMatchers) == 1 {
 		return dimensionMatchers[0]
