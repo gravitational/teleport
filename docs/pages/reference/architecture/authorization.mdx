@@ -113,7 +113,7 @@ spec:
   allow:
     # The logins array defines the OS/UNIX logins a user is allowed to use.
     logins: [ubuntu]
-    # Kubernetes groups defines what kubernetes groups a user is allowed to assume.
+    # Kubernetes groups defines what Kubernetes groups a user is allowed to assume.
     kubernetes_groups: [viewer]
 ```
 
@@ -122,7 +122,7 @@ If a user has many roles, the list of principals is merged into one set.
 ### Labels
 
 Role labels define what resources rules in the role apply to. For example, let's
-review a role that specifies access for SSH nodes and kubernetes clusters:
+review a role that specifies access for SSH nodes and Kubernetes clusters:
 
 ```yaml
 spec:
@@ -150,7 +150,7 @@ in the Kubernetes rule above, both `region` and `cluster_name` must match.
 Let's assume Alice is assigned two roles: `dev` and `prod`:
 
 The `dev` role allows SSH access as `root` and unrestricted access to Kubernetes as `system:masters` for
-any kubernetes cluster or node with labels matching 'test' or 'stage'.
+any Kubernetes cluster or node with labels matching 'test' or 'stage'.
 
 ```yaml
 metadata:
@@ -173,8 +173,8 @@ spec:
         verbs: ['*']
 ```
 
-Prod role allows SSH access as `ubuntu` and `view` access to kubernetes for
-any kubernetes cluster or node with labels matching 'prod'
+Prod role allows SSH access as `ubuntu` and `view` access to Kubernetes for
+any Kubernetes cluster or node with labels matching 'prod'
 
 ```yaml
 metadata:
@@ -202,8 +202,8 @@ only allows access as `ubuntu` to `prod`-labeled servers.
 
 The same applies to Kubernetes:
 
-- Alice can access kubernetes cluster as `system:masters` if it's labeled as `test` or `stage`.
-- Alice can access kubernetes clusters only as a `view` role if it's labeled as `prod`.
+- Alice can access Kubernetes cluster as `system:masters` if it's labeled as `test` or `stage`.
+- Alice can access Kubernetes clusters only as a `view` role if it's labeled as `prod`.
 
 ### Role templates
 
@@ -296,7 +296,7 @@ spec:
         name: "*"
 ```
 
-Finally, the proxy applies the resulting role to the kubernetes cluster Alice tries to
+Finally, the proxy applies the resulting role to the Kubernetes cluster Alice tries to
 access and checks it against the cluster. If the cluster has labels `"env": "stage"`
 the attempt succeeds; otherwise it fails.
 
