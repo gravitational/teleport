@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -62,6 +63,10 @@ type SubCAStorage interface {
 		ctx context.Context,
 		resource *subcav1.CertAuthorityOverride,
 	) (*subcav1.CertAuthorityOverride, error)
+	DeleteCertAuthorityOverride(
+		ctx context.Context,
+		id local.CertAuthorityOverrideID,
+	) error
 }
 
 // KeystoreManager is a subset of keystore.Manager methods used in CRL and CSR
@@ -379,6 +384,52 @@ func (s *Service) ListCertAuthorityOverride(
 		CaOverrides:   caOverrides,
 		NextPageToken: nextPageToken,
 	}, nil
+}
+
+func (s *Service) DeleteCertAuthorityOverride(
+	ctx context.Context,
+	req *subcav1.DeleteCertAuthorityOverrideRequest,
+) (*subcav1.DeleteCertAuthorityOverrideResponse, error) {
+	if req.CaId.GetCaType() == "" {
+		return nil, trace.BadParameter("ca_id.ca_type required")
+	}
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Validate against enabled overrides of the existing CA
+	//  override resource.
+
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "read cluster name")
+	}
+	id := local.CertAuthorityOverrideID{
+		ClusterName: cn.GetClusterName(),
+		CAType:      req.CaId.CaType,
+	}
+	if err := s.subCA.DeleteCertAuthorityOverride(ctx, id); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fill in identifying fields for audit.
+	parsed := &subca.ParsedCertAuthorityOverride{
+		CAOverride: &subcav1.CertAuthorityOverride{
+			SubKind: id.CAType,
+			Metadata: &headerv1.Metadata{
+				Name: id.ClusterName,
+			},
+		},
+	}
+	s.emitCAOverrideEvent(
+		ctx,
+		parsed,
+		nil, // error
+		events.CertAuthOverrideDeleteEvent,
+		events.CertAuthOverrideDeleteCode,
+	)
+
+	return &subcav1.DeleteCertAuthorityOverrideResponse{}, nil
 }
 
 type adminActionMode int

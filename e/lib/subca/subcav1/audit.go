@@ -19,7 +19,8 @@ package subcav1
 import (
 	"context"
 	"crypto/x509"
-	"strings"
+
+	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -32,6 +33,23 @@ func (s *Service) emitCAOverrideEvent(
 	err error,
 	eventType, eventCode string,
 ) {
+	// Sanity check input.
+	// This is a private helper, so we can ensure all callers pass a non-nil
+	// parsed override.
+	if parsed == nil ||
+		parsed.CAOverride == nil ||
+		parsed.CAOverride.SubKind == "" ||
+		parsed.CAOverride.Metadata.GetName() == "" {
+		s.logger.ErrorContext(ctx,
+			"CA override required to issue audit event",
+			"error", trace.BadParameter("parsed CA override required"), // capture trace
+			"event_type", eventType,
+			"event_code", eventCode,
+			"parsed_ca_override", parsed,
+		)
+		return
+	}
+
 	um := authz.ClientUserMetadata(ctx)
 
 	var errorMessage string
@@ -39,16 +57,7 @@ func (s *Service) emitCAOverrideEvent(
 		errorMessage = err.Error()
 	}
 
-	var name string
-	if parsed != nil && parsed.CAOverride != nil && parsed.CAOverride.GetMetadata().GetName() != "" {
-		var build strings.Builder
-		build.WriteString(parsed.CAOverride.Metadata.Name)
-		if sk := parsed.CAOverride.SubKind; sk != "" {
-			build.WriteRune('/')
-			build.WriteString(sk)
-		}
-		name = build.String()
-	}
+	auditName := parsed.CAOverride.SubKind + "/" + parsed.CAOverride.Metadata.Name
 
 	e := &apievents.CertAuthorityOverrideEvent{
 		Metadata: apievents.Metadata{
@@ -57,7 +66,7 @@ func (s *Service) emitCAOverrideEvent(
 		},
 		UserMetadata: um,
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      name,
+			Name:      auditName,
 			UpdatedBy: um.GetUser(),
 		},
 		Status: apievents.Status{
@@ -80,10 +89,6 @@ func (s *Service) emitCAOverrideEvent(
 }
 
 func caOverrideToEventMetadata(parsed *subca.ParsedCertAuthorityOverride) *apievents.CertAuthorityOverrideMetadata {
-	if parsed == nil {
-		return nil
-	}
-
 	overrides := make([]*apievents.CertificateOverrideMetadata, len(parsed.CertificateOverrides))
 	for i, co := range parsed.CertificateOverrides {
 		overrideMeta := &apievents.CertificateOverrideMetadata{

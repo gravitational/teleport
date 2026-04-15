@@ -135,6 +135,21 @@ func TestService_authz(t *testing.T) {
 			},
 			adminActionNotRequired: true,
 		},
+		{
+			name: "DeleteCertAuthorityOverride",
+			doRPC: func(t *testing.T) error {
+				_, err := subCA.DeleteCertAuthorityOverride(
+					t.Context(), &subcapb.DeleteCertAuthorityOverrideRequest{
+						CaId: &subcapb.CertAuthorityOverrideID{
+							CaType: caType, // Not found.
+						},
+					})
+				return err
+			},
+			want: []*authorizeAttempt{
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbDelete},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -772,6 +787,83 @@ func TestService_List(t *testing.T) {
 	})
 }
 
+func TestService_Delete(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.DatabaseClientCA
+	const caTypeOther = types.WindowsCA
+
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{
+				caType,
+			},
+		},
+	})
+	subCA := env.SubCAClient
+
+	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), &subcapb.DeleteCertAuthorityOverrideRequest{
+			CaId: &subcapb.CertAuthorityOverrideID{
+				CaType: string(caTypeOther),
+			},
+		})
+		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Delete error mismatch")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Prepare override to delete.
+		o := env.NewOverrideForCAType(t, caType)
+		created, err := subCA.CreateCertAuthorityOverride(ctx, &subcapb.CreateCertAuthorityOverrideRequest{
+			CaOverride: o,
+		})
+		require.NoError(t, err, "Create errored")
+
+		emitter := env.MockEmitter
+		emitter.Reset()
+
+		// Delete.
+		id := &subcapb.CertAuthorityOverrideID{
+			CaType: created.CaOverride.GetSubKind(),
+		}
+		_, err = subCA.DeleteCertAuthorityOverride(ctx, &subcapb.DeleteCertAuthorityOverrideRequest{
+			CaId: id,
+		})
+		require.NoError(t, err, "Delete errored")
+
+		// Assert audit.
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Type:    events.CertAuthOverrideDeleteEvent,
+			Code:    events.CertAuthOverrideDeleteCode,
+			Success: true,
+		})
+
+		t.Run("Get returns not found", func(t *testing.T) {
+			t.Parallel()
+
+			_, err := subCA.GetCertAuthorityOverride(ctx, &subcapb.GetCertAuthorityOverrideRequest{
+				CaId: id,
+			})
+			assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch")
+		})
+
+		t.Run("double-Delete returns not found", func(t *testing.T) {
+			t.Parallel()
+
+			_, err := subCA.DeleteCertAuthorityOverride(ctx, &subcapb.DeleteCertAuthorityOverrideRequest{
+				CaId: id,
+			})
+			assert.ErrorAs(t, err, new(*trace.NotFoundError), "Delete error mismatch")
+		})
+	})
+}
+
 type wantEvent struct {
 	Code    string
 	Type    string
@@ -793,4 +885,7 @@ func assertCAOverrideEvent(
 	assert.Equal(t, want.Type, caoEvent.Type, "Event.Type mismatch")
 	assert.Equal(t, want.Code, caoEvent.Code, "Event.Code mismatch")
 	assert.Equal(t, want.Success, caoEvent.Success, "Event.Success mismatch")
+
+	wantName := caoEvent.CaOverride.CaType + "/" + caoEvent.CaOverride.ClusterName
+	assert.Equal(t, wantName, caoEvent.Name, "Event.Name mismatch")
 }
