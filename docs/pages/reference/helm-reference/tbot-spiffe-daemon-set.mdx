@@ -9,9 +9,9 @@ tags:
 ---
 
 This chart deploys a daemon set of the [Machine & Workload Identity](../../machine-workload-identity/introduction.mdx) agent,
-TBot, into your Kubernetes cluster to provide SPIFFE
-identities to workloads in the cluster. This is the recommended way of deploying
-MWI for SPIFFE into Kubernetes Clusters.
+TBot, into your Kubernetes cluster to provide SPIFFE identities to workloads in
+the cluster. This is the recommended way of deploying MWI for SPIFFE into
+Kubernetes Clusters.
 
 To use it, you will need to know:
 
@@ -23,7 +23,8 @@ as described in the [Machine & Workload Identity on Kubernetes guide](../../mach
 
 By default, this chart is designed to use the `kubernetes` join method but it
 can be customized to use any delegated join method. We do not recommend that
-you use the `token` join method with this chart.
+you use the `token` join method with this chart. Visit the
+[join method reference](../deployment/join-methods.mdx) for more information.
 
 ## Minimal configuration
 
@@ -68,8 +69,9 @@ workloadIdentitySelector:
   name: example-workload-identity
 ```
 
-Once this chart is deployed, you may then manually mount the SPIFFE Workload API
-into your workload pods or deploy the
+After deploying the chart, you will need to make the SPIFFE Workload API
+available to your workloads. You can manually mount the SPIFFE Workload API into
+your pods via hostPath, or you can deploy the
 [SPIFFE CSI Driver](https://github.com/spiffe/spiffe-csi) to simplify this
 process.
 
