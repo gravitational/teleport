@@ -158,6 +158,8 @@ type ListBotInstancesRequestOptions struct {
 	FilterSearchTerm string
 	// A Teleport predicate language query used to filter the results.
 	FilterQuery string
+	// FilterFn is an optional additional filter applied during iteration.
+	FilterFn func(*machineidv1.BotInstance) bool
 }
 
 func (o *ListBotInstancesRequestOptions) GetSortField() string {
@@ -193,6 +195,13 @@ func (o *ListBotInstancesRequestOptions) GetFilterQuery() string {
 		return ""
 	}
 	return o.FilterQuery
+}
+
+func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInstance) bool {
+	if o == nil {
+		return nil
+	}
+	return o.FilterFn
 }
 
 // BotResourceName returns the default name for resources associated with the

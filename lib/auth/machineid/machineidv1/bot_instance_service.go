@@ -241,9 +241,6 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(strideynet): Ideally, at some point in the future, we should switch
-	// to some kind of stream from the cache, or pass a filter func in to allow
-	// us to avoid returning un-full pages due to completing authz checks after.
 	botInstances, nextToken, err := b.cache.ListBotInstances(
 		ctx,
 		int(req.PageSize),
@@ -254,37 +251,33 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 			FilterBotName:    req.GetFilter().GetBotName(),
 			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
 			FilterQuery:      req.GetFilter().GetQuery(),
+			FilterFn: func(botInstance *pb.BotInstance) bool {
+				ruleCtx := authCtx.RuleContext()
+				ruleCtx.Resource153 = botInstance
+				err := authCtx.CheckerContext.Decision(
+					ctx,
+					botInstance.Scope,
+					func(checker *services.ScopedAccessChecker) error {
+						return checker.CheckAccessToRules(
+							&ruleCtx,
+							types.KindBotInstance,
+							types.VerbReadNoSecrets,
+							types.VerbList,
+						)
+					},
+				)
+				return err == nil
+			},
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res := &pb.ListBotInstancesResponse{
-		BotInstances:  make([]*pb.BotInstance, 0, len(botInstances)),
+	return &pb.ListBotInstancesResponse{
+		BotInstances:  botInstances,
 		NextPageToken: nextToken,
-	}
-	for _, botInstance := range botInstances {
-		ruleCtx := authCtx.RuleContext()
-		ruleCtx.Resource153 = botInstance
-		if err := authCtx.CheckerContext.Decision(
-			ctx,
-			botInstance.Scope,
-			func(checker *services.ScopedAccessChecker) error {
-				return checker.CheckAccessToRules(
-					&ruleCtx,
-					types.KindBotInstance,
-					types.VerbReadNoSecrets,
-					types.VerbList,
-				)
-			},
-		); err != nil {
-			// Skip bot instances they don't have access to.
-			continue
-		}
-		res.BotInstances = append(res.BotInstances, botInstance)
-	}
-	return res, nil
+	}, nil
 }
 
 // SubmitHeartbeat records heartbeat information for a bot
