@@ -625,10 +625,7 @@ func (a *AppV3) checkLLM() error {
 	}
 
 	for _, model := range llm.Models {
-		switch {
-		case model == nil:
-			continue
-		case model.Name == "":
+		if model == nil || model.Name == "" {
 			return trace.BadParameter("Inference endpoint %q 'models' elements must include the 'name' property", a.GetName())
 		}
 	}
