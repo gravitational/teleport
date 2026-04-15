@@ -20,6 +20,8 @@ package local
 
 import (
 	"context"
+	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -97,6 +99,11 @@ func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken str
 	return items, nextKey, nil
 }
 
+// IterateBeams returns a sequence of beams starting from the given pageToken.
+func (s *BeamService) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+	return s.svc.Resources(ctx, pageToken, "")
+}
+
 // AppendPutBeamActions adds conditional actions to an atomic write to create
 // or update a Beam resource.
 func (s *BeamService) AppendPutBeamActions(
@@ -159,4 +166,44 @@ func (s *BeamService) AppendDeleteBeamActions(
 
 func beamAliasKey(alias string) backend.Key {
 	return backend.NewKey(beamAliasPrefix, alias)
+}
+
+func newBeamParser() *beamParser {
+	return &beamParser{
+		baseParser: newBaseParser(backend.NewKey(beamPrefix).ExactKey()),
+	}
+}
+
+type beamParser struct {
+	baseParser
+}
+
+func (p *beamParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(beamPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: strings.TrimPrefix(name, backend.SeparatorString),
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*beamsv1.Beam](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

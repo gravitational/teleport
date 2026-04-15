@@ -635,6 +635,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -696,6 +703,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
+		Beams:                           cfg.Beams,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -997,6 +1005,7 @@ type Services struct {
 	RecordingEncryptionManager
 	services.ScopedTokenService
 	services.WorkloadClusterService
+	services.Beams
 }
 
 // awsOrganizationsClientGetter returns an AWS Organizations client getter.
