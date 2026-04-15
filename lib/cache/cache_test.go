@@ -178,6 +178,7 @@ type testPack struct {
 	appAuthConfigs          *local.AppAuthConfigService
 	workloadClusters        *local.WorkloadClusterService
 	summarizer              *local.SummarizerService
+	subCA                   *local.SubCAService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -557,6 +558,13 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.subCA, err = local.NewSubCAService(local.SubCAServiceParams{
+		Backend: p.backend,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -624,6 +632,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -898,6 +907,7 @@ func TestCompletenessInit(t *testing.T) {
 			StaticScopedToken:       p.clusterConfigS,
 			WorkloadClusterService:  p.workloadClusters,
 			Summarizer:              p.summarizer,
+			SubCAService:            p.subCA,
 		}))
 		require.NoError(t, err)
 
@@ -991,6 +1001,7 @@ func TestCompletenessReset(t *testing.T) {
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1160,6 +1171,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1264,6 +1276,7 @@ func initStrategy(t *testing.T) {
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
