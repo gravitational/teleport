@@ -19,7 +19,6 @@
 package azurejoin
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 
@@ -29,7 +28,7 @@ import (
 )
 
 func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	tests := []struct {
 		name        string
 		params      CheckAzureRequestParams
