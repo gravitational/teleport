@@ -6376,7 +6376,7 @@ message LockTarget {
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 
-  // LinuxDesktop specifies the name of a Windows desktop.
+  // LinuxDesktop specifies the name of a Linux desktop.
   string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 

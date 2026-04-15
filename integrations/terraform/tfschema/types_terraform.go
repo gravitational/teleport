@@ -5309,6 +5309,11 @@ func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"linux_desktop": {
+							Description: "LinuxDesktop specifies the name of a Linux desktop.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"login": {
 							Description: "Login specifies the name of a local UNIX user.",
 							Optional:    true,
@@ -52103,6 +52108,23 @@ func CopyLockV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["linux_desktop"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"LockV2.Spec.Target.LinuxDesktop"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"LockV2.Spec.Target.LinuxDesktop", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LinuxDesktop = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -52718,6 +52740,28 @@ func CopyLockV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = string(obj.JoinToken)
 											v.Unknown = false
 											tf.Attrs["join_token"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["linux_desktop"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"LockV2.Spec.Target.LinuxDesktop"})
+										} else {
+											v, ok := tf.Attrs["linux_desktop"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"LockV2.Spec.Target.LinuxDesktop", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"LockV2.Spec.Target.LinuxDesktop", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LinuxDesktop) == ""
+											}
+											v.Value = string(obj.LinuxDesktop)
+											v.Unknown = false
+											tf.Attrs["linux_desktop"] = v
 										}
 									}
 								}

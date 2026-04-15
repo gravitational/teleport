@@ -15883,7 +15883,7 @@ type LockTarget struct {
 	// joined. This is only valid for bot identities, and cannot be used to target
 	// `token`-joined bots.
 	JoinToken string `protobuf:"bytes,11,opt,name=JoinToken,proto3" json:"join_token,omitempty"`
-	// LinuxDesktop specifies the name of a Windows desktop.
+	// LinuxDesktop specifies the name of a Linux desktop.
 	LinuxDesktop         string   `protobuf:"bytes,12,opt,name=LinuxDesktop,proto3" json:"linux_desktop,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
