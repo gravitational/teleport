@@ -63,7 +63,7 @@ func (e *JoinFailureError) Error() string {
 
 const (
 	// maxJournalLines is the number of recent journalctl lines to capture.
-	maxJournalLines = 50
+	maxJournalLines = 100
 
 	// defaultServiceDiagnosticsUnavailable is appended when systemd state cannot
 	// be retrieved while preparing a join-failure error.
