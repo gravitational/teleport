@@ -175,7 +175,7 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_COMPACT_DISCOVERY")
 	compact, _ := strconv.ParseBool(v)
 
-	pb := &discoPub{
+	dp := &discoPub{
 		ctx:     ctx,
 		cancel:  cancel,
 		watcher: watcher,
@@ -183,11 +183,11 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 		compact: compact,
 		log:     logger,
 	}
-	go pb.run()
-	return pb
+	go dp.run()
+	return dp
 }
 
-func (pb *discoPub) discoFromServer(s types.Server, ttl time.Duration) discoveryProxy {
+func (dp *discoPub) discoFromServer(s types.Server, ttl time.Duration) discoveryProxy {
 	p := discoveryProxy{
 		Version: types.V2,
 	}
@@ -204,47 +204,47 @@ func (pb *discoPub) discoFromServer(s types.Server, ttl time.Duration) discovery
 	if err != nil {
 		// ParseUint can return the maximum uint64 on ErrRange
 		p.ProxyGroupGeneration = 0
-		pb.log.DebugContext(pb.ctx, "Failed to parse proxy group generation", "error", err, "value", proxyGroupGeneration)
+		dp.log.DebugContext(dp.ctx, "Failed to parse proxy group generation", "error", err, "value", proxyGroupGeneration)
 	}
 	return p
 }
 
-func (pb *discoPub) run() {
+func (dp *discoPub) run() {
 	for {
 		select {
-		case <-pb.ctx.Done():
+		case <-dp.ctx.Done():
 			return
-		case servers, ok := <-pb.watcher.ResourcesC:
+		case servers, ok := <-dp.watcher.ResourcesC:
 			if !ok {
-				pb.log.WarnContext(pb.ctx, "Proxy discovery watcher closed unexpectedly")
+				dp.log.WarnContext(dp.ctx, "Proxy discovery watcher closed unexpectedly")
 				return
 			}
-			now := pb.watcher.Clock.Now()
+			now := dp.watcher.Clock.Now()
 
 			func() {
-				pb.pm.Lock()
-				defer pb.pm.Unlock()
+				dp.pm.Lock()
+				defer dp.pm.Unlock()
 
-				pb.version++
-				pb.proxies = servers
-				prevVersions := pb.versions
-				pb.versions = make(map[string]proxyversion, len(servers))
+				dp.version++
+				dp.proxies = servers
+				prevVersions := dp.versions
+				dp.versions = make(map[string]proxyversion, len(servers))
 				for _, server := range servers {
 					pv, ok := prevVersions[server.GetName()]
 					if !ok || !server.Expiry().Equal(pv.expiry) {
-						pv.version = pb.version
+						pv.version = dp.version
 						pv.updated = now
 					}
 					pv.expiry = server.Expiry()
-					pb.versions[server.GetName()] = pv
+					dp.versions[server.GetName()] = pv
 				}
 			}()
 
 			func() {
-				pb.sm.Lock()
-				defer pb.sm.Unlock()
+				dp.sm.Lock()
+				defer dp.sm.Unlock()
 
-				for s := range pb.subs {
+				for s := range dp.subs {
 					select {
 					case s.notify <- struct{}{}:
 					default:
@@ -256,19 +256,19 @@ func (pb *discoPub) run() {
 }
 
 // Subscribe returns a new [discoSub] for receiving proxy event updates.
-func (pb *discoPub) Subscribe() *discoSub {
+func (dp *discoPub) Subscribe() *discoSub {
 	s := &discoSub{
-		pb:     pb,
+		pb:     dp,
 		notify: make(chan struct{}, 1),
 	}
 
-	pb.sm.Lock()
-	pb.subs[s] = struct{}{}
-	pb.sm.Unlock()
+	dp.sm.Lock()
+	dp.subs[s] = struct{}{}
+	dp.sm.Unlock()
 
-	pb.pm.RLock()
-	version := pb.version
-	pb.pm.RUnlock()
+	dp.pm.RLock()
+	version := dp.version
+	dp.pm.RUnlock()
 	if version > 0 {
 		select {
 		case s.notify <- struct{}{}:
@@ -280,9 +280,9 @@ func (pb *discoPub) Subscribe() *discoSub {
 }
 
 // Close cleans up resources allocated by a [discoPub].
-func (pb *discoPub) Close() {
-	pb.cancel()
-	pb.watcher.Close()
+func (dp *discoPub) Close() {
+	dp.cancel()
+	dp.watcher.Close()
 }
 
 // discoGetParams contains parameters for [discoPub.get].
@@ -293,20 +293,20 @@ type discoGetParams struct {
 }
 
 // get fetches the latest set of [discoveryProxy]s.
-func (pb *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
-	pb.pm.RLock()
-	proxies := pb.proxies
-	version := pb.version
-	versions := pb.versions
-	compact := pb.compact
-	pb.pm.RUnlock()
+func (dp *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
+	dp.pm.RLock()
+	proxies := dp.proxies
+	version := dp.version
+	versions := dp.versions
+	compact := dp.compact
+	dp.pm.RUnlock()
 
 	var ttl time.Duration
 	if compact {
 		ttl = defaults.ProxyAnnounceTTL()
 	}
 
-	now := pb.watcher.Clock.Now()
+	now := dp.watcher.Clock.Now()
 	disco := make([]discoveryProxy, 0, len(proxies))
 	lastVersion := sub.version.Swap(version)
 	for _, proxy := range proxies {
@@ -322,13 +322,13 @@ func (pb *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
 				continue
 			}
 		}
-		disco = append(disco, pb.discoFromServer(proxy, ttl))
+		disco = append(disco, dp.discoFromServer(proxy, ttl))
 	}
 	return disco
 }
 
-func (pb *discoPub) unsubscribe(s *discoSub) {
-	pb.sm.Lock()
-	defer pb.sm.Unlock()
-	delete(pb.subs, s)
+func (dp *discoPub) unsubscribe(s *discoSub) {
+	dp.sm.Lock()
+	defer dp.sm.Unlock()
+	delete(dp.subs, s)
 }
