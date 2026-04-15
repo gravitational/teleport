@@ -1329,7 +1329,7 @@ const (
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 
-	// BeamID is the label used to track which Beam a resource belongs to.
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
 	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
 
 	// BeamOwnerLabel is the label used to track which user's Beam a resource
