@@ -45,9 +45,10 @@ require {
     class capability { audit_control audit_write chown dac_read_search dac_override fowner fsetid kill net_admin net_bind_service setgid setuid sys_admin sys_resource };
     class chr_file { append read write };
     class dbus { send_msg };
-    class file { create getattr ioctl map open read remove_name setattr unlink write };
+    class file { create getattr ioctl map open read relabelfrom relabelto remove_name setattr unlink write };
     class filesystem { getattr unmount };
     class process { setsched transition };
+    class process2 { nnp_transition nosuid_transition };
     class service { status };
     class sock_file { append create getattr open read setattr unlink write };
     class tcp_socket { accept listen name_bind name_connect };
@@ -321,3 +322,7 @@ optional_policy(`
     xserver_domtrans_xauth(teleport_ssh_t);
     xserver_xdm_signull(teleport_ssh_t);
 ')
+
+allow teleport_ssh_t teleport_ssh_exec_t:file relabelto;
+allow teleport_ssh_t tmpfs_t:file { relabelfrom setattr write };
+allow teleport_ssh_t userdomain:process2 { nnp_transition nosuid_transition };
