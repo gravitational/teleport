@@ -121,7 +121,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
-		require.ErrorContains(t, err, "User does not have permission to delegate access to all of the required resources")
+		require.ErrorContains(t, err, "user does not have permission to delegate access to all of the required resources")
 	})
 
 	t.Run("resource does not exist", func(t *testing.T) {
