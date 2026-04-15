@@ -1480,6 +1480,8 @@ type Cache interface {
 
 	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
 	services.WorkloadClusterServiceGetter
+	// BeamReader defines methods for reading beam resources.
+	services.BeamReader
 }
 
 type NodeWrapper struct {

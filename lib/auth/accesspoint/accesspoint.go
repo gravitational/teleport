@@ -74,6 +74,7 @@ type Config struct {
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
 	Apps                    services.Applications
+	Beams                   services.BeamReader
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -81,6 +82,7 @@ type Config struct {
 	DatabaseObjects         services.DatabaseObjects
 	DatabaseServices        services.DatabaseServices
 	Databases               services.Databases
+	DelegationSessions      services.DelegationSessions
 	DiscoveryConfigs        services.DiscoveryConfigs
 	DynamicAccess           services.DynamicAccessCore
 	Events                  types.Events
@@ -162,6 +164,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
+		Beams:                   cfg.Beams,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
