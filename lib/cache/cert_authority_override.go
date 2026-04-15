@@ -42,9 +42,9 @@ func (c *Cache) GetCertAuthorityOverride(
 	getter := genericGetter[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]{
 		cache:      c,
 		collection: c.collections.certAuthorityOverrides,
-		index:      certAuthorityOverrideFullNameIndex,
-		upstreamGet: func(ctx context.Context, fullName string) (*subcav1.CertAuthorityOverride, error) {
-			id, err := parseCAOverrideFullName(fullName)
+		index:      certAuthorityOverrideCacheNameIndex,
+		upstreamGet: func(ctx context.Context, cacheName string) (*subcav1.CertAuthorityOverride, error) {
+			id, err := parseCAOverrideCacheName(cacheName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -53,7 +53,7 @@ func (c *Cache) GetCertAuthorityOverride(
 		},
 	}
 
-	out, err := getter.get(ctx, id.FullName())
+	out, err := getter.get(ctx, caOverrideIDCacheName(id))
 	return out, trace.Wrap(err)
 }
 
@@ -65,12 +65,12 @@ func (c *Cache) ListCertAuthorityOverrides(ctx context.Context, pageSize int, pa
 	lister := genericLister[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]{
 		cache:      c,
 		collection: c.collections.certAuthorityOverrides,
-		index:      certAuthorityOverrideFullNameIndex,
+		index:      certAuthorityOverrideCacheNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {
 			out, next, err := c.SubCAService.ListCertAuthorityOverrides(ctx, pageSize, pageToken)
 			return out, next, trace.Wrap(err)
 		},
-		nextToken: caOverrideFullName,
+		nextToken: caOverrideCacheName,
 	}
 
 	out, next, err := lister.list(ctx, pageSize, pageToken)
@@ -80,8 +80,8 @@ func (c *Cache) ListCertAuthorityOverrides(ctx context.Context, pageSize int, pa
 type certAuthorityOverrideIndex string
 
 const (
-	// certAuthorityOverrideFullNameIndex indexes by sub_kind+name.
-	certAuthorityOverrideFullNameIndex certAuthorityOverrideIndex = "full_name"
+	// certAuthorityOverrideCacheNameIndex indexes by backend ID, ie name+sub_kind.
+	certAuthorityOverrideCacheNameIndex certAuthorityOverrideIndex = "cache_name"
 )
 
 func newCertAuthorityOverrideCollection(
@@ -97,7 +97,7 @@ func newCertAuthorityOverrideCollection(
 			types.KindCertAuthorityOverride,
 			proto.CloneOf[*subcav1.CertAuthorityOverride],
 			map[certAuthorityOverrideIndex]func(*subcav1.CertAuthorityOverride) string{
-				certAuthorityOverrideFullNameIndex: caOverrideFullName,
+				certAuthorityOverrideCacheNameIndex: caOverrideCacheName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*subcav1.CertAuthorityOverride, error) {
 			out, err := stream.Collect(clientutils.Resources(
@@ -122,21 +122,20 @@ func newCertAuthorityOverrideCollection(
 	}, nil
 }
 
-func caOverrideFullName(r *subcav1.CertAuthorityOverride) string {
-	id := types.CertAuthorityOverrideID{
-		ClusterName: r.GetMetadata().GetName(),
-		CAType:      r.GetSubKind(),
-	}
-	return id.FullName()
+func caOverrideIDCacheName(id types.CertAuthorityOverrideID) string {
+	return id.ClusterName + "/" + id.CAType
+}
+func caOverrideCacheName(r *subcav1.CertAuthorityOverride) string {
+	return r.GetMetadata().GetName() + "/" + r.GetSubKind()
 }
 
-func parseCAOverrideFullName(fullName string) (*types.CertAuthorityOverrideID, error) {
-	parts := strings.SplitN(fullName, "/", 2)
+func parseCAOverrideCacheName(cacheName string) (*types.CertAuthorityOverrideID, error) {
+	parts := strings.SplitN(cacheName, "/", 2)
 	if len(parts) != 2 {
-		return nil, trace.BadParameter("invalid CA override identifier: %q", fullName)
+		return nil, trace.BadParameter("invalid CA override identifier: %q", cacheName)
 	}
 	return &types.CertAuthorityOverrideID{
-		CAType:      parts[0],
-		ClusterName: parts[1],
+		ClusterName: parts[0],
+		CAType:      parts[1],
 	}, nil
 }
