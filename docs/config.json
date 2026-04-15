@@ -171,6 +171,11 @@
       "permanent": true
     },
     {
+      "source": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-locks/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-locksv2/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/guides/role-templates/",
       "destination": "/zero-trust-access/rbac-get-started/role-templates/",
       "permanent": true
