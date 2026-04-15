@@ -253,17 +253,8 @@ $ tsh apps login grafana
 ```
 
 The output shows an example `curl` command you can run to call the target
-application's API, similar to the example below. The `curl` command shows the
-file paths of your certificate and private key. These contain the Proxy Service
-URL, your Teleport username, and cluster URL (which happen to be the same
-below):
-
-```text
-curl \
-  --cert ~/.tsh/keys/teleport.example.com/alice-app/teleport.example.com/grafana.crt \
-  --key ~/.tsh/keys/teleport.example.com/alice-app/teleport.example.com/grafana.key \
-  https://grafana.teleport.example.com
-```
+application's API. The `curl` command shows the file paths of the certificate
+and private key to use to authenticate your API calls.
 
 ## Next steps
 
