@@ -17,9 +17,10 @@
  */
 
 import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { ITerminalAddon, ITheme, Terminal } from '@xterm/xterm';
+import { ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
   SearchAddon,
@@ -52,7 +53,7 @@ export default class TtyTerminal implements TerminalSearcher {
   _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
-  _imageAddon: ITerminalAddon | undefined;
+  _imageAddon: ImageAddon | undefined;
   _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon | undefined;
@@ -104,12 +105,16 @@ export default class TtyTerminal implements TerminalSearcher {
     this.term.loadAddon(this._webLinksAddon);
     this.term.loadAddon(this._searchAddon);
 
-    // @xterm/addon-image uses WebAssembly at the top level, so we load it dynamically to
-    // avoid crashing the app when WebAssembly is unavailable.
-    import('@xterm/addon-image').then(({ ImageAddon }) => {
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin guard-wasm
+    // rewrites bare WebAssembly references so the module can be statically imported
+    // without crashing; construction will still throw when WebAssembly is genuinely
+    // unavailable, so we catch that here.
+    try {
       this._imageAddon = new ImageAddon();
       this.term.loadAddon(this._imageAddon);
-    }).catch(() => {});
+    } catch (e) {
+      logger.error('Failed to load image addon:', e.message);
+    }
 
     try {
       // The constructor may throw if WebGL is not supported.

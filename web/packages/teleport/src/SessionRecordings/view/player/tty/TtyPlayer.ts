@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITerminalAddon, Terminal } from '@xterm/xterm';
@@ -69,13 +70,17 @@ export class TtyPlayer extends Player<TtyEvent> {
 
     this.addons.push(this.aspectFitAddon, linksAddon);
 
-    // @xterm/addon-image uses WebAssembly at the top level, so we load it dynamically to
-    // avoid crashing the app when WebAssembly is unavailable.
-    import('@xterm/addon-image').then(({ ImageAddon }) => {
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin
+    // guard-wasm-globals rewrites bare WebAssembly references so the module can
+    // be statically imported without crashing; construction and activation will
+    // still throw when WebAssembly is genuinely unavailable, so we catch that here.
+    try {
       const imageAddon = new ImageAddon();
+      this.terminal.loadAddon(imageAddon);
       this.addons.push(imageAddon);
-      this.terminal?.loadAddon(imageAddon);
-    }).catch(() => {});
+    } catch (e) {
+      this.logger.error('Failed to load image addon:', e.message);
+    }
 
     this.aspectFitAddon.activate(this.terminal);
 
