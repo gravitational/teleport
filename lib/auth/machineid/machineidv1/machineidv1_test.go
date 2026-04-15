@@ -47,11 +47,13 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3397,7 +3399,7 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 			},
 			Scope: "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
+				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted", "/scopes/other"},
 				Rules: []*scopedaccessv1.ScopedRule{
 					{
 						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
@@ -3412,7 +3414,7 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
 	require.NoError(t, err)
 
-	sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+	sra1Resp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			Version: types.V1,
@@ -3430,7 +3432,25 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	waitForSRACache(t, srv, sraResp)
+	sra2Resp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: scopedUser.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/other"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra1Resp, sra2Resp)
 
 	// Create a mix of bot instances.
 	unscopedInstances := []*machineidv1pb.BotInstance{
@@ -3461,20 +3481,20 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 
 	listAll := func(t *testing.T, client machineidv1pb.BotInstanceServiceClient) []*machineidv1pb.BotInstance {
 		t.Helper()
-		var results []*machineidv1pb.BotInstance
-		var nextToken string
-		for {
-			res, err := client.ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
-				PageToken: nextToken,
-			})
-			require.NoError(t, err)
-			results = append(results, res.BotInstances...)
-			nextToken = res.NextPageToken
-			if nextToken == "" {
-				break
-			}
-		}
-		return results
+		out, err := stream.Collect(clientutils.Resources(
+			t.Context(),
+			func(
+				ctx context.Context, limit int, nextToken string,
+			) ([]*machineidv1pb.BotInstance, string, error) {
+				res, err := client.ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
+					PageToken: nextToken,
+					PageSize:  int32(limit),
+				})
+				return res.BotInstances, res.NextPageToken, err
+			}),
+		)
+		require.NoError(t, err)
+		return out
 	}
 
 	t.Run("unscoped user sees all instances", func(t *testing.T) {
@@ -3497,6 +3517,14 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 		for _, bi := range got {
 			require.Contains(t, grantedIDs, bi.Spec.InstanceId)
 		}
+	})
+
+	t.Run("scoped user sees no bot instances", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestScopedUser(scopedUser.GetName(), "/scopes/other"))
+		require.NoError(t, err)
+
+		got := listAll(t, client.BotInstanceServiceClient())
+		require.Empty(t, got)
 	})
 }
 
