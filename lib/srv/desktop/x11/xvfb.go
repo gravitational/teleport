@@ -274,15 +274,15 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	window := setup.Roots[0].Root
-	if err := xfixes.SelectSelectionInputChecked(conn, window, clipboardAtom, xfixes.SelectionEventMaskSetSelectionOwner).Check(); err != nil {
+	root := setup.Roots[0].Root
+	if err := xfixes.SelectSelectionInputChecked(conn, root, clipboardAtom, xfixes.SelectionEventMaskSetSelectionOwner).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	clipWindow, err := xproto.NewWindowId(conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := xproto.CreateWindowChecked(conn, 0, clipWindow, window, -10, -10, 1, 1, 0, xproto.WindowClassInputOnly, xproto.WindowClassCopyFromParent, 0, nil).Check(); err != nil {
+	if err := xproto.CreateWindowChecked(conn, 0, clipWindow, root, -10, -10, 1, 1, 0, xproto.WindowClassInputOnly, xproto.WindowClassCopyFromParent, 0, nil).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	selectionAtom, err := internAtom(conn, "TELEPORT_SELECTION")
@@ -301,9 +301,11 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	// Set DPI
 	widthMm := pixelsToMm(types.MaxRDPScreenWidth)
 	heightMm := pixelsToMm(types.MaxRDPScreenHeight)
-	if err := randr.SetScreenSizeChecked(conn, window, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight, widthMm, heightMm).Check(); err != nil {
+	if err := randr.SetScreenSizeChecked(conn, root, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight, widthMm, heightMm).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	randr.SelectInput(conn, root, randr.NotifyMaskScreenChange)
 
 	x := &Backend{
 		ctx:             ctx,
