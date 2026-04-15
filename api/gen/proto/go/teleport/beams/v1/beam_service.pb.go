@@ -529,7 +529,8 @@ func (x *ListBeamsResponse) GetNextPageToken() string {
 	return ""
 }
 
-// Filters contains fields that will be used to filter the results.
+// Filters contains fields that will be used to filter the results. When
+// multiple filters are provided, they will be combined with AND.
 type ListBeamsRequest_Filters struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Users filters the list of beams to those belonging only to the given

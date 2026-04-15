@@ -115,7 +115,8 @@ message ListBeamsRequest {
   // Filters that will be applied to filter the list of results.
   Filters filters = 3;
 
-  // Filters contains fields that will be used to filter the results.
+  // Filters contains fields that will be used to filter the results. When
+  // multiple filters are provided, they will be combined with AND.
   message Filters {
     // Users filters the list of beams to those belonging only to the given
     // users.
