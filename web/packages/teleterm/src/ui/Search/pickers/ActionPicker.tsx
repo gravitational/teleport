@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactElement, useCallback, useMemo } from 'react';
+import React, { ReactElement, ReactNode, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
+import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
 import { makeLabelTag } from 'design/formatters';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
@@ -539,12 +540,10 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
     <IconAndContent Icon={icons.Lan} iconColor="text.slightlyMuted">
       <Text typography="body2">
         Search only in{' '}
-        <strong>
-          <Highlight
-            text={props.searchResult.resource.name}
-            keywords={[props.searchResult.nameMatch]}
-          />
-        </strong>
+        <Highlight
+          text={props.searchResult.resource.name}
+          keywords={[props.searchResult.nameMatch]}
+        />
       </Text>
     </IconAndContent>
   );
@@ -564,12 +563,10 @@ function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
           {props.searchResult.value && (
             <>
               for{' '}
-              <strong>
-                <Highlight
-                  keywords={[props.searchResult.value]}
-                  text={props.searchResult.value}
-                />
-              </strong>
+              <Highlight
+                keywords={[props.searchResult.value]}
+                text={props.searchResult.value}
+              />
             </>
           )}
           {props.searchResult.documentUri
@@ -577,7 +574,7 @@ function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
             : ' in a new tab'}
         </Text>
         <Box ml="auto">
-          <Text typography="body4">
+          <Text typography="body4" color="text.muted">
             {props.getOptionalClusterName(props.searchResult.clusterUri)}
           </Text>
         </Box>
@@ -611,12 +608,10 @@ function ResourceTypeFilterItem(
     >
       <Text typography="body2">
         Search for{' '}
-        <strong>
-          <Highlight
-            text={resourceTypeToReadableName[props.searchResult.resource]}
-            keywords={[props.searchResult.nameMatch]}
-          />
-        </strong>
+        <Highlight
+          text={resourceTypeToReadableName[props.searchResult.resource]}
+          keywords={[props.searchResult.nameMatch]}
+        />
       </Text>
     </IconAndContent>
   );
@@ -628,61 +623,49 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   const hasUuidMatches = searchResult.resourceMatches.some(
     match => match.field === 'name'
   );
+  const mainField = 'hostname';
 
   return (
-    <IconAndContent
+    <ResourceItem
       Icon={icons.Server}
-      iconColor="brand"
-      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
-    >
-      <Flex
-        justifyContent="space-between"
-        alignItems="center"
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Text typography="body2">
-          {props.searchResult.requiresRequest
-            ? 'Request access to server '
-            : 'Connect over SSH to '}
-          <strong>
-            <HighlightField field="hostname" searchResult={searchResult} />
-          </strong>
-        </Text>
-        <Box ml="auto">
-          <Text typography="body4">
-            {props.getOptionalClusterName(server.uri)}
-          </Text>
-        </Box>
-      </Flex>
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to server '
+          : 'Connect over SSH '
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      searchResult={props.searchResult}
+      details={
+        <Labels searchResult={searchResult}>
+          <ResourceFields>
+            {server.tunnel ? (
+              <span title="This node is connected to the cluster through a reverse tunnel">
+                ↵ tunnel
+              </span>
+            ) : (
+              <span>
+                <HighlightField field="addr" searchResult={searchResult} />
+              </span>
+            )}
 
-      <Labels searchResult={searchResult}>
-        <ResourceFields>
-          {server.tunnel ? (
-            <span title="This node is connected to the cluster through a reverse tunnel">
-              ↵ tunnel
-            </span>
-          ) : (
-            <span>
-              <HighlightField field="addr" searchResult={searchResult} />
-            </span>
-          )}
-
-          {hasUuidMatches && (
-            <span>
-              UUID:{' '}
-              <HighlightField field={'name'} searchResult={searchResult} />
-            </span>
-          )}
-        </ResourceFields>
-      </Labels>
-    </IconAndContent>
+            {hasUuidMatches && (
+              <span>
+                UUID:{' '}
+                <HighlightField field={'name'} searchResult={searchResult} />
+              </span>
+            )}
+          </ResourceFields>
+        </Labels>
+      }
+    />
   );
 }
 
 export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   const { searchResult } = props;
   const db = searchResult.resource;
+  const mainField = 'name';
 
   const $resourceFields = (
     <ResourceFields>
@@ -710,57 +693,39 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <IconAndContent
+    <ResourceItem
       Icon={icons.Database}
-      iconColor="brand"
-      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
-    >
-      <Flex
-        justifyContent="space-between"
-        alignItems="center"
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Text typography="body2">
-          {props.searchResult.requiresRequest
-            ? 'Request access to db '
-            : 'Set up a db connection to '}
-          <strong>
-            <HighlightField field="name" searchResult={searchResult} />
-          </strong>
-        </Text>
-        <Box ml="auto">
-          <Text typography="body4">{props.getOptionalClusterName(db.uri)}</Text>
-        </Box>
-      </Flex>
-
-      {/* If the description is long, put the resource fields on a separate line.
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to db'
+          : 'Set up a db connection'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={
+        <>
+          {/* If the description is long, put the resource fields on a separate line.
           Otherwise show the resource fields and the labels together in a single line.
        */}
-      {db.desc.length >= 30 ? (
-        <>
-          {$resourceFields}
-          <Labels searchResult={searchResult} />
+          {db.desc.length >= 30 ? (
+            <>
+              {$resourceFields}
+              <Labels searchResult={searchResult} />
+            </>
+          ) : (
+            <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+          )}
         </>
-      ) : (
-        <Labels searchResult={searchResult}>{$resourceFields}</Labels>
-      )}
-    </IconAndContent>
+      }
+    />
   );
 }
 
 export function AppItem(props: SearchResultItem<SearchResultApp>) {
   const { searchResult } = props;
   const app = searchResult.resource;
-
-  const $appName = (
-    <strong>
-      <HighlightField
-        field={app.friendlyName ? 'friendlyName' : 'name'}
-        searchResult={searchResult}
-      />
-    </strong>
-  );
+  const mainField = app.friendlyName ? 'friendlyName' : 'name';
 
   const $resourceFields = (app.addrWithProtocol || app.desc) && (
     <ResourceFields>
@@ -791,44 +756,32 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 
   return (
-    <IconAndContent
+    <ResourceItem
       Icon={icons.Application}
-      iconColor="brand"
-      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
-    >
-      <Flex
-        justifyContent="space-between"
-        alignItems="center"
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Text typography="body2">
-          {getAppItemCopy(
-            $appName,
-            app,
-            searchResult.requiresRequest,
-            props.isVnetSupported
-          )}
-        </Text>
-        <Box ml="auto">
-          <Text typography="body4">
-            {props.getOptionalClusterName(app.uri)}
-          </Text>
-        </Box>
-      </Flex>
-
-      {/* If the description is long, put the resource fields on a separate line.
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={getAppItemCopy(
+        app,
+        searchResult.requiresRequest,
+        props.isVnetSupported
+      )}
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={
+        <>
+          {/* If the description is long, put the resource fields on a separate line.
           Otherwise, show the resource fields and the labels together in a single line.
        */}
-      {app.desc.length >= 30 ? (
-        <>
-          {$resourceFields}
-          <Labels searchResult={searchResult} />
+          {app.desc.length >= 30 ? (
+            <>
+              {$resourceFields}
+              <Labels searchResult={searchResult} />
+            </>
+          ) : (
+            <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+          )}
         </>
-      ) : (
-        <Labels searchResult={searchResult}>{$resourceFields}</Labels>
-      )}
-    </IconAndContent>
+      }
+    />
   );
 }
 
@@ -836,7 +789,7 @@ export function WindowsDesktopItem(
   props: SearchResultItem<SearchResultWindowsDesktop>
 ) {
   const { searchResult } = props;
-  const windowsDesktop = searchResult.resource;
+  const mainField = 'name';
 
   const $resourceFields = (
     <ResourceFields>
@@ -854,91 +807,60 @@ export function WindowsDesktopItem(
   );
 
   return (
-    <IconAndContent
+    <ResourceItem
       Icon={icons.Desktop}
-      iconColor="brand"
-      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
-    >
-      <Flex
-        justifyContent="space-between"
-        alignItems="center"
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Text typography="body2">
-          {props.searchResult.requiresRequest
-            ? 'Request access to desktop '
-            : 'Connect to desktop '}
-          <strong>
-            <HighlightField field="name" searchResult={searchResult} />
-          </strong>
-        </Text>
-        <Box ml="auto">
-          <Text typography="body4">
-            {props.getOptionalClusterName(windowsDesktop.uri)}
-          </Text>
-        </Box>
-      </Flex>
-      <Labels searchResult={searchResult}>{$resourceFields}</Labels>
-    </IconAndContent>
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to desktop'
+          : 'Connect to desktop'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={<Labels searchResult={searchResult}>{$resourceFields}</Labels>}
+    />
   );
 }
 
 function getAppItemCopy(
-  $appName: React.JSX.Element,
   app: App,
   requiresRequest: boolean,
   isVnetSupported: boolean
-) {
+): string {
   if (requiresRequest) {
-    return <>Request access to app {$appName}</>;
+    return 'Request access to the app';
   }
   if (app.samlApp) {
-    return <>Log in to {$appName} in the browser</>;
+    return 'Log in via the browser';
   }
   if (isWebApp(app) || app.awsConsole) {
-    return <>Launch {$appName} in the browser</>;
+    return 'Launch in the browser';
   }
 
   // TCP app
   if (isVnetSupported) {
-    return <>Connect with VNet to {$appName}</>;
+    return 'Connect with VNet';
   }
-  return <>Set up an app connection to {$appName}</>;
+  return 'Set up an app connection';
 }
 
 export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
+  const mainField = 'name';
 
   return (
-    <IconAndContent
+    <ResourceItem
       Icon={icons.Kubernetes}
-      iconColor="brand"
-      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
-    >
-      <Flex
-        justifyContent="space-between"
-        alignItems="center"
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Text typography="body2">
-          {props.searchResult.requiresRequest
-            ? 'Request access to Kubernetes cluster '
-            : 'Log in to Kubernetes cluster '}
-          <strong>
-            <HighlightField field="name" searchResult={searchResult} />
-          </strong>
-        </Text>
-        <Box ml="auto">
-          <Text typography="body4">
-            {props.getOptionalClusterName(searchResult.resource.uri)}
-          </Text>
-        </Box>
-      </Flex>
-
-      <Labels searchResult={searchResult} />
-    </IconAndContent>
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to Kubernetes cluster'
+          : 'Log in to Kubernetes cluster'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={<Labels searchResult={searchResult} />}
+    />
   );
 }
 
@@ -1230,6 +1152,41 @@ function ContentAndAdvancedSearch(
         <AdvancedSearchToggle {...props.advancedSearch} />
       )}
     </Flex>
+  );
+}
+
+function ResourceItem(props: {
+  Icon: React.ComponentType<IconProps>;
+  searchResult: { requiresRequest: boolean };
+  title: ReactNode;
+  action: ReactNode;
+  clusterName: string;
+  details?: ReactNode;
+}) {
+  return (
+    <IconAndContent
+      Icon={props.Icon}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body2">{props.title}</Text>
+        <Text typography="body2" color="text.muted">
+          {props.action}
+        </Text>
+        <Box ml="auto">
+          <Text typography="body4" color="text.muted">
+            {props.clusterName}
+          </Text>
+        </Box>
+      </Flex>
+      {props.details}
+    </IconAndContent>
   );
 }
 
