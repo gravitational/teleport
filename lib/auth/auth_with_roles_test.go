@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -6273,7 +6274,7 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 // TestListUnifiedResources_KindsFilter will generate multiple resources
 // and filter for only one kind.
 func TestListUnifiedResources_KindsFilter(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := context.Background()
 	srv := newTestTLSServer(t, withCacheEnabled(true))
 
@@ -6311,15 +6312,86 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 		require.NoError(t, err)
-
 		createTestAppServerV3(t, srv.Auth(), name, nil)
 		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
+
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+		require.NoError(t, err)
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", name)
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+	}
+
+	scope := "/test"
+	// create scoped resources
+	for range 5 {
+		name := uuid.New().String()
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+		require.NoError(t, err)
+		kubeCluster.Scope = scope
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", name)
+		require.NoError(t, err)
+
+		kubeServer.Scope = scope
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
 	}
 
 	// create user and client
-	user, _, err := authtest.CreateUserAndRole(srv.Auth(), "user", nil, nil)
+	user, _, err := authtest.CreateUserAndRole(srv.Auth(), "user", nil, []types.Rule{
+		types.NewRule(types.KindKubeServer, services.RO()),
+	})
 	require.NoError(t, err)
 	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// create scoped role assignment and client
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test-role",
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	sraResp, err := adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: "user",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "test-role", Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sraResp)
+	require.NoError(t, err)
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser("user", scope))
 	require.NoError(t, err)
 
 	var resp *proto.ListUnifiedResourcesResponse
@@ -6359,6 +6431,23 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 			Kinds: []string{types.KindMCP},
 		})
 		require.NoError(t, err)
+		require.Len(t, resp.Resources, 5)
+	})
+	t.Run("KindKubeServer", func(t *testing.T) {
+		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			// KindKubernetesCluster needs to be included in Kinds to prevent matchAndFilterKubeClusters
+			// from always returning false
+			Kinds: []string{types.KindKubeServer, types.KindKubernetesCluster},
+		})
+		require.NoError(t, err)
+		// unscoped client should see all 10 kube servers, 5 unscoped + 5 scoped
+		require.Len(t, resp.Resources, 10)
+
+		resp, err = scopedClient.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindKubeServer, types.KindKubernetesCluster},
+		})
+		require.NoError(t, err)
+		// scoped client should only see the 5 scoped kube servers
 		require.Len(t, resp.Resources, 5)
 	})
 }
@@ -11659,4 +11748,18 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 			require.NotNil(t, result.hello)
 		})
 	}
+}
+
+func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, resp := range resps {
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+				Name:    resp.GetAssignment().GetMetadata().GetName(),
+				SubKind: resp.GetAssignment().GetSubKind(),
+			})
+			require.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
 }
