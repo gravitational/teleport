@@ -47,7 +47,9 @@ func (s *scopedRoleClient) Delete(ctx context.Context, name string) error {
 	})
 	// The deletetion API for scoped roles returns CompareFailed if not found, which was an intentional decision
 	// We handle it here and return a not found error for consistency with the deletion reconcile.
-	if err != nil && trace.IsCompareFailed(err) && strings.Contains(err.Error(), "not found") {
+	if err != nil && trace.IsCompareFailed(err) &&
+		(strings.Contains(err.Error(), "not found") ||
+			strings.Contains(err.Error(), "concurrently modified and/or deleted")) {
 		return trace.NotFound("scoped role %q not found: %v", name, err)
 	}
 	return trace.Wrap(err)
