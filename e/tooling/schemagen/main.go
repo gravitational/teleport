@@ -13,6 +13,7 @@ import (
 
 func main() {
 	outDir := filepath.Join(repoRoot(), "e", "lib", "auth", "summarizer", "schema", "generated")
+	must(os.RemoveAll(outDir))
 	must(os.MkdirAll(outDir, 0o755))
 
 	must(generateSchemaFile[schema.CommandAnalysis](filepath.Join(outDir, "command_analysis.json")))
@@ -21,7 +22,6 @@ func main() {
 }
 
 func generateSchemaFile[T any](out string) error {
-
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
