@@ -148,7 +148,7 @@ test('decodes message types', () => {
 test('decodes errors', () => {
   // First encode an error
   const encoder = new TextEncoder();
-  const message = encoder.encode('An error occured');
+  const message = encoder.encode('An error occurred');
   const bufLen = 1 + 4 + message.length;
   const tdpErrorBuffer = new ArrayBuffer(bufLen);
   const view = new DataView(tdpErrorBuffer);
@@ -161,7 +161,7 @@ test('decodes errors', () => {
   });
 
   const error = codec.decodeErrorMessage(tdpErrorBuffer);
-  expect(error).toBe('An error occured');
+  expect(error).toBe('An error occurred');
 });
 
 // Username/password tests inspired by https://github.com/google/closure-library/blob/master/closure/goog/crypt/crypt_test.js (Apache License)
