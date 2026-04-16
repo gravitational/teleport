@@ -345,13 +345,14 @@ func (x *Backend) processEvents() {
 		}
 		switch event := event.(type) {
 		case randr.ScreenChangeNotifyEvent:
-			x.config.Logger.DebugContext(x.ctx, "X11 screen change event received", "event", event)
+			x.config.Logger.DebugContext(x.ctx, "X11 screen change event received", "width", event.Width, "height", event.Height)
 			x.mu.Lock()
 			width := x.width
 			height := x.height
 			x.mu.Unlock()
 
 			if event.Width != width || event.Height != height {
+				x.config.Logger.DebugContext(x.ctx, "Restoring desired resolution", "width", width, "height", height)
 				if err := x.Resize(width, height); err != nil {
 					x.config.Logger.ErrorContext(x.ctx, "Couldn't restore resolution", "error", err)
 				}
