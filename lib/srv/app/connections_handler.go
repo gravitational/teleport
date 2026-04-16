@@ -476,6 +476,10 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
 
+	// TODO(gabrielcorado): implement inference endpoint handler.
+	case app.IsLLM():
+		return trace.NotImplemented("LLM access is not implemented")
+
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
 	}
@@ -694,11 +698,6 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			App:        app,
 		}
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
-
-	case app.IsLLM():
-		defer cancel(nil)
-		// TODO(gabrielcorado): implement inference endpoint handler.
-		return nil, trace.NotImplemented("LLM access is not implemented")
 
 	default:
 		// Transfer release ownership to the cleanup function so
