@@ -668,7 +668,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			Backend: cfg.Backend,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "creating WorkloadClusterService")
+			return nil, trace.Wrap(err, "creating SubCAService")
 		}
 	}
 
