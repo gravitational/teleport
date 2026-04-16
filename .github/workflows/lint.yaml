@@ -147,7 +147,7 @@ jobs:
           # If the config is not valid, golangci-lint will fail.
           verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --build-tags bpf,libfido2,piv
+          args: --build-tags bpf,libfido2,piv,tpmsimulator
           skip-cache: true
       - name: golangci-lint (assets/backport)
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0

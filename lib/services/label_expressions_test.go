@@ -55,6 +55,11 @@ func TestLabelExpressions(t *testing.T) {
 			expectMatch: false,
 		},
 		{
+			desc:        "username match",
+			expr:        `user.metadata.name == "alice"`,
+			expectMatch: true,
+		},
+		{
 			desc: "wrong type",
 			expr: `user.spec.traits["allow-env"] == "staging"`,
 			expectParseError: []string{
@@ -319,6 +324,7 @@ func TestLabelExpressions(t *testing.T) {
 
 			env := labelExpressionEnv{
 				resourceLabelGetter: mapLabelGetter(tc.resourceLabels),
+				username:            "alice",
 				userTraits:          tc.userTraits,
 			}
 

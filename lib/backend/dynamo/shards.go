@@ -21,6 +21,8 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"iter"
+	"slices"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -80,6 +83,29 @@ func (shardClosedError) Error() string {
 	return "shard closed"
 }
 
+// deleteShardsWithParents removes any shards that have a parent shard also present in the list.
+// In a rare case where both a parent and child shard are present in the list of active shards, we want to ignore the child
+// shard until the parent shard is closed and removed from the list.
+func (b *Backend) deleteShardsWithParents(ctx context.Context, shards []streamtypes.Shard) []streamtypes.Shard {
+	shardSet := make(map[string]struct{}, len(shards))
+	for _, shard := range shards {
+		if shard.ShardId != nil {
+			shardSet[aws.ToString(shard.ShardId)] = struct{}{}
+		}
+	}
+
+	return slices.DeleteFunc(shards, func(s streamtypes.Shard) bool {
+		if s.ParentShardId == nil {
+			return false
+		}
+		_, exists := shardSet[aws.ToString(s.ParentShardId)]
+		if exists {
+			b.logger.DebugContext(ctx, "Skipping shard with parent shard in active list", "shard_id", aws.ToString(s.ShardId), "parent_shard_id", aws.ToString(s.ParentShardId))
+		}
+		return exists // delete if parent is present
+	})
+}
+
 func (b *Backend) pollStreams(externalCtx context.Context) error {
 	ctx, cancel := context.WithCancel(externalCtx)
 	defer cancel()
@@ -90,28 +116,42 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 	b.logger.DebugContext(ctx, "Found latest event stream", "stream_arn", aws.ToString(streamArn))
 
-	set := make(map[string]struct{})
+	set := make(map[string]bool)
+	// The set uses sentinel values to mark when a state is ready for deletion. The shard is only removed
+	// once DynamoDB confirms the shard is closed to avoid reopenning the shard and processing duplicate events.
+	const shardReadyForDeletion = true
+	const shardActive = false
 	eventsC := make(chan shardEvent)
 
-	shouldStartPoll := func(shard streamtypes.Shard) bool {
-		sid := aws.ToString(shard.ShardId)
-		if _, ok := set[sid]; ok {
-			// already being polled
-			return false
+	filterShards := func(shard streamtypes.Shard) (streamtypes.Shard, bool) {
+		closed := shard.SequenceNumberRange.EndingSequenceNumber != nil
+		processed, known := set[aws.ToString(shard.ShardId)]
+		_, parentPending := set[aws.ToString(shard.ParentShardId)]
+
+		if closed && known && processed {
+			// Cleanup of any tombstoned shards.
+			b.logger.DebugContext(ctx, "Cleaning up closed shard", "shard_id", aws.ToString(shard.ShardId))
+			delete(set, aws.ToString(shard.ShardId))
+		} else if parentPending && !closed && !known {
+			b.logger.Log(ctx, logutils.TraceLevel, "Not starting poll for shard with known parent until parent is closed", "shard_id", aws.ToString(shard.ShardId), "parent_shard_id", aws.ToString(shard.ParentShardId))
 		}
-		if _, ok := set[aws.ToString(shard.ParentShardId)]; ok {
-			b.logger.Log(ctx, logutils.TraceLevel, "Skipping child shard, still polling parent", "child_shard_id", sid, "parent_shard_id", aws.ToString(shard.ParentShardId))
-			// still processing parent
-			return false
-		}
-		return true
+
+		// For a shard to be a valid candidate for processing it must:
+		// 1. Not be closed
+		// 2. Not already be known
+		// 3. Must not have a parent shard that is still active
+		return shard, !closed && !known && !parentPending
 	}
 
 	refreshShards := func(init bool) error {
-		shards, err := b.collectActiveShards(ctx, streamArn)
+		candidateShards, err := iterstream.Collect(iterstream.FilterMap(b.fetchShards(ctx, streamArn), filterShards))
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// In the case where both a parent and child shard are present in the list of active shards
+		// we want to ignore the child because the set marker may not be set yet for the parent shard.
+		shards := b.deleteShardsWithParents(ctx, candidateShards)
 
 		var initC chan error
 		if init {
@@ -120,21 +160,16 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			initC = make(chan error, len(shards))
 		}
 
-		started := 0
-		for i := range shards {
-			if !shouldStartPoll(shards[i]) {
-				continue
-			}
-			shardID := aws.ToString(shards[i].ShardId)
-			b.logger.Log(ctx, logutils.TraceLevel, "Adding active shard", "shard_id", shardID)
-			set[shardID] = struct{}{}
-			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
-			started++
+		for _, shard := range shards {
+			shardID := aws.ToString(shard.ShardId)
+			b.logger.DebugContext(ctx, "Adding active shard", "shard_id", shardID)
+			set[shardID] = shardActive
+			go b.asyncPollShard(ctx, streamArn, shard, eventsC, initC)
 		}
 
 		if init {
 			// block on shard iterator registration.
-			for range started {
+			for range shards {
 				select {
 				case err = <-initC:
 					if err != nil {
@@ -170,7 +205,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					b.logger.WarnContext(ctx, "Forcing watch system reset due to empty shard ID on error (this is a bug)", "error", err)
 					return trace.BadParameter("empty shard ID")
 				}
-				delete(set, event.shardID)
+				set[event.shardID] = shardReadyForDeletion
 				if !errors.Is(event.err, shardClosedError{}) {
 					b.logger.DebugContext(ctx, "Shard closed with error, resetting buffers.", "shard_id", event.shardID, "error", event.err)
 					return trace.Wrap(event.err)
@@ -205,13 +240,40 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 }
 
 func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard streamtypes.Shard, eventsC chan shardEvent, initC chan<- error) error {
-	shardIterator, err := b.streams.GetShardIterator(ctx, &dynamodbstreams.GetShardIteratorInput{
-		ShardId:           shard.ShardId,
-		ShardIteratorType: streamtypes.ShardIteratorTypeLatest,
-		StreamArn:         streamArn,
-	})
+	isInitializing := initC != nil
 
-	if initC != nil {
+	var req *dynamodbstreams.GetShardIteratorInput
+	if isInitializing {
+		// On initialization register iterators at LATEST to avoid processing old events.
+		req = &dynamodbstreams.GetShardIteratorInput{
+			ShardId:           shard.ShardId,
+			ShardIteratorType: streamtypes.ShardIteratorTypeLatest,
+			StreamArn:         streamArn,
+		}
+	} else if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.StartingSequenceNumber != nil {
+		// For new shards found after initialization, register at the starting sequence number
+		// unlike TRIM_HORIZON this should error if the events have been trimmed for some reason and cause
+		// a watcher reset. This is not expected to ever happen under normal circumstances.
+		req = &dynamodbstreams.GetShardIteratorInput{
+			ShardId:           shard.ShardId,
+			ShardIteratorType: streamtypes.ShardIteratorTypeAtSequenceNumber,
+			StreamArn:         streamArn,
+			SequenceNumber:    shard.SequenceNumberRange.StartingSequenceNumber,
+		}
+	} else {
+		// If the shard is missing a valid starting sequence number, something is very wrong. Error out and trigger a reset.
+		return trace.BadParameter("shard %q missing valid starting sequence number", aws.ToString(shard.ShardId))
+	}
+
+	shardIterator, err := b.streams.GetShardIterator(ctx, req)
+	if err == nil && shardIterator.ShardIterator == nil {
+		// In both cases for either new init calls or shard split we expect a valid iterator. For LATEST calls on a shard that may be
+		// closed the iterator is still valid but will return no records. For AT_SEQUENCE_NUMBER the iterator will always start at the beginning
+		// of the shard. Check defensively and error out which will trigger a retry.
+		err = trace.BadParameter("expected valid iterator for shard %q, got nil", aws.ToString(shard.ShardId))
+	}
+
+	if isInitializing {
 		select {
 		case initC <- convertError(err):
 		case <-ctx.Done():
@@ -226,13 +288,8 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.ToString(shard.ShardId)
-	for iterator != nil {
-		select {
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context is closing")
-		case <-ticker.C:
-		}
 
+	for {
 		out, err := b.streams.GetRecords(ctx, &dynamodbstreams.GetRecordsInput{
 			ShardIterator: iterator,
 		})
@@ -259,46 +316,58 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		}
 
 		iterator = out.NextShardIterator
-	}
-
-	b.logger.Log(ctx, logutils.TraceLevel, "Shard is closed", "shard_id", shardID)
-	return shardClosedError{}
-}
-
-// collectActiveShards collects shards
-func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([]streamtypes.Shard, error) {
-	var out []streamtypes.Shard
-
-	input := &dynamodbstreams.DescribeStreamInput{
-		StreamArn: streamArn,
-	}
-	for {
-		streamInfo, err := b.streams.DescribeStream(ctx, input)
-		if err != nil {
-			return nil, convertError(err)
+		if iterator == nil {
+			// Fast exit if the shard is closed.
+			b.logger.DebugContext(ctx, "Done processing shard", "shard_id", shardID)
+			return shardClosedError{}
 		}
-		out = append(out, streamInfo.StreamDescription.Shards...)
-		if streamInfo.StreamDescription.LastEvaluatedShardId == nil {
-			return filterActiveShards(out), nil
-		}
-		input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
+
 		select {
 		case <-ctx.Done():
-			// let the next call deal with the context error
-		case <-time.After(200 * time.Millisecond):
-			// 10 calls per second with two auths, with ample margin
+			return trace.ConnectionProblem(ctx.Err(), "context is closing")
+		case <-ticker.C:
+			// TODO(okraport): for very low values of [PollStreamPeriod], it's possible that [GetRecords] is called
+			// each tick even if previous call returns 0 items. The default poll period of 1000ms is sufficient to mitigate
+			// this but we may wish to change this behavior to backoff for longer periods of time if no records are returned.
+			// This is especially true when there are large number of shards and low writes after a period of high throughput.
+			// Similairly avoiding sleeping when records are returned may also be desirable to improve latency.
 		}
 	}
 }
 
-func filterActiveShards(shards []streamtypes.Shard) []streamtypes.Shard {
-	var active []streamtypes.Shard
-	for i := range shards {
-		if shards[i].SequenceNumberRange.EndingSequenceNumber == nil {
-			active = append(active, shards[i])
+func (b *Backend) fetchShards(ctx context.Context, streamArn *string) iter.Seq2[streamtypes.Shard, error] {
+	return func(yield func(streamtypes.Shard, error) bool) {
+		input := &dynamodbstreams.DescribeStreamInput{
+			StreamArn: streamArn,
 		}
+		for {
+			streamInfo, err := b.streams.DescribeStream(ctx, input)
+			if err != nil {
+				yield(*new(streamtypes.Shard), trace.Wrap(convertError(err)))
+				return
+			}
+
+			for _, shard := range streamInfo.StreamDescription.Shards {
+				if !yield(shard, nil) {
+					return
+				}
+			}
+
+			input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
+			if input.ExclusiveStartShardId == nil {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				// let the next call deal with the context error
+			case <-time.After(200 * time.Millisecond):
+				// 10 calls per second with two auths, with ample margin
+			}
+		}
+
 	}
-	return active
+
 }
 
 func toOpType(rec streamtypes.Record) (types.OpType, error) {

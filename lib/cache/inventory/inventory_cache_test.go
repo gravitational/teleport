@@ -170,6 +170,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	workloadIdentitySvc, err := local.NewWorkloadIdentityService(bkWrapper)
 	require.NoError(t, err)
 
+	beamService, err := local.NewBeamService(bkWrapper)
+	require.NoError(t, err)
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(bkWrapper)
 	require.NoError(t, err)
 
@@ -234,6 +237,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		AppSession:              idService,
 		WebSession:              idService.WebSessions(),
 		WebToken:                idService,
+		Beams:                   beamService,
 		SnowflakeSession:        idService,
 		Restrictions:            restrictions,
 		Apps:                    apps,

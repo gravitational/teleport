@@ -4190,6 +4190,9 @@ message BotJoin {
   ];
   // BotInstanceID is the ID of the bot instance which has joined or renewed.
   string BotInstanceID = 9 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+  // Scope is the scope of the bot that joined, if it is a scoped bot. Empty for
+  // unscoped bots.
+  string Scope = 10 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // InstanceJoin records an instance join event.

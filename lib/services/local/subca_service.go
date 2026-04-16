@@ -42,15 +42,7 @@ func newCAOverridesPrefix() backend.Key {
 }
 
 // CertAuthorityOverrideID uniquely identifies a CertAuthorityOverride resource.
-type CertAuthorityOverrideID struct {
-	ClusterName string
-	CAType      string
-}
-
-// displayName returns a user-friendly string for the ID.
-func (id *CertAuthorityOverrideID) displayName() string {
-	return id.CAType + "/" + id.ClusterName
-}
+type CertAuthorityOverrideID = types.CertAuthorityOverrideID
 
 // CertAuthorityOverrideIDFromResource returns the id of the specified resource.
 //
@@ -80,6 +72,9 @@ type SubCAServiceParams struct {
 type SubCAService struct {
 	service *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
 }
+
+// Keep interface in-sync with implementation.
+var _ services.SubCAService = (*SubCAService)(nil)
 
 // NewSubCAService creates a new service using the provided params.
 func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
@@ -159,7 +154,7 @@ func (s *SubCAService) GetCertAuthorityOverride(
 
 	// Name has no effect on the query, it's only used for errors.
 	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
-	name := id.displayName()
+	name := id.FullName()
 
 	resource, err := service.GetResource(ctx, name)
 	return resource, trace.Wrap(err)
@@ -191,7 +186,7 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 
 	// Name has no effect on the query, it's only used for errors.
 	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
-	name := id.displayName()
+	name := id.FullName()
 
 	return trace.Wrap(service.DeleteResource(ctx, name))
 }

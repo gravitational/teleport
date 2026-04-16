@@ -4365,7 +4365,7 @@ published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation/installation.mdx).
+[instructions](docs/pages/installation/single-machine/single-machine.mdx).
 
 The legacy package repos will be shut off in mid 2025 after Teleport 14 has been
 out of support for many months.
@@ -5386,7 +5386,7 @@ repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation/installation.mdx).
+[instructions](docs/pages/installation/single-machine/single-machine.mdx).
 
 #### `Cf-Access-Token` header no longer included with requests to Teleport-protected applications
 
@@ -7188,7 +7188,7 @@ redirect_url = [ "http://example.com" ]
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
 Customers should use the new AWS ECR registry to pull [Teleport Docker
-images](./docs/pages/installation/docker.mdx).
+images](docs/pages/installation/single-machine/docker.mdx).
 
 Quay.io registry support will be removed in a future release.
 
@@ -7197,7 +7197,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-[install Teleport](docs/pages/installation/linux.mdx).
+[install Teleport](docs/pages/installation/single-machine/linux.mdx).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 

@@ -738,8 +738,6 @@ Examples:
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
-	case sftp.FullCommand():
-		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
@@ -747,6 +745,11 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
+
+	// TODO(espadolini): replace these after enterprise calls reexec.MaybeReexec
+	// in main with an error message ("invalid format for reexec subcommand")
+	// because if we got here it's because MaybeReexec didn't find the correct
+	// first argument
 	case exec.FullCommand():
 		reexec.RunAndExit(reexecconstants.ExecSubCommand)
 	case networking.FullCommand():
@@ -755,6 +758,9 @@ Examples:
 		reexec.RunAndExit(reexecconstants.CheckHomeDirSubCommand)
 	case park.FullCommand():
 		reexec.RunAndExit(reexecconstants.ParkSubCommand)
+	case sftp.FullCommand():
+		reexec.RunAndExit(reexecconstants.SFTPSubCommand)
+
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():

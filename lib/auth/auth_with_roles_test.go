@@ -1410,6 +1410,13 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	userNameRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-username", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{user.metadata.name}}"},
+		},
+	})
+	require.NoError(t, err)
+
 	impersonatorRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
@@ -1417,6 +1424,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 					accessFooRole.GetName(),
 					accessBarRole.GetName(),
 					loginsTraitsRole.GetName(),
+					userNameRole.GetName(),
 				},
 			},
 		},
@@ -1494,6 +1502,14 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			roleRequests:     []string{loginsTraitsRole.GetName()},
 			useRoleRequests:  true,
 			expectPrincipals: []string{"trait-login"},
+		},
+		{
+			desc:             "requesting a role preserves the teleport username",
+			username:         "ivy",
+			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
+			roleRequests:     []string{userNameRole.GetName()},
+			useRoleRequests:  true,
+			expectPrincipals: []string{"ivy"},
 		},
 		{
 			// Users not using role requests should keep their own roles
