@@ -694,8 +694,7 @@ The storage key space for cert_authority_override resources is
 ### Cache and event stream
 
 The new cert_authority_override resource is both cached and supported by event
-streams. Streaming events to cert_authority_override resources invalidate the
-cache for the corresponding cert_authority.
+streams.
 
 ## Security
 
