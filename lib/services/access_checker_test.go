@@ -925,7 +925,7 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_
 }
 
 // TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckAccess_RoleRequiresMFA_ForceInBandMFAEnv_AllowsReadOnlyBypass(t *testing.T) {
+func TestAccessChecker_CheckAccess_ReadOnlyBypassWhenMFAForced(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
 
 	const roleName = "mfa-required"
