@@ -154,7 +154,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		scanner := bufio.NewScanner(outr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			logger.Log(ctx, logutils.TraceLevel, "xsession output", "msg", line)
+			logger.Log(ctx, logutils.TraceLevel, "xsession output", "line", line)
 		}
 		outr.Close()
 	}()

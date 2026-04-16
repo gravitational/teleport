@@ -228,7 +228,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			config.Logger.Log(ctx, logutils.TraceLevel, "backend output", "msg", line)
+			config.Logger.Log(ctx, logutils.TraceLevel, "backend output", "line", line)
 		}
 	}()
 
