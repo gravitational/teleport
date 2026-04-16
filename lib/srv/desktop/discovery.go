@@ -102,6 +102,8 @@ func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.W
 			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
 				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
 				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+				Limit:                pageSize,
+				StartKey:             pageToken,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -483,8 +485,6 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 				if err := reconciler.Reconcile(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					s.cfg.Logger.ErrorContext(s.closeCtx, "Periodic reconciliation failed", "error", err)
 				}
-
-				periodicReconcile.Reset(interval)
 
 			// Periodic reconcile, which serves to  push out the expiry of dynamic hosts if
 			// no other changes have triggered the watcher.
