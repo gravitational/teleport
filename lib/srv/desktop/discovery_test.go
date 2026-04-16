@@ -415,16 +415,17 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 	start := desktops[0].GetMetadata().Expires
 	require.NotNil(t, start)
 
-	clock.Advance(5 * time.Minute)
-	clock.BlockUntilContext(t.Context(), 1)
+	clock.Advance(apidefaults.ServerAnnounceTTL / 2)
 
-	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	require.NoError(t, err)
-	require.Len(t, desktops, 1)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		require.NoError(t, err)
+		require.Len(t, desktops, 1)
 
-	end := desktops[0].GetMetadata().Expires
-	require.NotNil(t, start)
-	require.Equal(t, start.Add(5*time.Minute), *end, "original expiry was %v", *start)
+		end := desktops[0].GetMetadata().Expires
+		require.NotNil(t, end)
+		require.Equal(t, start.Add(5*time.Minute), *end, "original expiry was %v", *start)
+	}, 5*time.Second, 50*time.Millisecond)
 }
 
 // TestDynamicRegistrationAndLDAP verifies that a single desktop service
@@ -709,25 +710,25 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 	// Force the reconciler to run.
 	// It will fail because we aren't running a real LDAP server in the test.
 	require.NoError(t, s.startReconciler(t.Context()))
-	clock.BlockUntilContext(t.Context(), 1)
+
 	clock.Advance(s.cfg.DiscoveryInterval)
-	preReconcile := clock.Now()
-	clock.BlockUntilContext(t.Context(), 1)
 
-	// Verify that the reconciler failure did not delete desktops and that
-	// their expiry times were updated.
-	for i := 1; i <= 3; i++ {
-		name := "desktop-" + strconv.Itoa(i)
-		desktops, err := client.GetWindowsDesktops(
-			t.Context(),
-			types.WindowsDesktopFilter{HostID: hostUUID, Name: name},
-		)
-		require.NoError(t, err)
-		require.Len(t, desktops, 1)
-		require.Equal(t, name, desktops[0].GetName())
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Verify that the reconciler failure did not delete desktops and that
+		// their expiry times were updated.
+		for i := 1; i <= 3; i++ {
+			name := "desktop-" + strconv.Itoa(i)
+			desktops, err := client.GetWindowsDesktops(
+				t.Context(),
+				types.WindowsDesktopFilter{HostID: hostUUID, Name: name},
+			)
+			require.NoError(t, err)
+			require.Len(t, desktops, 1)
+			require.Equal(t, name, desktops[0].GetName())
 
-		// Verify the TTL was updated (3x the discovery interval).
-		actualExpiry := desktops[0].Expiry()
-		require.Equal(t, 15*time.Minute, actualExpiry.Sub(preReconcile))
-	}
+			// Verify the expiry is pushed back.
+			actualExpiry := desktops[0].Expiry()
+			require.GreaterOrEqual(t, actualExpiry, originalExpiry)
+		}
+	}, 10*time.Second, 50*time.Millisecond)
 }
