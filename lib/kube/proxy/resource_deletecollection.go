@@ -33,8 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -290,21 +288,6 @@ func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, 
 	itemsR.Set(slice)
 }
 
-// newImpersonatedKubeClient creates a new Kubernetes Client that impersonates
-// a username and the groups.
-func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*dynamic.DynamicClient, error) {
-	// clone cluster's rest config.
-	c := *creds.getKubeRestConfig()
-	// change the impersonated headers.
-	c.Impersonate = rest.ImpersonationConfig{
-		UserName: username,
-		Groups:   groups,
-	}
-	// TODO(tigrato): reuse the http client.
-	client, err := dynamic.NewForConfig(&c)
-	return client, trace.Wrap(err)
-}
-
 // parseDeleteCollectionBody parses the request body targeted to pod collection
 // endpoints.
 func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.DeleteOptions, error) {
@@ -366,9 +349,9 @@ func deleteResources[T kubeObjectInterface](
 			continue
 		}
 
-		// create a new kubernetes.Client using the impersonated users and groups
-		// that matched the current pod.
-		client, err := newImpersonatedKubeClient(params.kubeDetails.kubeCreds, impersonatedUsers, impersonatedGroups)
+		// fetch (or create) a dynamic client impersonating the users and groups
+		// that matched the current item.
+		client, err := params.kubeDetails.getImpersonatedDynamicClient(impersonatedUsers, impersonatedGroups)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

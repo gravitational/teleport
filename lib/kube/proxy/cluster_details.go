@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -82,8 +84,63 @@ type kubeDetails struct {
 	// and the list of supported types for RBAC cannot be generated.
 	isClusterOffline bool
 
+	// dynClientsMu guards dynClients and dynClientsRestConfig.
+	dynClientsMu sync.Mutex
+	// dynClientsRestConfig is the rest.Config pointer the cached clients were
+	// built against. dynamicKubeCreds replaces the pointer on renewal, so a
+	// mismatch invalidates the cache on the next access.
+	dynClientsRestConfig *rest.Config
+	// dynClients caches impersonated dynamic clients keyed by (user, groups)
+	// so delete-collection requests don't rebuild them per item/request.
+	dynClients map[impersonationKey]*dynamic.DynamicClient
+
 	cancelFunc context.CancelFunc
 	wg         sync.WaitGroup
+}
+
+// impersonationKey identifies a dynamic client by the user and groups it
+// impersonates. Groups are joined with a NUL separator after sorting a local
+// copy, so equal sets always produce the same key.
+type impersonationKey struct {
+	user   string
+	groups string
+}
+
+func newImpersonationKey(user string, groups []string) impersonationKey {
+	sorted := slices.Clone(groups)
+	slices.Sort(sorted)
+	return impersonationKey{user: user, groups: strings.Join(sorted, "\x00")}
+}
+
+// getImpersonatedDynamicClient returns a dynamic client configured to
+// impersonate the given user and groups, reusing a cached client when the
+// underlying rest.Config has not changed.
+func (k *kubeDetails) getImpersonatedDynamicClient(user string, groups []string) (*dynamic.DynamicClient, error) {
+	restCfg := k.getKubeRestConfig()
+	key := newImpersonationKey(user, groups)
+
+	k.dynClientsMu.Lock()
+	defer k.dynClientsMu.Unlock()
+
+	if k.dynClientsRestConfig != restCfg {
+		k.dynClientsRestConfig = restCfg
+		k.dynClients = nil
+	}
+	if client, ok := k.dynClients[key]; ok {
+		return client, nil
+	}
+
+	cfg := *restCfg
+	cfg.Impersonate = rest.ImpersonationConfig{UserName: user, Groups: groups}
+	client, err := dynamic.NewForConfig(&cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if k.dynClients == nil {
+		k.dynClients = make(map[impersonationKey]*dynamic.DynamicClient)
+	}
+	k.dynClients[key] = client
+	return client, nil
 }
 
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
