@@ -19,7 +19,6 @@
 package common
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -2423,6 +2422,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			rc.ref.Name,
 		)
 	case scopedaccess.KindScopedRoleAssignment:
+		if rc.ref.SubKind == "" {
+			return trace.BadParameter("scoped_role_assignment requires an explicit subkind when deleting a resource, try: tctl rm scoped_role_assignment/%s/%s", scopedaccess.SubKindDynamic, rc.ref.Name)
+		}
+		if rc.ref.SubKind == scopedaccess.SubKindMaterialized {
+			return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
+		}
 		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 			Name:    rc.ref.Name,
 			SubKind: rc.ref.SubKind,
@@ -3892,11 +3897,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
 		if rc.ref.Name != "" {
-			// Default to dynamic if the user didn't specify a subkind.
-			subKind := cmp.Or(rc.ref.SubKind, scopedaccess.SubKindDynamic)
+			if rc.ref.SubKind == "" {
+				return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", rc.ref.Name)
+			}
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    rc.ref.Name,
-				SubKind: subKind,
+				SubKind: rc.ref.SubKind,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
