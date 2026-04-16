@@ -668,7 +668,7 @@ func emitBoundKeypairRotationEvent(
 	}
 }
 
-func tryLockBotInvalidJoinState(
+func tryLockTokenInvalidJoinState(
 	ctx context.Context,
 	params *JoinParams,
 	token provision.Token,
@@ -694,17 +694,28 @@ func tryLockBotInvalidJoinState(
 		log.WarnContext(ctx, "Failed to emit failed join state verification event", "error", auditErr)
 	}
 
+	var message string
+	if token.GetRoles().Include(types.RoleBot) {
+		message = fmt.Sprintf(
+			"The join token %q has been locked by bot %q after a client "+
+				"failed to verify its join state, possibly indicating a "+
+				"stolen keypair.",
+			token.GetName(), token.GetBotName(),
+		)
+	} else {
+		message = fmt.Sprintf(
+			"The join token %q has been locked after a client failed to "+
+				"verify its join state, possibly indicating a stolen keypair.",
+			token.GetName(),
+		)
+	}
+
 	// Create a lock against this token.
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
 		Target: types.LockTarget{
 			JoinToken: token.GetName(),
 		},
-		Message: fmt.Sprintf(
-			"The join token %q has been locked by bot %q after a client "+
-				"failed to verify its join state, possibly indicating a "+
-				"stolen keypair.",
-			token.GetName(), token.GetBotName(),
-		),
+		Message:   message,
 		CreatedAt: params.Clock.Now(),
 	})
 	if err != nil {
@@ -773,7 +784,7 @@ func verifyBoundKeypairJoinState(
 	)
 	if err != nil {
 		params.Logger.ErrorContext(ctx, "bound keypair join state verification failed", "error", err)
-		tryLockBotInvalidJoinState(ctx, params, token, err)
+		tryLockTokenInvalidJoinState(ctx, params, token, err)
 
 		return "", "", trace.AccessDenied("join state verification failed")
 	}
