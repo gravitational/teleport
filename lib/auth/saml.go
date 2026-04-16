@@ -56,15 +56,24 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
 	}
 
-	// If someone is applying a SAML connector obtained with `tctl get` without secrets, the OAuth client credentials
-	// may be present but the client secret is an empty string. In this case, we want to look up the existing SAML
-	// connector and populate the client secret from it if it's the same client ID. This avoids accidentally clearing
-	// the client secret and creating an unusable connector.
-	oauthCreds := connector.GetOAuthClientCredentials()
-	if oauthCreds != nil && oauthCreds.ClientId != "" && oauthCreds.ClientSecret == "" {
-		if err := services.FillSAMLOAuthClientSecretFromExisting(ctx, connector, a.Services); err != nil {
-			return nil, trace.Wrap(err)
+	_, err := a.Services.GetSAMLConnector(ctx, connector.GetName(), true)
+	switch {
+	case trace.IsNotFound(err):
+		// Create path.
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		// If someone is applying a SAML connector obtained with `tctl get` without secrets, the OAuth client credentials
+		// may be present but the client secret is an empty string. In this case, we want to look up the existing SAML
+		// connector and populate the client secret from it if it's the same client ID. This avoids accidentally clearing
+		// the client secret and creating an unusable connector.
+		oauthCreds := connector.GetOAuthClientCredentials()
+		if oauthCreds != nil && oauthCreds.ClientId != "" && oauthCreds.ClientSecret == "" {
+			if err := services.FillSAMLOAuthClientSecretFromExisting(ctx, connector, a.Services); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
+
 	}
 
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector

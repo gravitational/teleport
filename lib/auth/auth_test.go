@@ -1594,18 +1594,31 @@ func TestSAMLConnector(t *testing.T) {
 				},
 			},
 			Cert: string(certBytes),
-			Credentials: &types.SAMLConnectorCredentials{
-				Oauth: &types.OAuthClientCredentials{
-					ClientId:     "test-client-id",
-					ClientSecret: "test-client-secret",
-				},
-			},
 		})
 		require.NoError(t, err)
 
+		saml.SetOAuthClientCredentials(&types.OAuthClientCredentials{
+			ClientId:     "test-client-id",
+			ClientSecret: "",
+		})
+
+		// Create without client secret fails.
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required client_secret")
+
+		// Upsert new without client secret fails.
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required client_secret")
+
 		// Created connector has specified client ID and client secret.
+		saml.SetOAuthClientCredentials(&types.OAuthClientCredentials{
+			ClientId:     "test-client-id",
+			ClientSecret: "test-client-secret",
+		})
+
 		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
 		require.NoError(t, err)
+
 		createdCreds := createdConnector.GetOAuthClientCredentials()
 		require.NotNil(t, createdCreds)
 		require.Equal(t, "test-client-id", createdCreds.ClientId)
@@ -1614,6 +1627,7 @@ func TestSAMLConnector(t *testing.T) {
 		// Connector without secrets has client secret stripped.
 		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
 		require.NoError(t, err)
+
 		withoutSecretsCreds := connectorWithoutSecrets.GetOAuthClientCredentials()
 		require.NotNil(t, withoutSecretsCreds)
 		require.Equal(t, "test-client-id", withoutSecretsCreds.ClientId)
@@ -1622,6 +1636,7 @@ func TestSAMLConnector(t *testing.T) {
 		// Upserted connector with empty client secret doesn't overwrite existing.
 		_, err = s.a.UpsertSAMLConnector(ctx, connectorWithoutSecrets)
 		require.NoError(t, err)
+
 		upsertedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
 		require.NoError(t, err)
 		upsertedCreds := upsertedConnector.GetOAuthClientCredentials()
