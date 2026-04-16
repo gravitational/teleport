@@ -15,13 +15,13 @@ import (
 // Rule identifies a struct field that must not be assigned directly.
 type Rule struct {
 	// Package is the full import path that declares the struct type.
-	Package string
+	Package string `mapstructure:"pkg"`
 	// Type is the struct type name that owns the forbidden field.
-	Type string
+	Type string `mapstructure:"type"`
 	// Field is the struct field name that must not be set directly.
-	Field string
+	Field string `mapstructure:"field"`
 	// ErrorMessage is an optional explanation appended to the diagnostic.
-	ErrorMessage string
+	ErrorMessage string `mapstructure:"msg"`
 }
 
 // NewAnalyzer creates a new Analyzer with the provided forbidden-field rules.

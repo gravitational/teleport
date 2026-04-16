@@ -31,6 +31,7 @@ import (
 
 	"github.com/golangci/plugin-module-register/register"
 	nostructfieldassign "github.com/gravitational/teleport/build.assets/tools/linters/nostructfieldassign"
+	"github.com/mitchellh/mapstructure"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -47,6 +48,10 @@ func init() {
 //	field — the field name to forbid (e.g. "Region")
 //	msg   — optional message shown in the diagnostic (e.g. "use WithRegion() option instead")
 func New(settings any) (register.LinterPlugin, error) {
+	return newPlugin(settings)
+}
+
+func newPlugin(settings any) (*Plugin, error) {
 	s, ok := settings.(map[string]any)
 	if !ok && settings != nil {
 		return nil, fmt.Errorf("nostructfieldassign: expected settings to be a map, got %T", settings)
@@ -62,30 +67,10 @@ func New(settings any) (register.LinterPlugin, error) {
 	}
 
 	var plugin Plugin
-	entries, ok := raw.([]any)
-	if !ok {
-		return nil, fmt.Errorf("nostructfieldassign: \"fields\" must be a list, got %T", raw)
+	if err := mapstructure.Decode(raw, &plugin.rules); err != nil {
+		return nil, fmt.Errorf("invalid fields format; %w", err)
 	}
 
-	for i, item := range entries {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("nostructfieldassign: fields[%d] must be a map with pkg/type/field keys, got %T", i, item)
-		}
-		pkg, _ := entry["pkg"].(string)
-		typ, _ := entry["type"].(string)
-		field, _ := entry["field"].(string)
-		msg, _ := entry["msg"].(string)
-		if pkg == "" || typ == "" || field == "" {
-			return nil, fmt.Errorf("nostructfieldassign: fields[%d] must have non-empty pkg, type, and field", i)
-		}
-		plugin.rules = append(plugin.rules, nostructfieldassign.Rule{
-			Package:      pkg,
-			Type:         typ,
-			Field:        field,
-			ErrorMessage: msg,
-		})
-	}
 	return &plugin, nil
 }
 
