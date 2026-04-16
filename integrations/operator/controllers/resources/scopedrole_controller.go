@@ -18,6 +18,7 @@ package resources
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +45,11 @@ func (s *scopedRoleClient) Delete(ctx context.Context, name string) error {
 	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
 		Name: name,
 	})
+	// The deletetion API for scoped roles returns CompareFailed if not found, which was an intentional decision
+	// We handle it here and return a not found error for consistency with the deletion reconcile.
+	if err != nil && trace.IsCompareFailed(err) && strings.Contains(err.Error(), "not found") {
+		return trace.NotFound("scoped role %q not found: %v", name, err)
+	}
 	return trace.Wrap(err)
 }
 

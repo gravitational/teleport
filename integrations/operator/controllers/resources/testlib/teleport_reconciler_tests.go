@@ -178,8 +178,9 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 	testPassed = true
 
 	// Test cleanup: Delete the resource to avoid leftover state if we were running on a real instance.
-	// We only delete the Kubernetes CR — the reconciler handles Teleport-side deletion via the finalizer.
 	require.NoError(t, test.DeleteKubernetesResource(ctx, resourceName))
+	require.NoError(t, test.DeleteTeleportResource(ctx, resourceName))
+	// Kicking of a reconciliation to remove the finalizer and let Kube remove the resource.
 	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
 }
@@ -251,9 +252,9 @@ func ResourceCreationSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	// Test cleanup: Delete the resource to avoid leftover state if we were running on a real instance.
-	// We only delete the Kubernetes CR — the reconciler handles Teleport-side deletion via the finalizer.
 	require.NoError(t, test.DeleteKubernetesResource(ctx, resourceName))
-	// require.NoError(t, test.DeleteTeleportResource(ctx, resourceName))
+	require.NoError(t, test.DeleteTeleportResource(ctx, resourceName))
+	// Kicking of a reconciliation to remove the finalizer and let Kube remove the resource.
 	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
 }
