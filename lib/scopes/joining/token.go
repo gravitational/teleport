@@ -37,7 +37,7 @@ import (
 var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 	types.RoleKube,
-  types.RoleBot,
+	types.RoleBot,
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
