@@ -1030,6 +1030,7 @@ func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int
 	data, err := m.Encode()
 	if err != nil {
 		s.cfg.Logger.ErrorContext(ctx, "could not record message due to encoding error", "error", err, "type", logutils.TypeAttr(m))
+		return
 	}
 	e := &events.DesktopRecording{
 		Metadata: events.Metadata{
