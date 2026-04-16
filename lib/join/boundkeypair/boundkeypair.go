@@ -1301,7 +1301,7 @@ func HandleBoundKeypairJoin(
 		return &messages.HostResult{
 			Certificates:    *certs,
 			HostID:          generatedHostID,
-			ImmutableLabels: ptv2.GetImmutableLabels(),
+			ImmutableLabels: finalToken.GetImmutableLabels(),
 			BoundKeypairResult: &messages.BoundKeypairResult{
 				JoinState: []byte(newJoinState),
 				PublicKey: []byte(boundPublicKey),
