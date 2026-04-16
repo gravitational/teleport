@@ -12,7 +12,7 @@ tags:
 This guide explains how to configure PingFederate as a single sign-on
 (SSO) identity provider for Teleport using **OpenID Connect** (OIDC).
 
-Teleport acts as the OIDC client and PingFederate acts as the identity
+Teleport acts as the OIDC client (relying party) and PingFederate acts as the identity
 provider. When a user authenticates, Teleport redirects them to
 PingFederate. PingFederate authenticates the user and returns an ID
 token containing claims. Teleport evaluates the claims against its
@@ -50,10 +50,10 @@ Configure the following fields:
 |---------------------------|--------------------------------------------------------------------|
 | **Client ID**             | `teleport-prod-client`                                             |
 | **Client Authentication** | `Client Secret`                                                    |
-| **Redirect URI**          | `https://<your-teleport-domain>/v1/webapi/oidc/callback`           |
+| **Redirect URI**          | `https://<Var name="teleport-host"/>/v1/webapi/oidc/callback`           |
 | **Grant Types**           | `Authorization Code`, `Refresh Token` (optional; enables longer sessions without re-authentication) |
 
-Ensure the **Authorization Code** grant type and the **openid** scope
+Ensure the **Authorization Code** grant type and the **openid** scope 
 are enabled, then generate a client secret.
 
 <Admonition type="warning" title="Important">
@@ -113,18 +113,14 @@ roles.
 
 ## Step 4/7. Determine the issuer URL
 
-Teleport requires the issuer URL published by PingFederate. 
-Open the PingFederate OIDC discovery document in a browser:
+Teleport requires the `issuer_url` to match the issuer field in your PingFederate configuration.
+Access the PingFederate OIDC discovery document in your browser. Set the `issuer_url` to the base path of your
+PingFederate OIDC discovery document endpoint, excluding `/.well-known/openid-configuration`. For example, if
+the discovery document endpoint is `https://<Var name="pingfederate-host"/>/.well-known/openid-configuration`,
+then you would use `https://<Var name="pingfederate-host"/>`.
 
-```code
-https://<pingfederate-host>/pf/.well-known/openid-configuration
-```
-
-Locate the `issuer` field in the response and copy its value exactly,
-including or excluding any trailing slash. For most PingFederate
-deployments this value is `https://<pingfederate-host>/as`, but your
-deployment may differ. You will paste this value into the Teleport OIDC
-connector in a later step.
+Copy this value exactly. Teleport will fail validation if there is any mismatch
+(such as a missing or extra trailing slash) between this value and your Teleport OIDC connector configuration.
 
 ## Step 5/7. Create Teleport roles
 
@@ -150,7 +146,7 @@ spec:
 
 ``{{internal.username}}`` is a Teleport template variable that resolves to the authenticated 
 user's Teleport username at login time. It allows the role to grant a login on the target host 
-that matches the user's Teleport identity without hardcoding a username.  Remove it if you want to restrict logins to only the explicitly listed values.
+that matches the user's Teleport identity without hardcoding a username. Remove it if you want to restrict logins to only the explicitly listed values.
 
 Apply the role:
 
@@ -171,8 +167,8 @@ metadata:
 spec:
   client_id: teleport-prod-client
   client_secret: "<secret>"
-  issuer_url: https://pingfed.example.com/as
-  redirect_url: https://teleport.example.com/v1/webapi/oidc/callback
+  issuer_url: https://<Var name="pingfederate-host"/>
+  redirect_url: https://<Var name="teleport-host"/>/v1/webapi/oidc/callback
   provider: ping
   display: PingFederate SSO # set to match your branding preferences
   prompt: none # required for PingFederate compatibility
@@ -198,14 +194,14 @@ login. Setting `prompt: none` explicitly avoids this.
 
 Replace the following placeholder values:
 
-| Placeholder                           | Description                                                         |
-|---------------------------------------|---------------------------------------------------------------------|
-| `<secret>`                            | The client secret you generated in Step 1/7.                        |
-| `https://pingfed.example.com/as`      | Your PingFederate issuer URL from Step 4/7.                         |
-| `https://teleport.example.com`        | Your Teleport Proxy Service public address.                         |
-| `teleport-prod-client`                | Your PingFederate client ID, configured in Step 1/7.                |
-| `developers`                          | The PingFederate group you want to map to a Teleport role.          |
-| `developer`                           | The Teleport role to assign to members of the mapped group.         |
+| Placeholder                                  | Description                                                         |
+|----------------------------------------------|---------------------------------------------------------------------|
+| `<secret>`                                   | The client secret you generated in Step 1/7.                        |
+| `https://<Var name="pingfederate-host"/>`    | Your PingFederate issuer URL from Step 4/7.                         |
+| `https://<Var name="teleport-host"/>`        | Your Teleport Proxy Service public address.                         |
+| `teleport-prod-client`                       | Your PingFederate client ID, configured in Step 1/7.                |
+| `developers`                                 | The PingFederate group you want to map to a Teleport role.          |
+| `developer`                                  | The Teleport role to assign to members of the mapped group.         |
 
 Apply the connector:
 
@@ -256,7 +252,7 @@ $ tsh status
 - Confirm the expected roles appear in the output.
 - Verify the cluster connection succeeds.
 
-You can also check the Teleport audit log via [Access Monitoring](../../../identity-governance/access-monitoring.mdx)
+You can also check the Teleport audit log via [Access Monitoring](../../../identity-governance/access-monitoring.mdx).
 
 
 ## Optional: Set PingFederate as the default authentication method for your cluster
@@ -281,3 +277,4 @@ You can also check the Teleport audit log via [Access Monitoring](../../../ident
   providers.
 - Learn more about [OIDC connector reference](../../../reference/access-controls/authentication.mdx)
   for all available connector configuration options.
+  
