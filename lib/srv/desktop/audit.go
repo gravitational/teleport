@@ -125,9 +125,9 @@ func (d *desktopSessionAuditor) teardown(ctx context.Context) {
 
 func (d *desktopSessionAuditor) getAddr() string {
 	if d.windowsDesktop != nil {
-		return d.getName()
+		return d.windowsDesktop.GetAddr()
 	} else if d.linuxDesktop != nil {
-		return d.linuxDesktop.GetSpec().GetAddr()
+		return d.linuxDesktop.GetSpec().GetHostname()
 	}
 	return ""
 }
@@ -189,7 +189,7 @@ func (d *desktopSessionAuditor) makeWindowsSessionEnd(recorded bool) *events.Win
 		SessionMetadata:       d.getSessionMetadata(),
 		ConnectionMetadata:    d.getConnectionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
-		DesktopAddr:           d.getName(),
+		DesktopAddr:           d.getAddr(),
 		Domain:                d.windowsDesktop.GetDomain(),
 		WindowsUser:           d.targetUser,
 		DesktopLabels:         d.windowsDesktop.GetAllLabels(),
@@ -284,7 +284,7 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		Length:             length,
 		DesktopName:        d.getName(),
 	}
@@ -301,7 +301,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		Length:             length,
 		DesktopName:        d.getName(),
 	}
@@ -336,7 +336,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m *tdpb.SharedDirector
 			Error:       errMsg,
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   d.getName(),
+		DesktopAddr:   d.getAddr(),
 		DirectoryName: m.Name,
 		DirectoryID:   m.DirectoryId,
 		DesktopName:   d.getName(),
@@ -367,7 +367,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m *tdpb.SharedDirectory
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             statusFromErrCode(m.ErrorCode),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        m.DirectoryId,
 		DesktopName:        d.getName(),
@@ -413,7 +413,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completi
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   d.getName(),
+		DesktopAddr:   d.getAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
@@ -466,7 +466,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(completion compl
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             statusFromErrCode(errorCode),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        uint32(did),
 		Path:               path,
@@ -518,7 +518,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
 		DesktopName:   d.getName(),
-		DesktopAddr:   d.getName(),
+		DesktopAddr:   d.getAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
@@ -569,7 +569,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(completion comp
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             statusFromErrCode(errorCode),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        uint32(did),
 		Path:               path,

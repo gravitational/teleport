@@ -316,7 +316,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := makeTDPSendHandler(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
 	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
 	encoded, err := msg.Encode()
@@ -349,7 +349,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	require.NoError(t, err)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := makeTDPSendHandler(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
 	handler(png, encoded)
 
@@ -367,13 +367,13 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := makeTDPSendHandler(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
 	msg := &tdpb.MouseButton{
 		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
 		Pressed: true,
 	}
-	handler(msg)
+	handler(msg, nil)
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)
@@ -394,8 +394,11 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPReceiveHandler(
+	handler := makeTDPReceiveHandler(
 		context.Background(),
+		s,
+		s.cfg.Clock,
+		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
 		&tdp.Conn{},
@@ -432,8 +435,11 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPSendHandler(
+	handler := makeTDPSendHandler(
 		context.Background(),
+		s,
+		s.cfg.Clock,
+		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
 		&tdp.Conn{},
