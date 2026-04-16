@@ -554,7 +554,7 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 		return
 	}
 
-	wasActive, leaveErr := s.leave(id)
+	wasActive, leaveErr := s.leave(s.streamContext, id)
 	if leaveErr != nil {
 		s.log.ErrorContext(s.sess.sessionCtx, "Failed to disconnect party from the session",
 			"party_id", idString,
@@ -572,7 +572,7 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 
 // checkPresence checks the presence timestamp of involved moderators
 // and kicks them if they are not active.
-func (s *session) checkPresence() error {
+func (s *session) checkPresence(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -584,7 +584,7 @@ func (s *session) checkPresence() error {
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.DebugContext(s.sess.sessionCtx, "Participant is not active, kicking", "participant_id", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
-			_, err := s.unlockedLeave(id)
+			_, err := s.unlockedLeave(ctx, id)
 			if err != nil {
 				s.log.WarnContext(s.sess.sessionCtx, "Failed to kick participant for inactivity",
 					"participant_id", participant.ID,
@@ -950,7 +950,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 			for {
 				select {
 				case <-ticker.C:
-					err := s.checkPresence()
+					err := s.checkPresence(s.streamContext)
 					if err != nil {
 						s.log.ErrorContext(s.forwarder.ctx, "Failed to check presence, closing session as a security measure", "error", err)
 						if err := s.Close(); err != nil {
@@ -968,7 +968,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 }
 
 // join attempts to connect a party to the session.
-func (s *session) join(p *party, emitJoinEvent bool) error {
+func (s *session) join(ctx context.Context, p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
@@ -1073,7 +1073,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		}()
 	}
 
-	canStart, _, err := s.canStart()
+	canStart, _, err := s.canStart(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1224,17 +1224,17 @@ func (s *session) prepareAndEmitEvent(evt apievents.AuditEvent) {
 
 // leave removes a party from the session and returns if the party was still active
 // in the session. If the party wasn't found, it returns false, nil.
-func (s *session) leave(id uuid.UUID) (bool, error) {
+func (s *session) leave(ctx context.Context, id uuid.UUID) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.unlockedLeave(id)
+	return s.unlockedLeave(ctx, id)
 }
 
 // unlockedLeave removes a party from the session without locking the mutex.
 // The boolean returned identifies if the party was still active in the session.
 // If the party wasn't found, it returns false, nil.
 // In order to call this function, lock the mutex before.
-func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
+func (s *session) unlockedLeave(ctx context.Context, id uuid.UUID) (bool, error) {
 	var errs []error
 	stringID := id.String()
 	party := s.parties[id]
@@ -1295,7 +1295,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		return true, trace.NewAggregate(errs...)
 	}
 
-	canStart, options, err := s.canStart()
+	canStart, options, err := s.canStart(ctx)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
@@ -1346,7 +1346,7 @@ func (s *session) allParticipants() []string {
 }
 
 // canStart checks if a session can start with the current set of participants.
-func (s *session) canStart() (bool, moderation.PolicyOptions, error) {
+func (s *session) canStart(ctx context.Context) (bool, moderation.PolicyOptions, error) {
 	var participants []moderation.SessionAccessContext
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
@@ -1354,7 +1354,7 @@ func (s *session) canStart() (bool, moderation.PolicyOptions, error) {
 		}
 
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
+		roles, err := getRolesByName(ctx, s.forwarder, roleNames)
 		if err != nil {
 			return false, moderation.PolicyOptions{}, trace.Wrap(err)
 		}
@@ -1410,11 +1410,11 @@ func (s *session) Close() error {
 	return nil
 }
 
-func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
+func getRolesByName(ctx context.Context, forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
 	var roles []types.Role
 
 	for _, roleName := range roleNames {
-		role, err := forwarder.cfg.CachingAuthClient.GetRole(context.TODO(), roleName)
+		role, err := forwarder.cfg.CachingAuthClient.GetRole(ctx, roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

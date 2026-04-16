@@ -620,7 +620,7 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 	)
 	defer span.End()
 	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	roles, err := getRolesByName(ctx, f, identity.Identity.GetIdentity().Groups)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1275,13 +1275,13 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party, true /* emitSessionJoinEvent */)
+		err = session.join(req.Context(), party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		defer func() {
-			if _, err := session.leave(party.ID); err != nil {
+			if _, err := session.leave(req.Context(), party.ID); err != nil {
 				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
@@ -1748,13 +1748,13 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(ctx, party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
 			err = <-party.closeC
 
-			if _, errLeave := session.leave(party.ID); errLeave != nil {
+			if _, errLeave := session.leave(ctx, party.ID); errLeave != nil {
 				f.log.DebugContext(ctx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
