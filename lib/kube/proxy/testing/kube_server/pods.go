@@ -112,6 +112,10 @@ func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p http
 func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	namespace := p.ByName("namespace")
 	name := p.ByName("name")
+	if status, ok := s.deletePodErrors[name]; ok {
+		s.writeResponseError(w, nil, status.DeepCopy())
+		return nil, nil
+	}
 	deleteOpts, err := parseDeleteCollectionBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1079,6 +1079,124 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	require.Empty(t, kubeMock.DeletedPods(""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
 }
 
+// TestDeletePodCollectionErrorPropagation exercises the DeleteCollection error
+// handling paths: upstream NotFound errors are treated as success (idempotent
+// delete races), while other upstream errors are surfaced to the caller.
+func TestDeletePodCollectionErrorPropagation(t *testing.T) {
+	const username = "full_user"
+
+	tests := []struct {
+		name           string
+		podErrors      map[string]metav1.Status
+		wantErr        bool
+		wantErrCode    int32
+		wantDeletedPod string
+	}{
+		{
+			name: "NotFound is treated as success",
+			podErrors: map[string]metav1.Status{
+				"nginx-1": {
+					Status:  metav1.StatusFailure,
+					Code:    http.StatusNotFound,
+					Reason:  metav1.StatusReasonNotFound,
+					Message: "pod not found",
+				},
+			},
+			wantDeletedPod: "default/nginx-2",
+		},
+		{
+			name: "Forbidden is propagated to the caller",
+			podErrors: map[string]metav1.Status{
+				"nginx-1": {
+					Status:  metav1.StatusFailure,
+					Code:    http.StatusForbidden,
+					Reason:  metav1.StatusReasonForbidden,
+					Message: "forbidden by kube rbac",
+				},
+			},
+			wantErr:        true,
+			wantDeletedPod: "default/nginx-2",
+		},
+		{
+			name: "Internal server error is propagated",
+			podErrors: map[string]metav1.Status{
+				"nginx-1": {
+					Status:  metav1.StatusFailure,
+					Code:    http.StatusInternalServerError,
+					Reason:  metav1.StatusReasonInternalError,
+					Message: "boom",
+				},
+			},
+			wantErr:        true,
+			wantDeletedPod: "default/nginx-2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := make([]tkm.Option, 0, len(tt.podErrors))
+			for name, status := range tt.podErrors {
+				opts = append(opts, tkm.WithDeletePodError(name, status))
+			}
+			kubeMock, err := tkm.NewKubeAPIMock(opts...)
+			require.NoError(t, err)
+			t.Cleanup(func() { kubeMock.Close() })
+
+			testCtx := SetupTestContext(
+				context.Background(),
+				t,
+				TestConfig{
+					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+				},
+			)
+			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+			testCtx.CreateUserAndRole(
+				testCtx.Context,
+				t,
+				username,
+				RoleSpec{
+					Name:       username,
+					KubeUsers:  roleKubeUsers,
+					KubeGroups: roleKubeGroups,
+					SetupRoleFunc: func(r types.Role) {
+						r.SetKubeResources(types.Allow, []types.KubernetesResource{
+							{
+								Kind:      "pods",
+								Name:      types.Wildcard,
+								Namespace: types.Wildcard,
+								Verbs:     []string{types.Wildcard},
+								APIGroup:  types.Wildcard,
+							},
+						})
+					},
+				},
+			)
+
+			requestID := kubetypes.UID(uuid.NewString())
+			client, _ := testCtx.GenTestKubeClientTLSCert(t, username, kubeCluster)
+			err = client.CoreV1().Pods(metav1.NamespaceDefault).DeleteCollection(
+				testCtx.Context,
+				metav1.DeleteOptions{
+					Preconditions: &metav1.Preconditions{UID: &requestID},
+				},
+				metav1.ListOptions{},
+			)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			// In all cases, the second pod should still have been
+			// attempted (and succeed), proving we don't short-circuit
+			// the whole batch on a single-item failure.
+			require.Contains(t, kubeMock.DeletedPods(string(requestID)), tt.wantDeletedPod)
+		})
+	}
+}
+
 func TestDeleteCRDCollectionRBAC(t *testing.T) {
 	const (
 		usernameWithFullAccess      = "full_user"

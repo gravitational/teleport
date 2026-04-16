@@ -142,6 +142,17 @@ func WithExecError(status metav1.Status) Option {
 	}
 }
 
+// WithDeletePodError sets the error to be returned by the DeletePod call for a
+// specific pod name. Useful for exercising error paths in DeleteCollection.
+func WithDeletePodError(podName string, status metav1.Status) Option {
+	return func(s *KubeMockServer) {
+		if s.deletePodErrors == nil {
+			s.deletePodErrors = map[string]*metav1.Status{}
+		}
+		s.deletePodErrors[podName] = &status
+	}
+}
+
 // WithPortForwardError sets the error to be returned by the PortForward call
 func WithPortForwardError(status metav1.Status) Option {
 	return func(s *KubeMockServer) {
@@ -180,6 +191,7 @@ type KubeMockServer struct {
 	getPodError          *metav1.Status
 	execPodError         *metav1.Status
 	portforwardError     *metav1.Status
+	deletePodErrors      map[string]*metav1.Status
 	mu                   sync.Mutex
 	version              *apimachineryversion.Info
 	KubeExecRequests     KubeUpgradeRequests

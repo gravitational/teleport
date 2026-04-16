@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -335,6 +336,7 @@ func deleteResources[T kubeObjectInterface](
 	deleteOptions metav1.DeleteOptions,
 ) ([]T, error) {
 	deletedItems := make([]T, 0, len(items))
+	var deleteErrs []error
 	for _, item := range items {
 		// Compute users and groups from available roles that match the
 		// cluster labels and kubernetes resources.
@@ -390,13 +392,31 @@ func deleteResources[T kubeObjectInterface](
 			Version:  gvk.Version,
 			Resource: kind,
 		}).Namespace(item.GetNamespace()).Delete(params.ctx, item.GetName(), deleteOptions)
-		if err != nil {
-			// TODO(tigrato): check what should we do when delete returns an error.
-			// Should we check if it's permission error?
-			// Check if the Pod has already been deleted by a concurrent request
-			continue
+		switch {
+		case err == nil:
+			deletedItems = append(deletedItems, item)
+		case kubeerrors.IsNotFound(err):
+			// Resource already gone (concurrent deletion).
+			// Treat as success: desired state is achieved and omit from the returned list
+			// because the caller already received the status separately through the API.
+			params.log.DebugContext(params.ctx,
+				"resource already deleted, skipping",
+				"kind", kind,
+				"group", group,
+				"namespace", item.GetNamespace(),
+				"name", item.GetName(),
+			)
+		default:
+			params.log.WarnContext(params.ctx,
+				"failed to delete resource",
+				"kind", kind,
+				"group", group,
+				"namespace", item.GetNamespace(),
+				"name", item.GetName(),
+				"error", err,
+			)
+			deleteErrs = append(deleteErrs, trace.Wrap(err))
 		}
-		deletedItems = append(deletedItems, item)
 	}
-	return deletedItems, nil
+	return deletedItems, trace.NewAggregate(deleteErrs...)
 }
