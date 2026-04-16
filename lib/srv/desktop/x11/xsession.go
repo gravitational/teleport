@@ -3,8 +3,10 @@ package x11
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -96,9 +98,16 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.BadParameter("missing parameter ChildLogConfig")
 	}
 
+	u, err := user.Lookup(cfg.Login)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
 	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
+	env.AddTrusted("XDG_SESSION_TYPE", "X11")
+	env.AddTrusted("XDG_RUNTIME_DIR", fmt.Sprintf("/run/user/%s", u.Uid))
 
 	cmdmsg := &reexec.ExecCommand{
 		Command:         cfg.Command,
