@@ -295,7 +295,9 @@ $ go mod init workload-cluster-demo
 $ go get github.com/gravitational/teleport/api/client
 ```
 
-3. Create `main.go` and replace references to `parent.teleport.sh`:
+3. Create `main.go` and replace `parent.teleport.sh`, `account`, and `arn`
+with the parent Teleport Cloud cluster address, a valid AWS account ID, and a
+valid AWS ARN that `tbot` can use for IAM joining:
 
 ```go
 package main
