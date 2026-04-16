@@ -21,6 +21,7 @@ package common
 import (
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/decision"
+	"github.com/gravitational/teleport/tool/tctl/common/discovery"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
 	"github.com/gravitational/teleport/tool/tctl/common/stableunixusers"
@@ -48,6 +49,7 @@ func Commands() []CLICommand {
 		&BotsCommand{},
 		&WorkloadIdentityCommand{},
 		&InventoryCommand{},
+		&discovery.Command{},
 		&RecordingsCommand{},
 		&AlertCommand{},
 		&ProxyCommand{},

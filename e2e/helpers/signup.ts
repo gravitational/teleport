@@ -18,25 +18,34 @@
 
 import type { Page } from '@playwright/test';
 
-import { inviteUrl } from './env';
+import { generateInviteURL } from './tctl';
 import { mockWebAuthn } from './webauthn';
 
-export async function signup(page: Page) {
+export const defaultPassword = 'passwordtest123';
+
+export async function signup(
+  page: Page,
+  username: string,
+  password = defaultPassword
+) {
+  await page.addInitScript(() =>
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
+  );
+
   await mockWebAuthn(page);
 
-  await page.goto(inviteUrl);
+  const inviteURL = generateInviteURL(username);
+  await page.goto(inviteURL);
 
   await page.getByRole('button', { name: 'Get started' }).click();
   await page.getByRole('textbox', { name: 'Password', exact: true }).click();
   await page
     .getByRole('textbox', { name: 'Password', exact: true })
-    .fill('passwordtest123');
+    .fill(password);
   await page
     .getByRole('textbox', { name: 'Password', exact: true })
     .press('Tab');
-  await page
-    .getByRole('textbox', { name: 'Confirm Password' })
-    .fill('passwordtest123');
+  await page.getByRole('textbox', { name: 'Confirm Password' }).fill(password);
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Create an MFA Method' }).click();
   await page.getByRole('button', { name: 'Submit' }).click();

@@ -1,0 +1,11 @@
+[Unit]
+Description=Teleport VNet D-Bus service
+After=dbus.service
+Requires=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.teleport.vnet1
+ExecStart=/usr/local/bin/tsh vnet-daemon
+User=root
+Group=root

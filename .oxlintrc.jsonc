@@ -152,7 +152,6 @@
     // https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-useless-fragment.html#allowexpressions
     "react/jsx-no-useless-fragment": ["error", { "allowExpressions": true }],
     "react/display-name": "off",
-    "react/prop-types": "off",
 
     "react-hooks/rules-of-hooks": "warn",
     "react-hooks/exhaustive-deps": "warn",
@@ -160,6 +159,12 @@
     "preserve-caught-error": "error"
   },
   "overrides": [
+    {
+      "files": ["web/packages/teleterm/**"],
+      "rules": {
+        "no-console": "off",
+      }
+    },
     {
       "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       "rules": {
@@ -424,7 +429,7 @@
       }
     },
     {
-      "files": ["e2e/tests/**/*.ts"],
+      "files": ["e2e/tests/web/**/*.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -433,7 +438,24 @@
               {
                 "name": "@playwright/test",
                 "importNames": ["test", "expect"],
-                "message": "Import 'test' and 'expect' from '../helpers/test' instead."
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/test' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e2e/tests/connect/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/connect' instead."
               }
             ]
           }

@@ -5,6 +5,13 @@ templates:
 release:
   upgrade: true
 tests:
+  - it: should not run deletion hook if skipHooks is set
+    template: delete_hook.yaml
+    values:
+      - ../.lint/no-hooks.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
   - it: should create ServiceAccount, Role, RoleBinding and Job for post-delete hook by default
     template: delete_hook.yaml
     values:

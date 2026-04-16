@@ -129,13 +129,21 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	// Configure DNS only if the DNS zones or addresses have changed. This typically happens when the
 	// user logs in or out of a cluster. Otherwise configureDNS would refresh all computer policies
 	// every 10 seconds when platformConfigureOS is called.
+	//
+	// Also reconfigure DNS if VNet's own NRPT key under the group policy path has been removed by an
+	// external group policy refresh, or if the group policy parent key has been created or removed.
 	doesGroupPolicyKeyExist, err := doesKeyPathExist(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey)
 	if err != nil {
 		return trace.Wrap(err, "checking existence of group policy NRPT registry key %s", groupPolicyNRPTParentKey)
 	}
+	vnetGroupPolicyNRPTKeyExists, err := doesKeyPathExist(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey+`\`+vnetNRPTKeyID)
+	if err != nil {
+		return trace.Wrap(err, "checking existence of VNet NRPT registry key under group policy path")
+	}
 	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) ||
 		!slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) ||
-		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey {
+		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey ||
+		(doesGroupPolicyKeyExist && !vnetGroupPolicyNRPTKeyExists && len(cfg.dnsZones) > 0) {
 		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs, doesGroupPolicyKeyExist); err != nil {
 			return trace.Wrap(err, "configuring DNS")
 		}

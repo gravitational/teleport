@@ -225,6 +225,7 @@ it('displays a user dropdown for databases without auto-user provisioning', asyn
   const database = makeDatabase({
     name: 'regular-db',
     protocol: 'postgres',
+    wildcardUserAllowed: true,
   });
 
   const responseWithDatabase = {
@@ -242,10 +243,6 @@ it('displays a user dropdown for databases without auto-user provisioning', asyn
   jest
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue(responseWithDatabase);
-
-  jest
-    .spyOn(appContext.resourcesService, 'getDbUsers')
-    .mockResolvedValue(['dbuser1', 'dbuser2']);
 
   render(
     <MockAppContextProvider appContext={appContext}>

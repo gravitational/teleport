@@ -1,0 +1,19 @@
+resource "teleport_access_list_member" "alpaca" {
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "alpaca"
+    }
+  }
+
+  spec = {
+    access_list       = "some-access-list"
+    name              = "alpaca"
+    joined            = "2023-02-02T00:00:00Z"
+    reason            = "some reason"
+    added_by          = "bob"
+    ineligible_status = "0"
+    membership_kind   = "1"
+  }
+}

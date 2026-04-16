@@ -215,12 +215,33 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 
 # The target below is used to create an operator build, a local test cluster and run it.
 # This uses k3d, if you want to use kind, feel free to contribute an alternative taget.
+# When running from scratch, run k3d cluster create k3s-default to first create your k3d cluster.
+#
+# By default, this uses a released Teleport image.
 # To use it you must set `TELEPORT_VERSION=X.Y.Z`, with "X.Y.Z" being an existing release.
+# To use a locally built Teleport image instead, override TELEPORT_IMAGE and TELEPORT_IMAGE_VERSION:
+#   make k3d-deploy TELEPORT_IMAGE=teleport TELEPORT_IMAGE_VERSION=19.0.0-dev-arm64
+#
+# When TELEPORT_IMAGE is overridden from its default, a local build is assumed:
+# the local image is imported into k3d and TELEPORT_UNSTABLE_SCOPES=true is set.
+#
+# For enterprise builds, also set ENTERPRISE=1:
+#   make k3d-deploy ENTERPRISE=1 TELEPORT_IMAGE=teleport TELEPORT_IMAGE_VERSION=19.0.0-dev-arm64
+#
+# When using a local build, you must:
+#   1. Build the teleport image first (make image from repo root)
+#   2. For enterprise images, create the license secret before deploying:
+#      kubectl -n test create secret generic license --from-file=license.pem=e/fixtures/license-all-features.pem
 K3D_CLUSTER_NAME ?= k3s-default
 GIT_HASH := $(shell git rev-parse --short HEAD)
 GIT_DIRTY := $(shell git diff-index --quiet HEAD -- || echo "dirty")
 TIMESTAMP := $(shell date +%Y%m%d%H%M%S)
-TELEPORT_VERSION?=19.0.0-dev
+TELEPORT_VERSION ?= 19.0.0-dev
+TELEPORT_IMAGE_DEFAULT := public.ecr.aws/gravitational/teleport-distroless
+TELEPORT_IMAGE ?= $(TELEPORT_IMAGE_DEFAULT)
+TELEPORT_IMAGE_VERSION ?= 18.6.4
+LOCAL_BUILD := $(if $(filter-out $(TELEPORT_IMAGE_DEFAULT),$(TELEPORT_IMAGE)),1,)
+ARCH ?= $(shell go env GOARCH)
 
 .PHONY: k3d-deploy
 k3d-deploy: VERSION := $(TELEPORT_VERSION)-$(GIT_HASH)$(if $(GIT_DIRTY),-$(TIMESTAMP))
@@ -232,16 +253,24 @@ k3d-deploy: generate docker-build
 	k3d kubeconfig get $(K3D_CLUSTER_NAME) > "$(KUBECONFIG)"
 	#
 	cat "$(KUBECONFIG)"
-	# Import container image
+	# Import container images
+ifeq ($(LOCAL_BUILD),1)
+	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG) $(TELEPORT_IMAGE):$(TELEPORT_IMAGE_VERSION)
+else
 	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG)
+endif
 	# deploy a teleport cluster with the operator
+	# To add feature flags, append --set "extraEnv[N].name=..." lines below.
 	KUBECONFIG=$(KUBECONFIG) helm upgrade \
 		--install --create-namespace --namespace=test \
 		teleport-cluster ../../examples/chart/teleport-cluster \
 		--set "clusterName=test" \
 		--set "operator.enabled=true" \
-		--set "teleportVersionOverride=18.6.4" \
+		--set "teleportVersionOverride=$(TELEPORT_IMAGE_VERSION)" \
 		--set "operator.teleportVersionOverride=$(VERSION)" \
-		--set "operator.image=$(subst :$(VERSION),,$(IMG))"
+		--set "operator.image=$(subst :$(VERSION),,$(IMG))" \
+		$(if $(LOCAL_BUILD),--set "image=$(TELEPORT_IMAGE)") \
+		$(if $(ENTERPRISE),--set "enterprise=true") \
+		$(if $(ENTERPRISE),--set "enterpriseImage=$(TELEPORT_IMAGE)")
 
 	rm $$KUBECONFIG

@@ -54,6 +54,8 @@ spec:
     # - repository
     # - repository_owner
     # - sub
+    # - enterprise
+    # - enterprise_id
     allow:
       - # repository is a fully qualified (e.g. including the owner) name of a
         # GitHub repository.
@@ -79,5 +81,17 @@ spec:
         # run. GitHub explains the format of this string at:
         # https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims
         sub: repo:gravitational/example-repo:environment:production
+        # enterprise is the name of the enterprise that owns the repository.
+        # This is only populated for repositories owned by a GitHub Enterprise.
+        #
+        # Specifying only this value will allow any GitHub Actions workflow
+        # running in any repository belonging to this enterprise to join.
+        enterprise: my-enterprise
+        # enterprise_id is the ID of the enterprise that owns the repository.
+        # This is only populated for repositories owned by a GitHub Enterprise.
+        #
+        # Specifying only this value will allow any GitHub Actions workflow
+        # running in any repository belonging to this enterprise to join.
+        enterprise_id: "123456"
 
 ```

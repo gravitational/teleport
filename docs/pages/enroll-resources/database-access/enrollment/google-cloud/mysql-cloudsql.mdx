@@ -63,7 +63,7 @@ cloudsql.users.get
 
 The pre-defined "Cloud SQL Viewer" role has this permission, but also has other
 permissions that are not needed. Define and bind a custom role to the service
-account to follow the  principal of least privilege.
+account to follow the principle of least privilege.
 
 <Admonition type="note">
 Support for legacy one-time password authentication will be deprecated.
@@ -95,10 +95,10 @@ with Cloud SQL MySQL instances.
 ### (Optional) SSL mode "require trusted client certificates"
 
 When using Cloud SQL MySQL with "require trusted client certificates" enabled,
-Teleport connects to the database's Cloud SQL Proxy port 3307 instead of the
-default 3306 as the default Cloud SQL MySQL listener does not trust generated 
+Teleport connects to the database's Cloud SQL Proxy port `3307` instead of the
+default `3306` as the default Cloud SQL MySQL listener does not trust generated 
 ephemeral certificates. For this reason, you should make sure to allow port 
-3307 when using "require trusted client certificates".
+`3307` when using "require trusted client certificates".
 
 <Admonition type="note">
 The "require trusted client certificates" SSL mode only forces the client

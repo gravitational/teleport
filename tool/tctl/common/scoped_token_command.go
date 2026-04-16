@@ -163,11 +163,14 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return trace.Wrap(err)
 	}
 
+	// NOTE (eriktate): we want to prevent this behavior until discovery and app
+	// services properly support scopes
+	//
 	// If it's Kube, then enable App and Discovery roles automatically so users
 	// don't have problems with running Kubernetes App Discovery by default.
-	if len(roles) == 1 && roles[0] == types.RoleKube {
-		roles = append(roles, types.RoleApp, types.RoleDiscovery)
-	}
+	// if len(roles) == 1 && roles[0] == types.RoleKube {
+	// 	roles = append(roles, types.RoleApp, types.RoleDiscovery)
+	// }
 
 	tokenName := c.name
 

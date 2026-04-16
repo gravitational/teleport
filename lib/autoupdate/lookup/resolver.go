@@ -68,7 +68,7 @@ type Resolver struct {
 // NewResolver validates the Config and creates a Resolver.
 func NewResolver(cfg Config) (*Resolver, error) {
 	if cfg.RolloutGetter == nil {
-		return nil, trace.BadParameter("missing autoupdate autoupdate rollout getter")
+		return nil, trace.BadParameter("missing autoupdate rollout getter")
 	}
 	if cfg.CMCGetter == nil {
 		return nil, trace.BadParameter("missing cluster maintenance config getter")

@@ -31,7 +31,8 @@ import TeleportContext from 'teleport/teleportContext';
 import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 
 import { ContextProvider } from '..';
-import { AuditContainer } from './Audit';
+import { Audit, AuditContainer } from './Audit';
+import type { State } from './useAuditEvents';
 
 const mio = mockIntersectionObserver();
 
@@ -93,6 +94,54 @@ describe('Audit', () => {
     expect(router.state.location.pathname).toBe('/web/cluster/root/audit');
     expect(router.state.location.search).toContain('order=ASC');
   });
+
+  it('does not fetch next page while placeholder data is shown', async () => {
+    const ctx = createTeleportContext();
+    jest
+      .spyOn(ctx.clusterService, 'fetchClusters')
+      .mockImplementation(() => new Promise(() => {}));
+
+    const fetchNextPage = jest.fn();
+
+    renderWithMemoryRouter(
+      <Audit
+        {...makeState(ctx, {
+          events: [
+            makeEvent({
+              codeDesc: 'Local Login',
+              message: 'Local user [root] successfully logged in',
+              id: 'user.login:2021-05-25T14:37:27.848Z',
+              code: 'T1000I',
+              user: 'root',
+              time: new Date('2021-05-25T14:37:27.848Z'),
+              raw: {
+                cluster_name: 'im-a-cluster-name',
+                code: 'T1000I',
+                ei: 0,
+                event: 'user.login',
+                method: 'local',
+                success: true,
+                time: '2021-05-25T14:37:27.848Z',
+                user: 'root',
+              },
+            }),
+          ],
+          hasNextPage: true,
+          isPlaceholderData: true,
+          fetchNextPage,
+        })}
+      />,
+      {
+        path: cfg.routes.audit,
+        initialEntries: ['/web/cluster/root/audit'],
+        wrapper: makeWrapper({ ctx }),
+      }
+    );
+
+    act(mio.enterAll);
+
+    expect(fetchNextPage).not.toHaveBeenCalled();
+  });
 });
 
 function renderComponent(ctx: TeleportContext) {
@@ -114,5 +163,32 @@ function makeWrapper({ ctx }: { ctx: TeleportContext }) {
         </ContextProvider>
       </QueryClientProvider>
     );
+  };
+}
+
+function makeState(
+  ctx: TeleportContext,
+  overrides: Partial<State> = {}
+): State {
+  return {
+    events: [],
+    fetchNextPage: jest.fn(),
+    hasNextPage: false,
+    isPlaceholderData: false,
+    isFetchingNextPage: false,
+    isLoading: false,
+    error: null,
+    isSuccess: true,
+    refetch: jest.fn(),
+    isError: false,
+    clusterId: 'root',
+    range: undefined,
+    setRange: jest.fn(),
+    search: '',
+    setSearch: jest.fn(),
+    sort: { fieldName: 'time', dir: 'DESC' },
+    setSort: jest.fn(),
+    ctx,
+    ...overrides,
   };
 }

@@ -49,7 +49,7 @@ func TestSAMLSecretsStrip(t *testing.T) {
 // TestSAMLAcsUriHasConnector tests that the ACS URI has the connector ID as the last part if IdP-initiated login is enabled.
 func TestSAMLACSURIHasConnectorName(t *testing.T) {
 	connector, err := types.NewSAMLConnector("myBusinessConnector", types.SAMLConnectorSpecV2{
-		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs",
+		AssertionConsumerService: "https://teleport.local/v1/webapi/saml/acs",
 		SSO:                      "test",
 		EntityDescriptor:         "test",
 		AllowIDPInitiated:        true,
@@ -59,7 +59,7 @@ func TestSAMLACSURIHasConnectorName(t *testing.T) {
 	require.Error(t, err)
 
 	connector, err = types.NewSAMLConnector("myBusinessConnector", types.SAMLConnectorSpecV2{
-		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs/myBusinessConnector",
+		AssertionConsumerService: "https://teleport.local/v1/webapi/saml/acs/myBusinessConnector",
 		SSO:                      "test",
 		EntityDescriptor:         "test",
 		AllowIDPInitiated:        true,

@@ -333,7 +333,10 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 	}
 
 	if err := dest.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err, "initializing storage")
+		return trace.Wrap(err, "checking storage configuration")
+	}
+	if err := dest.Init(ctx, []string{}); err != nil {
+		return trace.Wrap(err, "initializing storage destination")
 	}
 
 	fsAdapter := destination.NewBoundkeypairDestinationAdapter(dest)

@@ -111,4 +111,8 @@ message ResourcesDiscoveredSummary {
   uint64 enrolled = 2;
   // Failed holds the count of the resources that failed to enroll.
   uint64 failed = 3;
+  // Timestamp of when discovering the resources started.
+  google.protobuf.Timestamp sync_start = 4;
+  // Timestamp of when discovering the resources ended.
+  google.protobuf.Timestamp sync_end = 5;
 }

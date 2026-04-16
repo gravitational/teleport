@@ -268,6 +268,22 @@ auth_service:
       #   and Kubernetes connections, for human users only (bots are exempt).
       mode: optional # always "off" for Teleport Community Edition
 
+      # Enables device auto-enrollment.
+      # If set to "true", the user's device is automatically enrolled during
+      # login, if it wasn't yet. The device must be registered in Teleport's
+      # inventory before the login attempt.
+      auto_enroll: false
+
+      # Allow list of TPM EK (Endorsement Key) certificates, in PEM form.
+      # If present, only TPM devices that present an EKCert signed by a CA
+      # specified here may be enrolled. Existing enrollments are unaffected.
+      ekcert_allowed_cas:
+        - /path/to/allowed_ca.pem
+        - |
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
+
     # Determines the default time to live for user certificates
     # issued by this auth server, defaults to 12 hours.  Examples:
     # "14h30m", "1h" etc.
@@ -282,8 +298,8 @@ auth_service:
       # assignment. Ignored if enabled is set to false.
       #first_uid: 90000
       #last_uid: 95000
-    
-    # Sets the cryptographic signature algorithm used to sign each kind of 
+
+    # Sets the cryptographic signature algorithm used to sign each kind of
     # certificate issued by Teleport.
     # The following values are supported:
     #  'legacy'      : For clusters created prior to v17.0.0 with
@@ -418,7 +434,7 @@ auth_service:
   # unlikely that you'll need to change this.
   # session_control_timeout: 2m
 
-  # Determines the routing strategy used to connect to nodes when connecting via 
+  # Determines the routing strategy used to connect to nodes when connecting via
   # node name. Can be 'unambiguous_match' (default), or 'most_recent'.
   routing_strategy: unambiguous_match
 

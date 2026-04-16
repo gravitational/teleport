@@ -107,6 +107,9 @@ func (s *Server) reconcileAccessGraph(
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
+	s.Log.InfoContext(ctx, "Access graph AWS discovery iteration started")
+	defer s.Log.InfoContext(ctx, "Access graph AWS discovery iteration finished")
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -534,7 +537,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers without CloudTrail configured. Access graph sync without CloudTrail will will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers without CloudTrail configured. Access graph sync without CloudTrail will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return

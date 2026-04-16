@@ -1,7 +1,7 @@
 ---
 title: Discover Insecure SSH Access with Teleport Identity Security
 sidebar_label: SSH Keys
-description: Describes how to enable SSH Key Scanning using Identity Security to identity access patterns that use long-lived SSH keys.
+description: Describes how to enable SSH Key Scanning using Identity Security to identify access patterns that use long-lived SSH keys.
 tags:
  - how-to
  - identity-security
@@ -42,7 +42,7 @@ Together with the key fingerprint, the Teleport-protected server also sends the 
 By default, Teleport scans the `$HOME/.ssh/authorized_keys` and `$HOME/.ssh/authorized_keys2` files for authorized keys.
 Here, `$HOME` refers to the home directory of each user on the system, whether they are local or LDAP managed users.
 
-### Importing User's SSH private keys
+### Importing SSH private keys
 
 Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
 It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows,
@@ -60,7 +60,7 @@ Teleport cluster with metadata such as:
 
 - `device_id`: The unique identifier of the device.
 - `public_fingerprint`: The SHA256 fingerprint of the public key if available.
-- `derivation_mode`: The method used to derive the public key from the private key. If can be either `private_key` if the
+- `derivation_mode`: The method used to derive the public key from the private key. It can be either `private_key` if the
   public key is extracted from the private key, `public_key_file` if the private key is encrypted and the public key is
     available in a separate file, or `protected` if the public key fingerprint is not available.
 
@@ -216,5 +216,5 @@ in Teleport.
 ### `"binary missing signature or entitlements"` error
 
 A signed and notarized `tsh` binary is necessary to enroll and use a trusted
-device. [Download the macOS tsh installer](../../installation/installation.mdx) to fix
+device. [Download the macOS tsh installer](../../installation/single-machine/single-machine.mdx) to fix
 the problem.

@@ -9,7 +9,7 @@ teleport:
     severity: TRACE
     format:
       output: text
-  auth_server: host.docker.internal:{{ .AuthServerPort }}
+  auth_server: {{ .AuthServerHost }}:{{ .AuthServerPort }}
 
 auth_service:
   enabled: "no"

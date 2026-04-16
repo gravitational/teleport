@@ -106,7 +106,7 @@ func addSAMLCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	// alternatives to --entity-descriptor:
 	sub.Flag("issuer", "Issuer is the identity provider issuer.").StringVar(&spec.Issuer)
 	sub.Flag("sso", "SSO is the URL of the identity provider's SSO service.").StringVar(&spec.SSO)
-	sub.Flag("cert", "Cert file with with the IdP certificate PEM. IdP signs <Response> responses using this certificate.").SetValue(flags.NewFileReader(&spec.Cert))
+	sub.Flag("cert", "Cert file with the IdP certificate PEM. IdP signs <Response> responses using this certificate.").SetValue(flags.NewFileReader(&spec.Cert))
 
 	// provided for completeness, but typically omitted.
 	sub.Flag("acs", "AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).").StringVar(&spec.AssertionConsumerService)

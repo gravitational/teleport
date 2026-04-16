@@ -3825,6 +3825,9 @@ message MFADeviceMetadata {
   string DeviceID = 2 [(gogoproto.jsontag) = "mfa_device_uuid"];
   // Type is the type of this MFA device.
   string DeviceType = 3 [(gogoproto.jsontag) = "mfa_device_type"];
+  // MFAViaBrowser is true when the user used the Browser MFA flow to MFA in the
+  // browser to authenticate a CLI session.
+  bool MFAViaBrowser = 4 [(gogoproto.jsontag) = "mfa_via_browser,omitempty"];
 }
 
 // MFADeviceAdd is emitted when a user adds an MFA device.
@@ -4187,6 +4190,9 @@ message BotJoin {
   ];
   // BotInstanceID is the ID of the bot instance which has joined or renewed.
   string BotInstanceID = 9 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+  // Scope is the scope of the bot that joined, if it is a scoped bot. Empty for
+  // unscoped bots.
+  string Scope = 10 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // InstanceJoin records an instance join event.
@@ -5157,6 +5163,9 @@ message Identity {
   // Differs from AllowedResourceIDs, which only identifies resources and cannot be used
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID AllowedResourceAccessIDs = 32 [(gogoproto.nullable) = false];
+  // A flag indicating this identity is specific to a bot's internal identity
+  // rather than an output identity for a user-facing certificate or service.
+  bool BotInternal = 33 [(gogoproto.jsontag) = "bot_internal"];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
@@ -9700,6 +9709,12 @@ message WorkloadClusterCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // WorkloadClusterUpdate is emitted when a workload cluster is updated.
@@ -9737,6 +9752,12 @@ message WorkloadClusterUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 

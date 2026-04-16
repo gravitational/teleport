@@ -18,7 +18,6 @@
 
 import { createRoot } from 'react-dom/client';
 
-import 'teleport/lib/polyfillRandomUuid';
 import cfg from './config';
 import { KeysEnum } from './services/storageService';
 import Teleport from './Teleport';
