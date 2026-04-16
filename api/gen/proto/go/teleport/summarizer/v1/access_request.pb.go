@@ -97,41 +97,41 @@ func (AccessRequestConsistency) EnumDescriptor() ([]byte, []int) {
 type AccessRequestState int32
 
 const (
+	// AccessRequestStateUnspecified variant is used when the state of the request cannot be determined.
+	AccessRequestState_ACCESS_REQUEST_STATE_UNSPECIFIED AccessRequestState = 0
 	// AccessRequestStateNone variant exists to allow RequestState to be explicitly omitted
 	// in certain circumstances (e.g. in an AccessRequestFilter).
-	AccessRequestState_ACCESS_REQUEST_STATE_NONE AccessRequestState = 0
+	AccessRequestState_ACCESS_REQUEST_STATE_NONE AccessRequestState = 1
 	// AccessRequestStatePending variant is the default for newly created requests.
-	AccessRequestState_ACCESS_REQUEST_STATE_PENDING AccessRequestState = 1
+	AccessRequestState_ACCESS_REQUEST_STATE_PENDING AccessRequestState = 2
 	// AccessRequestStateApproved variant indicates that a request has been accepted by
 	// an administrating party.
-	AccessRequestState_ACCESS_REQUEST_STATE_APPROVED AccessRequestState = 2
+	AccessRequestState_ACCESS_REQUEST_STATE_APPROVED AccessRequestState = 3
 	// AccessRequestStateDenied variant indicates that a request has been rejected by
 	// an administrating party.
-	AccessRequestState_ACCESS_REQUEST_STATE_DENIED AccessRequestState = 3
+	AccessRequestState_ACCESS_REQUEST_STATE_DENIED AccessRequestState = 4
 	// AccessRequestStatePromoted variant indicates that a request has been promoted to
 	// an access list.
-	AccessRequestState_ACCESS_REQUEST_STATE_PROMOTED AccessRequestState = 4
-	// AccessRequestStateUnknown variant is used when the state of the request cannot be determined.
-	AccessRequestState_ACCESS_REQUEST_STATE_UNKNOWN AccessRequestState = 5
+	AccessRequestState_ACCESS_REQUEST_STATE_PROMOTED AccessRequestState = 5
 )
 
 // Enum value maps for AccessRequestState.
 var (
 	AccessRequestState_name = map[int32]string{
-		0: "ACCESS_REQUEST_STATE_NONE",
-		1: "ACCESS_REQUEST_STATE_PENDING",
-		2: "ACCESS_REQUEST_STATE_APPROVED",
-		3: "ACCESS_REQUEST_STATE_DENIED",
-		4: "ACCESS_REQUEST_STATE_PROMOTED",
-		5: "ACCESS_REQUEST_STATE_UNKNOWN",
+		0: "ACCESS_REQUEST_STATE_UNSPECIFIED",
+		1: "ACCESS_REQUEST_STATE_NONE",
+		2: "ACCESS_REQUEST_STATE_PENDING",
+		3: "ACCESS_REQUEST_STATE_APPROVED",
+		4: "ACCESS_REQUEST_STATE_DENIED",
+		5: "ACCESS_REQUEST_STATE_PROMOTED",
 	}
 	AccessRequestState_value = map[string]int32{
-		"ACCESS_REQUEST_STATE_NONE":     0,
-		"ACCESS_REQUEST_STATE_PENDING":  1,
-		"ACCESS_REQUEST_STATE_APPROVED": 2,
-		"ACCESS_REQUEST_STATE_DENIED":   3,
-		"ACCESS_REQUEST_STATE_PROMOTED": 4,
-		"ACCESS_REQUEST_STATE_UNKNOWN":  5,
+		"ACCESS_REQUEST_STATE_UNSPECIFIED": 0,
+		"ACCESS_REQUEST_STATE_NONE":        1,
+		"ACCESS_REQUEST_STATE_PENDING":     2,
+		"ACCESS_REQUEST_STATE_APPROVED":    3,
+		"ACCESS_REQUEST_STATE_DENIED":      4,
+		"ACCESS_REQUEST_STATE_PROMOTED":    5,
 	}
 )
 
@@ -403,7 +403,7 @@ func (x *AccessRequestReviewSnapshot) GetProposedState() AccessRequestState {
 	if x != nil {
 		return x.ProposedState
 	}
-	return AccessRequestState_ACCESS_REQUEST_STATE_NONE
+	return AccessRequestState_ACCESS_REQUEST_STATE_UNSPECIFIED
 }
 
 func (x *AccessRequestReviewSnapshot) GetReason() string {
@@ -499,14 +499,14 @@ const file_teleport_summarizer_v1_access_request_proto_rawDesc = "" +
 	"&ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED\x10\x00\x12)\n" +
 	"%ACCESS_REQUEST_CONSISTENCY_CONSISTENT\x10\x01\x123\n" +
 	"/ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT\x10\x02\x12+\n" +
-	"'ACCESS_REQUEST_CONSISTENCY_INCONSISTENT\x10\x03*\xde\x01\n" +
-	"\x12AccessRequestState\x12\x1d\n" +
-	"\x19ACCESS_REQUEST_STATE_NONE\x10\x00\x12 \n" +
-	"\x1cACCESS_REQUEST_STATE_PENDING\x10\x01\x12!\n" +
-	"\x1dACCESS_REQUEST_STATE_APPROVED\x10\x02\x12\x1f\n" +
-	"\x1bACCESS_REQUEST_STATE_DENIED\x10\x03\x12!\n" +
-	"\x1dACCESS_REQUEST_STATE_PROMOTED\x10\x04\x12 \n" +
-	"\x1cACCESS_REQUEST_STATE_UNKNOWN\x10\x05BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"'ACCESS_REQUEST_CONSISTENCY_INCONSISTENT\x10\x03*\xe2\x01\n" +
+	"\x12AccessRequestState\x12$\n" +
+	" ACCESS_REQUEST_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19ACCESS_REQUEST_STATE_NONE\x10\x01\x12 \n" +
+	"\x1cACCESS_REQUEST_STATE_PENDING\x10\x02\x12!\n" +
+	"\x1dACCESS_REQUEST_STATE_APPROVED\x10\x03\x12\x1f\n" +
+	"\x1bACCESS_REQUEST_STATE_DENIED\x10\x04\x12!\n" +
+	"\x1dACCESS_REQUEST_STATE_PROMOTED\x10\x05BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
 	file_teleport_summarizer_v1_access_request_proto_rawDescOnce sync.Once

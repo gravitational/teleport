@@ -68,22 +68,22 @@ message RequestedResourceID {
 
 // AccessRequestState represents the state of an access request for escalated privilege.
 enum AccessRequestState {
+  // AccessRequestStateUnspecified variant is used when the state of the request cannot be determined.
+  ACCESS_REQUEST_STATE_UNSPECIFIED = 0;
   // AccessRequestStateNone variant exists to allow RequestState to be explicitly omitted
   // in certain circumstances (e.g. in an AccessRequestFilter).
-  ACCESS_REQUEST_STATE_NONE = 0;
+  ACCESS_REQUEST_STATE_NONE = 1;
   // AccessRequestStatePending variant is the default for newly created requests.
-  ACCESS_REQUEST_STATE_PENDING = 1;
+  ACCESS_REQUEST_STATE_PENDING = 2;
   // AccessRequestStateApproved variant indicates that a request has been accepted by
   // an administrating party.
-  ACCESS_REQUEST_STATE_APPROVED = 2;
+  ACCESS_REQUEST_STATE_APPROVED = 3;
   // AccessRequestStateDenied variant indicates that a request has been rejected by
   // an administrating party.
-  ACCESS_REQUEST_STATE_DENIED = 3;
+  ACCESS_REQUEST_STATE_DENIED = 4;
   // AccessRequestStatePromoted variant indicates that a request has been promoted to
   // an access list.
-  ACCESS_REQUEST_STATE_PROMOTED = 4;
-  // AccessRequestStateUnknown variant is used when the state of the request cannot be determined.
-  ACCESS_REQUEST_STATE_UNKNOWN = 5;
+  ACCESS_REQUEST_STATE_PROMOTED = 5;
 }
 
 // AccessRequestReviewSnapshot represents a snapshot of a single review of an access request, containing information
