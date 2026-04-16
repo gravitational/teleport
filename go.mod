@@ -290,10 +290,7 @@ require (
 
 require github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
 
-require (
-	github.com/jezek/xgb v1.3.0
-	go.uber.org/atomic v1.11.0
-)
+require github.com/jezek/xgb v1.3.0
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -606,6 +603,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
