@@ -692,6 +692,47 @@ message RemoveCertificateOverrideResponse {}
 // List is paginated.
 ```
 
+Windows and DB certificate responses are changed to carry CA override
+information (necessary for "start session" audit logs, see
+[Audit Events](#audit)).
+
+```diff
+ package proto; // api/proto/teleport/legacy/client/proto
+
+ message WindowsDesktopCertResponse {
+   // (...)
++
++  // CA override details. Optional.
++  // If present then a CA override was active during certificate issuance.
++  CAOverrideCertificateDetails ca_override = n;
+ }
+
+ message DatabaseCertResponse {
+   // (...)
+
+   // CACerts is a list of certificate authorities.
+   //
+   // CACerts are the root CAs that the client itself should trust
+   // (tls.Config.RootCAs).
+   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
++
++  // Certificate trust chain, in PEM form. Sorted from leaf to root.
++  //
++  // Cert and TrustChain are the certificates the client should present.
++  repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
++
++  // CA override details. Optional.
++  // If present then a CA override was active during certificate issuance.
++  CAOverrideCertificateDetails CAOverride = 4 [(gogoproto.jsontag) = "ca_override"];
+ }
++
++// CAOverrideCertificateDetails holds information about an active
++// CertAuthorityOverride that took effect during certificate issuance.
++message CAOverrideCertificateDetails {
++  string public_key_hash = 1;
++}
+```
+
 The storage key space for cert_authority_override resources is
 `/cert_authority_overrides/cluster/{clusterName}/{caType}`.
 
@@ -723,6 +764,7 @@ user on startup. Whether this is an acceptable or desirable mitigation is TBD.
 See also the [client/agent compatibility validation
 section](#client-agent-compat-validation).
 
+<a id="audit"></a>
 ## Audit Events
 
 New audit events are added to track the cert_authority_override life cycle.
@@ -772,6 +814,25 @@ Codes:
 * `TCO03I` - CertAuthorityOverrideCertificatesDeleteCode
   * Special case of upsert: deleted certificate
 * `TCO04I` - CertAuthorityOverrideDeleteCode
+
+Windows and DB session started events are changed to carry CA override data.
+(These are the only events emitted in response to service certificate issuance.)
+
+```diff
+ package events; // api/proto/teleport/legacy/types/events
+
+ message WindowsDesktopSessionStart {
+   // (...)
++
++  CAOverrideCertificateDetails CAOverride = n [(gogoproto.jsontag) = "ca_override,omitempty"];
+ }
+
+ message DatabaseSessionStart {
+   // (...)
++
++  CAOverrideCertificateDetails CAOverride = n [(gogoproto.jsontag) = "ca_override,omitempty"];
+ }
+```
 
 ## Observability
 
