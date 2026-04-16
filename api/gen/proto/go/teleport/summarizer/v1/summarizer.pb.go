@@ -1199,8 +1199,414 @@ func (x *Summary) GetEnhancedSummary() *EnhancedSummary {
 	return nil
 }
 
+// SessionEvent represents a single event during a session.
+type SessionEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Category is the category of the command.
+	Category CommandCategory `protobuf:"varint,1,opt,name=category,proto3,enum=teleport.summarizer.v1.CommandCategory" json:"category,omitempty"`
+	// RiskLevel is the risk level associated with the command.
+	RiskLevel RiskLevel `protobuf:"varint,2,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
+	// RiskScore is a numerical score representing the risk associated with the command.
+	RiskScore int32 `protobuf:"varint,3,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
+	// ThreatCategory is the category of any detected threat associated with the command.
+	ThreatCategory ThreatCategory `protobuf:"varint,4,opt,name=threat_category,json=threatCategory,proto3,enum=teleport.summarizer.v1.ThreatCategory" json:"threat_category,omitempty"`
+	// TimelineTitle is a brief title for the command's entry in the session timeline.
+	TimelineTitle string `protobuf:"bytes,5,opt,name=timeline_title,json=timelineTitle,proto3" json:"timeline_title,omitempty"`
+	// TimelineSubtitle is a more detailed subtitle for the command's entry in the session timeline.
+	TimelineSubtitle string `protobuf:"bytes,6,opt,name=timeline_subtitle,json=timelineSubtitle,proto3" json:"timeline_subtitle,omitempty"`
+	// ShortDescription is a concise description of the command and its purpose.
+	ShortDescription string `protobuf:"bytes,7,opt,name=short_description,json=shortDescription,proto3" json:"short_description,omitempty"`
+	// DetailedDescription is an in-depth explanation of the command, its function,
+	// and any relevant context.
+	DetailedDescription string `protobuf:"bytes,8,opt,name=detailed_description,json=detailedDescription,proto3" json:"detailed_description,omitempty"`
+	// SuspiciousFlags contains any suspicious flags or indicators associated with the command.
+	SuspiciousFlags []string `protobuf:"bytes,9,rep,name=suspicious_flags,json=suspiciousFlags,proto3" json:"suspicious_flags,omitempty"`
+	// SensitiveItems contains any sensitive items accessed or modified by the command.
+	SensitiveItems []string `protobuf:"bytes,10,rep,name=sensitive_items,json=sensitiveItems,proto3" json:"sensitive_items,omitempty"`
+	// SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
+	SuspiciousPatterns []string `protobuf:"bytes,11,rep,name=suspicious_patterns,json=suspiciousPatterns,proto3" json:"suspicious_patterns,omitempty"`
+	// IOCs contains any indicators of compromise associated with the command.
+	Iocs []string `protobuf:"bytes,12,rep,name=iocs,proto3" json:"iocs,omitempty"`
+	// MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
+	MitreAttackIds []string `protobuf:"bytes,13,rep,name=mitre_attack_ids,json=mitreAttackIds,proto3" json:"mitre_attack_ids,omitempty"`
+	// HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
+	HasSensitiveData bool `protobuf:"varint,14,opt,name=has_sensitive_data,json=hasSensitiveData,proto3" json:"has_sensitive_data,omitempty"`
+	// PrivilegeEscalation indicates whether the command involved privilege escalation.
+	PrivilegeEscalation bool `protobuf:"varint,15,opt,name=privilege_escalation,json=privilegeEscalation,proto3" json:"privilege_escalation,omitempty"`
+	// DataExfiltration indicates whether the command involved data exfiltration.
+	DataExfiltration bool `protobuf:"varint,16,opt,name=data_exfiltration,json=dataExfiltration,proto3" json:"data_exfiltration,omitempty"`
+	// Persistence indicates whether the command involved persistence mechanisms.
+	Persistence bool `protobuf:"varint,17,opt,name=persistence,proto3" json:"persistence,omitempty"`
+	// StartOffset is the start time of the command, relative to the start of the session.
+	StartOffset *durationpb.Duration `protobuf:"bytes,18,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
+	// EndOffset is the end time of the command, relative to the start of the session.
+	EndOffset *durationpb.Duration `protobuf:"bytes,19,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
+	// InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
+	InferenceErrorMessage string `protobuf:"bytes,20,opt,name=inference_error_message,json=inferenceErrorMessage,proto3" json:"inference_error_message,omitempty"`
+	// Details is the type-specific details of the event.
+	//
+	// Types that are valid to be assigned to Details:
+	//
+	//	*SessionEvent_CommandEventDetails
+	//	*SessionEvent_DesktopEventDetails
+	Details       isSessionEvent_Details `protobuf_oneof:"details"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionEvent) Reset() {
+	*x = SessionEvent{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionEvent) ProtoMessage() {}
+
+func (x *SessionEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionEvent.ProtoReflect.Descriptor instead.
+func (*SessionEvent) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SessionEvent) GetCategory() CommandCategory {
+	if x != nil {
+		return x.Category
+	}
+	return CommandCategory_COMMAND_CATEGORY_UNSPECIFIED
+}
+
+func (x *SessionEvent) GetRiskLevel() RiskLevel {
+	if x != nil {
+		return x.RiskLevel
+	}
+	return RiskLevel_RISK_LEVEL_UNSPECIFIED
+}
+
+func (x *SessionEvent) GetRiskScore() int32 {
+	if x != nil {
+		return x.RiskScore
+	}
+	return 0
+}
+
+func (x *SessionEvent) GetThreatCategory() ThreatCategory {
+	if x != nil {
+		return x.ThreatCategory
+	}
+	return ThreatCategory_THREAT_CATEGORY_UNSPECIFIED
+}
+
+func (x *SessionEvent) GetTimelineTitle() string {
+	if x != nil {
+		return x.TimelineTitle
+	}
+	return ""
+}
+
+func (x *SessionEvent) GetTimelineSubtitle() string {
+	if x != nil {
+		return x.TimelineSubtitle
+	}
+	return ""
+}
+
+func (x *SessionEvent) GetShortDescription() string {
+	if x != nil {
+		return x.ShortDescription
+	}
+	return ""
+}
+
+func (x *SessionEvent) GetDetailedDescription() string {
+	if x != nil {
+		return x.DetailedDescription
+	}
+	return ""
+}
+
+func (x *SessionEvent) GetSuspiciousFlags() []string {
+	if x != nil {
+		return x.SuspiciousFlags
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetSensitiveItems() []string {
+	if x != nil {
+		return x.SensitiveItems
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetSuspiciousPatterns() []string {
+	if x != nil {
+		return x.SuspiciousPatterns
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetIocs() []string {
+	if x != nil {
+		return x.Iocs
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetMitreAttackIds() []string {
+	if x != nil {
+		return x.MitreAttackIds
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetHasSensitiveData() bool {
+	if x != nil {
+		return x.HasSensitiveData
+	}
+	return false
+}
+
+func (x *SessionEvent) GetPrivilegeEscalation() bool {
+	if x != nil {
+		return x.PrivilegeEscalation
+	}
+	return false
+}
+
+func (x *SessionEvent) GetDataExfiltration() bool {
+	if x != nil {
+		return x.DataExfiltration
+	}
+	return false
+}
+
+func (x *SessionEvent) GetPersistence() bool {
+	if x != nil {
+		return x.Persistence
+	}
+	return false
+}
+
+func (x *SessionEvent) GetStartOffset() *durationpb.Duration {
+	if x != nil {
+		return x.StartOffset
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetEndOffset() *durationpb.Duration {
+	if x != nil {
+		return x.EndOffset
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetInferenceErrorMessage() string {
+	if x != nil {
+		return x.InferenceErrorMessage
+	}
+	return ""
+}
+
+func (x *SessionEvent) GetDetails() isSessionEvent_Details {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetCommandEventDetails() *CommandEventDetails {
+	if x != nil {
+		if x, ok := x.Details.(*SessionEvent_CommandEventDetails); ok {
+			return x.CommandEventDetails
+		}
+	}
+	return nil
+}
+
+func (x *SessionEvent) GetDesktopEventDetails() *DesktopEventDetails {
+	if x != nil {
+		if x, ok := x.Details.(*SessionEvent_DesktopEventDetails); ok {
+			return x.DesktopEventDetails
+		}
+	}
+	return nil
+}
+
+type isSessionEvent_Details interface {
+	isSessionEvent_Details()
+}
+
+type SessionEvent_CommandEventDetails struct {
+	// CommandEventDetails holds the details for a command ran during a TTY session.
+	CommandEventDetails *CommandEventDetails `protobuf:"bytes,21,opt,name=command_event_details,json=commandEventDetails,proto3,oneof"`
+}
+
+type SessionEvent_DesktopEventDetails struct {
+	// DesktopEventDetails holds the details for an event during a desktop session.
+	DesktopEventDetails *DesktopEventDetails `protobuf:"bytes,22,opt,name=desktop_event_details,json=desktopEventDetails,proto3,oneof"`
+}
+
+func (*SessionEvent_CommandEventDetails) isSessionEvent_Details() {}
+
+func (*SessionEvent_DesktopEventDetails) isSessionEvent_Details() {}
+
+// CommandEventDetails represents the details of a command event during a TTY session.
+type CommandEventDetails struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Command is the command that was executed.
+	Command string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	// Success indicates whether the command executed successfully.
+	Success bool `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	// ErrorMessages contains any error messages produced during the execution of the command.
+	ErrorMessages []string `protobuf:"bytes,11,rep,name=error_messages,json=errorMessages,proto3" json:"error_messages,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandEventDetails) Reset() {
+	*x = CommandEventDetails{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandEventDetails) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandEventDetails) ProtoMessage() {}
+
+func (x *CommandEventDetails) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandEventDetails.ProtoReflect.Descriptor instead.
+func (*CommandEventDetails) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CommandEventDetails) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *CommandEventDetails) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CommandEventDetails) GetErrorMessages() []string {
+	if x != nil {
+		return x.ErrorMessages
+	}
+	return nil
+}
+
+// DesktopEventDetails represents the details of a desktop session event.
+type DesktopEventDetails struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Applications visible or interacted with during this event.
+	Applications []string `protobuf:"bytes,1,rep,name=applications,proto3" json:"applications,omitempty"`
+	// URLs visible on screen (browser address bars, etc).
+	VisibleUrls []string `protobuf:"bytes,2,rep,name=visible_urls,json=visibleUrls,proto3" json:"visible_urls,omitempty"`
+	// File paths visible on screen (Explorer, save dialogs, terminals).
+	VisibleFilePaths []string `protobuf:"bytes,3,rep,name=visible_file_paths,json=visibleFilePaths,proto3" json:"visible_file_paths,omitempty"`
+	// The title of the active/focused window.
+	ActiveWindowTitle string `protobuf:"bytes,4,opt,name=active_window_title,json=activeWindowTitle,proto3" json:"active_window_title,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DesktopEventDetails) Reset() {
+	*x = DesktopEventDetails{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DesktopEventDetails) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DesktopEventDetails) ProtoMessage() {}
+
+func (x *DesktopEventDetails) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DesktopEventDetails.ProtoReflect.Descriptor instead.
+func (*DesktopEventDetails) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DesktopEventDetails) GetApplications() []string {
+	if x != nil {
+		return x.Applications
+	}
+	return nil
+}
+
+func (x *DesktopEventDetails) GetVisibleUrls() []string {
+	if x != nil {
+		return x.VisibleUrls
+	}
+	return nil
+}
+
+func (x *DesktopEventDetails) GetVisibleFilePaths() []string {
+	if x != nil {
+		return x.VisibleFilePaths
+	}
+	return nil
+}
+
+func (x *DesktopEventDetails) GetActiveWindowTitle() string {
+	if x != nil {
+		return x.ActiveWindowTitle
+	}
+	return ""
+}
+
 // CommandAnalysis represents a summary of a single command executed during a
 // session.
+// Deprecated: This message is deprecated in favor of SessionEvent with CommandEventDetails.
 type CommandAnalysis struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Command is the command that was executed.
@@ -1256,7 +1662,7 @@ type CommandAnalysis struct {
 
 func (x *CommandAnalysis) Reset() {
 	*x = CommandAnalysis{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[9]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1268,7 +1674,7 @@ func (x *CommandAnalysis) String() string {
 func (*CommandAnalysis) ProtoMessage() {}
 
 func (x *CommandAnalysis) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[9]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1281,7 +1687,7 @@ func (x *CommandAnalysis) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandAnalysis.ProtoReflect.Descriptor instead.
 func (*CommandAnalysis) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{9}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CommandAnalysis) GetCommand() string {
@@ -1460,7 +1866,7 @@ type SecurityRecommendation struct {
 
 func (x *SecurityRecommendation) Reset() {
 	*x = SecurityRecommendation{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[10]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1472,7 +1878,7 @@ func (x *SecurityRecommendation) String() string {
 func (*SecurityRecommendation) ProtoMessage() {}
 
 func (x *SecurityRecommendation) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[10]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1485,7 +1891,7 @@ func (x *SecurityRecommendation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityRecommendation.ProtoReflect.Descriptor instead.
 func (*SecurityRecommendation) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{10}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SecurityRecommendation) GetTitle() string {
@@ -1522,7 +1928,7 @@ type RiskScoreReason struct {
 
 func (x *RiskScoreReason) Reset() {
 	*x = RiskScoreReason{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[11]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1534,7 +1940,7 @@ func (x *RiskScoreReason) String() string {
 func (*RiskScoreReason) ProtoMessage() {}
 
 func (x *RiskScoreReason) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[11]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1547,7 +1953,7 @@ func (x *RiskScoreReason) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RiskScoreReason.ProtoReflect.Descriptor instead.
 func (*RiskScoreReason) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{11}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RiskScoreReason) GetReason() string {
@@ -1580,7 +1986,9 @@ type EnhancedSummary struct {
 	CompromiseIndicators bool `protobuf:"varint,5,opt,name=compromise_indicators,json=compromiseIndicators,proto3" json:"compromise_indicators,omitempty"`
 	// NotableCommandIndexes is a list of indexes of commands that are considered notable.
 	NotableCommandIndexes []int32 `protobuf:"varint,6,rep,packed,name=notable_command_indexes,json=notableCommandIndexes,proto3" json:"notable_command_indexes,omitempty"`
-	// Commands is a list of command summaries extracted from the session.
+	// Commands is a list of command summaries extracted from the session. Deprecated in favor of SessionEvents with CommandEventDetails.
+	//
+	// Deprecated: Marked as deprecated in teleport/summarizer/v1/summarizer.proto.
 	Commands []*CommandAnalysis `protobuf:"bytes,7,rep,name=commands,proto3" json:"commands,omitempty"`
 	// NeedsFurtherReview indicates the reason why the session needs further review.
 	// Deprecated: This field is deprecated in favor of NeedsFurtherReviewReasons, which allows specifying multiple reasons.
@@ -1603,13 +2011,16 @@ type EnhancedSummary struct {
 	AccessRequests []*AccessRequestSnapshot `protobuf:"bytes,14,rep,name=access_requests,json=accessRequests,proto3" json:"access_requests,omitempty"`
 	// NeedsFurtherReviewReasons contains a list of reasons why the session needs further review.
 	NeedsFurtherReviewReasons []NeedsReviewReason `protobuf:"varint,15,rep,packed,name=needs_further_review_reasons,json=needsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_further_review_reasons,omitempty"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
+	// SessionEvents contains a list of significant events that occurred during the session, such as command executions or
+	// desktop interactions.
+	SessionEvents []*SessionEvent `protobuf:"bytes,16,rep,name=session_events,json=sessionEvents,proto3" json:"session_events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EnhancedSummary) Reset() {
 	*x = EnhancedSummary{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1621,7 +2032,7 @@ func (x *EnhancedSummary) String() string {
 func (*EnhancedSummary) ProtoMessage() {}
 
 func (x *EnhancedSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1634,7 +2045,7 @@ func (x *EnhancedSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnhancedSummary.ProtoReflect.Descriptor instead.
 func (*EnhancedSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{12}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EnhancedSummary) GetShortDescription() string {
@@ -1679,6 +2090,7 @@ func (x *EnhancedSummary) GetNotableCommandIndexes() []int32 {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in teleport/summarizer/v1/summarizer.proto.
 func (x *EnhancedSummary) GetCommands() []*CommandAnalysis {
 	if x != nil {
 		return x.Commands
@@ -1743,6 +2155,13 @@ func (x *EnhancedSummary) GetNeedsFurtherReviewReasons() []NeedsReviewReason {
 	return nil
 }
 
+func (x *EnhancedSummary) GetSessionEvents() []*SessionEvent {
+	if x != nil {
+		return x.SessionEvents
+	}
+	return nil
+}
+
 // RetrievalModel resource specifies the model configuration used to
 // generate embeddings for the session and perform search inference.
 // It tells Teleport how to generate embeddings for a specific session summary
@@ -1767,7 +2186,7 @@ type RetrievalModel struct {
 
 func (x *RetrievalModel) Reset() {
 	*x = RetrievalModel{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1779,7 +2198,7 @@ func (x *RetrievalModel) String() string {
 func (*RetrievalModel) ProtoMessage() {}
 
 func (x *RetrievalModel) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1792,7 +2211,7 @@ func (x *RetrievalModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetrievalModel.ProtoReflect.Descriptor instead.
 func (*RetrievalModel) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{13}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *RetrievalModel) GetKind() string {
@@ -1850,7 +2269,7 @@ type RetrievalModelSpec struct {
 
 func (x *RetrievalModelSpec) Reset() {
 	*x = RetrievalModelSpec{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[14]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1862,7 +2281,7 @@ func (x *RetrievalModelSpec) String() string {
 func (*RetrievalModelSpec) ProtoMessage() {}
 
 func (x *RetrievalModelSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[14]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1875,7 +2294,7 @@ func (x *RetrievalModelSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetrievalModelSpec.ProtoReflect.Descriptor instead.
 func (*RetrievalModelSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{14}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RetrievalModelSpec) GetEmbeddingsProvider() isRetrievalModelSpec_EmbeddingsProvider {
@@ -1986,7 +2405,44 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"model_name\x18\x06 \x01(\tR\tmodelName\x12C\n" +
 	"\x11session_end_event\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12#\n" +
 	"\rerror_message\x18\b \x01(\tR\ferrorMessage\x12R\n" +
-	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\"\xba\b\n" +
+	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\"\xad\t\n" +
+	"\fSessionEvent\x12C\n" +
+	"\bcategory\x18\x01 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12@\n" +
+	"\n" +
+	"risk_level\x18\x02 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x12\x1d\n" +
+	"\n" +
+	"risk_score\x18\x03 \x01(\x05R\triskScore\x12O\n" +
+	"\x0fthreat_category\x18\x04 \x01(\x0e2&.teleport.summarizer.v1.ThreatCategoryR\x0ethreatCategory\x12%\n" +
+	"\x0etimeline_title\x18\x05 \x01(\tR\rtimelineTitle\x12+\n" +
+	"\x11timeline_subtitle\x18\x06 \x01(\tR\x10timelineSubtitle\x12+\n" +
+	"\x11short_description\x18\a \x01(\tR\x10shortDescription\x121\n" +
+	"\x14detailed_description\x18\b \x01(\tR\x13detailedDescription\x12)\n" +
+	"\x10suspicious_flags\x18\t \x03(\tR\x0fsuspiciousFlags\x12'\n" +
+	"\x0fsensitive_items\x18\n" +
+	" \x03(\tR\x0esensitiveItems\x12/\n" +
+	"\x13suspicious_patterns\x18\v \x03(\tR\x12suspiciousPatterns\x12\x12\n" +
+	"\x04iocs\x18\f \x03(\tR\x04iocs\x12(\n" +
+	"\x10mitre_attack_ids\x18\r \x03(\tR\x0emitreAttackIds\x12,\n" +
+	"\x12has_sensitive_data\x18\x0e \x01(\bR\x10hasSensitiveData\x121\n" +
+	"\x14privilege_escalation\x18\x0f \x01(\bR\x13privilegeEscalation\x12+\n" +
+	"\x11data_exfiltration\x18\x10 \x01(\bR\x10dataExfiltration\x12 \n" +
+	"\vpersistence\x18\x11 \x01(\bR\vpersistence\x12<\n" +
+	"\fstart_offset\x18\x12 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
+	"\n" +
+	"end_offset\x18\x13 \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x126\n" +
+	"\x17inference_error_message\x18\x14 \x01(\tR\x15inferenceErrorMessage\x12a\n" +
+	"\x15command_event_details\x18\x15 \x01(\v2+.teleport.summarizer.v1.CommandEventDetailsH\x00R\x13commandEventDetails\x12a\n" +
+	"\x15desktop_event_details\x18\x16 \x01(\v2+.teleport.summarizer.v1.DesktopEventDetailsH\x00R\x13desktopEventDetailsB\t\n" +
+	"\adetails\"p\n" +
+	"\x13CommandEventDetails\x12\x18\n" +
+	"\acommand\x18\x01 \x01(\tR\acommand\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12%\n" +
+	"\x0eerror_messages\x18\v \x03(\tR\rerrorMessages\"\xba\x01\n" +
+	"\x13DesktopEventDetails\x12\"\n" +
+	"\fapplications\x18\x01 \x03(\tR\fapplications\x12!\n" +
+	"\fvisible_urls\x18\x02 \x03(\tR\vvisibleUrls\x12,\n" +
+	"\x12visible_file_paths\x18\x03 \x03(\tR\x10visibleFilePaths\x12.\n" +
+	"\x13active_window_title\x18\x04 \x01(\tR\x11activeWindowTitle\"\xba\b\n" +
 	"\x0fCommandAnalysis\x12\x18\n" +
 	"\acommand\x18\x01 \x01(\tR\acommand\x12C\n" +
 	"\bcategory\x18\x02 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12\x18\n" +
@@ -2021,7 +2477,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"L\n" +
 	"\x0fRiskScoreReason\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12!\n" +
-	"\fscore_impact\x18\x02 \x01(\x05R\vscoreImpact\"\xa0\b\n" +
+	"\fscore_impact\x18\x02 \x01(\x05R\vscoreImpact\"\xf1\b\n" +
 	"\x0fEnhancedSummary\x12+\n" +
 	"\x11short_description\x18\x01 \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\x02 \x01(\tR\x13detailedDescription\x12@\n" +
@@ -2029,8 +2485,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"risk_level\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x123\n" +
 	"\x15suspicious_activities\x18\x04 \x03(\tR\x14suspiciousActivities\x123\n" +
 	"\x15compromise_indicators\x18\x05 \x01(\bR\x14compromiseIndicators\x126\n" +
-	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12C\n" +
-	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12d\n" +
+	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12G\n" +
+	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisB\x02\x18\x01R\bcommands\x12d\n" +
 	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonB\x02\x18\x01H\x00R\x12needsFurtherReview\x88\x01\x01\x12\x1d\n" +
 	"\n" +
 	"risk_score\x18\t \x01(\x05R\triskScore\x12\x1f\n" +
@@ -2041,7 +2497,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1aaccess_request_consistency\x18\f \x01(\x0e20.teleport.summarizer.v1.AccessRequestConsistencyR\x18accessRequestConsistency\x12:\n" +
 	"\x19access_request_assessment\x18\r \x01(\tR\x17accessRequestAssessment\x12V\n" +
 	"\x0faccess_requests\x18\x0e \x03(\v2-.teleport.summarizer.v1.AccessRequestSnapshotR\x0eaccessRequests\x12j\n" +
-	"\x1cneeds_further_review_reasons\x18\x0f \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasonsB\x17\n" +
+	"\x1cneeds_further_review_reasons\x18\x0f \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasons\x12K\n" +
+	"\x0esession_events\x18\x10 \x03(\v2$.teleport.summarizer.v1.SessionEventR\rsessionEventsB\x17\n" +
 	"\x15_needs_further_review\"\xd3\x01\n" +
 	"\x0eRetrievalModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
@@ -2118,7 +2575,7 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(SummaryState)(0),              // 0: teleport.summarizer.v1.SummaryState
 	(CommandCategory)(0),           // 1: teleport.summarizer.v1.CommandCategory
@@ -2134,55 +2591,66 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(*InferencePolicy)(nil),        // 11: teleport.summarizer.v1.InferencePolicy
 	(*InferencePolicySpec)(nil),    // 12: teleport.summarizer.v1.InferencePolicySpec
 	(*Summary)(nil),                // 13: teleport.summarizer.v1.Summary
-	(*CommandAnalysis)(nil),        // 14: teleport.summarizer.v1.CommandAnalysis
-	(*SecurityRecommendation)(nil), // 15: teleport.summarizer.v1.SecurityRecommendation
-	(*RiskScoreReason)(nil),        // 16: teleport.summarizer.v1.RiskScoreReason
-	(*EnhancedSummary)(nil),        // 17: teleport.summarizer.v1.EnhancedSummary
-	(*RetrievalModel)(nil),         // 18: teleport.summarizer.v1.RetrievalModel
-	(*RetrievalModelSpec)(nil),     // 19: teleport.summarizer.v1.RetrievalModelSpec
-	(*v1.Metadata)(nil),            // 20: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 21: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),        // 22: google.protobuf.Struct
-	(*durationpb.Duration)(nil),    // 23: google.protobuf.Duration
-	(AccessRequestConsistency)(0),  // 24: teleport.summarizer.v1.AccessRequestConsistency
-	(*AccessRequestSnapshot)(nil),  // 25: teleport.summarizer.v1.AccessRequestSnapshot
+	(*SessionEvent)(nil),           // 14: teleport.summarizer.v1.SessionEvent
+	(*CommandEventDetails)(nil),    // 15: teleport.summarizer.v1.CommandEventDetails
+	(*DesktopEventDetails)(nil),    // 16: teleport.summarizer.v1.DesktopEventDetails
+	(*CommandAnalysis)(nil),        // 17: teleport.summarizer.v1.CommandAnalysis
+	(*SecurityRecommendation)(nil), // 18: teleport.summarizer.v1.SecurityRecommendation
+	(*RiskScoreReason)(nil),        // 19: teleport.summarizer.v1.RiskScoreReason
+	(*EnhancedSummary)(nil),        // 20: teleport.summarizer.v1.EnhancedSummary
+	(*RetrievalModel)(nil),         // 21: teleport.summarizer.v1.RetrievalModel
+	(*RetrievalModelSpec)(nil),     // 22: teleport.summarizer.v1.RetrievalModelSpec
+	(*v1.Metadata)(nil),            // 23: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),  // 24: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),        // 25: google.protobuf.Struct
+	(*durationpb.Duration)(nil),    // 26: google.protobuf.Duration
+	(AccessRequestConsistency)(0),  // 27: teleport.summarizer.v1.AccessRequestConsistency
+	(*AccessRequestSnapshot)(nil),  // 28: teleport.summarizer.v1.AccessRequestSnapshot
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	20, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	23, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
 	6,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
 	7,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
 	8,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	20, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	23, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
 	10, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	20, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	23, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
 	12, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
 	0,  // 8: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	21, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	21, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	22, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
-	17, // 12: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
-	1,  // 13: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
-	2,  // 14: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	3,  // 15: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	23, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
-	23, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
-	2,  // 18: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	2,  // 19: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	14, // 20: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
-	4,  // 21: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	16, // 22: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
-	24, // 23: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
-	25, // 24: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
-	4,  // 25: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	20, // 26: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
-	19, // 27: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	7,  // 28: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	8,  // 29: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	24, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	24, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	25, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	20, // 12: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
+	1,  // 13: teleport.summarizer.v1.SessionEvent.category:type_name -> teleport.summarizer.v1.CommandCategory
+	2,  // 14: teleport.summarizer.v1.SessionEvent.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	3,  // 15: teleport.summarizer.v1.SessionEvent.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
+	26, // 16: teleport.summarizer.v1.SessionEvent.start_offset:type_name -> google.protobuf.Duration
+	26, // 17: teleport.summarizer.v1.SessionEvent.end_offset:type_name -> google.protobuf.Duration
+	15, // 18: teleport.summarizer.v1.SessionEvent.command_event_details:type_name -> teleport.summarizer.v1.CommandEventDetails
+	16, // 19: teleport.summarizer.v1.SessionEvent.desktop_event_details:type_name -> teleport.summarizer.v1.DesktopEventDetails
+	1,  // 20: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
+	2,  // 21: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	3,  // 22: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
+	26, // 23: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	26, // 24: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	2,  // 25: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	2,  // 26: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	17, // 27: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
+	4,  // 28: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	19, // 29: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
+	27, // 30: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
+	28, // 31: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
+	4,  // 32: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	14, // 33: teleport.summarizer.v1.EnhancedSummary.session_events:type_name -> teleport.summarizer.v1.SessionEvent
+	23, // 34: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
+	22, // 35: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	7,  // 36: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	8,  // 37: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	38, // [38:38] is the sub-list for method output_type
+	38, // [38:38] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -2195,8 +2663,12 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		(*InferenceModelSpec_Openai)(nil),
 		(*InferenceModelSpec_Bedrock)(nil),
 	}
-	file_teleport_summarizer_v1_summarizer_proto_msgTypes[12].OneofWrappers = []any{}
-	file_teleport_summarizer_v1_summarizer_proto_msgTypes[14].OneofWrappers = []any{
+	file_teleport_summarizer_v1_summarizer_proto_msgTypes[9].OneofWrappers = []any{
+		(*SessionEvent_CommandEventDetails)(nil),
+		(*SessionEvent_DesktopEventDetails)(nil),
+	}
+	file_teleport_summarizer_v1_summarizer_proto_msgTypes[15].OneofWrappers = []any{}
+	file_teleport_summarizer_v1_summarizer_proto_msgTypes[17].OneofWrappers = []any{
 		(*RetrievalModelSpec_Openai)(nil),
 		(*RetrievalModelSpec_Bedrock)(nil),
 	}
@@ -2206,7 +2678,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   15,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
