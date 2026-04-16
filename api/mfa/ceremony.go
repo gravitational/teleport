@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -51,6 +52,12 @@ type MFACeremonyConstructor func(ctx context.Context) (CallbackCeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+
+// CreateSessionChallengeFunc is a function that creates a session-bound MFA challenge.
+type CreateSessionChallengeFunc func(ctx context.Context, req *mfav1.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error)
+
+// ValidateSessionChallengeFunc is a function that validates a session-bound MFA challenge.
+type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav1.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error)
 
 // Run the MFA ceremony.
 //
@@ -152,4 +159,183 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 
 	resp, err := mfaCeremony(ceremonyCtx, challengeRequest, WithPromptReasonAdminAction())
 	return resp, trace.Wrap(err)
+}
+
+// SessionBoundCeremonyConfig contains configuration for a session-bound ceremony.
+type SessionBoundCeremonyConfig struct {
+	// CreateSessionChallenge creates a session-bound challenge.
+	CreateSessionChallenge CreateSessionChallengeFunc
+	// ValidateSessionChallenge validates a session-bound challenge.
+	ValidateSessionChallenge ValidateSessionChallengeFunc
+	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
+	PromptConstructor PromptConstructor
+	// CallbackCeremony is optional and if provided, will be used to complete an SSO or Browser MFA challenge that may
+	// be offered by the server as part of the session-bound challenges.
+	CallbackCeremony CallbackCeremony
+	// Payload is the session identifying payload to use for the session-bound challenge.
+	Payload *mfav1.SessionIdentifyingPayload
+	// TargetCluster is the name of the cluster to target for the session-bound challenge.
+	TargetCluster string
+}
+
+// NewSessionBoundCeremony creates a new session-bound ceremony with the provided configuration.
+func NewSessionBoundCeremony(config SessionBoundCeremonyConfig) (*SessionBoundCeremony, error) {
+	switch {
+	case config.CreateSessionChallenge == nil:
+		return nil, trace.BadParameter("config.CreateSessionChallenge must not be nil")
+
+	case config.ValidateSessionChallenge == nil:
+		return nil, trace.BadParameter("config.ValidateSessionChallenge must not be nil")
+
+	case config.PromptConstructor == nil:
+		return nil, trace.BadParameter("config.PromptConstructor must not be nil")
+
+	case config.Payload == nil:
+		return nil, trace.BadParameter("config.Payload must not be nil")
+
+	case config.TargetCluster == "":
+		return nil, trace.BadParameter("config.TargetCluster must not be empty")
+	}
+
+	return &SessionBoundCeremony{
+		createSessionChallenge:   config.CreateSessionChallenge,
+		validateSessionChallenge: config.ValidateSessionChallenge,
+		promptConstructor:        config.PromptConstructor,
+		callbackCeremony:         config.CallbackCeremony,
+		payload:                  config.Payload,
+		targetCluster:            config.TargetCluster,
+	}, nil
+}
+
+// SessionBoundCeremony represents a ceremony that is bound to a specific session.
+type SessionBoundCeremony struct {
+	createSessionChallenge   CreateSessionChallengeFunc
+	validateSessionChallenge ValidateSessionChallengeFunc
+	promptConstructor        PromptConstructor
+	callbackCeremony         CallbackCeremony
+	payload                  *mfav1.SessionIdentifyingPayload
+	targetCluster            string
+}
+
+// RunWithSessionBinding runs the ceremony with a session-bound challenge using the provided binding parameters and
+// returns the name of the challenge that was satisfied.
+func (c *SessionBoundCeremony) Run(ctx context.Context, promptOpts ...PromptOpt) (string, error) {
+	createReq := &mfav1.CreateSessionChallengeRequest{
+		Payload:       c.payload,
+		TargetCluster: c.targetCluster,
+	}
+
+	// If a callback ceremony is provided, set the client callback URL in the create challenge request to request an SSO
+	// or Browser challenge in addition to other challenges. The callback ceremony will be used to complete the SSO or
+	// Browser challenge if it is offered by the server.
+	if c.callbackCeremony != nil {
+		defer c.callbackCeremony.Close()
+
+		createReq.SsoClientRedirectUrl = c.callbackCeremony.GetClientCallbackURL()
+		createReq.BrowserMfaTshRedirectUrl = c.callbackCeremony.GetClientCallbackURL()
+		createReq.ProxyAddressForSso = c.callbackCeremony.GetProxyAddress()
+
+		promptOpts = append(promptOpts, withSSOMFACeremony(c.callbackCeremony))
+	}
+
+	createResp, err := c.createSessionChallenge(ctx, createReq)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	protoAuthChal, err := convertToProtoAuthChal(createResp.MfaChallenge)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	protoAuthResp, err := c.promptConstructor(promptOpts...).Run(ctx, protoAuthChal)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	mfaAuthResp, err := convertToMFAAuthResp(protoAuthResp, createResp.MfaChallenge.GetName())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if _, err := c.validateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: mfaAuthResp,
+		},
+	); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return createResp.MfaChallenge.GetName(), nil
+}
+
+func convertToProtoAuthChal(mfaAuthChal *mfav1.AuthenticateChallenge) (*proto.MFAAuthenticateChallenge, error) {
+	if mfaAuthChal == nil {
+		return nil, trace.BadParameter("AuthenticateChallenge must not be nil")
+	}
+
+	protoAuthChal := &proto.MFAAuthenticateChallenge{}
+
+	if chal := mfaAuthChal.GetWebauthnChallenge(); chal != nil {
+		protoAuthChal.WebauthnChallenge = chal
+	}
+
+	if chal := mfaAuthChal.GetSsoChallenge(); chal != nil {
+		protoAuthChal.SSOChallenge = &proto.SSOChallenge{
+			RequestId:   chal.GetRequestId(),
+			RedirectUrl: chal.GetRedirectUrl(),
+			Device:      chal.GetDevice(),
+		}
+	}
+
+	if chal := mfaAuthChal.GetBrowserChallenge(); chal != nil {
+		protoAuthChal.BrowserMFAChallenge = &proto.BrowserMFAChallenge{
+			RequestId: chal.GetRequestId(),
+		}
+	}
+
+	return protoAuthChal, nil
+}
+
+func convertToMFAAuthResp(protoResp *proto.MFAAuthenticateResponse, name string) (*mfav1.AuthenticateResponse, error) {
+	switch {
+	case protoResp == nil:
+		return nil, trace.BadParameter("MFAAuthenticateResponse must not be nil")
+
+	case name == "":
+		return nil, trace.BadParameter("challenge name must not be empty")
+	}
+
+	mfaAuthResp := &mfav1.AuthenticateResponse{
+		Name: name,
+	}
+
+	switch resp := protoResp.GetResponse().(type) {
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		mfaAuthResp.Response = &mfav1.AuthenticateResponse_Webauthn{
+			Webauthn: protoResp.GetWebauthn(),
+		}
+
+	case *proto.MFAAuthenticateResponse_SSO:
+		mfaAuthResp.Response = &mfav1.AuthenticateResponse_Sso{
+			Sso: &mfav1.SSOChallengeResponse{
+				RequestId: resp.SSO.GetRequestId(),
+				Token:     resp.SSO.GetToken(),
+			},
+		}
+
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthResp.Response = &mfav1.AuthenticateResponse_Browser{
+			Browser: &mfav1.BrowserMFAResponse{
+				RequestId:        resp.Browser.GetRequestId(),
+				WebauthnResponse: resp.Browser.GetWebauthnResponse(),
+			},
+		}
+
+	default:
+		return nil, trace.BadParameter("unknown or nil response with type %T (this is a bug)", protoResp.GetResponse())
+	}
+
+	return mfaAuthResp, nil
 }
