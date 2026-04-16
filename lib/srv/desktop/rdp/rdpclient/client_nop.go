@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 // Client is the dummy RDP client.
