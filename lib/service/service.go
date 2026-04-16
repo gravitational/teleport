@@ -6759,6 +6759,7 @@ func (process *TeleportProcess) initApps() {
 				CORS:                  makeApplicationCORS(app.CORS),
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 				MCP:                   app.MCP,
+				LLM:                   app.LLM,
 			})
 			if err != nil {
 				return trace.Wrap(err)
