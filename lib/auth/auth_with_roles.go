@@ -2142,10 +2142,18 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return nil, trace.Wrap(err)
 			}
 		}
+	case types.KindKubeServer:
+		if err := a.checkAction(req.Namespace, req.ResourceType, types.VerbList, types.VerbRead); err != nil {
+			if !errors.Is(err, services.ErrScopedIdentity) {
+				return nil, trace.Wrap(err)
+			}
+			if err := a.preAuthorizeScopedAction(req.ResourceType, types.VerbList, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	case types.KindDatabaseServer,
 		types.KindDatabaseService,
 		types.KindAppServer,
-		types.KindKubeServer,
 		types.KindWindowsDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
@@ -2154,12 +2162,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
 		if err := a.checkAction(req.Namespace, req.ResourceType, types.VerbList, types.VerbRead); err != nil {
-			if !errors.Is(err, services.ErrScopedIdentity) {
-				return nil, trace.Wrap(err)
-			}
-			if err := a.preAuthorizeScopedAction(req.ResourceType, types.VerbList, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
