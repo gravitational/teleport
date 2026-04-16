@@ -33,6 +33,7 @@ import (
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -86,11 +87,14 @@ func testRDS(t *testing.T) {
 	autoUserFineGrain := "auto_fine_grain_" + randASCII(t) + "@teleport.com"
 	autoUserKeep := "auto_keep_" + randASCII(t) + "@teleport.com"
 	autoUserDrop := "auto_drop_" + randASCII(t) + "@teleport.com"
+	autoUserDropWithReassignment := "auto_drop_reassign_" + randASCII(t) + "@teleport.com"
 	autoUserFineGrain2 := "auto_fine_grain2_" + randASCII(t)
 	autoUserKeep2 := "auto_keep2_" + randASCII(t)
 	autoUserDrop2 := "auto_drop2_" + randASCII(t)
+	autoUserDropWithReassignment2 := "auto_drop_reassign2_" + randASCII(t) + "@teleport.com"
 	autoRole1 := "auto_granted_role1_" + randASCII(t)
 	autoRole2 := "auto_granted_role2_" + randASCII(t)
+	autoRole3 := "auto_granted_role3_" + randASCII(t)
 
 	testSchema := "test_" + randASCII(t)
 
@@ -117,9 +121,11 @@ func testRDS(t *testing.T) {
 		withUserRole(t, autoUserFineGrain, "db-auto-user-fine-grain", dbAutoUserFineGrainRole),
 		withUserRole(t, autoUserKeep, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
 		withUserRole(t, autoUserDrop, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
+		withUserRole(t, autoUserDropWithReassignment, "db-auto-user-dropper-reassignment", makeAutoUserDropRoleSpec(autoRole3)),
 		withUserRole(t, autoUserFineGrain2, "db-auto-user-fine-grain", dbAutoUserFineGrainRole),
 		withUserRole(t, autoUserKeep2, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
 		withUserRole(t, autoUserDrop2, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
+		withUserRole(t, autoUserDropWithReassignment2, "db-auto-user-dropper-reassignment", makeAutoUserDropRoleSpec(autoRole3)),
 	}
 	cluster := makeDBTestCluster(t, accessRole, discoveryRole, types.AWSMatcherRDS, opts...)
 
@@ -136,19 +142,42 @@ func testRDS(t *testing.T) {
 
 		// provision new databases with new db admin to have distinct admin names in concurrent test runs.
 		// db1 admin *will not* be a Postgres superuser
-		db1 := cloneDBWithNewAdmin(t, db, &types.DatabaseAdminUser{
-			Name: "admin_" + randASCII(t),
-		})
+		db1AdminUser := "admin_" + randASCII(t)
+		db1OrphanedResourceOwner := "orphaned_resource_owner_" + randASCII(t)
+		db1 := cloneAndCustomizeDB(t, db, &types.DatabaseAdminUser{
+			Name: db1AdminUser,
+		}, "")
 		require.NoError(t, cluster.Process.GetAuthServer().CreateDatabase(ctx, db1))
+		// for use in tests where admin is not postgres superuser and orphaned_resource_owner is set
+		db1WithOrphanedResourceOwner := cloneAndCustomizeDB(t, db, &types.DatabaseAdminUser{
+			Name: db1AdminUser,
+		}, db1OrphanedResourceOwner)
+		require.NoError(t, cluster.Process.GetAuthServer().CreateDatabase(ctx, db1WithOrphanedResourceOwner))
 		// db2 admin *will* be a Postgres superuser
-		db2 := cloneDBWithNewAdmin(t, db, &types.DatabaseAdminUser{
-			Name: "su_admin_" + randASCII(t),
-		})
+		db2AdminUser := "su_admin_" + randASCII(t)
+		db2OrphanedResourceOwner := "orphaned_resource_owner_" + randASCII(t)
+		db2 := cloneAndCustomizeDB(t, db, &types.DatabaseAdminUser{
+			Name: db2AdminUser,
+		}, "")
 		require.NoError(t, cluster.Process.GetAuthServer().CreateDatabase(ctx, db2))
-		waitForDatabases(t, cluster.Process, db1.GetName(), db2.GetName())
+		// for use in tests where admin is postgres superuser and orphaned_resource_owner is set
+		db2WithOrphanedResourceOwner := cloneAndCustomizeDB(t, db, &types.DatabaseAdminUser{
+			Name: db2AdminUser,
+		}, db2OrphanedResourceOwner)
+		require.NoError(t, cluster.Process.GetAuthServer().CreateDatabase(ctx, db2WithOrphanedResourceOwner))
+
+		// wait for database clones to heartbeat, and get their populated versions
+		waitForDatabases(t, cluster.Process,
+			db1.GetName(), db1WithOrphanedResourceOwner.GetName(),
+			db2.GetName(), db2WithOrphanedResourceOwner.GetName(),
+		)
 		db1, err = cluster.Process.GetAuthServer().GetDatabase(ctx, db1.GetName())
 		require.NoError(t, err)
+		db1WithOrphanedResourceOwner, err = cluster.Process.GetAuthServer().GetDatabase(ctx, db1WithOrphanedResourceOwner.GetName())
+		require.NoError(t, err)
 		db2, err = cluster.Process.GetAuthServer().GetDatabase(ctx, db2.GetName())
+		require.NoError(t, err)
+		db2WithOrphanedResourceOwner, err = cluster.Process.GetAuthServer().GetDatabase(ctx, db2WithOrphanedResourceOwner.GetName())
 		require.NoError(t, err)
 
 		conn := connectAsRDSPostgresAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
@@ -158,12 +187,14 @@ func testRDS(t *testing.T) {
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserKeep))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserDrop))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserFineGrain))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserDropWithReassignment))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserKeep2))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserDrop2))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserFineGrain2))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserDropWithReassignment2))
 
 		// create the roles that Teleport will auto assign.
-		for _, r := range [...]string{autoRole1, autoRole2} {
+		for _, r := range [...]string{autoRole1, autoRole2, autoRole3} {
 			createPGTestRole(t, ctx, conn, r)
 		}
 
@@ -183,10 +214,22 @@ func testRDS(t *testing.T) {
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT ALL ON ALL TABLES IN SCHEMA public, information_schema, %q TO %q WITH GRANT OPTION", testSchema, db1.GetAdminUser().Name))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("REVOKE ALL ON ALL TABLES IN SCHEMA public, information_schema, %q FROM %q", testSchema, db1.GetAdminUser().Name))
 
+		// provision db1 orphaned_resource_owner user
+		createPGTestUser(t, ctx, conn, db1WithOrphanedResourceOwner.GetOrphanedResourceOwner())
+		// admin must be a member of orphaned_resource_owner to reassign ownership of resources to it
+		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT %q TO %q", db1WithOrphanedResourceOwner.GetOrphanedResourceOwner(), db1WithOrphanedResourceOwner.GetAdminUser().Name))
+
 		// provision db2 admin that IS a postgres super user
 		createPGTestUser(t, ctx, conn, db2.GetAdminUser().Name)
 		// granting rds_superuser is as close as we can get to a superuser in RDS Postgres
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT rds_iam, rds_superuser TO %q", db2.GetAdminUser().Name))
+
+		// provision db2 orphaned_resource_owner user
+		createPGTestUser(t, ctx, conn, db2WithOrphanedResourceOwner.GetOrphanedResourceOwner())
+		// admin must be a member of orphaned_resource_owner to reassign ownership of resources to it.
+		// We do this because the rds_superuser role under RDS postgres provides lesser privileges than
+		// SUPERUSER on a self-hosted postgres instance. Membership to all users is one of the differences.
+		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT %q TO %q", db2WithOrphanedResourceOwner.GetOrphanedResourceOwner(), db2WithOrphanedResourceOwner.GetAdminUser().Name))
 
 		// auto role 1 only allows usage of the test schema.
 		// auto role 2 only allows select of the test table in the test schema.
@@ -194,101 +237,131 @@ func testRDS(t *testing.T) {
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT USAGE ON SCHEMA %q TO %q", testSchema, autoRole1))
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, testTable, autoRole2))
 
+		// auto role 3 must allow for creation of tables in the test schema.
+		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT CREATE ON SCHEMA %q TO %q", testSchema, autoRole3))
+
 		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
 		for _, test := range []struct {
-			name              string
-			db                types.Database
-			autoUserKeep      string
-			autoUserDrop      string
-			autoUserFineGrain string
+			name                         string
+			db                           types.Database
+			dbWithOrphanedResourceOwner  types.Database
+			autoUserKeep                 string
+			autoUserDrop                 string
+			autoUserFineGrain            string
+			autoUserDropWithReassignment string
 		}{
 			{
-				name:              "non superuser db admin",
-				db:                db1,
-				autoUserKeep:      autoUserKeep,
-				autoUserDrop:      autoUserDrop,
-				autoUserFineGrain: autoUserFineGrain,
+				name:                         "non superuser db admin",
+				db:                           db1,
+				dbWithOrphanedResourceOwner:  db1WithOrphanedResourceOwner,
+				autoUserKeep:                 autoUserKeep,
+				autoUserDrop:                 autoUserDrop,
+				autoUserFineGrain:            autoUserFineGrain,
+				autoUserDropWithReassignment: autoUserDropWithReassignment,
 			},
 			{
-				name:              "superuser db admin",
-				db:                db2,
-				autoUserKeep:      autoUserKeep2,
-				autoUserDrop:      autoUserDrop2,
-				autoUserFineGrain: autoUserFineGrain2,
+				name:                         "superuser db admin",
+				db:                           db2,
+				dbWithOrphanedResourceOwner:  db2WithOrphanedResourceOwner,
+				autoUserKeep:                 autoUserKeep2,
+				autoUserDrop:                 autoUserDrop2,
+				autoUserFineGrain:            autoUserFineGrain2,
+				autoUserDropWithReassignment: autoUserDropWithReassignment2,
 			},
 		} {
 			autoUserKeep := test.autoUserKeep
 			autoUserDrop := test.autoUserDrop
 			autoUserFineGrain := test.autoUserFineGrain
-			db := test.db
+			autoUserDropWithReassignment := test.autoUserDropWithReassignment
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				for name, test := range map[string]struct {
-					user            string
-					dbUser          string
-					query           string
-					afterConnTestFn func(t *testing.T)
+					user     string
+					dbUser   string
+					db       types.Database
+					testFunc func(t *testing.T, pgConn *pgconn.PgConn)
 				}{
 					"existing user": {
 						user:   hostUser,
-						dbUser: db.GetAdminUser().Name, // admin user already has RDS IAM auth
-						query:  "select 1",
+						dbUser: test.db.GetAdminUser().Name, // admin user already has RDS IAM auth
+						db:     test.db,
+						testFunc: func(t *testing.T, pgConn *pgconn.PgConn) {
+							execPGTestQuery(t, pgConn, "select 1")
+						},
 					},
 					"auto user keep": {
 						user:   autoUserKeep,
 						dbUser: autoUserKeep,
-						query:  autoRolesQuery,
-						afterConnTestFn: func(t *testing.T) {
+						db:     test.db,
+						testFunc: func(t *testing.T, pgConn *pgconn.PgConn) {
+							execPGTestQuery(t, pgConn, autoRolesQuery)
 							waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 						},
 					},
 					"auto user drop": {
 						user:   autoUserDrop,
 						dbUser: autoUserDrop,
-						query:  autoRolesQuery,
-						afterConnTestFn: func(t *testing.T) {
+						db:     test.db,
+						testFunc: func(t *testing.T, pgConn *pgconn.PgConn) {
+							execPGTestQuery(t, pgConn, autoRolesQuery)
 							waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
+						},
+					},
+					"auto user drop with reassignment": {
+						user:   autoUserDropWithReassignment,
+						dbUser: autoUserDropWithReassignment,
+						db:     test.dbWithOrphanedResourceOwner,
+						testFunc: func(t *testing.T, pgConn *pgconn.PgConn) {
+							tableForReassignment := "table_for_reassignment_" + randASCII(t)
+							query := fmt.Sprintf("CREATE TABLE %q.%q (id INT)", testSchema, tableForReassignment)
+							cleanupDB(t, ctx, conn, fmt.Sprintf("DROP TABLE IF EXISTS %q.%q", testSchema, tableForReassignment))
+							execPGTestQuery(t, pgConn, query)
+							waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDropWithReassignment)
+							checkPostgresTableReassignment(t, ctx, conn,
+								testSchema,
+								test.dbWithOrphanedResourceOwner.GetOrphanedResourceOwner(),
+								tableForReassignment,
+							)
 						},
 					},
 					"db permissions": {
 						user:   autoUserFineGrain,
 						dbUser: autoUserFineGrain,
-						query: fmt.Sprintf(`
-							SELECT
-								1
-							FROM
-								pg_catalog.pg_range,
-								pg_catalog.pg_proc,
-								information_schema.sql_parts,
-								public.%q,
-								%q.%q
-							`, testTable, testSchema, testTable),
-						afterConnTestFn: func(t *testing.T) {
+						db:     test.db,
+						testFunc: func(t *testing.T, pgConn *pgconn.PgConn) {
+							query := fmt.Sprintf(`
+								SELECT
+									1
+								FROM
+									pg_catalog.pg_range,
+									pg_catalog.pg_proc,
+									information_schema.sql_parts,
+									public.%q,
+									%q.%q
+								`, testTable, testSchema, testTable)
+							execPGTestQuery(t, pgConn, query)
 							waitForPostgresAutoUserPermissionsRemoved(t, ctx, conn, autoUserFineGrain)
 						},
 					},
 				} {
 					t.Run(name, func(t *testing.T) {
 						t.Parallel()
-						t.Run("connect", func(t *testing.T) {
-							route := tlsca.RouteToDatabase{
-								ServiceName: db.GetName(),
-								Protocol:    defaults.ProtocolPostgres,
-								Username:    test.dbUser,
-								Database:    "postgres",
-							}
-							t.Run("via proxy", func(t *testing.T) {
-								t.Parallel()
-								postgresConnTest(t, cluster, test.user, route, test.query)
-							})
-							t.Run("via local proxy", func(t *testing.T) {
-								t.Parallel()
-								postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
-							})
-						})
-						if test.afterConnTestFn != nil {
-							test.afterConnTestFn(t)
+						route := tlsca.RouteToDatabase{
+							ServiceName: test.db.GetName(),
+							Protocol:    defaults.ProtocolPostgres,
+							Username:    test.dbUser,
+							Database:    "postgres",
 						}
+						t.Run("connect via proxy", func(t *testing.T) {
+							t.Parallel()
+							pgConn := getPostgresConn(t, cluster, test.user, route)
+							test.testFunc(t, pgConn)
+						})
+						t.Run("connect via local proxy", func(t *testing.T) {
+							t.Parallel()
+							pgConn := getPostgresLocalProxyConn(t, cluster, test.user, route)
+							test.testFunc(t, pgConn)
+						})
 					})
 				}
 			})
@@ -773,6 +846,31 @@ func waitForPostgresAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
 }
 
+func checkPostgresTableReassignment(
+	t *testing.T,
+	ctx context.Context,
+	conn *pgConn,
+	schemaName string,
+	orphanedResourceOwner string,
+	testTable string,
+) {
+	t.Helper()
+	rows, err := conn.Query(ctx, `
+			SELECT tableowner
+			FROM pg_tables
+			WHERE schemaname = $1 AND tablename = $2`,
+		schemaName, testTable)
+	require.NoError(t, err)
+	var owner string
+	if rows.Next() {
+		err := rows.Scan(&owner)
+		require.NoError(t, err)
+	}
+	rows.Close()
+	require.NoError(t, rows.Err())
+	require.Equal(t, orphanedResourceOwner, owner)
+}
+
 func waitForMySQLAutoUserDeactivate(t *testing.T, conn *mySQLConn, user string) {
 	t.Helper()
 	waitForSuccess(t, func() error {
@@ -906,12 +1004,13 @@ func cleanupDB(t *testing.T, ctx context.Context, conn *pgConn, statement string
 	})
 }
 
-func cloneDBWithNewAdmin(t *testing.T, db types.Database, admin *types.DatabaseAdminUser) types.Database {
+func cloneAndCustomizeDB(t *testing.T, db types.Database, admin *types.DatabaseAdminUser, orphanedResourceOwner string) types.Database {
 	t.Helper()
 	clone := db.Copy()
 	clone.SetName("db-" + randASCII(t))
 	clone.SetOrigin(types.OriginDynamic)
 	clone.Spec.AdminUser = admin
+	clone.Spec.OrphanedResourceOwner = orphanedResourceOwner
 	// sanity check
 	dbAdmin := mustGetDBAdmin(t, clone)
 	require.Equal(t, clone.Spec.AdminUser.Name, dbAdmin.Name)
