@@ -4767,7 +4767,7 @@ export const events = [
     uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
     user: 'alice',
     app_name: 'anthropic',
-    sub_kind: 'llm'
+    sub_kind: 'llm',
   },
   {
     code: 'T2008I',
@@ -4781,7 +4781,7 @@ export const events = [
     uid: '8ea5be3d-07b1-4308-8e0d-2d2ec57cbb20',
     user: 'alice',
     app_name: 'anthropic',
-    sub_kind: 'llm'
+    sub_kind: 'llm',
   },
   {
     code: 'T2014I',
@@ -4796,7 +4796,8 @@ export const events = [
     method: 'POST',
     path: '/v1/messages',
     provider: 'bedrock',
-    model: 'arn:aws:bedrock:us-west-2:000000000000:application-inference-profile/my-opus-instance-profile',
+    model:
+      'arn:aws:bedrock:us-west-2:000000000000:application-inference-profile/my-opus-instance-profile',
     requested_model: 'claude-opus-4-6',
     input_token_count: 100,
     output_token_count: 100,
