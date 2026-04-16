@@ -1,4 +1,4 @@
-.version: &version "18.7.2"
+.version: &version "18.7.3-dev.maxim.1"
 
 name: teleport-kube-updater
 apiVersion: v2
