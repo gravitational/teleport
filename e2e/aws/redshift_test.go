@@ -56,11 +56,13 @@ func testRedshiftServerless(t *testing.T) {
 		}
 		t.Run("via proxy", func(t *testing.T) {
 			t.Parallel()
-			postgresConnTest(t, cluster, hostUser, rssRoute, "select 1")
+			pgConn := getPostgresConn(t, cluster, hostUser, rssRoute)
+			execPGTestQuery(t, pgConn, "select 1")
 		})
 		t.Run("via local proxy", func(t *testing.T) {
 			t.Parallel()
-			postgresLocalProxyConnTest(t, cluster, hostUser, rssRoute, "select 1")
+			pgConn := getPostgresLocalProxyConn(t, cluster, hostUser, rssRoute)
+			execPGTestQuery(t, pgConn, "select 1")
 		})
 	})
 }
@@ -193,10 +195,12 @@ func testRedshiftCluster(t *testing.T) {
 					Database:    "dev",
 				}
 				t.Run("via proxy", func(t *testing.T) {
-					postgresConnTest(t, cluster, test.user, route, test.query)
+					pgConn := getPostgresConn(t, cluster, test.user, route)
+					execPGTestQuery(t, pgConn, test.query)
 				})
 				t.Run("via local proxy", func(t *testing.T) {
-					postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					pgConn := getPostgresLocalProxyConn(t, cluster, test.user, route)
+					execPGTestQuery(t, pgConn, test.query)
 				})
 			})
 			if test.afterConnTestFn != nil {
