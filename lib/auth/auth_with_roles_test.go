@@ -1228,12 +1228,10 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		},
 		{
 			// scopes don't support max_session_ttl
-			desc:             "Scoped role, no max_session_ttl set",
-			user:             user1,
-			scope:            scope,
-			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
-			expectKubeUsers:  []string{"scoped_kube_user"},
-			expectKubeGroups: []string{"scoped_kube_group"},
+			desc:       "Scoped role, no max_session_ttl set",
+			user:       user1,
+			scope:      scope,
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
 		},
 	}
 

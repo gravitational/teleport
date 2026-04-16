@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -42,36 +41,11 @@ func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, telep
 	if rootCluster != teleportCluster {
 		return nil
 	}
-	if cred, ok := k.KubeTLSCredentials[kubeCluster]; ok {
+	if _, ok := k.KubeTLSCredentials[kubeCluster]; ok {
 		log.DebugContext(context.Background(), "Got TLS cert for Kubernetes cluster", "kubernetes_cluster", kubeCluster)
-		exist, err := checkIfCertHasKubeGroupsAndUsers(cred.Cert)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if exist {
-			return nil
-		}
+		return nil
 	}
 	errMsg := "Your user's Teleport role does not allow Kubernetes access." +
 		" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
 	return trace.AccessDenied("%s", errMsg)
-}
-
-// checkIfCertHasKubeGroupsAndUsers checks if the certificate has Kubernetes groups or users
-// in the Subject Name. If it does, it returns true, otherwise false.
-// Having no Kubernetes groups or users in the certificate means that the user
-// is not allowed to access the Kubernetes cluster since Kubernetes Access enforces
-// the presence of at least one of Kubernetes groups or users in the certificate.
-// If the certificate does not have any Kubernetes groups or users, the
-func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
-	cert, err := tlsca.ParseCertificatePEM(certB)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	for _, name := range cert.Subject.Names {
-		if name.Type.Equal(tlsca.KubeGroupsASN1ExtensionOID) || name.Type.Equal(tlsca.KubeUsersASN1ExtensionOID) {
-			return true, nil
-		}
-	}
-	return false, nil
 }
