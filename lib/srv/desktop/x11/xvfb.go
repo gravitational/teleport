@@ -95,8 +95,10 @@ type Backend struct {
 	AuthorityFile   string
 	authorityCookie []byte
 
-	width  uint16
-	height uint16
+	// these fields are used for restoring target size after some other process (e.g. desktop environment) changes it
+	width           uint16
+	height          uint16
+	resizeTimestamp xproto.Timestamp
 }
 
 // IsBackendPresent reports whether the binary required by selected backend is available in PATH.
@@ -342,6 +344,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		authorityCookie: cookie,
 		width:           types.MaxRDPScreenWidth,
 		height:          types.MaxRDPScreenHeight,
+		resizeTimestamp: math.MaxInt32,
 	}
 
 	go x.processEvents()
@@ -361,14 +364,17 @@ func (x *Backend) processEvents() {
 			continue
 		}
 		switch event := event.(type) {
+		case damage.NotifyEvent:
+			// do nothing, we handle changes through GetChanges
 		case randr.ScreenChangeNotifyEvent:
-			x.config.Logger.DebugContext(x.ctx, "X11 screen change event received", "width", event.Width, "height", event.Height)
 			x.mu.Lock()
 			width := x.width
 			height := x.height
+			timestamp := x.resizeTimestamp
 			x.mu.Unlock()
 
-			if event.Width != width || event.Height != height {
+			if event.Timestamp > timestamp && (event.Width != width || event.Height != height) {
+				x.config.Logger.DebugContext(x.ctx, "X11 screen change event received", "width", event.Width, "height", event.Height)
 				x.config.Logger.DebugContext(x.ctx, "Restoring desired resolution", "width", width, "height", height)
 				if err := x.Resize(width, height); err != nil {
 					x.config.Logger.ErrorContext(x.ctx, "Couldn't restore resolution", "error", err)
@@ -635,7 +641,7 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 	for i := 0; i < len(screen.Sizes); i++ {
 		if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
 			x.mu.Lock()
-			_, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
+			reply, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -649,6 +655,7 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 
 			x.width = width
 			x.height = height
+			x.resizeTimestamp = reply.NewTimestamp
 			x.mu.Unlock()
 
 			return nil

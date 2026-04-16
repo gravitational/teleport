@@ -127,6 +127,10 @@ func TestGetChanges(t *testing.T) {
 	require.Equal(t, uint16(1000), changes[0].Width)
 	require.Equal(t, uint16(1000), changes[0].Height)
 
+	changes, err = xvfb.GetChanges()
+	require.NoError(t, err)
+	require.Empty(t, changes)
+
 	conn, setup, err := connectToDisplay(xvfb.Display, xvfb.authorityCookie)
 	require.NoError(t, err)
 	defer conn.Close()

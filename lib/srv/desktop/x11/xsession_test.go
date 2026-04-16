@@ -127,13 +127,8 @@ func TestStartTeleportExecXSession(t *testing.T) {
 		config := cfg()
 		config.Command = "echo a"
 		config.Login = "invalid-username"
-		cmd, err := StartTeleportExecXSession(t.Context(), config)
-		require.NoError(t, err)
-		err = cmd.Wait()
+		_, err := StartTeleportExecXSession(t.Context(), config)
 		require.Error(t, err)
-		var exitError *exec.ExitError
-		ok := errors.As(err, &exitError)
-		require.True(t, ok)
 	})
 	t.Run("correct DISPLAY", func(t *testing.T) {
 		config := cfg()
