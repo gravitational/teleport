@@ -30,6 +30,7 @@ import {
   definableResourceAccessFields,
   DefinableResourceAccessFields,
 } from './Preset/role/listaccess';
+import { defaultSidePanelWidth } from './Shared';
 
 /**
  * Do not change.
@@ -48,6 +49,14 @@ export type GuideEditorState = {
   setPreset(kind: AccessListPreset): void;
   onGuideSelect(kind: AccessListPreset): void;
   views: AccessListView[];
+
+  /**
+   * If zero, terraform panel will not be visible.
+   * Otherwise, it represents the width of the panel in pixels.
+   */
+  terraformPanel: number;
+  setTerraformPanel(width: number): void;
+
   /**
    * Defines which step in a flow a user is in.
    */
@@ -156,6 +165,8 @@ export function useGuideEditor(): GuideEditorState {
     () => loc.state?.eventSessionId ?? crypto.randomUUID()
   );
 
+  const [terraformPanel, setTerraformPanel] = useState(defaultSidePanelWidth);
+
   const views: AccessListView[] = useMemo(() => {
     switch (preset) {
       case 'long-term':
@@ -176,6 +187,7 @@ export function useGuideEditor(): GuideEditorState {
     !!standardRoleState.roleEditState || !!awsIcRoleState.roleEditState;
 
   function reset() {
+    setTerraformPanel(defaultSidePanelWidth);
     setPreset(null);
     setCurrentStep(0);
     setEventSessionId(crypto.randomUUID());
@@ -359,6 +371,8 @@ export function useGuideEditor(): GuideEditorState {
     reset,
     preset,
     setPreset,
+    terraformPanel,
+    setTerraformPanel,
     onGuideSelect,
     views,
     currentStep,

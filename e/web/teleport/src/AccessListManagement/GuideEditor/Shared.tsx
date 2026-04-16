@@ -5,6 +5,8 @@ import { Magnifier } from 'design/Icon';
 
 import { useAccessListManagementContext } from '../AccessListManagementContext';
 
+export const defaultSidePanelWidth = 365;
+
 export const StyledUl = styled.ul`
   margin: 0;
   padding-left: ${p => p.theme.space[3]}px;
@@ -28,6 +30,8 @@ export const StepButtons = ({
   prevBtnTxt,
   cssStyle,
   hidePrevBtn = false,
+  hideNextBtn = false,
+  customBtns,
 }: {
   /**
    * If true, disables all buttons
@@ -43,6 +47,8 @@ export const StepButtons = ({
   prevBtnTxt?: string;
   cssStyle?: CSSProp;
   hidePrevBtn?: boolean;
+  hideNextBtn?: boolean;
+  customBtns?: React.ReactNode;
 }) => {
   const { guideEditor: presetEditor } = useAccessListManagementContext();
   const { prevStep, nextStep } = presetEditor;
@@ -74,13 +80,15 @@ export const StepButtons = ({
     `
         }
       >
-        <ButtonPrimary
-          onClick={onNext ? () => onNext() : () => nextStep()}
-          disabled={disabled || disableNext}
-          width="100%"
-        >
-          {nextBtnTxt ? nextBtnTxt : 'Next'}
-        </ButtonPrimary>
+        {!hideNextBtn && (
+          <ButtonPrimary
+            onClick={onNext ? () => onNext() : () => nextStep()}
+            disabled={disabled || disableNext}
+            width="100%"
+          >
+            {nextBtnTxt ? nextBtnTxt : 'Next'}
+          </ButtonPrimary>
+        )}
         {!hidePrevBtn && (
           <ButtonSecondary
             width="100%"
@@ -90,6 +98,7 @@ export const StepButtons = ({
             {prevBtnTxt ? prevBtnTxt : 'Back'}
           </ButtonSecondary>
         )}
+        <>{customBtns}</>
       </Flex>
     </Box>
   );

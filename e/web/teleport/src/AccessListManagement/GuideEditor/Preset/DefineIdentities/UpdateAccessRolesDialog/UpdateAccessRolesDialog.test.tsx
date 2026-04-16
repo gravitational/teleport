@@ -67,6 +67,8 @@ function mockGuideEditor() {
         getResumableState: jest.fn(),
         originatedFromOkta: false,
         removeLocationState: jest.fn(),
+        terraformPanel: 0,
+        setTerraformPanel: jest.fn(),
       } as GuideEditorState,
     } as any);
 

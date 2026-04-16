@@ -159,6 +159,8 @@ export const AccessListManagementContext =
       getResumableState: () => null,
       removeLocationState: () => null,
       originatedFromOkta: false,
+      terraformPanel: 0,
+      setTerraformPanel: () => {},
     },
     oktaPluginAttempt: undefined,
   });

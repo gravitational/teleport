@@ -137,6 +137,8 @@ const mockGuideEditor: GuideEditorState = {
   removeLocationState: () => null,
   getResumableState: () => null,
   originatedFromOkta: false,
+  terraformPanel: 0,
+  setTerraformPanel: () => {},
 };
 
 const mockContextValue: AccessListManagementContextValue = {
