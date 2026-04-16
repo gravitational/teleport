@@ -22,7 +22,7 @@ import {
   MFA,
   SharedDirectoryRequest,
   SharedDirectoryResponse,
-  ClientHello as tdpbClientHello, SessionSelection,
+  ClientHello as tdpbClientHello,
 } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 import { CredentialAssertion } from 'gen-proto-ts/teleport/legacy/types/webauthn/webauthn_pb';
 import {
@@ -1230,7 +1230,7 @@ export class TdpCodec implements Codec {
     };
   }
 
-  encodeSessionSelection(sessions: string): Message {
+  encodeSessionSelection(_sessions: string): Message {
     throw new Error("Method not implemented.");
   }
 
