@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
-	terraformclient "github.com/gravitational/teleport/integrations/terraform/provider/client"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -111,7 +110,7 @@ type RetryConfig struct {
 // Provider Teleport Provider
 type Provider struct {
 	configured  bool
-	Client      *terraformclient.TerraformClient
+	Client      *client.Client
 	RetryConfig RetryConfig
 	cancel      context.CancelFunc
 }
@@ -428,7 +427,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		Cap:      retryCapDuration,
 		MaxTries: int(maxTries),
 	}
-	p.Client = terraformclient.NewTerraformClient(clt)
+	p.Client = clt
 	p.configured = true
 
 }

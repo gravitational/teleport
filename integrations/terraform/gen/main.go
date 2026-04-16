@@ -133,6 +133,9 @@ type payload struct {
 	WithoutImportState bool
 	// StatePoll optionally configures polling for state changes when creating or updating resources.
 	StatePoll *statePoll
+	// RequestWrapper optionally configures envelope request/response types for CRUD
+	// operations following the RFD 153 resource guidelines.
+	RequestWrapper *RequestWrapper
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -158,6 +161,27 @@ type statePoll struct {
 	StatePollIntervalSeconds int
 	// StateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
 	StateTimeoutSeconds int
+}
+
+// RequestWrapper will wrap the resource types defined in RFD 153 suggested conventions for the client.
+// RFD 153 specifies suggests using request/response wrappers and
+// consistent naming conventions for those types:
+//   - Request types:  {MethodName}Request  ex) CreateFooRequest, GetFooRequest, UpsertFooRequest, DeleteFooRequest
+//   - Response types: {MethodName}Response ex) CreateFooResponse, GetFooResponse, UpsertFooResponse, DeleteFooResponse
+//   - Resource field: The inner resource type itself that the request/response types wrap.
+//   - Response getter: Get + field name to get the inner resource.
+type RequestWrapper struct {
+	// RequestResourceField is the field name in request
+	// types that holds the resource object - ex) "Role" in ScopedRoles.
+	RequestResourceField string
+	// GetRequest is the type name for the Get request - ex) "GetScopedRoleRequest".
+	GetRequest string
+	// CreateRequest is the type name for the Create request - ex) "CreateScopedRoleRequest".
+	CreateRequest string
+	// UpdateRequest is the type name for the Update/Upsert request -ex) "UpsertScopedRoleRequest".
+	UpdateRequest string
+	// DeleteRequest is the type name for the Delete request - ex) "DeleteScopedRoleRequest".
+	DeleteRequest string
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -192,6 +216,23 @@ func (p *payload) CheckAndSetDefaults() error {
 
 		if p.StatePoll.StateTimeoutSeconds == 0 {
 			return errors.New("StateTimeoutSeconds must be provided when StatePoll is set")
+		}
+	}
+	if p.RequestWrapper != nil {
+		if p.RequestWrapper.RequestResourceField == "" {
+			return errors.New("RequestResourceField must be provided when RequestWrapper is set")
+		}
+		if p.RequestWrapper.GetRequest == "" {
+			return errors.New("GetRequest must be provided when RequestWrapper is set")
+		}
+		if p.RequestWrapper.CreateRequest == "" {
+			return errors.New("CreateRequest must be provided when RequestWrapper is set")
+		}
+		if p.RequestWrapper.UpdateRequest == "" {
+			return errors.New("UpdateRequest must be provided when RequestWrapper is set")
+		}
+		if p.RequestWrapper.DeleteRequest == "" {
+			return errors.New("DeleteRequest must be provided when RequestWrapper is set")
 		}
 	}
 	return nil
@@ -970,15 +1011,16 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
+
 	scopedRole = payload{
 		Name:                  "ScopedRole",
 		TypeName:              "ScopedRole",
 		VarName:               "scopedRole",
-		GetMethod:             "GetScopedRole",
-		CreateMethod:          "CreateScopedRole",
-		UpdateMethod:          "UpsertScopedRole",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRole",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRole",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRole",
 		UpsertMethodArity:     2,
-		DeleteMethod:          "DeleteScopedRole",
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRole",
 		ID:                    "scopedRole.Metadata.Name",
 		Kind:                  "scoped_role",
 		HasStaticID:           false,
@@ -990,6 +1032,13 @@ var (
 		IsPlainStruct:         true,
 		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
 		ForceSetKind:          "apitypes.KindScopedRole",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Role",
+			GetRequest:           "GetScopedRoleRequest",
+			CreateRequest:        "CreateScopedRoleRequest",
+			UpdateRequest:        "UpsertScopedRoleRequest",
+			DeleteRequest:        "DeleteScopedRoleRequest",
+		},
 	}
 
 	scopedToken = payload{
@@ -1014,6 +1063,7 @@ var (
 		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind:          "apitypes.KindScopedToken",
 	}
+
 	workloadCluster = payload{
 		Name:                  "WorkloadCluster",
 		TypeName:              "WorkloadCluster",

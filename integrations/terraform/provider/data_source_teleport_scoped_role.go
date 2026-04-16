@@ -20,7 +20,7 @@ package provider
 import (
 	"context"
 
-	
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -59,11 +59,14 @@ func (r dataSourceTeleportScopedRole) Read(ctx context.Context, req tfsdk.ReadDa
 		return
 	}
 
-	scopedRoleI, err := r.p.Client.GetScopedRole(ctx, id.Value)
+	scopedRoleGetResp, err := r.p.Client.ScopedAccessServiceClient().GetScopedRole(ctx, &accessv1.GetScopedRoleRequest{
+		Name: id.Value,
+	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(err), "scoped_role"))
 		return
 	}
+	scopedRoleI := scopedRoleGetResp.GetRole()
 
 	var state types.Object
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
