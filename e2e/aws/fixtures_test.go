@@ -293,6 +293,12 @@ func makeAutoUserDropRoleSpec(roles ...string) types.RoleSpecV6 {
 	return spec
 }
 
+func makeAutoUserReassignAndDropRoleSpec(roles ...string) types.RoleSpecV6 {
+	spec := makeAutoUserKeepRoleSpec(roles...)
+	spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP
+	return spec
+}
+
 func makeAutoUserDBPermissions(dbPermissions ...types.DatabasePermission) types.RoleSpecV6 {
 	return types.RoleSpecV6{
 		Allow: types.RoleConditions{
