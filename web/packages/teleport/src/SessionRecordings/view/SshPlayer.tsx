@@ -67,7 +67,7 @@ function Player({
   );
 
   // statusText is currently only set when an error happens, so for now we can assume
-  // if it is not empty, an error occured (even if the player is in COMPLETE state, which gets
+  // if it is not empty, an error occurred (even if the player is in COMPLETE state, which gets
   // set on close)
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
