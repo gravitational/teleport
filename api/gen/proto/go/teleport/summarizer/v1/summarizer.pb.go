@@ -392,6 +392,12 @@ const (
 	// NeedsReviewReasonCommandAnalysisFailed indicates that one or more commands failed to be analyzed by the
 	// inference provider.
 	NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED NeedsReviewReason = 2
+	// NeedsReviewReasonFailedToFetchAccessRequest indicates that Teleport failed to fetch the access request associated
+	// with this session, if any.
+	NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST NeedsReviewReason = 3
+	// NeedsReviewReasonAccessRequestResourceMismatch indicates that the session's access requests do not reference the
+	// resource being connected to.
+	NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH NeedsReviewReason = 4
 )
 
 // Enum value maps for NeedsReviewReason.
@@ -400,11 +406,15 @@ var (
 		0: "NEEDS_REVIEW_REASON_UNSPECIFIED",
 		1: "NEEDS_REVIEW_REASON_TOO_LARGE",
 		2: "NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED",
+		3: "NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST",
+		4: "NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH",
 	}
 	NeedsReviewReason_value = map[string]int32{
-		"NEEDS_REVIEW_REASON_UNSPECIFIED":             0,
-		"NEEDS_REVIEW_REASON_TOO_LARGE":               1,
-		"NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED": 2,
+		"NEEDS_REVIEW_REASON_UNSPECIFIED":                      0,
+		"NEEDS_REVIEW_REASON_TOO_LARGE":                        1,
+		"NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED":          2,
+		"NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST":   3,
+		"NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH": 4,
 	}
 )
 
@@ -433,63 +443,6 @@ func (x NeedsReviewReason) Number() protoreflect.EnumNumber {
 // Deprecated: Use NeedsReviewReason.Descriptor instead.
 func (NeedsReviewReason) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{4}
-}
-
-// AccessRequestConsistency represents whether session activity was consistent with the stated access request reason.
-type AccessRequestConsistency int32
-
-const (
-	// ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED indicates that consistency was not assessed.
-	AccessRequestConsistency_ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED AccessRequestConsistency = 0
-	// ACCESS_REQUEST_CONSISTENCY_CONSISTENT indicates that session activity was consistent with the stated access request reason.
-	AccessRequestConsistency_ACCESS_REQUEST_CONSISTENCY_CONSISTENT AccessRequestConsistency = 1
-	// ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT indicates that session activity was partially consistent with the stated access request reason.
-	AccessRequestConsistency_ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT AccessRequestConsistency = 2
-	// ACCESS_REQUEST_CONSISTENCY_INCONSISTENT indicates that session activity was inconsistent with the stated access request reason.
-	AccessRequestConsistency_ACCESS_REQUEST_CONSISTENCY_INCONSISTENT AccessRequestConsistency = 3
-)
-
-// Enum value maps for AccessRequestConsistency.
-var (
-	AccessRequestConsistency_name = map[int32]string{
-		0: "ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED",
-		1: "ACCESS_REQUEST_CONSISTENCY_CONSISTENT",
-		2: "ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT",
-		3: "ACCESS_REQUEST_CONSISTENCY_INCONSISTENT",
-	}
-	AccessRequestConsistency_value = map[string]int32{
-		"ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED":          0,
-		"ACCESS_REQUEST_CONSISTENCY_CONSISTENT":           1,
-		"ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT": 2,
-		"ACCESS_REQUEST_CONSISTENCY_INCONSISTENT":         3,
-	}
-)
-
-func (x AccessRequestConsistency) Enum() *AccessRequestConsistency {
-	p := new(AccessRequestConsistency)
-	*p = x
-	return p
-}
-
-func (x AccessRequestConsistency) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AccessRequestConsistency) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[5].Descriptor()
-}
-
-func (AccessRequestConsistency) Type() protoreflect.EnumType {
-	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[5]
-}
-
-func (x AccessRequestConsistency) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use AccessRequestConsistency.Descriptor instead.
-func (AccessRequestConsistency) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{5}
 }
 
 // InferenceModel resource specifies a session summarization inference model
@@ -1630,6 +1583,10 @@ type EnhancedSummary struct {
 	// Commands is a list of command summaries extracted from the session.
 	Commands []*CommandAnalysis `protobuf:"bytes,7,rep,name=commands,proto3" json:"commands,omitempty"`
 	// NeedsFurtherReview indicates the reason why the session needs further review.
+	// Deprecated: This field is deprecated in favor of NeedsFurtherReviewReasons, which allows specifying multiple reasons.
+	// DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
+	//
+	// Deprecated: Marked as deprecated in teleport/summarizer/v1/summarizer.proto.
 	NeedsFurtherReview *NeedsReviewReason `protobuf:"varint,8,opt,name=needs_further_review,json=needsFurtherReview,proto3,enum=teleport.summarizer.v1.NeedsReviewReason,oneof" json:"needs_further_review,omitempty"`
 	// RiskScore is a numerical score representing the overall risk associated with the session.
 	RiskScore int32 `protobuf:"varint,9,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
@@ -1642,10 +1599,12 @@ type EnhancedSummary struct {
 	// AccessRequestAssessment is a free-text explanation of how session activity  relates to the stated access request
 	// reason. Empty if no access request.
 	AccessRequestAssessment string `protobuf:"bytes,13,opt,name=access_request_assessment,json=accessRequestAssessment,proto3" json:"access_request_assessment,omitempty"`
-	// AccessRequestIds contains a list of access request IDs related to this session, if any.
-	AccessRequestIds []string `protobuf:"bytes,14,rep,name=access_request_ids,json=accessRequestIds,proto3" json:"access_request_ids,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// AccessRequests contains snapshots of access requests associated with this session, if any.
+	AccessRequests []*AccessRequestSnapshot `protobuf:"bytes,14,rep,name=access_requests,json=accessRequests,proto3" json:"access_requests,omitempty"`
+	// NeedsFurtherReviewReasons contains a list of reasons why the session needs further review.
+	NeedsFurtherReviewReasons []NeedsReviewReason `protobuf:"varint,15,rep,packed,name=needs_further_review_reasons,json=needsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_further_review_reasons,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *EnhancedSummary) Reset() {
@@ -1727,6 +1686,7 @@ func (x *EnhancedSummary) GetCommands() []*CommandAnalysis {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in teleport/summarizer/v1/summarizer.proto.
 func (x *EnhancedSummary) GetNeedsFurtherReview() NeedsReviewReason {
 	if x != nil && x.NeedsFurtherReview != nil {
 		return *x.NeedsFurtherReview
@@ -1769,9 +1729,16 @@ func (x *EnhancedSummary) GetAccessRequestAssessment() string {
 	return ""
 }
 
-func (x *EnhancedSummary) GetAccessRequestIds() []string {
+func (x *EnhancedSummary) GetAccessRequests() []*AccessRequestSnapshot {
 	if x != nil {
-		return x.AccessRequestIds
+		return x.AccessRequests
+	}
+	return nil
+}
+
+func (x *EnhancedSummary) GetNeedsFurtherReviewReasons() []NeedsReviewReason {
+	if x != nil {
+		return x.NeedsFurtherReviewReasons
 	}
 	return nil
 }
@@ -1967,7 +1934,7 @@ var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
+	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\x1a+teleport/summarizer/v1/access_request.proto\"\xd3\x01\n" +
 	"\x0eInferenceModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -2054,7 +2021,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"L\n" +
 	"\x0fRiskScoreReason\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12!\n" +
-	"\fscore_impact\x18\x02 \x01(\x05R\vscoreImpact\"\x86\a\n" +
+	"\fscore_impact\x18\x02 \x01(\x05R\vscoreImpact\"\xa0\b\n" +
 	"\x0fEnhancedSummary\x12+\n" +
 	"\x11short_description\x18\x01 \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\x02 \x01(\tR\x13detailedDescription\x12@\n" +
@@ -2063,8 +2030,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x15suspicious_activities\x18\x04 \x03(\tR\x14suspiciousActivities\x123\n" +
 	"\x15compromise_indicators\x18\x05 \x01(\bR\x14compromiseIndicators\x126\n" +
 	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12C\n" +
-	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12`\n" +
-	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonH\x00R\x12needsFurtherReview\x88\x01\x01\x12\x1d\n" +
+	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12d\n" +
+	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonB\x02\x18\x01H\x00R\x12needsFurtherReview\x88\x01\x01\x12\x1d\n" +
 	"\n" +
 	"risk_score\x18\t \x01(\x05R\triskScore\x12\x1f\n" +
 	"\vshort_title\x18\n" +
@@ -2072,8 +2039,9 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"shortTitle\x12U\n" +
 	"\x12risk_score_reasons\x18\v \x03(\v2'.teleport.summarizer.v1.RiskScoreReasonR\x10riskScoreReasons\x12n\n" +
 	"\x1aaccess_request_consistency\x18\f \x01(\x0e20.teleport.summarizer.v1.AccessRequestConsistencyR\x18accessRequestConsistency\x12:\n" +
-	"\x19access_request_assessment\x18\r \x01(\tR\x17accessRequestAssessment\x12,\n" +
-	"\x12access_request_ids\x18\x0e \x03(\tR\x10accessRequestIdsB\x17\n" +
+	"\x19access_request_assessment\x18\r \x01(\tR\x17accessRequestAssessment\x12V\n" +
+	"\x0faccess_requests\x18\x0e \x03(\v2-.teleport.summarizer.v1.AccessRequestSnapshotR\x0eaccessRequests\x12j\n" +
+	"\x1cneeds_further_review_reasons\x18\x0f \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasonsB\x17\n" +
 	"\x15_needs_further_review\"\xd3\x01\n" +
 	"\x0eRetrievalModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
@@ -2129,16 +2097,13 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1cTHREAT_CATEGORY_EXFILTRATION\x10\n" +
 	"\x12\x1a\n" +
 	"\x16THREAT_CATEGORY_IMPACT\x10\v\x12\x18\n" +
-	"\x14THREAT_CATEGORY_NONE\x10\f*\x8c\x01\n" +
+	"\x14THREAT_CATEGORY_NONE\x10\f*\xfe\x01\n" +
 	"\x11NeedsReviewReason\x12#\n" +
 	"\x1fNEEDS_REVIEW_REASON_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dNEEDS_REVIEW_REASON_TOO_LARGE\x10\x01\x12/\n" +
-	"+NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED\x10\x02*\xd3\x01\n" +
-	"\x18AccessRequestConsistency\x12*\n" +
-	"&ACCESS_REQUEST_CONSISTENCY_UNSPECIFIED\x10\x00\x12)\n" +
-	"%ACCESS_REQUEST_CONSISTENCY_CONSISTENT\x10\x01\x123\n" +
-	"/ACCESS_REQUEST_CONSISTENCY_PARTIALLY_CONSISTENT\x10\x02\x12+\n" +
-	"'ACCESS_REQUEST_CONSISTENCY_INCONSISTENT\x10\x03BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"+NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED\x10\x02\x126\n" +
+	"2NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST\x10\x03\x128\n" +
+	"4NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH\x10\x04BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
 	file_teleport_summarizer_v1_summarizer_proto_rawDescOnce sync.Once
@@ -2152,7 +2117,7 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescData
 }
 
-var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(SummaryState)(0),              // 0: teleport.summarizer.v1.SummaryState
@@ -2160,61 +2125,64 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(RiskLevel)(0),                 // 2: teleport.summarizer.v1.RiskLevel
 	(ThreatCategory)(0),            // 3: teleport.summarizer.v1.ThreatCategory
 	(NeedsReviewReason)(0),         // 4: teleport.summarizer.v1.NeedsReviewReason
-	(AccessRequestConsistency)(0),  // 5: teleport.summarizer.v1.AccessRequestConsistency
-	(*InferenceModel)(nil),         // 6: teleport.summarizer.v1.InferenceModel
-	(*InferenceModelSpec)(nil),     // 7: teleport.summarizer.v1.InferenceModelSpec
-	(*OpenAIProvider)(nil),         // 8: teleport.summarizer.v1.OpenAIProvider
-	(*BedrockProvider)(nil),        // 9: teleport.summarizer.v1.BedrockProvider
-	(*InferenceSecret)(nil),        // 10: teleport.summarizer.v1.InferenceSecret
-	(*InferenceSecretSpec)(nil),    // 11: teleport.summarizer.v1.InferenceSecretSpec
-	(*InferencePolicy)(nil),        // 12: teleport.summarizer.v1.InferencePolicy
-	(*InferencePolicySpec)(nil),    // 13: teleport.summarizer.v1.InferencePolicySpec
-	(*Summary)(nil),                // 14: teleport.summarizer.v1.Summary
-	(*CommandAnalysis)(nil),        // 15: teleport.summarizer.v1.CommandAnalysis
-	(*SecurityRecommendation)(nil), // 16: teleport.summarizer.v1.SecurityRecommendation
-	(*RiskScoreReason)(nil),        // 17: teleport.summarizer.v1.RiskScoreReason
-	(*EnhancedSummary)(nil),        // 18: teleport.summarizer.v1.EnhancedSummary
-	(*RetrievalModel)(nil),         // 19: teleport.summarizer.v1.RetrievalModel
-	(*RetrievalModelSpec)(nil),     // 20: teleport.summarizer.v1.RetrievalModelSpec
-	(*v1.Metadata)(nil),            // 21: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 22: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),        // 23: google.protobuf.Struct
-	(*durationpb.Duration)(nil),    // 24: google.protobuf.Duration
+	(*InferenceModel)(nil),         // 5: teleport.summarizer.v1.InferenceModel
+	(*InferenceModelSpec)(nil),     // 6: teleport.summarizer.v1.InferenceModelSpec
+	(*OpenAIProvider)(nil),         // 7: teleport.summarizer.v1.OpenAIProvider
+	(*BedrockProvider)(nil),        // 8: teleport.summarizer.v1.BedrockProvider
+	(*InferenceSecret)(nil),        // 9: teleport.summarizer.v1.InferenceSecret
+	(*InferenceSecretSpec)(nil),    // 10: teleport.summarizer.v1.InferenceSecretSpec
+	(*InferencePolicy)(nil),        // 11: teleport.summarizer.v1.InferencePolicy
+	(*InferencePolicySpec)(nil),    // 12: teleport.summarizer.v1.InferencePolicySpec
+	(*Summary)(nil),                // 13: teleport.summarizer.v1.Summary
+	(*CommandAnalysis)(nil),        // 14: teleport.summarizer.v1.CommandAnalysis
+	(*SecurityRecommendation)(nil), // 15: teleport.summarizer.v1.SecurityRecommendation
+	(*RiskScoreReason)(nil),        // 16: teleport.summarizer.v1.RiskScoreReason
+	(*EnhancedSummary)(nil),        // 17: teleport.summarizer.v1.EnhancedSummary
+	(*RetrievalModel)(nil),         // 18: teleport.summarizer.v1.RetrievalModel
+	(*RetrievalModelSpec)(nil),     // 19: teleport.summarizer.v1.RetrievalModelSpec
+	(*v1.Metadata)(nil),            // 20: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),  // 21: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),        // 22: google.protobuf.Struct
+	(*durationpb.Duration)(nil),    // 23: google.protobuf.Duration
+	(AccessRequestConsistency)(0),  // 24: teleport.summarizer.v1.AccessRequestConsistency
+	(*AccessRequestSnapshot)(nil),  // 25: teleport.summarizer.v1.AccessRequestSnapshot
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	21, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	8,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	9,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	21, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
-	11, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	21, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
-	13, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
+	20, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	6,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	7,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	8,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	20, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	10, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	20, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	12, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
 	0,  // 8: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	22, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	22, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	23, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
-	18, // 12: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
+	21, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	21, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	22, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	17, // 12: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
 	1,  // 13: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
 	2,  // 14: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
 	3,  // 15: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	24, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
-	24, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	23, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	23, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
 	2,  // 18: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	2,  // 19: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	15, // 20: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
+	14, // 20: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
 	4,  // 21: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	17, // 22: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
-	5,  // 23: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
-	21, // 24: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
-	20, // 25: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	8,  // 26: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	9,  // 27: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	28, // [28:28] is the sub-list for method output_type
-	28, // [28:28] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	16, // 22: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
+	24, // 23: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
+	25, // 24: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
+	4,  // 25: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	20, // 26: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 27: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	7,  // 28: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	8,  // 29: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -2222,6 +2190,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 	if File_teleport_summarizer_v1_summarizer_proto != nil {
 		return
 	}
+	file_teleport_summarizer_v1_access_request_proto_init()
 	file_teleport_summarizer_v1_summarizer_proto_msgTypes[1].OneofWrappers = []any{
 		(*InferenceModelSpec_Openai)(nil),
 		(*InferenceModelSpec_Bedrock)(nil),
@@ -2236,7 +2205,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
-			NumEnums:      6,
+			NumEnums:      5,
 			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
