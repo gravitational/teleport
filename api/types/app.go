@@ -110,6 +110,8 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// GetLLM fetches LLM specific configuration.
+	GetLLM() *LLM
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
 }
@@ -668,6 +670,11 @@ func (a *AppV3) IsEqual(i Application) bool {
 // GetMCP returns MCP specific configuration.
 func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
+}
+
+// GetMCP returns LLM specific configuration.
+func (a *AppV3) GetLLM() *LLM {
+	return a.Spec.LLM
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

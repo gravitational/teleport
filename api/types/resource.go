@@ -547,17 +547,12 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 			return true
 		}
 
-		// MCP server and LLM inference endpoint resources are subkinds of app
-		// resources, but it is possible for certain APIs like
-		// ListUnifiedResources to use their kinds as a filter.
-		switch {
-		case resource.GetSubKind() == SubKindMCP && slices.Contains(kinds, KindMCP):
-			return true
-		case resource.GetSubKind() == SubKindLLM && slices.Contains(kinds, KindLLM):
-			return true
-		default:
-			return false
-		}
+		// MCP server resources are subkinds of app resources, but it is
+		// possible for certain APIs like ListUnifiedResources to use KindMCP as
+		// a kind filter.
+		//
+		// TODO(gabrielcorado): support LLM subkind.
+		return resource.GetSubKind() == SubKindMCP && slices.Contains(kinds, KindMCP)
 	case KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
 	default:

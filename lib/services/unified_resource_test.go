@@ -1306,21 +1306,7 @@ func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
 	return app
 }
 
-func newLLMInferenceEndpointApp(t *testing.T, name string) *types.AppV3 {
-	t.Helper()
-	app, err := types.NewAppV3(types.Metadata{
-		Name: name,
-	}, types.AppSpecV3{
-		LLM: &types.LLM{
-			Format:   types.LLMFormatAnthropic,
-			Provider: types.LLMProviderAnthropic,
-		},
-	})
-	require.NoError(t, err)
-	return app
-}
-
-func TestUnifiedResourceCacheIterateAppsSubkinds(t *testing.T) {
+func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -1339,10 +1325,6 @@ func TestUnifiedResourceCacheIterateAppsSubkinds(t *testing.T) {
 
 	mcpServer := newAppServerFromApp(t, newMCPServerApp(t, "mcp1"))
 	_, err = clt.UpsertApplicationServer(ctx, mcpServer)
-	require.NoError(t, err)
-
-	llmEndpoint := newAppServerFromApp(t, newLLMInferenceEndpointApp(t, "anthropic"))
-	_, err = clt.UpsertApplicationServer(ctx, llmEndpoint)
 	require.NoError(t, err)
 
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
@@ -1383,7 +1365,7 @@ func TestUnifiedResourceCacheIterateAppsSubkinds(t *testing.T) {
 		{
 			name: "no kinds provided",
 			expected: []types.ResourceWithLabels{
-				app, mcpServer, llmEndpoint,
+				app, mcpServer,
 			},
 		},
 		{
@@ -1392,7 +1374,7 @@ func TestUnifiedResourceCacheIterateAppsSubkinds(t *testing.T) {
 				types.KindApp, types.KindDatabaseServer,
 			},
 			expected: []types.ResourceWithLabels{
-				app, mcpServer, llmEndpoint,
+				app, mcpServer,
 			},
 		},
 		{
@@ -1410,43 +1392,7 @@ func TestUnifiedResourceCacheIterateAppsSubkinds(t *testing.T) {
 				types.KindMCP, types.KindApp,
 			},
 			expected: []types.ResourceWithLabels{
-				app, mcpServer, llmEndpoint,
-			},
-		},
-		{
-			name: "llm kind",
-			inputKinds: []string{
-				types.KindLLM, types.KindDatabase,
-			},
-			expected: []types.ResourceWithLabels{
-				llmEndpoint,
-			},
-		},
-		{
-			name: "llm and app kind",
-			inputKinds: []string{
-				types.KindLLM, types.KindApp,
-			},
-			expected: []types.ResourceWithLabels{
-				app, mcpServer, llmEndpoint,
-			},
-		},
-		{
-			name: "llm and mcp kind",
-			inputKinds: []string{
-				types.KindLLM, types.KindMCP,
-			},
-			expected: []types.ResourceWithLabels{
-				mcpServer, llmEndpoint,
-			},
-		},
-		{
-			name: "mcp, llm and app kind",
-			inputKinds: []string{
-				types.KindMCP, types.KindLLM, types.KindApp,
-			},
-			expected: []types.ResourceWithLabels{
-				app, llmEndpoint, mcpServer,
+				app, mcpServer,
 			},
 		},
 	}
