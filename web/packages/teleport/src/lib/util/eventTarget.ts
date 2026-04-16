@@ -19,7 +19,7 @@
 import type { FocusEvent } from 'react';
 
 /**
- * Checks if a focus event occured outside target element
+ * Checks if a focus event occurred outside target element
  */
 export const focusOutsideTarget = (
   event: FocusEvent<Element>,
