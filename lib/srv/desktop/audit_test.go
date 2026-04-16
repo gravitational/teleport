@@ -331,7 +331,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			sendsReq:      true,
 			errCode:       legacy.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 				return baseEvent
 			},
 		},

@@ -71,7 +71,7 @@ func (d *desktopSessionAuditor) getSessionMetadata() events.SessionMetadata {
 func (d *desktopSessionAuditor) getConnectionMetadata() events.ConnectionMetadata {
 	return events.ConnectionMetadata{
 		LocalAddr:  d.identity.LoginIP,
-		RemoteAddr: d.getName(),
+		RemoteAddr: d.getAddr(),
 		Protocol:   libevents.EventProtocolTDP,
 	}
 }
@@ -159,7 +159,7 @@ func (d *desktopSessionAuditor) makeWindowsSessionStart(err error) *events.Windo
 		Status:                events.Status{Success: err == nil},
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopName:           d.getName(),
-		DesktopAddr:           d.getName(),
+		DesktopAddr:           d.getAddr(),
 		Domain:                d.windowsDesktop.GetDomain(),
 		WindowsUser:           d.targetUser,
 		DesktopLabels:         d.windowsDesktop.GetAllLabels(),
@@ -226,7 +226,7 @@ func (d *desktopSessionAuditor) makeLinuxSessionStart(err error) *events.LinuxDe
 		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             events.Status{Success: err == nil},
 		DesktopName:        d.getName(),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		LinuxUser:          d.targetUser,
 		DesktopLabels:      d.linuxDesktop.GetMetadata().GetLabels(),
 	}
@@ -253,7 +253,7 @@ func (d *desktopSessionAuditor) makeLinuxSessionEnd(recorded bool) *events.Linux
 		UserMetadata:       userMetadata,
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		DesktopAddr:        d.getName(),
+		DesktopAddr:        d.getAddr(),
 		LinuxUser:          d.targetUser,
 		DesktopLabels:      d.linuxDesktop.GetMetadata().GetLabels(),
 		StartTime:          d.startTime,
