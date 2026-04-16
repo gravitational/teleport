@@ -257,14 +257,15 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 		var err error
 		entries, err = query.query()
 		if err != nil {
-			l.cfg.Logger.DebugContext(ctx, "query succeeded", "query", query.name, "count", len(entries))
-			return "", "", trace.Wrap(err)
+			l.cfg.Logger.DebugContext(ctx, "query failed", "query", query.name, "error", err)
+			continue
 		}
 
 		if len(entries) > 0 {
+			l.cfg.Logger.DebugContext(ctx, "query succeeded", "query", query.name, "results", len(entries))
 			break
 		}
-		l.cfg.Logger.DebugContext(ctx, "query found 0 entries", "query", query.name)
+		l.cfg.Logger.DebugContext(ctx, "query succeeded but found no results", "query", query.name)
 	}
 
 	if len(entries) == 0 {
