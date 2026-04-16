@@ -471,11 +471,8 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 func FillSAMLOAuthClientSecretFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
 	connectorName := connector.GetName()
 	existing, err := sg.GetSAMLConnector(ctx, connectorName, true)
-	switch {
-	case trace.IsNotFound(err):
-		return trace.BadParameter("failed to restore OAuth credentials, SAML connector %q does not exist", connectorName)
-	case err != nil:
-		return trace.BadParameter("failed to restore OAuth credentials, looking up existing SAML connector %q failed: %v", connectorName, err)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	existingOAuthCreds := existing.GetOAuthClientCredentials()
