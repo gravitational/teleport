@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -98,16 +100,30 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.BadParameter("missing parameter ChildLogConfig")
 	}
 
+	env := envutils.SafeEnv{}
+	env.AddTrusted("DISPLAY", cfg.Display)
+	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
+	env.AddTrusted("XDG_SESSION_TYPE", "x11")
+	temp, err := os.MkdirTemp("", "teleport")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	u, err := user.Lookup(cfg.Login)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	env := envutils.SafeEnv{}
-	env.AddTrusted("DISPLAY", cfg.Display)
-	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
-	env.AddTrusted("XDG_SESSION_TYPE", "X11")
-	env.AddTrusted("XDG_RUNTIME_DIR", fmt.Sprintf("/run/user/%s", u.Uid))
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := os.Chown(temp, uid, gid); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	env.AddTrusted("XDG_RUNTIME_DIR", temp)
 
 	cmdmsg := &reexec.ExecCommand{
 		Command:         cfg.Command,
@@ -120,6 +136,16 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		UaccMetadata: reexec.UaccMetadata{
 			RemoteAddr: cfg.RemoteAddr,
 		},
+		PAMConfig: &reexec.PAMConfig{
+			UsePAMAuth:  false,
+			ServiceName: "other",
+			Environment: nil,
+		},
+	}
+
+	dbusPath, err := exec.LookPath("dbus-run-session")
+	if err == nil {
+		cmdmsg.Command = fmt.Sprintf("%s %s", dbusPath, cmdmsg.Command)
 	}
 
 	inr, inw, err := os.Pipe()
