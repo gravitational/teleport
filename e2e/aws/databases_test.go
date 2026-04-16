@@ -126,9 +126,9 @@ const (
 	connRetryTick      = 10 * time.Second
 )
 
-// postgresConnTestFn tests connection to a postgres database via proxy web
+// getPostgresConn establishes a connection to a postgres database via proxy web
 // multiplexer.
-func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
+func getPostgresConn(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase) *pgconn.PgConn {
 	t.Helper()
 	var pgConn *pgconn.PgConn
 	waitForDBConnection(t, func(ctx context.Context) error {
@@ -143,12 +143,12 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 		})
 		return err
 	})
-	execPGTestQuery(t, pgConn, query)
+	return pgConn
 }
 
-// postgresLocalProxyConnTest tests connection to a postgres database via
+// getPostgresLocalProxyConn establishes a connection to a postgres database via
 // local proxy tunnel.
-func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
+func getPostgresLocalProxyConn(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase) *pgconn.PgConn {
 	t.Helper()
 	lp := startLocalALPNProxy(t, user, cluster, route)
 
@@ -162,7 +162,7 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 		pgConn, err = pgconn.ConnectConfig(ctx, pgconnConfig)
 		return err
 	})
-	execPGTestQuery(t, pgConn, query)
+	return pgConn
 }
 
 func execPGTestQuery(t *testing.T, conn *pgconn.PgConn, query string) {
