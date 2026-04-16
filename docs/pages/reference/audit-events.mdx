@@ -3950,6 +3950,55 @@ Example:
 }
 ```
 
+## linux.desktop.session.end
+
+Linux Desktop Session Ended
+
+Example:
+
+```json
+{
+  "code": "TDP08I",
+  "event": "linux.desktop.session.end",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## linux.desktop.session.start
+
+There are multiple events with the `linux.desktop.session.start` type.
+
+### TDP07I
+
+Linux Desktop Session Started
+
+Example:
+
+```json
+{
+  "code": "TDP07I",
+  "event": "linux.desktop.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TDP07W
+
+Linux Desktop Session Denied
+
+Example:
+
+```json
+{
+  "code": "TDP07W",
+  "event": "linux.desktop.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
 ## lock.created
 
 Lock Created
