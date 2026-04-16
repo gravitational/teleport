@@ -1296,7 +1296,7 @@ func HandleBoundKeypairJoin(
 		return nil, trace.Wrap(err, "issuing join state document")
 	}
 
-	switch types.SystemRole(systemRole) {
+	switch systemRole {
 	case types.RoleInstance:
 		return &messages.HostResult{
 			Certificates:    *certs,
