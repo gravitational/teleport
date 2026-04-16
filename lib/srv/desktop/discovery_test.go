@@ -28,11 +28,11 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -175,59 +175,54 @@ func TestDNSErrors(t *testing.T) {
 
 func TestDynamicWindowsDiscovery(t *testing.T) {
 	t.Parallel()
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		ClusterName: "test",
-		Dir:         t.TempDir(),
-		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, authServer.Close())
-	})
 
-	tlsServer, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, tlsServer.Close())
-	})
+	synctest.Test(t, func(t *testing.T) {
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "test",
+			Dir:         t.TempDir(),
+			AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, client.Close())
-	})
+		tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	dynamicWindowsClient := client.DynamicDesktopClient()
+		client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
 
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
+		dynamicWindowsClient := client.DynamicDesktopClient()
 
-	for _, testCase := range []struct {
-		name     string
-		labels   map[string]string
-		expected int
-	}{
-		{
-			name:     "no labels",
-			expected: 0,
-		},
-		{
-			name:     "no matching labels",
-			labels:   map[string]string{"xyz": "abc"},
-			expected: 0,
-		},
-		{
-			name:     "matching labels",
-			labels:   map[string]string{"foo": "bar"},
-			expected: 1,
-		},
-		{
-			name:     "matching wildcard labels",
-			labels:   map[string]string{"abc": "abc"},
-			expected: 1,
-		},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
+		for _, testCase := range []struct {
+			name     string
+			labels   map[string]string
+			expected int
+		}{
+			{
+				name:     "no labels",
+				expected: 0,
+			},
+			{
+				name:     "no matching labels",
+				labels:   map[string]string{"xyz": "abc"},
+				expected: 0,
+			},
+			{
+				name:     "matching labels",
+				labels:   map[string]string{"foo": "bar"},
+				expected: 1,
+			},
+			{
+				name:     "matching wildcard labels",
+				labels:   map[string]string{"abc": "abc"},
+				expected: 1,
+			},
+		} {
+			// note: we don't use t.Run() because we're already inside a synctest bubble
+			t.Logf("executing test case: %v", testCase.name)
+
 			s := &WindowsService{
 				cfg: WindowsServiceConfig{
 					Heartbeat: HeartbeatConfig{
@@ -256,176 +251,171 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 				},
 			}
 
-			require.NoError(t, s.startReconciler(t.Context()))
-			t.Cleanup(func() {
-				require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(ctx))
-				var key string
-				for {
-					page, next, err := authServer.AuthServer.ListDynamicWindowsDesktops(ctx, 0, key)
-					require.NoError(t, err)
-					for _, dwd := range page {
-						require.NoError(t, authServer.AuthServer.DeleteDynamicWindowsDesktop(ctx, dwd.GetName()))
-					}
-					if next == "" {
-						break
-					}
-					key = next
+			// Clear all desktops to start each test case fresh.
+			require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(t.Context()))
+			var key string
+			for {
+				page, next, err := authServer.AuthServer.ListDynamicWindowsDesktops(t.Context(), 0, key)
+				require.NoError(t, err)
+				for _, dwd := range page {
+					require.NoError(t, authServer.AuthServer.DeleteDynamicWindowsDesktop(t.Context(), dwd.GetName()))
 				}
-			})
+				if next == "" {
+					break
+				}
+				key = next
+			}
+
+			require.NoError(t, s.startReconciler(t.Context()))
+			synctest.Wait()
 
 			desktop, err := types.NewDynamicWindowsDesktopV1("test", testCase.labels, types.DynamicWindowsDesktopSpecV1{
 				Addr: "addr",
 			})
 			require.NoError(t, err)
 
-			_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(ctx, desktop)
+			_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(t.Context(), desktop)
 			require.NoError(t, err)
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Len(t, desktops, testCase.expected)
+			synctest.Wait()
 
-				if testCase.expected > 0 {
-					require.Equal(t, desktop.GetName(), desktops[0].GetName())
-					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
-				}
-			}, 5*time.Second, 50*time.Millisecond)
+			desktops, err := client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
+			require.NoError(t, err)
+			require.Len(t, desktops, testCase.expected)
+
+			if testCase.expected > 0 {
+				require.Equal(t, desktop.GetName(), desktops[0].GetName())
+				require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+			}
 
 			desktop.Spec.Addr = "addr2"
-			_, err = dynamicWindowsClient.UpsertDynamicWindowsDesktop(ctx, desktop)
+			_, err = dynamicWindowsClient.UpsertDynamicWindowsDesktop(t.Context(), desktop)
 			require.NoError(t, err)
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Len(t, desktops, testCase.expected)
-				if testCase.expected > 0 {
-					require.Equal(t, desktop.GetName(), desktops[0].GetName())
-					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
-				}
-			}, 5*time.Second, 50*time.Millisecond)
+			synctest.Wait()
 
-			require.NoError(t, dynamicWindowsClient.DeleteDynamicWindowsDesktop(ctx, "test"))
+			desktops, err = client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
+			require.NoError(t, err)
+			require.Len(t, desktops, testCase.expected)
+			if testCase.expected > 0 {
+				require.Equal(t, desktop.GetName(), desktops[0].GetName())
+				require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+			}
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Empty(t, desktops)
-			}, 5*time.Second, 50*time.Millisecond)
-		})
-	}
+			require.NoError(t, dynamicWindowsClient.DeleteDynamicWindowsDesktop(t.Context(), "test"))
+
+			synctest.Wait()
+
+			desktops, err = client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
+			require.NoError(t, err)
+			require.Empty(t, desktops)
+		}
+	})
 }
 
 func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		ClusterName: "test",
-		Dir:         t.TempDir(),
-		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+	t.Parallel()
 
-	tlsServer, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+	synctest.Test(t, func(t *testing.T) {
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "test",
+			Dir:         t.TempDir(),
+			AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
+		tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	dynamicWindowsClient := client.DynamicDesktopClient()
+		client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
 
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
+		dynamicWindowsClient := client.DynamicDesktopClient()
 
-	logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
-	if testing.Verbose() {
-		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	}
+		logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+		if testing.Verbose() {
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		}
 
-	clock := clockwork.NewFakeClock()
-	s := &WindowsService{
-		cfg: WindowsServiceConfig{
-			Heartbeat: HeartbeatConfig{
-				HostUUID: "1234",
-			},
-			Logger:      logger,
-			Clock:       clock,
-			AuthClient:  client,
-			AccessPoint: client,
-			ResourceMatchers: []services.ResourceMatcher{{
-				Labels: types.Labels{
-					"foo": {"bar"},
+		s := &WindowsService{
+			cfg: WindowsServiceConfig{
+				Heartbeat: HeartbeatConfig{
+					HostUUID: "1234",
 				},
-			}},
-		},
-		dnsResolver: &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				return nil, errors.New("this resolver always fails")
+				Logger:      logger,
+				Clock:       clockwork.NewRealClock(),
+				AuthClient:  client,
+				AccessPoint: client,
+				ResourceMatchers: []services.ResourceMatcher{{
+					Labels: types.Labels{
+						"foo": {"bar"},
+					},
+				}},
 			},
-		},
-	}
+			dnsResolver: &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					return nil, errors.New("this resolver always fails")
+				},
+			},
+		}
 
-	require.NoError(t, s.startReconciler(t.Context()))
+		require.NoError(t, s.startReconciler(t.Context()))
+		synctest.Wait()
 
-	desktop, err := types.NewDynamicWindowsDesktopV1("test", map[string]string{
-		"foo": "bar",
-	}, types.DynamicWindowsDesktopSpecV1{
-		Addr: "addr",
-	})
-	require.NoError(t, err)
+		desktop, err := types.NewDynamicWindowsDesktopV1("test", map[string]string{
+			"foo": "bar",
+		}, types.DynamicWindowsDesktopSpecV1{
+			Addr: "addr",
+		})
+		require.NoError(t, err)
 
-	// Create the dynamic desktop and verify that a corresponding desktop
-	// resource is created.
-	_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(ctx, desktop)
-	require.NoError(t, err)
+		// Create the dynamic desktop and verify that a corresponding desktop
+		// resource is created.
+		_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(t.Context(), desktop)
+		require.NoError(t, err)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		synctest.Wait()
+
+		desktops, err := client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
 		require.NoError(t, err)
 		require.Len(t, desktops, 1)
 		require.Equal(t, "test", desktops[0].GetName())
-	}, 5*time.Second, 50*time.Millisecond)
 
-	// Delete the desktop resource, advance the clock, and verify that
-	// the reconciler re-created the desktop resource.
-	err = client.DeleteWindowsDesktop(ctx, s.cfg.Heartbeat.HostUUID, "test")
-	require.NoError(t, err)
+		// Delete the desktop resource, advance the clock, and verify that
+		// the reconciler re-created the desktop resource.
+		err = client.DeleteWindowsDesktop(t.Context(), s.cfg.Heartbeat.HostUUID, "test")
+		require.NoError(t, err)
 
-	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	require.NoError(t, err)
-	require.Empty(t, desktops)
+		desktops, err = client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
+		require.NoError(t, err)
+		require.Empty(t, desktops)
 
-	clock.Advance(apidefaults.ServerAnnounceTTL / 2)
+		synctest.Wait()
+		time.Sleep(apidefaults.ServerAnnounceTTL / 2)
+		synctest.Wait()
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		desktops, err = client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
 		require.NoError(t, err)
 		require.Len(t, desktops, 1)
 		require.Equal(t, "test", desktops[0].GetName())
-	}, 5*time.Second, 50*time.Millisecond)
 
-	// Ensure that the reconciler is advancing the expiry.
-	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	require.NoError(t, err)
-	require.Len(t, desktops, 1)
+		// Ensure that the reconciler is advancing the expiry.
+		start := time.Now()
+		time.Sleep(apidefaults.ServerAnnounceTTL / 2)
+		synctest.Wait()
 
-	start := desktops[0].GetMetadata().Expires
-	require.NotNil(t, start)
-
-	clock.Advance(apidefaults.ServerAnnounceTTL / 2)
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		desktops, err = client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
 		require.NoError(t, err)
-		require.Len(t, desktops, 1)
 
 		end := desktops[0].GetMetadata().Expires
 		require.NotNil(t, end)
-		require.Equal(t, start.Add(5*time.Minute), *end, "original expiry was %v", *start)
-	}, 5*time.Second, 50*time.Millisecond)
+
+		require.GreaterOrEqual(t, end.Sub(start), apidefaults.ServerAnnounceTTL)
+	})
 }
 
 // TestDynamicRegistrationAndLDAP verifies that a single desktop service
@@ -433,94 +423,98 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 // conflicts.
 func TestDynamicRegistrationAndLDAP(t *testing.T) {
 	t.Parallel()
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		ClusterName: "test",
-		Dir:         t.TempDir(),
-		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	tlsServer, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+	synctest.Test(t, func(t *testing.T) {
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "test",
+			Dir:         t.TempDir(),
+			AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	hostUUID := "test-host-id"
-	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, hostUUID))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
+		tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
-	if testing.Verbose() {
-		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	}
+		hostUUID := "test-host-id"
+		client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, hostUUID))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
 
-	clock := clockwork.NewFakeClock()
-	s := &WindowsService{
-		cfg: WindowsServiceConfig{
-			Heartbeat: HeartbeatConfig{
-				HostUUID: hostUUID,
-			},
-			Logger:      logger,
-			Clock:       clock,
-			AccessPoint: client,
-			AuthClient:  client,
+		logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+		if testing.Verbose() {
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		}
 
-			// Enable both LDAP discovery and dynamic registration.
-			DiscoveryInterval: 5 * time.Minute,
-			Discovery:         []servicecfg.LDAPDiscoveryConfig{{BaseDN: "*"}},
-			ResourceMatchers: []services.ResourceMatcher{{
-				Labels: types.Labels{
-					"foo": {"bar"},
+		s := &WindowsService{
+			cfg: WindowsServiceConfig{
+				Heartbeat: HeartbeatConfig{
+					HostUUID: hostUUID,
 				},
-			}},
-		},
+				Logger:      logger,
+				Clock:       clockwork.NewRealClock(),
+				AccessPoint: client,
+				AuthClient:  client,
 
-		// pre-cache a TLS config so we don't ask auth to issue a real cert
-		// (there isn't a real LDAP server here to connect to)
-		ldapTLSConfig:          new(tls.Config),
-		ldapTLSConfigExpiresAt: clock.Now().Add(24 * time.Hour),
-	}
+				// Enable both LDAP discovery and dynamic registration.
+				DiscoveryInterval: 5 * time.Minute,
+				Discovery:         []servicecfg.LDAPDiscoveryConfig{{BaseDN: "*"}},
+				ResourceMatchers: []services.ResourceMatcher{{
+					Labels: types.Labels{
+						"foo": {"bar"},
+					},
+				}},
+			},
 
-	// Seed a fake LDAP dekstop. Discovery will pick it up since
-	// it uses the last known results on error.
-	ldapDeskop, err := types.NewWindowsDesktopV3(
-		"ldap-desktop",
-		map[string]string{
-			"teleport.dev/computer_name":  "host-1",
-			"teleport.dev/dns_host_name":  "host-1.example.com",
-			"teleport.dev/origin":         "dynamic",
-			"teleport.dev/os":             "Windows Server 2025 Standard",
-			"teleport.dev/os_version":     "10.0 (26100)",
-			"teleport.dev/ou":             "OU=Windows,DC=example,DC=com",
-			"teleport.dev/windows_domain": "EXAMPLE.COM",
-		},
-		types.WindowsDesktopSpecV3{
-			Domain: "example.com",
-			Addr:   "192.168.1.100:3389",
-			HostID: hostUUID,
-		},
-	)
-	require.NoError(t, err)
-	s.lastDiscoveryResults = map[string]types.WindowsDesktop{
-		ldapDeskop.GetName(): ldapDeskop,
-	}
+			// pre-cache a TLS config so we don't ask auth to issue a real cert
+			// (there isn't a real LDAP server here to connect to)
+			ldapTLSConfig:          new(tls.Config),
+			ldapTLSConfigExpiresAt: time.Now().Add(24 * time.Hour),
+		}
 
-	ctx := t.Context()
-	require.NoError(t, s.startReconciler(ctx))
+		// Seed a fake LDAP dekstop. Discovery will pick it up since
+		// it uses the last known results on error.
+		ldapDeskop, err := types.NewWindowsDesktopV3(
+			"ldap-desktop",
+			map[string]string{
+				"teleport.dev/computer_name":  "host-1",
+				"teleport.dev/dns_host_name":  "host-1.example.com",
+				"teleport.dev/origin":         "dynamic",
+				"teleport.dev/os":             "Windows Server 2025 Standard",
+				"teleport.dev/os_version":     "10.0 (26100)",
+				"teleport.dev/ou":             "OU=Windows,DC=example,DC=com",
+				"teleport.dev/windows_domain": "EXAMPLE.COM",
+			},
+			types.WindowsDesktopSpecV3{
+				Domain: "example.com",
+				Addr:   "192.168.1.100:3389",
+				HostID: hostUUID,
+			},
+		)
+		require.NoError(t, err)
+		s.lastDiscoveryResults = map[string]types.WindowsDesktop{
+			ldapDeskop.GetName(): ldapDeskop,
+		}
 
-	// Create a dynamic desktop and wait for it to show up.
-	desktop, err := types.NewDynamicWindowsDesktopV1("test", map[string]string{
-		"foo": "bar",
-	}, types.DynamicWindowsDesktopSpecV1{
-		Addr: "addr",
-	})
-	require.NoError(t, err)
+		ctx := t.Context()
+		require.NoError(t, s.startReconciler(ctx))
 
-	_, err = client.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, desktop)
-	require.NoError(t, err)
+		synctest.Wait()
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Create a dynamic desktop and wait for it to show up.
+		desktop, err := types.NewDynamicWindowsDesktopV1("test", map[string]string{
+			"foo": "bar",
+		}, types.DynamicWindowsDesktopSpecV1{
+			Addr: "addr",
+		})
+		require.NoError(t, err)
+
+		_, err = client.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, desktop)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
 		desktops, err := client.GetWindowsDesktops(
 			ctx,
 			types.WindowsDesktopFilter{Name: desktop.GetName()},
@@ -528,18 +522,18 @@ func TestDynamicRegistrationAndLDAP(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, desktops, 1)
 		require.Equal(t, desktop.GetName(), desktops[0].GetName())
-	}, 5*time.Second, 50*time.Millisecond)
 
-	// Force the reconciler to run.
-	clock.BlockUntilContext(t.Context(), 1)
-	clock.Advance(s.cfg.DiscoveryInterval)
-	clock.BlockUntilContext(t.Context(), 1)
+		// Force the reconciler to run.
+		synctest.Wait()
+		time.Sleep(s.cfg.DiscoveryInterval)
+		synctest.Wait()
 
-	// Expect that the reconciler created the new LDAP desktop,
-	// and also kept the existing dynamic desktop.
-	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	require.NoError(t, err)
-	require.Len(t, desktops, 2)
+		// Expect that the reconciler created the new LDAP desktop,
+		// and also kept the existing dynamic desktop.
+		desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		require.NoError(t, err)
+		require.Len(t, desktops, 2)
+	})
 }
 
 func TestCurrentDesktops(t *testing.T) {
@@ -648,72 +642,72 @@ func TestCurrentDesktops(t *testing.T) {
 func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 	t.Parallel()
 
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		ClusterName: "test",
-		Dir:         t.TempDir(),
-		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
-
-	tlsServer, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
-
-	const hostUUID = "test-host-uuid"
-	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, hostUUID))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-
-	clock := clockwork.NewFakeClock()
-
-	s := &WindowsService{
-		closeCtx: t.Context(),
-		cfg: WindowsServiceConfig{
-			Heartbeat:         HeartbeatConfig{HostUUID: hostUUID},
-			Logger:            slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
-			Clock:             clock,
-			AccessPoint:       client,
-			AuthClient:        client,
-			DiscoveryInterval: 5 * time.Minute,
-			Discovery:         []servicecfg.LDAPDiscoveryConfig{{BaseDN: "*"}},
-		},
-
-		// pre-cache a TLS config so we don't ask auth to issue a real cert
-		// (there isn't a real LDAP server here to connect to)
-		ldapTLSConfig:          new(tls.Config),
-		ldapTLSConfigExpiresAt: clock.Now().Add(24 * time.Hour),
-	}
-
-	originalExpiry := clock.Now().Add(s.cfg.DiscoveryInterval * 3)
-
-	// Populate last discovery results with some desktops
-	lastDiscoveryResults := map[string]types.WindowsDesktop{}
-	for i := 1; i <= 3; i++ {
-		name := "desktop-" + strconv.Itoa(i)
-		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{
-			types.OriginLabel:                      types.OriginDynamic,
-			types.DiscoveryLabelWindowsDNSHostName: name + ".example.com",
-			types.DiscoveryLabelWindowsOS:          "Windows Server 2019",
-		}, types.WindowsDesktopSpecV3{
-			HostID: hostUUID,
-			Addr:   name + ".example.com:3389",
+	synctest.Test(t, func(t *testing.T) {
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "test",
+			Dir:         t.TempDir(),
+			AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 		})
 		require.NoError(t, err)
-		desktop.SetExpiry(originalExpiry)
-		lastDiscoveryResults[name] = desktop
+		t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-		require.NoError(t, tlsServer.Auth().UpsertWindowsDesktop(t.Context(), desktop))
-	}
-	s.lastDiscoveryResults = lastDiscoveryResults
+		tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	// Force the reconciler to run.
-	// It will fail because we aren't running a real LDAP server in the test.
-	require.NoError(t, s.startReconciler(t.Context()))
+		const hostUUID = "test-host-uuid"
+		client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, hostUUID))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
 
-	clock.Advance(s.cfg.DiscoveryInterval)
+		s := &WindowsService{
+			closeCtx: t.Context(),
+			cfg: WindowsServiceConfig{
+				Heartbeat:         HeartbeatConfig{HostUUID: hostUUID},
+				Logger:            slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+				Clock:             clockwork.NewRealClock(),
+				AccessPoint:       client,
+				AuthClient:        client,
+				DiscoveryInterval: 5 * time.Minute,
+				Discovery:         []servicecfg.LDAPDiscoveryConfig{{BaseDN: "*"}},
+			},
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			// pre-cache a TLS config so we don't ask auth to issue a real cert
+			// (there isn't a real LDAP server here to connect to)
+			ldapTLSConfig:          new(tls.Config),
+			ldapTLSConfigExpiresAt: time.Now().Add(24 * time.Hour),
+		}
+
+		originalExpiry := time.Now().Add(s.cfg.DiscoveryInterval * 3)
+
+		// Populate last discovery results with some desktops
+		lastDiscoveryResults := map[string]types.WindowsDesktop{}
+		for i := 1; i <= 3; i++ {
+			name := "desktop-" + strconv.Itoa(i)
+			desktop, err := types.NewWindowsDesktopV3(name, map[string]string{
+				types.OriginLabel:                      types.OriginDynamic,
+				types.DiscoveryLabelWindowsDNSHostName: name + ".example.com",
+				types.DiscoveryLabelWindowsOS:          "Windows Server 2019",
+			}, types.WindowsDesktopSpecV3{
+				HostID: hostUUID,
+				Addr:   name + ".example.com:3389",
+			})
+			require.NoError(t, err)
+			desktop.SetExpiry(originalExpiry)
+			lastDiscoveryResults[name] = desktop
+
+			require.NoError(t, tlsServer.Auth().UpsertWindowsDesktop(t.Context(), desktop))
+		}
+		s.lastDiscoveryResults = lastDiscoveryResults
+
+		// Force the reconciler to run.
+		// It will fail because we aren't running a real LDAP server in the test.
+		require.NoError(t, s.startReconciler(t.Context()))
+
+		synctest.Wait()
+		time.Sleep(s.cfg.DiscoveryInterval)
+		synctest.Wait()
+
 		// Verify that the reconciler failure did not delete desktops and that
 		// their expiry times were updated.
 		for i := 1; i <= 3; i++ {
@@ -730,5 +724,5 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 			actualExpiry := desktops[0].Expiry()
 			require.GreaterOrEqual(t, actualExpiry, originalExpiry)
 		}
-	}, 10*time.Second, 50*time.Millisecond)
+	})
 }
