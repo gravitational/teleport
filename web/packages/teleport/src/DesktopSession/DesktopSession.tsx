@@ -17,14 +17,19 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import {matchPath, useParams} from 'react-router';
+import { matchPath, useParams } from 'react-router';
 
 import {
   DisconnectedState,
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
+import { SessionSelection } from 'shared/components/DesktopSession/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import {selectDirectoryInBrowser, TdpClient, useListener} from 'shared/libs/tdp';
+import {
+  selectDirectoryInBrowser,
+  TdpClient,
+  useListener,
+} from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -35,7 +40,6 @@ import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
 import { useUser } from 'teleport/User/UserContext';
-import {SessionSelection} from "shared/components/DesktopSession/DesktopSession";
 
 export function DesktopSession() {
   const ctx = useTeleport();
@@ -45,8 +49,11 @@ export function DesktopSession() {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
   }, [clusterId, desktopName, username]);
 
-  const linuxDesktop = matchPath(cfg.routes.linuxDesktop, location.pathname) !== null;
-  const addr = linuxDesktop ? cfg.api.linuxDesktopWsAddr : cfg.api.desktopWsAddr;
+  const linuxDesktop =
+    matchPath(cfg.routes.linuxDesktop, location.pathname) !== null;
+  const addr = linuxDesktop
+    ? cfg.api.linuxDesktopWsAddr
+    : cfg.api.desktopWsAddr;
 
   const [client] = useState(
     () =>
@@ -111,13 +118,16 @@ export function DesktopSession() {
     fetchAcl();
   }, [username, clusterId, fetchAcl]);
 
-  const [sessions, setSessions] = useState([])
+  const [sessions, setSessions] = useState([]);
   useListener(client.onAvailableSessions, setSessions);
 
-  const onConnect = useCallback((session: string) => {
-    setSessions([]);
-    client.sendSessionSelection(session);
-  }, [client])
+  const onConnect = useCallback(
+    (session: string) => {
+      setSessions([]);
+      client.sendSessionSelection(session);
+    },
+    [client]
+  );
 
   return (
     <SharedDesktopSession
@@ -132,7 +142,7 @@ export function DesktopSession() {
               sessions={sessions}
               onConnect={onConnect}
             />
-          )
+          );
         }
         // Errors, except for dialog cancellations, are handled within the MFA dialog.
         if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {

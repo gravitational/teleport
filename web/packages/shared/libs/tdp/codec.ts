@@ -634,7 +634,7 @@ export class TdpbCodec implements Codec {
             sessions: hello.sessions,
             clipboardSupport: hello.clipboardEnabled,
             activationEvent: hello.activationSpec,
-          }
+          },
         };
       case 'pngFrame':
         const frame = envelope.payload.pngFrame;
@@ -809,9 +809,9 @@ export class TdpbCodec implements Codec {
     return this.marshal({
       oneofKind: 'sessionSelection',
       sessionSelection: {
-        name: session
-      }
-    })
+        name: session,
+      },
+    });
   }
 
   encodeClientScreenSpec(spec: ClientScreenSpec): Message {
@@ -1231,7 +1231,7 @@ export class TdpCodec implements Codec {
   }
 
   encodeSessionSelection(_sessions: string): Message {
-    throw new Error("Method not implemented.");
+    throw new Error('Method not implemented.');
   }
 
   encodeInitialMessages(

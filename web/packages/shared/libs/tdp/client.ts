@@ -99,7 +99,7 @@ export enum TdpClientEvent {
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
-  AVAILABLE_SESSIONS = 'available sessions'
+  AVAILABLE_SESSIONS = 'available sessions',
 }
 
 type EventMap = {
@@ -116,7 +116,7 @@ type EventMap = {
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
-  [TdpClientEvent.AVAILABLE_SESSIONS]: [string[]]
+  [TdpClientEvent.AVAILABLE_SESSIONS]: [string[]];
   'terminal.webauthn': [string];
 };
 
@@ -511,7 +511,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleServerHello(hello: ServerHello) {
     if (hello.sessions.length > 0) {
-      this.emit(TdpClientEvent.AVAILABLE_SESSIONS,hello.sessions);
+      this.emit(TdpClientEvent.AVAILABLE_SESSIONS, hello.sessions);
     }
     this.handleRdpConnectionActivated(hello.activationEvent);
   }

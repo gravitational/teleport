@@ -16,11 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {formatDistanceStrict} from 'date-fns';
+import { formatDistanceStrict } from 'date-fns';
 
-import {pluralize} from 'shared/utils/text';
+import { pluralize } from 'shared/utils/text';
 
-import {Event, EventCode, eventCodes, Formatters, RawEvent, RawEvents,} from './types';
+import {
+  Event,
+  EventCode,
+  eventCodes,
+  Formatters,
+  RawEvent,
+  RawEvents,
+} from './types';
 
 const formatElasticsearchEvent: (
   json:

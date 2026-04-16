@@ -34,7 +34,9 @@ import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { Latency } from 'shared/components/LatencyDiagnostic';
+import Validation from 'shared/components/Validation';
 import {
   Attempt,
   makeEmptyAttempt,
@@ -57,8 +59,6 @@ import useDesktopSession, {
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
-import {FieldSelect} from "shared/components/FieldSelect";
-import Validation from "shared/components/Validation";
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -469,7 +469,10 @@ export function SessionSelection(props: {
   sessions: string[];
   onConnect: (session: string) => void;
 }) {
-  const options = props.sessions.map((session) => ({value: session, label: session}));
+  const options = props.sessions.map(session => ({
+    value: session,
+    label: session,
+  }));
   const [session, setSession] = useState(options[0]);
   return (
     <DisconnectedStateContainer desktopName={props.desktopName}>
@@ -496,7 +499,7 @@ export function SessionSelection(props: {
         Connect
       </ButtonPrimary>
     </DisconnectedStateContainer>
-  )
+  );
 }
 
 export function DisconnectedState(props: {

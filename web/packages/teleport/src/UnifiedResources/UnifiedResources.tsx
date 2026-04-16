@@ -101,9 +101,7 @@ function expandDesktopKinds(kinds?: string[]): string[] | undefined {
     return kinds;
   }
 
-  return Array.from(
-    new Set([...kinds, 'windows_desktop', 'linux_desktop'])
-  );
+  return Array.from(new Set([...kinds, 'windows_desktop', 'linux_desktop']));
 }
 
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
