@@ -323,6 +323,24 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return trace.Wrap(err, "joining with token")
 		}
 	} else {
+		// If identity is loaded from disk, we need to validate it has the
+		// correct scoped-ness. This catches the case where a user changes the
+		// tbot scoped-ness setting for a pre-existing install of `tbot`.
+		//
+		// Rather than forcing a rejoin, we force a hard exit here to encourage
+		// the user to re-assess what they are doing.
+		if err := checkScopeCorrectness(
+			loadedIdent.TLSIdentity,
+			s.cfg.Scoped,
+		); err != nil {
+			identScoped := loadedIdent.TLSIdentity.ScopePin != nil && loadedIdent.TLSIdentity.ScopePin.Scope != ""
+			return trace.BadParameter(
+				"bot identity loaded from storage has scoped %v, but scope config set to %v. change tbot scope configuration or delete the bot storage directory",
+				identScoped,
+				s.cfg.Scoped,
+			)
+		}
+
 		if valid {
 			// If the identity is valid (not expired), try to renew it.
 			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, loadedIdent)
