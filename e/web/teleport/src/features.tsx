@@ -53,6 +53,7 @@ import {
 
 import { AccessAutomations } from './AccessAutomations/AccessAutomations';
 import { AccessGraph } from './AccessGraph';
+import { ManagedUpdates as ManagedUpdatesE } from './ManagedUpdates';
 import { RolesE } from './Roles/RolesE';
 
 // ****************************
@@ -366,6 +367,25 @@ class FeatureDeviceTrust implements TeleportFeature {
     },
     searchableTags: ['device trust', 'trusted devices', 'devices'],
   };
+}
+
+class FeatureManagedUpdatesE extends OSS.FeatureManagedUpdates {
+  route = {
+    ...super.getRoute(),
+    component: ManagedUpdatesE,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    if (OSS.shouldHideFromNavigation(cfg.oss)) {
+      const canViewPage =
+        flags.readAutoUpdateConfig ||
+        flags.readAutoUpdateVersion ||
+        flags.readAutoUpdateAgentRollout;
+
+      return canViewPage;
+    }
+    return true;
+  }
 }
 
 class FeatureIntegrations extends OSS.FeatureIntegrations {
@@ -745,7 +765,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureBotDetails(),
     new OSS.FeatureBotInstances(),
     new OSS.FeatureInstances(),
-    new OSS.FeatureManagedUpdates(),
+    new FeatureManagedUpdatesE(),
     new OSS.FeatureBotInstanceDetails(),
     new OSS.FeatureWorkloadIdentity(),
     new OSS.FeatureAddBotsShortcut(),
