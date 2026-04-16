@@ -1391,6 +1391,7 @@ func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb strin
 var (
 	// supportedUnifiedResourceKinds is the set of kinds that
 	// may be requested via ListUnifiedResources.
+	// TODO(gabrielcorado): add LLM app subkind.
 	supportedUnifiedResourceKinds = map[string]struct{}{
 		types.KindApp:                    {},
 		types.KindDatabase:               {},
@@ -1400,15 +1401,15 @@ var (
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
 		types.KindMCP:                    {},
-		types.KindLLM:                    {},
 	}
 
 	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
 )
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
-	// MCP and LLM are apps internally atm.
-	if kind == types.KindMCP || kind == types.KindLLM {
+	// MCP are apps internally atm.
+	// TODO(gabrielcorado): add support for LLM subkind.
+	if kind == types.KindMCP {
 		kind = types.KindApp
 	}
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
