@@ -154,7 +154,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		scanner := bufio.NewScanner(outr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			logger.Log(ctx, logutils.TraceLevel, line)
+			logger.Log(ctx, logutils.TraceLevel, "xsession output", "msg", line)
 		}
 		outr.Close()
 	}()
@@ -165,6 +165,9 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	}
 
 	stderrR, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	go func() {
 		childErr, err := sshreexec.ReadChildError(stderrR, nil)

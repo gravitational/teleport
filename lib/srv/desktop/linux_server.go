@@ -839,7 +839,7 @@ func (sess *linuxSession) processScreenChanges() {
 		}
 		delta := time.Since(start)
 		if size > 0 {
-			sess.log.Log(sess.ctx, logutils.TraceLevel, "Frame encoded", "time", delta, "size", size)
+			sess.log.Log(sess.ctx, logutils.TraceLevel, "Frame encoded", "duration", delta, "size", size)
 		}
 		select {
 		case <-sess.ctx.Done():

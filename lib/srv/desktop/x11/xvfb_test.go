@@ -116,7 +116,7 @@ func TestGetChanges(t *testing.T) {
 
 	changes, err = xvfb.GetChanges()
 	require.NoError(t, err)
-	require.Len(t, changes, 0)
+	require.Empty(t, changes)
 
 	err = xvfb.Resize(1000, 1000)
 	require.NoError(t, err)

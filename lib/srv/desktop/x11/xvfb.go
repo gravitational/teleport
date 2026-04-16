@@ -33,6 +33,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -42,7 +43,6 @@ import (
 	"github.com/jezek/xgb/xfixes"
 	"github.com/jezek/xgb/xproto"
 	"github.com/jezek/xgb/xtest"
-	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport/api/types"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -227,7 +227,8 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			config.Logger.Log(ctx, logutils.TraceLevel, scanner.Text())
+			line := scanner.Text()
+			config.Logger.Log(ctx, logutils.TraceLevel, "backend output", "msg", line)
 		}
 	}()
 
@@ -598,7 +599,7 @@ func (x *Backend) Resize(width, height uint16) error {
 	}
 
 	if !found {
-		modeName := fmt.Sprintf("m%d", modeCount.Inc())
+		modeName := fmt.Sprintf("m%d", modeCount.Add(1))
 
 		id, err := conn.NewId()
 		if err != nil {

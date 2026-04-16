@@ -80,7 +80,7 @@ func TestGetAvailableXSessions(t *testing.T) {
 	require.NoError(t, err)
 	entries, err = GetAvailableXSessions(included, excluded)
 	require.NoError(t, err)
-	require.Len(t, entries, 0)
+	require.Empty(t, entries)
 }
 
 func TestStartTeleportExecXSession(t *testing.T) {
