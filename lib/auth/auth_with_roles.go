@@ -1400,6 +1400,7 @@ func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb strin
 var (
 	// supportedUnifiedResourceKinds is the set of kinds that
 	// may be requested via ListUnifiedResources.
+	// TODO(gabrielcorado): add LLM app subkind.
 	supportedUnifiedResourceKinds = map[string]struct{}{
 		types.KindApp:                    {},
 		types.KindDatabase:               {},
@@ -1416,6 +1417,7 @@ var (
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	// MCP are apps internally atm.
+	// TODO(gabrielcorado): add support for LLM subkind.
 	if kind == types.KindMCP {
 		kind = types.KindApp
 	}

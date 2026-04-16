@@ -458,6 +458,21 @@ func TestConfigReading(t *testing.T) {
 						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
 					},
 				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "bedrock",
+						Models: []LLMModel{
+							{
+								Name:         "claude-opus-4-6",
+								ProviderName: "arn:bedrock:inference-profile",
+							},
+						},
+						FallbackModel: "claude-opus-4-6",
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1666,6 +1681,21 @@ func makeConfigFixture() string {
 				RunAsHostUser: "docker",
 			},
 		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "bedrock",
+				Models: []LLMModel{
+					{
+						Name:         "claude-opus-4-6",
+						ProviderName: "arn:bedrock:inference-profile",
+					},
+				},
+				FallbackModel: "claude-opus-4-6",
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2641,6 +2671,19 @@ app_service:
 `,
 			name:   "TCP app with port bigger than 65535",
 			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: anthropic
+      inference:
+        format: anthropic
+        provider: anthropic
+`,
+			name:   "LLM inference endpoint",
+			outErr: require.NoError,
 		},
 	}
 

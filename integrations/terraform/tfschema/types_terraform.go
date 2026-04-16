@@ -1032,6 +1032,43 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.",
 					Optional:    true,
 				},
+				"inference": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"fallback_model": {
+							Description: "Defines a model that will be used if the model requested is not on the list. The fallback model must be in the \"models\" list.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"format": {
+							Description: "Defines the LLM inference API format.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"models": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Description: "Name defines the model name. This is the requested value.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"provider_name": {
+									Description: "Represents the model name in the configured provider.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Defines the list of supported models, and optionally their name on the inference provider.",
+							Optional:    true,
+						},
+						"provider": {
+							Description: "Defines which inference provider will be used to serve the requests.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "LLM contains LLM inference endpoint related configurations.",
+					Optional:    true,
+				},
 				"insecure_skip_verify": {
 					Description: "InsecureSkipVerify disables app's TLS certificate verification.",
 					Optional:    true,
@@ -13554,6 +13591,138 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["inference"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.LLM = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.LLM = &github_com_gravitational_teleport_api_types.LLM{}
+									obj := obj.LLM
+									{
+										a, ok := tf.Attrs["format"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.format"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.format", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Format = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["provider"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.provider"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.provider", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Provider = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["models"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.models"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Models = make([]*github_com_gravitational_teleport_api_types.LLM_Model, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_types.LLM_Model
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_types.LLM_Model{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.models.name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Name = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["provider_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.models.provider_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models.provider_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ProviderName = t
+																		}
+																	}
+																}
+															}
+															obj.Models[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["fallback_model"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.fallback_model"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.fallback_model", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.FallbackModel = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -15275,6 +15444,206 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								}
 								v.Unknown = false
 								tf.Attrs["mcp"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["inference"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["inference"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.LLM == nil {
+									v.Null = true
+								} else {
+									obj := obj.LLM
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["format"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.format"})
+										} else {
+											v, ok := tf.Attrs["format"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.format", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.format", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Format) == ""
+											}
+											v.Value = string(obj.Format)
+											v.Unknown = false
+											tf.Attrs["format"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["provider"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.provider"})
+										} else {
+											v, ok := tf.Attrs["provider"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.provider", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.provider", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Provider) == ""
+											}
+											v.Value = string(obj.Provider)
+											v.Unknown = false
+											tf.Attrs["provider"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["models"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.models"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.models", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["models"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Models)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Models))
+													}
+												}
+												if obj.Models != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.Models) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Models))
+													}
+													for k, a := range obj.Models {
+														v, ok := tf.Attrs["models"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.models.name"})
+																} else {
+																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.models.name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.models.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Name) == ""
+																	}
+																	v.Value = string(obj.Name)
+																	v.Unknown = false
+																	tf.Attrs["name"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["provider_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.models.provider_name"})
+																} else {
+																	v, ok := tf.Attrs["provider_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.models.provider_name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.models.provider_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ProviderName) == ""
+																	}
+																	v.Value = string(obj.ProviderName)
+																	v.Unknown = false
+																	tf.Attrs["provider_name"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Models) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["models"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["fallback_model"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.fallback_model"})
+										} else {
+											v, ok := tf.Attrs["fallback_model"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.fallback_model", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.fallback_model", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.FallbackModel) == ""
+											}
+											v.Value = string(obj.FallbackModel)
+											v.Unknown = false
+											tf.Attrs["fallback_model"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["inference"] = v
 							}
 						}
 					}
