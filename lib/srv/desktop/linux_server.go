@@ -789,8 +789,7 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 
 func (sess *linuxSession) processScreenChanges() {
 	var lastScreenSize *xproto.Rectangle
-	i := 0
-	os.Mkdir("/tmp/img", 0755)
+
 	for {
 		start := time.Now()
 		size := 0
@@ -827,22 +826,17 @@ func (sess *linuxSession) processScreenChanges() {
 				return
 			}
 
-			os.WriteFile(fmt.Sprintf("/tmp/img/img%d_%dx%d", i, change.Width, change.Height), img, 0644)
-			i++
 			frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
 			if err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to encode FastPathPDUs", "error", err)
 				return
 			}
-			framesSize := 0
 			for _, frame := range frames {
-				framesSize += len(frame.Pdu)
 				if err := sess.tdpConn.WriteMessage(frame); err != nil {
 					sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
 					return
 				}
 			}
-			sess.log.DebugContext(sess.ctx, "frames", "size", size, "frames", framesSize, "height", change.Height, "width", change.Width)
 		}
 		delta := time.Since(start)
 		if size > 0 {

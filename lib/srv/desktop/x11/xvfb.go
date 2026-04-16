@@ -651,6 +651,11 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 				return trace.Wrap(err)
 			}
 
+			x.mu.Lock()
+			x.width = width
+			x.height = height
+			x.mu.Unlock()
+
 			return nil
 		}
 	}
