@@ -290,8 +290,9 @@ func withSAMAccountFilter(filter string) string {
 	})
 }
 
-// extractReferrals gathers referrals from ldapErr
-// If LDAP server can't provide the information required but has the knowledge of proper it will return error like:
+// extractReferrals gathers referrals from the ldapErr.
+// If the LDAP server can't provide the information requested, but it has knowledge of another host or domain
+// that could fulfill the request, then it will return error like:
 // LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310084A
 // You then have to parse content of the ber-encoded error to extract the address for the referral
 func extractReferrals(ldapErr *ldap.Error) []string {
