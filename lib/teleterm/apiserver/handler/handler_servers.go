@@ -47,10 +47,8 @@ func (s *Handler) GetServers(ctx context.Context, req *api.GetServersRequest) (*
 }
 
 func newAPIServer(server clusters.Server) *api.Server {
-	serverLabels := server.GetStaticLabels()
-	serverCmdLabels := server.GetCmdLabels()
 	apiLabels := makeAPILabels(
-		ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels)),
+		ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels()),
 	)
 
 	return &api.Server{
