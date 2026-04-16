@@ -6,17 +6,25 @@ on:
     - cron: '0 7 * * 3' # Every Wednesday at 7 AM UTC
   workflow_dispatch: {}
 
-# Renovate needs the following permissions in order to write branches, pull requests and issues.
+# Renovate authenticates with a GitHub App installation token. The default
+# GitHub token is only used to read the repository contents for checkout.
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 jobs:
   renovate:
     name: Renovate
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: generate_token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        with:
+          app-id: ${{ secrets.PUBLIC_RENOVATE_GHA_APP_ID }}
+          private-key: ${{ secrets.PUBLIC_RENOVATE_GHA_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -24,6 +32,7 @@ jobs:
         uses: renovatebot/github-action@3633cede7d4d4598438e654eac4a695e46004420 # v46.1.7
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_PLATFORM_COMMIT: 'true'
         with:
           configurationFile: .github/renovate.json
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.generate_token.outputs.token }}

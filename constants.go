@@ -171,9 +171,6 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
-	// ComponentSubsystemSFTP is the SFTP subsystem.
-	ComponentSubsystemSFTP = "subsystem:sftp"
-
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -544,6 +541,9 @@ const (
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"
+	// CertExtensionDelegationSessionID contains the identifier of the
+	// Delegation Session this certificate was created for.
+	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.

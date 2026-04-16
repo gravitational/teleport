@@ -34,9 +34,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |aws|[object](#specaws)|The AWS-specific configuration used with the "ec2" and "iam" join methods.|
 |azure|[object](#specazure)|The Azure-specific configuration used with the "azure" join method.|
 |azure_devops|[object](#specazure_devops)|The Azure Devops-specific configuration used with the "azure_devops" join method.|
+|bot_name|string|Name of the bot associated with this join token, if any.|
+|bot_scope|string|Scope of the bot associated with this join token. Required if bot_name is set, and mutually exclusive with assigned_scope.|
+|bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|
-|join_method|string|The joining method required in order to use this token. Supported joining methods for scoped tokens only include 'token'.|
+|join_method|string|The joining method required in order to use this token. Note that not all join methods support joining with scoped tokens.|
 |kubernetes|[object](#speckubernetes)|The Kubernetes-specific configuration used with the "kubernetes" join method.|
 |oracle|[object](#specoracle)|The Oracle-specific configuration used with the "oracle" join method.|
 |roles|[]string|The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.|
@@ -92,6 +95,29 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |repository_uri|string||
 |repository_version|string||
 |sub|string||
+
+### spec.bound_keypair
+
+|Field|Type|Description|
+|---|---|---|
+|onboarding|[object](#specbound_keypaironboarding)|Parameters related to initial onboarding and keypair registration.|
+|recovery|[object](#specbound_keypairrecovery)|Parameters related to recovery after identity expiration, including the initial join.|
+|rotate_after|string|An optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.|
+
+### spec.bound_keypair.onboarding
+
+|Field|Type|Description|
+|---|---|---|
+|initial_public_key|string||
+|must_register_before|string||
+|registration_secret|string||
+
+### spec.bound_keypair.recovery
+
+|Field|Type|Description|
+|---|---|---|
+|limit|integer||
+|mode|string||
 
 ### spec.gcp
 

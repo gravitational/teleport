@@ -22,18 +22,65 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 )
 
-type browserInstance struct {
+type testInstance struct {
 	browser            string
 	log                *slog.Logger
 	proxyPort          int
 	authPort           int
 	sshPort            int
+	e2eDir             string
 	dataDir            string
 	teleportConfigPath string
 	teleport           *teleportInstance
 	node               *dockerNode
+}
+
+// start starts the Teleport instance and SSH node for this test instance.
+// Called lazily from the playwright runner so that at most 2 instances run concurrently.
+func (inst *testInstance) start(ctx context.Context) error {
+	var err error
+
+	defer func() {
+		if err != nil {
+			inst.stop()
+		}
+	}()
+
+	if inst.teleport != nil {
+		if err = inst.teleport.start(ctx); err != nil {
+			return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
+		}
+		if err = inst.teleport.waitReady(ctx, 30*time.Second); err != nil {
+			return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
+		}
+		if err = seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
+			return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
+		}
+	}
+
+	if inst.node != nil {
+		if err = inst.node.start(ctx); err != nil {
+			return fmt.Errorf("failed to start docker node for %s: %w", inst.browser, err)
+		}
+		if err = inst.node.waitJoined(ctx, 30*time.Second); err != nil {
+			return fmt.Errorf("docker node for %s failed to join cluster: %w", inst.browser, err)
+		}
+	}
+
+	return nil
+}
+
+func (inst *testInstance) stop() {
+	if inst.node != nil {
+		inst.node.stop(context.Background())
+	}
+
+	if inst.teleport != nil {
+		inst.teleport.stop()
+	}
 }
 
 var browserColors = map[string]string{

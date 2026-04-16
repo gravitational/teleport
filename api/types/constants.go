@@ -672,6 +672,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -687,6 +690,10 @@ const (
 
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
+
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
 
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
@@ -1321,6 +1328,17 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
+
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
+	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
+
+	// BeamOwnerLabel is the label used to track which user's Beam a resource
+	// belongs to.
+	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
+
+	// BeamAliasLabel is the label used to track the alias of the Beam a
+	// resource belongs to.
+	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
 )
 
 const (

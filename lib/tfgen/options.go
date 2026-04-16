@@ -68,10 +68,22 @@ func WithResourceBlockComment(comment string) GenerateOpt {
 	return func(o *generateOpts) { o.resourceBlockComment = comment }
 }
 
+// WithDependsOn adds a terraform depends_on meta-argument to the generated
+// resource block. The value should be a reference to another Terraform resource
+// in the form "resource_type.resource_name".
+// E.g. "teleport_access_list.acl-UID1234" means the generated resource will
+// wait for "teleport_access_list.acl-UID1234" to be created first.
+//
+// May be called multiple times to add multiple references.
+func WithDependsOn(reference string) GenerateOpt {
+	return func(o *generateOpts) { o.dependsOn = append(o.dependsOn, reference) }
+}
+
 type generateOpts struct {
 	resourceType         string
 	resourceName         string
 	resourceBlockComment string
+	dependsOn            []string
 
 	fieldTransforms map[string]Transform
 	fieldComments   map[string]string

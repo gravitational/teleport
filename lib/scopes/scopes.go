@@ -50,7 +50,8 @@ const (
 	maxScopeSize = 64
 
 	// maxSegmentSize is the maximum size of a segment, excluding separators.
-	maxSegmentSize = 32
+	// The max size is 36 to take into account UUIDs.
+	maxSegmentSize = 36
 
 	// minSegmentSize is the minimum size of a segment, excluding separators.
 	minSegmentSize = 2
