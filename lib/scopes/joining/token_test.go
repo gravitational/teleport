@@ -566,7 +566,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "valid scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = types.SystemRoles{types.RoleNode, types.RoleKube, types.RoleApp, types.RoleDiscovery}.StringSlice()
+				tok.Spec.Roles = types.SystemRoles{types.RoleNode, types.RoleKube}.StringSlice()
 			},
 		},
 		{

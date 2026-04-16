@@ -25,8 +25,7 @@ import (
 	"strings"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
-	managerv2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
@@ -83,11 +82,11 @@ type s3V2FileWriter struct {
 
 // NewS3V2FileWriter created s3V2FileWriter. Close method on writer should be called
 // to make sure that reader has finished.
-func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerv2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) { //nolint:staticcheck // TODO(tigrato)
-	uploader := managerv2.NewUploader(s3Client, uploaderOptions...) //nolint:staticcheck // TODO(tigrato)
+func NewS3V2FileWriter(ctx context.Context, s3Client transfermanager.S3APIClient, bucket, key string, uploaderOptions []func(*transfermanager.Options), putObjectInputOptions ...func(*transfermanager.UploadObjectInput)) (*s3V2FileWriter, error) {
+	client := transfermanager.New(s3Client, uploaderOptions...)
 	pr, pw := io.Pipe()
 
-	uploadParams := &s3v2.PutObjectInput{
+	uploadParams := &transfermanager.UploadObjectInput{
 		Bucket: awsv2.String(bucket),
 		Key:    awsv2.String(key),
 		Body:   pr,
@@ -99,7 +98,7 @@ func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, 
 	uploadFinisherErrChan := make(chan error)
 	go func() {
 		defer close(uploadFinisherErrChan)
-		_, err := uploader.Upload(ctx, uploadParams) //nolint:staticcheck // TODO(tigrato)
+		_, err := client.UploadObject(ctx, uploadParams)
 		if err != nil {
 			pr.CloseWithError(err)
 		}

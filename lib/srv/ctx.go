@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 var ctxID int32
@@ -461,7 +462,7 @@ type ServerContext struct {
 
 	// approvedFileReq is an approved file transfer request that will only be
 	// set when the session's pending file transfer request is approved.
-	approvedFileReq *FileTransferRequest
+	approvedFileReq *reexecsftp.FileTransferRequest
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -1374,7 +1375,7 @@ func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents
 	}
 }
 
-func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest) {
+func (c *ServerContext) setApprovedFileTransferRequest(req *reexecsftp.FileTransferRequest) {
 	c.mu.Lock()
 	c.approvedFileReq = req
 	c.mu.Unlock()
@@ -1384,7 +1385,7 @@ func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest)
 // request for this session if there is one present. Note that if an
 // approved request is returned future calls to this method will return
 // nil to prevent an approved request getting reused incorrectly.
-func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferRequest {
+func (c *ServerContext) ConsumeApprovedFileTransferRequest() *reexecsftp.FileTransferRequest {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

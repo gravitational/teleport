@@ -38,7 +38,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamoTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -151,7 +152,7 @@ type task struct {
 }
 
 type s3downloader interface {
-	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error) //nolint:staticcheck // TODO(tigrato)
+	DownloadObject(ctx context.Context, input *transfermanager.DownloadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.DownloadObjectOutput, error)
 }
 
 type eventsEmitter interface {
@@ -163,7 +164,7 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 	return &task{
 		Config:       cfg,
 		dynamoClient: dynamodb.NewFromConfig(awsCfg),
-		s3Downloader: manager.NewDownloader(s3Client), //nolint:staticcheck // TODO(tigrato)
+		s3Downloader: transfermanager.New(s3Client),
 		eventsEmitter: athena.NewPublisher(athena.PublisherConfig{
 			MessagePublisher: athena.SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(awsCfg, func(o *sns.Options) {
 				o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
@@ -173,7 +174,7 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 					so.RateLimiter = ratelimit.NewTokenRateLimit(1000000)
 				})
 			})),
-			Uploader:      manager.NewUploader(s3Client), //nolint:staticcheck // TODO(tigrato)
+			Uploader:      transfermanager.New(s3Client),
 			PayloadBucket: cfg.LargePayloadBucket,
 			PayloadPrefix: cfg.LargePayloadPrefix,
 		}),
@@ -334,12 +335,13 @@ type dataObjectInfo struct {
 // getDataObjectsInfo downloads manifest-files.json and get data object info from it.
 func (t *task) getDataObjectsInfo(ctx context.Context, manifestPath string) ([]dataObjectInfo, error) {
 	// summary file is small, we can use in-memory buffer.
-	writeAtBuf := manager.NewWriteAtBuffer([]byte{})
-	if _, err := t.s3Downloader.Download(ctx, writeAtBuf, &s3.GetObjectInput{
+	writeAtBuf := tmtypes.NewWriteAtBuffer([]byte{})
+	if _, err := t.s3Downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
 		Bucket: aws.String(t.Bucket),
 		// AWS SDK returns manifest-summary.json path. We are interested in
 		// manifest-files.json because it's contains references about data export files.
-		Key: aws.String(path.Dir(manifestPath) + "/manifest-files.json"),
+		Key:      aws.String(path.Dir(manifestPath) + "/manifest-files.json"),
+		WriterAt: writeAtBuf,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -506,9 +508,10 @@ func (t *task) downloadFromS3AndSort(ctx context.Context, dataObj dataObjectInfo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := t.s3Downloader.Download(ctx, originalFile, &s3.GetObjectInput{
-		Bucket: aws.String(t.Bucket),
-		Key:    aws.String(dataObj.DataFileS3Key),
+	if _, err := t.s3Downloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+		Bucket:   aws.String(t.Bucket),
+		Key:      aws.String(dataObj.DataFileS3Key),
+		WriterAt: originalFile,
 	}); err != nil {
 		return nil, trace.NewAggregate(err, originalFile.Close())
 	}

@@ -23,7 +23,7 @@ import (
 	"log/slog"
 	"maps"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -357,110 +357,101 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
-			// Create and start test auth server.
-			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-				Dir: t.TempDir(),
-			})
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
-
-			tlsServer, err := testAuthServer.NewTestTLSServer()
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
-
-			// Auth client for discovery service.
-			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
-			authClient, err := tlsServer.NewClient(identity)
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
-
-			integration, err := types.NewIntegrationAWSOIDC(
-				types.Metadata{Name: "integration1"},
-				&types.AWSOIDCIntegrationSpecV1{
-					RoleARN: "arn:aws:iam::123456789012:role/IntegrationRole",
-				},
-			)
-			require.NoError(t, err)
-
-			testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
-				proxies: nil,
-				integrations: map[string]types.Integration{
-					integration.GetName(): integration,
-				},
-			}
-
-			_, err = tlsServer.Auth().CreateIntegration(ctx, integration)
-			require.NoError(t, err)
-
-			for _, kubeCluster := range tc.existingKubeClusters {
-				err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
-				require.NoError(t, err)
-			}
-
-			for _, kubeServer := range tc.existingKubeServers {
-				_, err := tlsServer.Auth().UpsertKubernetesServer(ctx, kubeServer)
-				require.NoError(t, err)
-			}
-
-			reporter := &mockUsageReporter{}
-
-			tlsServer.Auth().SetUsageReporter(reporter)
-			discServer, err := New(
-				authz.ContextWithUser(ctx, identity.I),
-				&Config{
-					AWSFetchersClients: &mockFetchersClients{
-						AWSConfigProvider: fakeConfigProvider,
-						eksClusters:       eksMockClusters[:2],
-					},
-					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewClientset(),
-					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
-					Matchers: Matchers{
-						AWS: tc.awsMatchers,
-					},
-					Emitter:        authClient,
-					Log:            logtest.NewLogger(),
-					DiscoveryGroup: mainDiscoveryGroup,
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+				// Create and start test auth server.
+				testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+					Dir: t.TempDir(),
 				})
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-			require.NoError(t, err)
+				tlsServer, err := testAuthServer.NewTestTLSServer(authtest.WithBufconnListener())
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-			if tc.discoveryConfig != nil {
-				dc := tc.discoveryConfig(t)
-				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
+				// Auth client for discovery service.
+				identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
+				authClient, err := tlsServer.NewClient(identity)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+				integration, err := types.NewIntegrationAWSOIDC(
+					types.Metadata{Name: "integration1"},
+					&types.AWSOIDCIntegrationSpecV1{
+						RoleARN: "arn:aws:iam::123456789012:role/IntegrationRole",
+					},
+				)
 				require.NoError(t, err)
 
-				// Wait for the DiscoveryConfig to be added to the dynamic fetchers.
-				require.Eventually(t, func() bool {
-					discServer.muDynamicKubeFetchers.RLock()
-					defer discServer.muDynamicKubeFetchers.RUnlock()
-					return len(discServer.dynamicKubeFetchers) > 0
-				}, 1*time.Second, 100*time.Millisecond)
-			}
+				testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+					proxies: nil,
+					integrations: map[string]types.Integration{
+						integration.GetName(): integration,
+					},
+				}
 
-			t.Cleanup(func() {
-				discServer.Stop()
-			})
-			go discServer.Start()
+				_, err = tlsServer.Auth().CreateIntegration(ctx, integration)
+				require.NoError(t, err)
 
-			require.Eventually(t, func() bool {
+				for _, kubeCluster := range tc.existingKubeClusters {
+					err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
+					require.NoError(t, err)
+				}
+
+				for _, kubeServer := range tc.existingKubeServers {
+					_, err := tlsServer.Auth().UpsertKubernetesServer(ctx, kubeServer)
+					require.NoError(t, err)
+				}
+
+				reporter := &mockUsageReporter{}
+
+				tlsServer.Auth().SetUsageReporter(reporter)
+				discServer, err := New(
+					authz.ContextWithUser(ctx, identity.I),
+					&Config{
+						AWSFetchersClients: &mockFetchersClients{
+							AWSConfigProvider: fakeConfigProvider,
+							eksClusters:       eksMockClusters[:2],
+						},
+						ClusterFeatures:  func() proto.Features { return proto.Features{} },
+						KubernetesClient: fake.NewClientset(),
+						AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
+						Matchers: Matchers{
+							AWS: tc.awsMatchers,
+						},
+						Emitter:        authClient,
+						Log:            logtest.NewLogger(),
+						DiscoveryGroup: mainDiscoveryGroup,
+					})
+
+				require.NoError(t, err)
+
+				if tc.discoveryConfig != nil {
+					dc := tc.discoveryConfig(t)
+					_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
+					require.NoError(t, err)
+				}
+				synctest.Wait()
+
+				t.Cleanup(func() {
+					discServer.Stop()
+				})
+				go discServer.Start()
+
+				synctest.Wait()
+
 				kubeServers, err := tlsServer.Auth().GetKubernetesServers(ctx)
 				require.NoError(t, err)
 
-				if len(kubeServers) == len(tc.expectedServersToExistInAuth) {
-					k1 := types.KubeServers(kubeServers).ToMap()
-					k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
-					for k := range k1 {
-						if services.CompareResources(k1[k], k2[k]) != services.Equal {
-							return false
-						}
-					}
-					return true
-				}
+				require.Len(t, kubeServers, len(tc.expectedServersToExistInAuth), "number of kube servers in auth server does not match expected")
 
-				return false
-			}, 315*time.Second, 200*time.Millisecond)
+				k1 := types.KubeServers(kubeServers).ToMap()
+				k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
+				for k := range k1 {
+					require.Equal(t, services.Equal, services.CompareResources(k1[k], k2[k]), "kube server in auth server does not match expected")
+				}
+			})
 		})
 	}
 }

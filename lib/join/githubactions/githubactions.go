@@ -105,6 +105,12 @@ type IDTokenClaims struct {
 	RepositoryOwner string `json:"repository_owner"`
 	// The ID of the organization in which the repository is stored.
 	RepositoryOwnerID string `json:"repository_owner_id"`
+	// The name of the enterprise that owns the repository.
+	// Can be empty if enterprise does not own org/repo.
+	Enterprise string `json:"enterprise"`
+	// The ID of the enterprise that owns the repository.
+	// Can be empty if enterprise does not own org/repo.
+	EnterpriseID string `json:"enterprise_id"`
 	// The ID of the workflow run that triggered the workflow.
 	RunID string `json:"run_id"`
 	// The number of times this workflow has been run.
@@ -137,6 +143,8 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
 		EventName:       c.EventName,
 		Sha:             c.SHA,
 		RunId:           c.RunID,
+		Enterprise:      c.Enterprise,
+		EnterpriseId:    c.EnterpriseID,
 	}
 
 	return attrs
@@ -285,6 +293,12 @@ func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims)
 			continue
 		}
 		if rule.RefType != "" && claims.RefType != rule.RefType {
+			continue
+		}
+		if rule.Enterprise != "" && claims.Enterprise != rule.Enterprise {
+			continue
+		}
+		if rule.EnterpriseID != "" && claims.EnterpriseID != rule.EnterpriseID {
 			continue
 		}
 

@@ -203,7 +203,7 @@ async function initializeApp(): Promise<void> {
       windowsManager.createWindow();
 
       if (configService.get('runInBackground').value) {
-        setTray(settings, { show: () => windowsManager.showWindow() });
+        setTray(settings, { show: () => windowsManager.focusWindow() });
       }
     })
     .catch(error => {
