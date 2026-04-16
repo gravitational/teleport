@@ -16,36 +16,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useMemo } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
 import { FieldRadio } from 'design/FieldRadio';
+import { Option } from 'shared/components/Select';
 import { Rule } from 'shared/components/Validation/rules';
 
 import { Regions as AwsRegion } from 'teleport/services/integrations';
 
-import { RegionMultiSelector } from '../RegionMultiSelector';
-import { CircleNumber, WildcardRegion } from '../Shared';
-import { awsRegionGroups } from './regions';
-
-type RegionsOrWildcard = WildcardRegion | AwsRegion[];
+import { CircleNumber, RegionOrWildcard } from '../Shared';
+import { RegionSelect } from '../Shared/RegionSelect';
+import { awsRegionOptions } from './regions';
 
 type RegionsSectionProps = {
-  regions: RegionsOrWildcard;
-  onChange: (regions: RegionsOrWildcard) => void;
+  regions: RegionOrWildcard<AwsRegion>[];
+  onChange: (regions: RegionOrWildcard<AwsRegion>[]) => void;
 };
 
-const isWildcard = (regions: RegionsOrWildcard): regions is WildcardRegion =>
-  regions.length === 1 && regions[0] === '*';
+const isWildcard = (regions: RegionOrWildcard<AwsRegion>[]) =>
+  regions.some(region => region === '*');
 
 export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
-  const requiredAtLeastOneRegion: Rule<RegionsOrWildcard> =
-    (regions: RegionsOrWildcard) => () => {
-      if (isWildcard(regions)) {
-        return { valid: true };
-      }
+  const selectedOptions: Option<AwsRegion>[] = useMemo(() => {
+    if (isWildcard(regions)) {
+      return [];
+    }
 
-      if (!regions || regions.length === 0) {
+    const allOptions = awsRegionOptions.flatMap(group => group.options);
+    return allOptions.filter(opt => regions.includes(opt.value));
+  }, [regions]);
+
+  const requiredAtLeastOneRegion: Rule<Option<AwsRegion>[]> =
+    (options: Option<AwsRegion>[]) => () => {
+      if (!options || options.length === 0) {
         return {
           valid: false,
           message: 'At least one region must be selected',
@@ -91,11 +96,12 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
 
         {!isWildcard(regions) && (
           <Box mt={3}>
-            <RegionMultiSelector
-              regionGroups={awsRegionGroups}
-              selectedRegions={regions}
-              onChange={regions => onChange(regions)}
-              disabled={false}
+            <RegionSelect
+              isMulti={true}
+              options={awsRegionOptions}
+              value={selectedOptions}
+              onChange={options => onChange(options.map(opt => opt.value))}
+              isDisabled={false}
               required={true}
               rule={requiredAtLeastOneRegion}
             />

@@ -36,7 +36,7 @@ import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_
 import { Ec2Config } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
 import {
   Divider,
-  WildcardRegion,
+  RegionOrWildcard,
 } from 'teleport/Integrations/Enroll/Cloud/Shared';
 import {
   InfoGuideTab,
@@ -48,7 +48,7 @@ import {
   IntegrationDiscoveryRule,
   integrationService,
   IntegrationWithSummary,
-  Regions,
+  Regions as AwsRegion,
 } from 'teleport/services/integrations';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
@@ -79,19 +79,17 @@ export function SettingsTab({
 
   const getRegionsFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): WildcardRegion | Regions[] => {
+  ): RegionOrWildcard<AwsRegion>[] => {
     if (!rules || rules.length === 0) {
-      return ['*'] as WildcardRegion;
+      return ['*'];
     }
     const regions = rules.map(rule => rule.region);
 
     if (regions.includes('*') || regions.includes('aws-global')) {
-      return ['*'] as WildcardRegion;
+      return ['*'];
     }
 
-    return regions.length === 0
-      ? (['*'] as WildcardRegion)
-      : (regions as Regions[]);
+    return regions as RegionOrWildcard<AwsRegion>[];
   };
 
   const getEc2ConfigFromRules = (
@@ -108,7 +106,7 @@ export function SettingsTab({
   });
 
   const [updatedRegions, setRegions] = useState<
-    WildcardRegion | Regions[] | null
+    RegionOrWildcard<AwsRegion>[] | null
   >(null);
   const [updatedEc2Config, setEc2Config] = useState<Ec2Config | null>(null);
 
