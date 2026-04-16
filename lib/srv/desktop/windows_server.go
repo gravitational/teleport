@@ -882,17 +882,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		}
 	}
 
-	// it's important that we set the OnSend and OnRecv handlers prior to
-	// initializing the client so that we capture all relevant data in the
-	// session recording
+	// Set the send and receive auditors prior to initializing the
+	// client so that we capture all relevant data in the session recording.
 	delay := timer()
-	sendInterceptor := asInterceptor(s.makeTDPSendHandler(ctx, recorder, delay, audit))
-	receiveIntercetpr := asInterceptor(s.makeTDPReceiveHandler(ctx, recorder, delay, audit))
+	sendInterceptor := asInterceptor(s.makeTDPSendAuditor(ctx, recorder, delay, audit))
+	receiveInterceptor := asInterceptor(s.makeTDPReceiveAuditor(ctx, recorder, delay, audit))
 
 	// These hooks snoop for TDPB messages (ignoring legacy TDP) to create necessary audit events.
 	// The client emits only TDPB messages natively, so as long as we run these hooks *above* the translation
 	// interceptors they will be able to properly interpret inbound/outbound messages for audit.
-	auditedConn := tdp.NewReadWriteInterceptor(translatedConn, receiveIntercetpr, sendInterceptor)
+	auditedConn := tdp.NewReadWriteInterceptor(translatedConn, receiveInterceptor, sendInterceptor)
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(auditedConn, hello, rdpclient.Config{
@@ -1055,7 +1054,7 @@ func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int
 	}
 }
 
-func (s *WindowsService) makeTDPSendHandler(
+func (s *WindowsService) makeTDPSendAuditor(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
@@ -1099,7 +1098,7 @@ func (s *WindowsService) makeTDPSendHandler(
 	}
 }
 
-func (s *WindowsService) makeTDPReceiveHandler(
+func (s *WindowsService) makeTDPReceiveAuditor(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,

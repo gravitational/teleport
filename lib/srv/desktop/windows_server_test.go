@@ -315,7 +315,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
 	encoded, err := msg.Encode()
@@ -346,7 +346,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	png := &tdpb.PNGFrame{Data: maliciousPNG}
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 	require.NoError(t, handler(png))
 
 	require.Nil(t, emitter.LastEvent())
@@ -363,7 +363,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	handler := s.makeTDPReceiveAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.MouseButton{
 		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
@@ -390,7 +390,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPReceiveHandler(
+	handler := s.makeTDPReceiveAuditor(
 		context.Background(),
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
@@ -427,7 +427,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPSendHandler(
+	handler := s.makeTDPSendAuditor(
 		context.Background(),
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
