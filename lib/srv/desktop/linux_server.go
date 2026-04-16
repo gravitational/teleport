@@ -736,7 +736,6 @@ func (sess *linuxSession) handleSessionSelection(m *tdpb.SessionSelection) error
 		ChildLogConfig: sess.service.cfg.ChildLogConfig,
 		Display:        sess.backend.Display,
 		AuthorityFile:  sess.backend.AuthorityFile,
-		RemoteAddr:     reexec.NetAddrFromAddr(sess.tdpConn.RemoteAddr()),
 	})
 	if err != nil {
 		sess.log.ErrorContext(sess.ctx, "failed to start Xsession", "error", err)

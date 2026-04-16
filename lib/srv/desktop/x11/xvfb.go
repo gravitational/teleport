@@ -572,17 +572,10 @@ func (x *Backend) Resize(width, height uint16) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	crtc := resources.Crtcs[0]
-	crtcInfo, err := randr.GetCrtcInfo(conn, crtc, xproto.TimeCurrentTime).Reply()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	var mode randr.Mode
 	found := false
 	for _, m := range resources.Modes {
 		if m.Width == width && m.Height == height {
-			mode = randr.Mode(m.Id)
 			found = true
 			break
 		}
@@ -604,25 +597,10 @@ func (x *Backend) Resize(width, height uint16) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		mode = m.Mode
+		mode := m.Mode
 		if err := randr.AddOutputModeChecked(conn, resources.Outputs[0], mode).Check(); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	_, err = randr.SetCrtcConfig(
-		conn,
-		crtc,
-		xproto.TimeCurrentTime,
-		crtcInfo.Timestamp,
-		crtcInfo.X,
-		crtcInfo.Y,
-		mode,
-		crtcInfo.Rotation,
-		crtcInfo.Outputs,
-	).Reply()
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err := x.setScreenSize(width, height); err != nil {
@@ -639,6 +617,7 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 	}
 	for i := 0; i < len(screen.Sizes); i++ {
 		if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
+			x.mu.Lock()
 			_, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
 			if err != nil {
 				return trace.Wrap(err)
@@ -651,7 +630,6 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 				return trace.Wrap(err)
 			}
 
-			x.mu.Lock()
 			x.width = width
 			x.height = height
 			x.mu.Unlock()
