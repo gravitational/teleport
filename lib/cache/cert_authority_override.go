@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -106,17 +105,6 @@ func newCertAuthorityOverrideCollection(
 					return upstream.ListCertAuthorityOverrides(ctx, pageSize, pageToken)
 				}))
 			return out, trace.Wrap(err)
-		},
-		headerTransform: func(hdr *types.ResourceHeader) *subcav1.CertAuthorityOverride {
-			return &subcav1.CertAuthorityOverride{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				SubKind: hdr.SubKind,
-				Metadata: &headerv1.Metadata{
-					Name:        hdr.Metadata.Name,
-					Description: hdr.Metadata.Description,
-				},
-			}
 		},
 		watch: watchKind,
 	}, nil

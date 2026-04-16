@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -240,14 +241,14 @@ func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource
 		name := parts[0]
 		subKind := parts[1]
 
-		return &types.ResourceHeader{
+		return types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{
 			Kind:    types.KindCertAuthorityOverride,
 			Version: types.V1,
 			SubKind: subKind,
-			Metadata: types.Metadata{
+			Metadata: &headerv1.Metadata{
 				Name: name,
 			},
-		}, nil
+		}), nil
 	case types.OpPut:
 		r, err := services.UnmarshalCertAuthorityOverride(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
