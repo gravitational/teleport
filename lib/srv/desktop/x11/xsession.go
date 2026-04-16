@@ -136,11 +136,6 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		UaccMetadata: reexec.UaccMetadata{
 			RemoteAddr: cfg.RemoteAddr,
 		},
-		PAMConfig: &reexec.PAMConfig{
-			UsePAMAuth:  false,
-			ServiceName: "other",
-			Environment: nil,
-		},
 	}
 
 	dbusPath, err := exec.LookPath("dbus-run-session")
