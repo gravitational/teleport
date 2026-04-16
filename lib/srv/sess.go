@@ -2309,11 +2309,12 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID:         s.registry.Srv.HostUUID(),
-		TargetSubKind:  s.serverMeta.ServerSubKind,
-		InitialCommand: initialCommand,
-		Reason:         s.scx.GetSessionParams().Reason,
-		Invited:        s.scx.GetSessionParams().Invited,
+		HostID:           s.registry.Srv.HostUUID(),
+		TargetSubKind:    s.serverMeta.ServerSubKind,
+		InitialCommand:   initialCommand,
+		Reason:           s.scx.GetSessionParams().Reason,
+		Invited:          s.scx.GetSessionParams().Invited,
+		AccessRequestIDs: s.scx.Identity.ActiveRequests,
 	}
 
 	// Don't propagate the session tracker to the backend if:

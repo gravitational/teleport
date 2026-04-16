@@ -1449,6 +1449,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Invited:           s.invitedUsers,
 		HostID:            s.forwarder.cfg.HostID,
 		InitialCommand:    command,
+		AccessRequestIDs:  s.ctx.Identity.GetIdentity().ActiveRequests,
 	}
 
 	s.log.DebugContext(ctx, "Creating session tracker")
