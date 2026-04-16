@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -103,27 +101,14 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
 	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
-	env.AddTrusted("XDG_SESSION_TYPE", "x11")
-	temp, err := os.MkdirTemp("", "teleport")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	u, err := user.Lookup(cfg.Login)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(u.Gid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := os.Chown(temp, uid, gid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	env.AddTrusted("XDG_RUNTIME_DIR", temp)
+	runtimeDir := fmt.Sprintf("/run/user/%s", u.Uid)
+	env.AddTrusted("XDG_RUNTIME_DIR", runtimeDir)
+	env.AddTrusted("DBUS_SESSION_BUS_ADDRESS", fmt.Sprintf("unix:path=%s/bus", runtimeDir))
+	env.AddTrusted("XDG_SESSION_TYPE", "x11")
 
 	cmdmsg := &reexec.ExecCommand{
 		Command:         cfg.Command,
@@ -136,11 +121,6 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		UaccMetadata: reexec.UaccMetadata{
 			RemoteAddr: cfg.RemoteAddr,
 		},
-	}
-
-	dbusPath, err := exec.LookPath("dbus-run-session")
-	if err == nil {
-		cmdmsg.Command = fmt.Sprintf("%s %s", dbusPath, cmdmsg.Command)
 	}
 
 	inr, inw, err := os.Pipe()
