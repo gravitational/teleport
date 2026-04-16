@@ -117,7 +117,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 
 	{{- if .GetCanReturnNil }}
 
-	if {{.VarName}}Before == nil {
+	if {{.VarName}}Before == nil || trace.IsNotFound(err) {
 		{{.VarName}}Before = &{{.ProtoPackage}}.{{.TypeName}}{}
 	}
 
@@ -223,6 +223,10 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	}
 
 	{{.VarName}}I, err := r.p.Client.Get{{.Name}}(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
