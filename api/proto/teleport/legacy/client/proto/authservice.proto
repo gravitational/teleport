@@ -1815,6 +1815,15 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails ca_override = 2;
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
