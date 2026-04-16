@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -742,4 +743,75 @@ func TestDelegationSessionID(t *testing.T) {
 	require.True(t, out.IsDelegationSession())
 	require.False(t, out.Renewable)
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+// TestScopedAgentTraitsSentinel verifies the backward-compatibility sentinel used by scoped agent certificates.
+//
+// The sentinel is stored in the traits (PostalCode) field instead of actual traits. Pre-scope versions of Teleport
+// will fail to unmarshal this value and reject the certificate, which is the intended fail-closed behavior. This test
+// guards against changes that would accidentally break either side of that contract.
+func TestScopedAgentTraitsSentinel(t *testing.T) {
+	t.Run("unmarshal fails on sentinel", func(t *testing.T) {
+		// This is the core correctness invariant: if UnmarshalTraits ever stops returning an error for the sentinel
+		// value, pre-scope Teleport versions would silently accept scoped certs rather than rejecting them.
+		var traits wrappers.Traits
+		err := wrappers.UnmarshalTraits([]byte(teleport.TLSScopedAgentTraitsSentinel), &traits)
+		require.Error(t, err, "UnmarshalTraits must fail on the scoped agent sentinel value")
+	})
+
+	t.Run("returns error when feature disabled", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "")
+		withScope := Identity{
+			Username:   "hostid",
+			Groups:     []string{string(types.RoleNode)},
+			AgentScope: "/my/scope",
+		}
+		_, err := withScope.Subject()
+		require.Error(t, err, "Subject must fail when AgentScope is set and scopes feature is disabled")
+	})
+
+	t.Run("sentinel present iff AgentScope set", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+		withScope := Identity{
+			Username:   "hostid",
+			Groups:     []string{string(types.RoleNode)},
+			AgentScope: "/my/scope",
+		}
+		subj, err := withScope.Subject()
+		require.NoError(t, err)
+		require.Equal(t, []string{teleport.TLSScopedAgentTraitsSentinel}, subj.PostalCode,
+			"PostalCode should contain only the sentinel when AgentScope is set")
+
+		withoutScope := Identity{
+			Username: "alice",
+			Groups:   []string{"editor"},
+		}
+		subj, err = withoutScope.Subject()
+		require.NoError(t, err)
+		require.NotContains(t, subj.PostalCode, teleport.TLSScopedAgentTraitsSentinel,
+			"PostalCode must not contain the sentinel when AgentScope is not set")
+	})
+
+	t.Run("round-trip preserves AgentScope and leaves traits nil", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+		original := Identity{
+			Username:        "hostid",
+			Groups:          []string{string(types.RoleNode)},
+			AgentScope:      "/my/scope",
+			TeleportCluster: "mycluster",
+		}
+		subj, err := original.Subject()
+		require.NoError(t, err)
+
+		// Simulate what happens when the cert is parsed: ExtraNames are merged into Names.
+		subj.Names = append(subj.Names, subj.ExtraNames...)
+		subj.ExtraNames = nil
+
+		got, err := FromSubject(subj, original.Expires)
+		require.NoError(t, err)
+		require.Equal(t, original.AgentScope, got.AgentScope)
+		require.Empty(t, got.Traits, "Traits should be empty for a scoped agent identity")
+	})
 }

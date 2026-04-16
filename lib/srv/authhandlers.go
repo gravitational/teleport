@@ -528,8 +528,9 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 	// timestamp, etc). Fallback to keys is not supported.
 	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsUserAuthority: h.IsUserAuthority,
-			Clock:           h.c.Clock.Now,
+			IsUserAuthority:          h.IsUserAuthority,
+			Clock:                    h.c.Clock.Now,
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
 		},
 		FIPS: h.c.FIPS,
 	}
@@ -854,9 +855,10 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 	// authority (CA) or fallback to host key checking if it's allowed.
 	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: h.IsHostAuthority,
-			HostKeyFallback: h.hostKeyCallback,
-			Clock:           h.c.Clock.Now,
+			IsHostAuthority:          h.IsHostAuthority,
+			HostKeyFallback:          h.hostKeyCallback,
+			Clock:                    h.c.Clock.Now,
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
 		},
 		FIPS: h.c.FIPS,
 	}

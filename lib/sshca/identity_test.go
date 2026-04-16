@@ -28,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -157,4 +158,97 @@ func TestIdentityConversion(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(ident, ident2, protocmp.Transform()))
+}
+
+// TestScopedAgentCriticalOption verifies the backward-compatibility critical option used by scoped agent certificates.
+//
+// The critical option causes versions of Teleport that do not understand scoped agents to reject any certificate
+// containing it, which is the intended fail-closed behavior. This test guards against changes that would
+// accidentally break either side of that contract.
+func TestScopedAgentCriticalOption(t *testing.T) {
+	t.Run("returns error when feature disabled", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "")
+		ident := &Identity{
+			CertType:   ssh.HostCert,
+			Username:   "hostid",
+			SystemRole: types.RoleNode,
+			AgentScope: "/my/scope",
+		}
+		_, err := ident.Encode(constants.CertificateFormatStandard)
+		require.Error(t, err, "Encode must fail when AgentScope is set and scopes feature is disabled")
+	})
+
+	t.Run("critical option present iff AgentScope set", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+		withScope := &Identity{
+			CertType:   ssh.HostCert,
+			Username:   "hostid",
+			SystemRole: types.RoleNode,
+			AgentScope: "/my/scope",
+		}
+		cert, err := withScope.Encode(constants.CertificateFormatStandard)
+		require.NoError(t, err)
+		require.Contains(t, cert.CriticalOptions, teleport.CertCriticalOptionScopedAgent,
+			"critical option must be present when AgentScope is set")
+
+		withoutScope := &Identity{
+			CertType:   ssh.HostCert,
+			Username:   "hostid",
+			SystemRole: types.RoleNode,
+		}
+		cert, err = withoutScope.Encode(constants.CertificateFormatStandard)
+		require.NoError(t, err)
+		require.NotContains(t, cert.CriticalOptions, teleport.CertCriticalOptionScopedAgent,
+			"critical option must be absent when AgentScope is not set")
+	})
+
+	t.Run("unknown critical option rejects cert", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+		// This is the core correctness invariant: a CertChecker without SupportedCriticalOptions
+		// must reject a scoped agent cert, matching the behavior of pre-scope Teleport versions.
+		ident := &Identity{
+			CertType:    ssh.HostCert,
+			Username:    "hostid",
+			SystemRole:  types.RoleNode,
+			AgentScope:  "/my/scope",
+			ValidAfter:  1,
+			ValidBefore: 2,
+		}
+		cert, err := ident.Encode(constants.CertificateFormatStandard)
+		require.NoError(t, err)
+
+		checker := ssh.CertChecker{}
+		err = checker.CheckCert("hostid", cert)
+		require.Error(t, err, "CertChecker without SupportedCriticalOptions must reject a scoped agent cert")
+		require.Contains(t, err.Error(), teleport.CertCriticalOptionScopedAgent)
+
+		// A checker that knows about the option must not reject it on that basis.
+		checkerWithSupport := ssh.CertChecker{
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
+		}
+		err = checkerWithSupport.CheckCert("hostid", cert)
+		// Error is expected (cert is unsigned and expired), but must NOT be about the critical option.
+		if err != nil {
+			require.NotContains(t, err.Error(), teleport.CertCriticalOptionScopedAgent)
+		}
+	})
+
+	t.Run("round-trip preserves AgentScope", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+		original := &Identity{
+			CertType:   ssh.HostCert,
+			Username:   "hostid",
+			SystemRole: types.RoleNode,
+			AgentScope: "/my/scope",
+		}
+		cert, err := original.Encode(constants.CertificateFormatStandard)
+		require.NoError(t, err)
+
+		decoded, err := DecodeIdentity(cert)
+		require.NoError(t, err)
+		require.Equal(t, original.AgentScope, decoded.AgentScope)
+	})
 }

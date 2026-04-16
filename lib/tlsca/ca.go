@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -690,9 +691,25 @@ var (
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
-	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
-	if err != nil {
-		return pkix.Name{}, trace.Wrap(err)
+	if len(id.Traits) > 0 && id.AgentScope != "" {
+		return pkix.Name{}, trace.BadParameter("identity cannot contain mix of traits and agent scope")
+	}
+
+	// XXX: placing a sentinel value in traits is a temporary hack intended to make scoped agent certs incompatible with
+	// teleport versions that are not running the current iteration of unstable scoped features. Future iterations will
+	// use a scoped agent identity representation with more natural fail-closed mechanics.
+	var rawTraits []byte
+	if id.AgentScope != "" {
+		if err := scopes.AssertFeatureEnabled(); err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		rawTraits = []byte(teleport.TLSScopedAgentTraitsSentinel)
+	} else {
+		var err error
+		rawTraits, err = wrappers.MarshalTraits(&id.Traits)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
 	}
 
 	subject := pkix.Name{
@@ -1163,7 +1180,8 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 	if len(subject.StreetAddress) > 0 {
 		id.RouteToCluster = subject.StreetAddress[0]
 	}
-	if len(subject.PostalCode) > 0 {
+	// Skip traits unmarshaling if the postal code contains the scoped agent sentinel (see teleport.TLSScopedAgentTraitsSentinel).
+	if len(subject.PostalCode) > 0 && subject.PostalCode[0] != teleport.TLSScopedAgentTraitsSentinel {
 		err := wrappers.UnmarshalTraits([]byte(subject.PostalCode[0]), &id.Traits)
 		if err != nil {
 			return nil, trace.Wrap(err)

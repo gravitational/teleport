@@ -36,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -324,6 +325,21 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip
 	}
 
+	if i.AgentScope != "" {
+		if err := scopes.AssertFeatureEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cert.CriticalOptions == nil {
+			cert.CriticalOptions = make(map[string]string)
+		}
+		// CertCriticalOptionScopedAgent is a critical option set on agent/host certificates when they
+		// use unstable scoped features. This is a temporary measure to prevent use of scoped certificates
+		// with incompatible teleport version while scopes are behind their unstable feature flag.
+		// TODO(fspmarshall/scopes): Remove scoped agent critical option in favor of more graceful
+		// fail-closed mechanic prior to stabilization of scopes.
+		cert.CriticalOptions[teleport.CertCriticalOptionScopedAgent] = ""
+	}
+
 	for _, extension := range i.CertificateExtensions {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
 		if extension.Mode != types.CertExtensionMode_EXTENSION ||
@@ -463,6 +479,15 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	}
 
 	ident.AgentScope = takeValue(teleport.CertExtensionAgentScope)
+	/// CertCriticalOptionScopedAgent is a critical option set on agent/host certificates when they
+	// use unstable scoped features. This is a temporary measure to prevent use of scoped certificates
+	// with incompatible teleport version while scopes are behind their unstable feature flag.
+	// TODO(fspmarshall/scopes): Remove scoped agent critical option in favor of more graceful
+	// fail-closed mechanic prior to stabilization of scopes.
+	if _, ok := cert.CriticalOptions[teleport.CertCriticalOptionScopedAgent]; ok && ident.AgentScope == "" {
+		return nil, trace.BadParameter("certificate has %q critical option but missing %q extension",
+			teleport.CertCriticalOptionScopedAgent, teleport.CertExtensionAgentScope)
+	}
 	ident.PermitX11Forwarding = takeBool(teleport.CertExtensionPermitX11Forwarding)
 	ident.PermitAgentForwarding = takeBool(teleport.CertExtensionPermitAgentForwarding)
 	ident.PermitPortForwarding = takeBool(teleport.CertExtensionPermitPortForwarding)

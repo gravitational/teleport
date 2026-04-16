@@ -797,6 +797,9 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 	}
 
 	certChecker := sshutils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
+		},
 		FIPS: fips,
 	}
 	err := certChecker.CheckCert(cert.ValidPrincipals[0], cert)
