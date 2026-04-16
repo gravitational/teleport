@@ -45,6 +45,7 @@ import (
 
 type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 }
 
 const (
@@ -470,7 +471,7 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 // This must be called only if the SAML connector has OAuth credentials configured with a client ID but no client secret.
 func FillSAMLOAuthClientSecretFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
 	connectorName := connector.GetName()
-	existing, err := sg.GetSAMLConnector(ctx, connectorName, true)
+	existing, err := sg.GetSAMLConnectorWithValidationOptions(ctx, connectorName, true, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		return trace.Wrap(err)
 	}

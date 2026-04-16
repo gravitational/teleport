@@ -147,6 +147,10 @@ func (m mockSAMLGetter) GetSAMLConnector(_ context.Context, id string, withSecre
 	return connector, nil
 }
 
+func (m mockSAMLGetter) GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, _ ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
+	return m.GetSAMLConnector(ctx, id, withSecrets)
+}
+
 func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 	t.Parallel()
 
