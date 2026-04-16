@@ -148,15 +148,35 @@ func EncodeClusterName(clusterName string) string {
 
 // ListKubeClustersWithFilters returns a sorted list of unique kubernetes clusters
 // registered in p.
-func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
-	req.ResourceType = types.KindKubeServer
-
-	kss, err := client.GetAllResources[types.KubeServer](ctx, p, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func ListKubeClustersWithFilters(ctx context.Context, p client.ListUnifiedResourcesClient, req proto.ListUnifiedResourcesRequest) ([]types.KubeCluster, error) {
+	req.Kinds = []string{types.KindKubeServer, types.KindKubernetesCluster}
+	req.SortBy = types.SortBy{
+		Field: types.ResourceKind,
 	}
 
-	return extractAndSortKubeClusters(kss), nil
+	var servers []types.KubeServer
+	for {
+		page, next, err := client.GetUnifiedResourcePage(ctx, p, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page {
+			srv, ok := r.ResourceWithLabels.(types.KubeServer)
+			if !ok {
+				continue
+			}
+
+			servers = append(servers, srv)
+		}
+
+		req.StartKey = next
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return extractAndSortKubeClusters(servers), nil
 }
 
 func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {

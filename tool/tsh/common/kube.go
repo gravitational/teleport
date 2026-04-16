@@ -1115,7 +1115,14 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		}
 
 		group.Go(func() error {
-			kc, err := kubeutils.ListKubeClustersWithFilters(groupCtx, cluster.auth, cluster.req)
+			req := proto.ListUnifiedResourcesRequest{
+				SearchKeywords:      cluster.req.SearchKeywords,
+				Labels:              cluster.req.Labels,
+				PredicateExpression: cluster.req.PredicateExpression,
+				UseSearchAsRoles:    cluster.req.UseSearchAsRoles,
+				SortBy:              cluster.req.SortBy,
+			}
+			kc, err := kubeutils.ListKubeClustersWithFilters(groupCtx, cluster.auth, req)
 			if err != nil {
 				logger.ErrorContext(groupCtx, "Failed to get kube clusters", "error", err)
 				mu.Lock()
@@ -1483,7 +1490,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		defer clusterClient.Close()
 
 		teleportCluster = clusterClient.ClusterName()
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListResourcesRequest{
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListUnifiedResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,

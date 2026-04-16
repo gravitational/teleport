@@ -1397,6 +1397,7 @@ var (
 		types.KindDatabase:               {},
 		types.KindGitServer:              {},
 		types.KindKubernetesCluster:      {},
+		types.KindKubeServer:             {},
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
@@ -1625,8 +1626,18 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 		return nil, trace.AccessDenied("include_logins is not supported for scoped identities")
 	}
 
-	if len(req.Kinds) != 1 || req.Kinds[0] != types.KindNode {
-		return nil, trace.AccessDenied("only node kind is supported for scoped identities")
+	supportedKinds := map[string]struct{}{
+		types.KindNode:              {},
+		types.KindKubeServer:        {},
+		types.KindKubernetesCluster: {},
+	}
+
+	kindSet := make(map[string]struct{})
+	for _, kind := range req.Kinds {
+		if _, ok := supportedKinds[kind]; !ok {
+			return nil, trace.AccessDenied("scoped identities do not support kind %q", kind)
+		}
+		kindSet[kind] = struct{}{}
 	}
 
 	userFilter := services.MatchResourceFilter{
@@ -1645,13 +1656,19 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 
 	ruleCtx := a.scopedContext.RuleContext()
 
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	for k := range kindSet {
+		verbs := []string{types.VerbList, types.VerbRead}
+		if k == types.KindNode {
+			// nodes only require VerbList
+			verbs = verbs[:1]
+		}
+		if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, k, verbs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-		// currently only nodes are supported
-		if resource.GetKind() != types.KindNode {
+		if _, ok := supportedKinds[resource.GetKind()]; !ok {
 			return false, nil
 		}
 
@@ -1669,26 +1686,39 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 			return false, nil
 		}
 
-		server, ok := resource.(*types.ServerV2)
-		if !ok {
-			logger.WarnContext(ctx, "Unable to cast unified resource to server",
+		switch res := resource.(type) {
+		case *types.ServerV2:
+			if err := a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(res.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+				return checker.SSH().CanAccessSSHServer(res)
+			}); err == nil {
+				return true, nil
+			} else if !trace.IsAccessDenied(err) {
+				return false, trace.Wrap(err)
+			}
+		case types.KubeServer:
+			if err := a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(res.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
+				return checker.Kube().CanAccessCluster(res.GetCluster())
+			}); err == nil {
+				return true, nil
+			} else if !trace.IsAccessDenied(err) {
+				return false, trace.Wrap(err)
+			}
+		case *types.KubernetesClusterV3:
+			if err := a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(res.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+				return checker.Kube().CanAccessCluster(res)
+			}); err == nil {
+				return true, nil
+			} else if !trace.IsAccessDenied(err) {
+				return false, trace.Wrap(err)
+			}
+
+		default:
+			logger.WarnContext(ctx, "Unable to cast unified resource to supported type",
 				"resource_name", resource.GetName(),
 				"resource_kind", resource.GetKind(),
+				"supported_types", slices.Sorted(maps.Keys(supportedKinds)),
 			)
 			return false, nil
-		}
-
-		serverScope := scopes.Root
-		if server.Scope != "" {
-			serverScope = server.Scope
-		}
-
-		if err := a.scopedContext.CheckerContext.Decision(ctx, serverScope, func(checker *services.ScopedAccessChecker) error {
-			return checker.SSH().CanAccessSSHServer(server)
-		}); err == nil {
-			return true, nil
-		} else if !trace.IsAccessDenied(err) {
-			return false, trace.Wrap(err)
 		}
 
 		return false, nil
