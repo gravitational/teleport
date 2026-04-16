@@ -262,3 +262,29 @@ func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
+
+// itemFromCertAuthorityOverride is used by CreateResources.
+func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*backend.Item, error) {
+	if _, err := subca.ValidateAndParseCAOverride(resource); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalCertAuthorityOverride(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := newCAOverridesPrefix().AppendKey(backend.NewKey(
+		resource.Metadata.Name,
+		resource.SubKind,
+	))
+	return &backend.Item{
+		Key:      key,
+		Value:    value,
+		Expires:  expires,
+		Revision: resource.Metadata.Revision,
+	}, nil
+}
