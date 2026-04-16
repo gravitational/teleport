@@ -188,32 +188,14 @@ type Pinger interface {
 
 // GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
 // for enrolling EKS clusters.
-func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, versionGetter version.Getter) (*semver.Version, error) {
+func GetKubeAgentVersion(ctx context.Context, pinger Pinger) (*semver.Version, error) {
 	pingResponse, err := pinger.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var agentVersion *semver.Version
-
-	// TODO(hugoShaka) remove the conditional check, we always use the cluster version
-	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
-		defaultVersion, err := versionGetter.GetVersion(ctx)
-		if err == nil {
-			agentVersion = defaultVersion
-		} else if !errors.Is(err, &version.NoNewVersionError{}) {
-			return nil, trace.Wrap(err)
-		}
+	clusterVersion, err := version.EnsureSemver(pingResponse.ServerVersion)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse cluster version")
 	}
-
-	if agentVersion == nil {
-		clusterVersion, err := version.EnsureSemver(pingResponse.ServerVersion)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse cluster version")
-		} else {
-			agentVersion = clusterVersion
-		}
-	}
-
-	return agentVersion, nil
+	return clusterVersion, nil
 }

@@ -21,8 +21,6 @@ package discovery
 import (
 	"context"
 	"maps"
-	"net/url"
-	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -32,13 +30,9 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -59,38 +53,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	enrollingClusters := map[string]bool{}
 
 	clt := s.AccessPoint
-
-	pingResponse, err := s.AccessPoint.Ping(s.ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
-
-	var versionGetter version.Getter
-	if proxyPublicAddr == "" {
-		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
-		// In this case we "gracefully" fallback to our own version.
-		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
-		s.Log.WarnContext(s.ctx,
-			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
-			"version", teleport.Version)
-		versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
-		if err != nil {
-			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
-		}
-	} else {
-		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
-		if err != nil {
-			s.Log.WarnContext(s.ctx,
-				"Failed to build a version client, falling back to Discovery service Teleport version.",
-				"error", err,
-				"version", teleport.Version)
-			versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
-			if err != nil {
-				return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
-			}
-		}
-	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn: func() []common.Fetcher {
@@ -135,7 +97,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(versionGetter)
+				agentVersion, err := kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
@@ -334,10 +296,6 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (*semver.Version, error) {
-	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
-}
-
 type IntegrationFetcher interface {
 	// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
 	GetIntegration() string
@@ -394,27 +352,4 @@ func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
 
 func (s *Server) getKubeNonIntegrationFetchers() []common.Fetcher {
 	return s.getKubeFetchers(false)
-}
-
-func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version.Getter, error) {
-	proxyClt, err := webclient.NewReusableClient(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: proxyPublicAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to build proxy client")
-	}
-
-	baseURL := &url.URL{
-		Scheme:  "https",
-		Host:    proxyPublicAddr,
-		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
-	}
-
-	return version.FailoverGetter{
-		// We try getting the version via the new webapi
-		version.NewProxyVersionGetter(proxyClt),
-		// If this is not implemented, we fallback to the release channels
-		version.NewBasicHTTPVersionGetter(baseURL),
-	}, nil
 }

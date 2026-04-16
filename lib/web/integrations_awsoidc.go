@@ -29,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -761,21 +760,6 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
-// TODO(hugoShaka): change the version getter signature to take group and id
-// so we can get rid of this wrapper.
-
-// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.GetVersion.
-type handlerVersionGetter struct {
-	*Handler
-}
-
-// GetVersion implements version.Getter.
-func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
-	const group, updaterUUID = "", ""
-	agentVersion, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
-	return agentVersion, trace.Wrap(err)
-}
-
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
 // v2 endpoint introduces "extraLabels" field.
 func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
@@ -796,8 +780,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("integration name is required")
 	}
 
-	versionGetter := &handlerVersionGetter{h}
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
