@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
-	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
 )
@@ -746,20 +745,12 @@ Examples:
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 
-	// TODO(espadolini): replace these after enterprise calls reexec.MaybeReexec
-	// in main with an error message ("invalid format for reexec subcommand")
-	// because if we got here it's because MaybeReexec didn't find the correct
-	// first argument
-	case exec.FullCommand():
-		reexec.RunAndExit(reexecconstants.ExecSubCommand)
-	case networking.FullCommand():
-		reexec.RunAndExit(reexecconstants.NetworkingSubCommand)
-	case checkHomeDir.FullCommand():
-		reexec.RunAndExit(reexecconstants.CheckHomeDirSubCommand)
-	case park.FullCommand():
-		reexec.RunAndExit(reexecconstants.ParkSubCommand)
-	case sftp.FullCommand():
-		reexec.RunAndExit(reexecconstants.SFTPSubCommand)
+	case exec.FullCommand(),
+		networking.FullCommand(),
+		checkHomeDir.FullCommand(),
+		park.FullCommand(),
+		sftp.FullCommand():
+		err = trace.BadParameter("invalid command line format for internal reexecution command (this is a bug)")
 
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
