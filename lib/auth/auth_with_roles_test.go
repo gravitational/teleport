@@ -6390,7 +6390,7 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 	waitForSRACache(t, srv, sraResp)
-	require.NoError(t, err)
+
 	scopedClient, err := srv.NewClient(authtest.TestScopedUser("user", scope))
 	require.NoError(t, err)
 
