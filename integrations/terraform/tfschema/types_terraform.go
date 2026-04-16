@@ -2136,11 +2136,18 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 							Optional:    true,
 						},
 						"proxy_peering": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"agent_connection_count": {
-								Description: "",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-							}}),
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"agent_connection_count": {
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"disconnect_threshold": {
+									Description: "DisconnectThreshold is the duration without connectivity or topology changes before an agent pool may disconnect excess connections.",
+									Optional:    true,
+									Type:        DurationType{},
+								},
+							}),
 							Description: "",
 							Optional:    true,
 						},
@@ -23538,6 +23545,23 @@ func CopyClusterNetworkingConfigV2FromTerraform(_ context.Context, tf github_com
 															}
 														}
 													}
+													{
+														a, ok := tf.Attrs["disconnect_threshold"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ClusterNetworkingConfigV2.Spec.TunnelStrategy.ProxyPeering.DisconnectThreshold"})
+														} else {
+															v, ok := a.(DurationValue)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.TunnelStrategy.ProxyPeering.DisconnectThreshold", "DurationValue"})
+															} else {
+																var t github_com_gravitational_teleport_api_types.Duration
+																if !v.Null && !v.Unknown {
+																	t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+																}
+																obj.DisconnectThreshold = t
+															}
+														}
+													}
 												}
 											}
 										}
@@ -24200,6 +24224,28 @@ func CopyClusterNetworkingConfigV2ToTerraform(ctx context.Context, obj *github_c
 															v.Value = int64(obj.AgentConnectionCount)
 															v.Unknown = false
 															tf.Attrs["agent_connection_count"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["disconnect_threshold"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ClusterNetworkingConfigV2.Spec.TunnelStrategy.ProxyPeering.DisconnectThreshold"})
+														} else {
+															v, ok := tf.Attrs["disconnect_threshold"].(DurationValue)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ClusterNetworkingConfigV2.Spec.TunnelStrategy.ProxyPeering.DisconnectThreshold", err})
+																}
+																v, ok = i.(DurationValue)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.TunnelStrategy.ProxyPeering.DisconnectThreshold", "DurationValue"})
+																}
+																v.Null = false
+															}
+															v.Value = time.Duration(obj.DisconnectThreshold)
+															v.Unknown = false
+															tf.Attrs["disconnect_threshold"] = v
 														}
 													}
 												}

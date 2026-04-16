@@ -682,7 +682,7 @@ func (a *agent) sendKeepalives() error {
 			a.smoothedRTT = rtt
 		}
 		a.smoothedRTT = (7*a.smoothedRTT + rtt) / 8
-		a.logger.Info("Computed new SRTT", "srtt", a.smoothedRTT.String())
+		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
 		a.mu.Unlock()
 
 		if !first {

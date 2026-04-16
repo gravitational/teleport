@@ -757,12 +757,6 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
-				modulestest.SetTestModules(t, modulestest.Modules{
-					TestBuildType: modules.BuildEnterprise,
-					TestFeatures: modules.Features{
-						Cloud: true,
-					},
-				})
 				ts := p.GetProxyPeeringTunnelStrategy()
 				ts.DisconnectThreshold = types.Duration(time.Minute)
 				p.SetTunnelStrategy(&types.TunnelStrategyV1{
@@ -770,6 +764,12 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 						ProxyPeering: ts,
 					},
 				})
+			},
+			modules: &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: true,
+				},
 			},
 			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
 				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating disconnect threshold", err)

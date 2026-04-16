@@ -69,7 +69,7 @@ type Tracker struct {
 
 	mu sync.Mutex
 
-	// LastTopologyChange is the last time a state change was observered. State
+	// LastTopologyChange is the last time a state change was observed. State
 	// changes include: proxy membership, group/generation, and connection count.
 	lastTopologyChange time.Time
 
@@ -280,7 +280,7 @@ type TrackerSnapshot struct {
 	Proxies map[string]bool
 	// ConnectionCount is the configured connection count used to issue leases.
 	ConnectionCount int
-	// LastTopologyChange is the last time a state change was observered. State
+	// LastTopologyChange is the last time a state change was observed. State
 	// changes include: proxy membership, group/generation, and connection count.
 	LastTopologyChange time.Time
 }
