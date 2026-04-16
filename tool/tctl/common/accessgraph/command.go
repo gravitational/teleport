@@ -107,8 +107,6 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 	switch cmd {
 	case c.investigate.cmd.FullCommand():
 		commandFunc = c.Investigate
-	case c.access.ls.cmd.FullCommand():
-		commandFunc = c.AccessList
 	case c.access.whoCan.cmd.FullCommand():
 		commandFunc = c.AccessWhoCan
 	case c.access.query.cmd.FullCommand():
@@ -119,6 +117,8 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.AccessRequestsList
 	case c.accessChanges.ls.cmd.FullCommand():
 		commandFunc = c.AccessChangesList
+	case c.accessChanges.get.cmd.FullCommand():
+		commandFunc = c.AccessChangeGet
 	default:
 		return false, nil
 	}
