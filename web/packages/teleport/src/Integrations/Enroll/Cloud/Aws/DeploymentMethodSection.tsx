@@ -29,7 +29,7 @@ import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { CircleNumber } from './EnrollAws';
+import { CircleNumber } from '../Shared';
 
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
