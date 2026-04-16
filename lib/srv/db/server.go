@@ -1446,9 +1446,10 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 			User:    sessionCtx.Identity.Username,
 			Cluster: sessionCtx.Identity.OriginClusterName,
 		}},
-		HostUser: sessionCtx.Identity.Username,
-		Created:  s.cfg.Clock.Now(),
-		HostID:   sessionCtx.HostID,
+		HostUser:         sessionCtx.Identity.Username,
+		Created:          s.cfg.Clock.Now(),
+		HostID:           sessionCtx.HostID,
+		AccessRequestIDs: sessionCtx.Identity.ActiveRequests,
 	}
 
 	s.log.DebugContext(ctx, "Creating session tracker.", "session", sessionCtx.ID)

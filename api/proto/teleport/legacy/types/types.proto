@@ -6838,6 +6838,9 @@ message SessionTrackerSpecV1 {
 
   // InitialCommand is the command that was executed to start this session.
   repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
+
+  // AccessRequestIDs are the IDs of the access requests associated with this session, if any.
+  repeated string AccessRequestIDs = 24 [(gogoproto.jsontag) = "access_request_ids,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // SessionKind is a type of session.
@@ -138,6 +139,12 @@ type SessionTracker interface {
 
 	// GetCommand returns the command that initiated the session.
 	GetCommand() []string
+
+	// GetAccessRequestIDs returns a list of access request IDs associated with this session, if any.
+	GetAccessRequestIDs() []string
+
+	// Clone returns a copy of the session tracker.
+	Clone() SessionTracker
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -365,6 +372,16 @@ func (s *SessionTrackerV1) GetTargetSubKind() string {
 // GetCommand returns command that intiated the session.
 func (s *SessionTrackerV1) GetCommand() []string {
 	return s.Spec.InitialCommand
+}
+
+// GetAccessRequestIDs returns a list of access request IDs associated with this session, if any.
+func (s *SessionTrackerV1) GetAccessRequestIDs() []string {
+	return s.Spec.AccessRequestIDs
+}
+
+// Clone returns a copy of the session tracker.
+func (s *SessionTrackerV1) Clone() SessionTracker {
+	return utils.CloneProtoMsg(s)
 }
 
 // Match checks if a given session tracker matches this filter.
