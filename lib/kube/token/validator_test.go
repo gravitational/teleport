@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -654,7 +654,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				tt.wantResult.Raw = tt.claims
 			}
 
-			token, err := jwt.Signed(tt.signer).Claims(tt.claims).CompactSerialize()
+			token, err := jwt.Signed(tt.signer).Claims(tt.claims).Serialize()
 			require.NoError(t, err)
 
 			result, err := ValidateTokenWithJWKS(

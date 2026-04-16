@@ -37,7 +37,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -888,7 +889,7 @@ func TestRewriteJWT(t *testing.T) {
 						},
 					},
 					ValidateRequest: func(s *Suite, r *http.Request) {
-						token, err := jwt.ParseSigned(r.Header.Get("TestHeader"))
+						token, err := jwt.ParseSigned(r.Header.Get("TestHeader"), []jose.SignatureAlgorithm{jose.ES256})
 						require.NoError(t, err)
 
 						claims := libjwt.Claims{}

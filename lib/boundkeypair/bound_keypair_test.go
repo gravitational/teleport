@@ -25,14 +25,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
 func newTestKeypair(t *testing.T) crypto.Signer {
@@ -80,12 +79,9 @@ func TestChallengeValidator_IssueChallenge(t *testing.T) {
 func signChallenge(t *testing.T, challenge string, signer crypto.Signer) string {
 	t.Helper()
 
-	alg, err := libjwt.AlgorithmForPublicKey(signer.Public())
-	require.NoError(t, err)
-
 	opts := (&jose.SignerOptions{}).WithType("JWT")
 	key := jose.SigningKey{
-		Algorithm: alg,
+		Algorithm: jose.EdDSA,
 		Key:       signer,
 	}
 

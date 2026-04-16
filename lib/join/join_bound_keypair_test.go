@@ -31,7 +31,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -66,7 +67,7 @@ func testBoundKeypair(t *testing.T) (crypto.Signer, string) {
 // parseJoinState parses a join state token without verification, for testing
 // purposes only.
 func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
-	token, err := jwt.ParseSigned(string(state))
+	token, err := jwt.ParseSigned(string(state), []jose.SignatureAlgorithm{jose.ES256})
 	require.NoError(t, err)
 
 	var doc boundkeypair.JoinState
