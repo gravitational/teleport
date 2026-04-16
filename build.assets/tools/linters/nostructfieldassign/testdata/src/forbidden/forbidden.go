@@ -54,3 +54,30 @@ func nestedElidedCompositeLiteral() {
 		},
 	}
 }
+
+// embeddedStructAssignment verifies that promoted field assignment through an embedded
+// mypkg.MyStruct is also caught.
+func embeddedStructAssignment() {
+	type FooConfig struct{ mypkg.MyStruct }
+
+	{
+		var cfg FooConfig
+		cfg.Forbidden = "bad" // want `direct assignment to mypkg\.MyStruct\.Forbidden is forbidden`
+
+		cfg.Allowed = "ok" // allowed field: no diagnostic
+	}
+	{
+		type FooConfigSquared struct{ FooConfig }
+		var cfg FooConfigSquared
+		cfg.Forbidden = "bad" // want `direct assignment to mypkg\.MyStruct\.Forbidden is forbidden`
+
+		cfg.Allowed = "ok" // allowed field: no diagnostic
+	}
+	{
+		type FooConfigPointer struct{ *FooConfig }
+		cfg := FooConfigPointer{&FooConfig{}}
+		cfg.Forbidden = "bad" // want `direct assignment to mypkg\.MyStruct\.Forbidden is forbidden`
+
+		cfg.Allowed = "ok" // allowed field: no diagnostic
+	}
+}

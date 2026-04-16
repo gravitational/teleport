@@ -28,7 +28,6 @@ package gclplugin
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/golangci/plugin-module-register/register"
 	nostructfieldassign "github.com/gravitational/teleport/build.assets/tools/linters/nostructfieldassign"
@@ -53,51 +52,51 @@ func New(settings any) (register.LinterPlugin, error) {
 		return nil, fmt.Errorf("nostructfieldassign: expected settings to be a map, got %T", settings)
 	}
 
-	var fields []string
-	if s != nil {
-		raw, ok := s["fields"]
-		if ok {
-			entries, ok := raw.([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("nostructfieldassign: \"fields\" must be a list, got %T", raw)
-			}
-			for i, item := range entries {
-				entry, ok := item.(map[string]interface{})
-				if !ok {
-					return nil, fmt.Errorf("nostructfieldassign: fields[%d] must be a map with pkg/type/field keys, got %T", i, item)
-				}
-				pkg, _ := entry["pkg"].(string)
-				typ, _ := entry["type"].(string)
-				field, _ := entry["field"].(string)
-				msg, _ := entry["msg"].(string)
-				if pkg == "" || typ == "" || field == "" {
-					return nil, fmt.Errorf("nostructfieldassign: fields[%d] must have non-empty pkg, type, and field", i)
-				}
-				spec := pkg + "." + typ + "." + field
-				if msg != "" {
-					spec += "# " + msg
-				}
-				fields = append(fields, spec)
-			}
-		}
+	if s == nil {
+		return &Plugin{}, nil
 	}
 
-	return &Plugin{fields: fields}, nil
+	raw, ok := s["fields"]
+	if !ok {
+		return &Plugin{}, nil
+	}
+
+	var plugin Plugin
+	entries, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("nostructfieldassign: \"fields\" must be a list, got %T", raw)
+	}
+
+	for i, item := range entries {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("nostructfieldassign: fields[%d] must be a map with pkg/type/field keys, got %T", i, item)
+		}
+		pkg, _ := entry["pkg"].(string)
+		typ, _ := entry["type"].(string)
+		field, _ := entry["field"].(string)
+		msg, _ := entry["msg"].(string)
+		if pkg == "" || typ == "" || field == "" {
+			return nil, fmt.Errorf("nostructfieldassign: fields[%d] must have non-empty pkg, type, and field", i)
+		}
+		plugin.rules = append(plugin.rules, nostructfieldassign.Rule{
+			Package:      pkg,
+			Type:         typ,
+			Field:        field,
+			ErrorMessage: msg,
+		})
+	}
+	return &plugin, nil
 }
 
 // Plugin is the nostructfieldassign plugin wrapper for golangci-lint.
 type Plugin struct {
-	fields []string
+	rules []nostructfieldassign.Rule
 }
 
 // BuildAnalyzers returns the nostructfieldassign analyzer with the configured fields applied.
 func (p *Plugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
-	if len(p.fields) > 0 {
-		if err := nostructfieldassign.Analyzer.Flags.Set("fields", strings.Join(p.fields, ",")); err != nil {
-			return nil, fmt.Errorf("nostructfieldassign: set fields flag: %w", err)
-		}
-	}
-	return []*analysis.Analyzer{nostructfieldassign.Analyzer}, nil
+	return []*analysis.Analyzer{nostructfieldassign.NewAnalyzer(p.rules...)}, nil
 }
 
 // GetLoadMode returns the load mode required by nostructfieldassign (types info).

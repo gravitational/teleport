@@ -1,176 +1,60 @@
 // Package nostructfieldassign provides a linter that forbids direct assignment
-// to specific struct fields, configurable via a "fields" flag.
-//
-// Each entry in the flag follows the format:
-//
-//	<import-path>.<TypeName>.<FieldName>
-//
-// An optional message can be appended after "#" to explain why the field is
-// forbidden:
-//
-//	<import-path>.<TypeName>.<FieldName># use Foo() instead
-//
-// Example usage:
-//
-//	-fields=github.com/aws/aws-sdk-go-v2/aws.Config.Region,github.com/foo/bar.MyStruct.SomeField
-//
-// Or via golangci-lint custom linter settings:
-//
-//	linters-settings:
-//	  custom:
-//	    nostructfieldassign:
-//	      settings:
-//	        fields:
-//	          - "github.com/aws/aws-sdk-go-v2/aws.Config.Region# use WithRegion() option instead"
+// to specific struct fields.
 package nostructfieldassign
 
 import (
-	"flag"
 	"fmt"
 	"go/ast"
 	"go/types"
-	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// fieldKey uniquely identifies a struct field by its package import path,
-// type name, and field name. An optional msg is shown in diagnostics.
-type fieldKey struct {
-	pkgPath   string
-	typeName  string
-	fieldName string
-	msg       string
+// Rule identifies a struct field that must not be assigned directly.
+type Rule struct {
+	// Package is the full import path that declares the struct type.
+	Package string
+	// Type is the struct type name that owns the forbidden field.
+	Type string
+	// Field is the struct field name that must not be set directly.
+	Field string
+	// ErrorMessage is an optional explanation appended to the diagnostic.
+	ErrorMessage string
 }
 
-// fieldsFlag implements flag.Value for a comma-separated list of
-// "<pkgPath>.<TypeName>.<FieldName>" entries.
-type fieldsFlag []fieldKey
-
-func (f *fieldsFlag) String() string {
-	var b strings.Builder
-	for i, k := range *f {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(k.pkgPath)
-		b.WriteByte('.')
-		b.WriteString(k.typeName)
-		b.WriteByte('.')
-		b.WriteString(k.fieldName)
-		if k.msg != "" {
-			b.WriteString("# ")
-			b.WriteString(k.msg)
-		}
-	}
-	return b.String()
-}
-
-func (f *fieldsFlag) Set(s string) error {
-	for _, entry := range strings.Split(s, ",") {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		k, err := parseFieldKey(entry)
-		if err != nil {
-			return err
-		}
-		*f = append(*f, k)
-	}
-	return nil
-}
-
-// parseFieldKey parses a string of the form "<pkgPath>.<TypeName>.<FieldName>"
-// with an optional "# <message>" suffix.
-// The package import path may itself contain dots (e.g. "github.com/aws/aws-sdk-go-v2/aws"),
-// so we split from the right: the last two dot-separated tokens are TypeName and FieldName,
-// and everything before that is the import path.
-func parseFieldKey(s string) (fieldKey, error) {
-	var msg string
-	if idx := strings.Index(s, "#"); idx >= 0 {
-		msg = strings.TrimSpace(s[idx+1:])
-		s = strings.TrimSpace(s[:idx])
-	}
-
-	// We need at least pkgPath + TypeName + FieldName, so at least one slash
-	// to separate the pkg path from "Type.Field", but we handle it generically.
-	lastDot := strings.LastIndex(s, ".")
-	if lastDot < 0 {
-		return fieldKey{}, fmt.Errorf("nostructfieldassign: invalid field spec %q: expected <pkgPath>.<Type>.<Field>", s)
-	}
-	fieldName := s[lastDot+1:]
-	rest := s[:lastDot]
-
-	secondLastDot := strings.LastIndex(rest, ".")
-	if secondLastDot < 0 {
-		return fieldKey{}, fmt.Errorf("nostructfieldassign: invalid field spec %q: expected <pkgPath>.<Type>.<Field>", s)
-	}
-	typeName := rest[secondLastDot+1:]
-	pkgPath := rest[:secondLastDot]
-
-	if pkgPath == "" || typeName == "" || fieldName == "" {
-		return fieldKey{}, fmt.Errorf("nostructfieldassign: invalid field spec %q: pkgPath, type, and field must all be non-empty", s)
-	}
-	return fieldKey{pkgPath: pkgPath, typeName: typeName, fieldName: fieldName, msg: msg}, nil
-}
-
-// NewAnalyzer creates a new Analyzer. Callers may populate defaultFields to
-// pre-seed the forbidden list without requiring a flag (useful when embedding
-// the analyzer in a custom binary).
-func NewAnalyzer(defaultFields ...string) *analysis.Analyzer {
-	ff := fieldsFlag{}
-	for _, f := range defaultFields {
-		if err := ff.Set(f); err != nil {
-			panic(err)
-		}
-	}
-
+// NewAnalyzer creates a new Analyzer with the provided forbidden-field rules.
+func NewAnalyzer(rules ...Rule) *analysis.Analyzer {
 	a := &analysis.Analyzer{
 		Name:     "nostructfieldassign",
 		Doc:      "forbids direct assignment to configured struct fields (assignments and composite literals)",
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	}
 
-	// Bind flags before returning; the analysis framework calls Flag.Parse
-	// after the analyzer is registered.
-	a.Flags = *flag.NewFlagSet("nostructfieldassign", flag.ContinueOnError)
-	a.Flags.Var(&ff, "fields",
-		"comma-separated list of forbidden struct fields in the form <pkgPath>.<Type>.<Field>")
-
 	a.Run = func(pass *analysis.Pass) (any, error) {
-		return run(pass, ff)
+		return run(pass, rules)
 	}
 
 	return a
 }
 
-// Analyzer is a ready-to-use instance with no pre-configured fields.
-// Configure it at runtime via the -fields flag.
-var Analyzer = NewAnalyzer()
-
-func run(pass *analysis.Pass, fields fieldsFlag) (any, error) {
-	if len(fields) == 0 {
+func run(pass *analysis.Pass, rules []Rule) (any, error) {
+	if len(rules) == 0 {
 		return nil, nil
 	}
 
-	// Build lookup maps keyed by field name for fast pre-filtering.
-	// Map: fieldName -> []fieldKey (there may be multiple types with the same field name).
-	byFieldName := make(map[string][]fieldKey, len(fields))
-	for _, k := range fields {
-		byFieldName[k.fieldName] = append(byFieldName[k.fieldName], k)
+	// Map field name to matching rules for fast pre-filtering.
+	byFieldName := make(map[string][]Rule, len(rules))
+	for _, rule := range rules {
+		byFieldName[rule.Field] = append(byFieldName[rule.Field], rule)
 	}
 
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-
-	nodeFilter := []ast.Node{
+	insp.Preorder([]ast.Node{
 		(*ast.AssignStmt)(nil),
 		(*ast.CompositeLit)(nil),
-	}
-
-	insp.Preorder(nodeFilter, func(n ast.Node) {
+	}, func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.AssignStmt:
 			checkAssignment(pass, node, byFieldName)
@@ -186,20 +70,19 @@ func run(pass *analysis.Pass, fields fieldsFlag) (any, error) {
 //
 //	x.Field = ...
 //	*x.Field = ...
-func checkAssignment(pass *analysis.Pass, assign *ast.AssignStmt, byFieldName map[string][]fieldKey) {
+func checkAssignment(pass *analysis.Pass, assign *ast.AssignStmt, byFieldName map[string][]Rule) {
 	for _, lhs := range assign.Lhs {
 		sel, ok := lhs.(*ast.SelectorExpr)
 		if !ok {
 			continue
 		}
-		keys, ok := byFieldName[sel.Sel.Name]
+		rules, ok := byFieldName[sel.Sel.Name]
 		if !ok {
 			continue
 		}
-		t := pass.TypesInfo.TypeOf(sel.X)
-		if k, ok := matchesAny(t, sel.Sel.Name, keys); ok {
+		if rule, owner, ok := matchesSelector(pass, sel, rules); ok {
 			pass.Reportf(sel.Pos(), "direct assignment to %s.%s is forbidden%s",
-				typeName(t), sel.Sel.Name, forbiddenMsg(k.msg))
+				namedTypeName(owner), sel.Sel.Name, forbiddenMsg(rule.ErrorMessage))
 		}
 	}
 }
@@ -207,12 +90,11 @@ func checkAssignment(pass *analysis.Pass, assign *ast.AssignStmt, byFieldName ma
 // checkCompositeLit reports forbidden field assignments inside composite literals:
 //
 //	pkg.Type{Field: value}
-func checkCompositeLit(pass *analysis.Pass, lit *ast.CompositeLit, byFieldName map[string][]fieldKey) {
+func checkCompositeLit(pass *analysis.Pass, lit *ast.CompositeLit, byFieldName map[string][]Rule) {
 	t := pass.TypesInfo.TypeOf(lit)
 	if t == nil {
 		return
 	}
-	// Unwrap pointer so *aws.Config{} is also caught.
 	base := deref(t)
 
 	for _, elt := range lit.Elts {
@@ -224,38 +106,81 @@ func checkCompositeLit(pass *analysis.Pass, lit *ast.CompositeLit, byFieldName m
 		if !ok {
 			continue
 		}
-		keys, ok := byFieldName[ident.Name]
+		rules, ok := byFieldName[ident.Name]
 		if !ok {
 			continue
 		}
-		if k, ok := matchesAny(base, ident.Name, keys); ok {
+		if rule, owner, ok := matchesAny(base, rules); ok {
 			pass.Reportf(ident.Pos(), "setting %s.%s in a composite literal is forbidden%s",
-				typeName(base), ident.Name, forbiddenMsg(k.msg))
+				namedTypeName(owner), ident.Name, forbiddenMsg(rule.ErrorMessage))
 		}
 	}
 }
 
-// matchesAny returns the matching fieldKey and true if t (after pointer
-// dereferencing) corresponds to any of the provided fieldKeys for the given
-// field name.
-func matchesAny(t types.Type, _ string, keys []fieldKey) (fieldKey, bool) {
+// matchesAny returns the matching rule and declaring type if t corresponds to
+// one of the provided rules.
+func matchesAny(t types.Type, rules []Rule) (Rule, *types.Named, bool) {
 	named, ok := deref(t).(*types.Named)
 	if !ok {
-		return fieldKey{}, false
+		return Rule{}, nil, false
 	}
 	obj := named.Obj()
 	if obj == nil || obj.Pkg() == nil {
-		return fieldKey{}, false
+		return Rule{}, nil, false
 	}
-	for _, k := range keys {
-		if obj.Name() == k.typeName && obj.Pkg().Path() == k.pkgPath {
-			return k, true
+	for _, rule := range rules {
+		if obj.Name() == rule.Type && obj.Pkg().Path() == rule.Package {
+			return rule, named, true
 		}
 	}
-	return fieldKey{}, false
+	return Rule{}, nil, false
 }
 
-// forbiddenMsg formats the optional custom message for a diagnostic.
+// matchesSelector resolves selector expressions, including promoted fields from
+// embedded structs, and returns the declaring named type for the matched field.
+func matchesSelector(pass *analysis.Pass, sel *ast.SelectorExpr, rules []Rule) (Rule, *types.Named, bool) {
+	selection := pass.TypesInfo.Selections[sel]
+	if selection == nil {
+		return matchesAny(pass.TypesInfo.TypeOf(sel.X), rules)
+	}
+
+	owner, field, ok := resolveSelectedField(pass.TypesInfo.TypeOf(sel.X), selection.Index())
+	if !ok {
+		return Rule{}, nil, false
+	}
+	for _, rule := range rules {
+		if owner.Obj() == nil || owner.Obj().Pkg() == nil {
+			continue
+		}
+		if owner.Obj().Name() == rule.Type && owner.Obj().Pkg().Path() == rule.Package && field.Name() == rule.Field {
+			return rule, owner, true
+		}
+	}
+	return Rule{}, nil, false
+}
+
+// resolveSelectedField walks a field-selection index path and returns the named
+// type that declares the selected field.
+func resolveSelectedField(t types.Type, index []int) (*types.Named, *types.Var, bool) {
+	current := deref(t)
+	for i, fieldIndex := range index {
+		named, ok := current.(*types.Named)
+		if !ok {
+			return nil, nil, false
+		}
+		strct, ok := named.Underlying().(*types.Struct)
+		if !ok || fieldIndex < 0 || fieldIndex >= strct.NumFields() {
+			return nil, nil, false
+		}
+		field := strct.Field(fieldIndex)
+		if i == len(index)-1 {
+			return named, field, true
+		}
+		current = deref(field.Type())
+	}
+	return nil, nil, false
+}
+
 func forbiddenMsg(msg string) string {
 	if msg == "" {
 		return ""
@@ -263,7 +188,6 @@ func forbiddenMsg(msg string) string {
 	return fmt.Sprintf(" because %q", msg)
 }
 
-// deref unwraps a single pointer level, if present.
 func deref(t types.Type) types.Type {
 	if ptr, ok := t.(*types.Pointer); ok {
 		return ptr.Elem()
@@ -271,14 +195,14 @@ func deref(t types.Type) types.Type {
 	return t
 }
 
-// typeName returns a short human-readable name for diagnostic messages.
-func typeName(t types.Type) string {
-	t = deref(t)
-	named, ok := t.(*types.Named)
-	if !ok {
-		return t.String()
+func namedTypeName(named *types.Named) string {
+	if named == nil {
+		return ""
 	}
 	obj := named.Obj()
+	if obj == nil {
+		return named.String()
+	}
 	if obj.Pkg() != nil {
 		return obj.Pkg().Name() + "." + obj.Name()
 	}
