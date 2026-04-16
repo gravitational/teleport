@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -363,16 +364,19 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pool, clock := newTestPool(t)
-			for _, agent := range tt.agents {
-				pool.active.add(agent)
-			}
-			pool.tracker.TrackExpected(trackedProxiesForAgents(tt.agents)...)
-			for _, update := range tt.update {
-				update.apply(t, pool, clock)
-				pool.tryDisconnect(t.Context())
-				update.assert(t, pool, clock, tt.agents)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				pool, clock := newTestPool(t)
+				for _, agent := range tt.agents {
+					pool.active.add(agent)
+				}
+				pool.tracker.TrackExpected(trackedProxiesForAgents(tt.agents)...)
+				for _, update := range tt.update {
+					update.apply(t, pool, clock)
+					pool.tryDisconnect(t.Context())
+					synctest.Wait()
+					update.assert(t, pool, clock, tt.agents)
+				}
+			})
 		})
 	}
 }

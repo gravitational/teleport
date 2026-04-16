@@ -478,9 +478,11 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 
 	if disconnect != nil {
 		p.lastConnectivityChange = now
-		if err := disconnect.Stop(); err != nil {
-			p.logger.DebugContext(ctx, "Error disconnecting agent", "error", err)
-		}
+		go func() {
+			if err := disconnect.Stop(); err != nil {
+				p.logger.DebugContext(ctx, "Error disconnecting agent", "error", err)
+			}
+		}()
 	}
 }
 
