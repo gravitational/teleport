@@ -207,7 +207,7 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 
 	// By default, search for the user without following referrals
 	searchFn := l.ReadWithFilter
-	externalDomain := domain != l.cfg.Domain
+	externalDomain := !strings.EqualFold(domain, l.cfg.Domain)
 	if externalDomain {
 		// The user does not belong to the Teleport configured domain. We may need
 		// to chase referrals to locate their SID.
