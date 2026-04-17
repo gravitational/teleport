@@ -142,13 +142,24 @@ func (g *traversalGraph) visit(getEdges GetEdgesFunc, startID types.UUID, fn Edg
 // access to the given resource node, excluding those whose access is blocked
 // by deny actions or temporary (request-based) grants.
 func (g *traversalGraph) GetIdentityNodesWithAccess(start models.Node) []*models.Node {
-	// Phase 1: find nodes reachable without going through blocking nodes. These
-	// represent "standing access" - access that doesn't require a request. Deny
-	// actions are collected for phase 2.
+	return g.GetIdentityNodesWithAccessExcluding(start, nil)
+}
+
+// GetIdentityNodesWithAccessExcluding is like GetIdentityNodesWithAccess but
+// treats every node in excluded as blocking: traversal stops at those nodes,
+// so identities only reachable *through* them are not collected. Useful for
+// checking alternative access paths that bypass specific subjects (e.g. the
+// ACL/role being reviewed).
+func (g *traversalGraph) GetIdentityNodesWithAccessExcluding(start models.Node, excluded map[types.UUID]bool) []*models.Node {
+	// Phase 1: find nodes reachable without going through blocking/excluded
+	// nodes. Deny actions are collected for phase 2.
 	var denyActions []*models.Node
 	unblockedReachable := map[types.UUID]bool{}
 	g.visitIncoming(start.Id, func(edge *EdgeWithTarget) bool {
 		node := edge.Target
+		if excluded[node.Id] {
+			return false
+		}
 		unblockedReachable[node.Id] = true
 		if node.Kind == "action" {
 			props, err := node.Properties.AsActionProperties()
@@ -156,7 +167,7 @@ func (g *traversalGraph) GetIdentityNodesWithAccess(start models.Node) []*models
 				denyActions = append(denyActions, node)
 			}
 		}
-		return !isBlockingNode(node)
+		return !isBlocking(edge)
 	})
 
 	// Phase 2: collect identities reachable from deny actions so they can be
@@ -165,6 +176,9 @@ func (g *traversalGraph) GetIdentityNodesWithAccess(start models.Node) []*models
 	for _, action := range denyActions {
 		g.visitIncoming(action.Id, func(edge *EdgeWithTarget) bool {
 			node := edge.Target
+			if excluded[node.Id] {
+				return false
+			}
 			if node.Kind == "identity" {
 				deniedIdentities[node.Id] = true
 			}
@@ -172,26 +186,38 @@ func (g *traversalGraph) GetIdentityNodesWithAccess(start models.Node) []*models
 		})
 	}
 
-	// Phase 3: collect identity nodes reachable from the resource, excluding those only reachable via blocking nodes or deny actions.
+	// Phase 3: collect identity nodes reachable from the resource, skipping
+	// owner_of edges, excluded nodes, denied identities, and any path that
+	// crosses a blocking edge (can_request/can_review actions, DENIED actions,
+	// temporary identity groups). Blocked edges cannot provide standing access.
 	identityNodes := make(map[types.UUID]*models.Node)
 	g.visitIncoming(start.Id, func(edge *EdgeWithTarget) bool {
+		if edge.Edge.EdgeType == "owner_of" {
+			return false
+		}
 		node := edge.Target
+		if excluded[node.Id] {
+			return false
+		}
 		if node.Kind == "identity" && !deniedIdentities[node.Id] {
 			identityNodes[node.Id] = node
 		}
-		return true
+		return !isBlocking(edge)
 	})
 	return slices.Collect(maps.Values(identityNodes))
 }
 
-// isBlockingNode reports whether traversal should stop at node when computing
+// isBlocking reports whether traversal should stop at node when computing
 // standing privileges:
 //
 //   - Temporary identity groups: access was granted via an access request.
 //   - can_request/can_review actions: meta-actions for the request system,
 //     not actual resource access.
 //   - Non-allowed actions: access is denied or conditional.
-func isBlockingNode(node *models.Node) bool {
+func isBlocking(edge *EdgeWithTarget) bool {
+
+	node := edge.Target
+
 	switch node.Kind {
 	case "identity_group":
 		props, err := node.Properties.AsIdentityGroupProperties()

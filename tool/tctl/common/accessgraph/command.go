@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -101,6 +102,12 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	// Access Graph commands bypass the normal tctl auth flow (ApplyConfig), so
+	// the logger is never upgraded from its default Warn level. Do it here.
+	if c.ccf.Debug {
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
+	}
+
 	var commandFunc func(context.Context, accessGraphServices) error
 	var proxyAddr string
 
@@ -111,6 +118,12 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.AccessWhoCan
 	case c.access.query.cmd.FullCommand():
 		commandFunc = c.AccessQuery
+	case c.access.review.resource.cmd.FullCommand():
+		commandFunc = c.AccessReviewResource
+	case c.access.review.acl.cmd.FullCommand():
+		commandFunc = c.AccessReviewACL
+	case c.access.review.role.cmd.FullCommand():
+		commandFunc = c.AccessReviewRole
 	case c.detections.ls.cmd.FullCommand():
 		commandFunc = c.DetectionsList
 	case c.accessRequests.ls.cmd.FullCommand():

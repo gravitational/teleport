@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	accessgraph "github.com/gravitational/access-graph/api/client"
@@ -36,6 +37,7 @@ type accessArgs struct {
 	cmd    *kingpin.CmdClause
 	whoCan accessWhoCanArgs
 	query  accessQueryArgs
+	review accessReviewArgs
 
 	// Output format
 	format string
@@ -51,6 +53,20 @@ type accessQueryArgs struct {
 	query string
 }
 
+type accessReviewArgs struct {
+	cmd      *kingpin.CmdClause
+	resource accessReviewResourceArgs
+	acl      accessReviewACLArgs
+	role     accessReviewRoleArgs
+
+	// Shared filters across all review subcommands.
+	from     time.Time
+	to       time.Time
+	unused   bool
+	detailed bool
+	users    []string
+}
+
 func (c *AccessGraphCommand) initAccess(app *kingpin.Application) {
 	accessCmd := app.Command("access", "Analyze who has access to what.").Hidden()
 
@@ -59,6 +75,7 @@ func (c *AccessGraphCommand) initAccess(app *kingpin.Application) {
 	c.access.cmd = accessCmd
 	c.initAccessWhoCan(c.access.cmd)
 	c.initAccessQuery(c.access.cmd)
+	c.initAccessReview(c.access.cmd)
 }
 
 func (c *AccessGraphCommand) initAccessWhoCan(parent *kingpin.CmdClause) {
@@ -71,10 +88,10 @@ func (c *AccessGraphCommand) initAccessQuery(parent *kingpin.CmdClause) {
 	c.access.query.cmd.Arg("query", "The query to execute.").Required().StringVar(&c.access.query.query)
 }
 
-// AccessWhoCan executes `tctl access who-can`.
+// AccessWhoCan executes `tctl access who-can`, which tells you who has standing access to a given resource
 func (c *AccessGraphCommand) AccessWhoCan(ctx context.Context, args accessGraphServices) error {
 	search := c.access.whoCan.resource
-	resourceQuery := fmt.Sprintf("SELECT * from nodes WHERE (name ILIKE '%%%s%%' OR properties->>'alias' ILIKE '%%%s%%') and kind = 'resource'", search, search)
+	resourceQuery := fmt.Sprintf("SELECT * from nodes WHERE (name ILIKE '%%%s%%' OR properties->>'alias' ILIKE '%%%s%%')", search, search)
 	resourceRsp, err := doRequest(args.accessGraph.ExecuteQueryV1WithResponse(ctx, &accessgraph.ExecuteQueryV1Params{
 		Query: resourceQuery,
 	}))
@@ -83,7 +100,7 @@ func (c *AccessGraphCommand) AccessWhoCan(ctx context.Context, args accessGraphS
 		return trace.Wrap(err)
 	}
 
-	if len(*resourceRsp.JSON200.Nodes) == 0 {
+	if resourceRsp.JSON200 == nil || resourceRsp.JSON200.Nodes == nil || len(*resourceRsp.JSON200.Nodes) == 0 {
 		return trace.NotFound("resource %q not found in access graph", c.access.whoCan.resource)
 	}
 
@@ -118,7 +135,8 @@ func (c *AccessGraphCommand) AccessWhoCan(ctx context.Context, args accessGraphS
 	return displayWhoCanResult(c.stdout, identitiesWithAccess, c.access.format)
 }
 
-// AccessQuery executes `tctl access query`.
+// AccessQuery executes `tctl access query`, which allows you to run a custom query against the Access Graph and return
+// the resource nodes
 func (c *AccessGraphCommand) AccessQuery(ctx context.Context, args accessGraphServices) error {
 	resp, err := doRequest(args.accessGraph.ExecuteQueryV1WithResponse(ctx, &accessgraph.ExecuteQueryV1Params{
 		Query: c.access.query.query,
@@ -134,7 +152,6 @@ func (c *AccessGraphCommand) AccessQuery(ctx context.Context, args accessGraphSe
 			resources = append(resources, &node)
 		}
 	}
-
 	return displayResources(c.stdout, resources, c.access.format)
 }
 
