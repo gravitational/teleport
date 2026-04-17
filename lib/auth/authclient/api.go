@@ -1493,6 +1493,9 @@ type Cache interface {
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
 	services.BeamReader
+
+	// SubCAServiceGetter reads CertAuthorityOverride resources.
+	services.SubCAServiceGetter
 }
 
 type NodeWrapper struct {

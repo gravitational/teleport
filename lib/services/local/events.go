@@ -288,6 +288,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newInferenceSecretParser()
 		case types.KindRetrievalModel:
 			parser = newRetrievalModelParser()
+		case types.KindCertAuthorityOverride:
+			parser = newCertAuthorityOverrideParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue

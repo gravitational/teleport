@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -214,4 +215,50 @@ func (s *SubCAService) serviceForClusterAndType(
 	return s.service.WithNameKeyFunc(func() backend.Key {
 		return backend.NewKey(clusterName, caType)
 	}), nil
+}
+
+type certAuthorityOverrideParser struct {
+	baseParser
+}
+
+func newCertAuthorityOverrideParser() *certAuthorityOverrideParser {
+	return &certAuthorityOverrideParser{
+		baseParser: newBaseParser(newCAOverridesPrefix()),
+	}
+}
+
+func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		trimmedKey := event.Item.Key.TrimPrefix(newCAOverridesPrefix())
+		parts := trimmedKey.Components()
+		if len(parts) != 2 {
+			return nil, trace.BadParameter("unexpected %s key: %s", types.KindCertAuthorityOverride, event.Item.Key)
+		}
+		// Note! Storage keys mimic CAs, so they go {ClusterName}/{CAType}.
+		// This is the inverse of almost everything else (CertAuthorityOverrideID,
+		// RPCs, audit, tctl, etc), which go {CAType}/{ClusterName} instead.
+		name := parts[0]
+		subKind := parts[1]
+
+		return types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{
+			Kind:    types.KindCertAuthorityOverride,
+			Version: types.V1,
+			SubKind: subKind,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+		}), nil
+	case types.OpPut:
+		r, err := services.UnmarshalCertAuthorityOverride(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

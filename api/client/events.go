@@ -33,6 +33,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -195,6 +196,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 		out.Resource = &proto.Event_RetrievalModel{
 			RetrievalModel: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
+		out.Resource = &proto.Event_CertAuthorityOverride{
+			CertAuthorityOverride: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -719,6 +724,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetRetrievalModel(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetCertAuthorityOverride(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
