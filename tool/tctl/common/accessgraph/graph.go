@@ -207,6 +207,71 @@ func (g *traversalGraph) GetIdentityNodesWithAccessExcluding(start models.Node, 
 	return slices.Collect(maps.Values(identityNodes))
 }
 
+// GetResourceNodesWithAccess returns all resource nodes that are accessible to the
+// given identity node, excluding those that are blocked by deny actions or temporary (request-based) grants.
+// The logic is the same as GetIdentityNodesWithAccess but traversin  outgoing edges instead of incoming.
+func (g *traversalGraph) GetResourceNodesWithAccess(start models.Node) []*models.Node {
+	return g.GetResourceNodesWithAccessExcluding(start, nil)
+}
+
+func (g *traversalGraph) GetResourceNodesWithAccessExcluding(start models.Node, excluded map[types.UUID]bool) []*models.Node {
+	// Phase 1: find nodes reachable without going through blocking/excluded
+	// nodes. Deny actions are collected for phase 2.
+	var denyActions []*models.Node
+	unblockedReachable := map[types.UUID]bool{}
+	g.visitOutgoing(start.Id, func(edge *EdgeWithTarget) bool {
+		node := edge.Target
+		if excluded[node.Id] {
+			return false
+		}
+		unblockedReachable[node.Id] = true
+		if node.Kind == "action" {
+			props, err := node.Properties.AsActionProperties()
+			if err == nil && props.Type == "DENIED" {
+				denyActions = append(denyActions, node)
+			}
+		}
+		return !isBlocking(edge)
+	})
+
+	// Phase 2: collect resources reachable from deny actions so they can be
+	// excluded from the final result.
+	deniedResources := map[types.UUID]bool{}
+	for _, action := range denyActions {
+		g.visitOutgoing(action.Id, func(edge *EdgeWithTarget) bool {
+			node := edge.Target
+			if excluded[node.Id] {
+				return false
+			}
+			if node.Kind == "resource" {
+				deniedResources[node.Id] = true
+			}
+			return true
+		})
+	}
+
+	// Phase 3: collect resource nodes reachable from the identity, skipping
+	// owner_of edges, excluded nodes, denied resources, and any path that
+	// crosses a blocking edge (can_request/can_review actions, DENIED actions,
+	// temporary identity groups). Blocked edges cannot provide standing access.
+	resourceNodes := make(map[types.UUID]*models.Node)
+	g.visitOutgoing(start.Id, func(edge *EdgeWithTarget) bool {
+		if edge.Edge.EdgeType == "owner_of" {
+			return false
+		}
+		node := edge.Target
+		if excluded[node.Id] {
+			return false
+		}
+		if node.Kind == "resource" && !deniedResources[node.Id] {
+			resourceNodes[node.Id] = node
+		}
+		return !isBlocking(edge)
+	})
+
+	return slices.Collect(maps.Values(resourceNodes))
+}
+
 // isBlocking reports whether traversal should stop at node when computing
 // standing privileges:
 //

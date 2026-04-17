@@ -27,9 +27,9 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/trace"
 )
@@ -65,7 +65,7 @@ type detectionsGetArgs struct {
 func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
 	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.").Hidden()
 	registerTimeRangeFlags(detectionsCmd, &c.detections.from, &c.detections.to, "30d")
-	registerFormatFlag(detectionsCmd, &c.detections.format, teleport.Text)
+	registerFormatFlag(detectionsCmd, &c.detections.format, teleport.YAML)
 	c.detections.cmd = detectionsCmd
 
 	c.initDetectionsList(c.detections.cmd)

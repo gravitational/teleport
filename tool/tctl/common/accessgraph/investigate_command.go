@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/trace"
 )
@@ -66,7 +66,7 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 		StringsVar(&c.investigate.eventTypes)
 	investigateCmd.Flag("exclude-event-type", "Exclude events of these types (repeatable).").
 		StringsVar(&c.investigate.excludeEventTypes)
-	registerFormatFlag(investigateCmd, &c.investigate.format, teleport.Text)
+	registerFormatFlag(investigateCmd, &c.investigate.format, teleport.YAML)
 	c.investigate.cmd = investigateCmd
 
 	c.investigate.user.cmd = investigateCmd.Command("user", "Investigate activity for a specific user.")

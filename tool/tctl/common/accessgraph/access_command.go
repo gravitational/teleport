@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	models "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/trace"
 )
@@ -51,6 +51,7 @@ type accessReviewArgs struct {
 	resource accessReviewResourceArgs
 	acl      accessReviewACLArgs
 	role     accessReviewRoleArgs
+	identity accessReviewIdentityArgs
 
 	// Shared filters across all review subcommands.
 	from     time.Time

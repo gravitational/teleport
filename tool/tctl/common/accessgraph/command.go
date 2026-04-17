@@ -126,6 +126,8 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.AccessReviewACL
 	case c.access.review.role.cmd.FullCommand():
 		commandFunc = c.AccessReviewRole
+	case c.access.review.identity.cmd.FullCommand():
+		commandFunc = c.AccessReviewIdentity
 	case c.detections.ls.cmd.FullCommand():
 		commandFunc = c.DetectionsList
 	case c.detections.get.cmd.FullCommand():

@@ -55,6 +55,12 @@ type accessReviewRoleArgs struct {
 	name string
 }
 
+// accessReviewIdentityArgs holds arguments common to all review subcommands.
+type accessReviewIdentityArgs struct {
+	cmd  *kingpin.CmdClause
+	user string
+}
+
 // initAccessReview registers `tctl access review` and its subcommands.
 func (c *AccessGraphCommand) initAccessReview(parent *kingpin.CmdClause) {
 	reviewCmd := parent.Command("review", "Review which users accessed a resource, ACL, or role over a given period.")
@@ -71,6 +77,7 @@ func (c *AccessGraphCommand) initAccessReview(parent *kingpin.CmdClause) {
 	c.initAccessReviewResource(reviewCmd)
 	c.initAccessReviewACL(reviewCmd)
 	c.initAccessReviewRole(reviewCmd)
+	c.initAccessReviewIdentity(reviewCmd)
 }
 
 func (c *AccessGraphCommand) initAccessReviewResource(parent *kingpin.CmdClause) {
@@ -89,6 +96,12 @@ func (c *AccessGraphCommand) initAccessReviewRole(parent *kingpin.CmdClause) {
 	cmd := parent.Command("role", "Review users who accessed a role.")
 	cmd.Arg("name", "Name of the role to review.").Required().StringVar(&c.access.review.role.name)
 	c.access.review.role.cmd = cmd
+}
+
+func (c *AccessGraphCommand) initAccessReviewIdentity(parent *kingpin.CmdClause) {
+	cmd := parent.Command("user", "Review access for a specific identity.")
+	cmd.Arg("user", "Name of the user to review.").Required().StringVar(&c.access.review.identity.user)
+	c.access.review.identity.cmd = cmd
 }
 
 // --- output types -----------------------------------------------------------
@@ -204,6 +217,40 @@ func (c *AccessGraphCommand) AccessReviewRole(ctx context.Context, args accessGr
 	return c.reviewIdentityGroup(ctx, args, "role", subjects)
 }
 
+func (c *AccessGraphCommand) AccessReviewIdentity(ctx context.Context, args accessGraphServices) error {
+	search := c.access.review.identity.user
+	subjects, err := resolveSubjectNodes(ctx, args, fmt.Sprintf(
+		"SELECT * FROM nodes WHERE name = '%s' AND kind = 'identity'",
+		search,
+	))
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(subjects) == 0 {
+		return trace.NotFound("user %q not found in access graph", search)
+	}
+
+	// Get the access path for the user node to find all related resources that the user has access to
+	pathNodes, pathEdges, err := queryAccessPath(ctx, args, subjects)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	g := newTraversalGraph(pathNodes, pathEdges)
+	// For resources, the subjects ARE the resources; identities come from
+	// standing-access traversal from each subject.
+	resourceMap := make(map[string]*models.Node)
+	identityMap := make(map[string]*models.Node)
+	for i := range subjects {
+		subject := &subjects[i]
+		identityMap[subject.Id.String()] = subject
+		for _, r := range g.GetResourceNodesWithAccess(*subject) {
+			resourceMap[r.Id.String()] = r
+		}
+	}
+	return c.runReview(ctx, args, "identity", subjects, resourceMap, identityMap)
+}
+
 // reviewIdentityGroup implements the review flow for identity-group subjects
 // (ACLs and roles). Subjects grant access to governed resources via outgoing
 // edges; members/grantees are found via incoming traversal. A single combined
@@ -232,16 +279,6 @@ func (c *AccessGraphCommand) reviewIdentityGroup(
 	identityMap := make(map[string]*models.Node)
 	for i := range subjects {
 		subject := &subjects[i]
-		g.visitOutgoing(subject.Id, func(edge *EdgeWithTarget) bool {
-			if isBlocking(edge) {
-				return false
-			}
-			node := edge.Target
-			if node.Kind == "resource" {
-				resourceMap[node.Id.String()] = node
-			}
-			return true
-		})
 		for _, id := range g.GetIdentityNodesWithAccess(*subject) {
 			identityMap[id.Id.String()] = id
 		}
