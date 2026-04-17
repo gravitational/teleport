@@ -38,11 +38,14 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredApps.get,
-		OnCreate:            s.onCreate,
-		OnUpdate:            s.onUpdate,
-		OnDelete:            s.onDelete,
-		Logger:              s.log.With("kind", types.KindApp),
+		CompareResources: func(a1, a2 types.Application) int {
+			return services.EqualFromBool(a1.IsEqual(a2))
+		},
+		GetNewResources: s.monitoredApps.get,
+		OnCreate:        s.onCreate,
+		OnUpdate:        s.onUpdate,
+		OnDelete:        s.onDelete,
+		Logger:          s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)

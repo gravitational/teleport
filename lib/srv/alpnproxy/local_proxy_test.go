@@ -741,7 +741,11 @@ func TestGetCertsForConn(t *testing.T) {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
 			stubConnBytes: func() []byte {
-				val, err := (&pgproto3.CancelRequest{}).Encode(nil)
+				req := pgproto3.CancelRequest{
+					ProcessID: 1,
+					SecretKey: []byte{1, 2, 3, 4},
+				}
+				val, err := req.Encode(nil)
 				require.NoError(t, err, "CancelRequest.Encode failed")
 				return val
 			}(),

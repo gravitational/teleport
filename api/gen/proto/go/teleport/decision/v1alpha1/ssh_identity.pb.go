@@ -302,8 +302,10 @@ type SSHIdentity struct {
 	AllowedResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,37,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3" json:"allowed_resource_access_ids,omitempty"`
 	// The hash of the immutable labels assigned to the identity.
 	ImmutableLabelHash string `protobuf:"bytes,38,opt,name=immutable_label_hash,json=immutableLabelHash,proto3" json:"immutable_label_hash,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Delegation session this SSH identity is associated with.
+	DelegationSessionId string `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *SSHIdentity) Reset() {
@@ -602,6 +604,13 @@ func (x *SSHIdentity) GetImmutableLabelHash() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
+}
+
 // CertExtension represents a key/value for a certificate extension. This type must
 // be kept up to date with types.CertExtension.
 type CertExtension struct {
@@ -687,7 +696,7 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x9a\r\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xce\r\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -735,7 +744,8 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\vagent_scope\x18$ \x01(\tR\n" +
 	"agentScope\x12V\n" +
 	"\x1ballowed_resource_access_ids\x18% \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x120\n" +
-	"\x14immutable_label_hash\x18& \x01(\tR\x12immutableLabelHash\"\xbf\x01\n" +
+	"\x14immutable_label_hash\x18& \x01(\tR\x12immutableLabelHash\x122\n" +
+	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +

@@ -33,6 +33,9 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case types.KindBot:
 		// bots can be read/written, and do not currently contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)
+	case types.KindBotInstance:
+		// bot instances can be read/written, and do not currently contain a concept of a secret.
+		return isReadWriteNoSecrets(verb)
 	default:
 		return false
 	}

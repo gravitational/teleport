@@ -121,6 +121,11 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 		if !opts.WithSecrets && token.GetStatus().GetSecret() != "" {
 			token.GetStatus().Secret = "******"
 		}
+		// As a note, this seems to be dead code, these secrets are always empty
+		// if WithSecrets is unset, since the server will strip the value.
+		if !opts.WithSecrets && token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+			token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
+		}
 		return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
 	}
 
@@ -137,6 +142,9 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 			for _, token := range res.GetTokens() {
 				if token.GetStatus().GetSecret() != "" {
 					token.GetStatus().Secret = "******"
+				}
+				if token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+					token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
 				}
 			}
 		}

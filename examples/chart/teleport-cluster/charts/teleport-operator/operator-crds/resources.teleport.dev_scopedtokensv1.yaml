@@ -138,6 +138,51 @@ spec:
                       field.
                     type: string
                 type: object
+              bot_name:
+                description: Name of the bot associated with this join token, if any.
+                type: string
+              bot_scope:
+                description: Scope of the bot associated with this join token. Required
+                  if bot_name is set, and mutually exclusive with assigned_scope.
+                type: string
+              bound_keypair:
+                description: Configuration specific to the "bound_keypair" join method.
+                nullable: true
+                properties:
+                  onboarding:
+                    description: Parameters related to initial onboarding and keypair
+                      registration.
+                    nullable: true
+                    properties:
+                      initial_public_key:
+                        type: string
+                      must_register_before:
+                        format: date-time
+                        type: string
+                      registration_secret:
+                        type: string
+                    type: object
+                  recovery:
+                    description: Parameters related to recovery after identity expiration,
+                      including the initial join.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: An optional timestamp that forces clients to perform
+                      a keypair rotation on the next join or recovery attempt after
+                      the given date. If `LastRotatedAt` is unset or before this timestamp,
+                      a rotation will be requested. It is recommended to set this
+                      value to the current timestamp if a rotation should be triggered
+                      on the next join attempt.
+                    format: date-time
+                    type: string
+                type: object
               gcp:
                 description: The GCP-specific configuration used with the "gcp" join
                   method.
@@ -182,7 +227,7 @@ spec:
                 type: object
               join_method:
                 description: The joining method required in order to use this token.
-                  Supported joining methods for scoped tokens only include 'token'.
+                  Note that not all join methods support joining with scoped tokens.
                 type: string
               kubernetes:
                 description: The Kubernetes-specific configuration used with the "kubernetes"

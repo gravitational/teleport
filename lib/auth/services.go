@@ -44,6 +44,7 @@ type Services struct {
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
+	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
@@ -97,6 +98,8 @@ type Services struct {
 	services.ScopedTokenService
 	MFAService
 	services.WorkloadClusterService
+	services.Beams
+	services.SubCAService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.
