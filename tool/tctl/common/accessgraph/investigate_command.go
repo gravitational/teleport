@@ -58,6 +58,10 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 	investigateCmd.Flag("limit", "Max events to return (0 for unlimited).").
 		Default("100").
 		IntVar(&c.investigate.limit)
+	// TODO(accessgraph): support glob patterns (e.g. cert.*) once the access
+	// graph logs endpoint can accept wildcard filters. The Athena backend
+	// currently rejects the DSL's SIMILAR TO translation, and filtering
+	// client-side was too slow to be usable.
 	investigateCmd.Flag("event-type", "Include only events of these types (repeatable, e.g. --event-type session.start).").
 		StringsVar(&c.investigate.eventTypes)
 	investigateCmd.Flag("exclude-event-type", "Exclude events of these types (repeatable).").
@@ -79,8 +83,12 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, args accessGraphSe
 }
 
 // InvestigateUser executes `tctl investigate user <name>`.
+//
+// Uses identity_id — the logs DSL's `identity` field targets a struct column
+// and fails at the Athena layer, but identity_id resolves to a scalar and
+// matches the canonical identifier (email for users, generated id for bots).
 func (c *AccessGraphCommand) InvestigateUser(ctx context.Context, args accessGraphServices) error {
-	return c.runInvestigate(ctx, args, dslClause("identity", quoteAll([]string{c.investigate.user.name})))
+	return c.runInvestigate(ctx, args, dslClause("identity_id", quoteAll([]string{c.investigate.user.name})))
 }
 
 // InvestigateResource executes `tctl investigate resource <name>`.

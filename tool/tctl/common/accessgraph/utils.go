@@ -138,6 +138,12 @@ func fetchAllLogs(
 	client *accessgraph.ClientWithResponses,
 	params accessgraph.ExecuteLogsQueryV1Params,
 ) ([]logmodels.AccessgraphStorageV1alphaEvent, error) {
+	queryStr := ""
+	if params.Query != nil {
+		queryStr = *params.Query
+	}
+	slog.DebugContext(ctx, "logs query", "query", queryStr, "from", params.StartTime, "to", params.EndTime)
+
 	var (
 		all    []logmodels.AccessgraphStorageV1alphaEvent
 		cursor *string
