@@ -171,9 +171,6 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
-	// ComponentSubsystemSFTP is the SFTP subsystem.
-	ComponentSubsystemSFTP = "subsystem:sftp"
-
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -965,10 +962,6 @@ const (
 )
 
 const (
-	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
-	// uses to get the home directory of a remote user.
-	GetHomeDirSubsystem = "gethomedir"
-
 	// SFTPSubsystem is the SFTP SSH subsystem.
 	SFTPSubsystem = "sftp"
 )

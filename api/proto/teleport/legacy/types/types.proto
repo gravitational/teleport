@@ -1167,6 +1167,8 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
   // MCP contains MCP server related configurations.
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+  // LLM contains LLM inference endpoint related configurations.
+  LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
@@ -1212,6 +1214,28 @@ message PortRange {
   // be greater than Port when describing a port range. When omitted or set to zero, it signifies
   // that the port range defines a single port.
   uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
+}
+
+// LLM contains LLM inference endpoint related configurations.
+message LLM {
+  // Model is a provider model definition.
+  message Model {
+    // Name defines the model name. This is the requested value.
+    string name = 1;
+    // Represents the model name in the configured provider.
+    string provider_name = 2;
+  }
+
+  // Defines the LLM inference API format.
+  string format = 1;
+  // Defines which inference provider will be used to serve the requests.
+  string provider = 2;
+  // Defines the list of supported models, and optionally their name on the
+  // inference provider.
+  repeated Model models = 3;
+  // Defines a model that will be used if the model requested is not on the list.
+  // The fallback model must be in the "models" list.
+  string fallback_model = 4;
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

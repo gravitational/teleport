@@ -236,6 +236,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionDynamoDBRequest{
 			AppSessionDynamoDBRequest: e,
 		}
+	case *AppSessionLLMRequest:
+		out.Event = &OneOf_AppSessionLLMRequest{
+			AppSessionLLMRequest: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,

@@ -3270,6 +3270,62 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 	}
 }
 
+func TestValidateAccessRequest_ExpandsUserNameAnnotations(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: "root",
+	}
+
+	requesterRole, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"target"},
+				Annotations: map[string][]string{
+					"owner": {"{{user.metadata.name}}"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	g.roles[requesterRole.GetName()] = requesterRole
+
+	targetRole, err := types.NewRole("target", types.RoleSpecV6{})
+	require.NoError(t, err)
+	g.roles[targetRole.GetName()] = targetRole
+
+	uls, err := userloginstate.New(header.Metadata{
+		Name: "alice",
+	}, userloginstate.Spec{
+		Roles: []string{requesterRole.GetName()},
+		Traits: trait.Traits{
+			"logins": []string{"alice"},
+		},
+	})
+	require.NoError(t, err)
+	g.userStates[uls.GetName()] = uls
+
+	req, err := types.NewAccessRequest("some-id", uls.GetName(), targetRole.GetName())
+	require.NoError(t, err)
+
+	err = ValidateAccessRequestForUser(ctx, clock, g, req, tlsca.Identity{
+		Expires: clock.Now().UTC().Add(time.Hour),
+	}, WithExpandVars(true))
+	require.NoError(t, err)
+	require.Equal(t, map[string][]string{
+		"owner": {"alice"},
+	}, req.GetSystemAnnotations())
+}
+
 // TestValidate_RequestedPendingTTLAndMaxDuration tests that both requested
 // max duration and pending TTL is respected (given within limits).
 func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {

@@ -139,6 +139,7 @@ func ForAuth(cfg Config) Config {
 	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -160,6 +161,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
+		{Kind: types.KindBeam},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -681,6 +683,8 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Applications
+	// Beams is a beam reader service.
+	Beams services.BeamReader
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -804,6 +808,8 @@ type Config struct {
 	WorkloadClusterService services.WorkloadClusterService
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
+	// SubCAService reads CertAuthorityOverride resources.
+	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

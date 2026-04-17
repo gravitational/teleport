@@ -6172,7 +6172,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -6418,7 +6418,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	if !cfg.DisableJoinV1 {
 		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-			Authorizer:         cfg.Authorizer,
+			ScopedAuthorizer:   cfg.ScopedAuthorizer,
 			AuthService:        cfg.AuthServer,
 			FIPS:               cfg.AuthServer.fips,
 			ScopedTokenService: cfg.AuthServer.Services,

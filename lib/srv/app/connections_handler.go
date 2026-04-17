@@ -476,6 +476,10 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
 
+	// TODO(gabrielcorado): implement inference endpoint handler.
+	case app.IsLLM():
+		return trace.NotImplemented("LLM access is not implemented")
+
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
 	}
@@ -653,6 +657,9 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// 3. If the application is an HTTP application, store the error and let the HTTP handler
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
+	//
+	// Note: LLM doesn't require a special handling. It must work like other
+	// HTTP applications.
 	if err != nil {
 		switch {
 		case app.IsTCP():

@@ -184,6 +184,10 @@ func (r resourceTeleportAutoUpdateConfig) Read(ctx context.Context, req tfsdk.Re
 	}
 
 	autoUpdateConfigI, err := r.p.Client.GetAutoUpdateConfig(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateConfig", trace.Wrap(err), "autoupdate_config"))
 		return

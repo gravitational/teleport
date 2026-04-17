@@ -28,11 +28,13 @@ version: "string"
 metadata: # [...]
 spec: # [...]
 status: # [...]
+scope: "string"
 ```
 |Field Name|Description|Type|
 |---|---|---|
 |kind|The kind of resource represented.|string|
 |metadata|Common metadata that all resources share.|[Metadata](#metadata)|
+|scope|Of the BotInstance. This is determined based on the scope of the Bot associated with this instance, and may be used for scoped RBAC on the BotInstance resource.|string|
 |spec|The configured properties of a BotInstance.|[Bot Instance Spec](#bot-instance-spec)|
 |status|Fields that are set by the server as results of operations. These should not be modified by users.|[Bot Instance Status](#bot-instance-status)|
 |sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|

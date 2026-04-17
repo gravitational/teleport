@@ -25,6 +25,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -37,6 +38,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -84,6 +86,7 @@ type collections struct {
 	proxyServers                       *collection[types.Server, proxyServerIndex]
 	nodes                              *collection[types.Server, nodeIndex]
 	apps                               *collection[types.Application, appIndex]
+	beams                              *collection[*beamsv1.Beam, beamIndex]
 	appServers                         *collection[types.AppServer, appServerIndex]
 	dbs                                *collection[types.Database, databaseIndex]
 	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
@@ -155,6 +158,7 @@ type collections struct {
 	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
 	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
+	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -264,6 +268,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.apps = collect
 			out.byKind[resourceKind] = out.apps
+		case types.KindBeam:
+			collect, err := newBeamCollection(c.Beams, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.beams = collect
+			out.byKind[resourceKind] = out.beams
 		case types.KindAppServer:
 			collect, err := newAppServerCollection(c.Presence, watch)
 			if err != nil {
@@ -834,6 +846,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.retrievalModels = collect
 			out.byKind[resourceKind] = out.retrievalModels
+		case types.KindCertAuthorityOverride:
+			collect, err := newCertAuthorityOverrideCollection(c.SubCAService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.certAuthorityOverrides = collect
+			out.byKind[resourceKind] = out.certAuthorityOverrides
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

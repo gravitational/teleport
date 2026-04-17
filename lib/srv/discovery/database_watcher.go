@@ -51,6 +51,9 @@ func (s *Server) startDatabaseWatchers() error {
 		services.ReconcilerConfig[types.Database]{
 			Matcher:             func(database types.Database) bool { return true },
 			GetCurrentResources: s.getCurrentDatabases,
+			CompareResources: func(d1, d2 types.Database) int {
+				return services.EqualFromBool(d1.IsEqual(d2))
+			},
 			GetNewResources: func() map[string]types.Database {
 				mu.RLock()
 				defer mu.RUnlock()

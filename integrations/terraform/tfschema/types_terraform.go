@@ -1031,6 +1031,43 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.",
 					Optional:    true,
 				},
+				"inference": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"fallback_model": {
+							Description: "Defines a model that will be used if the model requested is not on the list. The fallback model must be in the \"models\" list.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"format": {
+							Description: "Defines the LLM inference API format.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"models": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Description: "Name defines the model name. This is the requested value.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"provider_name": {
+									Description: "Represents the model name in the configured provider.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Defines the list of supported models, and optionally their name on the inference provider.",
+							Optional:    true,
+						},
+						"provider": {
+							Description: "Defines which inference provider will be used to serve the requests.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "LLM contains LLM inference endpoint related configurations.",
+					Optional:    true,
+				},
 				"insecure_skip_verify": {
 					Description: "InsecureSkipVerify disables app's TLS certificate verification.",
 					Optional:    true,
@@ -5464,6 +5501,82 @@ func GenSchemaDynamicWindowsDesktopV1(ctx context.Context) (github_com_hashicorp
 			}),
 			Description: "Spec is the DynamicWindows host spec.",
 			Required:    true,
+		},
+		"sub_kind": {
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaUIConfigV1 returns tfsdk.Schema definition for UIConfigV1
+func GenSchemaUIConfigV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed:      true,
+			Optional:      false,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Required:      false,
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:      true,
+			Description:   "Kind is a resource kind",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"namespace": {
+					Computed:      true,
+					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"scrollback_lines": {
+					Description: "ScrollbackLines is the max number of lines the UI terminal can display in its history.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"show_resources": {
+					Description: "ShowResources determines which resources are shown in the web UI. Default if unset is \"requestable\" which means resources the user has access to and resources they can request will be shown in the resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Spec is the resource spec.",
+			Optional:    true,
 		},
 		"sub_kind": {
 			Description: "SubKind is an optional resource sub kind, used in some resources",
@@ -13683,6 +13796,138 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["inference"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.LLM = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.LLM = &github_com_gravitational_teleport_api_types.LLM{}
+									obj := obj.LLM
+									{
+										a, ok := tf.Attrs["format"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.format"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.format", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Format = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["provider"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.provider"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.provider", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Provider = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["models"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.models"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Models = make([]*github_com_gravitational_teleport_api_types.LLM_Model, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_types.LLM_Model
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_types.LLM_Model{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.models.name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Name = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["provider_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.models.provider_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.models.provider_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ProviderName = t
+																		}
+																	}
+																}
+															}
+															obj.Models[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["fallback_model"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.fallback_model"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.fallback_model", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.FallbackModel = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -15404,6 +15649,206 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								}
 								v.Unknown = false
 								tf.Attrs["mcp"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["inference"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["inference"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.LLM == nil {
+									v.Null = true
+								} else {
+									obj := obj.LLM
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["format"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.format"})
+										} else {
+											v, ok := tf.Attrs["format"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.format", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.format", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Format) == ""
+											}
+											v.Value = string(obj.Format)
+											v.Unknown = false
+											tf.Attrs["format"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["provider"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.provider"})
+										} else {
+											v, ok := tf.Attrs["provider"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.provider", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.provider", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Provider) == ""
+											}
+											v.Value = string(obj.Provider)
+											v.Unknown = false
+											tf.Attrs["provider"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["models"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.models"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.models", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["models"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Models)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Models))
+													}
+												}
+												if obj.Models != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.Models) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Models))
+													}
+													for k, a := range obj.Models {
+														v, ok := tf.Attrs["models"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.models.name"})
+																} else {
+																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.models.name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.models.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Name) == ""
+																	}
+																	v.Value = string(obj.Name)
+																	v.Unknown = false
+																	tf.Attrs["name"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["provider_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.models.provider_name"})
+																} else {
+																	v, ok := tf.Attrs["provider_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.models.provider_name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.models.provider_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ProviderName) == ""
+																	}
+																	v.Value = string(obj.ProviderName)
+																	v.Unknown = false
+																	tf.Attrs["provider_name"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Models) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["models"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["fallback_model"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.fallback_model"})
+										} else {
+											v, ok := tf.Attrs["fallback_model"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.LLM.fallback_model", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.fallback_model", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.FallbackModel) == ""
+											}
+											v.Value = string(obj.FallbackModel)
+											v.Unknown = false
+											tf.Attrs["fallback_model"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["inference"] = v
 							}
 						}
 					}
@@ -53656,6 +54101,512 @@ func CopyDynamicWindowsDesktopV1ToTerraform(ctx context.Context, obj *github_com
 								v.Unknown = false
 								tf.Attrs["screen_size"] = v
 							}
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["spec"] = v
+			}
+		}
+	}
+	return diags
+}
+
+// CopyUIConfigV1FromTerraform copies contents of the source Terraform object into a target struct
+func CopyUIConfigV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_types.UIConfigV1) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
+	{
+		a, ok := tf.Attrs["kind"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"UIConfigV1.Kind"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Kind = t
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["sub_kind"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"UIConfigV1.SubKind"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"UIConfigV1.SubKind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.SubKind = t
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["version"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"UIConfigV1.Version"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Version = t
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["metadata"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"UIConfigV1.Metadata"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Metadata = github_com_gravitational_teleport_api_types.Metadata{}
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj := &obj.Metadata
+					{
+						a, ok := tf.Attrs["namespace"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UIConfigV1.Metadata.Namespace"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Metadata.Namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Namespace = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["description"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UIConfigV1.Metadata.Description"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Metadata.Description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Description = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["labels"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UIConfigV1.Metadata.Labels"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+							} else {
+								obj.Labels = make(map[string]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Metadata.Labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.Labels[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["expires"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UIConfigV1.Metadata.Expires"})
+						} else {
+							v, ok := a.(TimeValue)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Metadata.Expires", "TimeValue"})
+							} else {
+								var t *time.Time
+								if !v.Null && !v.Unknown {
+									c := time.Time(v.Value)
+									t = &c
+								}
+								obj.Expires = t
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["spec"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"UIConfigV1.Spec"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Spec = github_com_gravitational_teleport_api_types.UIConfigSpecV1{}
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj := &obj.Spec
+					{
+						a, ok := tf.Attrs["scrollback_lines"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UIConfigV1.Spec.ScrollbackLines"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Spec.ScrollbackLines", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+							} else {
+								var t int32
+								if !v.Null && !v.Unknown {
+									t = int32(v.Value)
+								}
+								obj.ScrollbackLines = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["show_resources"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UIConfigV1.Spec.ShowResources"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UIConfigV1.Spec.ShowResources", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t github_com_gravitational_teleport_api_constants.ShowResources
+								if !v.Null && !v.Unknown {
+									t = github_com_gravitational_teleport_api_constants.ShowResources(v.Value)
+								}
+								obj.ShowResources = t
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return diags
+}
+
+// CopyUIConfigV1ToTerraform copies contents of the source Terraform object into a target struct
+func CopyUIConfigV1ToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_types.UIConfigV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
+	tf.Null = false
+	tf.Unknown = false
+	if tf.Attrs == nil {
+		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	}
+	{
+		t, ok := tf.AttrTypes["kind"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"UIConfigV1.Kind"})
+		} else {
+			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"UIConfigV1.Kind", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Kind) == ""
+			}
+			v.Value = string(obj.Kind)
+			v.Unknown = false
+			tf.Attrs["kind"] = v
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["sub_kind"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"UIConfigV1.SubKind"})
+		} else {
+			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"UIConfigV1.SubKind", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.SubKind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.SubKind) == ""
+			}
+			v.Value = string(obj.SubKind)
+			v.Unknown = false
+			tf.Attrs["sub_kind"] = v
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["version"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"UIConfigV1.Version"})
+		} else {
+			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"UIConfigV1.Version", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Version) == ""
+			}
+			v.Value = string(obj.Version)
+			v.Unknown = false
+			tf.Attrs["version"] = v
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["metadata"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"UIConfigV1.Metadata"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				{
+					obj := obj.Metadata
+					tf := &v
+					{
+						t, ok := tf.AttrTypes["namespace"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UIConfigV1.Metadata.Namespace"})
+						} else {
+							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UIConfigV1.Metadata.Namespace", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Metadata.Namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Namespace) == ""
+							}
+							v.Value = string(obj.Namespace)
+							v.Unknown = false
+							tf.Attrs["namespace"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["description"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UIConfigV1.Metadata.Description"})
+						} else {
+							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UIConfigV1.Metadata.Description", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Metadata.Description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Description) == ""
+							}
+							v.Value = string(obj.Description)
+							v.Unknown = false
+							tf.Attrs["description"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["labels"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UIConfigV1.Metadata.Labels"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+							} else {
+								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
+
+										ElemType: o.ElemType,
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+									}
+								}
+								if obj.Labels != nil {
+									t := o.ElemType
+									for k, a := range obj.Labels {
+										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"UIConfigV1.Metadata.Labels", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = false
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.Labels) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["labels"] = c
+							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["expires"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UIConfigV1.Metadata.Expires"})
+						} else {
+							v, ok := tf.Attrs["expires"].(TimeValue)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UIConfigV1.Metadata.Expires", err})
+								}
+								v, ok = i.(TimeValue)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Metadata.Expires", "TimeValue"})
+								}
+								v.Null = false
+							}
+							if obj.Expires == nil {
+								v.Null = true
+							} else {
+								v.Null = false
+								v.Value = time.Time(*obj.Expires)
+							}
+							v.Unknown = false
+							tf.Attrs["expires"] = v
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["metadata"] = v
+			}
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["spec"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"UIConfigV1.Spec"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				{
+					obj := obj.Spec
+					tf := &v
+					{
+						t, ok := tf.AttrTypes["scrollback_lines"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UIConfigV1.Spec.ScrollbackLines"})
+						} else {
+							v, ok := tf.Attrs["scrollback_lines"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UIConfigV1.Spec.ScrollbackLines", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Spec.ScrollbackLines", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
+								v.Null = int64(obj.ScrollbackLines) == 0
+							}
+							v.Value = int64(obj.ScrollbackLines)
+							v.Unknown = false
+							tf.Attrs["scrollback_lines"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["show_resources"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UIConfigV1.Spec.ShowResources"})
+						} else {
+							v, ok := tf.Attrs["show_resources"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UIConfigV1.Spec.ShowResources", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UIConfigV1.Spec.ShowResources", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.ShowResources) == ""
+							}
+							v.Value = string(obj.ShowResources)
+							v.Unknown = false
+							tf.Attrs["show_resources"] = v
 						}
 					}
 				}

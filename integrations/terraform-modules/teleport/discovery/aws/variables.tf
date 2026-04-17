@@ -48,7 +48,7 @@ variable "aws_matchers" {
     regions              = optional(list(string), ["*"])
     tags                 = optional(map(list(string)), { "*" : ["*"] })
     setup_access_for_arn = optional(string, "")
-    kube_app_discovery   = optional(bool, true)
+    kube_app_discovery   = optional(bool)
   }))
   default  = []
   nullable = false
