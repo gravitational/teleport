@@ -19,9 +19,7 @@
 import { endOfDay, isAfter, startOfDay, subMonths } from 'date-fns';
 import { forwardRef, useState } from 'react';
 import { DateRange, DayPicker } from 'react-day-picker';
-
 import 'react-day-picker/dist/style.css';
-
 import { StyledDateRange } from 'design/DatePicker';
 
 /**

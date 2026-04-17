@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutil "github.com/gravitational/teleport/lib/utils/log"
@@ -53,11 +52,6 @@ const (
 
 	completeRecoveryGenericErrMsg = "unable to recover your account, please contact your system administrator"
 )
-
-// fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
-// This is a fake hash used to mitigate timing attacks against invalid usernames or if user does
-// exist but does not have recovery codes.
-var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
 
 // StartAccountRecovery implements AuthService.StartAccountRecovery.
 func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
@@ -164,7 +158,7 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 			"user", username,
 		)
 		for i := range numOfRecoveryCodes {
-			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
+			hashedCodes[i].HashedCode = a.fakeRecoveryCodeHash
 		}
 	} else {
 		hasRecoveryCodes = true
@@ -496,7 +490,7 @@ func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !modules.GetModules().Features().RecoveryCodes {
+	if !a.modules.Features().RecoveryCodes {
 		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
 	}
 
@@ -527,13 +521,16 @@ func generateRecoveryCodes() ([]string, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		words := make([]string, 0, 1+len(wordIDs))
-		words = append(words, "tele")
+		const prefix = "tele"
+		var sb strings.Builder
+		sb.Grow(len(prefix) + len(wordIDs)*6)
+		sb.WriteString(prefix)
 		for _, id := range wordIDs {
-			words = append(words, encodeProquint(id))
+			sb.WriteRune('-')
+			sb.Write(encodeProquint(id))
 		}
 
-		tokenList = append(tokenList, strings.Join(words, "-"))
+		tokenList = append(tokenList, sb.String())
 	}
 
 	return tokenList, nil
@@ -543,7 +540,7 @@ func generateRecoveryCodes() ([]string, error) {
 // This proquint implementation is adapted from upspin.io:
 // https://github.com/upspin/upspin/blob/master/key/proquint/proquint.go
 // For the algorithm, see https://arxiv.org/html/0901.4016
-func encodeProquint(x uint16) string {
+func encodeProquint(x uint16) []byte {
 	const consonants = "bdfghjklmnprstvz"
 	const vowels = "aiou"
 
@@ -553,11 +550,11 @@ func encodeProquint(x uint16) string {
 	vow1 := (x >> 10) & 0b11
 	cons1 := x >> 12
 
-	return string([]byte{
+	return []byte{
 		consonants[cons1],
 		vowels[vow1],
 		consonants[cons2],
 		vowels[vow2],
 		consonants[cons3],
-	})
+	}
 }

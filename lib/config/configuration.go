@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -718,6 +717,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
+		&cfg.Apps.Limiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -1631,13 +1631,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var ssm *types.AWSSSM
+		if matcher.SSM.DocumentName != "" {
+			ssm = &types.AWSSSM{DocumentName: matcher.SSM.DocumentName}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
 			AssumeRole:        assumeRole,
 			Tags:              matcher.Tags,
 			Params:            installParams,
-			SSM:               &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			SSM:               ssm,
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
@@ -2042,6 +2047,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Log when proxy_service is enabled in the same config but has no
+	// public_addr. The proxy falls back to the cluster name for the
+	// auth redirect. Per-app public_addr controls the app's FQDN but
+	// does not replace this.
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
+		slog.InfoContext(context.Background(),
+			"proxy_service.public_addr not set; using cluster name for app auth redirects",
+			"nodename", cfg.Hostname)
+	}
+
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
@@ -2137,6 +2152,21 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Command:       application.MCP.Command,
 				Args:          application.MCP.Args,
 				RunAsHostUser: application.MCP.RunAsHostUser,
+			}
+		}
+
+		if application.LLM != nil {
+			app.LLM = &types.LLM{
+				Format:        application.LLM.Format,
+				Provider:      application.LLM.Provider,
+				FallbackModel: application.LLM.FallbackModel,
+			}
+			app.LLM.Models = make([]*types.LLM_Model, 0, len(application.LLM.Models))
+			for _, model := range application.LLM.Models {
+				app.LLM.Models = append(app.LLM.Models, &types.LLM_Model{
+					Name:         model.Name,
+					ProviderName: model.ProviderName,
+				})
 			}
 		}
 
@@ -2318,28 +2348,33 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
 		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}
 
-	var cert *x509.Certificate
+	var certs []*x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
 		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		if err != nil {
 			return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
 
-		cert, err = x509.ParseCertificate(rawCert)
+		derCert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
+		certs = []*x509.Certificate{derCert}
 	}
 
-	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
+		pemCerts, err := tlsca.ParseCertificatePEMs([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACerts))
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
+		if len(pemCerts) == 0 {
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
+		}
+		certs = pemCerts
 	}
 
 	locateServer := servicecfg.LocateServer{
@@ -2354,7 +2389,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
-		CA:                 cert,
+		CAs:                certs,
 		LocateServer:       locateServer,
 	}
 
@@ -2493,9 +2528,6 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2908,14 +2940,16 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
+
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Apply command line --debug flag to override logger severity.
 	level := slog.LevelError
 	if clf.Debug {
@@ -2979,6 +3013,10 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
 	return nil
 }
 
@@ -3146,6 +3184,16 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			cfg.JoinParams = servicecfg.JoinParams{
 				Azure: servicecfg.AzureJoinParams{
 					ClientID: fc.JoinParams.Azure.ClientID,
+				},
+			}
+		}
+
+		if fc.JoinParams.BoundKeypair != (BoundKeypairParams{}) {
+			cfg.JoinParams = servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: fc.JoinParams.BoundKeypair.RegistrationSecretValue,
+					RegistrationSecretPath:  fc.JoinParams.BoundKeypair.RegistrationSecretPath,
+					StaticPrivateKeyPath:    fc.JoinParams.BoundKeypair.StaticPrivateKeyPath,
 				},
 			}
 		}

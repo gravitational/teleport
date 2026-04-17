@@ -990,6 +990,23 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 	}
 }
 
+func TestUnmarshalCreateHostUserModeText(t *testing.T) {
+	for _, tc := range []struct {
+		input    string
+		expected CreateHostUserMode
+	}{
+		{input: "off", expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: "", expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED},
+		{input: "keep", expected: CreateHostUserMode_HOST_USER_MODE_KEEP},
+		{input: "insecure-drop", expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP},
+	} {
+		var got CreateHostUserMode
+		err := got.UnmarshalText([]byte(tc.input))
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
+	}
+}
+
 func TestUnmarshallCreateDatabaseUserModeJSON(t *testing.T) {
 	for _, tc := range []struct {
 		input    any
@@ -1400,4 +1417,32 @@ func TestRoleGitHubPermissions(t *testing.T) {
 	require.Equal(t, LabelMatchers{Labels: Labels{
 		GitHubOrgLabel: []string{"jedi", "night-watch"},
 	}}, denyMatchers)
+}
+
+func TestRoleBeamLabelMatchers(t *testing.T) {
+	role, err := NewRole("beam-role", RoleSpecV6{
+		Allow: RoleConditions{
+			BeamLabels:           Labels{"env": []string{"prod"}},
+			BeamLabelsExpression: `labels["env"] == "prod"`,
+		},
+		Deny: RoleConditions{
+			BeamLabels:           Labels{"owner": []string{"alice"}},
+			BeamLabelsExpression: `labels["owner"] == "alice"`,
+		},
+	})
+	require.NoError(t, err)
+
+	allowMatchers, err := role.GetLabelMatchers(Allow, KindBeam)
+	require.NoError(t, err)
+	require.Equal(t, LabelMatchers{
+		Labels:     Labels{"env": []string{"prod"}},
+		Expression: `labels["env"] == "prod"`,
+	}, allowMatchers)
+
+	denyMatchers, err := role.GetLabelMatchers(Deny, KindBeam)
+	require.NoError(t, err)
+	require.Equal(t, LabelMatchers{
+		Labels:     Labels{"owner": []string{"alice"}},
+		Expression: `labels["owner"] == "alice"`,
+	}, denyMatchers)
 }

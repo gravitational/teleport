@@ -15,9 +15,14 @@ enterprise: Identity Governance
 
 With Teleport Resource Access Requests, users can request access to specific
 resources without needing to know anything about the roles or RBAC controls used
-under the hood.
+under the hood. Unlike [Role Access Requests](role-requests.mdx), where users
+request elevated roles directly, Resource Access Requests let users identify the
+individual resources they need, and Teleport determines which roles to grant
+in order to provide access.
+
 The Access Request API makes it easy to dynamically approve or deny these
-requests.
+requests. Resource Access Requests can be created through the Teleport Web UI,
+Teleport Connect, or the `tsh` CLI.
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
 Teleport Community Edition users can get a preview of how Access Requests work by
@@ -30,6 +35,61 @@ available in Teleport Enterprise.
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
+
+## Resource Constraints
+
+Resource Access Requests can optionally include **Resource Constraints**,
+which narrow which principals — such as AWS Role ARNs, SSH logins, or database
+users — a user can assume on a resource when using an approved Access Request.
+The requester selects the specific principals they need when they create a request
+using the Web UI or Teleport Connect, and these constraints are encoded
+in the resulting short-lived certificates and enforced at authorization time,
+independent of any subsequent role changes.
+
+Resource Constraints are distinct from the role-based restrictions described in
+[Restricting the resources a user can request access
+to](#restricting-the-resources-a-user-can-request-access-to) below. Those
+controls govern *which resources* are searchable and requestable. Resource
+Constraints govern which principals the user is authorized to use on a specific
+resource once the request is approved.
+
+For example, consider a role `aws-full-access` that grants access to an AWS
+Console application with multiple ARNs:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: aws-full-access
+spec:
+  allow:
+    app_labels:
+      env: production
+    aws_role_arns:
+      - 'arn:aws:iam::123456789012:role/ReadOnly'
+      - 'arn:aws:iam::123456789012:role/Admin'
+```
+
+Without Resource Constraints, a user who requests and is approved for access to
+an AWS Console application via this role receives both ARNs. With Resource Constraints, the user can
+select only `ReadOnly` at request creation, and the approved certificate is
+scoped to that single ARN.
+
+Resource Constraints are currently supported for AWS Console application
+resources. Support for additional resource types (SSH, Windows Desktop,
+database, Kubernetes, and others) is planned.
+
+### Availability
+
+Constrained resource requests can only be created through the Teleport Web UI
+and Teleport Connect. The Teleport CLI (`tsh`) supports reviewing and assuming
+these requests, but not yet creating them.
+
+All Teleport components in the request path (Auth Service, Proxy Service, and
+relevant application servers) must support Resource Constraints. In
+mixed-version clusters, components that do not recognize constraints will
+prevent the creation of constrained resource requests and deny any access to
+constrained resources on existing Resource Access Requests.
 
 ## Step 1/6. Grant roles to users
 

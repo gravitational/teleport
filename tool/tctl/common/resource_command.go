@@ -43,11 +43,9 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -115,26 +113,21 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindTrustedCluster:       rc.createTrustedCluster,
-		types.KindExternalAuditStorage: rc.createExternalAuditStorage,
-		types.KindNetworkRestrictions:  rc.createNetworkRestrictions,
-		types.KindLoginRule:            rc.createLoginRule,
-		types.KindDevice:               rc.createDevice,
-		types.KindOktaImportRule:       rc.createOktaImportRule,
-		types.KindIntegration:          rc.createIntegration,
-		types.KindSecurityReport:       rc.createSecurityReport,
-		types.KindCrownJewel:           rc.createCrownJewel,
-		types.KindVnetConfig:           rc.createVnetConfig,
-		types.KindPlugin:               rc.createPlugin,
-		types.KindHealthCheckConfig:    rc.createHealthCheckConfig,
-		types.KindInferencePolicy:      rc.createInferencePolicy,
+		types.KindTrustedCluster:      rc.createTrustedCluster,
+		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
+		types.KindLoginRule:           rc.createLoginRule,
+		types.KindDevice:              rc.createDevice,
+		types.KindOktaImportRule:      rc.createOktaImportRule,
+		types.KindIntegration:         rc.createIntegration,
+		types.KindSecurityReport:      rc.createSecurityReport,
+		types.KindCrownJewel:          rc.createCrownJewel,
+		types.KindPlugin:              rc.createPlugin,
+		types.KindHealthCheckConfig:   rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
 		types.KindCrownJewel:        rc.updateCrownJewel,
-		types.KindVnetConfig:        rc.updateVnetConfig,
 		types.KindPlugin:            rc.updatePlugin,
 		types.KindHealthCheckConfig: rc.updateHealthCheckConfig,
-		types.KindInferencePolicy:   rc.updateInferencePolicy,
 	}
 	rc.config = config
 
@@ -234,7 +227,13 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 			mfaKinds = append(mfaKinds, kind)
 		}
 	}
-	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+
+	withSecrets := rc.withSecrets || slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		// tokens cannot be retrieved without secrets.
+		return r.Kind == types.KindToken
+	})
+
+	mfaRequired := withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
 		return slices.Contains(mfaKinds, r.Kind)
 	})
 
@@ -425,27 +424,6 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
-	return nil
-}
-
-// createExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	externalAuditClient := client.ExternalAuditStorageClient()
-	if rc.force {
-		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been updated\n")
-	} else {
-		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been created\n")
-	}
 	return nil
 }
 
@@ -708,18 +686,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindExternalAuditStorage:
-		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
-			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
-		} else {
-			if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
-		}
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -798,8 +764,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
-	case types.KindInferencePolicy:
-		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1111,43 +1075,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindExternalAuditStorage:
-		out := []*externalauditstorage.ExternalAuditStorage{}
-		name := rc.ref.Name
-		switch name {
-		case "":
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, cluster)
-			}
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, draft)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: out}, nil
-		case types.MetaNameExternalAuditStorageCluster:
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{cluster}}, nil
-		case types.MetaNameExternalAuditStorageDraft:
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{draft}}, nil
-		default:
-			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
-		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
 			ig, err := client.GetIntegration(ctx, rc.ref.Name)
@@ -1177,12 +1104,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &securityReportCollection{items: resources}, nil
-	case types.KindVnetConfig:
-		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
 			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
@@ -1229,9 +1150,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &healthCheckConfigCollection{items: items}, nil
-	case types.KindInferencePolicy:
-		policies, err := rc.getInferencePolicies(ctx, client)
-		return policies, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -1280,37 +1198,6 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.IsForced() {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
-	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("vnet_config has been created")
-	return nil
-}
-
-func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("vnet_config has been updated")
 	return nil
 }
 

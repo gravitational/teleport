@@ -55,7 +55,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -81,10 +80,6 @@ func TestSSH(t *testing.T) {
 		t.Skip("the current platform doesn't support adding CAs to the system pool")
 	}
 
-	t.Setenv("_TELEPORT_TEST_NO_PARALLEL", "1")
-	defer lib.SetInsecureDevMode(lib.IsInsecureDevMode())
-	lib.SetInsecureDevMode(false)
-
 	d := t.TempDir()
 	webCertPath := filepath.Join(d, "cert.pem")
 	webKeyPath := filepath.Join(d, "key.pem")
@@ -106,9 +101,6 @@ func TestSSH(t *testing.T) {
 			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 		}),
 	)
-
-	// just in case someone changes newTestSuite
-	require.False(t, lib.IsInsecureDevMode())
 
 	tests := []struct {
 		name string
@@ -625,13 +617,12 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithBootstrap(connector, accessUser),
 					testserver.WithHostname("node01"),
 					testserver.WithClusterName("root"),
-					testserver.WithAuthConfig(
-						func(cfg *servicecfg.AuthConfig) {
-							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
-							// Load all CAs on login so that leaf CA is trusted by clients.
-							cfg.LoadAllCAs = true
-						},
-					),
+					testserver.WithConfig(func(cfg *servicecfg.Config) {
+						cfg.Auth.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
+						// Load all CAs on login so that leaf CA is trusted by clients.
+						cfg.Auth.LoadAllCAs = true
+						cfg.InsecureMode = true
+					}),
 				}
 				rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
 				require.NoError(t, err)
@@ -644,11 +635,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithBootstrap(accessUser),
 					testserver.WithHostname("node02"),
 					testserver.WithClusterName("leaf"),
-					testserver.WithAuthConfig(
-						func(cfg *servicecfg.AuthConfig) {
-							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
-						},
-					),
+					testserver.WithConfig(func(cfg *servicecfg.Config) {
+						cfg.Auth.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
+						cfg.InsecureMode = true
+					}),
 				}
 				leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
 				require.NoError(t, err)
@@ -711,9 +701,6 @@ func TestTSHProxyTemplate(t *testing.T) {
 		t.Skip("Skipping test, no ssh binary found.")
 	}
 
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
 	tshPath, err := os.Executable()
 	require.NoError(t, err)
 
@@ -754,9 +741,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		t.Skip("Skipping no external SSH binary found.")
 	}
 
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
 	tests := []struct {
 		name string
 		opts []testSuiteOptionFunc
@@ -765,6 +749,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -774,6 +759,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -785,6 +771,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing enabled legacy",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 					cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY)
@@ -795,6 +782,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -804,6 +792,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -895,20 +884,16 @@ func TestEnvVarCommand(t *testing.T) {
 
 // TestList verifies "tsh ls" functionality
 func TestList(t *testing.T) {
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.InsecureMode = true
 		}),
 	)
 	rootNodeAddress, err := s.root.NodeSSHAddr()
@@ -1468,8 +1453,6 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 // correctly given a Machine ID-style identity with a valid RouteToApp.
 func TestProxyAppWithIdentity(t *testing.T) {
 	disableAgent(t)
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 
 	const (
@@ -1485,6 +1468,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		testserver.WithClusterName(clusterName),
 		testserver.WithTestApp(appName, appServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
@@ -1607,9 +1591,6 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 func TestProxyAppMultiPort(t *testing.T) {
 	disableAgent(t)
-	// Necessary for self-signed certs to be considered valid.
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 
 	const (
@@ -1633,6 +1614,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		testserver.WithBootstrap(connector, user),
 		testserver.WithClusterName(clusterName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps = servicecfg.AppsConfig{
 				Enabled: true,

@@ -9,7 +9,7 @@ When using blue-green deployments or other multiple clusters setups, you might w
 Teleport supports installing and running multiple agents on the same instance, using a suffixed installation which allows you to isolate each installation.
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-To configure the Discovery Service to use a suffixed installation, edit the Discovery Config and set the `spec.aws.install.suffix` key:
+To configure the Discovery Service to use a suffixed installation, edit the Discovery Config and set the `spec.{{ matcher }}.install.suffix` key:
 
 ```yaml
 kind: discovery_config
@@ -44,7 +44,7 @@ If you are using Teleport [Agent managed updates](../../upgrading/agent-managed-
 
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-To set the update group, edit the Discovery Config and set the `spec.aws.install.update_group` key:
+To set the update group, edit the Discovery Config and set the `spec.{{ matcher }}.install.update_group` key:
 
 ```yaml
 kind: discovery_config
@@ -79,7 +79,7 @@ For instances which require a proxy to access the installation files, you can co
 
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-To set the HTTP proxy settings, edit the Discovery Config and set the `spec.aws.install.http_proxy_settings` key:
+To set the HTTP proxy settings, edit the Discovery Config and set the `spec.{{ matcher }}.install.http_proxy_settings` key:
 
 ```yaml
 kind: discovery_config

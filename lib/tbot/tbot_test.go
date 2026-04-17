@@ -24,11 +24,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -38,7 +40,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -70,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
@@ -78,10 +82,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -117,7 +123,7 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 
 // makeBot creates a server-side bot and returns joining parameters.
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	t.Helper()
 
 	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
@@ -721,6 +727,8 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	botConfig.Services = append(botConfig.Services, &identitysvc.OutputConfig{
 		Destination: outputDest,
 	})
+	diagSocketPath := filepath.Join(os.TempDir(), "tbot-diag.sock")
+	botConfig.DiagSocketForUpdater = diagSocketPath
 	thirdBot := New(botConfig, log)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -741,6 +749,38 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 		return client != nil
 	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
 
+	diagClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", diagSocketPath)
+			},
+		},
+	}
+	t.Cleanup(diagClient.CloseIdleConnections)
+
+	readIdentityReadyz := func() (readyz.Status, error) {
+		resp, err := diagClient.Get("http://unix/readyz/identity")
+		if err != nil {
+			return readyz.Initializing, err
+		}
+		defer resp.Body.Close()
+
+		var payload struct {
+			Status readyz.Status `json:"status"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			return readyz.Initializing, err
+		}
+		return payload.Status, nil
+	}
+
+	// Check identity service status is not healthy before the network heals.
+	require.Eventually(t, func() bool {
+		status, err := readIdentityReadyz()
+		return err == nil && status != readyz.Healthy
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for pre-heal readyz status")
+
 	t.Log("Healing network partition")
 	proxy.setFailing(false)
 
@@ -754,6 +794,12 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for output to be written")
 	}
+
+	// Check identity service status becomes healthy after the network heals.
+	require.Eventually(t, func() bool {
+		status, err := readIdentityReadyz()
+		return err == nil && status == readyz.Healthy
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for identity readyz to become healthy")
 }
 
 func newWriteNotifier(dst destination.Destination) *writeNotifier {
@@ -1170,9 +1216,11 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			agentClient := agent.NewClient(agentConn)
 			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
 			require.NoError(t, err)
-			sshConfig := &ssh.ClientConfig{
-				Auth: []ssh.AuthMethod{
-					ssh.PublicKeysCallback(agentClient.Signers),
+			sshConfig := apissh.ClientConfig{
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return agentClient.Signers()
+					},
 				},
 				User:            currentUser.Username,
 				HostKeyCallback: callback,
@@ -1184,18 +1232,19 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			})
 			_, err = fmt.Fprint(conn, target)
 			require.NoError(t, err)
-			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
+
+			sshClient, err := apissh.NewClient(ctx, conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
-			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 			t.Cleanup(func() {
 				sshClient.Close()
 			})
-			sshSess, err := sshClient.NewSession()
+
+			sshSess, err := sshClient.NewSession(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshSess.Close()
 			})
-			out, err := sshSess.CombinedOutput("echo hello")
+			out, err := sshSess.CombinedOutput(ctx, "echo hello")
 			require.NoError(t, err)
 			require.Equal(t, "hello\n", string(out))
 

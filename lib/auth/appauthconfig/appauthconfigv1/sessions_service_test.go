@@ -341,7 +341,6 @@ func TestVerifyJWTToken(t *testing.T) {
 
 func TestCreateAppSessionWithJWT(t *testing.T) {
 	issuer := "https://external-idp/"
-	header := "Authorization"
 	audience := "teleport"
 	usernameClaim := "email"
 
@@ -354,10 +353,9 @@ func TestCreateAppSessionWithJWT(t *testing.T) {
 	require.NoError(t, err)
 
 	config := appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
-		Issuer:              issuer,
-		AuthorizationHeader: header,
-		Audience:            audience,
-		UsernameClaim:       usernameClaim,
+		Issuer:        issuer,
+		Audience:      audience,
+		UsernameClaim: usernameClaim,
 		KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks{
 			StaticJwks: string(encodedJwks),
 		},

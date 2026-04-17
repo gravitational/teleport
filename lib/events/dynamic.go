@@ -193,6 +193,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionRequest{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
+	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
+		e = &events.AppSessionLLMRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -600,6 +602,36 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WorkloadClusterUpdate{}
 	case WorkloadClusterDeleteEvent:
 		e = &events.WorkloadClusterDelete{}
+
+	case InferenceModelCreateEvent:
+		e = &events.InferenceModelCreate{}
+	case InferenceModelUpdateEvent:
+		e = &events.InferenceModelUpdate{}
+	case InferenceModelDeleteEvent:
+		e = &events.InferenceModelDelete{}
+
+	case InferenceSecretCreateEvent:
+		e = &events.InferenceSecretCreate{}
+	case InferenceSecretUpdateEvent:
+		e = &events.InferenceSecretUpdate{}
+	case InferenceSecretDeleteEvent:
+		e = &events.InferenceSecretDelete{}
+
+	case InferencePolicyCreateEvent:
+		e = &events.InferencePolicyCreate{}
+	case InferencePolicyUpdateEvent:
+		e = &events.InferencePolicyUpdate{}
+	case InferencePolicyDeleteEvent:
+		e = &events.InferencePolicyDelete{}
+
+	case SessionSummarizedEvent:
+		e = &events.SessionSummarized{}
+
+	case CertAuthOverrideCreateEvent,
+		CertAuthOverrideUpdateEvent,
+		CertAuthOverrideUpsertEvent,
+		CertAuthOverrideDeleteEvent:
+		e = &events.CertAuthorityOverrideEvent{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)

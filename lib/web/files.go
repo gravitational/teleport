@@ -32,19 +32,20 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 // fileTransferRequest describes HTTP file transfer request
@@ -202,9 +203,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		dialTimeout = netConfig.GetSSHDialTimeout()
 	}
 
-	sshConfig := &ssh.ClientConfig{
+	sshConfig := apissh.ClientConfig{
 		User:            tc.HostLogin,
-		Auth:            tc.AuthMethods,
+		PublicKeyAuth:   tc.PublicKeyAuthConfig,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         dialTimeout,
 	}
@@ -216,7 +217,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		req.serverID+":0",
 		req.serverID,
 		tc,
-		modules.GetModules().IsBoringBinary(),
+		h.cfg.Modules.IsBoringBinary(),
 	)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because
@@ -264,7 +265,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	if err := sftp.TransferFiles(ctx, sftpReq); err != nil {
-		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+		if errors.As(err, new(*sftputils.NonRecursiveDirectoryTransferError)) {
 			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
 		}
 
@@ -345,11 +346,16 @@ func (f *fileTransfer) issueSingleUseCert(mfaResponse *proto.MFAAuthenticateResp
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	am, err := sshutils.AsAuthMethod(sshCert, pk.Signer)
+	signer, err := sshutils.SSHSigner(sshCert, pk.Signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tc.AuthMethods = []ssh.AuthMethod{am}
+	tc.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
+		Signers: func() ([]ssh.Signer, error) {
+			return []ssh.Signer{signer}, nil
+		},
+	}
+
 	return nil
 }

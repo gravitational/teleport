@@ -35,6 +35,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -169,6 +170,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindUser, nil
 	case types.KindCertAuthority, "cert_authorities", "cas":
 		return types.KindCertAuthority, nil
+	case types.KindCertAuthorityOverride, "cert_authority_overrides", "ca_override", "ca_overrides":
+		return types.KindCertAuthorityOverride, nil
 	case types.KindReverseTunnel, "reverse_tunnels", "rts":
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
@@ -291,7 +294,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindHealthCheckConfig, nil
 	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
 		return scopedaccess.KindScopedRole, nil
-	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments":
+	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments", "sra":
 		return scopedaccess.KindScopedRoleAssignment, nil
 	case types.KindInferenceModel, "inference_models":
 		return types.KindInferenceModel, nil
@@ -305,6 +308,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAppAuthConfig, nil
 	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
 		return types.KindWorkloadCluster, nil
+	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
+		return scopedaccess.KindScopedToken, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -807,6 +812,17 @@ func init() {
 		}
 		return types.Resource153ToLegacy(cfg), nil
 	})
+	RegisterResourceUnmarshaler(types.KindWorkloadIdentity, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
+		wid := &workloadidentityv1.WorkloadIdentity{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, wid); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(wid), nil
+	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -1055,17 +1071,4 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return resource, nil
-}
-
-// convertResource is a generic helper func that converts a [types.Resource] by
-// direct type assertion or assertion to an [types.Resource153UnwrapperT].
-func convertResource[T any](resource types.Resource) (T, error) {
-	switch resource := resource.(type) {
-	case T:
-		return resource, nil
-	case interface{ UnwrapT() T }:
-		return resource.UnwrapT(), nil
-	}
-	var zero T
-	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }

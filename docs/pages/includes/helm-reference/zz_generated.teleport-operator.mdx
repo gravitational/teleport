@@ -343,6 +343,12 @@ command such as:
 ```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
+<Admonition type="danger">
+The Teleport operator container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+If you need the operator to interact with other systems (e.g. AWS joining), the secret must contain their CA.
+Else, Teleport will fail to establish TLS connections with external services.
+</Admonition>
 
 ### `tls.existingCASecretKeyName`
 

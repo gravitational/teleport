@@ -107,7 +107,7 @@ proxy_server: example.teleport.sh:443
 onboarding:
   join_method: azure
   token: example-bot
-  azure :
+  azure:
     client_id: 22222222-2222-2222-2222-222222222222
 storage:
   type: memory
@@ -121,7 +121,7 @@ Replace:
   Auth Service. Prefer using the address of a Teleport Proxy.
 - `22222222-2222-2222-2222-222222222222` with the ID of the Azure managed
   identity that has been assigned to the VM.
-- `example-bot` with the name of the token you created in the second step.
+- `example-bot` with the name of the token you created in the third step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 

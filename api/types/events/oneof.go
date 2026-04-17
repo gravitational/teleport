@@ -236,6 +236,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionDynamoDBRequest{
 			AppSessionDynamoDBRequest: e,
 		}
+	case *AppSessionLLMRequest:
+		out.Event = &OneOf_AppSessionLLMRequest{
+			AppSessionLLMRequest: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,
@@ -968,6 +972,51 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadClusterDelete{
 			WorkloadClusterDelete: e,
 		}
+	case *InferenceModelCreate:
+		out.Event = &OneOf_InferenceModelCreate{
+			InferenceModelCreate: e,
+		}
+	case *InferenceModelUpdate:
+		out.Event = &OneOf_InferenceModelUpdate{
+			InferenceModelUpdate: e,
+		}
+	case *InferenceModelDelete:
+		out.Event = &OneOf_InferenceModelDelete{
+			InferenceModelDelete: e,
+		}
+	case *InferenceSecretCreate:
+		out.Event = &OneOf_InferenceSecretCreate{
+			InferenceSecretCreate: e,
+		}
+	case *InferenceSecretUpdate:
+		out.Event = &OneOf_InferenceSecretUpdate{
+			InferenceSecretUpdate: e,
+		}
+	case *InferenceSecretDelete:
+		out.Event = &OneOf_InferenceSecretDelete{
+			InferenceSecretDelete: e,
+		}
+	case *InferencePolicyCreate:
+		out.Event = &OneOf_InferencePolicyCreate{
+			InferencePolicyCreate: e,
+		}
+	case *InferencePolicyUpdate:
+		out.Event = &OneOf_InferencePolicyUpdate{
+			InferencePolicyUpdate: e,
+		}
+	case *InferencePolicyDelete:
+		out.Event = &OneOf_InferencePolicyDelete{
+			InferencePolicyDelete: e,
+		}
+	case *SessionSummarized:
+		out.Event = &OneOf_SessionSummarized{
+			SessionSummarized: e,
+		}
+	case *CertAuthorityOverrideEvent:
+		out.Event = &OneOf_CertAuthorityOverrideEvent{
+			CertAuthorityOverrideEvent: e,
+		}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

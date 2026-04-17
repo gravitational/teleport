@@ -35,6 +35,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |cors|[object](#speccors)|CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.|
 |dynamic_labels|[object](#specdynamic_labels)|DynamicLabels are the app's command labels.|
 |identity_center|[object](#specidentity_center)|IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|
+|inference|[object](#specinference)|LLM contains LLM inference endpoint related configurations.|
 |insecure_skip_verify|boolean|InsecureSkipVerify disables app's TLS certificate verification.|
 |integration|string|Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|
 |mcp|[object](#specmcp)|MCP contains MCP server related configurations.|
@@ -99,6 +100,22 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |arn|string|ARN is the fully-formed ARN of the Permission Set.|
 |assignment_name|string|AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.|
 |name|string|Name is the human-readable name of the Permission Set.|
+
+### spec.inference
+
+|Field|Type|Description|
+|---|---|---|
+|fallback_model|string|Defines a model that will be used if the model requested is not on the list. The fallback model must be in the "models" list.|
+|format|string|Defines the LLM inference API format.|
+|models|[][object](#specinferencemodels-items)|Defines the list of supported models, and optionally their name on the inference provider.|
+|provider|string|Defines which inference provider will be used to serve the requests.|
+
+### spec.inference.models items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string||
+|provider_name|string||
 
 ### spec.mcp
 

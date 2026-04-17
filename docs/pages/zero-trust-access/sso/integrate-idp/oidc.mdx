@@ -12,7 +12,7 @@ enterprise: Enterprise SSO
 
 This guide will explain how to configure an SSO provider using [OpenID
 Connect](http://openid.net/connect/) (also known as OIDC) to issue Teleport
-credentials to specific groups of users. When used in combination with role-based 
+credentials to specific groups of users. When used in combination with role-based
 access control (RBAC), OIDC allows Teleport administrators to define
 policies like:
 
@@ -138,9 +138,10 @@ spec:
   - claim: groups
     roles:
     - access
-    value: /users
+    value: /devs
   - claim: groups
     roles:
+    - auditor
     - editor
     value: /admins
   client_id: teleport

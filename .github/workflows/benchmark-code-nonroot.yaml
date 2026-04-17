@@ -1,9 +1,7 @@
-name: Benchmarks (Go)
-run-name: Benchmarks (Go) - ${{ github.run_id }} - @${{ github.actor }}
+name: Benchmarks Diff (Go)
+run-name: Benchmarks Diff (Go) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  pull_request:
-
   merge_group:
 
 jobs:
@@ -16,7 +14,6 @@ jobs:
       changed: ${{ steps.changes.outputs.changed }}
     steps:
       - name: Checkout
-        if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v6
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
@@ -33,39 +30,80 @@ jobs:
               - 'build.assets/Dockerfile*'
               - 'Makefile'
 
-  test:
-    name: Benchmarks (Go)
+  benchmark:
+    name: Benchmarks (Go) - ${{ matrix.name }}
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-32core
-
     permissions:
       contents: read
+    strategy:
+        # The benchmarks are split by heavy and micro categories.
+        # Heavy benchmarks expect to take >1ms per op, these use fixed iteration count.
+        # Micro benchmarks use standard 1s benchtime.
+        # Both times run for a multiple count to determine run-to-run variance.
+        matrix:
+          include:
+            - name: heavy
+              BENCH_ARGS: ""
+              BENCH_TIME: "2x"
+              BENCH_COUNT: 6
+            - name: micro
+              BENCH_ARGS: "-short"
+              BENCH_TIME: "1s"
+              BENCH_COUNT: 6
+        fail-fast: false
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
+        BENCH_TIME: ${{ matrix.BENCH_TIME }}
+        BENCH_COUNT: ${{ matrix.BENCH_COUNT }}
+        GIT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+        GIT_HEAD_SHA: ${{ github.sha }}
 
     steps:
-      - name: Checkout Teleport
+      - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
       - name: Prepare workspace
-        id: prepare
         uses: ./.github/actions/prepare-workspace
 
-      # Run benchmarks once to make sure they don't break
-      # Must be run separate since gotestsum is not compatible with benchmark output
-      - name: Run Benchmarks Once
-        timeout-minutes: 20
-        shell: bash # Overriding default shell which is `sh -e`
-        run: make test-go-bench | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
+      - name: Run head benchmarks
+        timeout-minutes: 30
+        run: |
+          make test-go-bench "BENCH_ARGS=${{ matrix.BENCH_ARGS }}" BENCH_OUTPUT=test-logs/bench-${GIT_HEAD_SHA}.txt
 
-      - name: Construct Summary
+      - name: Checkout base commit
+        uses: actions/checkout@v6
+        with:
+          clean: false # Preserve previous results
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+
+      - name: Run base benchmarks
+        timeout-minutes: 30
+        run: |
+          make test-go-bench "BENCH_ARGS=${{ matrix.BENCH_ARGS }}" BENCH_OUTPUT=test-logs/bench-${GIT_BASE_SHA}.txt
+
+      - name: Generate benchstat output
         shell: bash
         run: |
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
-          | sed -E -e 's/^pkg:\s+(github.*)/\n```\n## \1\n\n```/'  >> "$GITHUB_STEP_SUMMARY"
+          make benchstat BENCH_FILES="test-logs/bench-${GIT_BASE_SHA}.txt test-logs/bench-${GIT_HEAD_SHA}.txt"
+
+      - name: Publish benchstat summary
+        shell: bash
+        run: |
+          {
+            echo "## Go benchmark diff"
+            echo ""
+            echo "**Base:** \`${GIT_BASE_SHA}\`"
+            echo "**Head:** \`${GIT_HEAD_SHA}\`"
+            echo ""
+            echo '```'
+            cat test-logs/benchstat.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

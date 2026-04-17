@@ -23,6 +23,8 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -251,7 +253,13 @@ func TestReconciler(t *testing.T) {
 						return t.Metadata.Name
 					})
 				},
-				CompareResources: test.comparator,
+				CompareResources: func(tr1, tr2 testResource) int {
+					if test.comparator != nil {
+						return test.comparator(tr1, tr2)
+					}
+
+					return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
+				},
 				OnCreate: func(ctx context.Context, tr testResource) error {
 					onCreateCalls = append(onCreateCalls, tr)
 					return nil
@@ -319,6 +327,9 @@ func TestGenericReconciler(t *testing.T) {
 				Labels: types.Labels{"env": []string{"prod"}},
 			}}
 			return MatchResourceLabels(selectors, tr.GetMetadata().Labels)
+		},
+		CompareResources: func(tr1, tr2 testResource) int {
+			return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
 		},
 		GetCurrentResources: func() map[resourceID]testResource {
 			return registeredResources

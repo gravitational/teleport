@@ -1,0 +1,12 @@
+usage: test start <command> [<args> ...]
+
+Start.
+
+Flags:
+
+Commands:
+  legacy            (Default) Legacy.
+  workload-identity Workload identity.
+
+Aliases:
+

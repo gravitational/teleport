@@ -14,14 +14,16 @@ import (
 )
 
 type diskDataT struct {
-	_          structs.HostLayout
-	Cgroup     uint64
-	Pid        uint64
-	ReturnCode int32
-	Command    [16]uint8
-	FilePath   [255]uint8
-	_          [1]byte
-	Flags      int32
+	_              structs.HostLayout
+	Cgroup         uint64
+	AuditSessionId uint32
+	_              [4]byte
+	Pid            uint64
+	ReturnCode     int32
+	Command        [16]uint8
+	FilePath       [255]uint8
+	_              [1]byte
+	Flags          int32
 }
 
 // loadDisk returns the embedded CollectionSpec for disk.
@@ -80,11 +82,11 @@ type diskProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type diskMapSpecs struct {
-	Infotmp          *ebpf.MapSpec `ebpf:"infotmp"`
-	LostCounter      *ebpf.MapSpec `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.MapSpec `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.MapSpec `ebpf:"monitored_cgroups"`
-	OpenEvents       *ebpf.MapSpec `ebpf:"open_events"`
+	Infotmp             *ebpf.MapSpec `ebpf:"infotmp"`
+	LostCounter         *ebpf.MapSpec `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.MapSpec `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.MapSpec `ebpf:"monitored_sessionids"`
+	OpenEvents          *ebpf.MapSpec `ebpf:"open_events"`
 }
 
 // diskVariableSpecs contains global variables before they are loaded into the kernel.
@@ -114,11 +116,11 @@ func (o *diskObjects) Close() error {
 //
 // It can be passed to loadDiskObjects or ebpf.CollectionSpec.LoadAndAssign.
 type diskMaps struct {
-	Infotmp          *ebpf.Map `ebpf:"infotmp"`
-	LostCounter      *ebpf.Map `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.Map `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.Map `ebpf:"monitored_cgroups"`
-	OpenEvents       *ebpf.Map `ebpf:"open_events"`
+	Infotmp             *ebpf.Map `ebpf:"infotmp"`
+	LostCounter         *ebpf.Map `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.Map `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.Map `ebpf:"monitored_sessionids"`
+	OpenEvents          *ebpf.Map `ebpf:"open_events"`
 }
 
 func (m *diskMaps) Close() error {
@@ -126,7 +128,7 @@ func (m *diskMaps) Close() error {
 		m.Infotmp,
 		m.LostCounter,
 		m.LostDoorbell,
-		m.MonitoredCgroups,
+		m.MonitoredSessionids,
 		m.OpenEvents,
 	)
 }

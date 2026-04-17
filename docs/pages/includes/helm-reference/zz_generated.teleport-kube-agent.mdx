@@ -704,6 +704,12 @@ You must create a secret containing the CA certs in the same namespace as Telepo
 ```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
+<Admonition type="danger">
+The Teleport distroless container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+If you need Teleport to interact with other systems (e.g. AWS, GitHub, ...), the secret must contain their CA.
+Else, Teleport will fail to establish TLS connections with external services.
+</Admonition>
 
 ### `tls.existingCASecretKeyName`
 
@@ -1430,6 +1436,25 @@ Possible values are `text` (default) or `json`.
 
 See the [Teleport config file reference](../../reference/deployment/config.mdx) for
 more details on possible values for `extra_fields`.
+
+## `skipHooks`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`skipHooks` configures the chart to not render any hooks.
+This can be used in CI flows where the chart is rendered and applied separately.
+
+<Admonition type="danger">
+After disabling the hooks, uninstalling the `teleport-kube-agent` chart
+will no longer remove the agents state (stored in secrets named after the chart
+pods). If you set this boolean to true, you are responsible for deleting the
+secrets after uninstalling the chart.
+
+Failure to do so might leave valid Teleport credentials in your cluster, or cause
+issues when a new agent with the same name is deployed in the cluster.
+</Admonition>
 
 ## `affinity`
 

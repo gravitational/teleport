@@ -31,14 +31,16 @@ import (
 type mockSummarizerServiceServer struct {
 	summarizerv1.SummarizerServiceServer
 
-	models  map[string]*summarizerv1.InferenceModel
-	secrets map[string]*summarizerv1.InferenceSecret
+	models   map[string]*summarizerv1.InferenceModel
+	secrets  map[string]*summarizerv1.InferenceSecret
+	policies map[string]*summarizerv1.InferencePolicy
 }
 
 func registerMockSummarizerServiceServer(svc grpc.ServiceRegistrar) {
 	summarizerv1.RegisterSummarizerServiceServer(svc, &mockSummarizerServiceServer{
-		models:  make(map[string]*summarizerv1.InferenceModel),
-		secrets: make(map[string]*summarizerv1.InferenceSecret),
+		models:   make(map[string]*summarizerv1.InferenceModel),
+		secrets:  make(map[string]*summarizerv1.InferenceSecret),
+		policies: make(map[string]*summarizerv1.InferencePolicy),
 	})
 }
 
@@ -134,4 +136,51 @@ func (m *mockSummarizerServiceServer) DeleteInferenceSecret(ctx context.Context,
 	}
 	delete(m.secrets, req.Name)
 	return &summarizerv1.DeleteInferenceSecretResponse{}, nil
+}
+
+func (m *mockSummarizerServiceServer) ListInferencePolicies(context.Context, *summarizerv1.ListInferencePoliciesRequest) (*summarizerv1.ListInferencePoliciesResponse, error) {
+	return &summarizerv1.ListInferencePoliciesResponse{
+		Policies:      slices.Concat(slices.Collect(maps.Values(m.policies))),
+		NextPageToken: "",
+	}, nil
+}
+
+func (m *mockSummarizerServiceServer) CreateInferencePolicy(ctx context.Context, req *summarizerv1.CreateInferencePolicyRequest) (*summarizerv1.CreateInferencePolicyResponse, error) {
+	name := req.Policy.Metadata.Name
+	if _, exists := m.policies[name]; exists {
+		return nil, trace.AlreadyExists("inference policy %q already exists", name)
+	}
+	m.policies[name] = req.Policy
+	return &summarizerv1.CreateInferencePolicyResponse{Policy: req.Policy}, nil
+}
+
+func (m *mockSummarizerServiceServer) GetInferencePolicy(ctx context.Context, req *summarizerv1.GetInferencePolicyRequest) (*summarizerv1.GetInferencePolicyResponse, error) {
+	policy, exists := m.policies[req.Name]
+	if !exists {
+		return nil, trace.NotFound("inference policy %q not found", req.Name)
+	}
+	return &summarizerv1.GetInferencePolicyResponse{Policy: policy}, nil
+}
+
+func (m *mockSummarizerServiceServer) UpdateInferencePolicy(ctx context.Context, req *summarizerv1.UpdateInferencePolicyRequest) (*summarizerv1.UpdateInferencePolicyResponse, error) {
+	name := req.Policy.Metadata.Name
+	if _, exists := m.policies[name]; !exists {
+		return nil, trace.NotFound("inference policy %q not found", name)
+	}
+	req.Policy.Metadata.Revision = uuid.NewString()
+	m.policies[name] = req.Policy
+	return &summarizerv1.UpdateInferencePolicyResponse{Policy: req.Policy}, nil
+}
+
+func (m *mockSummarizerServiceServer) UpsertInferencePolicy(ctx context.Context, req *summarizerv1.UpsertInferencePolicyRequest) (*summarizerv1.UpsertInferencePolicyResponse, error) {
+	m.policies[req.Policy.Metadata.Name] = req.Policy
+	return &summarizerv1.UpsertInferencePolicyResponse{Policy: req.Policy}, nil
+}
+
+func (m *mockSummarizerServiceServer) DeleteInferencePolicy(ctx context.Context, req *summarizerv1.DeleteInferencePolicyRequest) (*summarizerv1.DeleteInferencePolicyResponse, error) {
+	if _, exists := m.policies[req.Name]; !exists {
+		return nil, trace.NotFound("inference policy %q not found", req.Name)
+	}
+	delete(m.policies, req.Name)
+	return &summarizerv1.DeleteInferencePolicyResponse{}, nil
 }

@@ -25,8 +25,41 @@ import {
 
 import { SummaryStatusLabel } from './StatusLabel';
 
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 test('SummaryStatusLabel shows scanning when no sync timestamps exist', () => {
-  const stats: IntegrationWithSummary = {
+  const stats = makeSummary(0);
+
+  render(<SummaryStatusLabel summary={stats} />);
+
+  expect(screen.getByText('Scanning')).toBeInTheDocument();
+  expect(screen.getByText('(scanning in progress)')).toBeInTheDocument();
+});
+
+test('SummaryStatusLabel shows scanning when sync timestamp is stale', () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-02-11T12:00:00Z'));
+  const stats = makeSummary(new Date('2026-02-11T11:55:00Z').getTime());
+
+  render(<SummaryStatusLabel summary={stats} />);
+
+  expect(screen.getByText('Scanning')).toBeInTheDocument();
+  expect(screen.getByText('(scanning in progress)')).toBeInTheDocument();
+});
+
+test('SummaryStatusLabel shows healthy when sync timestamp is recent', () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-02-11T12:00:00Z'));
+  const stats = makeSummary(new Date('2026-02-11T11:55:01Z').getTime());
+
+  render(<SummaryStatusLabel summary={stats} />);
+
+  expect(screen.getByText('Healthy')).toBeInTheDocument();
+  expect(screen.queryByText('(scanning in progress)')).not.toBeInTheDocument();
+});
+
+function makeSummary(lastSyncMs: number): IntegrationWithSummary {
+  return {
     name: 'integration-name',
     subKind: IntegrationKind.AwsOidc,
     unresolvedUserTasks: 0,
@@ -40,7 +73,7 @@ test('SummaryStatusLabel shows scanning when no sync timestamps exist', () => {
       resourcesFound: 0,
       resourcesEnrollmentFailed: 0,
       resourcesEnrollmentSuccess: 0,
-      discoverLastSync: 0,
+      discoverLastSync: lastSyncMs,
       ecsDatabaseServiceCount: 0,
       unresolvedUserTasks: 0,
     },
@@ -64,9 +97,4 @@ test('SummaryStatusLabel shows scanning when no sync timestamps exist', () => {
     },
     rolesAnywhereProfileSync: undefined,
   };
-
-  render(<SummaryStatusLabel summary={stats} />);
-
-  expect(screen.getByText('Scanning')).toBeInTheDocument();
-  expect(screen.getByText('(scanning in progress)')).toBeInTheDocument();
-});
+}

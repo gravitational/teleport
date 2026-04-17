@@ -47,13 +47,13 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -103,6 +103,9 @@ type RecordingEncryptionManager interface {
 
 // InitConfig is auth server init config
 type InitConfig struct {
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
+
 	// Backend is auth backend to use
 	Backend backend.Backend
 
@@ -164,13 +167,13 @@ type InitConfig struct {
 	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is service controlling access to resources
-	Access services.Access
+	Access services.AccessInternal
 
 	// DynamicAccessExt is a service that manages dynamic RBAC.
 	DynamicAccessExt services.DynamicAccessExt
@@ -188,13 +191,16 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Applications
+	Apps services.ApplicationsInternal
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
+
+	// DelegationSessions is a service that manages delegation sessions.
+	DelegationSessions services.DelegationSessions
 
 	// Status is a service that manages cluster status info.
 	Status services.Status
@@ -441,6 +447,27 @@ type InitConfig struct {
 
 	// WorkloadClusterService is the service that manages WorkloadClusters.
 	WorkloadClusterService services.WorkloadClusterService
+
+	// Beams is the service for reading and writing beams.
+	Beams services.Beams
+
+	// FakePasswordHash is the password hash given to all users without a password.
+	// This helps eliminate timing attacks by ensuring that all authentication attempts
+	// with a password do a bcrypt comparison.
+	FakePasswordHash []byte
+	// FakeRecoveryCodeHash is the recovery code hash given to all users without codes.
+	// This helps eliminate timing attacks by ensuring that all recovery attempts
+	// with codes do a bcrypt comparison.
+	FakeRecoveryCodeHash []byte
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
+
+	// RemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	RemoteClusterRefreshLimit int
+	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
+	RemoteClusterRefreshBuckets int
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -453,6 +480,11 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	}
 	if cfg.HostUUID == "" {
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
+	}
+
+	// TODO(tross): return an error once modules are injected everywhere.
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
 	}
 
 	asrv, err := NewServer(&cfg, opts...)
@@ -504,7 +536,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.BootstrapResources) > 0 {
 		if firstStart {
 			asrv.logger.InfoContext(ctx, "Applying bootstrap resources (first initialization)", "resource_count", len(cfg.BootstrapResources))
-			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
+			if err := checkResourceConsistency(ctx, cfg.Modules, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
@@ -691,7 +723,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if lib.IsInsecureDevMode() {
+	if cfg.InsecureMode {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
@@ -712,15 +744,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	span.AddEvent("completed checking certificate authority cluster names")
 
 	// Create presets - convenience and example resources.
-	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+	if !services.IsDashboard(*cfg.Modules.Features().ToProto()) {
 		span.AddEvent("creating preset roles")
-		if err := createPresetRoles(ctx, modules.GetModules().BuildType(), asrv); err != nil {
+		if err := createPresetRoles(ctx, asrv.modules.BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
-		if err := createPresetUsers(ctx, modules.GetModules().BuildType(), asrv); err != nil {
+		if err := createPresetUsers(ctx, asrv.modules.BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
@@ -1115,7 +1147,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 				FIPS:          asrv.fips,
 				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-				Cloud:         modules.GetModules().Features().Cloud,
+				Cloud:         asrv.modules.Features().Cloud,
 			})
 		case newAuthPref.Origin() == types.OriginDefaults:
 			// There is a stored auth preference which we are overwriting with a
@@ -1535,7 +1567,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -1590,7 +1622,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			}
 		case types.Role:
 			// Some options are only available with enterprise subscription
-			if err := checkRoleFeatureSupport(r); err != nil {
+			if err := checkRoleFeatureSupport(mod, r); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -1617,8 +1649,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := a.GenerateHostCerts(context.Background(), HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
 			Role:                 id.Role,
@@ -1626,7 +1658,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1736,6 +1769,7 @@ var ResourceApplyPriority = map[string]int{
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
+	types.KindWorkloadIdentity:        3,
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
@@ -1764,15 +1798,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
-			err = service.Provisioner.UpsertToken(ctx, r)
+			err = service.UpsertToken(ctx, r)
 		case types.User:
-			err = services.ValidateUserRoles(ctx, r, service.Access)
+			err = services.ValidateUserRoles(ctx, r, service)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			_, err = service.Identity.UpsertUser(ctx, r)
+			_, err = service.UpsertUser(ctx, r)
 		case types.Role:
-			_, err = service.Access.UpsertRole(ctx, r)
+			_, err = service.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
@@ -1785,6 +1819,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
+			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

@@ -282,7 +282,7 @@ func arnMatches(pattern, arn string) (bool, error) {
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
 func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *CheckIAMRequestParams, organizationIDFetcher *organizationsIDFetcher) error {
-	for _, rule := range params.ProvisionToken.GetAllowRules() {
+	for _, rule := range params.ProvisionToken.GetAWSAllowRules() {
 		// if this rule specifies an AWS account, the identity must match
 		if rule.AWSAccount != "" {
 			if rule.AWSAccount != identity.Account {

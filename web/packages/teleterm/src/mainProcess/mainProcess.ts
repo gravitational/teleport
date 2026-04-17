@@ -35,6 +35,8 @@ import {
 } from 'electron';
 import { enableMapSet, enablePatches } from 'immer';
 
+import { AutoUpdateServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb.client';
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
@@ -52,11 +54,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
-import {
-  AppUpdater,
-  AppUpdaterStorage,
-  TELEPORT_TOOLS_VERSION_ENV_VAR,
-} from 'teleterm/services/appUpdater';
+import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -64,12 +62,7 @@ import {
   KeepLastChunks,
   LoggerColor,
 } from 'teleterm/services/logger';
-import {
-  AutoUpdateClient,
-  createAutoUpdateClient,
-  createTshdClient,
-  TshdClient,
-} from 'teleterm/services/tshd';
+import { AutoUpdateClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -193,22 +186,28 @@ export default class MainProcess {
     this.initResolvingChildProcessAddressesAndTshdClients();
     this.initIpc();
 
-    const getClusterVersions = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const { response } = await autoUpdateService.getClusterVersions({});
-      return response;
-    };
-    const getDownloadBaseUrl = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const {
-        response: { baseUrl },
-      } = await autoUpdateService.getDownloadBaseUrl({});
-      return baseUrl;
-    };
     this.appUpdater = new AppUpdater(
+      this.settings.tshd.binaryPath,
       makeAppUpdaterStorage(this.appStateFileStorage),
-      getClusterVersions,
-      getDownloadBaseUrl,
+      {
+        getConfig: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getConfig({});
+          return response;
+        },
+        getClusterVersions: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getClusterVersions({});
+          return response;
+        },
+        getInstallationMetadata: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getInstallationMetadata(
+            {}
+          );
+          return response;
+        },
+      },
       event => {
         if (event.kind === 'error') {
           event.error = serializeError(event.error);
@@ -216,8 +215,7 @@ export default class MainProcess {
         this.windowsManager
           .getWindow()
           .webContents.send(RendererIpc.AppUpdateEvent, event);
-      },
-      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
+      }
     );
     this.clusterStore = new ClusterStore(
       () => this.tshdClients.then(c => c.terminalService),
@@ -285,6 +283,7 @@ export default class MainProcess {
           ...process.env,
           TELEPORT_HOME: this.configService.get('tshHome').value,
           [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+          FORWARDED_TELEPORT_TOOLS_VERSION: process.env[TSH_AUTOUPDATE_ENV_VAR],
         },
       }
     );
@@ -933,8 +932,8 @@ async function setUpTshdClients({
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
   return {
-    terminalService: createTshdClient(transport),
-    autoUpdateService: createAutoUpdateClient(transport),
+    terminalService: new TerminalServiceClient(transport),
+    autoUpdateService: new AutoUpdateServiceClient(transport),
   };
 }
 

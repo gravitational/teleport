@@ -187,12 +187,8 @@ var _ sshdBackendOperations = &sshdBackend{}
 
 func (b *sshdBackend) checkConfig(path string) error {
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("%s %q", b.checkCmd, path))
-	if err := cmd.Run(); err != nil {
-		output, outErr := cmd.CombinedOutput()
-		if err != nil {
-			return trace.Wrap(trace.NewAggregate(err, outErr), "invalid sshd config file, failed to get `%s %q` output", b.checkCmd, path)
-		}
-		return trace.Wrap(err, "invalid sshd config file %q, not writing", string(output))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return trace.Wrap(err, "invalid sshd config file %q, not writing: %s", path, string(output))
 	}
 	return nil
 }

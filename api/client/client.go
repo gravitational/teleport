@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -63,8 +62,10 @@ import (
 	scopedaccess "github.com/gravitational/teleport/api/client/scopes/access"
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
+	"github.com/gravitational/teleport/api/client/summarizer"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
+	"github.com/gravitational/teleport/api/client/vnetconfig"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -77,6 +78,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -85,6 +87,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -103,6 +106,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -117,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -342,7 +347,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					tlsConfig: tlsConfig,
 					addr:      addr,
 				})
-				if sshConfig != nil {
+				if !sshConfig.IsEmpty() {
 					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
@@ -405,7 +410,7 @@ type (
 		addr      string
 		tlsConfig *tls.Config
 		dialer    ContextDialer
-		sshConfig *ssh.ClientConfig
+		sshConfig ssh.ClientConfig
 	}
 )
 
@@ -427,10 +432,10 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
+	dialer := newTunnelDialer(params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -442,12 +447,12 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 // takes a specific addr parameter to allow the proxy address to be modified
 // when using special credentials.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
 
 	dialer := NewProxyDialer(
-		*params.sshConfig,
+		params.sshConfig,
 		params.cfg.KeepAlivePeriod,
 		params.cfg.DialTimeout,
 		params.addr,
@@ -463,10 +468,10 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 
 // tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
 func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	dialer := newTLSRoutingTunnelDialer(params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
@@ -477,10 +482,10 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 // tlsRoutingWithConnUpgradeConnect connects to the Teleport Auth Server
 // through the proxy using TLS Routing with ALPN connection upgrade.
 func tlsRoutingWithConnUpgradeConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingWithConnUpgradeDialer(*params.sshConfig, params)
+	dialer := newTLSRoutingWithConnUpgradeDialer(params.sshConfig, params)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing with ALPN connection upgrade dialer", params.addr)
@@ -669,9 +674,9 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
-	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
+	// MFACeremonyConstructor is used to handle SSO or Browser MFA when needed.
 	// If nil, the client will not prompt for MFA.
-	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -738,9 +743,9 @@ func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
 }
 
-// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
-func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
-	c.c.SSOMFACeremonyConstructor = scc
+// SetMFACeremonyConstructor sets the MFA ceremony constructor for this client.
+func (c *Client) SetMFACeremonyConstructor(mcc mfa.MFACeremonyConstructor) {
+	c.c.MFACeremonyConstructor = mcc
 }
 
 // Close closes the Client connection to the auth server.
@@ -934,6 +939,8 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 }
 
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
+//
+// Deprecated: Prefer VnetConfigClient.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
@@ -949,6 +956,13 @@ func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient 
 	return summarizerv1.NewSummarizerServiceClient(c.conn)
 }
 
+// SummarizerClient returns a client for the session summarizer service that
+// hides away the gRPC request/response layer. Required for compatibility with
+// autogenerated Terraform provider code.
+func (c *Client) SummarizerClient() *summarizer.Client {
+	return summarizer.NewClient(summarizerv1.NewSummarizerServiceClient(c.conn))
+}
+
 // RecordingMetadataServiceClient returns an unadorned client for the session
 // recording metadata service.
 func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient {
@@ -959,6 +973,12 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 // recording encryption service.
 func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
 	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
+// DelegationSessionServiceClient returns a client for the delegation session
+// service.
+func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
+	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -1637,6 +1657,15 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	}
 
 	return resp.GetSession(), nil
+}
+
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
+		SessionId: sessionID,
+		PublicKey: publicKey,
+	})
+	return trace.Wrap(err)
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.
@@ -5463,6 +5492,17 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
 }
 
+// VnetConfigClient returns a VnetConfig client.
+// Clients connecting to older Teleport versions, still get an VnetConfig client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+//
+// TODO: Add this method to lib/auth/authclient.ClientI so higher-level callers
+// can use the wrapper without reaching for the raw gRPC client.
+func (c *Client) VnetConfigClient() *vnetconfig.Client {
+	return vnetconfig.NewClient(vnet.NewVnetConfigServiceClient(c.conn))
+}
+
 // CrownJewelServiceClient returns a CrownJewel client.
 // Clients connecting to older Teleport versions, still get a CrownJewel client
 // when calling this method, but all RPCs will return "not implemented" errors
@@ -6029,6 +6069,14 @@ func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScoped
 	return res, trace.Wrap(err)
 }
 
+func (c *Client) GetScopedToken(ctx context.Context, name string, withSecret bool) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name:       name,
+		WithSecret: withSecret,
+	})
+	return res.GetToken(), trace.Wrap(err)
+}
+
 // DeleteScopedToken deletes an existing scoped token.
 func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
@@ -6040,6 +6088,22 @@ func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
 // CreateScopedToken creates a new scoped token.
 func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	res, err := c.grpc.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: token,
+	})
+	return res.GetToken(), trace.Wrap(err)
+}
+
+// UpsertScopedToken upserts a scoped token.
+func (c *Client) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+		Token: token,
+	})
+	return res.GetToken(), trace.Wrap(err)
+}
+
+// UpdateScopedToken updates an existing scoped token.
+func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
@@ -6188,4 +6252,62 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 		Name: name,
 	})
 	return trace.Wrap(err)
+}
+
+// SubCAClient returns an unadorned Sub CA client, using the underlying Auth
+// gRPC connection.
+func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
+	return subcav1.NewSubCAServiceClient(c.conn)
+}
+
+// GetCertAuthorityOverride reads a CA override resource by ID.
+//
+// It's equivalent to `c.SubCAClient().GetCertAuthorityOverride(ctx, req)`.
+//
+// If the cluster name is empty it's assumed that the default cluster is being
+// queried (like its namesake RPC). If the cluster name is non-empty, then it's
+// checked against the RPC response.
+func (c *Client) GetCertAuthorityOverride(
+	ctx context.Context,
+	id types.CertAuthorityOverrideID,
+) (*subcav1.CertAuthorityOverride, error) {
+	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
+		CaId: &subcav1.CertAuthorityOverrideID{
+			CaType: id.CAType,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Consider adding ClusterName to requests so the server
+	//  can handle them appropriately/uniformly.
+	if id.ClusterName != "" && resp.GetCaOverride().GetMetadata().GetName() != id.ClusterName {
+		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
+	}
+
+	return resp.CaOverride, nil
+}
+
+// ListCertAuthorityOverrides lists all CA overrides.
+//
+// It's equivalent to `c.SubCAClient().ListCertAuthorityOverrides(ctx, req)`.
+func (c *Client) ListCertAuthorityOverrides(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
+	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, &subcav1.ListCertAuthorityOverrideRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.CaOverrides, resp.NextPageToken, nil
+}
+
+// IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].
+func (c *Client) IssuanceClient() issuancev1pb.IssuanceServiceClient {
+	return issuancev1pb.NewIssuanceServiceClient(c.conn)
 }

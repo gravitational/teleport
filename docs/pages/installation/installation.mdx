@@ -1,101 +1,57 @@
 ---
-title: Installing Teleport
-description: How to install Teleport and Teleport's client tools on your platform, including binaries and instructions for Docker and Helm.
-videoBanner: fjk29wqXm1A
-tags:
-- reference
-- platform-wide
+title: Install Teleport
+description: Provides guidance on installing Teleport cluster components.
 ---
 
-Whether you are installing Teleport as a cluster or as an agent that talks to the cluster, the Teleport binary is the same. The difference is only in how you [configure it](../reference/deployment/config.mdx), which you will need to do after installation. Before choosing an installation method below, you should identify your particular use case. There are three:
+The guides in this section show you how to install Teleport on your system. As
+we explain in [Core Concepts](../core-concepts.mdx), Teleport is a distributed
+system with several components working together across your infrastructure. How
+you install Teleport depends on:
 
-1. **Installing Teleport as a cluster:** Install a self-hosted Teleport cluster to provide secure, identity-based access to all your infrastructure. If you are running Teleport Enterprise Cloud, you will not need this use case, as the cluster is managed for you.
-2. **Installing Teleport as an agent:** Install a Teleport Agent on your infrastructure resource to enroll it with your cluster for centralized access management.
-3. **Installing Teleport as a client:** For interacting with and managing your clusters via CLI and Teleport Connect.
+- Whether you have a Teleport Cloud account or are self-hosting the Teleport
+  Auth Service and Proxy Service
+- How you choose to deploy Teleport Agents, `tbot`, and any self-hosted plugins
+  like the Event Handler and Access Request plugins
+- If you are self-hosting, how you choose to deploy the Teleport Auth Service
+  and Proxy Service 
 
-These use cases will be addressed in each platform page.
+## Client tools
 
-### Choose your platform to install Teleport
+If you want to download client tools to access Teleport from your workstation,
+visit [Download Client Tools](https://goteleport.com/download/client-tools/).
+This page also includes client tool downloads for Windows, which does not
+support the `teleport` daemon.
 
-<TileGrid
-  tiles={[
-    {
-      icon: <Icon name="linux" size="xl" />,
-      to: "./linux",
-      name: "Linux",
-    },
-    {
-      icon: <Icon name="docker" size="xl" />,
-      to: "./docker",
-      name: "Docker",
-    },
-    {
-      icon: <Icon name="ec2" size="xl" />,
-      to: "./amazon-ec2",
-      name: "Amazon EC2",
-    },
-    {
-      icon: <Icon name="ecs" size="xl" />,
-      to: "./amazon-ecs",
-      name: "Amazon ECS",
-    },
-    {
-      icon: <Icon name="kubernetes2" size="xl" />,
-      to: "./helm",
-      name: "Helm",
-    },
-    {
-      icon: <Icon name="apple" size="xl" />,
-      to: "./macos",
-      name: "macOS",
-    },
-    {
-      icon: <Icon name="windows" size="xl" />,
-      to: "./windows",
-      name: "Windows",
-    },
-    {
-      icon: <Icon name="laptop" size="xl" />,
-      to: "./source",
-      name: "From Source",
-    }
-  ]}
-/>
+## Teleport cluster setup
 
-## Checksums
+The easiest way to get started with Teleport is to [sign
+up](https://goteleport.com/signup/) for a Teleport Cloud account. From there,
+you can [install Teleport Agents](agents/agents.mdx) so you can enroll your
+infrastructure with Teleport.
 
-If you want to verify the integrity of a Teleport binary, SHA256 checksums are
-available for all downloads on our
-[downloads page](https://goteleport.com/download/).
+For instructions on installing a `teleport` binary on a single machine, see
+[Install Teleport on a Single Machine](single-machine/single-machine.mdx). The
+Teleport Auth Service, Teleport Proxy Service, and Teleport Agent services all
+share a binary, though you will need to create a configuration file for each
+instance and configure them to communicate with one another as a cluster.
 
-![Teleport Checksum](../../img/teleport-sha.png)
+## Self-hosted Teleport clusters
 
-If you download Teleport via an automated system, you can programmatically
-obtain the checksum by adding `.sha256` to the download link. This is the method
-shown in the installation examples.
+Read [Deploy Teleport Community
+Edition](../get-started/deploy-community.mdx) to get started with a
+small self-hosted demo cluster.
 
-```code
-$ export version=v(=teleport.version=)
-# 'darwin' 'linux' or 'windows'
-$ export os=linux
-# '386' 'arm' on linux or 'amd64' for all distros
-$ export arch=amd64
-$ curl https://cdn.teleport.dev/teleport-$version-$os-$arch-bin.tar.gz.sha256
-# <checksum> <filename>
-```
+For self-hosted Teleport Enterprise accounts, deployments typically take place
+in conversation with the team at Teleport. We recommend [reaching out to us
+directly](https://goteleport.com/contact-us/) to learn more about getting
+started with this deployment option and start planning your approach.
 
-## Uninstalling Teleport
+You can read more about setting up a self-hosted cluster in [Deploy a
+Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).
 
-If you wish to uninstall Teleport at any time, see our documentation on [Uninstalling Teleport](uninstall-teleport.mdx).
+## Other installation scenarios
 
-## Next steps
+- [Installing `tbot`](../machine-workload-identity/deployment/deployment.mdx)
+- [Teleport Event Handler](../zero-trust-access/export-audit-events/export-audit-events.mdx)
+- [Access Request Plugins](../identity-governance/access-requests/plugins/plugins.mdx)
 
-Now that you know how to install Teleport, you can enable access to all of your
-infrastructure. Get started with enrolling resources in your Teleport cluster:
-
-- [SSH servers](../enroll-resources/server-access/server-access.mdx)
-- [Kubernetes clusters](../enroll-resources/kubernetes-access/introduction.mdx)
-- [Databases](../enroll-resources/database-access/database-access.mdx)
-- [Applications](../enroll-resources/application-access/application-access.mdx)
-- [Remote desktops](../enroll-resources/desktop-access/introduction.mdx)
-- [Machine & Workload Identity](../machine-workload-identity/introduction.mdx)

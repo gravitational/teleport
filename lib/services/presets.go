@@ -223,6 +223,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
 					types.NewRule(scopedaccess.KindScopedRole, RW()),
 					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
@@ -794,6 +795,7 @@ func NewPresetTerraformProviderRole() types.Role {
 				// Login/user set.
 				AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
@@ -809,6 +811,8 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDevice, RW()),
 					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindKubernetesCluster, RW()),
+					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),
 					types.NewRule(types.KindOIDC, RW()),
@@ -818,6 +822,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindInstaller, RW()),
@@ -829,8 +834,14 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
 					types.NewRule(types.KindAppAuthConfig, RW()),
+					types.NewRule(types.KindInferenceModel, RW()),
+					types.NewRule(types.KindInferenceSecret, RW()),
+					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
+					types.NewRule(types.KindScopedToken, RW()),
 				},
 			},
 		},
@@ -981,6 +992,7 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			AppLabels:            wildcardLabels,
 			DatabaseLabels:       wildcardLabels,
 			NodeLabels:           wildcardLabels,
+			KubernetesLabels:     wildcardLabels,
 			WindowsDesktopLabels: wildcardLabels,
 		},
 		teleport.PresetListAccessRequestResourcesRoleName: {
@@ -1323,12 +1335,12 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalGitHubOrgs},
 	}
 }
 
 func defaultMCPTools() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalMCPTools},
 	}
 }

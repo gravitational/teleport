@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request Slack plug
 
 ## Installation
 
-See the [Access Requests with Slack guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-slack/).
+See the [Access Requests with Slack guide](https://goteleport.com/docs/identity-governance/access-requests/plugins/slack/).
 
 ## Values
 

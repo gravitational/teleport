@@ -34,9 +34,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -48,14 +46,6 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
-
-func printMetadataLabels(labels map[string]string) string {
-	pairs := []string{}
-	for key, value := range labels {
-		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
-	}
-	return strings.Join(pairs, ",")
-}
 
 type reverseTunnelCollection struct {
 	tunnels []types.ReverseTunnel
@@ -314,39 +304,6 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type externalAuditStorageCollection struct {
-	externalAuditStorages []*externalauditstorage.ExternalAuditStorage
-}
-
-func (c *externalAuditStorageCollection) Resources() (r []types.Resource) {
-	for _, a := range c.externalAuditStorages {
-		r = append(r, a)
-	}
-	return r
-}
-
-func (c *externalAuditStorageCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, a := range c.externalAuditStorages {
-		rows = append(rows, []string{
-			a.GetName(),
-			a.Spec.IntegrationName,
-			a.Spec.PolicyName,
-			a.Spec.Region,
-			a.Spec.SessionRecordingsURI,
-			a.Spec.AuditEventsLongTermURI,
-			a.Spec.AthenaResultsURI,
-			a.Spec.AthenaWorkgroup,
-			a.Spec.GlueDatabase,
-			a.Spec.GlueTable,
-		})
-	}
-	headers := []string{"Name", "IntegrationName", "PolicyName", "Region", "SessionRecordingsURI", "AuditEventsLongTermURI", "AthenaResultsURI", "AthenaWorkgroup", "GlueDatabase", "GlueTable"}
-	t := asciitable.MakeTable(headers, rows...)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type databaseServiceCollection struct {
 	databaseServices []types.DatabaseService
 }
@@ -536,28 +493,6 @@ func (c *securityReportCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{v.GetName(), v.Spec.Title, strings.Join(auditQueriesNames, ", "), v.Spec.Description})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type vnetConfigCollection struct {
-	vnetConfig *vnet.VnetConfig
-}
-
-func (c *vnetConfigCollection) Resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
-}
-
-func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	var dnsZoneSuffixes []string
-	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
-		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
-	}
-	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
-	t.AddRow([]string{
-		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
-		strings.Join(dnsZoneSuffixes, ", "),
-	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

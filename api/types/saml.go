@@ -127,6 +127,8 @@ type SAMLConnector interface {
 	GetIncludeSubject() bool
 	// SetIncludeSubject sets whether the Subject element should be included.
 	SetIncludeSubject(bool)
+	// IsEqual determines if two connectors are equivalent to one another.
+	IsEqual(SAMLConnector) bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -141,6 +143,15 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
+	otherv2, ok := other.(*SAMLConnectorV2)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
 }
 
 // GetVersion returns resource version
@@ -516,7 +527,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
 	}
 	if o.Spec.AllowIDPInitiated && !strings.HasSuffix(o.Spec.AssertionConsumerService, "/"+o.Metadata.Name) {
-		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/webapi/v1/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
+		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/v1/webapi/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
 	}
 	if o.Spec.ServiceProviderIssuer == "" {
 		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService

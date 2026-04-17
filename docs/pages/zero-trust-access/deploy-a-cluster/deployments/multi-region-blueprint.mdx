@@ -9,10 +9,17 @@ enterprise: Support for multi-region deployments
 ---
 
 This page describes how to deploy a Teleport cluster in multiple regions to
-improve resiliency and sustain regional failure. This is not a step-by-step
-guide but a blueprint on how to build a multi-region Teleport cluster. This
-blueprint must be adapted to work with your specific infrastructure and network
-constraints.
+improve resiliency and sustain regional failure.
+
+<Admonition type="warning">
+Multi-region resilience drastically increases complexity and costs. Do not use
+this blueprint unless multi-region resilience is a requirement. We recommend
+following the [Deploying a High Availability Teleport
+Cluster](high-availability.mdx) guide for most deployments.
+
+Please follow this blueprint precisely with no modifications. If you modify any
+parts of this blueprint, we would not be able to support your deployment.
+</Admonition>
 
 ## Important technical consideration
 
@@ -51,9 +58,10 @@ deployments. Teleport stores its state in a multi-region backend and uses
 [Proxy Peering](../reliability/proxy-peering.mdx) to connect users to resources
 hosted in a different region.
 
-The recommended multi-region backend
-is [the CockroachDB backend](../../../reference/deployment/backends.mdx)
-available in self-hosted Teleport Enterprise.
+The only option for a multi-region backend is [the CockroachDB
+backend](../../../reference/deployment/backends.mdx#cockroachdb) available in
+self-hosted Teleport Enterprise. We do not recommend or support any other
+backend for multi-region deployments.
 
 ![Architecture diagram](../../../../img/deploy-a-cluster/multi-region-blueprint.svg)
 

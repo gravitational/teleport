@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -497,6 +496,31 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
+// AppendPutUserParamsActions adds conditional actions to an atomic write to
+// create or update the user params resource (without secrets, mfa devices).
+func (s *IdentityService) AppendPutUserParamsActions(
+	actions []backend.ConditionalAction,
+	user types.User,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	withoutSecrets, ok := user.WithoutSecrets().(types.User)
+	if !ok {
+		return nil, trace.BadParameter("WithoutSecrets returned a different type (this is a bug)")
+	}
+	item, err := itemFromUser(withoutSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
+}
+
 // CompareAndSwapUser updates a user, but fails if the user (as exists in the
 // backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
@@ -538,7 +562,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
+		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 
@@ -652,7 +676,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -669,7 +693,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -685,7 +709,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -719,6 +743,24 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	return trace.NewAggregate(notifErrors...)
+}
+
+// AppendDeleteUserParamsActions adds conditional actions to an atomic write
+// to delete the user params resource.
+//
+// Note: the returned actions will NOT delete the user's password, MFA devices,
+// etc. so is only really suitable for bot users, in most cases you should use
+// DeleteUser instead.
+func (s *IdentityService) AppendDeleteUserParamsActions(
+	actions []backend.ConditionalAction,
+	user string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(webPrefix, usersPrefix, user, paramsPrefix),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
@@ -1944,7 +1986,7 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
-func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
+func (s *IdentityService) UpsertMFASessionData(ctx context.Context, sd *services.MFASessionData) error {
 	switch {
 	case sd == nil:
 		return trace.BadParameter("missing parameter sd")
@@ -1970,7 +2012,7 @@ func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *servi
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+func (s *IdentityService) GetMFASessionData(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
 	if sessionID == "" {
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
@@ -1979,16 +2021,35 @@ func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &services.SSOMFASessionData{}
+	sd := &services.MFASessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
-func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
+func (s *IdentityService) DeleteMFASessionData(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return trace.BadParameter("missing parameter sessionID")
 	}
 
 	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
+}
+
+// Deprecated: use UpsertMFASessionData.
+func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
+	return trace.Wrap(s.UpsertMFASessionData(ctx, sd))
+}
+
+// Deprecated: use GetMFASessionData.
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+	sd, err := s.GetMFASessionData(ctx, sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sd, nil
+}
+
+// Deprecated: use DeleteMFASessionData.
+func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
+	return trace.Wrap(s.DeleteMFASessionData(ctx, sessionID))
 }
 
 func ssoMFASessionDataKey(sessionID string) backend.Key {
@@ -2287,6 +2348,53 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
+}
+
+func newSAMLConnectorParser(loadSecrets bool) *samlConnectorParser {
+	return &samlConnectorParser{
+		baseParser:  newBaseParser(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)),
+		loadSecrets: loadSecrets,
+	}
+}
+
+type samlConnectorParser struct {
+	baseParser
+	loadSecrets bool
+}
+
+func (p *samlConnectorParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.SAMLConnectorV2{
+			Kind:    types.KindSAMLConnector,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		connector, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			event.Item.Value,
+			[]types.SAMLConnectorValidationOption{types.SAMLConnectorValidationFollowURLs(false)},
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return connector.WithoutSecrets(), nil
+		}
+		return connector, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 const (

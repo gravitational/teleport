@@ -201,6 +201,10 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken contains the name of the join token used when a Machine ID bot
 	// joins. It is empty for other identity types.
 	JoinToken string
@@ -231,6 +235,17 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash string
+
+	// WebSessionID is the session ID of the web session associated with this identity, if any.
+	WebSessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -406,6 +421,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:         devExts,
 		BotName:                  id.BotName,
 		BotInstanceID:            id.BotInstanceID,
+		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
 	}
 }
@@ -628,6 +644,32 @@ var (
 	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
 	// ResourceAccessIDs which the certificate should be able to grant access to
 	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+
+	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
+	// web session ID associated with this identity, if any.
+	WebSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
+
+	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
+	// are for a bot internal identity, rather than an output certificate.
+	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
+
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 30}
+
+	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
+	// certificate.
+	//
+	// Historically the cluster name is recorded in the certificate's "O=" field.
+	// This OID makes it possible to customize O= and still record the cluster
+	// name.
+	//
+	// Takes precedence, as the cluster name, over the O= field if both are
+	// present.
+	CAClusterNameExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 4, 1}
 )
 
 // Device Trust OIDs.
@@ -934,6 +976,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotInternal {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInternalASN1ExtensionOID,
+				Value: types.True,
+			},
+		)
+	}
+
 	if id.JoinToken != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -943,7 +994,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	if id.ScopePin != nil {
-		pin, err := protojson.Marshal(id.ScopePin)
+		pin, err := pinning.Encode(id.ScopePin)
 		if err != nil {
 			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
 		}
@@ -951,7 +1002,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  ScopePinASN1ExtensionOID,
-				Value: string(pin),
+				Value: pin,
 			})
 	}
 
@@ -960,6 +1011,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AgentScopeASN1ExtensionOID,
 				Value: id.AgentScope,
+			})
+	}
+
+	if id.DelegationSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DelegationSessionIDASN1ExtensionOID,
+				Value: id.DelegationSessionID,
 			})
 	}
 
@@ -1071,6 +1130,22 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			Type:  DeviceCredentialIDExtensionOID,
 			Value: devCred,
 		})
+	}
+
+	if id.ImmutableLabelHash != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: id.ImmutableLabelHash,
+			})
+	}
+
+	if id.WebSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  WebSessionIDASN1ExtensionOID,
+				Value: id.WebSessionID,
+			})
 	}
 
 	return subject, nil
@@ -1287,6 +1362,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(BotInternalASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInternal = val == types.True
+			}
 		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1295,15 +1375,21 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(ScopePinASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				var pin scopesv1.Pin
-				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
-					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
+				pin, err := pinning.Decode(val)
+				if err != nil {
+					return nil, trace.Errorf("failed to decode scope pin: %w", err)
 				}
-				id.ScopePin = &pin
+				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
-			id.AgentScope = attr.Value.(string)
-
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AgentScope = val
+			}
+		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DelegationSessionID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1375,6 +1461,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.ImmutableLabelHash = val
+			}
+		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.WebSessionID = val
 			}
 		}
 	}
@@ -1449,6 +1543,11 @@ func (id *Identity) IsMFAVerified() bool {
 // IsBot returns whether this identity belongs to a bot.
 func (id *Identity) IsBot() bool {
 	return id.BotName != ""
+}
+
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
 }
 
 // CertificateRequest is a X.509 signing certificate request

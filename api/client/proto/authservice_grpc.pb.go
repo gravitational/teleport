@@ -106,6 +106,7 @@ const (
 	AuthService_DeleteAppSession_FullMethodName                    = "/proto.AuthService/DeleteAppSession"
 	AuthService_DeleteAllAppSessions_FullMethodName                = "/proto.AuthService/DeleteAllAppSessions"
 	AuthService_DeleteUserAppSessions_FullMethodName               = "/proto.AuthService/DeleteUserAppSessions"
+	AuthService_SetAppSessionDBSCPublicKey_FullMethodName          = "/proto.AuthService/SetAppSessionDBSCPublicKey"
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
@@ -119,7 +120,6 @@ const (
 	AuthService_DeleteAllSAMLIdPSessions_FullMethodName            = "/proto.AuthService/DeleteAllSAMLIdPSessions"
 	AuthService_DeleteUserSAMLIdPSessions_FullMethodName           = "/proto.AuthService/DeleteUserSAMLIdPSessions"
 	AuthService_GetWebSession_FullMethodName                       = "/proto.AuthService/GetWebSession"
-	AuthService_GetWebSessions_FullMethodName                      = "/proto.AuthService/GetWebSessions"
 	AuthService_StreamWebSessions_FullMethodName                   = "/proto.AuthService/StreamWebSessions"
 	AuthService_DeleteWebSession_FullMethodName                    = "/proto.AuthService/DeleteWebSession"
 	AuthService_DeleteAllWebSessions_FullMethodName                = "/proto.AuthService/DeleteAllWebSessions"
@@ -493,6 +493,8 @@ type AuthServiceClient interface {
 	DeleteAllAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, in *SetAppSessionDBSCPublicKeyRequest, opts ...grpc.CallOption) (*SetAppSessionDBSCPublicKeyResponse, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
@@ -529,9 +531,6 @@ type AuthServiceClient interface {
 	DeleteUserSAMLIdPSessions(ctx context.Context, in *DeleteUserSAMLIdPSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
-	// Deprecated: Do not use.
-	// GetWebSessions gets all web sessions.
-	GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error)
 	// StreamWebSessions gets all web sessions in a stream.
 	StreamWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[types.WebSessionV2], error)
 	// DeleteWebSession deletes a web session.
@@ -1873,6 +1872,16 @@ func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *Delet
 	return out, nil
 }
 
+func (c *authServiceClient) SetAppSessionDBSCPublicKey(ctx context.Context, in *SetAppSessionDBSCPublicKeyRequest, opts ...grpc.CallOption) (*SetAppSessionDBSCPublicKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetAppSessionDBSCPublicKeyResponse)
+	err := c.cc.Invoke(ctx, AuthService_SetAppSessionDBSCPublicKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateSnowflakeSessionResponse)
@@ -2004,17 +2013,6 @@ func (c *authServiceClient) GetWebSession(ctx context.Context, in *types.GetWebS
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWebSessionResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWebSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetWebSessionsResponse)
-	err := c.cc.Invoke(ctx, AuthService_GetWebSessions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4189,6 +4187,8 @@ type AuthServiceServer interface {
 	DeleteAllAppSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error)
+	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+	SetAppSessionDBSCPublicKey(context.Context, *SetAppSessionDBSCPublicKeyRequest) (*SetAppSessionDBSCPublicKeyResponse, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
@@ -4225,9 +4225,6 @@ type AuthServiceServer interface {
 	DeleteUserSAMLIdPSessions(context.Context, *DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
-	// Deprecated: Do not use.
-	// GetWebSessions gets all web sessions.
-	GetWebSessions(context.Context, *emptypb.Empty) (*GetWebSessionsResponse, error)
 	// StreamWebSessions gets all web sessions in a stream.
 	StreamWebSessions(*emptypb.Empty, grpc.ServerStreamingServer[types.WebSessionV2]) error
 	// DeleteWebSession deletes a web session.
@@ -4992,6 +4989,9 @@ func (UnimplementedAuthServiceServer) DeleteAllAppSessions(context.Context, *emp
 func (UnimplementedAuthServiceServer) DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserAppSessions not implemented")
 }
+func (UnimplementedAuthServiceServer) SetAppSessionDBSCPublicKey(context.Context, *SetAppSessionDBSCPublicKeyRequest) (*SetAppSessionDBSCPublicKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetAppSessionDBSCPublicKey not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSnowflakeSession not implemented")
 }
@@ -5030,9 +5030,6 @@ func (UnimplementedAuthServiceServer) DeleteUserSAMLIdPSessions(context.Context,
 }
 func (UnimplementedAuthServiceServer) GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSession not implemented")
-}
-func (UnimplementedAuthServiceServer) GetWebSessions(context.Context, *emptypb.Empty) (*GetWebSessionsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetWebSessions not implemented")
 }
 func (UnimplementedAuthServiceServer) StreamWebSessions(*emptypb.Empty, grpc.ServerStreamingServer[types.WebSessionV2]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamWebSessions not implemented")
@@ -6786,6 +6783,24 @@ func _AuthService_DeleteUserAppSessions_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_SetAppSessionDBSCPublicKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetAppSessionDBSCPublicKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SetAppSessionDBSCPublicKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SetAppSessionDBSCPublicKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SetAppSessionDBSCPublicKey(ctx, req.(*SetAppSessionDBSCPublicKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateSnowflakeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateSnowflakeSessionRequest)
 	if err := dec(in); err != nil {
@@ -7016,24 +7031,6 @@ func _AuthService_GetWebSession_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWebSession(ctx, req.(*types.GetWebSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_GetWebSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).GetWebSessions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_GetWebSessions_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWebSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10684,6 +10681,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_DeleteUserAppSessions_Handler,
 		},
 		{
+			MethodName: "SetAppSessionDBSCPublicKey",
+			Handler:    _AuthService_SetAppSessionDBSCPublicKey_Handler,
+		},
+		{
 			MethodName: "CreateSnowflakeSession",
 			Handler:    _AuthService_CreateSnowflakeSession_Handler,
 		},
@@ -10734,10 +10735,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWebSession",
 			Handler:    _AuthService_GetWebSession_Handler,
-		},
-		{
-			MethodName: "GetWebSessions",
-			Handler:    _AuthService_GetWebSessions_Handler,
 		},
 		{
 			MethodName: "DeleteWebSession",

@@ -21,12 +21,6 @@ or database sessions without MFA) and provides users with recommendations on sug
 
 Users are able to write their own custom access monitoring queries by querying the audit log.
 
-<Admonition type="note">
-  Access Monitoring is not currently supported with External Audit Storage
-  in Teleport Enterprise (Cloud). This functionality will be
-  enabled in a future Teleport release.
-</Admonition>
-
 ## Prerequisites
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - For self-hosted Teleport the [Amazon Athena Backend](../reference/deployment/backends.mdx) is required.
@@ -100,7 +94,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
       ],
       "Effect": "Allow",
       "Resource": [
-        "arn:aws:s3::::audit-transient/results/*",
+        "arn:aws:s3:::audit-transient/results/*",
         "arn:aws:s3:::audit-long-term/report_results/*"
       ]
     },
@@ -325,7 +319,7 @@ The report allows to identify the following weak security events:
 ### Database sessions with weak security
 
 The following query identifies database sessions with weak security
-such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
+such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -357,7 +351,7 @@ ORDER BY
 ### SSH sessions with weak security
 
 The following query identifies SSH sessions with weak security,
-such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
+such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT

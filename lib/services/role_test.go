@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -949,6 +951,9 @@ func TestValidateRole(t *testing.T) {
 					ClusterLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
+					BeamLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
 				},
 				Deny: types.RoleConditions{
 					Logins: []string{"test"},
@@ -970,6 +975,9 @@ func TestValidateRole(t *testing.T) {
 					ClusterLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
+					BeamLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
 				},
 			},
 			expectWarnings: []string{
@@ -979,12 +987,14 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.db_labels template expression",
 				"parsing allow.windows_desktop_labels template expression",
 				"parsing allow.cluster_labels template expression",
+				"parsing allow.beam_labels template expression",
 				"parsing deny.node_labels template expression",
 				"parsing deny.app_labels template expression",
 				"parsing deny.kubernetes_labels template expression",
 				"parsing deny.db_labels template expression",
 				"parsing deny.windows_desktop_labels template expression",
 				"parsing deny.cluster_labels template expression",
+				"parsing deny.beam_labels template expression",
 				"unsupported function: email.localz",
 			},
 		},
@@ -1000,6 +1010,7 @@ func TestValidateRole(t *testing.T) {
 					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
 					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
 					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
+					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 				Deny: types.RoleConditions{
 					ClusterLabelsExpression:         `containz(labels["env"], "staging")`,
@@ -1010,6 +1021,7 @@ func TestValidateRole(t *testing.T) {
 					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
 					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
 					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
+					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 			},
 			expectWarnings: []string{
@@ -1019,12 +1031,14 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.db_labels_expression",
 				"parsing allow.windows_desktop_labels_expression",
 				"parsing allow.cluster_labels_expression",
+				"parsing allow.beam_labels_expression",
 				"parsing deny.node_labels_expression",
 				"parsing deny.app_labels_expression",
 				"parsing deny.kubernetes_labels_expression",
 				"parsing deny.db_labels_expression",
 				"parsing deny.windows_desktop_labels_expression",
 				"parsing deny.cluster_labels_expression",
+				"parsing deny.beam_labels_expression",
 				"unsupported function: containz",
 			},
 		},
@@ -1204,6 +1218,7 @@ func BenchmarkValidateRole(b *testing.B) {
 			DatabaseLabels:       types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			WindowsDesktopLabels: types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			ClusterLabels:        types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			BeamLabels:           types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindRole},
@@ -3001,6 +3016,8 @@ func TestApplyTraits(t *testing.T) {
 		outGitHubPermissions    []types.GitHubPermission
 		inMCPPermissions        *types.MCPPermissions
 		outMCPPermissions       *types.MCPPermissions
+		inBeamLabels            types.Labels
+		outBeamLabels           types.Labels
 	}
 	tests := []struct {
 		comment  string
@@ -3825,6 +3842,29 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "Beam labels in allow and deny rules",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+				"baz": {"qux"},
+			},
+			allow: rule{
+				inBeamLabels: types.Labels{
+					"label1": {"{{external.foo}}"},
+				},
+				outBeamLabels: types.Labels{
+					"label1": {"bar"},
+				},
+			},
+			deny: rule{
+				inBeamLabels: types.Labels{
+					"label2": {"{{external.baz}}"},
+				},
+				outBeamLabels: types.Labels{
+					"label2": {"qux"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3858,6 +3898,7 @@ func TestApplyTraits(t *testing.T) {
 						KubernetesResources:  tt.allow.inKubeResources,
 						GitHubPermissions:    tt.allow.inGitHubPermissions,
 						MCP:                  tt.allow.inMCPPermissions,
+						BeamLabels:           tt.allow.inBeamLabels,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3881,6 +3922,7 @@ func TestApplyTraits(t *testing.T) {
 						KubernetesResources:  tt.deny.inKubeResources,
 						GitHubPermissions:    tt.deny.inGitHubPermissions,
 						MCP:                  tt.deny.inMCPPermissions,
+						BeamLabels:           tt.deny.inBeamLabels,
 					},
 				},
 			}
@@ -3915,9 +3957,27 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
 				require.Equal(t, rule.spec.outGitHubPermissions, outRole.GetRoleConditions(rule.condition).GitHubPermissions)
+				require.Equal(t, rule.spec.outBeamLabels, outRole.GetRoleConditions(rule.condition).BeamLabels)
 			}
 		})
 	}
+}
+
+func TestFetchRolesForUser_ExpandsUserMetadataName(t *testing.T) {
+	role := newRole(func(r *types.RoleV6) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{user.metadata.name}}"}
+	})
+
+	roleSet, err := FetchRolesForUser(mockCurrentUser{
+		roles: []string{"dev"},
+	}, mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev": role,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mockCurrentUser"}, roleSet[0].GetLogins(types.Allow))
 }
 
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
@@ -4320,7 +4380,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, wrappers.Traits{}, tc.state,
+				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -4533,7 +4593,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -5653,7 +5713,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, userTraits, AccessState{})
+				_, err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -5761,6 +5821,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 			for _, access := range test.access {
 				_, err := test.roles.checkAccess(
 					app,
+					"",
 					wrappers.Traits{},
 					AccessState{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
@@ -5861,7 +5922,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -5959,7 +6020,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -7296,7 +7357,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				_, err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7403,7 +7464,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.userGroup, wrappers.Traits{}, AccessState{})
+				_, err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7436,6 +7497,9 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 //	go tool pprof --pdf cpu.prof > cpu.pdf
 //	go tool pprof --pdf mem.prof > mem.pdf
 func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	servers := make([]*types.ServerV2, 0, 4000)
 
 	// Create 4,000 servers with random IDs.
@@ -7492,6 +7556,7 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 				// is testing the performance of failed RBAC checks
 				_, _ = set.checkAccess(
 					servers[i],
+					"",
 					userTraits,
 					AccessState{},
 					NewLoginMatcher(login),
@@ -7972,7 +8037,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, userTraits)
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, "alice", userTraits)
 			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
@@ -8124,6 +8189,17 @@ func TestGetKubeResources(t *testing.T) {
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "labels expression matches username",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["owner"] == user.metadata.name`
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+				}),
+			},
+			clusterLabels: map[string]string{"owner": "alice"},
 			expectAllowed: []types.KubernetesResource{podA, podB},
 		},
 		{
@@ -8346,9 +8422,9 @@ func TestHostUsers_getGroups(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			info, err := accessChecker.HostUsers(tc.server)
+			hu, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.ElementsMatch(t, tc.groups, info.Groups)
+			require.ElementsMatch(t, tc.groups, hu.Info.Groups)
 		})
 	}
 }
@@ -8776,6 +8852,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -8827,10 +8904,15 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			info, err := accessChecker.HostUsers(tc.server)
-			require.Equal(t, tc.canCreate, err == nil && info != nil)
+			hu, err := accessChecker.HostUsers(tc.server)
+			require.NoError(t, err)
 			if tc.canCreate {
-				require.Equal(t, convertHostUserMode(tc.expectedMode), info.Mode)
+				require.NotEmpty(t, hu.AllowedBy)
+				require.Empty(t, hu.DeniedBy)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), hu.Info.Mode)
+			} else {
+				require.NotEmpty(t, hu.DeniedBy)
+				require.Nil(t, hu.Info)
 			}
 		})
 	}
@@ -9639,6 +9721,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
 		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
+		types.Resource153ToResourceWithLabels(&beamsv1.Beam{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Labels: map[string]string{},
+			},
+		}),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
@@ -9766,6 +9855,21 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestCheckAccess_WithLabelExpressionUsername(t *testing.T) {
+	t.Parallel()
+
+	role := newRole(func(r *types.RoleV6) {
+		r.Spec.Allow.NodeLabelsExpression = `labels["owner"] == user.metadata.name`
+	})
+
+	server := &types.ServerV2{Kind: types.KindNode}
+	server.SetStaticLabels(map[string]string{"owner": "alice"})
+
+	accessChecker := makeAccessCheckerWithRoleSet(NewRoleSet(role))
+	err := accessChecker.CheckAccess(server, AccessState{})
+	require.NoError(t, err)
 }
 
 func TestCheckSPIFFESVID(t *testing.T) {

@@ -96,6 +96,9 @@ fluentd:
   # fluentd.url(string) -- is the Fluentd URL where the events will be sent.
   url: ""
   # fluentd.sessionUrl(string) -- is the Fluentd URL where the session logs will be sent.
+  # The Event Handler appends `.<session-id>.log` to this URL for each session recording.
+  # Ensure that your log collector's tag matching or routing rules account for this suffix
+  # (e.g., use `session.*` as a match pattern in Fluentd or Fluent Bit).
   sessionUrl: ""
   # fluentd.certificate -- contains the configuration for the plugin's Fluentd client certificates.
   # When `certManager.enabled` is true, `cert-manager` will use its own secrets, so this section is unused.

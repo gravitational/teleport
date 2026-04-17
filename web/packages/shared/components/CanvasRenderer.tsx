@@ -75,13 +75,22 @@ export const CanvasRenderer = forwardRef<
     onResize,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pngRendererRef = useRef<{
+    pushFrame: (frame: PngFrame) => void;
+    stop: () => void;
+  }>(null);
+
+  useEffect(() => {
+    const pngRenderer = makePngFrameRenderer(canvasRef.current);
+    pngRendererRef.current = pngRenderer;
+    return () => pngRenderer.stop();
+  }, []);
 
   useImperativeHandle(ref, () => {
-    const renderPngFrame = makePngFrameRenderer(canvasRef.current);
     const renderBimapFrame = makeBitmapFrameRenderer(canvasRef.current);
     return {
       setPointer: pointer => setPointer(canvasRef.current, pointer),
-      renderPngFrame: frame => renderPngFrame(frame),
+      renderPngFrame: frame => pngRendererRef.current?.pushFrame(frame),
       renderBitmapFrame: frame => renderBimapFrame(frame),
       setResolution: ({ width, height }) => {
         const canvas = canvasRef.current;
@@ -94,7 +103,13 @@ export const CanvasRenderer = forwardRef<
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
       },
       focus: () => canvasRef.current.focus(),
-      getSize: () => canvasRef.current.getBoundingClientRect(),
+      getSize: () => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        return {
+          height: Math.round(rect.height),
+          width: Math.round(rect.width),
+        };
+      },
     };
   }, []);
 
@@ -111,8 +126,8 @@ export const CanvasRenderer = forwardRef<
     const observer = new ResizeObserver(([entry]) => {
       if (entry && entry.contentRect.height !== 0) {
         debouncedOnResize({
-          height: entry.contentRect.height,
-          width: entry.contentRect.width,
+          height: Math.round(entry.contentRect.height),
+          width: Math.round(entry.contentRect.width),
         });
       }
     });
@@ -203,13 +218,15 @@ function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
 // This causes the function to run in a loop, 60 times per second
 // (actually x2 because we have two frame renderers).
 // Fix it in the both renderers, check if it improves performance.
-function makePngFrameRenderer(
-  canvas: HTMLCanvasElement
-): (frame: PngFrame) => void {
+function makePngFrameRenderer(canvas: HTMLCanvasElement): {
+  pushFrame: (frame: PngFrame) => void;
+  stop: () => void;
+} {
   const ctx = canvas.getContext('2d');
 
   // Buffered rendering logic
   let pngBuffer: PngFrame[] = [];
+  let rafId: number;
 
   const renderBuffer = () => {
     if (pngBuffer.length) {
@@ -219,11 +236,14 @@ function makePngFrameRenderer(
       }
       pngBuffer = [];
     }
-    requestAnimationFrame(renderBuffer);
+    rafId = requestAnimationFrame(renderBuffer);
   };
-  requestAnimationFrame(renderBuffer);
+  rafId = requestAnimationFrame(renderBuffer);
 
-  return frame => pngBuffer.push(frame);
+  return {
+    pushFrame: frame => pngBuffer.push(frame),
+    stop: () => cancelAnimationFrame(rafId),
+  };
 }
 
 function makeBitmapFrameRenderer(

@@ -29,7 +29,7 @@ import {
   SortItem,
   SortMenu,
   SortOrder,
-} from 'shared/components/Controls/SortMenuV2';
+} from 'shared/components/Controls/SortMenu';
 
 import { Instance } from 'teleport/Bots/Details/Instance';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
@@ -137,7 +137,7 @@ function InternalBotInstancesList(
       {hasData ? (
         <>
           {data && data.length > 0 ? (
-            <ContentContainer ref={contentRef} data-scrollbar="default">
+            <ContentContainer ref={contentRef}>
               {data.map((instance, i) => (
                 <React.Fragment key={`${instance.instance_id}`}>
                   {i === 0 ? undefined : <Divider />}

@@ -36,7 +36,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +44,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -95,7 +96,13 @@ func TestMux(t *testing.T) {
 
 		go startSSHServer(t, mux.SSH())
 
-		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Second,
 		})
@@ -103,7 +110,7 @@ func TestMux(t *testing.T) {
 		defer clt.Close()
 
 		// Make sure the SSH connection works correctly
-		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
+		ok, response, err := clt.SendRequest(t.Context(), "echo", true, []byte("beep"))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, "beep", string(response))
@@ -341,53 +348,243 @@ func TestMux(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	// makes sure the connection get port set to 0
-	// when PROXY protocol is unspecified
-	t.Run("source port set to 0 in unspecified PROXY mode", func(t *testing.T) {
+	// makes sure PROXY protocol modes control whether source IP pinning is allowed (port 0 prevents pinning)
+	//
+	// Proxy Protocol Version | Mode        | IP type  | IP Pinning permitted
+	// V1 Unsigned            | Unspecified | v4       | No (port 0)
+	// V1 Unsigned            | On          | v4       | Yes
+	// V2 Unsigned            | Unspecified | v4       | No (port 0)
+	// V2 Unsigned            | Unspecified | v6       | No (port 0)
+	// V2 Unsigned            | Unspecified | v4Pseudo | No (port 0)
+	// V2 Unsigned            | Unspecified | v6Pseudo | No (port 0)
+	// V2 Unsigned            | On          | v4       | Yes
+	// V2 Unsigned            | On          | v6       | Yes
+	// V2 Unsigned            | On          | v4Pseudo | Yes
+	// V2 Unsigned            | On          | v6Pseudo | Yes
+	// V2 Signed              | Unspecified | v4       | Yes
+	// V2 Signed              | Unspecified | v6       | Yes
+	// V2 Signed              | Unspecified | v4Pseudo | Yes
+	// V2 Signed              | Unspecified | v6Pseudo | Yes
+	// V2 Signed              | On          | v4       | Yes
+	// V2 Signed              | On          | v6       | Yes
+	// V2 Signed              | On          | v4Pseudo | Yes
+	// V2 Signed              | On          | v6Pseudo | Yes
+	t.Run("PROXY protocol pinning modes", func(t *testing.T) {
 		t.Parallel()
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
 
-		mux, err := New(Config{
-			Listener:              listener,
-			PROXYProtocolMode:     PROXYProtocolUnspecified,
-			IgnoreSelfConnections: true,
-		})
-		require.NoError(t, err)
-		go mux.Serve()
-		defer mux.Close()
+		const clusterName = "test-cluster"
+		tlsProxyCert, caGetter, jwtSigner := getTestCertCAsGetterAndSigner(t, clusterName)
 
-		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
-			Config: &http.Server{
-				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprint(w, r.RemoteAddr)
-				}),
+		newProxyV2Line := func(protocol string, source, destination net.TCPAddr, signed bool, originalAddr *net.TCPAddr) []byte {
+			proxyLine := &ProxyLine{
+				Protocol:    protocol,
+				Source:      source,
+				Destination: destination,
+			}
+			if originalAddr != nil && !signed {
+				teleportTLVs := []TLV{
+					{
+						Type:  PP2Type(PP2TeleportSubtypeOriginalAddr),
+						Value: []byte(originalAddr.String()),
+					},
+				}
+				teleportTLVBytes, err := MarshalTLVs(teleportTLVs)
+				require.NoError(t, err)
+				proxyLine.TLVs = append(proxyLine.TLVs, TLV{Type: PP2TypeTeleport, Value: teleportTLVBytes})
+			}
+			if signed {
+				signingSource := source.String()
+				if originalAddr != nil {
+					signingSource = originalAddr.String()
+				}
+				signature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+					ClusterName:        clusterName,
+					SourceAddress:      signingSource,
+					DestinationAddress: destination.String(),
+				})
+				require.NoError(t, err)
+				err = proxyLine.AddTeleportTLVs([]byte(signature), tlsProxyCert, originalAddr)
+				require.NoError(t, err)
+			}
+			line, err := proxyLine.Bytes()
+			require.NoError(t, err)
+			return line
+		}
+
+		type ipCase struct {
+			name           string
+			protocol       string
+			source         net.TCPAddr
+			destination    net.TCPAddr
+			originalAddr   *net.TCPAddr
+			v1Line         []byte
+			expectedSource string
+			v1Supported    bool
+		}
+
+		ipCases := []ipCase{
+			{
+				name:           "v4",
+				protocol:       TCP4,
+				source:         net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 12345},
+				destination:    net.TCPAddr{IP: net.ParseIP("127.0.0.2"), Port: 42},
+				v1Line:         []byte(sampleProxyV1Line),
+				expectedSource: "127.0.0.1:12345",
+				v1Supported:    true,
+			},
+			{
+				name:           "v6",
+				protocol:       TCP6,
+				source:         net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 12345},
+				destination:    net.TCPAddr{IP: net.ParseIP("2001:db8::2"), Port: 42},
+				v1Line:         []byte("PROXY TCP6 2001:db8::1 2001:db8::2 12345 42\r\n"),
+				expectedSource: "[2001:db8::1]:12345",
+				v1Supported:    false,
+			},
+			{
+				name:           "v4Pseudo",
+				protocol:       TCP4,
+				destination:    net.TCPAddr{IP: net.ParseIP("127.0.0.2"), Port: 42},
+				originalAddr:   &net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 12345},
+				expectedSource: "192.0.2.10:12345",
+				v1Supported:    false,
+			},
+			{
+				name:           "v6Pseudo",
+				protocol:       TCP4,
+				destination:    net.TCPAddr{IP: net.ParseIP("127.0.0.2"), Port: 42},
+				originalAddr:   &net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 12345},
+				expectedSource: "[2001:db8::1]:12345",
+				v1Supported:    false,
 			},
 		}
-		backend1.StartTLS()
-		defer backend1.Close()
 
-		parsedURL, err := url.Parse(backend1.URL)
-		require.NoError(t, err)
+		for i := range ipCases {
+			if ipCases[i].originalAddr != nil {
+				pseudo, err := getPseudoIPV4(*ipCases[i].originalAddr)
+				require.NoError(t, err)
+				ipCases[i].source = pseudo
+			}
+		}
 
-		conn, err := net.Dial("tcp", parsedURL.Host)
-		require.NoError(t, err)
-		defer conn.Close()
+		proxyVersions := []struct {
+			name    string
+			lineFor func(ipCase) []byte
+		}{
+			{
+				name: "ProxyProtocolV1",
+				lineFor: func(ipCase ipCase) []byte {
+					return ipCase.v1Line
+				},
+			},
+			{
+				name: "ProxyProtocolV2Unsigned",
+				lineFor: func(ipCase ipCase) []byte {
+					return newProxyV2Line(ipCase.protocol, ipCase.source, ipCase.destination, false, ipCase.originalAddr)
+				},
+			},
+			{
+				name: "ProxyProtocolV2Signed",
+				lineFor: func(ipCase ipCase) []byte {
+					return append(
+						// A signed V2 proxy line should be preceded by an unsigned proxy line.
+						newProxyV2Line(ipCase.protocol, ipCase.source, ipCase.destination, false, ipCase.originalAddr),
+						newProxyV2Line(ipCase.protocol, ipCase.source, ipCase.destination, true, ipCase.originalAddr)...,
+					)
+				},
+			},
+		}
 
-		// Write PROXY line into connection to simulate PROXY protocol
-		_, err = conn.Write([]byte(sampleProxyV1Line))
-		require.NoError(t, err)
+		modes := []struct {
+			name                     string
+			mode                     PROXYProtocolMode
+			expectPortZeroIfUnsigned bool
+		}{
+			{
+				name: "On",
+				mode: PROXYProtocolOn,
+			},
+			{
+				name:                     "Unspecified",
+				mode:                     PROXYProtocolUnspecified,
+				expectPortZeroIfUnsigned: true,
+			},
+		}
 
-		// upgrade connection to TLS
-		tlsConn := tls.Client(conn, clientConfig(backend1))
-		defer tlsConn.Close()
+		for _, proxyVersion := range proxyVersions {
+			for _, mode := range modes {
+				for _, ipCase := range ipCases {
+					t.Run(fmt.Sprintf("%s/Mode%s/IP%s", proxyVersion.name, mode.name, ipCase.name), func(t *testing.T) {
+						if proxyVersion.name == "ProxyProtocolV1" {
+							if !ipCase.v1Supported {
+								t.Skip("PROXY protocol v1 does not support IPv6 in this parser")
+							}
+						}
 
-		res, err := httpGet(tlsConn, backend1.URL)
-		require.NoError(t, err)
+						listener, err := net.Listen("tcp", "127.0.0.1:0")
+						require.NoError(t, err)
 
-		// Make sure that server saw our connection with source port set to 0
-		require.Equal(t, "127.0.0.1:0", res)
+						mux, err := New(Config{
+							Listener:                       listener,
+							PROXYProtocolMode:              mode.mode,
+							IgnoreSelfConnections:          true,
+							SuppressUnexpectedPROXYWarning: false,
+							CertAuthorityGetter:            caGetter,
+							LocalClusterName:               clusterName,
+						})
+						require.NoError(t, err)
+						go mux.Serve()
+						defer mux.Close()
+
+						type connCtxKey struct{}
+						backend1 := &httptest.Server{
+							Listener: mux.HTTP(),
+							Config: &http.Server{
+								ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+									if muxConn, ok := c.(*Conn); ok {
+										return context.WithValue(ctx, connCtxKey{}, muxConn)
+									}
+									return ctx
+								},
+								Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+									muxConn, _ := r.Context().Value(connCtxKey{}).(*Conn)
+									if muxConn == nil || muxConn.proxyLine == nil {
+										return
+									}
+									fmt.Fprint(w, muxConn.proxyLine.ResolveSource().String())
+								}),
+							},
+						}
+						backend1.Start()
+						defer backend1.Close()
+
+						parsedURL, err := url.Parse(backend1.URL)
+						require.NoError(t, err)
+
+						conn, err := net.Dial("tcp", parsedURL.Host)
+						require.NoError(t, err)
+						defer conn.Close()
+
+						// Write PROXY lines into connection to simulate PROXY protocol.
+						_, err = conn.Write(proxyVersion.lineFor(ipCase))
+						require.NoError(t, err)
+
+						res, err := httpGet(conn, backend1.URL)
+						require.NoError(t, err)
+
+						expected := ipCase.expectedSource
+						if mode.expectPortZeroIfUnsigned && proxyVersion.name != "ProxyProtocolV2Signed" {
+							addr, err := net.ResolveTCPAddr("tcp", expected)
+							require.NoError(t, err)
+							addr.Port = 0
+							expected = addr.String()
+						}
+
+						require.Equal(t, expected, res)
+					})
+				}
+			}
+		}
 	})
 
 	// Timeout test makes sure that multiplexer respects read deadlines.
@@ -485,8 +682,13 @@ func TestMux(t *testing.T) {
 		backend1.StartTLS()
 		defer backend1.Close()
 
-		_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
+		_, err = apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
+				},
+			},
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
@@ -540,7 +742,13 @@ func TestMux(t *testing.T) {
 
 		go startSSHServer(t, mux.SSH())
 
-		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Second,
 		})
@@ -548,7 +756,7 @@ func TestMux(t *testing.T) {
 		defer clt.Close()
 
 		// Make sure the SSH connection works correctly
-		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
+		ok, response, err := clt.SendRequest(t.Context(), "echo", true, []byte("beep"))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, "beep", string(response))
@@ -633,7 +841,7 @@ func TestMux(t *testing.T) {
 
 		gclient := test.NewPingerClient(conn)
 
-		out, err := gclient.Ping(context.TODO(), &test.Request{})
+		out, err := gclient.Ping(t.Context(), &test.Request{})
 		require.NoError(t, err)
 		require.Equal(t, "grpc backend", out.GetPayload())
 
@@ -687,9 +895,9 @@ func TestMux(t *testing.T) {
 			_, err = conn.Write(sampleProxyV2Line)
 			require.NoError(t, err)
 
-			frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-			err = frontend.Send(&pgproto3.SSLRequest{})
-			require.NoError(t, err)
+			frontend := pgproto3.NewFrontend(conn, conn)
+			frontend.Send(&pgproto3.SSLRequest{})
+			require.NoError(t, frontend.Flush())
 
 			// This should not hang indefinitely since we set timeout on the mux context above.
 			dbConn, err := dblistener.Accept()
@@ -1556,4 +1764,8 @@ func httpGet(conn net.Conn, url string) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

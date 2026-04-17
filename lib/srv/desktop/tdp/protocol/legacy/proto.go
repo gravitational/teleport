@@ -42,6 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
 
+// ProtocolName is the identifier for the TDP protocol.
+const ProtocolName = "teleport-tdp"
+
 // MessageType identifies the type of the message.
 type MessageType byte
 

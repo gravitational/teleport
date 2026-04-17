@@ -343,6 +343,7 @@ func deleteResources[T kubeObjectInterface](
 			false,
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,
+				params.authCtx.Checker.AccessInfo().Username,
 				params.authCtx.Checker.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
@@ -356,7 +357,7 @@ func deleteResources[T kubeObjectInterface](
 		}
 		allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, params.authCtx.User.GetName())
 
-		impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
+		impersonatedUsers, impersonatedGroups, err := computeAndValidateImpersonatedPrincipals(
 			set.New(allowedKubeUsers...), set.New(allowedKubeGroups...),
 			params.authCtx.User.GetName(),
 			params.header,

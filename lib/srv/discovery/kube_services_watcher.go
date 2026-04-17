@@ -55,6 +55,9 @@ func (s *Server) startKubeAppsWatchers() error {
 
 				return utils.FromSlice(filterResources(apps, types.OriginDiscoveryKubernetes, s.DiscoveryGroup), types.Application.GetName)
 			},
+			CompareResources: func(a1, a2 types.Application) int {
+				return services.EqualFromBool(a1.IsEqual(a2))
+			},
 			GetNewResources: func() map[string]types.Application {
 				mu.Lock()
 				defer mu.Unlock()
@@ -133,8 +136,9 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		appEventPrefix + app.GetName(): {
-			ResourceType:   types.DiscoveredResourceApp,
-			ResourceOrigin: types.OriginKubernetes,
+			ResourceType:        types.DiscoveredResourceApp,
+			ResourceOrigin:      types.OriginKubernetes,
+			DiscoveryConfigName: app.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 			// CloudProvider is not set for apps created from Kubernetes services
 		},
 	})

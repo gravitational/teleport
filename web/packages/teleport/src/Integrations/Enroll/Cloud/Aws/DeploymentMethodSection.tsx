@@ -16,44 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
-import { Alert, Box, Button, ButtonText, Flex, Text } from 'design';
-import { Check, Copy, Notification, Spinner } from 'design/Icon';
+import { Alert, Box, ButtonText, Flex, Text } from 'design';
+import { Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
 
+import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { CircleNumber } from './EnrollAws';
-
-export function CopyTerraformButton({
-  onClick,
-}: {
-  onClick: (e: React.SyntheticEvent) => void;
-}) {
-  const [configCopied, setConfigCopied] = useState(false);
-
-  const handleClick = (e: React.SyntheticEvent) => {
-    onClick(e);
-
-    if (!e.defaultPrevented) {
-      setConfigCopied(true);
-      setTimeout(() => setConfigCopied(false), 1000);
-    }
-  };
-
-  return (
-    <Button fill="border" intent="primary" onClick={handleClick} gap={2}>
-      {configCopied ? <Check size="small" /> : <Copy size="small" />}
-      Copy Terraform Module
-    </Button>
-  );
-}
+import { CircleNumber } from '../Shared';
 
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
@@ -111,7 +87,7 @@ export function DeploymentMethodSection({
             configuration.
           </Text>
           <Box>
-            <CopyTerraformButton
+            <TerraformCopyButton
               onClick={e => {
                 const isValid = validator.validate();
                 if (!isValid) {
@@ -130,15 +106,26 @@ export function DeploymentMethodSection({
           <Text bold={true} fontSize="14px">
             2. Initialize and apply the configuration
           </Text>
-          <Text>
-            Run the following commands in your terminal. <br />
-            Initialize Terraform to download the module, then apply the
-            configuration to create the integration and configure the discovery
-            service.
-          </Text>
-          <TextSelectCopyMulti
-            lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
-          />
+          <DeploymentList>
+            <li>
+              <Text>
+                In your terminal, initialize Terraform to download the Teleport
+                discovery module.
+              </Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform init` }]} />
+            </li>
+            <li>
+              <Text>Verify your changes.</Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform plan` }]} />
+            </li>
+            <li>
+              <Text>
+                Apply the configuration to create the integration and configure
+                the discovery service.
+              </Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform apply` }]} />
+            </li>
+          </DeploymentList>
           {showVerificationStep && (
             <Box>
               <Text bold={true} fontSize="14px" mb={2}>
@@ -250,4 +237,14 @@ export function DeploymentMethodSection({
 
 const AnimatedSpinner = styled(Spinner)`
   animation: ${rotate360} 1.5s linear infinite;
+`;
+
+const DeploymentList = styled.ul`
+  padding-left: 0px;
+  list-style-type: none;
+  margin-top: 0;
+
+  li > * {
+    margin-bottom: ${p => p.theme.space[2]}px;
+  }
 `;

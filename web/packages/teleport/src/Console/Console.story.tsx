@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
-import { Route, Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { Flex } from 'design';
 
@@ -65,37 +64,33 @@ export function TestLayout(props: PropType) {
     return props.ctx || new ConsoleContext();
   });
 
-  const [history] = useState((): any => {
-    const history =
-      props.history ||
-      createMemoryHistory({
-        initialEntries: ['/clusterX'],
-        initialIndex: 0,
-      });
-
-    return history;
-  });
+  const initialEntries = props.initialEntries || ['/clusterX'];
 
   return (
-    <Router history={history}>
-      <Route path="/:clusterId">
-        <ConsoleContextProvider value={context}>
-          <Flex
-            m={-3}
-            style={{ position: 'absolute' }}
-            width="100%"
-            height="100%"
-          >
-            {props.children}
-          </Flex>
-        </ConsoleContextProvider>
-      </Route>
-    </Router>
+    <MemoryRouter initialEntries={initialEntries}>
+      <Routes>
+        <Route
+          path="/:clusterId"
+          element={
+            <ConsoleContextProvider value={context}>
+              <Flex
+                m={-3}
+                style={{ position: 'absolute' }}
+                width="100%"
+                height="100%"
+              >
+                {props.children}
+              </Flex>
+            </ConsoleContextProvider>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
   );
 }
 
 type PropType = {
   children: any;
   ctx?: ConsoleContext;
-  history?: History;
+  initialEntries?: string[];
 };

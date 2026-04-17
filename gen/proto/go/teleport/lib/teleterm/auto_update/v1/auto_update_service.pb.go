@@ -37,6 +37,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Source of the config.
+type ConfigSource int32
+
+const (
+	ConfigSource_CONFIG_SOURCE_UNSPECIFIED ConfigSource = 0
+	// Configuration comes from an environment variable.
+	ConfigSource_CONFIG_SOURCE_ENV_VAR ConfigSource = 1
+	// Configuration comes from SOFTWARE\Policies\Teleport\TeleportConnect.
+	ConfigSource_CONFIG_SOURCE_POLICY ConfigSource = 2
+	// Configuration comes from a hardcoded default.
+	ConfigSource_CONFIG_SOURCE_DEFAULT ConfigSource = 3
+)
+
+// Enum value maps for ConfigSource.
+var (
+	ConfigSource_name = map[int32]string{
+		0: "CONFIG_SOURCE_UNSPECIFIED",
+		1: "CONFIG_SOURCE_ENV_VAR",
+		2: "CONFIG_SOURCE_POLICY",
+		3: "CONFIG_SOURCE_DEFAULT",
+	}
+	ConfigSource_value = map[string]int32{
+		"CONFIG_SOURCE_UNSPECIFIED": 0,
+		"CONFIG_SOURCE_ENV_VAR":     1,
+		"CONFIG_SOURCE_POLICY":      2,
+		"CONFIG_SOURCE_DEFAULT":     3,
+	}
+)
+
+func (x ConfigSource) Enum() *ConfigSource {
+	p := new(ConfigSource)
+	*p = x
+	return p
+}
+
+func (x ConfigSource) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConfigSource) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_enumTypes[0].Descriptor()
+}
+
+func (ConfigSource) Type() protoreflect.EnumType {
+	return &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_enumTypes[0]
+}
+
+func (x ConfigSource) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConfigSource.Descriptor instead.
+func (ConfigSource) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{0}
+}
+
 // Request for GetClusterVersions.
 type GetClusterVersionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -255,27 +311,27 @@ func (x *UnreachableCluster) GetErrorMessage() string {
 	return ""
 }
 
-// Request for GetDownloadBaseUrl.
-type GetDownloadBaseUrlRequest struct {
+// Request for GetConfig.
+type GetConfigRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetDownloadBaseUrlRequest) Reset() {
-	*x = GetDownloadBaseUrlRequest{}
+func (x *GetConfigRequest) Reset() {
+	*x = GetConfigRequest{}
 	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetDownloadBaseUrlRequest) String() string {
+func (x *GetConfigRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetDownloadBaseUrlRequest) ProtoMessage() {}
+func (*GetConfigRequest) ProtoMessage() {}
 
-func (x *GetDownloadBaseUrlRequest) ProtoReflect() protoreflect.Message {
+func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -287,33 +343,50 @@ func (x *GetDownloadBaseUrlRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDownloadBaseUrlRequest.ProtoReflect.Descriptor instead.
-func (*GetDownloadBaseUrlRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetConfigRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{4}
 }
 
-// Response for GetDownloadBaseUrl.
-type GetDownloadBaseUrlResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BaseUrl       string                 `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+// Response for GetConfig.
+type GetConfigResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A base URL (e.g. cdn.teleport.dev) for downloading packages.
+	// Sources resolved by platform:
+	// * macOS/Linux: The `TELEPORT_CDN_BASE_URL` environment variable.
+	// * Windows: The `CdnBaseUrl` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
+	//   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+	//   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+	//   - If policy values are missing, falls back to `TELEPORT_CDN_BASE_URL` (deprecated).
+	//
+	// Note: OSS builds require this to be set (via env var or registry), otherwise an empty value is returned.
+	CdnBaseUrl *ConfigValue `protobuf:"bytes,1,opt,name=cdn_base_url,json=cdnBaseUrl,proto3" json:"cdn_base_url,omitempty"`
+	// The specific client tools version to use. The 'off' value disables automatic updates.
+	// Sources resolved by platform:
+	// * macOS/Linux: The `TELEPORT_TOOLS_VERSION` environment variable.
+	// * Windows: The `ToolsVersion` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
+	//   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+	//   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+	//   - If policy values are missing, falls back to `TELEPORT_TOOLS_VERSION` (deprecated).
+	ToolsVersion  *ConfigValue `protobuf:"bytes,2,opt,name=tools_version,json=toolsVersion,proto3" json:"tools_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetDownloadBaseUrlResponse) Reset() {
-	*x = GetDownloadBaseUrlResponse{}
+func (x *GetConfigResponse) Reset() {
+	*x = GetConfigResponse{}
 	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetDownloadBaseUrlResponse) String() string {
+func (x *GetConfigResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetDownloadBaseUrlResponse) ProtoMessage() {}
+func (*GetConfigResponse) ProtoMessage() {}
 
-func (x *GetDownloadBaseUrlResponse) ProtoReflect() protoreflect.Message {
+func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -325,16 +398,160 @@ func (x *GetDownloadBaseUrlResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDownloadBaseUrlResponse.ProtoReflect.Descriptor instead.
-func (*GetDownloadBaseUrlResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetConfigResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *GetDownloadBaseUrlResponse) GetBaseUrl() string {
+func (x *GetConfigResponse) GetCdnBaseUrl() *ConfigValue {
 	if x != nil {
-		return x.BaseUrl
+		return x.CdnBaseUrl
+	}
+	return nil
+}
+
+func (x *GetConfigResponse) GetToolsVersion() *ConfigValue {
+	if x != nil {
+		return x.ToolsVersion
+	}
+	return nil
+}
+
+// Contains the config value and its source.
+type ConfigValue struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Value string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	// Source of the config.
+	Source        ConfigSource `protobuf:"varint,2,opt,name=source,proto3,enum=teleport.lib.teleterm.auto_update.v1.ConfigSource" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigValue) Reset() {
+	*x = ConfigValue{}
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigValue) ProtoMessage() {}
+
+func (x *ConfigValue) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigValue.ProtoReflect.Descriptor instead.
+func (*ConfigValue) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ConfigValue) GetValue() string {
+	if x != nil {
+		return x.Value
 	}
 	return ""
+}
+
+func (x *ConfigValue) GetSource() ConfigSource {
+	if x != nil {
+		return x.Source
+	}
+	return ConfigSource_CONFIG_SOURCE_UNSPECIFIED
+}
+
+// Request for GetInstallationMetadata.
+type GetInstallationMetadataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInstallationMetadataRequest) Reset() {
+	*x = GetInstallationMetadataRequest{}
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInstallationMetadataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstallationMetadataRequest) ProtoMessage() {}
+
+func (x *GetInstallationMetadataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstallationMetadataRequest.ProtoReflect.Descriptor instead.
+func (*GetInstallationMetadataRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{7}
+}
+
+// Response for GetInstallationMetadata.
+type GetInstallationMetadataResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Determines whether updates should target a per-machine installation.
+	IsPerMachineInstall bool `protobuf:"varint,1,opt,name=is_per_machine_install,json=isPerMachineInstall,proto3" json:"is_per_machine_install,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *GetInstallationMetadataResponse) Reset() {
+	*x = GetInstallationMetadataResponse{}
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInstallationMetadataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInstallationMetadataResponse) ProtoMessage() {}
+
+func (x *GetInstallationMetadataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInstallationMetadataResponse.ProtoReflect.Descriptor instead.
+func (*GetInstallationMetadataResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetInstallationMetadataResponse) GetIsPerMachineInstall() bool {
+	if x != nil {
+		return x.IsPerMachineInstall
+	}
+	return false
 }
 
 var File_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto protoreflect.FileDescriptor
@@ -355,13 +572,27 @@ const file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDes
 	"\x12UnreachableCluster\x12\x1f\n" +
 	"\vcluster_uri\x18\x01 \x01(\tR\n" +
 	"clusterUri\x12#\n" +
-	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\x1b\n" +
-	"\x19GetDownloadBaseUrlRequest\"7\n" +
-	"\x1aGetDownloadBaseUrlResponse\x12\x19\n" +
-	"\bbase_url\x18\x01 \x01(\tR\abaseUrl2\xc7\x02\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\x12\n" +
+	"\x10GetConfigRequest\"\xc0\x01\n" +
+	"\x11GetConfigResponse\x12S\n" +
+	"\fcdn_base_url\x18\x01 \x01(\v21.teleport.lib.teleterm.auto_update.v1.ConfigValueR\n" +
+	"cdnBaseUrl\x12V\n" +
+	"\rtools_version\x18\x02 \x01(\v21.teleport.lib.teleterm.auto_update.v1.ConfigValueR\ftoolsVersion\"o\n" +
+	"\vConfigValue\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x12J\n" +
+	"\x06source\x18\x02 \x01(\x0e22.teleport.lib.teleterm.auto_update.v1.ConfigSourceR\x06source\" \n" +
+	"\x1eGetInstallationMetadataRequest\"V\n" +
+	"\x1fGetInstallationMetadataResponse\x123\n" +
+	"\x16is_per_machine_install\x18\x01 \x01(\bR\x13isPerMachineInstall*}\n" +
+	"\fConfigSource\x12\x1d\n" +
+	"\x19CONFIG_SOURCE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15CONFIG_SOURCE_ENV_VAR\x10\x01\x12\x18\n" +
+	"\x14CONFIG_SOURCE_POLICY\x10\x02\x12\x19\n" +
+	"\x15CONFIG_SOURCE_DEFAULT\x10\x032\xd4\x03\n" +
 	"\x11AutoUpdateService\x12\x97\x01\n" +
-	"\x12GetClusterVersions\x12?.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse\x12\x97\x01\n" +
-	"\x12GetDownloadBaseUrl\x12?.teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponseBcZagithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1;auto_updatev1b\x06proto3"
+	"\x12GetClusterVersions\x12?.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse\x12|\n" +
+	"\tGetConfig\x126.teleport.lib.teleterm.auto_update.v1.GetConfigRequest\x1a7.teleport.lib.teleterm.auto_update.v1.GetConfigResponse\x12\xa6\x01\n" +
+	"\x17GetInstallationMetadata\x12D.teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest\x1aE.teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponseBcZagithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1;auto_updatev1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescOnce sync.Once
@@ -375,27 +606,37 @@ func file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc
 	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_goTypes = []any{
-	(*GetClusterVersionsRequest)(nil),  // 0: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
-	(*GetClusterVersionsResponse)(nil), // 1: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
-	(*ClusterVersionInfo)(nil),         // 2: teleport.lib.teleterm.auto_update.v1.ClusterVersionInfo
-	(*UnreachableCluster)(nil),         // 3: teleport.lib.teleterm.auto_update.v1.UnreachableCluster
-	(*GetDownloadBaseUrlRequest)(nil),  // 4: teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest
-	(*GetDownloadBaseUrlResponse)(nil), // 5: teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
+	(ConfigSource)(0),                       // 0: teleport.lib.teleterm.auto_update.v1.ConfigSource
+	(*GetClusterVersionsRequest)(nil),       // 1: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
+	(*GetClusterVersionsResponse)(nil),      // 2: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
+	(*ClusterVersionInfo)(nil),              // 3: teleport.lib.teleterm.auto_update.v1.ClusterVersionInfo
+	(*UnreachableCluster)(nil),              // 4: teleport.lib.teleterm.auto_update.v1.UnreachableCluster
+	(*GetConfigRequest)(nil),                // 5: teleport.lib.teleterm.auto_update.v1.GetConfigRequest
+	(*GetConfigResponse)(nil),               // 6: teleport.lib.teleterm.auto_update.v1.GetConfigResponse
+	(*ConfigValue)(nil),                     // 7: teleport.lib.teleterm.auto_update.v1.ConfigValue
+	(*GetInstallationMetadataRequest)(nil),  // 8: teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest
+	(*GetInstallationMetadataResponse)(nil), // 9: teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse
 }
 var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_depIdxs = []int32{
-	2, // 0: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse.reachable_clusters:type_name -> teleport.lib.teleterm.auto_update.v1.ClusterVersionInfo
-	3, // 1: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse.unreachable_clusters:type_name -> teleport.lib.teleterm.auto_update.v1.UnreachableCluster
-	0, // 2: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:input_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
-	4, // 3: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetDownloadBaseUrl:input_type -> teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest
-	1, // 4: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:output_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
-	5, // 5: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetDownloadBaseUrl:output_type -> teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 0: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse.reachable_clusters:type_name -> teleport.lib.teleterm.auto_update.v1.ClusterVersionInfo
+	4, // 1: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse.unreachable_clusters:type_name -> teleport.lib.teleterm.auto_update.v1.UnreachableCluster
+	7, // 2: teleport.lib.teleterm.auto_update.v1.GetConfigResponse.cdn_base_url:type_name -> teleport.lib.teleterm.auto_update.v1.ConfigValue
+	7, // 3: teleport.lib.teleterm.auto_update.v1.GetConfigResponse.tools_version:type_name -> teleport.lib.teleterm.auto_update.v1.ConfigValue
+	0, // 4: teleport.lib.teleterm.auto_update.v1.ConfigValue.source:type_name -> teleport.lib.teleterm.auto_update.v1.ConfigSource
+	1, // 5: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:input_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
+	5, // 6: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetConfig:input_type -> teleport.lib.teleterm.auto_update.v1.GetConfigRequest
+	8, // 7: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetInstallationMetadata:input_type -> teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest
+	2, // 8: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:output_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
+	6, // 9: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetConfig:output_type -> teleport.lib.teleterm.auto_update.v1.GetConfigResponse
+	9, // 10: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetInstallationMetadata:output_type -> teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse
+	8, // [8:11] is the sub-list for method output_type
+	5, // [5:8] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_init() }
@@ -408,13 +649,14 @@ func file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_init() 
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc), len(file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   6,
+			NumEnums:      1,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_goTypes,
 		DependencyIndexes: file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_depIdxs,
+		EnumInfos:         file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_enumTypes,
 		MessageInfos:      file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes,
 	}.Build()
 	File_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto = out.File

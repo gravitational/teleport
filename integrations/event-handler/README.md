@@ -27,7 +27,7 @@ You may specify configuration options via command line arguments, environment va
 | teleport-refresh-enabled  | Controls if the identity file should be reloaded from disk after the initial start on interval.       | FDFWD_TELEPORT_REFRESH_ENABLED  |
 | teleport-refresh-interval | How often to load the identity file from disk when teleport-refresh-enabled is specified. Default: 1m | FDFWD_TELEPORT_REFRESH_INTERVAL |
 | fluentd-url               | Fluentd URL                                                                                           | FDFWD_FLUENTD_URL               |
-| fluentd-session-url       | Fluentd session URL                                                                                   | FDFWD_FLUENTD_SESSION_URL       |
+| fluentd-session-url       | Fluentd session URL (base URL; `.<session-id>.log` is appended for each session)                      | FDFWD_FLUENTD_SESSION_URL       |
 | fluentd-ca                | Fluentd TLS CA file                                                                                   | FDFWD_FLUENTD_CA                |
 | fluentd-cert              | Fluentd TLS certificate file                                                                          | FDFWD_FLUENTD_CERT              |
 | fluentd-key               | Fluentd TLS key file                                                                                  | FDFWD_FLUENTD_KEY               |

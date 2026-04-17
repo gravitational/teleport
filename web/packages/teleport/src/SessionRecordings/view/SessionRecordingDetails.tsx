@@ -18,7 +18,7 @@
 
 import { format } from 'date-fns';
 import { type PropsWithChildren } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
