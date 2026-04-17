@@ -145,6 +145,17 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "allow_reissue: not supported with scopes",
 		},
 		{
+			name:   "scoped with delegation_session_id",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:         destination.NewMemory(),
+					DelegationSessionID: "very-cool-delegation-session-id",
+				}
+			},
+			wantErr: "delegation_session_id: not supported with scopes",
+		},
+		{
 			name:   "scoped with cluster",
 			scoped: true,
 			in: func() *OutputConfig {
