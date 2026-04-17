@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -27,8 +28,8 @@ type entraUniqueID string
 var errUnsupportedUsername = &trace.BadParameterError{Message: "username not supported"}
 
 func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
-	groupsMap map[string]*msgraph.Group,
-	groupMembersMap map[string][]msgraph.GroupMember,
+	groupsMap map[string]*models.Group,
+	groupMembersMap map[string][]models.GroupMember,
 ) (map[entraUniqueID]types.User, error) {
 	app, err := r.getApplication(ctx, r.entraAppID)
 	if err != nil {
@@ -162,7 +163,7 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint, connectorID str
 func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMemberships groupMembershipMap, emitAsRoles bool) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	var unsupportedUsers []string
-	err := r.graphClient.IterateUsers(ctx, func(u *msgraph.User) bool {
+	err := r.graphClient.IterateUsers(ctx, func(u *models.User) bool {
 		user, err := convertUser(u, r.tenantID, r.ssoConnectorID, usersMemberships, emitAsRoles)
 		if err != nil {
 			if errors.Is(err, errUnsupportedUsername) {
@@ -186,7 +187,7 @@ func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMembershi
 	return result, trace.Wrap(err)
 }
 
-func processUsername(in *msgraph.User) (string, bool, error) {
+func processUsername(in *models.User) (string, bool, error) {
 	if in == nil {
 		return "", false, trace.BadParameter("expected Entra ID user to be non-nil")
 	}
@@ -224,7 +225,7 @@ func processUsername(in *msgraph.User) (string, bool, error) {
 	return *username, isExternal, nil
 }
 
-func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
+func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
 	username, isExternal, err := processUsername(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -321,12 +322,12 @@ type groupMembershipInfo struct {
 
 type groupMembershipMap map[string]groupMembershipInfo
 
-func buildUserMemberships(groupsMap map[string]*msgraph.Group, groupMembersMap map[string][]msgraph.GroupMember, groupNameBuilder func(*msgraph.Group) string) groupMembershipMap {
+func buildUserMemberships(groupsMap map[string]*models.Group, groupMembersMap map[string][]models.GroupMember, groupNameBuilder func(*models.Group) string) groupMembershipMap {
 	unwindedGroupMemberships := unwindGroupMembership(groupsMap, groupMembersMap)
 	result := map[string]groupMembershipInfo{}
 	for groupID, members := range groupMembersMap {
 		for _, member := range members {
-			if user, ok := member.(*msgraph.User); ok {
+			if user, ok := member.(*models.User); ok {
 				var displayNames []string
 				for _, membershipGroup := range unwindedGroupMemberships[groupID] {
 					group, ok := groupsMap[membershipGroup]

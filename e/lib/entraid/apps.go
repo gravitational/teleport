@@ -15,10 +15,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
-func entraAppToProto(ctx context.Context, app *msgraph.Application, ssoSettings *types.PluginEntraIDAppSSOSettings, tenantID string, signingCerts []string) (*accessgraphv1alpha.EntraApplication, error) {
+func entraAppToProto(ctx context.Context, app *models.Application, ssoSettings *types.PluginEntraIDAppSSOSettings, tenantID string, signingCerts []string) (*accessgraphv1alpha.EntraApplication, error) {
 	id := app.ID
 	if id == nil {
 		return nil, trace.BadParameter("expected ID to be present")

@@ -14,7 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -176,7 +176,7 @@ func (s *AccessGraphSynchronizer) synchronizeOnce(ctx context.Context, currentTA
 
 func (s *AccessGraphSynchronizer) fetchApps(ctx context.Context) ([]*accessgraphv1alpha.EntraApplication, error) {
 	var results []*accessgraphv1alpha.EntraApplication
-	err := s.graphClient.IterateApplications(ctx, func(graphApp *msgraph.Application) bool {
+	err := s.graphClient.IterateApplications(ctx, func(graphApp *models.Application) bool {
 		appID := graphApp.AppID
 		if appID == nil {
 			s.log.ErrorContext(ctx, "expected app ID to be present")
@@ -200,7 +200,7 @@ func (s *AccessGraphSynchronizer) fetchApps(ctx context.Context) ([]*accessgraph
 	return results, trace.Wrap(err)
 }
 
-func (s *AccessGraphSynchronizer) convertApp(ctx context.Context, app *msgraph.Application, ssoSettings *types.PluginEntraIDAppSSOSettings) (*accessgraphv1alpha.EntraApplication, error) {
+func (s *AccessGraphSynchronizer) convertApp(ctx context.Context, app *models.Application, ssoSettings *types.PluginEntraIDAppSSOSettings) (*accessgraphv1alpha.EntraApplication, error) {
 	appID := app.AppID
 	if appID == nil {
 		return nil, trace.BadParameter("expected app ID to be present")

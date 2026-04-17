@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -31,21 +32,21 @@ import (
 )
 
 type fakeGraphClient struct {
-	users        []*msgraph.User
-	groups       []*msgraph.Group
-	groupMembers map[string][]msgraph.GroupMember
-	groupOwners  map[string][]*msgraph.User
-	applications []*msgraph.Application
+	users        []*models.User
+	groups       []*models.Group
+	groupMembers map[string][]models.GroupMember
+	groupOwners  map[string][]*models.User
+	applications []*models.Application
 }
 
 func newFakeGraphClient() *fakeGraphClient {
 	return &fakeGraphClient{
-		groupMembers: make(map[string][]msgraph.GroupMember),
-		groupOwners:  make(map[string][]*msgraph.User),
+		groupMembers: make(map[string][]models.GroupMember),
+		groupOwners:  make(map[string][]*models.User),
 	}
 }
 
-func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(msgraph.GroupMember) bool, opts ...msgraph.IterateOpt) error {
+func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(models.GroupMember) bool, opts ...msgraph.IterateOpt) error {
 	for _, m := range c.groupMembers[groupID] {
 		if !f(m) {
 			return nil
@@ -54,7 +55,7 @@ func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID strin
 	return nil
 }
 
-func (c *fakeGraphClient) IterateGroupOwners(ctx context.Context, groupID string, f func(*msgraph.User) bool, opts ...msgraph.IterateOpt) error {
+func (c *fakeGraphClient) IterateGroupOwners(ctx context.Context, groupID string, f func(*models.User) bool, opts ...msgraph.IterateOpt) error {
 	for _, m := range c.groupOwners[groupID] {
 		if !f(m) {
 			return nil
@@ -63,7 +64,7 @@ func (c *fakeGraphClient) IterateGroupOwners(ctx context.Context, groupID string
 	return nil
 }
 
-func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Group) bool, opts ...msgraph.IterateOpt) error {
+func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*models.Group) bool, opts ...msgraph.IterateOpt) error {
 	for _, g := range c.groups {
 		if !f(g) {
 			break
@@ -72,7 +73,7 @@ func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Gro
 	return nil
 }
 
-func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User) bool, opts ...msgraph.IterateOpt) error {
+func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*models.User) bool, opts ...msgraph.IterateOpt) error {
 	for _, u := range c.users {
 		if !f(u) {
 			return nil
@@ -81,11 +82,11 @@ func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User
 	return nil
 }
 
-func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(*msgraph.Application) bool, opts ...msgraph.IterateOpt) error {
+func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(*models.Application) bool, opts ...msgraph.IterateOpt) error {
 	panic("not implemented")
 }
 
-func (c *fakeGraphClient) GetApplication(ctx context.Context, appID string) (*msgraph.Application, error) {
+func (c *fakeGraphClient) GetApplication(ctx context.Context, appID string) (*models.Application, error) {
 	for _, app := range c.applications {
 		if *app.AppID == appID {
 			return app, nil
@@ -130,7 +131,7 @@ func TestDirectoryReconciler(t *testing.T) {
 
 	// Alice does not exist in Teleport, but exists in Entra
 	aliceUPN := "alice@example.com"
-	aliceEntra := &msgraph.User{}
+	aliceEntra := &models.User{}
 	aliceEntra.ID = &aliceID
 	aliceEntra.UserPrincipalName = &aliceUPN
 	aliceEntra.DisplayName = to.Ptr("Alice Smith")
@@ -143,7 +144,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	// Team A does not exist in Teleport, but exists in entra. Alice is a member
 	teamAEntra := entraGroup(t, teamAID, "Team A")
 	graphClient.groups = append(graphClient.groups, teamAEntra)
-	graphClient.groupMembers[teamAID] = []msgraph.GroupMember{aliceEntra}
+	graphClient.groupMembers[teamAID] = []models.GroupMember{aliceEntra}
 
 	// Bob exists in both Entra and Teleport, should stay unchanged
 	bobEntra := entraUser(t, bobID, "bob@example.com")
@@ -376,16 +377,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		optionalClaims  *msgraph.OptionalClaims
-		group           *msgraph.Group
+		optionalClaims  *models.OptionalClaims
+		group           *models.Group
 		emitAsRoles     bool
 		groupTraitValue string
 	}{
 		{
 			name:           "no optional claims",
 			optionalClaims: nil,
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:     to.Ptr(domainName),
@@ -397,9 +398,9 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name:           "no optional claims but set",
-			optionalClaims: &msgraph.OptionalClaims{},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			optionalClaims: &models.OptionalClaims{},
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:     to.Ptr(domainName),
@@ -411,16 +412,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use sam account name",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:     to.Ptr(domainName),
@@ -432,16 +433,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use sam account name but not set",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:  to.Ptr(domainName),
@@ -452,16 +453,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use net bios sam account name",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"netbios_domain_and_sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:     to.Ptr(domainName),
@@ -473,16 +474,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use net bios sam account name but not set",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"netbios_domain_and_sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:  to.Ptr(domainName),
@@ -493,16 +494,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use net bios sam account name but not set",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"netbios_domain_and_sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesSamAccountName: to.Ptr(samAccountName),
@@ -513,16 +514,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use domain name sam account name",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"dns_domain_and_sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:     to.Ptr(domainName),
@@ -534,16 +535,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use domain name sam account name but not set",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"dns_domain_and_sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesDomainName:  to.Ptr(domainName),
@@ -554,16 +555,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use domain name sam account name but not set",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"dns_domain_and_sam_account_name"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesSamAccountName: to.Ptr(samAccountName),
@@ -574,16 +575,16 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 		},
 		{
 			name: "use domain name sam account name but not set",
-			optionalClaims: &msgraph.OptionalClaims{
-				SAML2Token: []msgraph.OptionalClaim{
+			optionalClaims: &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
 					{
 						Name:                 to.Ptr("groups"),
 						AdditionalProperties: []string{"dns_domain_and_sam_account_name", "emit_as_roles"},
 					},
 				},
 			},
-			group: &msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
+			group: &models.Group{
+				DirectoryObject: models.DirectoryObject{
 					ID: to.Ptr(groupID),
 				},
 				OnPremisesSamAccountName: to.Ptr(samAccountName),
@@ -595,7 +596,7 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := &msgraph.Application{
+			app := &models.Application{
 				OptionalClaims: tt.optionalClaims,
 			}
 			emitAsRoles, f := getGroupNameBuilderFunc(app)
@@ -612,7 +613,7 @@ func TestUserSync(t *testing.T) {
 	t.Run("Create user succeeds", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
 		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
-		graphClient.users = []*msgraph.User{
+		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 		}
@@ -631,7 +632,7 @@ func TestUserSync(t *testing.T) {
 	t.Run("User account skipped on sanitization error", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
 		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
-		graphClient.users = []*msgraph.User{
+		graphClient.users = []*models.User{
 			entraUser(t, "u1", "al'ice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 			entraUser(t, "u3", "carol@example.com"),
@@ -639,9 +640,9 @@ func TestUserSync(t *testing.T) {
 
 		g1 := entraGroup(t, "g1", "apple")
 		g2 := entraGroup(t, "g2", "banana")
-		graphClient.groups = []*msgraph.Group{g1, g2}
+		graphClient.groups = []*models.Group{g1, g2}
 
-		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
 				entraUser(t, "u1", "al'ice@example.com"),
 				entraUser(t, "u2", "bob@example.com"),
@@ -684,7 +685,7 @@ func TestUserSync(t *testing.T) {
 		require.NoError(t, err)
 		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
 		require.NoError(t, err)
-		graphClient.users = []*msgraph.User{
+		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 			entraUser(t, "u3", "carol@example.com"),
@@ -692,8 +693,8 @@ func TestUserSync(t *testing.T) {
 
 		g1 := entraGroup(t, "g1", "apple")
 		g2 := entraGroup(t, "g2", "banana")
-		graphClient.groups = []*msgraph.Group{g1, g2}
-		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+		graphClient.groups = []*models.Group{g1, g2}
+		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
 				entraUser(t, "u1", "alice@example.com"),
 				entraUser(t, "u2", "bob@example.com"),
@@ -742,7 +743,7 @@ func TestUserSync(t *testing.T) {
 		})
 		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
 		require.NoError(t, err)
-		graphClient.users = []*msgraph.User{
+		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 			entraUser(t, "u3", "carol@example.com"),
@@ -750,8 +751,8 @@ func TestUserSync(t *testing.T) {
 
 		g1 := entraGroup(t, "g1", "apple")
 		g2 := entraGroup(t, "g2", "banana")
-		graphClient.groups = []*msgraph.Group{g1, g2}
-		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+		graphClient.groups = []*models.Group{g1, g2}
+		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
 				entraUser(t, "u1", "alice@example.com"),
 				entraUser(t, "u2", "bob@example.com"),
@@ -799,14 +800,14 @@ func TestUserSync(t *testing.T) {
 		})
 		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
 		require.NoError(t, err)
-		graphClient.users = []*msgraph.User{
+		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 		}
 		g1 := entraGroup(t, "g1", "apple")
 		g2 := entraGroup(t, "g2", "banana")
-		graphClient.groups = []*msgraph.Group{g1, g2}
-		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+		graphClient.groups = []*models.Group{g1, g2}
+		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
 				entraUser(t, "u1", "alice@example.com"),
 				entraUser(t, "u2", "bob@example.com"),
@@ -846,24 +847,24 @@ func TestGroupFilters(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		entraGroups []*msgraph.Group
+		entraGroups []*models.Group
 		filters     filter.Filters
-		expected    []*msgraph.Group
+		expected    []*models.Group
 	}{
 		{
 			name: "Filter by ID",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "2"}},
 			},
-			expected: []*msgraph.Group{entraGroup(t, "2", "banana")},
+			expected: []*models.Group{entraGroup(t, "2", "banana")},
 		},
 		{
 			name: "Filter by Name",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -871,14 +872,14 @@ func TestGroupFilters(t *testing.T) {
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 			},
-			expected: []*msgraph.Group{
+			expected: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 			},
 		},
 		{
 			name: "Exclude All",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -890,13 +891,13 @@ func TestGroupFilters(t *testing.T) {
 		},
 		{
 			name: "No Filters (matches all)",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
 			},
 			filters: nil,
-			expected: []*msgraph.Group{
+			expected: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -904,7 +905,7 @@ func TestGroupFilters(t *testing.T) {
 		},
 		{
 			name: "Multiple Filters",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -915,7 +916,7 @@ func TestGroupFilters(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "4"}},
 			},
-			expected: []*msgraph.Group{
+			expected: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "4", "carrot"),
@@ -923,18 +924,18 @@ func TestGroupFilters(t *testing.T) {
 		},
 		{
 			name: "Exclude by ID",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "2"}},
 			},
-			expected: []*msgraph.Group{entraGroup(t, "1", "apple")},
+			expected: []*models.Group{entraGroup(t, "1", "apple")},
 		},
 		{
 			name: "Exclude by NameRegex",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -942,11 +943,11 @@ func TestGroupFilters(t *testing.T) {
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
 			},
-			expected: []*msgraph.Group{entraGroup(t, "3", "banana")},
+			expected: []*models.Group{entraGroup(t, "3", "banana")},
 		},
 		{
 			name: "Include and Exclude - exclude wins",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -956,7 +957,7 @@ func TestGroupFilters(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "*"}},
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "1"}},
 			},
-			expected: []*msgraph.Group{
+			expected: []*models.Group{
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
 				entraGroup(t, "4", "carrot"),
@@ -964,7 +965,7 @@ func TestGroupFilters(t *testing.T) {
 		},
 		{
 			name: "Include and Exclude - matching include/exclude regexp",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "admin"),
 				entraGroup(t, "3", "banana"),
@@ -975,7 +976,7 @@ func TestGroupFilters(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "b*"}},
 			},
-			expected: []*msgraph.Group{entraGroup(t, "3", "banana")},
+			expected: []*models.Group{entraGroup(t, "3", "banana")},
 		},
 	}
 
@@ -1006,52 +1007,52 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		entraGroups    []*msgraph.Group
-		expectedGroups []*msgraph.Group
+		entraGroups    []*models.Group
+		expectedGroups []*models.Group
 	}{
 		{
 			name: "Empty group",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				// this invalid group should not prevent the group below to be synced.
 				{},
 				entraGroup(t, "2", "banana"),
 			},
-			expectedGroups: []*msgraph.Group{
+			expectedGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "banana"),
 			},
 		},
 		{
 			name: "ID Missing",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				// this invalid group should not prevent the group below to be synced.
 				{
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						DisplayName: to.Ptr("carrot"),
 					},
 				},
 				entraGroup(t, "2", "banana"),
 			},
-			expectedGroups: []*msgraph.Group{
+			expectedGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "banana"),
 			},
 		},
 		{
 			name: "DisplayName missing",
-			entraGroups: []*msgraph.Group{
+			entraGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				// this invalid group should not prevent the group below to be synced.
 				{
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: to.Ptr("3"),
 					},
 				},
 				entraGroup(t, "2", "banana"),
 			},
-			expectedGroups: []*msgraph.Group{
+			expectedGroups: []*models.Group{
 				entraGroup(t, "1", "apple"),
 				entraGroup(t, "2", "banana"),
 			},
@@ -1088,7 +1089,7 @@ func TestUnknownFilter(t *testing.T) {
 
 	// Start with 2 users, 4 groups, 3 group members,
 	// and reconcile without any filters.
-	graphClient.users = []*msgraph.User{
+	graphClient.users = []*models.User{
 		entraUser(t, "u1", "alice@example.com"),
 		entraUser(t, "u2", "bob@example.com"),
 	}
@@ -1096,9 +1097,9 @@ func TestUnknownFilter(t *testing.T) {
 	g2 := entraGroup(t, "g2", "admin")
 	g3 := entraGroup(t, "g3", "banana")
 	g4 := entraGroup(t, "g4", "carrot")
-	entraGroups := []*msgraph.Group{g1, g2, g3, g4}
+	entraGroups := []*models.Group{g1, g2, g3, g4}
 	graphClient.groups = entraGroups
-	members := map[string][]msgraph.GroupMember{
+	members := map[string][]models.GroupMember{
 		"g1": {entraUser(t, "u1", "alice@example.com")},
 		"g2": {entraUser(t, "u1", "alice@example.com")},
 		"g3": {entraUser(t, "u2", "bob@example.com")},
@@ -1132,10 +1133,10 @@ func TestUnknownFilter(t *testing.T) {
 	// are added in Entra ID.
 	g5 := entraGroup(t, "g5", "drum")
 	g6 := entraGroup(t, "g6", "eagle")
-	newGroup := []*msgraph.Group{g1, g3, g4, g5, g6}
+	newGroup := []*models.Group{g1, g3, g4, g5, g6}
 	graphClient.groups = newGroup
 	// g1 group gets one additional member
-	members["g1"] = []msgraph.GroupMember{entraUser(t, "u1", "alice@example.com"), entraUser(t, "u2", "bob@example.com")}
+	members["g1"] = []models.GroupMember{entraUser(t, "u1", "alice@example.com"), entraUser(t, "u2", "bob@example.com")}
 	graphClient.groupMembers = members
 
 	type unsupportedFilterType struct {
@@ -1173,7 +1174,7 @@ func TestNestedMembership(t *testing.T) {
 	graphClient := newFakeGraphClient()
 	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
 
-	graphClient.users = []*msgraph.User{
+	graphClient.users = []*models.User{
 		entraUser(t, "u1", "alice@example.com"),
 		entraUser(t, "u2", "bob@example.com"),
 	}
@@ -1181,9 +1182,9 @@ func TestNestedMembership(t *testing.T) {
 	g2 := entraGroup(t, "g2", "admin")
 	g3 := entraGroup(t, "g3", "banana")
 	g4 := entraGroup(t, "g4", "carrot")
-	entraGroups := []*msgraph.Group{g1, g2, g3, g4}
+	entraGroups := []*models.Group{g1, g2, g3, g4}
 	graphClient.groups = entraGroups
-	graphClient.groupMembers = map[string][]msgraph.GroupMember{
+	graphClient.groupMembers = map[string][]models.GroupMember{
 		"g1": {g2},
 		"g2": {g3},
 		"g3": {g4},
@@ -1207,7 +1208,7 @@ func TestNestedMembership(t *testing.T) {
 
 	// Let's create a cycle, by g4, going back to g1 and expect a reconciliation error.
 
-	graphClient.groupMembers = map[string][]msgraph.GroupMember{
+	graphClient.groupMembers = map[string][]models.GroupMember{
 		"g1": {g2},
 		"g2": {g3},
 		"g3": {g4},
@@ -1247,14 +1248,14 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	require.NoError(t, err)
 
 	applicationID := uuid.NewString()
-	application := &msgraph.Application{
+	application := &models.Application{
 		AppID: to.Ptr(applicationID),
-		DirectoryObject: msgraph.DirectoryObject{
+		DirectoryObject: models.DirectoryObject{
 			DisplayName: to.Ptr("My Application"),
 			ID:          to.Ptr(uuid.NewString()),
 		},
-		OptionalClaims: &msgraph.OptionalClaims{
-			SAML2Token: []msgraph.OptionalClaim{
+		OptionalClaims: &models.OptionalClaims{
+			SAML2Token: []models.OptionalClaim{
 				{
 					Name: to.Ptr("group"),
 				},
@@ -1307,20 +1308,20 @@ func newSAMLConnector(t *testing.T, connectorID, group1, group2 string) types.SA
 	return connector
 }
 
-func entraGroup(t *testing.T, id, name string) *msgraph.Group {
+func entraGroup(t *testing.T, id, name string) *models.Group {
 	t.Helper()
-	return &msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
+	return &models.Group{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr(id),
 			DisplayName: to.Ptr(name),
 		},
 	}
 }
 
-func entraUser(t *testing.T, id, mail string) *msgraph.User {
+func entraUser(t *testing.T, id, mail string) *models.User {
 	t.Helper()
-	return &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	return &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID: to.Ptr(id),
 		},
 		UserPrincipalName: to.Ptr(mail),
@@ -1335,7 +1336,7 @@ func requireAccessListCount(t *testing.T, srv services.AccessListsGetter, cnt in
 	require.Len(t, lists, cnt)
 }
 
-func requireAccessListForEntraGroupExists(t *testing.T, srv services.AccessListsGetter, g *msgraph.Group) *accesslist.AccessList {
+func requireAccessListForEntraGroupExists(t *testing.T, srv services.AccessListsGetter, g *models.Group) *accesslist.AccessList {
 	t.Helper()
 
 	lists, err := srv.GetAccessLists(t.Context())

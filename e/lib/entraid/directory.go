@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/accesslists"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 )
@@ -332,13 +332,13 @@ func matchByLabel[T types.Resource](resource T) bool {
 	return ok && origin == types.OriginEntraID
 }
 
-func (r *DirectoryReconciler) getApplication(ctx context.Context, appID string) (*msgraph.Application, error) {
+func (r *DirectoryReconciler) getApplication(ctx context.Context, appID string) (*models.Application, error) {
 	app, err := r.graphClient.GetApplication(ctx, appID)
 	return app, trace.Wrap(err, "failed to get application")
 }
 
-func getGroupNameBuilderFunc(app *msgraph.Application) (bool, func(*msgraph.Group) string) {
-	getGroupID := func(group *msgraph.Group) string {
+func getGroupNameBuilderFunc(app *models.Application) (bool, func(*models.Group) string) {
+	getGroupID := func(group *models.Group) string {
 		if group.ID == nil {
 			return ""
 		}
@@ -350,32 +350,32 @@ func getGroupNameBuilderFunc(app *msgraph.Application) (bool, func(*msgraph.Grou
 
 	var groupAditionalProperties []string
 	for _, claim := range app.OptionalClaims.SAML2Token {
-		if claim.Name == nil || *claim.Name != msgraph.OPTIONAL_CLAIM_GROUP_NAME {
+		if claim.Name == nil || *claim.Name != models.OPTIONAL_CLAIM_GROUP_NAME {
 			continue
 		}
 		groupAditionalProperties = claim.AdditionalProperties
 		break
 	}
 
-	emitAsRoles := slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES)
+	emitAsRoles := slices.Contains(groupAditionalProperties, models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES)
 
 	switch {
-	case slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME):
-		return emitAsRoles, func(g *msgraph.Group) string {
+	case slices.Contains(groupAditionalProperties, models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME):
+		return emitAsRoles, func(g *models.Group) string {
 			if g.OnPremisesSamAccountName == nil {
 				return getGroupID(g)
 			}
 			return *g.OnPremisesSamAccountName
 		}
-	case slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_DNS_DOMAIN_AND_SAM_ACCOUNT_NAME):
-		return emitAsRoles, func(g *msgraph.Group) string {
+	case slices.Contains(groupAditionalProperties, models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_DNS_DOMAIN_AND_SAM_ACCOUNT_NAME):
+		return emitAsRoles, func(g *models.Group) string {
 			if g.OnPremisesSamAccountName == nil || g.OnPremisesDomainName == nil {
 				return getGroupID(g)
 			}
 			return *g.OnPremisesDomainName + `\` + *g.OnPremisesSamAccountName
 		}
-	case slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_NETBIOS_DOMAIN_AND_SAM_ACCOUNT_NAME):
-		return emitAsRoles, func(g *msgraph.Group) string {
+	case slices.Contains(groupAditionalProperties, models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_NETBIOS_DOMAIN_AND_SAM_ACCOUNT_NAME):
+		return emitAsRoles, func(g *models.Group) string {
 			if g.OnPremisesSamAccountName == nil || g.OnPremisesNetBiosName == nil {
 				return getGroupID(g)
 			}
@@ -390,8 +390,8 @@ func getGroupNameBuilderFunc(app *msgraph.Application) (bool, func(*msgraph.Grou
 // configured group filters.
 func groupFilterMatcher(
 	filters filter.Filters,
-) func(g *msgraph.Group) bool {
-	return func(g *msgraph.Group) bool {
+) func(g *models.Group) bool {
+	return func(g *models.Group) bool {
 		return filter.Matches(filters, filter.MatchParam{
 			ID:   *g.ID,
 			Name: *g.DisplayName,
@@ -403,8 +403,8 @@ func groupFilterMatcher(
 // Entra ID Access List in Teleport.
 func groupLocalMatcher(
 	inACLMap map[string]*accessListWithMembers,
-) func(g *msgraph.Group) bool {
-	return func(g *msgraph.Group) bool {
+) func(g *models.Group) bool {
+	return func(g *models.Group) bool {
 		aclName := accessListName(*g.DisplayName, *g.ID)
 		_, ok := inACLMap[aclName]
 		return ok

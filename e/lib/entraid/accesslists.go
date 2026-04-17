@@ -26,6 +26,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -63,8 +64,8 @@ func (a *accessListWithMembers) GetKind() string {
 
 func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
-	groupsMap map[string]*msgraph.Group,
-	groupMembersMap map[string][]msgraph.GroupMember,
+	groupsMap map[string]*models.Group,
+	groupMembersMap map[string][]models.GroupMember,
 	teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
 ) error {
 	aclOwnersCfg := aclOwnersConfig{
@@ -207,7 +208,7 @@ type aclOwnersConfig struct {
 	source        types.EntraIDAccessListOwnersSource
 }
 
-func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entraOwners []*msgraph.User) []accesslist.Owner {
+func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entraOwners []*models.User) []accesslist.Owner {
 	if cfg.source == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN {
 		return cfg.defaultOwners
 	}
@@ -233,8 +234,8 @@ func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entr
 func (r *DirectoryReconciler) convertEntraAccessListsWithMembers(
 	ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
-	groupsMap map[string]*msgraph.Group,
-	groupMembersMap map[string][]msgraph.GroupMember,
+	groupsMap map[string]*models.Group,
+	groupMembersMap map[string][]models.GroupMember,
 	aclOwnersCfg aclOwnersConfig,
 ) map[string]*accessListWithMembers {
 	aclsWithMembersMap := make(map[string]*accessListWithMembers)
@@ -288,7 +289,7 @@ func (r *DirectoryReconciler) convertEntraAccessListsWithMembers(
 	return aclsWithMembersMap
 }
 
-func validateGroup(in *msgraph.Group) error {
+func validateGroup(in *models.Group) error {
 	if in == nil {
 		return trace.BadParameter("expected Entra ID group to be non-nil")
 	}
@@ -302,7 +303,7 @@ func validateGroup(in *msgraph.Group) error {
 	return nil
 }
 
-func convertGroup(ctx context.Context, in *msgraph.Group, tenantID string, aclOwnersCfg aclOwnersConfig) (entraUniqueID, *accesslist.AccessList, error) {
+func convertGroup(ctx context.Context, in *models.Group, tenantID string, aclOwnersCfg aclOwnersConfig) (entraUniqueID, *accesslist.AccessList, error) {
 	if err := validateGroup(in); err != nil {
 		return "", nil, trace.Wrap(err)
 	}
@@ -341,7 +342,7 @@ func convertGroup(ctx context.Context, in *msgraph.Group, tenantID string, aclOw
 // Error is returned on unexpected conditions, indicating programmer error (e.g. validation of AccessListMember fails).
 // On non fatal errors, e.g. an unsupported member type, a warning is logged and (nil, nil) is returned.
 func convertGroupMember(
-	in msgraph.GroupMember,
+	in models.GroupMember,
 	al *accesslist.AccessList,
 	entraUsersByID map[entraUniqueID]types.User,
 	accesslistByEntraId map[entraUniqueID]*accesslist.AccessList,
@@ -352,7 +353,7 @@ func convertGroupMember(
 	id := *in.GetID()
 
 	switch m := in.(type) {
-	case *msgraph.User:
+	case *models.User:
 		teleportUser, ok := entraUsersByID[entraUniqueID(id)]
 		if !ok {
 			return nil, trace.NotFound("group member account found for Entra unique ID %q", id)
@@ -380,7 +381,7 @@ func convertGroupMember(
 		alm.SetOrigin(types.OriginEntraID)
 		return alm, nil
 
-	case *msgraph.Group:
+	case *models.Group:
 		accessList, ok := accesslistByEntraId[entraUniqueID(id)]
 		if !ok {
 			return nil, trace.NotFound("access list not found for Entra unique ID %q", id)
@@ -425,9 +426,9 @@ func listEntraGroupOwners(
 	ctx context.Context,
 	graphClient GraphClient,
 	groupID string,
-) ([]*msgraph.User, error) {
-	var owners []*msgraph.User
-	if err := graphClient.IterateGroupOwners(ctx, groupID, func(o *msgraph.User) bool {
+) ([]*models.User, error) {
+	var owners []*models.User
+	if err := graphClient.IterateGroupOwners(ctx, groupID, func(o *models.User) bool {
 		owners = append(owners, o)
 		return true
 	}); err != nil {
@@ -440,11 +441,11 @@ func listEntraGroupOwners(
 func (r *DirectoryReconciler) listEntraGroups(
 	ctx context.Context,
 	graphClient GraphClient,
-	filterMatches func(g *msgraph.Group) bool,
+	filterMatches func(g *models.Group) bool,
 	accessListOwnersSource types.EntraIDAccessListOwnersSource,
-) (map[string]*msgraph.Group, error) {
+) (map[string]*models.Group, error) {
 
-	setEntraOwners := func(g *msgraph.Group) {
+	setEntraOwners := func(g *models.Group) {
 		if accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID ||
 			accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID {
 
@@ -458,8 +459,8 @@ func (r *DirectoryReconciler) listEntraGroups(
 		}
 	}
 
-	result := map[string]*msgraph.Group{}
-	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
+	result := map[string]*models.Group{}
+	err := graphClient.IterateGroups(ctx, func(g *models.Group) bool {
 		if err := validateGroup(g); err != nil {
 			r.errSkippedResources.groups = append(r.errSkippedResources.groups, trace.Wrap(err))
 			return true
@@ -476,13 +477,13 @@ func (r *DirectoryReconciler) listEntraGroups(
 	return result, trace.Wrap(err)
 }
 
-func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
+func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups map[string]*models.Group) (map[string][]models.GroupMember, error) {
 	// membersPageSize is the maximum number of members to fetch per page.
 	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
 	// We don't want to send 9 requests to fetch 900 members where 999 is max page size supported by API
 	const membersPageSize = 300
 
-	result := make(map[string][]msgraph.GroupMember, len(groups))
+	result := make(map[string][]models.GroupMember, len(groups))
 	var mu sync.Mutex
 
 	// TODO(smallinsky) move to static goroutine workers to not allocate space for each goroutine.
@@ -491,8 +492,8 @@ func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups
 	for id, group := range groups {
 		id, gid := id, *group.ID
 		g.Go(func() error {
-			var members []msgraph.GroupMember
-			if err := graphClient.IterateGroupMembers(ctx, gid, func(m msgraph.GroupMember) bool {
+			var members []models.GroupMember
+			if err := graphClient.IterateGroupMembers(ctx, gid, func(m models.GroupMember) bool {
 				members = append(members, m)
 				return true
 			}, msgraph.WithTop(membersPageSize)); err != nil {
@@ -522,7 +523,7 @@ func getParallelReqCount(numGroups int) int {
 	return 70
 }
 
-func unwindGroupMembership(groups map[string]*msgraph.Group, groupMembers map[string][]msgraph.GroupMember) map[string][]string {
+func unwindGroupMembership(groups map[string]*models.Group, groupMembers map[string][]models.GroupMember) map[string][]string {
 	// result map to hold the membership paths for each group.
 	result := make(map[string][]string)
 	// visited tracks groups in the current path to avoid cycles.
@@ -547,7 +548,7 @@ func unwindGroupMembership(groups map[string]*msgraph.Group, groupMembers map[st
 
 		// Traverse each member of the group.
 		for _, member := range groupMembers[groupID] {
-			if nestedGroup, ok := member.(*msgraph.Group); ok {
+			if nestedGroup, ok := member.(*models.Group); ok {
 				// Skip Office 365 groups, we only care about security groups.
 				if nestedGroup.IsOffice365Group() {
 					continue
@@ -670,7 +671,7 @@ func toCollection(in map[string]*accessListWithMembers) (*accesslists.Collection
 	return &c, nil
 }
 
-func groupNameForLog(in *msgraph.Group) string {
+func groupNameForLog(in *models.Group) string {
 	if in == nil {
 		return ""
 	}
@@ -683,8 +684,8 @@ func groupNameForLog(in *msgraph.Group) string {
 	return ""
 }
 
-// ToAclOwner converts msgraph.User to accesslist.Owner.
-func ToAclOwner(ctx context.Context, in []*msgraph.User) []accesslist.Owner {
+// ToAclOwner converts models.User to accesslist.Owner.
+func ToAclOwner(ctx context.Context, in []*models.User) []accesslist.Owner {
 	out := make([]accesslist.Owner, 0, len(in))
 	for _, u := range in {
 		username, _, err := processUsername(u)

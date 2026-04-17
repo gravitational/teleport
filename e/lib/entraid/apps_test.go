@@ -15,7 +15,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 func TestEntraAppToProto(t *testing.T) {
@@ -30,8 +30,8 @@ func TestEntraAppToProto(t *testing.T) {
 		FederatedSsoV2: federatedSSOV2,
 	}
 
-	createEntraApp := func() *msgraph.Application {
-		entraApp := &msgraph.Application{}
+	createEntraApp := func() *models.Application {
+		entraApp := &models.Application{}
 		entraApp.ID = &id
 		entraApp.AppID = &appID
 		entraApp.DisplayName = &displayName

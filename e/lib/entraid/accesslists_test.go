@@ -13,64 +13,64 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 func TestUnwindGroupMembership(t *testing.T) {
 	tests := []struct {
 		name         string
-		groups       map[string]*msgraph.Group
-		groupMembers map[string][]msgraph.GroupMember
+		groups       map[string]*models.Group
+		groupMembers map[string][]models.GroupMember
 		expected     map[string][]string
 	}{
 		{
 			name:         "empty input",
-			groups:       map[string]*msgraph.Group{},
-			groupMembers: map[string][]msgraph.GroupMember{},
+			groups:       map[string]*models.Group{},
+			groupMembers: map[string][]models.GroupMember{},
 			expected:     map[string][]string{},
 		},
 		{
 			name: "single group",
-			groups: map[string]*msgraph.Group{
+			groups: map[string]*models.Group{
 				"group1": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
 					},
 				},
 			},
-			groupMembers: map[string][]msgraph.GroupMember{},
+			groupMembers: map[string][]models.GroupMember{},
 			expected: map[string][]string{
 				"group1": {"group1"},
 			},
 		},
 		{
 			name: "groups with other groups as members",
-			groups: map[string]*msgraph.Group{
+			groups: map[string]*models.Group{
 				"group1": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
 					},
 				},
 				"group2": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group2"),
 					},
 				},
 				"group3": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group3"),
 					},
 				},
 			},
-			groupMembers: map[string][]msgraph.GroupMember{
+			groupMembers: map[string][]models.GroupMember{
 				"group1": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group2"),
 						},
 					},
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group3"),
 						},
 					},
@@ -84,68 +84,68 @@ func TestUnwindGroupMembership(t *testing.T) {
 		},
 		{
 			name: "complex group membership with 4 levels",
-			groups: map[string]*msgraph.Group{
+			groups: map[string]*models.Group{
 				"group1": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
 					},
 				},
 				"group2": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group2"),
 					},
 				},
 				"group3": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group3"),
 					},
 				},
 				"group4": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group4"),
 					},
 				},
 				"group5": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group5"),
 					},
 				},
 				"group6": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group6"),
 					},
 				},
 			},
-			groupMembers: map[string][]msgraph.GroupMember{
+			groupMembers: map[string][]models.GroupMember{
 				"group1": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group2"),
 						},
 					},
 				},
 				"group2": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group3"),
 						},
 					},
 				},
 				"group3": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group4"),
 						},
 					},
 				},
 				"group4": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group5"),
 						},
 					},
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group6"),
 						},
 					},
@@ -162,44 +162,44 @@ func TestUnwindGroupMembership(t *testing.T) {
 		},
 		{
 			name: "groups with cycles",
-			groups: map[string]*msgraph.Group{
+			groups: map[string]*models.Group{
 				"group1": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
 					},
 				},
 				"group2": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group2"),
 					},
 				},
 				"group3": {
-					DirectoryObject: msgraph.DirectoryObject{
+					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group3"),
 					},
 				},
 			},
-			groupMembers: map[string][]msgraph.GroupMember{
+			groupMembers: map[string][]models.GroupMember{
 				"group1": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group2"),
 						},
 					},
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group3"),
 						},
 					},
 				},
 				"group2": {
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group1"),
 						},
 					},
-					&msgraph.Group{
-						DirectoryObject: msgraph.DirectoryObject{
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
 							ID: valToPTR("group3"),
 						},
 					},

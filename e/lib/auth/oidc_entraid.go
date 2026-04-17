@@ -13,6 +13,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 const (
@@ -114,7 +115,7 @@ func (p entraIDGroupsProvider) maybeFetchEntraIDGroups(ctx context.Context, grap
 
 	var groups []string
 	groupType := getGroupType(p.connector)
-	if err = graphClient.IterateUsersTransitiveMemberOf(ctx, userID, groupType, func(group *msgraph.Group) bool {
+	if err = graphClient.IterateUsersTransitiveMemberOf(ctx, userID, groupType, func(group *models.Group) bool {
 		if group == nil {
 			return false
 		}
