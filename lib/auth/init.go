@@ -451,6 +451,9 @@ type InitConfig struct {
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
+	// SubCAService manages CertAuthorityOverride resources.
+	SubCAService services.SubCAService
+
 	// FakePasswordHash is the password hash given to all users without a password.
 	// This helps eliminate timing attacks by ensuring that all authentication attempts
 	// with a password do a bcrypt comparison.

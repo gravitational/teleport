@@ -662,6 +662,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.SubCAService == nil {
+		var err error
+		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+			Backend: cfg.Backend,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -726,6 +736,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		MFAService:                      cfg.MFAService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
+		SubCAService:                    cfg.SubCAService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -4378,12 +4389,12 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.BadParameter("stored session lacks challenge extensions")
 		}
 
-		// Replace the challenge extensions with the ones found in the SSO MFA object.
+		// Replace the challenge extensions with the ones found in the MFA object.
 		// These are the ones from the original tsh request.
 		challengeExtensions = mfatypes.ChallengeExtensionsToProto(chalExts)
 
 		// Used for testing. If observer function is set, call it with
-		// challenge extensions from SSO MFA session.
+		// challenge extensions from MFA session.
 		if a.ObserveBrowserMFAChallengeExtensionsForTesting != nil {
 			a.ObserveBrowserMFAChallengeExtensionsForTesting(challengeExtensions)
 		}
