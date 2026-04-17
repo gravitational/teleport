@@ -165,7 +165,7 @@ func TestAuthPOST(t *testing.T) {
 							User:  "unknown",
 							Login: "testuser",
 						},
-						AppMetadata: &apievents.AppMetadata{
+						AppMetadata: apievents.AppMetadata{
 							AppName:       "testapp",
 							AppPublicAddr: publicAddr,
 						},
@@ -199,7 +199,7 @@ func TestAuthPOST(t *testing.T) {
 							Login: appSession.GetUser(),
 							User:  "unknown",
 						},
-						AppMetadata: &apievents.AppMetadata{
+						AppMetadata: apievents.AppMetadata{
 							AppName:       "testapp",
 							AppPublicAddr: publicAddr,
 						},

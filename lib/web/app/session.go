@@ -42,6 +42,8 @@ type session struct {
 	tr *transport
 }
 
+// getIdentityFromWebSession parses the TLS certificate from the web session and
+// extracts the user identity from its subject.
 func getIdentityFromWebSession(ws types.WebSession) (*tlsca.Identity, error) {
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {

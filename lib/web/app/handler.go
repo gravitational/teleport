@@ -466,7 +466,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	}
 	if err := checkSubjectToken(subjectValue, ws); err != nil {
 		identity, _ := getIdentityFromWebSession(ws)
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
@@ -586,11 +586,11 @@ func userMetadata(identity *tlsca.Identity, login string) apievents.UserMetadata
 	return m
 }
 
-func appMetadata(identity *tlsca.Identity) *apievents.AppMetadata {
+func appMetadata(identity *tlsca.Identity) apievents.AppMetadata {
 	if identity == nil {
-		return nil
+		return apievents.AppMetadata{}
 	}
-	return &apievents.AppMetadata{
+	return apievents.AppMetadata{
 		AppName:       identity.RouteToApp.Name,
 		AppPublicAddr: identity.RouteToApp.PublicAddr,
 	}

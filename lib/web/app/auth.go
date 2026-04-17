@@ -313,7 +313,7 @@ type emitErrorEventFields struct {
 	loginName   string
 	err         string
 	sessionID   string
-	appMetadata *apievents.AppMetadata
+	appMetadata apievents.AppMetadata
 }
 
 func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitErrorEventFields) {

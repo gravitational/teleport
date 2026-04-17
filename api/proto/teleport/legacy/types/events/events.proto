@@ -2254,7 +2254,11 @@ message AuthAttempt {
   ];
 
   // AppMetadata is a common application resource metadata.
-  AppMetadata app_metadata = 6;
+  AppMetadata app_metadata = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UserTokenCreate is emitted when a user token is created.
