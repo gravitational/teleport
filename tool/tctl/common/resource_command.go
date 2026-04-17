@@ -3926,6 +3926,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			if !rc.withSecrets && token.GetStatus().GetSecret() != "" {
 				token.GetStatus().Secret = "******"
 			}
+			// As a note, this seems to be dead code, these secrets are always empty
+			// if WithSecrets is unset, since the server will strip the value.
+			if !rc.withSecrets && token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+				token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
+			}
 			return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
 		}
 
@@ -3942,6 +3947,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				for _, token := range res.GetTokens() {
 					if token.GetStatus().GetSecret() != "" {
 						token.GetStatus().Secret = "******"
+					}
+					if token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+						token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
 					}
 				}
 			}
