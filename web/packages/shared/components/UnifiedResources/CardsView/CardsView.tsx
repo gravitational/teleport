@@ -18,8 +18,6 @@
 
 import styled from 'styled-components';
 
-import { Flex } from 'design';
-
 import { LoadingSkeleton } from '../shared/LoadingSkeleton';
 import { ResourceViewProps } from '../types';
 import { FETCH_MORE_SIZE } from '../UnifiedResources';
@@ -40,7 +38,7 @@ export function CardsView({
   resourceLabelConfig,
 }: ResourceViewProps) {
   return (
-    <CardsContainer className="CardsContainer" gap={2}>
+    <CardsContainer className="CardsContainer">
       {mappedResources.map(
         ({ item, key, onShowStatusInfo, showingStatusInfo }) => (
           <ResourceCard
@@ -67,7 +65,10 @@ export function CardsView({
   );
 }
 
-const CardsContainer = styled(Flex)`
+const CardsContainer = styled.ul`
   display: grid;
+  gap: ${props => props.theme.space[2]}px;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  margin: 0;
+  padding: 0;
 `;

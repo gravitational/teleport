@@ -34,7 +34,7 @@ export class UnifiedResourcesPage {
    */
   async connect(serverName: string, login: string) {
     const row = this.page
-      .locator('div')
+      .locator('li')
       .filter({ hasText: serverName })
       .filter({ has: this.page.getByRole('button', { name: 'Connect' }) })
       .first();
@@ -46,5 +46,15 @@ export class UnifiedResourcesPage {
     await popup.waitForLoadState('load');
 
     return new TerminalPage(popup);
+  }
+
+  async connectWithoutLogin(resourceName: string | RegExp): Promise<void> {
+    const locator = this.page
+      .locator('li')
+      .filter({ hasText: resourceName })
+      .filter({ has: this.page.getByRole('button', { name: 'Connect' }) })
+      .first();
+
+    await locator.getByRole('button', { name: 'Connect' }).click();
   }
 }
