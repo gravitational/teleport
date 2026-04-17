@@ -180,6 +180,9 @@ func (tm *testHostUserBackend) DeleteUser(user string) error {
 
 func (tm *testHostUserBackend) CreateHomeDirectory(user, uid, gid string) error {
 	tm.createHomeDirectoryCalls++
+	if _, err := tm.Lookup(user); err == nil {
+		return trace.AlreadyExists("home directory for user %q already exists", user)
+	}
 	return nil
 }
 

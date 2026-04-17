@@ -25,7 +25,6 @@ import (
 	"io"
 	"log/slog"
 	"maps"
-	"os"
 	"os/user"
 	"regexp"
 	"slices"
@@ -296,7 +295,7 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui services.HostUsers
 
 			log.DebugContext(ctx, "Creating home directory", "home_path", home)
 			err = u.backend.CreateHomeDirectory(home, hostUser.UID, hostUser.GID)
-			if err != nil && !os.IsExist(err) {
+			if err != nil && !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
 		}
@@ -384,7 +383,7 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 		if userOpts.Home != "" {
 			log.InfoContext(u.ctx, "Attempting to create home directory", "home", userOpts.Home, "gid", userOpts.GID)
 			if err := u.backend.CreateHomeDirectory(userOpts.Home, user.Uid, user.Gid); err != nil {
-				if !os.IsExist(err) {
+				if !trace.IsAlreadyExists(err) {
 					return trace.Wrap(err)
 				}
 				log.InfoContext(u.ctx, "Home directory already exists", "home", userOpts.Home, "gid", userOpts.GID)
