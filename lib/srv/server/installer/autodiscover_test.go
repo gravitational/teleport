@@ -1371,7 +1371,7 @@ func TestCheckJoinHealth(t *testing.T) {
 			return debug.Readiness{Ready: false, Status: "starting"}, nil
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		err := inst.checkJoinHealth(ctx)
@@ -1403,7 +1403,7 @@ func TestInstallAndConfigureLockContention(t *testing.T) {
 		require.NoError(t, unlock())
 	})
 
-	err = inst.installAndConfigure(context.Background())
+	err = inst.installAndConfigure(t.Context())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "could not acquire lock file")
@@ -1512,7 +1512,39 @@ func TestCheckJoinHealthDiagnosticsTimeoutDoesNotMaskJoinFailure(t *testing.T) {
 		require.ErrorAs(t, err, &joinErr)
 		require.Equal(t, "node did not become ready (join cluster) within 10s", joinErr.Message)
 		require.Equal(t, defaultServiceDiagnosticsUnavailable, joinErr.ServiceDiagnostics)
-		require.Empty(t, joinErr.JournalOutput)
+		require.Equal(t, "(journal output unavailable: diagnostics timed out after 5s)", joinErr.JournalOutput)
+	})
+}
+
+func TestCheckJoinHealthPollTimeoutDoesNotPopulateLastError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(ctx context.Context) (debug.Readiness, error) {
+			<-ctx.Done()
+			return debug.Readiness{}, ctx.Err()
+		}
+		inst.diagnostics = func(_ context.Context, _ string) string {
+			return defaultServiceDiagnosticsUnavailable
+		}
+		inst.journal = func(_ context.Context, _ string) (string, error) {
+			return "", nil
+		}
+
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(t.Context())
+		}()
+
+		time.Sleep(inst.readyzPollTimeout)
+		synctest.Wait()
+
+		err := <-errC
+		var joinErr *JoinFailureError
+		require.ErrorAs(t, err, &joinErr)
+		require.Equal(t, "node did not become ready (join cluster) within 10s", joinErr.Message)
+		require.Empty(t, joinErr.LastError)
 	})
 }
 
@@ -1544,6 +1576,65 @@ func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
 		require.NoError(t, <-errC)
 		require.Equal(t, 2, checkCalls)
 	})
+}
+
+func TestCheckJoinHealthParentCancellationDoesNotBlockOnStuckDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	inst := newTestJoinHealthInstaller(t.TempDir())
+	inst.readyzPollInterval = 10 * time.Millisecond
+	inst.readyzPollTimeout = 20 * time.Millisecond
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+		return debug.Readiness{Ready: false, Status: "starting"}, nil
+	}
+
+	diagnosticsStarted := make(chan struct{})
+	journalStarted := make(chan struct{})
+	block := make(chan struct{})
+	defer close(block)
+
+	inst.diagnostics = func(context.Context, string) string {
+		close(diagnosticsStarted)
+		<-block
+		return "unexpected"
+	}
+	inst.journal = func(context.Context, string) (string, error) {
+		close(journalStarted)
+		<-block
+		return "unexpected", nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(ctx)
+	}()
+
+	select {
+	case <-diagnosticsStarted:
+	case <-time.After(time.Second):
+		t.Fatal("diagnostics did not start")
+	}
+
+	select {
+	case <-journalStarted:
+	case <-time.After(time.Second):
+		t.Fatal("journal capture did not start")
+	}
+
+	cancel()
+
+	select {
+	case err := <-errC:
+		var joinErr *JoinFailureError
+		require.ErrorAs(t, err, &joinErr)
+		require.Equal(t, defaultServiceDiagnosticsUnavailable, joinErr.ServiceDiagnostics)
+		require.Equal(t, "(journal output unavailable: diagnostics were canceled)", joinErr.JournalOutput)
+	case <-time.After(time.Second):
+		t.Fatal("checkJoinHealth did not return after cancellation")
+	}
 }
 
 // newTestJoinHealthInstaller returns an AutoDiscoverNodeInstaller configured

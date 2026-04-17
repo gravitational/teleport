@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	libevent "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
@@ -179,6 +180,10 @@ func (me *mockInstallationResults) ReportInstallationResult(ctx context.Context,
 
 func TestSSMInstaller(t *testing.T) {
 	document := "ssmdocument"
+	joinFailureTimeout := installer.JoinFailureTimeout.String()
+	joinFailureMessage := fmt.Sprintf("node did not become ready (join cluster) within %s", joinFailureTimeout)
+	joinFailureStatus := fmt.Sprintf("Teleport was installed successfully but the agent did not become ready within the configured timeout. Check standard error output for join diagnostics. (timeout: %s)", joinFailureTimeout)
+	joinFailureStandardError := fmt.Sprintf("ERROR: join failure: token is expired or not found; %s", joinFailureMessage)
 
 	for _, tc := range []struct {
 		client                *mockSSMClient
@@ -493,7 +498,7 @@ func TestSSMInstaller(t *testing.T) {
 					"runShellScript": {
 						Status:                ssmtypes.CommandInvocationStatusFailed,
 						ResponseCode:          150,
-						StandardErrorContent:  aws.String("ERROR: join failure: token is expired or not found; node did not become ready (join cluster) within 5m0s"),
+						StandardErrorContent:  aws.String(joinFailureStandardError),
 						StandardOutputContent: aws.String(""),
 					},
 				},
@@ -509,9 +514,9 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:      "account-id",
 					Region:         "eu-central-1",
 					ExitCode:       150,
-					Status:         "Teleport was installed successfully but the agent did not become ready within the configured timeout. Check standard error output for join diagnostics. (timeout: 5m0s)",
+					Status:         joinFailureStatus,
 					StandardOutput: "",
-					StandardError:  "ERROR: join failure: token is expired or not found; node did not become ready (join cluster) within 5m0s",
+					StandardError:  joinFailureStandardError,
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-join-failure",
