@@ -67,12 +67,13 @@ func TestClearingClientsWithStaleCert(t *testing.T) {
 	cache, err := New(Config{
 		NewClientFunc: func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
 			config := &client.Config{
-				ClientStore:  clientStore,
-				SSHProxyAddr: "localhost:3080",
-				WebProxyAddr: "localhost:3080",
-				Username:     "testuser",
-				Tracer:       tracing.NoopProvider().Tracer("test"),
-				SiteName:     "root",
+				ClientStore:    clientStore,
+				SSHProxyAddr:   "localhost:3080",
+				WebProxyAddr:   "localhost:3080",
+				Username:       "testuser",
+				Tracer:         tracing.NoopProvider().Tracer("test"),
+				SiteName:       "root",
+				AddKeysToAgent: client.AddKeysToAgentNo,
 			}
 			if leafClusterName != "" {
 				config.SiteName = leafClusterName
@@ -128,7 +129,7 @@ func TestClearingClientsWithStaleCert(t *testing.T) {
 	require.NoError(t, err)
 	_, err = cache.Get(t.Context(), "root", "")
 	// Getting the client should return an error because we are logged out.
-	require.Error(t, err)
+	require.ErrorContains(t, err, "are you logged in?")
 }
 
 // makeCerts makes TSL and SSH certs.
