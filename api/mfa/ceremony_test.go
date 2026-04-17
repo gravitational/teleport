@@ -19,6 +19,7 @@ package mfa_test
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -333,12 +334,12 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
-		name             string
-		createResp       *mfav1.CreateSessionChallengeResponse
-		promptResp       *proto.MFAAuthenticateResponse
-		wantPromptChal   *proto.MFAAuthenticateChallenge
-		wantValidateResp *mfav1.AuthenticateResponse
-		callbackCeremony mfa.CallbackCeremony
+		name                        string
+		createResp                  *mfav1.CreateSessionChallengeResponse
+		promptResp                  *proto.MFAAuthenticateResponse
+		wantPromptChal              *proto.MFAAuthenticateChallenge
+		wantValidateResp            *mfav1.AuthenticateResponse
+		callbackCeremonyConstructor mfa.MFACeremonyConstructor
 	}{
 		{
 			name: "webauthn response",
@@ -394,9 +395,11 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 					},
 				},
 			},
-			callbackCeremony: &mockMFACeremony{
-				clientCallbackURL: mockCallbackURL,
-				proxyAddress:      mockProxyAddress,
+			callbackCeremonyConstructor: func(context.Context) (mfa.CallbackCeremony, error) {
+				return &mockMFACeremony{
+					clientCallbackURL: mockCallbackURL,
+					proxyAddress:      mockProxyAddress,
+				}, nil
 			},
 		},
 		{
@@ -428,9 +431,11 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 					Browser: newMFABrowserResponse(mockBrowserRequestID, newWebauthnResponse(mockBrowserCredentialID)),
 				},
 			},
-			callbackCeremony: &mockMFACeremony{
-				clientCallbackURL: mockCallbackURL,
-				proxyAddress:      mockProxyAddress,
+			callbackCeremonyConstructor: func(context.Context) (mfa.CallbackCeremony, error) {
+				return &mockMFACeremony{
+					clientCallbackURL: mockCallbackURL,
+					proxyAddress:      mockProxyAddress,
+				}, nil
 			},
 		},
 	} {
@@ -441,14 +446,14 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 				CreateSessionChallenge: func(_ context.Context, req *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
 					require.Equal(t, config.TargetCluster, req.GetTargetCluster())
 
-					if test.callbackCeremony == nil {
+					if test.callbackCeremonyConstructor == nil {
 						require.Empty(t, req.GetSsoClientRedirectUrl())
 						require.Empty(t, req.GetProxyAddressForSso())
 						require.Empty(t, req.GetBrowserMfaTshRedirectUrl())
 					} else {
-						require.Equal(t, test.callbackCeremony.GetClientCallbackURL(), req.GetSsoClientRedirectUrl())
-						require.Equal(t, test.callbackCeremony.GetProxyAddress(), req.GetProxyAddressForSso())
-						require.Equal(t, test.callbackCeremony.GetClientCallbackURL(), req.GetBrowserMfaTshRedirectUrl())
+						require.Equal(t, mockCallbackURL, req.GetSsoClientRedirectUrl())
+						require.Equal(t, mockProxyAddress, req.GetProxyAddressForSso())
+						require.Equal(t, mockCallbackURL, req.GetBrowserMfaTshRedirectUrl())
 					}
 
 					return test.createResp, nil
@@ -463,7 +468,7 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 						func(_ context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 							require.Empty(t, cmp.Diff(test.wantPromptChal, chal, protocmp.Transform()))
 
-							if test.callbackCeremony == nil {
+							if test.callbackCeremonyConstructor == nil {
 								require.Nil(t, cfg.CallbackCeremony)
 							} else {
 								require.NotNil(t, cfg.CallbackCeremony)
@@ -478,8 +483,8 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 
 					return &mfav1.ValidateSessionChallengeResponse{}, nil
 				},
-				CallbackCeremony: test.callbackCeremony,
-				TargetCluster:    config.TargetCluster,
+				CallbackCeremonyConstructor: test.callbackCeremonyConstructor,
+				TargetCluster:               config.TargetCluster,
 			})
 			require.NoError(t, err)
 
@@ -500,14 +505,16 @@ func TestSessionBoundCeremonyRun_CallbackCeremony(t *testing.T) {
 	}
 
 	config := newSessionBindingConfig()
-	config.CallbackCeremony = &mockMFACeremony{
-		clientCallbackURL: mockCallbackURL,
-		proxyAddress:      mockCallbackProxyAddress,
-		prompt: func(_ context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			require.NotNil(t, chal.GetSSOChallenge())
+	config.CallbackCeremonyConstructor = func(context.Context) (mfa.CallbackCeremony, error) {
+		return &mockMFACeremony{
+			clientCallbackURL: mockCallbackURL,
+			proxyAddress:      mockCallbackProxyAddress,
+			prompt: func(_ context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				require.NotNil(t, chal.GetSSOChallenge())
 
-			return wantResp, nil
-		},
+				return wantResp, nil
+			},
+		}, nil
 	}
 	config.CreateSessionChallenge = func(_ context.Context, req *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
 		require.Equal(t, mockCallbackURL, req.GetSsoClientRedirectUrl())
@@ -662,6 +669,169 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 	}
 }
 
+func TestSessionBoundCeremonyRun_ClosesCallbackCeremonyOnErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name        string
+		buildConfig func(*atomic.Int32) mfa.SessionBoundCeremonyConfig
+		wantErr     error
+	}{
+		{
+			name: "create session challenge returns error",
+			buildConfig: func(closeCalls *atomic.Int32) mfa.SessionBoundCeremonyConfig {
+				config := newSessionBindingConfig()
+				config.CallbackCeremonyConstructor = func(context.Context) (mfa.CallbackCeremony, error) {
+					return &mockMFACeremony{
+						clientCallbackURL: mockCallbackURL,
+						proxyAddress:      mockCallbackProxyAddress,
+						closeFunc: func() {
+							closeCalls.Add(1)
+						},
+					}, nil
+				}
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+					return nil, trace.ConnectionProblem(nil, "create failed")
+				}
+
+				return config
+			},
+			wantErr: trace.ConnectionProblem(nil, "create failed"),
+		},
+		{
+			name: "prompt returns error",
+			buildConfig: func(closeCalls *atomic.Int32) mfa.SessionBoundCeremonyConfig {
+				config := newSessionBindingConfig()
+				config.CallbackCeremonyConstructor = func(context.Context) (mfa.CallbackCeremony, error) {
+					return &mockMFACeremony{
+						clientCallbackURL: mockCallbackURL,
+						proxyAddress:      mockCallbackProxyAddress,
+						closeFunc: func() {
+							closeCalls.Add(1)
+						},
+					}, nil
+				}
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+					resp := newSessionBindingCreateResp(mockChallengeName)
+					resp.MfaChallenge.SsoChallenge = newMFASSOChallenge()
+
+					return resp, nil
+				}
+				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(_ context.Context, _ *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return nil, trace.AccessDenied("prompt failed")
+					})
+				}
+
+				return config
+			},
+			wantErr: trace.AccessDenied("prompt failed"),
+		},
+		{
+			name: "validate session challenge returns error",
+			buildConfig: func(closeCalls *atomic.Int32) mfa.SessionBoundCeremonyConfig {
+				config := newSessionBindingConfig()
+				config.CallbackCeremonyConstructor = func(context.Context) (mfa.CallbackCeremony, error) {
+					return &mockMFACeremony{
+						clientCallbackURL: mockCallbackURL,
+						proxyAddress:      mockCallbackProxyAddress,
+						closeFunc: func() {
+							closeCalls.Add(1)
+						},
+					}, nil
+				}
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+					resp := newSessionBindingCreateResp(mockChallengeName)
+					resp.MfaChallenge.SsoChallenge = newMFASSOChallenge()
+
+					return resp, nil
+				}
+				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(_ context.Context, _ *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return &proto.MFAAuthenticateResponse{
+							Response: &proto.MFAAuthenticateResponse_SSO{
+								SSO: newProtoSSOResponse(mockSSOToken),
+							},
+						}, nil
+					})
+				}
+				config.ValidateSessionChallenge = func(_ context.Context, _ *mfav1.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error) {
+					return nil, trace.CompareFailed("validate failed")
+				}
+
+				return config
+			},
+			wantErr: trace.CompareFailed("validate failed"),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var closeCalls atomic.Int32
+
+			ceremony, err := mfa.NewSessionBoundCeremony(test.buildConfig(&closeCalls))
+			require.NoError(t, err)
+
+			name, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
+			require.ErrorIs(t, err, test.wantErr)
+			require.Empty(t, name)
+			require.EqualValues(t, 1, closeCalls.Load())
+		})
+	}
+}
+
+func TestSessionBoundCeremonyRun_CallbackCeremonyConstructorCreatesNewCeremonyPerRun(t *testing.T) {
+	t.Parallel()
+
+	var constructed atomic.Int32
+	var closed atomic.Int32
+
+	config := newSessionBindingConfig()
+	config.CallbackCeremonyConstructor = func(context.Context) (mfa.CallbackCeremony, error) {
+		constructed.Add(1)
+
+		return &mockMFACeremony{
+			clientCallbackURL: mockCallbackURL,
+			proxyAddress:      mockCallbackProxyAddress,
+			prompt: func(_ context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				require.NotNil(t, chal.GetSSOChallenge())
+
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_SSO{
+						SSO: &proto.SSOResponse{
+							RequestId: chal.GetSSOChallenge().GetRequestId(),
+							Token:     "token",
+						},
+					},
+				}, nil
+			},
+			closeFunc: func() {
+				closed.Add(1)
+			},
+		}, nil
+	}
+	config.CreateSessionChallenge = func(_ context.Context, req *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+		require.Equal(t, mockCallbackURL, req.GetSsoClientRedirectUrl())
+		require.Equal(t, mockCallbackProxyAddress, req.GetProxyAddressForSso())
+		require.Equal(t, mockCallbackURL, req.GetBrowserMfaTshRedirectUrl())
+
+		resp := newSessionBindingCreateResp(mockChallengeName)
+		resp.MfaChallenge.SsoChallenge = newMFASSOChallenge()
+
+		return resp, nil
+	}
+
+	ceremony, err := mfa.NewSessionBoundCeremony(config)
+	require.NoError(t, err)
+
+	for range 2 {
+		gotName, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
+		require.NoError(t, err)
+		require.Equal(t, mockChallengeName, gotName)
+	}
+
+	require.EqualValues(t, 2, constructed.Load())
+	require.EqualValues(t, 2, closed.Load())
+}
+
 func newMFASSOChallenge() *mfav1.SSOChallenge {
 	return &mfav1.SSOChallenge{
 		RequestId:   mockSSORequestID,
@@ -751,6 +921,7 @@ type mockMFACeremony struct {
 	clientCallbackURL string
 	proxyAddress      string
 	prompt            mfa.PromptFunc
+	closeFunc         func()
 }
 
 // GetClientCallbackURL returns the client callback URL.
@@ -767,4 +938,8 @@ func (m *mockMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateCh
 	return m.prompt(ctx, chal)
 }
 
-func (m *mockMFACeremony) Close() {}
+func (m *mockMFACeremony) Close() {
+	if m.closeFunc != nil {
+		m.closeFunc()
+	}
+}
