@@ -1,8 +1,9 @@
 {{ db="aurora" dbArgs="" }}
 
 <Admonition type="tip">
-To connect to the database using a tool of your choice, like a graphical
-database client, you can create a local tunnel and point it to your software:
+To connect to the database using a tool of your choice (for example, a
+graphical database client), create a local tunnel and configure your client to
+use it.
 
 ```code
 $ tsh proxy db {{ db }} --tunnel {{ dbArgs }}

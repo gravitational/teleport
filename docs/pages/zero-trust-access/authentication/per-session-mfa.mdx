@@ -196,9 +196,9 @@ $ tsh db connect prod-mysql-instance
 # mysql>
 ```
 
-If Jerry wants to avoid frequent MFA ceremonies, he can launch a tunnel proxy
-using `tsh proxy --tunnel` command. He will then only be required to perform
-MFA when establishing the tunnel.
+If Jerry wants to avoid frequent MFA ceremonies, he can launch a local proxy
+tunnel using `tsh proxy --tunnel` command. He will then only be required to
+perform MFA when establishing the tunnel.
 
 ```code
 $ tsh proxy db --tunnel prod-postgres-instance --db-user=my-prod-user --db-name=my-prod-db
@@ -259,7 +259,7 @@ window, a new MFA check will be requested for new connections.
 ## Per-session MFA for Kubernetes Access
 
 When per-session MFA is required, each `kubectl` command Jerry will execute
-will require confirming using an MFA device.
+will require confirmation using an MFA device.
 
 ```code
 $ tsh kube login prod-kube-cluster
@@ -277,8 +277,8 @@ Kustomize Version: v5.7.1
 Server Version: v1.35.0
 ```
 
-If confirming every single command becomes tedious, Jerry can start a proxy.
-That eliminates the need to confirm every single command; instead, MFA
+If confirming every single command becomes tedious, Jerry can start a local
+proxy. That eliminates the need to confirm every single command; instead, MFA
 confirmation is required by the proxy itself.
 
 ```code
