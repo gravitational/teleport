@@ -612,6 +612,8 @@ message Features {
   // TODO(michellescripts) DELETE IN v21.0.0
   // Deprecated, use entitlements
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
+  // BeamsUI enables the Beams lite-mode UI
+  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -947,6 +949,19 @@ message GetSAMLIdPSessionResponse {
 message DeleteAppSessionRequest {
   string SessionID = 1 [(gogoproto.jsontag) = "session_id"];
 }
+
+// SetAppSessionDBSCPublicKeyRequest contains the parameters to set the DBSC public key
+// on an application web session.
+message SetAppSessionDBSCPublicKeyRequest {
+  // The ID of the application session to update.
+  string session_id = 1;
+  // The device-bound public key (JWK format) for Device Bound
+  // Session Credentials. See https://www.w3.org/TR/dbsc/
+  bytes public_key = 2;
+}
+
+// SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
+message SetAppSessionDBSCPublicKeyResponse {}
 
 // DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
 message DeleteSnowflakeSessionRequest {
@@ -3186,6 +3201,8 @@ service AuthService {
   rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
   // DeleteUserAppSessions deletes all user’s application sessions.
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
+  // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+  rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.

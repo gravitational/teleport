@@ -51,7 +51,7 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list everything",
 			args: args{
-				region: types.Wildcard,
+				region: "eu-west-1",
 				filterLabels: types.Labels{
 					types.Wildcard: []string{types.Wildcard},
 				},
@@ -61,7 +61,7 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list everything with assumed role",
 			args: args{
-				region: types.Wildcard,
+				region: "eu-west-1",
 				filterLabels: types.Labels{
 					types.Wildcard: []string{types.Wildcard},
 				},
@@ -72,7 +72,7 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list prod clusters",
 			args: args{
-				region: types.Wildcard,
+				region: "eu-west-1",
 				filterLabels: types.Labels{
 					"env": []string{"prod"},
 				},

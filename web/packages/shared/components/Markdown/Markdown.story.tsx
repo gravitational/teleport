@@ -95,6 +95,11 @@ function hello() {
 }
 \`\`\`
 
+\`\`\`plain
+Scrolls horizontally
+-> Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+\`\`\`
+
 ## Blockquotes
 
 > This is a blockquote.
@@ -138,7 +143,37 @@ This creates a line break without a paragraph break.
 
 \\# This won't be a header
 
-Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] \\( \\) \\# \\+ \\- \\. \\!`;
+Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] \\( \\) \\# \\+ \\- \\. \\!
+
+## Collapsible Sections
+
+<details>
+  <summary>What's in here?</summary>
+  # Heading 1
+
+  This is a paragraph.
+
+  \`\`\`
+main() {
+  print("Here's a code block")
+}
+  \`\`\`
+
+  <details>
+    <summary>A nested section</summary>
+
+    [And, a link](https://example.com)
+  </details>
+</details>
+
+<details open>
+  <summary>Already open</summary>
+  This section is open by default.
+</details>
+
+<details open>
+  This section has a default title
+</details>`;
 
 export const Basic: Story = {
   args: {

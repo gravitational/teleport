@@ -1520,7 +1520,8 @@ manualy testing.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
+    - [ ] MySQL server version reported by Teleport is correct. You can find this in the connection information that is printed when you connect via `tsh db connect`.
+    - [ ] MySQL server version reported by `SELECT VERSION();` is correct and approximately matches the one printed in the connection information above.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -1914,8 +1915,8 @@ proxy_service:
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
   - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
   - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
-- Keyboard Layout
-  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+- Keyboard Layout (Changes take effect after signing out of the Windows session on the remote host)
+  - [ ] If "System" is chosen in preferences, the default layout for the remote server is used
   - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility

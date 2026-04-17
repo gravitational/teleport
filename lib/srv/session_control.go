@@ -22,6 +22,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -33,10 +34,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/decision"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -164,6 +167,7 @@ type webSessionPermit struct {
 	LockTargets      []types.LockTarget
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 	MaxConnections   int64
+	PinSourceIP      bool
 }
 
 // WebSessionController is a wrapper around [SessionController] which can be
@@ -208,6 +212,7 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 			PrivateKeyPolicy: privateKeyPolicy,
 			LockTargets:      lockTargets,
 			MaxConnections:   accessChecker.MaxConnections(),
+			PinSourceIP:      accessChecker.PinSourceIP(),
 		}
 
 		identity := IdentityContext{
@@ -250,22 +255,28 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	var lockTargets []types.LockTarget
 	var requiredPolicy keys.PrivateKeyPolicy
 	var maxConnections int64
+	var pinSourceIP bool
 	switch {
 	case identity.AccessPermit != nil:
 		lockingMode = constants.LockingMode(identity.AccessPermit.LockingMode)
 		lockTargets = decision.LockTargetsFromProto(identity.AccessPermit.LockTargets)
 		requiredPolicy = keys.PrivateKeyPolicy(identity.AccessPermit.PrivateKeyPolicy)
 		maxConnections = identity.AccessPermit.MaxConnections
+		pinSourceIP = slices.ContainsFunc(identity.AccessPermit.Preconditions, func(p *decisionpb.Precondition) bool {
+			return p.Kind == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP
+		})
 	case identity.ProxyingPermit != nil:
 		lockingMode = identity.ProxyingPermit.LockingMode
 		lockTargets = identity.ProxyingPermit.LockTargets
 		requiredPolicy = identity.ProxyingPermit.PrivateKeyPolicy
 		maxConnections = identity.ProxyingPermit.MaxConnections
+		pinSourceIP = identity.ProxyingPermit.PinSourceIP
 	case identity.webSessionPermit != nil:
 		lockingMode = identity.webSessionPermit.LockingMode
 		lockTargets = identity.webSessionPermit.LockTargets
 		requiredPolicy = identity.webSessionPermit.PrivateKeyPolicy
 		maxConnections = identity.webSessionPermit.MaxConnections
+		pinSourceIP = identity.webSessionPermit.PinSourceIP
 	default:
 		return nil, trace.BadParameter("session context requires one of AccessPermit, ProxyingPermit, or webSessionPermit to be set (this is a bug)")
 	}
@@ -277,6 +288,10 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	if !requiredPolicy.IsSatisfiedBy(identity.UnmappedIdentity.PrivateKeyPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
+	}
+
+	if err := authz.CheckIPPinning(ctx, remoteAddr, identity.UnmappedIdentity.PinnedIP, pinSourceIP, s.cfg.Logger); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Don't apply the following checks in non-node contexts.

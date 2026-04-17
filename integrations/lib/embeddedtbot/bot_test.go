@@ -113,7 +113,7 @@ func TestBotJoinAuth(t *testing.T) {
 
 	botUser, err := createBotUser(operatorName, botName, map[string][]string{})
 	require.NoError(t, err)
-	_, err = auth.Services.Identity.CreateUser(ctx, botUser)
+	_, err = auth.Services.CreateUser(ctx, botUser)
 	require.NoError(t, err)
 
 	// Configure the bot to join the auth server

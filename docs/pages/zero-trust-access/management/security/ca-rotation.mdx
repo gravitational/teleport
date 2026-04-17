@@ -66,7 +66,7 @@ and lists any manual steps that need to be completed.
 - (!docs/pages/includes/tctl.mdx!)
 
 - Your user must have a role with permission to `create` and `update` the
-  `certificate_authority` resource.
+  `cert_authority` resource.
 
   ```yaml
   kind: role
@@ -76,7 +76,7 @@ and lists any manual steps that need to be completed.
   spec:
     allow:
       rules:
-      - resources: [ certificate_authority ]
+      - resources: [ cert_authority ]
         verbs: [ create, update ]
   ```
 

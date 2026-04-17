@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -49,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -489,7 +490,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 	}
 
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -515,7 +516,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -543,7 +544,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1998,7 +1999,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// even if the license is missing.
 	// Users with other roles will get an error if the license is missing so they
 	// can request a license with the correct features.
-	if err := enforceLicense(req.ResourceType); err != nil && !a.isLocalOrRemoteServerAction() {
+	if err := a.authServer.enforceLicense(req.ResourceType); err != nil && !a.isLocalOrRemoteServerAction() {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2298,7 +2299,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 	case types.KindSAMLIdPServiceProvider:
 		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
-		if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		if a.authServer.modules.BuildType() == modules.BuildEnterprise {
 			// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
 			if err := a.authorizeAction(types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
 				var serviceProviders []types.SAMLIdPServiceProvider
@@ -2658,8 +2659,8 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 	return a.authServer.GetToken(ctx, token)
 }
 
-func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+func enforceEnterpriseJoinMethodCreation(buildType string, token types.ProvisionToken) error {
+	if buildType == modules.BuildEnterprise {
 		return nil
 	}
 
@@ -2763,7 +2764,7 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
+	if err := enforceEnterpriseJoinMethodCreation(a.authServer.modules.BuildType(), token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2794,7 +2795,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
+	if err := enforceEnterpriseJoinMethodCreation(a.authServer.modules.BuildType(), token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3413,7 +3414,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
 			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 		}
-		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
+		return a.desiredAccessInfoForRoleRequest(req, user)
 	}
 	return a.desiredAccessInfoForUser(ctx, req, user)
 }
@@ -3422,13 +3423,14 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 // impersonation request.
 func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
+		Username: user.GetName(),
+		Roles:    user.GetRoles(),
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
 // desiredAccessInfoForRoleRequest returns the desired roles for a role request.
-func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
 	if len(req.RoleRequests) == 0 {
@@ -3444,8 +3446,9 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// Traits are copied across from the impersonating user so that role
 	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Roles:  req.RoleRequests,
-		Traits: traits,
+		Username: user.GetName(),
+		Roles:    req.RoleRequests,
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
@@ -3691,7 +3694,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
-			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+			roleSet, err := services.FetchRolesForUser(user, a)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3734,7 +3737,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
-	parsedRoles, err := services.FetchRoleList(accessInfo.Roles, a.authServer, accessInfo.Traits)
+	parsedRoles, err := services.FetchRoleListWithContext(accessInfo.Roles, a.authServer, services.RoleTemplateContext{
+		Username: accessInfo.Username,
+		Traits:   accessInfo.Traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3815,7 +3821,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	if req.Usage == proto.UserCertsRequest_AccessGraphAPI {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
+		if !a.authServer.modules.Features().GetEntitlement(entitlements.Policy).Enabled {
 			return nil, trace.AccessDenied("access graph requires a Teleport Policy license")
 		}
 		user, err := types.NewUser(req.Username)
@@ -3838,8 +3844,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-			NewWebSessionRequest: NewWebSessionRequest{
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
+			NewWebSessionRequest: sessionreq.NewWebSessionRequest{
 				User:           req.Username,
 				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
 				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
@@ -3863,7 +3869,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AzureIdentity:     req.RouteToApp.AzureIdentity,
 			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 			MFAVerified:       verifiedMFADeviceID,
-			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			DeviceExtensions:  a.context.Identity.GetIdentity().DeviceExtensions,
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
@@ -4003,6 +4009,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		!isRoleImpersonation(req) &&
 		!certReq.DisallowReissue {
 		certReq.Renewable = true
+
+		// We've established this is an internal cert renewal, so pass through
+		// the BotInternal flag if set.
+		if a.context.Identity.GetIdentity().BotInternal {
+			certReq.BotInternal = true
+		}
 	}
 
 	// If the cert is renewable, process any bot instance updates (generation
@@ -4019,15 +4031,21 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 		// Update the bot instance based on this authentication. This may create
 		// a new bot instance record if the identity is missing an instance ID.
+		//
+		// botScope is always empty - this code path is only invoked for `token`
+		// joining bots, and we do not support `token` join method for scoped
+		// bots.
+		botScope := ""
 		if err := a.authServer.updateBotInstance(
 			ctx, &certReq, user.GetName(), certReq.BotName,
 			certReq.BotInstanceID, nil, int32(currentIdentityGeneration),
+			botScope,
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	certs, err := a.authServer.generateUserCert(ctx, certReq)
+	certs, err := a.authServer.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4105,7 +4123,7 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 	// password, as a proxy to determine that a passwordless registration took
 	// place, as it is not possible to infer that just from the WebAuthn response.
 	isPasswordless := req.NewMFARegisterResponse != nil && len(req.NewPassword) == 0
-	if isPasswordless && modules.GetModules().Features().Cloud {
+	if isPasswordless && a.authServer.modules.Features().Cloud {
 		if err := a.trySettingConnectorNameToPasswordless(ctx); err != nil {
 			a.authServer.logger.ErrorContext(ctx, "Failed to set passwordless as connector name", "error", err)
 		}
@@ -4123,7 +4141,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	}
 
 	// Only set the connector name on the first user registration.
-	if !hasOneNonPresetUser(users) {
+	if !hasOneNonPresetUser(a.authServer.modules.BuildType(), users) {
 		return nil
 	}
 
@@ -4145,8 +4163,8 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 // hasOneNonPresetUser returns true only if there is exactly one non-preset user in the provided list of users.
 // This method always compare with the original preset users, and take into account that some preset users may
 // have been removed.
-func hasOneNonPresetUser(users []types.User) bool {
-	presets := getPresetUsers(modules.GetModules().BuildType())
+func hasOneNonPresetUser(buildType string, users []types.User) bool {
+	presets := getPresetUsers(buildType)
 
 	// Exit early if the number of users is greater than the number of presets + 1.
 	if len(users) > len(presets)+1 {
@@ -4181,7 +4199,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -4202,7 +4220,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -4222,7 +4240,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -4284,7 +4302,7 @@ func (a *ServerWithRoles) ListOIDCConnectors(ctx context.Context, limit int, sta
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -4365,7 +4383,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4388,7 +4406,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4406,7 +4424,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4469,7 +4487,7 @@ func (a *ServerWithRoles) ListSAMLConnectorsWithOptions(ctx context.Context, lim
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
+	if !a.authServer.modules.Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -5048,7 +5066,7 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 	}
 
 	// Some options are only available with enterprise subscription
-	if err := checkRoleFeatureSupport(role); err != nil {
+	if err := checkRoleFeatureSupport(a.authServer.modules, role); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5061,7 +5079,7 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 
 	// check that the given RequireMFAType is supported in this build.
 	if role.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		if a.authServer.modules.BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
 	}
@@ -5169,14 +5187,14 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 	return upserted, trace.Wrap(err)
 }
 
-func checkRoleFeatureSupport(role types.Role) error {
-	features := modules.GetModules().Features()
+func checkRoleFeatureSupport(mod modules.Modules, role types.Role) error {
+	features := mod.Features()
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
 
 	// source IP pinning doesn't have a dedicated feature flag,
 	// it is available to all enterprise users
-	if modules.GetModules().BuildType() != modules.BuildEnterprise && role.GetOptions().PinSourceIP {
+	if mod.BuildType() != modules.BuildEnterprise && role.GetOptions().PinSourceIP {
 		return trace.AccessDenied("role option pin_source_ip is only available in enterprise subscriptions")
 	}
 
@@ -5194,7 +5212,7 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
-	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
+	case mod.BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
 		return trace.AccessDenied(
 			"role field allow.search_as_roles is only available in enterprise subscriptions")
 	default:
@@ -5258,7 +5276,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	// It's OK to delete this code alongside migrateOSS code in auth.
 	// It prevents 6.0 from migrating resources multiple times
 	// and the role is used for `tctl users add` code too.
-	if modules.GetModules().IsOSSBuild() && name == teleport.AdminRoleName {
+	if a.authServer.modules.IsOSSBuild() && name == teleport.AdminRoleName {
 		return trace.AccessDenied("can not delete system role %q", name)
 	}
 
@@ -5378,7 +5396,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 
 	// check that the given RequireMFAType is supported in this build.
 	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		if a.authServer.modules.BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
 	}
@@ -5386,12 +5404,12 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 		FIPS:          a.authServer.fips,
 		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
-		Cloud:         modules.GetModules().Features().Cloud,
+		Cloud:         a.authServer.modules.Features().Cloud,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), modules.GetModules()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), a.authServer.modules); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5521,7 +5539,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.Wrap(err)
 	}
 	if tst == types.ProxyPeering &&
-		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		a.authServer.modules.BuildType() != modules.BuildEnterprise {
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -5530,7 +5548,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.Wrap(err)
 	}
 
-	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, newNetConfig, oldNetConf); err != nil {
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, a.authServer.modules, newNetConfig, oldNetConf); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5577,7 +5595,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		return trace.Wrap(err)
 	}
 
-	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, a.authServer.modules, types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5776,7 +5794,7 @@ func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (t
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
+	if a.authServer.modules.Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 
@@ -5793,7 +5811,7 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	// Don't allow a leaf cluster to be added to a Cloud tenant.
-	if modules.GetModules().Features().Cloud {
+	if a.authServer.modules.Features().Cloud {
 		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
@@ -6261,6 +6279,44 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+// Only the session owner can set the DBSC public key on their session, and only
+// if the key has not already been set (one-time binding).
+func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+	const iterationLimit = 3
+	for range iterationLimit {
+		session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !authz.IsCurrentUser(a.context, session.GetUser()) {
+			return trace.AccessDenied("only session owner can set DBSC public key")
+		}
+
+		// DBSC public key can only be set once to prevent rebinding to a different key.
+		if existingKey := session.GetDBSCPublicKey(); len(existingKey) > 0 {
+			// Allow idempotent retries with the same key.
+			if bytes.Equal(existingKey, publicKey) {
+				return nil
+			}
+			return trace.AccessDenied("DBSC public key already set for this session")
+		}
+
+		session.SetDBSCPublicKey(publicKey)
+		if err := a.authServer.UpdateAppSession(ctx, session); err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	return trace.LimitExceeded("failed to update app session in %v iterations", iterationLimit)
 }
 
 // DeleteSnowflakeSession removes a Snowflake web session.
@@ -7654,7 +7710,7 @@ func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
 // ListReleases return Teleport Enterprise releases
 func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	// on Cloud, any user is allowed to list releases
-	if !modules.GetModules().Features().Cloud {
+	if !a.authServer.modules.Features().Cloud {
 		if err := a.authorizeAction(types.KindDownload, types.VerbList); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -8295,7 +8351,7 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 		return trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud {
+	if a.authServer.modules.Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
 		// an external cloud-specific database.
 		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
@@ -8308,7 +8364,7 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	if err := a.authorizeAction(types.KindClusterMaintenanceConfig, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	if modules.GetModules().Features().Cloud {
+	if a.authServer.modules.Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
 		// an external cloud-specific database.
 		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")

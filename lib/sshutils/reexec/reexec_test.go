@@ -46,8 +46,8 @@ func TestReadChildError(t *testing.T) {
 		},
 		{
 			name:         "has stderr",
-			childErrIn:   "Failed to launch: test error.\r\n",
-			wantChildErr: "Failed to launch: test error.\r\n",
+			childErrIn:   "Failed to launch: test error.\n",
+			wantChildErr: "Failed to launch: test error.\n",
 		},
 		{
 			name:         "stderr at max read limit",
@@ -65,7 +65,7 @@ func TestReadChildError(t *testing.T) {
 		},
 		{
 			name:       "unknown user error with mixed host user creation decisions gets contextualized",
-			childErrIn: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec.\r\n",
+			childErrIn: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec.\n",
 			context: &ErrorContext{
 				Login: "teleport-test-user-does-not-exist-reexec",
 				DecisionContext: &decisionpb.SSHAccessPermitContext{
@@ -77,11 +77,11 @@ func TestReadChildError(t *testing.T) {
 					},
 				},
 			},
-			wantChildErr: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec: host user creation denied by the following resources: [role: \"deny-role\"]\r\n",
+			wantChildErr: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec: host user creation denied by the following resources: [role: \"deny-role\"]\n",
 		},
 		{
 			name:       "pam context error for unknown user gets contextualized",
-			childErrIn: "Failed to launch: failed to open PAM context: pam_start failed.\r\n",
+			childErrIn: "Failed to launch: failed to open PAM context: pam_start failed.\n",
 			context: &ErrorContext{
 				Login: "teleport-test-user-does-not-exist-pam",
 				DecisionContext: &decisionpb.SSHAccessPermitContext{
@@ -93,7 +93,7 @@ func TestReadChildError(t *testing.T) {
 					},
 				},
 			},
-			wantChildErr: "Failed to launch: failed to open PAM context: pam_start failed: host user creation denied by the following resources: [role: \"deny-role\"]\r\n",
+			wantChildErr: "Failed to launch: failed to open PAM context: pam_start failed: host user creation denied by the following resources: [role: \"deny-role\"]\n",
 		},
 	}
 

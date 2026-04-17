@@ -17,6 +17,7 @@
 package joining_test
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"testing"
@@ -59,11 +60,38 @@ func TestValidateScopedToken(t *testing.T) {
 			Secret: "secret",
 		},
 	}
+
+	baseBotToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Scope:   "/aa/bb",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:      []string{types.RoleBot.String()},
+			BotScope:   "/aa/bb",
+			BotName:    "test-bot",
+			JoinMethod: string(types.JoinMethodBoundKeypair),
+			UsageMode:  joining.TokenUsageModeBot,
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Usage: &joiningv1.UsageStatus{
+				Status: &joiningv1.UsageStatus_BoundKeypair{
+					BoundKeypair: &joiningv1.BoundKeypairStatus{
+						RegistrationSecret: "secret",
+					},
+				},
+			},
+		},
+	}
+
 	cases := []struct {
 		name              string
 		modFn             func(*joiningv1.ScopedToken)
 		expectedStrongErr string
 		expectedWeakErr   string
+		baseToken         *joiningv1.ScopedToken
 	}{
 		{
 			name: "invalid kind",
@@ -206,7 +234,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "setting ssh labels for role other than node",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = []string{types.RoleBot.String()}
+				tok.Spec.Roles = []string{types.RoleApp.String()}
 				tok.Spec.ImmutableLabels = &joiningv1.ImmutableLabels{
 					Ssh: map[string]string{
 						"one":   "1",
@@ -381,8 +409,23 @@ func TestValidateScopedToken(t *testing.T) {
 					},
 				}
 			},
-			expectedStrongErr: "unrecognized join type \"unknown\"",
-			expectedWeakErr:   "unrecognized join type \"unknown\"",
+			expectedStrongErr: "unrecognized type \"unknown\"",
+			expectedWeakErr:   "unrecognized type \"unknown\"",
+		},
+		{
+			name: "kubernetes token with no join type",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+				}
+			},
+			expectedStrongErr: "type must be specified",
+			expectedWeakErr:   "type must be specified",
 		},
 		{
 			name: "kubernetes static_jwks token without configuration",
@@ -465,8 +508,8 @@ func TestValidateScopedToken(t *testing.T) {
 					},
 				}
 			},
-			expectedStrongErr: "oidc.issuer issuer must be set when type is \"oidc\"",
-			expectedWeakErr:   "oidc.issuer issuer must be set when type is \"oidc\"",
+			expectedStrongErr: "oidc.issuer must be set when type is \"oidc\"",
+			expectedWeakErr:   "oidc.issuer must be set when type is \"oidc\"",
 		},
 		{
 			name: "kubernetes oidc token with static_jwks configuration",
@@ -523,7 +566,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "valid scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = types.SystemRoles{types.RoleNode, types.RoleKube, types.RoleApp, types.RoleDiscovery}.StringSlice()
+				tok.Spec.Roles = types.SystemRoles{types.RoleNode, types.RoleKube}.StringSlice()
 			},
 		},
 		{
@@ -666,11 +709,105 @@ func TestValidateScopedToken(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "non-bot token with bot_scope",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotScope = "/aa/bb"
+			},
+			expectedStrongErr: "bot_scope cannot be set",
+		},
+		{
+			name: "non-bot token with bot_name",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotName = "foo"
+			},
+			expectedStrongErr: "bot_name cannot be set",
+		},
+		{
+			name: "non-bot token with bot usage mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.UsageMode = joining.TokenUsageModeBot
+			},
+			expectedStrongErr: "usage_mode cannot be 'bot'",
+		},
+		{
+			name:      "valid bot bound keypair scoped token",
+			baseToken: baseBotToken,
+		},
+		{
+			name:      "bot token without a bot_name",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotName = ""
+			},
+			expectedStrongErr: "expected non-empty bot_name",
+			expectedWeakErr:   "expected non-empty bot_name",
+		},
+		{
+			name:      "bot token without a bot_scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotScope = ""
+			},
+			expectedStrongErr: "expected non-empty bot_scope",
+			expectedWeakErr:   "expected non-empty bot_scope",
+		},
+		{
+			name:      "bot token with an invalid bot scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotScope = "aa/bb}"
+			},
+			expectedStrongErr: "validating scoped token bot_scope",
+			expectedWeakErr:   "validating scoped token bot_scope",
+		},
+		{
+			name:      "bot token with invalid usage mode",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			expectedStrongErr: "usage_mode must be 'bot'",
+		},
+		{
+			name:      "bot token with invalid roles",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = append(tok.Spec.Roles, types.RoleNode.String())
+			},
+			expectedStrongErr: "roles must only be '[Bot]'",
+		},
+		{
+			name:      "bot with non-assignable scope of origin",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Scope = "/aa/bb"
+				tok.Spec.BotScope = "/aa/cc"
+			},
+			expectedStrongErr: "scoped token bot_scope must be a descendant of",
+		},
+		{
+			name:      "bot token with assigned_scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.AssignedScope = "/aa/bb"
+			},
+			expectedStrongErr: "scoped tokens for bots cannot have an assigned_scope",
+		},
+		{
+			name:      "bot token with token join method",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodToken)
+				tok.Status.Secret = "abc123"
+			},
+			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			tok := proto.CloneOf(baseToken)
+			tok := proto.CloneOf(cmp.Or(c.baseToken, baseToken))
 			if c.modFn != nil {
 				c.modFn(tok)
 			}

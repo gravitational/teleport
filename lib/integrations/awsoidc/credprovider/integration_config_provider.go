@@ -22,13 +22,14 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	awsConfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
@@ -61,7 +62,7 @@ func CreateAWSConfigForIntegration(ctx context.Context, config Config, option ..
 	}
 	go credCache.Run(ctx)
 
-	awsCfg, err := newAWSConfig(ctx, config.Region, awsConfig.WithCredentialsProvider(credCache))
+	awsCfg, err := newAWSConfig(ctx, config.Region, awssdkconfig.WithCredentialsProvider(credCache))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,15 +148,15 @@ func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeR
 	return credCache, nil
 }
 
-func newAWSConfig(ctx context.Context, awsRegion string, options ...func(*awsConfig.LoadOptions) error) (*aws.Config, error) {
+func newAWSConfig(ctx context.Context, awsRegion string, options ...func(*awssdkconfig.LoadOptions) error) (*aws.Config, error) {
 	var useFIPS aws.FIPSEndpointState
 	if modules.GetModules().IsBoringBinary() {
 		useFIPS = aws.FIPSEndpointStateEnabled
 	}
 	options = append(options,
-		awsConfig.WithRegion(awsRegion),
-		awsConfig.WithUseFIPSEndpoint(useFIPS),
-		awsConfig.WithRetryMaxAttempts(10),
+		awssdkconfig.WithRegion(awsRegion),
+		awssdkconfig.WithUseFIPSEndpoint(useFIPS),
+		awssdkconfig.WithRetryMaxAttempts(10),
 	)
 	cfg, err := awsConfig.LoadDefaultConfig(ctx, options...)
 	if err != nil {

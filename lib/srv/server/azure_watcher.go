@@ -93,11 +93,11 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
 		labels := node.GetAllLabels()
-		subscriptionID := labels[types.SubscriptionIDLabel]
+		subscriptionID := labels[types.SubscriptionIDLabelInternal]
 		if subscriptionID != instances.SubscriptionID {
 			continue
 		}
-		vmID := labels[types.VMIDLabel]
+		vmID := labels[types.VMIDLabelInternal]
 		if vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
