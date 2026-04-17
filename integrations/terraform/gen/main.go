@@ -136,6 +136,8 @@ type payload struct {
 	// RequestWrapper optionally configures envelope request/response types for CRUD
 	// operations following the RFD 153 resource guidelines.
 	RequestWrapper *RequestWrapper
+	// SubKind is Teleport sub_kind for resource
+	SubKind string
 }
 
 // statePoll configures polling for state changes when creating or updating resources.

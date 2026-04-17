@@ -56,6 +56,9 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
+		{{- if .SubKind}}
+		SubKind: {{.SubKind}},
+		{{- end}}
 	})
 {{- else}}
 	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx)
