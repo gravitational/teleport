@@ -32,6 +32,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -41,6 +42,9 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/identity")
 
 // GeneratorConfig contains the configuration options for a Generator.
+//
+// TODO(strideynet): There's some general tidy-up work to be done here with how
+// we handle CAs to make it more uniform and clearly sourced
 type GeneratorConfig struct {
 	// Client that will be used to request identity certificates.
 	Client *apiclient.Client
@@ -437,6 +441,89 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 		SSHCACerts: o.currentIdentity.SSHCACertBytes,
 		TLSCACerts: o.currentIdentity.TLSCACertsBytes,
 	}, nil
+}
+
+// GenerateScoped generates scoped certificates. Bot must already be scoped/
+// hold a scoped identity.
+// TODO(noah): add optional args to this like for Generate.
+func (g *Generator) GenerateScoped(
+	ctx context.Context, ttl, renewalInterval time.Duration,
+) (*Identity, error) {
+	req := &issuancev1pb.IssueScopedBotCertsRequest{
+		Ttl:   durationpb.New(ttl),
+		Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+	}
+
+	keyPurpose := cryptosuites.BotImpersonatedIdentity
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+		keyPurpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SshPublicKey = ssh.MarshalAuthorizedKey(sshPub)
+
+	req.TlsPublicKey, err = keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := g.client.IssuanceClient().IssueScopedBotCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch CAs for new identity
+	localCA, err := g.client.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsHostCAs := [][]byte{}
+	// Append the host CAs from the auth server.
+	for _, cert := range caCerts {
+		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsHostCAs = append(tlsHostCAs, pemBytes)
+	}
+
+	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  req.SshPublicKey,
+	}, &proto.Certs{
+		SSH:        res.Certs.Ssh,
+		TLS:        res.Certs.Tls,
+		TLSCACerts: tlsHostCAs,
+		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	warnOnEarlyExpiration(
+		ctx,
+		log,
+		newIdentity,
+		ttl,
+		renewalInterval,
+	)
+
+	return newIdentity, nil
 }
 
 // warnOnEarlyExpiration logs a warning if the given identity is likely to
