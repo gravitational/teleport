@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -2137,6 +2138,20 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+
+        // Buffering req.Body so that HTTP/2 transport can retry
+        if req.Body != nil && req.Body != http.NoBody {
+            bodyBytes, err := io.ReadAll(req.Body)
+            if err != nil {
+                return nil, trace.Wrap(err)
+            }
+            req.Body.Close()
+            req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+            req.ContentLength = int64(len(bodyBytes))
+            req.GetBody = func() (io.ReadCloser, error) {
+                return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+            }
+        }
 
 	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	isListRequest := authCtx.requestVerb == types.KubeVerbList
