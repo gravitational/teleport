@@ -830,8 +830,8 @@ github.com/gravitational/go-mysql v1.9.1-teleport.4 h1:2Lt2fcEMrco6apu8jme0mj6OS
 github.com/gravitational/go-mysql v1.9.1-teleport.4/go.mod h1:pkllauQtJgHr2mTonYYysOznctozxiWgwpKAez0s+2U=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
-github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
-github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
+github.com/gravitational/kingpin/v2 v2.1.11-0.20260417152838-9efcbe7e5d61 h1:cgG/o1SAL2WK9AtryT/esiuXqCN47f15EwppKgeom60=
+github.com/gravitational/kingpin/v2 v2.1.11-0.20260417152838-9efcbe7e5d61/go.mod h1:usbNrkVhUGh5+Pqd4u5tYKszWmq6YSCApkePRMmJFP8=
 github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 h1:Kt7aT9N7vbZmcMejGXnSAGap8TUwH3fMoHE8cQm14wc=
 github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1/go.mod h1:n4RXV6T3SJ/vrJqmc4vBeHpaBspxWENDD67ssQlXXkg=
 github.com/gravitational/predicate v1.3.4 h1:9N3JhBXNPcUh0w8DdlpnVmfnH9Z3xxbw43sD3E19VBE=
