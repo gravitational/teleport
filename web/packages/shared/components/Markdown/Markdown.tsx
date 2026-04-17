@@ -227,9 +227,12 @@ function parseRow(row: string) {
   return row
     .replace(/^\|/, '')
     .replace(/\|$/, '')
-    .split(/(?<!\\)\|/)
+    .split(/(?<!\\)\|/, MAX_TABLE_COLUMNS)
     .map(cell => cell.trim().replace(/\\\|/g, '|'));
 }
+
+const MAX_TABLE_COLUMNS = 100;
+const MAX_TABLE_ROWS = 1000;
 
 const MAX_LIST_DEPTH = 10;
 
@@ -282,6 +285,7 @@ function parseListItems(
     i += 1;
 
     const contentParts = [content];
+    const contentStartI = i;
     while (i < lines.length) {
       const next = lines[i];
       const nextTrimmed = next.trimStart();
@@ -300,6 +304,10 @@ function parseListItems(
 
       contentParts.push(nextTrimmed);
       i += 1;
+
+      if (i - contentStartI > MAX_ITERATIONS) {
+        break;
+      }
     }
 
     const fullContent = contentParts.join(' ');
@@ -308,7 +316,11 @@ function parseListItems(
     let nestedList: ReactNode = null;
     let blankSkip = 0;
 
-    while (i + blankSkip < lines.length && lines[i + blankSkip].trim() === '') {
+    while (
+      i + blankSkip < lines.length &&
+      lines[i + blankSkip].trim() === '' &&
+      blankSkip <= MAX_ITERATIONS
+    ) {
       blankSkip += 1;
     }
 
@@ -547,7 +559,9 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       const startI = i;
 
       while (i < lines.length && tableRowRegex.test(lines[i].trim())) {
-        tableLines.push(lines[i].trim());
+        if (tableLines.length < MAX_TABLE_ROWS) {
+          tableLines.push(lines[i].trim());
+        }
         i += 1;
 
         if (i - startI > MAX_ITERATIONS) {

@@ -611,6 +611,27 @@ code here
 
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
     });
+
+    it('caps the number of columns', () => {
+      const headerRow = `|${' h |'.repeat(500)}`;
+      const separatorRow = `|${' --- |'.repeat(500)}`;
+      const dataRow = `|${' c |'.repeat(500)}`;
+      renderMarkdown(`${headerRow}\n${separatorRow}\n${dataRow}`);
+
+      expect(screen.getAllByRole('columnheader')).toHaveLength(100);
+      expect(screen.getAllByRole('cell')).toHaveLength(100);
+    });
+
+    it('caps the number of rows', () => {
+      const header = `| h1 | h2 |\n| --- | --- |`;
+      const dataRow = `| a | b |`;
+      const text = `${header}\n${Array(5000).fill(dataRow).join('\n')}`;
+
+      renderMarkdown(text);
+
+      // MAX_TABLE_ROWS caps total collected lines (header + separator + data).
+      expect(screen.getAllByRole('row')).toHaveLength(999);
+    });
   });
 
   describe('nested lists', () => {
