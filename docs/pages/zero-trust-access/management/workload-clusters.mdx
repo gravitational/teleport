@@ -125,7 +125,7 @@ Create a file called `workload-cluster.yaml`:
        join_method: iam
        allow:
          - aws_account: "123456789012"
-           aws_arn: "arn:aws:iam::123456789012:role/example-tbot-role"
+           aws_arn: "arn:aws:sts::123456789012:assumed-role/example-tbot-role/session-name"
    ```
 
 Replace:
@@ -136,8 +136,8 @@ Replace:
   cluster. See [Teleport Cloud architecture](../../reference/architecture/teleport-cloud-architecture.mdx#auth-service)
   for available auth regions.
 - `example-iam` with the Bot and token name that `tbot` will use.
-- `123456789012` and `arn:aws:iam::123456789012:role/example-tbot-role` with
-  values that match the AWS identity from which `tbot` will join.
+- `123456789012` and `arn:aws:sts::123456789012:assumed-role/example-tbot-role/session-name`
+  with values that match the AWS identity from which `tbot` will join.
 
 Use `tctl` to create the resource in the parent cluster:
 
@@ -177,7 +177,7 @@ Example output:
        join_method: iam
        allow:
          - aws_account: "123456789012"
-           aws_arn: "arn:aws:iam::123456789012:role/example-tbot-role"
+           aws_arn: "arn:aws:sts::123456789012:assumed-role/example-tbot-role/session-name"
    status:
      domain: child.teleport.sh
      state: active
