@@ -1,0 +1,6 @@
+package: models
+generate:
+  models: true
+  embedded-spec: true
+output-options:
+  skip-prune: true

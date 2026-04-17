@@ -1,0 +1,1186 @@
+openapi: 3.0.3
+info:
+  title: access-graph
+  description: Access graph API
+  version: 1.0.0
+servers:
+  - url: /v1/enterprise/accessgraph
+paths:
+  /graph/nodes/{id}:
+    get:
+      summary: Retrieve a node from the graph by its unique ID
+      operationId: GetNodeByID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Unique identifier of the node
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/identity-summary:
+    get:
+      tags:
+        - AccessGraph
+      operationId: IdentitySummary
+      summary: Return a summary of the identity
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - name: iterator
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentitySummary'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/crown-jewel/access-paths/{id}:
+    get:
+      tags:
+        - AccessPaths
+        - CrownJewel
+      operationId: GetCrownJewelAccessPaths
+      summary: Get access paths for a given change id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessPathDiff'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/crown-jewel/access-paths:
+    get:
+      tags:
+        - AccessPaths
+        - CrownJewel
+      operationId: ListCrownJewelAccessPaths
+      summary: List all access paths
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - name: iterator
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: type_filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessPathChangesSummary'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/connections/{id}:
+    get:
+      summary: Retrieve a list of nodes connected to the node by its unique ID
+      operationId: GetNodeConnections
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Unique identifier of the node
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: depth
+          required: false
+          description: Depth of the search
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            default: 1
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/account-aliases:
+    get:
+      summary: Returns a list of account ID to alias mappings
+      operationId: GetAccountAliases
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountAlias'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+    post:
+      operationId: CreateAccountAlias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountAlias'
+      responses:
+        '201':
+          description: Successful response
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/investigate/views:
+    get:
+      summary: Returns a list of view filters for the investigate list
+      operationId: GetInvestigateViews
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvestigateView'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+    post:
+      summary: Create a new investigate view
+      operationId: CreateInvestigateView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvestigateViewRequest'
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestigateViewResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+
+  /graph/investigate/views/{view_id}:
+    put:
+      summary: Update an investigate view
+      operationId: UpdateInvestigateView
+      parameters:
+        - name: view_id
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvestigateView'
+      responses:
+        '204':
+          description: Successful response
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+    delete:
+      summary: Delete an investigate view
+      operationId: DeleteInvestigateView
+      parameters:
+        - name: view_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful response
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/account-aliases/{account_type}/{account_id}:
+    summary: Deletes an alias by its ID
+    delete:
+      operationId: DeleteAccountAlias
+      parameters:
+        - name: account_type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful response
+        '400':
+          description: Alias not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Alias not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/tester/teleport/role/v1:
+    summary: Return updated access path for a given role
+    post:
+      tags:
+        - AccessPaths
+        - RoleTester
+      operationId: GetRoleTesterAccessPaths
+      summary: Get access paths for a given role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessPathRoleTesterDiff'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/query/v1:
+    get:
+      summary: Retrieve a list of nodes and edges based on the query
+      operationId: ExecuteQueryV1
+      parameters:
+        - in: query
+          name: query
+          required: true
+          description: Query to execute
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/logs/v1:
+    get:
+      summary: Retrieve a list of logs based on the query
+      operationId: ExecuteLogsQueryV1
+      parameters:
+        - in: query
+          name: query
+          required: false
+          description: Query to execute
+          schema:
+            type: string
+        - in: query
+          name: latitude
+          required: false
+          description: Center latitude for the logs
+          schema:
+            type: number
+        - in: query
+          name: longitude
+          required: false
+          description: Center longitude for the logs
+          schema:
+            type: number
+        - in: query
+          name: radius
+          required: false
+          description: Radius for the logs
+          schema:
+            type: number
+        - in: query
+          name: limit
+          required: false
+          description: Limit of the logs
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
+        - in: query
+          name: iterator
+          required: false
+          description: Iterator for the logs
+          schema:
+            type: string
+        - in: query
+          name: start_time
+          required: false
+          description: Start time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: end_time
+          required: false
+          description: End time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: order
+          required: false
+          description: Order of the logs
+          schema:
+            type: string
+            enum: [asc, desc]
+          default: desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetLogsResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/logs/v1/stats:
+    get:
+      summary: Retrieve the stats based on the query
+      operationId: ExecuteLogsStatsQueryV1
+      parameters:
+        - in: query
+          name: query
+          required: false
+          description: Query to execute
+          schema:
+            type: string
+        - in: query
+          name: start_time
+          required: false
+          description: Start time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: end_time
+          required: false
+          description: End time for the logs
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetLogsStatsResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/logs/v1/count_since:
+    get:
+      summary: Retrieve the stats based on the query
+      operationId: GetEventCountSince
+      parameters:
+        - in: query
+          name: query
+          required: false
+          description: Query to execute
+          schema:
+            type: string
+        - in: query
+          name: last_event_time
+          required: true
+          description: Event time for the last received log
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: last_event_id
+          required: true
+          description: Log ID for the last received log
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewLogEntriesResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/alerts/v1:
+    get:
+      summary: Retrieve the alert based
+      operationId: ListAlertsV1
+      parameters:
+        - in: query
+          name: next_cursor
+          required: false
+          description: next cursor
+          schema:
+            type: string
+        - in: query
+          name: start_time
+          required: false
+          description: Start time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: end_time
+          required: false
+          description: End time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: query
+          required: false
+          description: Filter query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAlertsResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+
+  /graph/alerts/v1/{id}:
+    get:
+      summary: Retrieve the alert
+      operationId: GetAlertV1
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Unique identifier of the alert
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAlertResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+  /graph/alerts/v1/{id}/status:
+    put:
+      summary: Update the alert status, optionally add status change log entry
+      operationId: UpdateAlertStatusV1
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Unique identifier of the alert
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutAlertStatusRequest'
+      responses:
+        '204':
+          description: Successful response
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+
+  /graph/alerts/stats/v1:
+    get:
+      summary: Retrieve the alert
+      operationId: ListAlertStatsV1
+      parameters:
+        - in: query
+          name: start_time
+          required: false
+          description: Start time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: end_time
+          required: false
+          description: End time for the logs
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: query
+          required: false
+          description: Filter query
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAlertsStatsResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+components:
+  schemas:
+    NewLogEntriesResponse:
+      type: object
+      required:
+        - new_logs
+      properties:
+        new_logs:
+          type: integer
+          description: Number of new logs
+    Graph:
+      $ref: './openapi/models/graph.yaml#/components/schemas/Graph'
+    Node:
+      $ref: './openapi/models/graph.yaml#/components/schemas/Node'
+    IdentitySummary:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentitySummaryItem'
+        next_cursor:
+          type: string
+    AccessPathChangesSummary:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessPathSummaryItem'
+        next_cursor:
+          type: string
+    IdentitySummaryItem:
+      required:
+        - identity_id
+        - identity_name
+        - standing_privileges
+        - actions
+        - identity_groups
+        - resource_groups
+        - resources
+        - identity_sub_kind
+        - identity_source
+      properties:
+        identity_id:
+          type: string
+        identity_name:
+          type: string
+        standing_privileges:
+          type: integer
+        actions:
+          type: integer
+        identity_groups:
+          type: integer
+        resource_groups:
+          type: integer
+        resources:
+          type: integer
+        identity_sub_kind:
+          type: string
+        identity_source:
+          type: string
+        identity_origin:
+          type: string
+    AccessPathSummaryItem:
+      type: object
+      required:
+        - id
+        - created_at
+        - affected_node
+      properties:
+        id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        affected_node:
+          $ref: '#/components/schemas/AccessPathSummaryItemNode'
+    AccessPathSummaryResourceTypeFilter:
+      type: object
+      properties:
+        origin_type:
+          type: string
+        kind:
+          type: string
+        source:
+          type: string
+    AccessPathSummaryItemNode:
+      type: object
+      required:
+        - id
+        - alias
+        - name
+        - origin_type
+        - kind
+        - source
+      properties:
+        id:
+          type: string
+          format: uuid
+        alias:
+          type: string
+        name:
+          type: string
+        origin_type:
+          type: string
+        kind:
+          type: string
+        source:
+          type: string
+    GenericNode:
+      type: object
+      required:
+        - id
+        - alias
+        - kind
+        - name
+        - sub_kind
+        - source
+        - origin_type
+      properties:
+        id:
+          type: string
+        alias:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        sub_kind:
+          type: string
+        source:
+          type: string
+        origin_type:
+          type: string
+    GenericNodesList:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenericNode'
+        edges:
+          type: array
+          items:
+            $ref: './openapi/models/graph.yaml#/components/schemas/Edge'
+    AccessPathDiff:
+      type: object
+      required:
+        - change_id
+        - affected_node
+        - diff
+        - base
+      properties:
+        change_id:
+          type: string
+          format: uuid
+        affected_node:
+          $ref: '#/components/schemas/AccessPathSummaryItemNode'
+        base:
+          $ref: '#/components/schemas/GenericNodesList'
+        diff:
+          type: array
+          items:
+            $ref: './openapi/models/json-diff.yaml#/components/schemas/Operation'
+    AccessPathRoleTesterDiff:
+      type: object
+      required:
+        - change_id
+        - diff
+        - base
+      properties:
+        change_id:
+          type: string
+          format: uuid
+        base:
+          $ref: './openapi/models/graph.yaml#/components/schemas/Graph'
+        diff:
+          type: array
+          items:
+            $ref: './openapi/models/json-diff.yaml#/components/schemas/Operation'
+    AccountAlias:
+      type: object
+      required:
+        - account_type
+        - account_id
+        - alias
+      properties:
+        account_type:
+          type: string
+          enum:
+            - teleport
+            - aws
+            - azure
+            - entra
+            - okta
+            - gitlab
+        account_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+        alias:
+          type: string
+          minLength: 1
+          maxLength: 255
+    BadRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    GetLogsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: './openapi/models/logs.yaml#/components/schemas/accessgraph.storage.v1alpha.Event'
+        next_cursor:
+          type: string
+
+    GetLogsStatsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            required:
+              - column_name
+              - values
+            properties:
+              column_name:
+                type: string
+              values:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ColumnStats'
+
+    ColumnStats:
+      type: object
+      required:
+        - value
+        - count
+      properties:
+        value:
+          type: string
+        count:
+          type: integer
+          format: int64
+    ListAlertsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecurityAlert'
+        next_cursor:
+          type: string
+    GetAlertResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/SecurityAlert'
+    SecurityAlert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the security alert
+        title:
+          type: string
+          description: A brief summary of the security alert
+        description:
+          type: string
+          description: Detailed information about the alert
+        status:
+          $ref: '#/components/schemas/AlertStatus'
+        severity:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - critical
+          description: Severity level of the alert
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the alert was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the alert was last updated
+        reported_by:
+          type: string
+          description: User or system that reported the alert
+        affected_entity:
+          type: object
+          properties:
+            type:
+              type: string
+              description: Type of the affected entity
+            name:
+              type: string
+              description: Name of the affected entity
+          description: Affected entities (e.g., users, devices, services)
+        mitigation_steps:
+          type: array
+          items:
+            type: string
+          description: Steps taken to mitigate the alert
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags associated with the alert for categorization
+        source:
+          $ref: './openapi/models/logs.yaml#/components/schemas/EventSource'
+        type:
+          $ref: './openapi/models/logs.yaml#/components/schemas/AlertType'
+        token:
+          type: string
+          description: Token to access the alert
+        log_entries:
+          type: array
+          items:
+            type: string
+          description: Log entries associated with the alert
+        start_time:
+          type: string
+          format: date-time
+          description: Start time of the alert
+        end_time:
+          type: string
+          format: date-time
+          description: End time of the alert
+        status_change_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertStatusChangeLog'
+          description: Status change logs of the alert
+      required:
+        - id
+        - title
+        - status
+        - severity
+        - created_at
+        - source
+        - type
+        - start_time
+        - end_time
+        - status_change_logs
+    AlertStatus:
+      type: string
+      enum:
+        - in_progress
+        - resolved
+        - triaged
+        - closed
+    AlertStatusChangeLog:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of the status change
+        status:
+          $ref: '#/components/schemas/AlertStatus'
+          description: Status of the alert after the change
+        user:
+          type: string
+          description: User who changed the status
+        reason:
+          type: string
+          description: Reason for the status change
+      required:
+        - created_at
+        - status
+        - user
+    PutAlertStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        reason:
+          type: string
+          description: Reason for the alert status change
+        status:
+          $ref: '#/components/schemas/AlertStatus'
+    GetAlertsStatsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            required:
+              - column_name
+              - values
+            properties:
+              column_name:
+                type: string
+              values:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ColumnStats'
+    InvestigateViewRequest:
+      type: object
+      required:
+        - name
+        - filters
+      properties:
+        name:
+          type: string
+        filters:
+          type: object
+          additionalProperties: true
+    InvestigateViewResponse:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+    InvestigateView:
+      type: object
+      required:
+        - id
+        - name
+        - filters
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        filters:
+          type: object
+          additionalProperties: true

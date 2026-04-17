@@ -1,0 +1,12 @@
+package: accessgraph
+generate:
+  embedded-spec: true
+  client: true
+  models: true
+output: client.gen.go
+output-options:
+  client-response-bytes-function: true
+import-mapping:
+  ./openapi/models/graph.yaml: github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph
+  ./openapi/models/json-diff.yaml: github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff
+  ./openapi/models/logs.yaml: github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs
