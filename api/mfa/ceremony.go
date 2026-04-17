@@ -223,8 +223,6 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 	// or Browser challenge in addition to other challenges. The callback ceremony will be used to complete the SSO or
 	// Browser challenge if it is offered by the server.
 	if c.callbackCeremony != nil {
-		defer c.callbackCeremony.Close()
-
 		createReq.SsoClientRedirectUrl = c.callbackCeremony.GetClientCallbackURL()
 		createReq.BrowserMfaTshRedirectUrl = c.callbackCeremony.GetClientCallbackURL()
 		createReq.ProxyAddressForSso = c.callbackCeremony.GetProxyAddress()
@@ -259,6 +257,11 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 		},
 	); err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	// If a callback ceremony was used, close it to clean up any resources associated with it.
+	if c.callbackCeremony != nil {
+		c.callbackCeremony.Close()
 	}
 
 	return createResp.MfaChallenge.GetName(), nil
