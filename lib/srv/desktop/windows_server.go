@@ -934,6 +934,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	if nla && !strings.HasSuffix(windowsUser, "@"+s.cfg.Domain) {
 		s.cfg.Logger.WarnContext(ctx, "NLA can't work for users from different domain, disabling")
 		rdpc.DisableNLA()
+		audit.enableNLA = false
 	}
 
 	// Generate client certificates to be used for the RDP connection.
