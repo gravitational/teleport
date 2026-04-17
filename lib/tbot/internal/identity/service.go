@@ -329,14 +329,13 @@ func (s *Service) Initialize(ctx context.Context) error {
 		//
 		// Rather than forcing a rejoin, we force a hard exit here to encourage
 		// the user to re-assess what they are doing.
-		if err := checkScopeCorrectness(
+		if identScope, err := checkScopeCorrectness(
 			loadedIdent.TLSIdentity,
 			s.cfg.Scoped,
 		); err != nil {
-			identScoped := loadedIdent.TLSIdentity.ScopePin != nil && loadedIdent.TLSIdentity.ScopePin.Scope != ""
 			return trace.BadParameter(
 				"bot identity loaded from storage has scoped %v, but scope config set to %v. change tbot scope configuration or delete the bot storage directory",
-				identScoped,
+				identScope,
 				s.cfg.Scoped,
 			)
 		}
@@ -836,7 +835,7 @@ func botIdentityFromToken(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkScopeCorrectness(
+	if _, err := checkScopeCorrectness(
 		ident.TLSIdentity,
 		cfg.Scoped,
 	); err != nil {
@@ -849,17 +848,21 @@ func botIdentityFromToken(
 // checkScopeCorrectness returns an error if the presented identity is:
 // - Scoped, but tbot is not running in scoped mode.
 // - Unscoped, but tbot is running in scoped mode.
-func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) error {
+func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) (string, error) {
 	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.Scope != ""
+	identScope := ""
+	if identScoped {
+		identScope = tlsIdent.ScopePin.Scope
+	}
 	if identScoped && !scoped {
-		return trace.BadParameter(
+		return identScope, trace.BadParameter(
 			"received scoped identity upon join, but tbot is not configured in scoped mode",
 		)
 	}
 	if !identScoped && scoped {
-		return trace.BadParameter(
+		return identScope, trace.BadParameter(
 			"received unscoped identity upon join, but tbot is configured in scoped mode",
 		)
 	}
-	return nil
+	return identScope, nil
 }
