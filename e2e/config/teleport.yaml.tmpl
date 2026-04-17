@@ -30,6 +30,13 @@ auth_service:
 ssh_service:
   enabled: "no"
 
+{{- if .KubeConfigPath }}
+kubernetes_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:{{ .KubeServerPort }}
+  kubeconfig_file: {{ .KubeConfigPath }}
+{{- end }}
+
 proxy_service:
   enabled: "yes"
   public_addr: localhost:{{ .ProxyPort }}

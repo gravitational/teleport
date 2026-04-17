@@ -59,10 +59,11 @@ automatically starts the required infrastructure.
 
 Available fixtures:
 
-| Fixture      | Description                                                                          |
-|--------------|--------------------------------------------------------------------------------------|
-| `ssh-node`   | Start and connect a Teleport SSH node (runs in Docker)                               |
-| `connect`    | Build Teleport Connect. Auto-detected from Connect test helpers.                     |
+| Fixture    | Description                                                                                   |
+|------------|-----------------------------------------------------------------------------------------------|
+| `ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                                        |
+| `kube`     | Start a kind-backed Kubernetes fixture + enable Teleport `kubernetes_service` in main process |
+| `connect`  | Build Teleport Connect. Auto-detected from Connect test helpers.                              |
 
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.

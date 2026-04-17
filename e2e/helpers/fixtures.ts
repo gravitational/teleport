@@ -22,6 +22,7 @@ import { test as base } from '@playwright/test';
 
 type Fixture =
   | 'ssh-node'
+  | 'kube'
   | 'connect';
 
 export const test = base.extend<{ fixtures: Fixture[] }>({

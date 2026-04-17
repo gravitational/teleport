@@ -22,6 +22,7 @@ import "flag"
 
 var (
 	SSHNode = register("ssh-node")
+	Kube    = register("kube")
 	Connect = register("connect")
 )
 

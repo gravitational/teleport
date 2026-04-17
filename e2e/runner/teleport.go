@@ -154,10 +154,12 @@ type TeleportConfig struct {
 	DataDir        string
 	AuthServerPort int
 	ProxyPort      int
+	KubeServerPort int
 	KeyFilePath    string
 	CertFilePath   string
 	LicenseFile    string
 	LogLevel       string
+	KubeConfigPath string
 }
 
 func generateTeleportConfig(templatePath, outPath string, data *TeleportConfig) (string, error) {

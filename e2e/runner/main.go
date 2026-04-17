@@ -227,9 +227,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		if fixtures.SSHNode.Enabled {
 			portTargets = append(portTargets, &inst.sshPort)
 		}
+		if fixtures.Kube.Enabled {
+			portTargets = append(portTargets, &inst.kubePort)
+		}
 	}
 	if ci := config.connectInstance; ci != nil {
-		portTargets = append(portTargets, &ci.proxyPort, &ci.authPort)
+		portTargets = append(portTargets, &ci.proxyPort, &ci.authPort, &ci.kubePort)
 	}
 
 	if err := allocatePorts(portTargets...); err != nil {
@@ -237,10 +240,10 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	for _, inst := range config.instances {
-		inst.log.Debug("allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort)
+		inst.log.Debug("allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort, "kube", inst.kubePort)
 	}
 	if ci := config.connectInstance; ci != nil {
-		ci.log.Debug("allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort)
+		ci.log.Debug("allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort, "kube", ci.kubePort)
 	}
 
 	if err := build(ctx, config); err != nil {
@@ -286,16 +289,30 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		slog.Debug("generated bootstrap state", "path", stateFile)
 
 		for _, inst := range allInstances {
+			kubeConfigPath := ""
+			if fixtures.Kube.Enabled {
+				name := "teleport-e2e-kube-" + inst.browser
+				kubeConfigPath = filepath.Join(e2eDir, "kube", inst.browser+"-kubeconfig")
+
+				inst.kube = &kubeCluster{
+					log:            inst.log,
+					name:           name,
+					kubeconfigPath: kubeConfigPath,
+				}
+			}
+
 			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
 			tcfg, err := generateTeleportConfig(config.teleportConfigTemplate, outPath, &TeleportConfig{
 				ClusterName:    clusterName,
 				DataDir:        inst.dataDir,
 				AuthServerPort: inst.authPort,
 				ProxyPort:      inst.proxyPort,
+				KubeServerPort: inst.kubePort,
 				KeyFilePath:    filepath.Join(config.certsDir, keyFileName),
 				CertFilePath:   filepath.Join(config.certsDir, certFileName),
 				LicenseFile:    config.licenseFile,
 				LogLevel:       config.teleportLogLevel,
+				KubeConfigPath: kubeConfigPath,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to generate Teleport config for %s: %w", inst.browser, err)
