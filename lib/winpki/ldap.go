@@ -508,7 +508,7 @@ referralLoop:
 			}()
 
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return nil, err
 				}
 				continue
