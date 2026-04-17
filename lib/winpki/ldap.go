@@ -377,9 +377,10 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 }
 
 type ldapReferral struct {
-	// the raw referral received from LDAP server
+	// The raw referral received from LDAP server.
 	raw string
-	// the result of parsing the raw referral as a URL
+	// The result of parsing the raw referral as a URL.
+	// May be nil if parsing failed.
 	url *url.URL
 }
 
