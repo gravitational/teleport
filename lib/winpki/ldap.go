@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/dns"
-	libSet "github.com/gravitational/teleport/lib/utils/set"
+	libset "github.com/gravitational/teleport/lib/utils/set"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -409,7 +409,7 @@ type resolver interface {
 // query that chases referrals.
 type recursiveSearch struct {
 	// Tracks raw referral strings that the search has encountered.
-	referrals libSet.Set[string]
+	referrals libset.Set[string]
 	// Limits how far down a given referral chain the search will go.
 	maxDepth uint
 	// Limits the how many referrals will be attempted overall.
@@ -507,7 +507,7 @@ referralLoop:
 // following referrals to other domains where the search request should be repeated.
 func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
 	search := recursiveSearch{
-		referrals:    libSet.New[string](),
+		referrals:    libset.New[string](),
 		maxDepth:     maxSearchDepth,
 		maxHosts:     maxSearchHosts,
 		maxReferrals: maxReferralsCount,
