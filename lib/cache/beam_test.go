@@ -95,6 +95,39 @@ func TestBeam_GetBeamByAlias(t *testing.T) {
 	}, 2*time.Second, 100*time.Millisecond)
 }
 
+func TestBeam_IterateExpiredBeams(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	now := time.Now()
+	expiredEarly := newBeamResource(uuid.NewString(), "warm-orbit", now.Add(-2*time.Minute))
+	expiredA := newBeamResource("alpha", "silver-canyon", now.Add(-1*time.Minute))
+	expiredB := newBeamResource("bravo", "quiet-meadow", now.Add(-1*time.Minute))
+	active := newBeamResource(uuid.NewString(), "steady-river", now.Add(1*time.Hour))
+
+	require.NoError(t, createBeamForCacheTest(ctx, p, expiredEarly))
+	require.NoError(t, createBeamForCacheTest(ctx, p, expiredA))
+	require.NoError(t, createBeamForCacheTest(ctx, p, expiredB))
+	require.NoError(t, createBeamForCacheTest(ctx, p, active))
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var got []string
+		for beam, err := range p.cache.IterateExpiredBeams(ctx, now) {
+			require.NoError(t, err)
+			got = append(got, beam.GetMetadata().GetName())
+		}
+
+		require.Equal(t, []string{
+			expiredEarly.GetMetadata().GetName(),
+			expiredA.GetMetadata().GetName(),
+			expiredB.GetMetadata().GetName(),
+		}, got)
+	}, 2*time.Second, 50*time.Millisecond)
+}
+
 func newBeamResource(name, alias string, expires time.Time) *beamsv1.Beam {
 	ts := timestamppb.New(expires)
 	return &beamsv1.Beam{
