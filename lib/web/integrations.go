@@ -534,6 +534,10 @@ func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegr
 }
 
 func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if new == nil {
+		return
+	}
+
 	in.DiscoverLastSync = lastSync(in.DiscoverLastSync, lastSyncTime)
 	in.ResourcesFound += int(new.Found)
 	in.ResourcesEnrollmentSuccess += int(new.Enrolled)

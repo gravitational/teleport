@@ -888,7 +888,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			}},
 			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
 				Integration:    integrationName,
-				Types:          []string{"vm"},
+				Types:          []string{types.AzureMatcherVM},
 				Regions:        []string{"eastus"},
 				Subscriptions:  []string{"sub-1"},
 				ResourceGroups: []string{"rg-1", "rg-2"},
@@ -902,11 +902,11 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dcForVM},
 		}
 
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "vm", nil, clt)
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", types.AzureMatcherVM, nil, clt)
 		require.NoError(t, err)
 		expectedRules := []ui.IntegrationDiscoveryRule{
 			{
-				ResourceType: "vm",
+				ResourceType: types.AzureMatcherVM,
 				Region:       "eastus",
 				LabelMatcher: []libui.Label{
 					{Name: "env", Value: "dev"},
