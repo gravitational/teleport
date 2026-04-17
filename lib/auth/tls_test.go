@@ -3834,7 +3834,7 @@ func TestTLSFailover(t *testing.T) {
 func TestJoinCAPin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -3846,6 +3846,18 @@ func TestJoinCAPin(t *testing.T) {
 		time.Time{},
 		testSrv.Auth(),
 	)
+	joinParams := func() joinclient.JoinParams {
+		return joinclient.JoinParams{
+			AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
+			Token:       token,
+			ID: state.IdentityID{
+				NodeName: "node-name",
+				Role:     types.RoleInstance,
+			},
+			AdditionalPrincipals: []string{"example.com"},
+			Clock:                clock,
+		}
+	}
 
 	// Calculate what CA pin should be.
 	localCAResponse, err := testSrv.AuthServer.AuthServer.GetClusterCACert(ctx)
@@ -3856,60 +3868,54 @@ func TestJoinCAPin(t *testing.T) {
 	caPin := caPins[0]
 
 	// Attempt to join with valid CA pin, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{caPin},
-		Clock:                clock,
+	params := joinParams()
+	params.CAPins = []string{caPin}
+	_, err = joinclient.Join(ctx, params)
+	require.NoError(t, err)
+
+	// An unrelated active lock should not block unauthenticated CA pin bootstrap.
+	lockTarget := types.LockTarget{User: "definitely-not-a-real-user"}
+	lock, err := types.NewLock("test-join-ca-pin-unrelated-lock", types.LockSpecV2{
+		Target: lockTarget,
 	})
+	require.NoError(t, err)
+	// Wait for the lock to actually propagate through the cache and be
+	// enforced before attempting to join.
+	lockWatcher, err := testSrv.Auth().SubscribeToLockTarget(ctx, lockTarget)
+	require.NoError(t, err)
+	require.NoError(t, testSrv.Auth().UpsertLock(ctx, lock))
+	select {
+	case evt := <-lockWatcher.Events():
+		require.Equal(t, types.OpPut, evt.Type)
+		require.Equal(t, types.KindLock, evt.Resource.GetKind())
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "did not receive lock put event within 10 seconds")
+	}
+	lockInForceErr := testSrv.Auth().CheckLockInForce(constants.LockingModeStrict, []types.LockTarget{{User: "definitely-not-a-real-user"}})
+	require.ErrorAs(t, lockInForceErr, new(*trace.AccessDeniedError))
+
+	params = joinParams()
+	params.CAPins = []string{caPin}
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 
 	// Attempt to join with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123", caPin},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123", caPin}
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 
 	// Attempt to join with invalid CA pin, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123"},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123"}
+	_, err = joinclient.Join(ctx, params)
 	require.Error(t, err)
 
 	// Attempt to join with multiple invalid CA pins, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123", "sha256:456"},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123", "sha256:456"}
+	_, err = joinclient.Join(ctx, params)
 	require.Error(t, err)
 
 	// Add another cert to the CA (dupe the current one for simplicity)
@@ -3932,17 +3938,9 @@ func TestJoinCAPin(t *testing.T) {
 	require.Len(t, caPins, 2)
 
 	// Attempt to join with multiple CA pins, should work
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               caPins,
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = caPins
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 }
 
