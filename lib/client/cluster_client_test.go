@@ -215,6 +215,57 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			},
 		},
 		{
+			name: "ssh login falls back to host login",
+			params: ReissueParams{
+				NodeName: "test",
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
+						require.True(t, ok)
+						require.Equal(t, "default-login", nodeReq.Node.Login)
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						require.Equal(t, "default-login", req.SSHLogin)
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
+			},
+		},
+		{
+			name: "ssh login override used",
+			params: ReissueParams{
+				NodeName: "test",
+				SSHLogin: "override-login",
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
+						require.True(t, ok)
+						require.Equal(t, "override-login", nodeReq.Node.Login)
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						require.Equal(t, "override-login", req.SSHLogin)
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
+			},
+		},
+		{
 			name:        "kube no mfa",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
 			params:      ReissueParams{KubernetesCluster: "test"},
@@ -518,6 +569,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					Config: Config{
 						WebProxyAddr: "proxy.example.com",
 						SiteName:     "test",
+						HostLogin:    "default-login",
 						Tracer:       tracing.NoopTracer("test"),
 						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
 							return test.prompt
