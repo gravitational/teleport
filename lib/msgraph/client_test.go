@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 // Always sleep for a second for predictability
@@ -198,18 +199,15 @@ func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
 func TestIterateUsers_Empty(t *testing.T) {
 	t.Parallel()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1.0/users", func(w http.ResponseWriter, r *http.Request) {
-		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
-		assert.NoError(t, err, "expected to get $top parameter")
-		w.Write([]byte(`{"value": []}`))
-	})
+	storage := msgraphtest.NewDefaultStorage()
+	// overwrite user storage to test empty user response.
+	storage.Users = make(map[string]*models.User)
+	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
 
-	srv := httptest.NewTLSServer(mux)
-	t.Cleanup(func() { srv.Close() })
+	t.Cleanup(func() { fakeServer.TLSServer.Close() })
 
 	client, err := NewClient(Config{
-		HTTPClient:    newHTTPClient(srv),
+		HTTPClient:    newHTTPClient(fakeServer.TLSServer),
 		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 	})
