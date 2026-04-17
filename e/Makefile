@@ -381,7 +381,7 @@ endif
 # So we force host compilers for webassets, then use cross-CC only for `go build`.
 build-cloud-teleport-binary:
 	@if [[ "$$(uname -s)" == "Darwin" ]]; then \
-		if ! "$(CC)" -dumpmachine 2>/dev/null | grep -q 'linux'; then \
+		if ! $(CC) -dumpmachine 2>/dev/null | grep -q 'linux'; then \
 			echo "CC must be a Linux cross-compiler on macOS (example: /opt/homebrew/bin/x86_64-unknown-linux-gnu-gcc)"; \
 			echo "Current CC: $(CC)"; \
 			exit 1; \
