@@ -241,7 +241,7 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 				Spec: tc.connectorSpec,
 			}
 
-			err := FillSAMLSigningKeyFromExisting(ctx, connector, existingConnectors)
+			err := FillSAMLSecretFieldsFromExistingConnector(ctx, connector, existingConnectors)
 			tc.assertErr(t, err)
 			if tc.assertResult != nil {
 				tc.assertResult(t, connector)
@@ -310,7 +310,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 			name:          "incoming connector has no OAuth credentials",
 			connectorName: existingConnectorName,
 			connectorSpec: types.SAMLConnectorSpecV2{},
-			assertErr:     require.Error,
+			assertErr:     require.NoError,
 		},
 		{
 			name:          "existing connector has no OAuth credentials",
@@ -344,7 +344,7 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 				Spec:     tc.connectorSpec,
 			}
 
-			err := FillSAMLOAuthClientSecretFromExisting(ctx, connector, existingConnectors)
+			err := FillSAMLSecretFieldsFromExistingConnector(ctx, connector, existingConnectors)
 			tc.assertErr(t, err)
 			if tc.assertResult != nil {
 				tc.assertResult(t, connector)

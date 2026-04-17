@@ -137,6 +137,7 @@ type SAMLConnector interface {
 	GetOAuthClientCredentials() *OAuthClientCredentials
 	// SetOAuthClientCredentials sets the OAuth client credentials.
 	SetOAuthClientCredentials(*OAuthClientCredentials)
+	GetCredentials() *SAMLConnectorCredentials
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -524,6 +525,10 @@ func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredential
 	r.Spec.Credentials = &SAMLConnectorCredentials{Oauth: creds}
 }
 
+func (r *SAMLConnectorV2) GetCredentials() *SAMLConnectorCredentials {
+	return r.Spec.Credentials
+}
+
 // GetEntraIDGroupsProvider returns Entra ID groups provider.
 func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
 	return r.Spec.EntraIdGroupsProvider
@@ -535,13 +540,44 @@ func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
 	return entra != nil && entra.Disabled
 }
 
-// count returns the number of credential types set on the SAML connector.
-func (c *SAMLConnectorCredentials) count() int {
-	count := 0
-	if c.Oauth != nil {
-		count++
+func (k *AsymmetricKeyPair) Validate(withSecrets bool) error {
+	if k == nil {
+		return nil
 	}
-	return count
+
+	if k.Cert == "" {
+		return trace.BadParameter("missing required cert in signing_key_pair")
+	}
+
+	if withSecrets && k.PrivateKey == "" {
+		return trace.BadParameter("missing required private_key in signing_key_pair")
+	}
+
+	return nil
+}
+
+// Validate checks that the type of credentials configured is valid.
+// For OAuth, both client_id and client_secret must be present.
+// NOTE: Due to inability to use oneof with gogoproto (see https://github.com/gogo/protobuf/issues/623),
+// the 'one of' invariant needs to be maintained here.
+// When adding credential types, a mutual exclusion check must be added,
+// e.g. if c.NewType != nil && c.Oauth != nil { return BadParameterError }
+func (c *SAMLConnectorCredentials) Validate(withSecrets bool) error {
+	if c == nil {
+		return nil
+	}
+
+	if c.Oauth != nil {
+		if c.Oauth.ClientId == "" {
+			return trace.BadParameter("missing required client_id in credentials.oauth")
+		}
+
+		if withSecrets && c.Oauth.ClientSecret == "" {
+			return trace.BadParameter("missing required client_secret in credentials.oauth")
+		}
+	}
+
+	return nil
 }
 
 const (
@@ -602,21 +638,8 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	}
 
 	if creds := o.Spec.Credentials; creds != nil {
-		// Validate that only one credentials type may be configured,
-		// since gogoproto issue prevents use of oneof.
-		// See https://github.com/gogo/protobuf/issues/623.
-		if creds.count() > 1 {
-			return trace.BadParameter("only one credentials type may be configured")
-		}
-
-		if oauth := o.GetOAuthClientCredentials(); oauth != nil {
-			if oauth.ClientId == "" {
-				return trace.BadParameter("missing required client_id in credentials.oauth")
-			}
-
-			if oauth.ClientSecret == "" {
-				return trace.BadParameter("missing required client_secret in credentials.oauth")
-			}
+		if err := creds.Validate(false); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -754,6 +777,7 @@ type SAMLConnectorValidationOptions struct {
 	// metadata. Useful when full metadata is not necessary, especially for
 	// endpoints like /webapi/ping which must not hang or fail.
 	NoFollowURLs bool
+	WithSecrets  bool
 }
 
 // SAMLConnectorValidationOption is an option for validation of SAML connectors.
@@ -764,5 +788,11 @@ type SAMLConnectorValidationOption func(*SAMLConnectorValidationOptions)
 func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.NoFollowURLs = !follow
+	}
+}
+
+func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.WithSecrets = withSecrets
 	}
 }

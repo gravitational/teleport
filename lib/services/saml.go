@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -48,6 +49,8 @@ type SAMLConnectorGetter interface {
 	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 }
 
+type samlConnectorGetter func() (types.SAMLConnector, error)
+
 const (
 	ErrMsgHowToFixMissingPrivateKey        = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
 	ErrMsgHowToFixMissingOAuthClientSecret = "You must specify the OAuth credentials (obtain the existing one with `tctl get saml --with-secrets`)."
@@ -67,6 +70,18 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 
 	if err := CheckAndSetDefaults(sc); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if creds := sc.GetCredentials(); creds != nil {
+		if err := creds.Validate(options.WithSecrets); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if skp := sc.GetSigningKeyPair(); skp != nil {
+		if err := skp.Validate(options.WithSecrets); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	getEntityDescriptorFromURL := func(url string) (string, error) {
@@ -447,49 +462,80 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 	}
 }
 
-// FillSAMLSigningKeyFromExisting looks up the existing SAML connector and populates the signing key if it's missing.
-// This must be called only if the SAML Connector signing key pair has been initialized (ValidateSAMLConnector) and
-// the private key is still empty.
-func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
-	existing, err := sg.GetSAMLConnector(ctx, connector.GetName(), true /* with secrets */)
-	switch {
-	case trace.IsNotFound(err):
-		return trace.BadParameter("failed to create SAML connector, the SAML connector has no signing key set. " + ErrMsgHowToFixMissingPrivateKey)
-	case err != nil:
-		return trace.BadParameter("failed to update SAML connector, the SAML connector has no signing key set and looking up the existing connector failed with the error: %s. %s", err.Error(), ErrMsgHowToFixMissingPrivateKey)
+// FillSAMLSecretFieldsFromExistingConnector looks up the existing SAML connector and populates the secret fields if any are missing.
+func FillSAMLSecretFieldsFromExistingConnector(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
+	getExisting := sync.OnceValues(func() (types.SAMLConnector, error) {
+		return sg.GetSAMLConnectorWithValidationOptions(ctx, connector.GetName(), true, types.SAMLConnectorValidationFollowURLs(false))
+	})
+
+	if err := fillSAMLSigningKeyFromExisting(connector, getExisting); err != nil {
+		return trace.Wrap(err)
 	}
 
-	existingSkp := existing.GetSigningKeyPair()
-	if existingSkp == nil || existingSkp.Cert != connector.GetSigningKeyPair().Cert {
-		return trace.BadParameter("failed to update the SAML connector, the SAML connector has no signing key and its signing certificate does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
+	if err := fillSAMLOAuthClientSecretFromExisting(connector, getExisting); err != nil {
+		return trace.Wrap(err)
 	}
-	connector.SetSigningKeyPair(existingSkp)
+
 	return nil
 }
 
-// FillSAMLOAuthClientSecretFromExisting looks up the existing SAML connector and populates the OAuth client secret on credentials of the given SAML connector.
-// This must be called only if the SAML connector has OAuth credentials configured with a client ID but no client secret.
-func FillSAMLOAuthClientSecretFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
-	connectorName := connector.GetName()
-	existing, err := sg.GetSAMLConnectorWithValidationOptions(ctx, connectorName, true, types.SAMLConnectorValidationFollowURLs(false))
+// fillSAMLSigningKeyFromExisting populates the signing key on the given connector if it's missing with the signing key
+// from the connector returned by getExisting.
+func fillSAMLSigningKeyFromExisting(connector types.SAMLConnector, getExisting samlConnectorGetter) error {
+	connectorSKP := connector.GetSigningKeyPair()
+	if connectorSKP == nil {
+		return nil
+	}
+
+	if connectorSKP.PrivateKey != "" {
+		return nil
+	}
+
+	existing, err := getExisting()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	existingOAuthCreds := existing.GetOAuthClientCredentials()
-	if existingOAuthCreds == nil {
-		return trace.BadParameter("failed to restore OAuth credentials, existing SAML connector %q has no OAuth credentials configured. "+ErrMsgHowToFixMissingOAuthClientSecret, connectorName)
+	keyPair := existing.GetSigningKeyPair()
+	if keyPair == nil {
+		return trace.BadParameter("the SAML connector has no signing key and none was provided. " + ErrMsgHowToFixMissingPrivateKey)
 	}
 
+	if keyPair.Cert != connectorSKP.Cert {
+		return trace.BadParameter("the SAML connector has no signing key and its signing certificate does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
+	}
+
+	connector.SetSigningKeyPair(keyPair)
+
+	return nil
+}
+
+// fillSAMLOAuthClientSecretFromExisting populates the client secret on the given connector if it's missing with the client secret
+// from the connector returned by getExisting.
+func fillSAMLOAuthClientSecretFromExisting(connector types.SAMLConnector, getExisting samlConnectorGetter) error {
 	connectorOAuthCreds := connector.GetOAuthClientCredentials()
 	if connectorOAuthCreds == nil {
-		return trace.BadParameter("failed to restore OAuth credentials, incoming connector has no OAuth client credentials configured. " + ErrMsgHowToFixMissingOAuthClientSecret)
+		return nil
 	}
 
-	if existingOAuthCreds.ClientId != connectorOAuthCreds.ClientId {
-		return trace.BadParameter("failed to restore OAuth credentials, client ID on SAML connector %q does not match the existing one. "+ErrMsgHowToFixMissingOAuthClientSecret, connectorName)
+	if connectorOAuthCreds.ClientSecret != "" {
+		return nil
 	}
 
-	connector.SetOAuthClientCredentials(existingOAuthCreds)
+	existing, err := getExisting()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	oauthCreds := existing.GetOAuthClientCredentials()
+	if oauthCreds == nil {
+		return trace.BadParameter("the SAML connector has no client secret and none was provided. " + ErrMsgHowToFixMissingOAuthClientSecret)
+	}
+
+	if oauthCreds.ClientId != connectorOAuthCreds.ClientId {
+		return trace.BadParameter("the SAML connector, the SAML connector has no client secret and its client ID does not match the existing one. " + ErrMsgHowToFixMissingOAuthClientSecret)
+	}
+
+	connector.SetOAuthClientCredentials(oauthCreds)
 	return nil
 }

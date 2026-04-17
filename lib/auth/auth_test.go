@@ -1581,6 +1581,81 @@ func TestSAMLConnector(t *testing.T) {
 		require.ErrorContains(t, err, "exceeds maximum length")
 	})
 
+	t.Run("signing key pair", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector("test-signing-key", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
+			},
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
+
+		saml.SetSigningKeyPair(&types.AsymmetricKeyPair{
+			Cert:       "test-cert",
+			PrivateKey: "",
+		})
+
+		// Create without private key fails
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required private_key")
+
+		// Upsert new without private key fails.
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required private_key")
+
+		// Created connector has specified cert and private key.
+		saml.SetSigningKeyPair(&types.AsymmetricKeyPair{
+			Cert:       "test-cert",
+			PrivateKey: "test-private-key",
+		})
+
+		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+
+		createdSKP := createdConnector.GetSigningKeyPair()
+		require.NotNil(t, createdSKP)
+		require.Equal(t, "test-cert", createdSKP.Cert)
+		require.Equal(t, "test-private-key", createdSKP.PrivateKey)
+
+		// Connector without secrets has private key stripped.
+		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
+		require.NoError(t, err)
+
+		withoutSecretsSKP := connectorWithoutSecrets.GetSigningKeyPair()
+		require.NotNil(t, withoutSecretsSKP)
+		require.Equal(t, "test-cert", withoutSecretsSKP.Cert)
+		require.Empty(t, withoutSecretsSKP.PrivateKey)
+
+		// Upserted connector with empty private key doesn't overwrite existing.
+		_, err = s.a.UpsertSAMLConnector(ctx, connectorWithoutSecrets)
+		require.NoError(t, err)
+
+		upsertedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
+		require.NoError(t, err)
+		upsertedSKP := upsertedConnector.GetSigningKeyPair()
+		require.NotNil(t, upsertedSKP)
+		require.Equal(t, "test-cert", upsertedSKP.Cert)
+		require.Equal(t, "test-private-key", upsertedSKP.PrivateKey)
+
+		// Updated connector with empty private key doesn't overwrite existing.
+		_, err = s.a.UpdateSAMLConnector(ctx, connectorWithoutSecrets)
+		require.NoError(t, err)
+
+		updatedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
+		require.NoError(t, err)
+		updatedSKP := updatedConnector.GetSigningKeyPair()
+		require.NotNil(t, updatedSKP)
+		require.Equal(t, "test-cert", updatedSKP.Cert)
+		require.Equal(t, "test-private-key", updatedSKP.PrivateKey)
+	})
+
 	t.Run("OAuth credentials", func(t *testing.T) {
 		saml, err := types.NewSAMLConnector("test-oauth", types.SAMLConnectorSpecV2{
 			AssertionConsumerService: "a",

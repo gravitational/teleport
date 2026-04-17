@@ -232,7 +232,7 @@ func TestSAMLEntraIDCredentialsValidation(t *testing.T) {
 					ClientSecret: "",
 				},
 			},
-			assertErr: require.Error,
+			assertErr: require.NoError,
 		},
 	}
 
