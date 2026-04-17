@@ -26,6 +26,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
@@ -106,25 +108,51 @@ func TestScopedTokens(t *testing.T) {
 	require.NoError(t, err)
 	out = mustDecodeJSON[addedToken](t, buf)
 
+	// Create a GCP scoped token to verify it appears in listings.
+	_, err = clt.CreateScopedToken(t.Context(), &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "gcp-test-token",
+		},
+		Scope: "/aa",
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:         []string{types.KindNode},
+			AssignedScope: "/aa/bb",
+			JoinMethod:    "gcp",
+			UsageMode:     "unlimited",
+			Gcp: &joiningv1.GCP{
+				Allow: []*joiningv1.GCP_Rule{
+					{
+						ProjectIds:      []string{"example-project-123456"},
+						Locations:       []string{"us-west1"},
+						ServiceAccounts: []string{"123456789-compute@developer.gserviceaccount.com"},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	// Test all output formats of "tokens ls".
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls"})
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(buf.String(), "Token "))
-	require.Equal(t, 7, strings.Count(buf.String(), "\n")) // account for header lines
+	require.Equal(t, 8, strings.Count(buf.String(), "\n")) // account for header lines
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.Text})
 	require.NoError(t, err)
-	require.Equal(t, 5, strings.Count(buf.String(), "\n"))
+	require.Equal(t, 6, strings.Count(buf.String(), "\n"))
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.JSON})
 	require.NoError(t, err)
 	jsonOut := mustDecodeJSON[[]listedScopedToken](t, buf)
-	require.Len(t, jsonOut, 5)
+	require.Len(t, jsonOut, 6)
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.YAML})
 	require.NoError(t, err)
 	yamlOut := []listedScopedToken{}
 	mustDecodeYAMLDocuments(t, buf, &yamlOut)
-	require.Len(t, yamlOut, 5)
+	require.Len(t, yamlOut, 6)
 	require.Equal(t, jsonOut, yamlOut)
 }

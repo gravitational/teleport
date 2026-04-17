@@ -285,7 +285,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			for _, s := range tt.services {
 				objects = append(objects, s)
 			}
-			fakeClient := fake.NewSimpleClientset(objects...)
+			fakeClient := fake.NewClientset(objects...)
 
 			fetcher, err := NewKubeAppsFetcher(KubeAppsFetcherConfig{
 				ClusterName:      "test-cluster",

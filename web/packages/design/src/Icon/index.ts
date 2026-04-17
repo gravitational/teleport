@@ -106,6 +106,7 @@ export { Desktop } from './Icons/Desktop';
 export { Detective } from './Icons/Detective';
 export { DeviceMobileCamera } from './Icons/DeviceMobileCamera';
 export { Devices } from './Icons/Devices';
+export { Dot } from './Icons/Dot';
 export { Download } from './Icons/Download';
 export { Earth } from './Icons/Earth';
 export { Edit } from './Icons/Edit';

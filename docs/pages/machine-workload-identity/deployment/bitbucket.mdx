@@ -88,7 +88,7 @@ Let's go over the token resource's fields in more detail:
   value of `[Bot]` states that this token grants access to a Machine & Workload
   Identity bot.
 - `spec.join_method` defines the join method the token is applicable for. Since
-  this guide only focuses on Bitbucket Pipelines, you will set this to to
+  this guide only focuses on Bitbucket Pipelines, you will set this to 
   `bitbucket`.
 - `spec.bitbucket.identity_provider_url` is the identity provider URL shown in
   the Bitbucket repository settings, under Pipelines and OpenID Connect.
@@ -127,7 +127,7 @@ pipelines:
             - curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | bash
 
             # Run `tbot` in identity mode for SSH access
-            - tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=<Var name="example.teleport.sh"/>:443 --token=bot-bitbucket --oneshot
+            - tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=<Var name="example.teleport.sh"/>:443 --token=example-bot --oneshot
 
             # Make use of the generated SSH credentials
             - ssh -F ./tbot-user/ssh_config user@node.example.teleport.sh echo "hello world"

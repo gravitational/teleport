@@ -33,7 +33,8 @@ process or editing the configuration file.
 
 You can add multiple static, dynamic, and resource-based labels for the same resource.
 However, you can't add static labels that use the same key with different values or use
-a static label to define multiple potential values.
+a static label to define multiple potential values. If a static label and dynamic label have
+the same key, the dynamic label always takes precedence in resource filtering and RBAC permissions.
 
 Dynamic labels are especially useful for decoupling a label value from the Teleport configuration.
 For example, if you start Teleport on an Amazon EC2 instance, you can use a dynamic label to set the
@@ -382,6 +383,5 @@ After you have labeled your resources, you can use the labels when running
 For more information, see [Resource filtering](../../reference/access-controls/predicate-language.mdx).
 
 You can also use labels to limit the access that users in different roles have to
-
 specific classes of resources. For more information, see
 [Teleport Role Templates](role-templates.mdx).

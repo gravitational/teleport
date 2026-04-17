@@ -1127,13 +1127,13 @@ func TestCacheOperations(t *testing.T) {
 	// verify that the concept of policies-applicable-to-resource used by the cache
 	// matches up with the definition expected by the scopes package.
 	for scope := range cache.PoliciesApplicableToResourceScope("/child/subchild") {
-		require.True(t, scopes.ResourceScope("/child/subchild").IsSubjectToPolicyScope(scope.Scope()), "scope=%s", scope.Scope())
+		require.True(t, scopes.ResourceScope("/child/subchild").IsSubjectToScopeOfEffect(scope.Scope()), "scope=%s", scope.Scope())
 	}
 
 	// verify that the concept of resources-subject-to-policy used by the cache
 	// matches up with the definition expected by the scopes package.
 	for scope := range cache.ResourcesSubjectToPolicyScope("/child") {
-		require.True(t, scopes.PolicyScope("/child").AppliesToResourceScope(scope.Scope()), "scope=%s", scope.Scope())
+		require.True(t, scopes.ScopeOfEffect("/child").AppliesToResourceScope(scope.Scope()), "scope=%s", scope.Scope())
 	}
 
 	// verify deletion of a single intermediate item

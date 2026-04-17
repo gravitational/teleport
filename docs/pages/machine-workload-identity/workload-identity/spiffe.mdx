@@ -17,7 +17,7 @@ SPIFFE sets out:
   called SVIDs (SPIFFE Verifiable Identity Document), and which come in a JWT
   and X.509 format.
 - Processes that workloads should use to validate a received SVID.
-- A set of APIs that workloads can use to request SVIDS, the Workload API.
+- A set of APIs that workloads can use to request SVIDs, the Workload API.
 
 The open nature and popularity of SPIFFE make it well-suited as the foundation
 of a full workload identity implementation. It is supported as an identity
@@ -46,7 +46,7 @@ e.g `example.teleport.sh`.
 The workload identifier is encoded in the URI as the path. This should be a
 string that identifies your workload within the trust domain. What you include
 within this path is up to you and your application's requirements. Typically,
-the hierarchical nature of the path is leveraged. For example, you had the
+the hierarchical nature of the path is leveraged. For example, if you had the
 service `foo` operating in the `europe` region, you may wish to represent this
 as: `/region/europe/svc/foo`.
 
@@ -56,10 +56,10 @@ Together, this produces a SPIFFE ID that looks like:
 spiffe://example.teleport.sh/region/europe/svc/foo
 ```
 
-## Secure Verifiable Identity Documents (SVIDs)
+## SPIFFE Verifiable Identity Documents (SVIDs)
 
-The SPIFFE ID may be a unique identifier for a workload, but provides no way
-for a workload to verifiably prove its identity. This is where the Secure
+The SPIFFE ID may be a unique identifier for a workload, but it provides no way
+for a workload to verifiably prove its identity. This is where the SPIFFE
 Verifiable Identity Documents (SVIDs) come in.
 
 The SVID is a document that encodes the SPIFFE ID and a cryptographic proof

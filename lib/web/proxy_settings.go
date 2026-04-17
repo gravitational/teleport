@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -76,6 +77,7 @@ func (p *ProxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 			WebListenAddr:    p.ServiceConfig.Proxy.WebAddr.String(),
 			DialTimeout:      sshDialTimeout,
 		},
+		ScopesEnabled: scopes.FeatureEnabled(),
 	}
 
 	p.setProxyPublicAddressesSettings(&proxySettings)

@@ -240,7 +240,6 @@ spec:
     values:
     - 'staging'
     - 'dev'
-    - 'prod'
   mappings:
   # Apply project label
   - add_labels:
@@ -318,7 +317,8 @@ metadata:
   # ...
 spec:
   # ...
-  admin_user: "teleport-admin"
+  admin_user:
+    name: "teleport-admin"
 ```
 
 </TabItem>

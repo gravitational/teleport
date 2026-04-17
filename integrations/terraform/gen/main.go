@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -130,6 +131,33 @@ type payload struct {
 	// WithoutImportState skips generating the ImportState function, which may be
 	// not supported for resources with write-only fields.
 	WithoutImportState bool
+	// StatePoll optionally configures polling for state changes when creating or updating resources.
+	StatePoll *statePoll
+}
+
+// statePoll configures polling for state changes when creating or updating resources.
+type statePoll struct {
+	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
+	// StatePath provides a path to lookup the current state from the returned object from GetMethod.
+	// Each string is treated as a field name for a nested object. It's expected
+	// the combined path points to a string value. All other paths along the way must be pointers
+	// to structs.
+	// Example: []string{"Status", "State"} would expect the object returned from GetMethod to have a Status
+	// field that is a pointer to a struct. That struct must have a State field. The State field must
+	// be a string.
+	// TODO(dustinspecker): this is only supported for Create methods. Consider adding for Update methods in the future.
+	// TODO(dustinspecker): support slices and other types besides pointers to structs
+	StatePath []string
+	// PendingStates is a list of states that are valid while polling the resource to reach a target state. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	PendingStates []string
+	// TargetStates is a list of possible states that indicate a resource is ready for usage while polling. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	TargetStates []string
+	// StatePollIntervalSeconds is how long to wait before polling the pending resource again.
+	StatePollIntervalSeconds int
+	// StateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
+	StateTimeoutSeconds int
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -144,6 +172,27 @@ func (p *payload) CheckAndSetDefaults() error {
 	}
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	}
+	if p.StatePoll != nil {
+		if len(p.StatePoll.StatePath) == 0 {
+			return errors.New("StatePath must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.PendingStates) == 0 {
+			return errors.New("PendingStates must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.TargetStates) == 0 {
+			return errors.New("TargetStates must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StatePollIntervalSeconds == 0 {
+			return errors.New("StatePollIntervalSeconds must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StateTimeoutSeconds == 0 {
+			return errors.New("StateTimeoutSeconds must be provided when StatePoll is set")
+		}
 	}
 	return nil
 }
@@ -272,6 +321,21 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	lock = payload{
+		Name:                   "Lock",
+		TypeName:               "LockV2",
+		VarName:                "lock",
+		GetMethod:              "GetLock",
+		CreateMethod:           "UpsertLock",
+		UpdateMethod:           "UpsertLock",
+		DeleteMethod:           "DeleteLock",
+		ID:                     `lock.Metadata.Name`,
+		Kind:                   "lock",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_lock",
+		HasCheckAndSetDefaults: true,
+	}
+
 	oidcConnector = payload{
 		Name:                   "OIDCConnector",
 		TypeName:               "OIDCConnectorV3",
@@ -303,6 +367,22 @@ var (
 		Kind:                   "saml",
 		HasStaticID:            true,
 		TerraformResourceType:  "teleport_saml_connector",
+		HasCheckAndSetDefaults: true,
+	}
+
+	samlIdPServiceProvider = payload{
+		Name:                   "SAMLIdPServiceProvider",
+		TypeName:               "SAMLIdPServiceProviderV1",
+		VarName:                "samlIdPServiceProvider",
+		IfaceName:              "SAMLIdPServiceProvider",
+		GetMethod:              "GetSAMLIdPServiceProvider",
+		CreateMethod:           "CreateSAMLIdPServiceProvider",
+		UpdateMethod:           "UpdateSAMLIdPServiceProvider",
+		DeleteMethod:           "DeleteSAMLIdPServiceProvider",
+		ID:                     "samlIdPServiceProvider.Metadata.Name",
+		Kind:                   "saml_idp_service_provider",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_saml_idp_service_provider",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -369,6 +449,23 @@ var (
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_trusted_cluster",
 		HasCheckAndSetDefaults: true,
+	}
+
+	uiConfig = payload{
+		Name:                   "UIConfig",
+		TypeName:               "UIConfigV1",
+		VarName:                "uiConfig",
+		IfaceName:              "UIConfig",
+		GetMethod:              "GetUIConfig",
+		CreateMethod:           "SetUIConfig",
+		UpdateMethod:           "SetUIConfig",
+		DeleteMethod:           "DeleteUIConfig",
+		ID:                     `"ui_config"`,
+		Kind:                   "ui_config",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_ui_config",
+		HasCheckAndSetDefaults: true,
+		GetCanReturnNil:        true,
 	}
 
 	user = payload{
@@ -882,10 +979,14 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
+	generateResource(lock, pluralResource)
+	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
 	generateDataSource(oidcConnector, pluralDataSource)
 	generateResource(samlConnector, pluralResource)
 	generateDataSource(samlConnector, pluralDataSource)
+	generateResource(samlIdPServiceProvider, pluralResource)
+	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
 	generateResource(role, pluralResource)
@@ -894,6 +995,8 @@ func genTFSchema() {
 	generateDataSource(trustedCluster, pluralDataSource)
 	generateResource(sessionRecording, singularResource)
 	generateDataSource(sessionRecording, singularDataSource)
+	generateResource(uiConfig, singularResource)
+	generateDataSource(uiConfig, singularDataSource)
 	generateResource(user, pluralResource)
 	generateDataSource(user, pluralDataSource)
 	generateResource(loginRule, pluralResource)

@@ -48,6 +48,7 @@ import { Cluster } from "./cluster_pb";
 import { KubeServer } from "./kube_pb";
 import { KubeResource } from "./kube_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
+import { ResourceAccessID } from "../../../legacy/types/resources_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { ResourceID } from "./access_request_pb";
 import { AccessRequest } from "./access_request_pb";
@@ -223,6 +224,17 @@ export interface CreateAccessRequestRequest {
      * @generated from protobuf field: google.protobuf.Timestamp request_ttl = 9;
      */
     requestTtl?: Timestamp;
+    /**
+     * resource_access_ids is the set of resources to which access is being requested,
+     * paired with additional information such as ResourceConstraints.
+     * Differs from resource_ids, which only identify resources and cannot be used
+     * to express additional information per-resource such as ResourceConstraints.
+     * When present, resource_access_ids should be treated as authoritative
+     * (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+     *
+     * @generated from protobuf field: repeated types.ResourceAccessID resource_access_ids = 10;
+     */
+    resourceAccessIds: ResourceAccessID[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.CreateAccessRequestResponse
@@ -1956,7 +1968,8 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
             { no: 6, name: "assume_start_time", kind: "message", T: () => Timestamp },
             { no: 7, name: "dry_run", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 8, name: "max_duration", kind: "message", T: () => Timestamp },
-            { no: 9, name: "request_ttl", kind: "message", T: () => Timestamp }
+            { no: 9, name: "request_ttl", kind: "message", T: () => Timestamp },
+            { no: 10, name: "resource_access_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceAccessID }
         ]);
     }
     create(value?: PartialMessage<CreateAccessRequestRequest>): CreateAccessRequestRequest {
@@ -1967,6 +1980,7 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         message.suggestedReviewers = [];
         message.resourceIds = [];
         message.dryRun = false;
+        message.resourceAccessIds = [];
         if (value !== undefined)
             reflectionMergePartial<CreateAccessRequestRequest>(this, message, value);
         return message;
@@ -2002,6 +2016,9 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
                     break;
                 case /* google.protobuf.Timestamp request_ttl */ 9:
                     message.requestTtl = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.requestTtl);
+                    break;
+                case /* repeated types.ResourceAccessID resource_access_ids */ 10:
+                    message.resourceAccessIds.push(ResourceAccessID.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2042,6 +2059,9 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         /* google.protobuf.Timestamp request_ttl = 9; */
         if (message.requestTtl)
             Timestamp.internalBinaryWrite(message.requestTtl, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* repeated types.ResourceAccessID resource_access_ids = 10; */
+        for (let i = 0; i < message.resourceAccessIds.length; i++)
+            ResourceAccessID.internalBinaryWrite(message.resourceAccessIds[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

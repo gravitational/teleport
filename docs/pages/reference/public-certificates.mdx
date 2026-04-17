@@ -37,7 +37,7 @@ Packages published prior to September 14, 2021 are signed with an older certific
 
 Verify the Developer ID and fingerprint match on package downloads with the
 pkgutil tool:
-```console
+```code
 $ pkgutil --check-signature teleport-(=teleport.version=).pkg
 Package "teleport-(=teleport.version=).pkg":
    Status: signed by a developer certificate issued by Apple for distribution
@@ -65,7 +65,7 @@ Package "teleport-(=teleport.version=).pkg":
 
 The codesign tool can be used to perform the verification on individual
 binaries:
-```console
+```code
 $ codesign --verify -d --verbose=2 /usr/local/bin/tsh
 ...
 Authority=Developer ID Application: Gravitational Inc. (QH8AA5B8UP)
@@ -87,8 +87,8 @@ Our Windows binaries are signed with the following certificate:
 * Thumbprint: `C644BAB07912F5BD09BDB3C2D9AE6A724F9B2391`
 
 Verify the binary using the following PowerShell command:
-```console
-Get-AuthenticodeSignature -FilePath .\tsh.exe
+```code
+$ Get-AuthenticodeSignature -FilePath .\tsh.exe
 
     Directory: C:\Users\ExampleUser
 
@@ -101,8 +101,8 @@ Ensure that the `SignerCertificate` matches the thumbprint shown above, and that
 the `Status` field is `Valid`.
 
 To further inspect the certificate, run the following PowerShell command:
-```console
-(Get-AuthenticodeSignature -FilePath.\tsh.exe).SignerCertificate | Format-List
+```code
+$ (Get-AuthenticodeSignature -FilePath .\tsh.exe).SignerCertificate | Format-List
 
 Subject      : CN="Gravitational, Inc.", O="Gravitational, Inc.", L=Oakland,
                S=California, C=US, SERIALNUMBER=5720258,
@@ -157,7 +157,7 @@ T8LjqFu3u3dxVOo9RuLk+BkCAwEAAQ==
 ```
 
 Signatures can be validated against the Teleport OCI image signing key:
-```console
+```code
 $ cosign verify --key teleport-oci-key.pub \
     public.ecr.aws/gravitational/teleport-distroless-debug:(=teleport.version=)
 

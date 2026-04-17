@@ -146,6 +146,6 @@ func Test_EmitAuditEvent(t *testing.T) {
 
 type mockUploader struct{}
 
-func (m mockUploader) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
+func (m mockUploader) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) { //nolint:staticcheck // TODO(tigrato)
 	return &manager.UploadOutput{}, nil
 }

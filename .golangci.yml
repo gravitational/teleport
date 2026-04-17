@@ -9,6 +9,7 @@ linters:
     - depguard
     - errorlint
     - forbidigo
+    - forcetypeassert
     - govet
     - ineffassign
     - misspell
@@ -201,6 +202,7 @@ linters:
             - '!**/integrations/lib/testing/**'
             - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/lib/auth/authtest/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -271,6 +273,7 @@ linters:
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
             - '!**/e/lib/intune/testenv/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -310,6 +313,7 @@ linters:
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
@@ -465,6 +469,13 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+
+      # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
+      # enforce this rule everywhere.
+      - linters:
+          - forcetypeassert
+        path-except: ^lib/tlsca/ca\.go$
+
     paths:
       - (^|/)node_modules/
       - ^api/gen/

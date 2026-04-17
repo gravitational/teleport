@@ -6,6 +6,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-tctl*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -78,6 +80,52 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`yaml`|Output format, 'yaml', 'json', or 'text'|
+|`--[no-]review-only`|`false`|List only access lists that are due for review within the next 2 weeks or past due|
+
+## tctl acl reviews create
+
+Submit a new review for a given access list.
+
+Usage:
+
+```code
+$ tctl acl reviews create [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--notes`|none|Optional review notes.|
+|`--remove-members`|none|Comma-separated list of members to remove as part of this review.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|none (required)|The access list name to submit review for.|
+
+## tctl acl reviews ls
+
+List past audit history for a given access list.
+
+Usage:
+
+```code
+$ tctl acl reviews ls [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text`|Output format 'yaml', 'json', or 'text'|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|none (required)|The access list name to fetch review history for.|
 
 ## tctl acl users add
 
@@ -483,7 +531,7 @@ Flags:
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
 |`--phase`|none|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|none|Certificate authority to rotate, one of: host, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
+|`--type`|none|Certificate authority to rotate, one of: host, windows, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
 
 ## tctl auth sign
 
@@ -1538,16 +1586,25 @@ Flags:
 
 ## tctl recordings download
 
-Download session recordings from the cluster's recording storage to a local file.
-If you omit an output directory, recordings are saved to the current working directory.
+Download session recordings.
 
-If session recording encryption is enabled in the cluster, recordings are decrypted during download.
-
-### Example
+Usage:
 
 ```code
-$ tctl recordings download [--output-dir <output-dir>] <session_id>
+$ tctl recordings download [<flags>] <session-id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-o`, `--output-dir`|`<current working directory>`|Directory to download session recordings to.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|session-id|none (required)|ID of the session to download recordings for.|
 
 ## tctl recordings encryption complete-rotation
 
@@ -1630,7 +1687,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--annotations`|none|Resolution attributes \<key\>=\<val\>\[,...\]|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z)|
 |`--delegator`|none|Optional delegating identity|
 |`--reason`|none|Optional reason message|
 |`--roles`|none|Override requested roles \<role\>\[,...\]|
@@ -1809,7 +1866,7 @@ Arguments:
 
 ## tctl scoped status
 
-Show the status of scoped resources
+Show the status of scoped resources.
 
 Usage:
 
@@ -1833,8 +1890,11 @@ Flags:
 |---|---|---|
 |`--assign-scope`|none|Scope that should be applied to resources provisioned by this token|
 |`--format`|none|Output format, 'text', 'json', or 'yaml'|
+|`--labels`|none|Set token labels, e.g. env=prod,region=us-west|
+|`--mode`|none|Usage mode of a token (default: unlimited, single_use)|
 |`--name`|none|Override the default, randomly generated token name with a specified name|
 |`--scope`|none|Scope assigned to the token itself|
+|`--ssh-labels`|none|Set immutable ssh labels the token should assign to provisioned resources, e.g. env=prod,region=us-west|
 |`--ttl`|`30m0s`|Set expiration time for token, default is 30 minutes|
 |`--type`|none|Type(s) of token to add, e.g. --type=node|
 
@@ -1948,7 +2008,7 @@ Flags:
 |`--assertion-cert-file`|none|A file with cert used for securing SAML assertions. Must be used together with --assertion-key-file.|
 |`--assertion-key-file`|none|A file with key used for securing SAML assertions. Must be used together with --assertion-cert-file.|
 |`--audience`|none|Audience uniquely identifies our service provider.|
-|`--cert`|none|Cert file with with the IdP certificate PEM. IdP signs \<Response\> responses using this certificate.|
+|`--cert`|none|Cert file with the IdP certificate PEM. IdP signs \<Response\> responses using this certificate.|
 |`--display`|none|Sets the connector display name.|
 |`-e`, `--entity-descriptor`|none|Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.|
 |`--issuer`|none|Issuer is the identity provider issuer.|
@@ -2070,7 +2130,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--bot`|none|Name of the the bot that this token will grant access to. When set, creates a bot token. Overrides --type|
+|`--bot`|none|Name of the bot that this token will grant access to. When set, creates a bot token. Overrides --type|
 |`--cluster-name`|none|Name of the Kubernetes cluster. When not set, defaults to the context name.|
 |`--context`|none|Kubernetes context to use. When not set, defaults to the active context.|
 |`-f`, `--[no-]force`|`false`|Force the token creation, even if the token already exists|
@@ -2316,7 +2376,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--expires-at`|none|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
+|`--expires-at`|none|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g. '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
 |`--reason`|none|Reason for revocation.|
 |`--serial`|none|Serial number of the certificate to revoke.|
 |`--type`|none|Type of credential to revoke (x509)|

@@ -59,6 +59,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
@@ -201,6 +202,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.createScopedToken,
+		types.KindWorkloadCluster:                    rc.createWorkloadCluster,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -232,6 +234,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.updateScopedToken,
+		types.KindWorkloadCluster:                    rc.updateWorkloadCluster,
 	}
 	rc.config = config
 
@@ -319,7 +322,13 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 	// Some resources require MFA to list with secrets. Check if we are trying to
 	// get any such resources so we can prompt for MFA preemptively.
 	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
-	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+
+	withSecrets := rc.withSecrets || slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		// tokens cannot be retrieved without secrets.
+		return r.Kind == types.KindToken
+	})
+
+	mfaRequired := withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
 		return slices.Contains(mfaKinds, r.Kind)
 	})
 
@@ -1241,13 +1250,24 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 }
 
 func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		return trace.BadParameter("scoped role creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+			Role: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRole,
+			rsp.GetRole().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
@@ -1329,13 +1349,27 @@ func (rc *ResourceCommand) updateScopedToken(ctx context.Context, client *authcl
 }
 
 func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		return trace.BadParameter("scoped role assignment creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// use upsert when --force is set and the assignment already has a name (i.e. it was previously
+	// created and the user is re-applying the same resource file). if there is no name, fall through
+	// to create, which will generate one server-side.
+	if rc.IsForced() && r.GetMetadata().GetName() != "" {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+			Assignment: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRoleAssignment,
+			rsp.GetAssignment().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -1355,7 +1389,24 @@ func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, clien
 }
 
 func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: r,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(
+		"%v %q has been updated\n",
+		scopedaccess.KindScopedRoleAssignment,
+		r.GetMetadata().GetName(),
+	)
+
+	return nil
 }
 
 func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2371,8 +2422,15 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			rc.ref.Name,
 		)
 	case scopedaccess.KindScopedRoleAssignment:
+		if rc.ref.SubKind == "" {
+			return trace.BadParameter("scoped_role_assignment requires an explicit subkind when deleting a resource, try: tctl rm scoped_role_assignment/%s/%s", scopedaccess.SubKindDynamic, rc.ref.Name)
+		}
+		if rc.ref.SubKind == scopedaccess.SubKindMaterialized {
+			return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
+		}
 		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: rc.ref.Name,
+			Name:    rc.ref.Name,
+			SubKind: rc.ref.SubKind,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2443,6 +2501,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadCluster:
+		if _, err := client.WorkloadClustersClient().DeleteWorkloadCluster(ctx, &workloadclusterv1.DeleteWorkloadClusterRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("workload_cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindInferenceModel:
 		return trace.Wrap(rc.deleteInferenceModel(ctx, client))
 	case types.KindInferenceSecret:
@@ -3832,8 +3897,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
 		if rc.ref.Name != "" {
+			if rc.ref.SubKind == "" {
+				return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", rc.ref.Name)
+			}
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-				Name: rc.ref.Name,
+				Name:    rc.ref.Name,
+				SubKind: rc.ref.SubKind,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3854,8 +3923,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if !rc.withSecrets {
+			if !rc.withSecrets && token.GetStatus().GetSecret() != "" {
 				token.GetStatus().Secret = "******"
+			}
+			// As a note, this seems to be dead code, these secrets are always empty
+			// if WithSecrets is unset, since the server will strip the value.
+			if !rc.withSecrets && token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+				token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
 			}
 			return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
 		}
@@ -3871,7 +3945,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 			if !rc.withSecrets {
 				for _, token := range res.GetTokens() {
-					token.GetStatus().Secret = "******"
+					if token.GetStatus().GetSecret() != "" {
+						token.GetStatus().Secret = "******"
+					}
+					if token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+						token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
+					}
 				}
 			}
 
@@ -3882,6 +3961,24 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &scopedTokenCollection{tokens: tokens}, nil
+	case types.KindWorkloadCluster:
+		if rc.ref.Name != "" {
+			cluster, err := client.GetWorkloadCluster(ctx, rc.ref.Name)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("workload_cluster %q not found", rc.ref.Name)
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			return &workloadClusterCollection{workloadClusters: []*workloadclusterv1.WorkloadCluster{cluster}}, nil
+		}
+
+		clusters, err := stream.Collect(clientutils.Resources(ctx, client.ListWorkloadClusters))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &workloadClusterCollection{workloadClusters: clusters}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -4438,5 +4535,37 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 		return trace.Wrap(err)
 	}
 	fmt.Printf("git server %q has been updated\n", server.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createWorkloadCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	cc, err := services.UnmarshalProtoResource[*workloadclusterv1.WorkloadCluster](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.force {
+		_, err = client.UpsertWorkloadCluster(ctx, cc)
+	} else {
+		_, err = client.CreateWorkloadCluster(ctx, cc)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("workload cluster %q has been created\n", cc.Metadata.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateWorkloadCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	cc, err := services.UnmarshalProtoResource[*workloadclusterv1.WorkloadCluster](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.UpdateWorkloadCluster(ctx, cc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("workload cluster %q has been updated\n", cc.Metadata.GetName())
 	return nil
 }

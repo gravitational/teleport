@@ -90,3 +90,37 @@ test.each([
 
   await testCase.expect();
 });
+
+test('roles list remembers it was expanded', async () => {
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(
+    makeRootCluster({
+      loggedInUser: makeLoggedInUser({ roles: ['requests-reviewer'] }),
+    })
+  );
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <IdentityContainer />
+    </MockAppContextProvider>
+  );
+
+  await toggleProfiles();
+
+  const roleItemBeforeExpand = await screen.findByText('requests-reviewer');
+  expect(roleItemBeforeExpand).not.toBeVisible();
+
+  await userEvent.click(await screen.findByText(/Roles/));
+  expect(await screen.findByText('requests-reviewer')).toBeVisible();
+
+  // Close and open again.
+  await toggleProfiles();
+  expect(screen.queryByText('requests-reviewer')).not.toBeInTheDocument();
+
+  await toggleProfiles();
+  expect(await screen.findByText('requests-reviewer')).toBeVisible();
+});
+
+async function toggleProfiles() {
+  await userEvent.click(await screen.findByTitle(/Open Profiles/));
+}

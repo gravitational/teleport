@@ -22,7 +22,7 @@ import { useToggle } from 'usehooks-ts';
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
 import { ArrowSquareOut, ChevronRight } from 'design/Icon';
 
-import { Divider } from './EnrollAws';
+import { Divider } from '../Shared';
 
 export function Prerequisites() {
   const [showPrerequisites, togglePrerequisites] = useToggle(true);

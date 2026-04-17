@@ -72,7 +72,7 @@ func TestReporter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
@@ -249,7 +249,7 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
@@ -416,7 +416,7 @@ func TestReporterSessionSummariesAccessed(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 		require.NoError(t, err)
 
 		r, err := NewReporter(ctx, ReporterConfig{
@@ -523,7 +523,7 @@ func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 		require.NoError(t, err)
 
 		r, err := NewReporter(ctx, ReporterConfig{

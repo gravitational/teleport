@@ -136,7 +136,7 @@ jobs:
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --build-tags libfido2,piv
+          args: --build-tags libfido2,piv,tpmsimulator
           skip-cache: true
       - name: golangci-lint (assets/backport)
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0

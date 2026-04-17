@@ -19,17 +19,13 @@
 import format from 'date-fns/format';
 import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
 import parseISO from 'date-fns/parseISO';
-import { ReactElement } from 'react';
 import styled, { css } from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
 import { ArrowFatLinesUp } from 'design/Icon/Icons/ArrowFatLinesUp';
-import {
-  DangerOutlined,
-  SecondaryOutlined,
-  WarningOutlined,
-} from 'design/Label/Label';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { Status, StatusKind } from 'design/Status';
+import { Tag } from 'design/Tag';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { CopyButton } from 'shared/components/CopyButton/CopyButton';
@@ -108,9 +104,9 @@ export function Instance(props: {
                 placement="top"
                 tipContent={`Hostname: ${hostname}`}
               >
-                <SecondaryOutlined borderRadius={2}>
+                <Tag>
                   <HostnameText>{hostname}</HostnameText>
-                </SecondaryOutlined>
+                </Tag>
               </HoverTooltip>
             ) : undefined}
           </Flex>
@@ -230,19 +226,19 @@ function Version(props: { version: string | undefined }) {
   const { checkCompatibility } = useClusterVersion();
   const versionCompatibility = checkCompatibility(version);
 
-  let Wrapper = SecondaryOutlined;
-  let icon: ReactElement | null = <ArrowFatLinesUp size={'small'} />;
+  let kind: StatusKind = 'neutral';
+  let showUpgradeIcon = true;
   let tooltip = 'Version is up to date';
   if (versionCompatibility?.isCompatible) {
     switch (versionCompatibility.reason) {
       case 'match':
-        icon = null;
+        showUpgradeIcon = false;
         break;
       case 'upgrade-minor':
         tooltip = 'An upgrade is available';
         break;
       case 'upgrade-major':
-        Wrapper = WarningOutlined;
+        kind = 'warning';
         tooltip =
           'Version is one major version behind. Consider upgrading soon.';
         break;
@@ -250,12 +246,12 @@ function Version(props: { version: string | undefined }) {
   } else {
     switch (versionCompatibility?.reason) {
       case 'too-old':
-        Wrapper = DangerOutlined;
+        kind = 'danger';
         tooltip =
           'Version is two or more major versions behind, and is no longer compatible.';
         break;
       case 'too-new':
-        Wrapper = DangerOutlined;
+        kind = 'danger';
         tooltip = 'Version is ahead, and is not compatible.';
         break;
     }
@@ -264,12 +260,9 @@ function Version(props: { version: string | undefined }) {
   return version ? (
     <VersionContainer>
       <HoverTooltip placement="top" tipContent={tooltip}>
-        <Wrapper borderRadius={2}>
-          <Flex gap={1}>
-            {icon}
-            <Text typography="body3">v{version}</Text>
-          </Flex>
-        </Wrapper>
+        <Status kind={kind} icon={showUpgradeIcon ? ArrowFatLinesUp : false}>
+          v{version}
+        </Status>
       </HoverTooltip>
     </VersionContainer>
   ) : undefined;

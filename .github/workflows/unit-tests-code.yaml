@@ -48,7 +48,7 @@ jobs:
 
     services:
       etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
         options: >-
           --health-interval 10s
           --health-timeout 5s
@@ -71,7 +71,7 @@ jobs:
         run: mount -t debugfs none /sys/kernel/debug/
 
       - name: Run tests
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: make -j"$(nproc)" test-go test-sh test-api
 
       - name: Upload test metrics

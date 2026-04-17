@@ -990,6 +990,23 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 	}
 }
 
+func TestUnmarshalCreateHostUserModeText(t *testing.T) {
+	for _, tc := range []struct {
+		input    string
+		expected CreateHostUserMode
+	}{
+		{input: "off", expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: "", expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED},
+		{input: "keep", expected: CreateHostUserMode_HOST_USER_MODE_KEEP},
+		{input: "insecure-drop", expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP},
+	} {
+		var got CreateHostUserMode
+		err := got.UnmarshalText([]byte(tc.input))
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
+	}
+}
+
 func TestUnmarshallCreateDatabaseUserModeJSON(t *testing.T) {
 	for _, tc := range []struct {
 		input    any
