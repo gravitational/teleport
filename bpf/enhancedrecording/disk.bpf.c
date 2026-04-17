@@ -116,6 +116,7 @@ int BPF_PROG(do_filp_open_exit, int dfd, struct filename *pathname, const struct
         goto out;
     }
 
+    // Use the resolved path from security_file_open if possible.
     if (info && info->valid) {
         bpf_probe_read_kernel_str(data->file_path, sizeof(data->file_path), info->file_path);
     } else {
@@ -123,17 +124,12 @@ int BPF_PROG(do_filp_open_exit, int dfd, struct filename *pathname, const struct
         bpf_probe_read_kernel_str(data->file_path, sizeof(data->file_path), name);
     }
 
-    // Use the open flags if possible which may be different than what
-    // the user specified.
-    bool is_err = (unsigned long)ret >= (unsigned long)-MAX_ERRNO;
-    if (is_err) {
-        data->flags = BPF_CORE_READ(ret, f_flags);
-    } else {
-        data->flags = BPF_CORE_READ(op, open_flag);
-    }
+    data->flags = BPF_CORE_READ(op, open_flag);
+
     // If the return is a pointer to a file, the open succeeded and the
     // return code is 0. Otherwise the open failed and the return code
     // is the negative errno.
+    bool is_err = (unsigned long)ret >= (unsigned long)-MAX_ERRNO;
     data->return_code = is_err ? (long)ret : 0;
 
     print_disk_event(task, (char *)data->file_path, data->return_code);
