@@ -48,6 +48,11 @@ type OutputConfig struct {
 	// be configured with specific paths to use, but exists for compatibility.
 	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
 
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
@@ -69,6 +74,9 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if o.AppName == "" {
 		return trace.BadParameter("app_name must not be empty")
+	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
 	}
 
 	return nil
