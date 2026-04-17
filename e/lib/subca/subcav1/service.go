@@ -153,14 +153,11 @@ func (s *Service) CreateCSR(
 	ctx context.Context,
 	req *subcav1.CreateCSRRequest,
 ) (*subcav1.CreateCSRResponse, error) {
-	if req.CaType == "" {
+	switch {
+	case req.CaType == "":
 		return nil, trace.BadParameter("ca_type required")
-	}
-	if req.PublicKeyHash != nil {
-		return nil, trace.BadParameter("public_key_hash not implemented")
-	}
-	if req.CustomSubject != nil {
-		return nil, trace.BadParameter("custom_subject not implemented")
+	case req.PublicKeyHash != nil && req.PublicKeyHash.Value == "":
+		return nil, trace.BadParameter("public_key_hash invalid: %q", req.PublicKeyHash)
 	}
 	if err := s.authorizeCAOverride(
 		ctx, adminActionNotNeeded, types.VerbList, types.VerbRead); err != nil {
@@ -173,6 +170,20 @@ func (s *Service) CreateCSR(
 		return nil, trace.Wrap(err, "read cluster name")
 	}
 
+	// Parse custom Subject.
+	customSubject, err := convertDistinguishedNameProto(req.CustomSubject)
+	if err != nil {
+		return nil, trace.Wrap(err, "custom subject")
+	}
+	// Assign ClusterName to custom Subject.
+	if customSubject != nil {
+		var err error
+		customSubject.Names, err = assignClusterNameToATVs(customSubject.Names, cn.GetClusterName())
+		if err != nil {
+			return nil, trace.Wrap(err, "assign cluster name to custom subject")
+		}
+	}
+
 	// Read CA.
 	ca, err := s.cachedTrust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.CertAuthType(req.CaType),
@@ -183,13 +194,14 @@ func (s *Service) CreateCSR(
 	}
 
 	// Prepare CA signers, as many as possible for this Auth instance.
-	candidateSigners, err := s.getCandidateCSRSigners(ctx, ca)
+	candidateSigners, err := s.getCandidateCSRSigners(ctx, ca, req.PublicKeyHash.GetValue())
 	if err != nil {
 		return nil, trace.Wrap(err, "prepare signers")
 	}
-	if len(candidateSigners) == 0 {
-		return nil, trace.BadParameter(
-			"cannot create CSRs for certificate authority, Auth lacks access to private keys")
+	if customSubject != nil && len(candidateSigners) > 1 {
+		return nil, trace.BadParameter("" +
+			"requests with a custom subject cannot match more than one certificate, " +
+			"use public key hash to match a single certificate")
 	}
 
 	resp := &subcav1.CreateCSRResponse{
@@ -199,12 +211,15 @@ func (s *Service) CreateCSR(
 		signer := candidateSigner.Signer
 		cert := candidateSigner.Cert
 
-		// Construct Subject from the matching CA certificate.
-		subj := pkix.Name{
-			ExtraNames: cert.Subject.Names,
+		// Subject.
+		var subj pkix.Name
+		if customSubject != nil {
+			subj.ExtraNames = customSubject.Names
+		} else {
+			subj.ExtraNames = cert.Subject.Names
+			// Remove serial number (OID 2.5.4.5).
+			subj.ExtraNames = removeOID(subj.ExtraNames, []int{2, 5, 4, 5})
 		}
-		// Remove serial number (OID 2.5.4.5).
-		subj.ExtraNames = removeOID(subj.ExtraNames, []int{2, 5, 4, 5})
 
 		// Create CSR.
 		certReq := &x509.CertificateRequest{
@@ -236,6 +251,7 @@ type candidateCSRSigner struct {
 func (s *Service) getCandidateCSRSigners(
 	ctx context.Context,
 	ca types.CertAuthority,
+	publicKeyHash string,
 ) ([]*candidateCSRSigner, error) {
 	activeTLS := ca.GetActiveKeys().TLS
 	additionalTLS := ca.GetAdditionalTrustedKeys().TLS
@@ -246,7 +262,14 @@ func (s *Service) getCandidateCSRSigners(
 			"certificate authority has no active or additional keys")
 	}
 
-	resp := make([]*candidateCSRSigner, 0, lenAllKeys)
+	pkhPresent := publicKeyHash != ""
+	var pkhMatched bool
+
+	respLen := lenAllKeys
+	if pkhPresent {
+		respLen = 1
+	}
+	resp := make([]*candidateCSRSigner, 0, respLen)
 
 	// Attempt to create as many signers/CSRs as we can, from both active and
 	// additional key sets.
@@ -256,9 +279,24 @@ func (s *Service) getCandidateCSRSigners(
 	} {
 		isActive := i == 0
 		for j, kp := range kps {
+			cert, err := tlsutils.ParseCertificatePEM(kp.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err, "parse CA certificate (is_active=%v, index=%d)", isActive, j)
+			}
+			// Apply publicKeyHash filter.
+			if pkhPresent && publicKeyHash != subca.HashCertificatePublicKey(cert) {
+				continue
+			}
+			pkhMatched = pkhPresent
+
 			signer, err := s.keystoreManager.TLSSigner(ctx, kp)
 			switch {
 			case errors.Is(err, keystore.ErrUnusableKey):
+				// Hard fail if we are matching by PKH. This is the key the caller
+				// wants, but this Auth can't do it.
+				if pkhPresent {
+					return nil, trace.Wrap(err, "create signer")
+				}
 				s.logger.DebugContext(ctx,
 					"Skipping unusable keypair during CSR generation",
 					"is_active", isActive,
@@ -269,10 +307,7 @@ func (s *Service) getCandidateCSRSigners(
 				return nil, trace.Wrap(err, "create signer (is_active=%v, index=%d)", isActive, j)
 			}
 
-			cert, err := tlsutils.ParseCertificatePEM(kp.Cert)
-			if err != nil {
-				return nil, trace.Wrap(err, "parse CA certificate (is_active=%v, index=%d)", isActive, j)
-			}
+			// TODO(codingllama): Notify user of keys that could not be used?
 
 			resp = append(resp, &candidateCSRSigner{
 				Signer: signer,
@@ -281,7 +316,13 @@ func (s *Service) getCandidateCSRSigners(
 		}
 	}
 
-	// TODO(codingllama): Notify user of keys that could not be used?
+	switch {
+	case pkhPresent && !pkhMatched:
+		return nil, trace.BadParameter("public_key_hash %q matches no CA certificates", publicKeyHash)
+	case len(resp) == 0:
+		return nil, trace.BadParameter(
+			"cannot create CSRs for certificate authority, Auth lacks access to private keys")
+	}
 
 	return resp, nil
 }

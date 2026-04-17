@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tlscatest"
@@ -269,13 +270,13 @@ func TestService_CreateCSR(t *testing.T) {
 
 	// Fetch CA1 certificate for comparison with CSRs.
 	const loadKeys = false
-	ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+	ca1, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       caType1,
 		DomainName: env.ClusterName,
 	}, loadKeys)
 	require.NoError(t, err)
-	require.Len(t, ca.GetActiveKeys().TLS, 1, "CA has an unexpected number of active keys")
-	ca1Cert, err := tlsutils.ParseCertificatePEM(ca.GetActiveKeys().TLS[0].Cert)
+	require.Len(t, ca1.GetActiveKeys().TLS, 1, "CA has an unexpected number of active keys")
+	ca1Cert, err := tlsutils.ParseCertificatePEM(ca1.GetActiveKeys().TLS[0].Cert)
 	require.NoError(t, err)
 
 	// Prepare CA2 with multiple keys, including keys that can't be parsed.
@@ -299,6 +300,31 @@ func TestService_CreateCSR(t *testing.T) {
 	ca2Cert3 := parsedCA2.AdditionalKeys[0]
 	ca2Cert4 := parsedCA2.AdditionalKeys[1]
 
+	// Custom subject objects.
+	var (
+		customSubjectO  = "Llama Corp"
+		customSubjectOU = "Llama CA"
+		customSubjectCN = "Llama Teleport CA"
+	)
+	// We compare subjects using Names/OIDs. The types are slightly different
+	// between pkix and proto types, so it's duped here.
+	wantCustomSubject := pkix.Name{
+		Names: []pkix.AttributeTypeAndValue{
+			{Type: []int{2, 5, 4, 10}, Value: customSubjectO},
+			{Type: []int{2, 5, 4, 11}, Value: customSubjectOU},
+			{Type: []int{2, 5, 4, 3}, Value: customSubjectCN},
+			{Type: tlsca.CAClusterNameExtensionOID, Value: env.ClusterName},
+		},
+	}
+	customDN := &subcapb.DistinguishedName{
+		Names: []*subcapb.AttributeTypeAndValue{
+			{Oid: []int32{2, 5, 4, 10}, Value: &customSubjectO},
+			{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU},
+			{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN},
+		},
+	}
+
+	//
 	tests := []struct {
 		name     string
 		req      *subcapb.CreateCSRRequest
@@ -311,7 +337,7 @@ func TestService_CreateCSR(t *testing.T) {
 			},
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
-					newExpectedCSR(ca1Cert),
+					newExpectedCSR(ca1Cert, nil),
 				}
 			},
 		},
@@ -322,10 +348,65 @@ func TestService_CreateCSR(t *testing.T) {
 			},
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
-					newExpectedCSR(ca2Cert1),
-					newExpectedCSR(ca2Cert2),
-					newExpectedCSR(ca2Cert3),
-					newExpectedCSR(ca2Cert4),
+					newExpectedCSR(ca2Cert1, nil),
+					newExpectedCSR(ca2Cert2, nil),
+					newExpectedCSR(ca2Cert3, nil),
+					newExpectedCSR(ca2Cert4, nil),
+				}
+			},
+		},
+		{
+			name: "public_key_hash active cert",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: subca.HashCertificatePublicKey(ca2Cert2),
+				},
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert2, nil),
+				}
+			},
+		},
+		{
+			name: "public_key_hash additional cert",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: subca.HashCertificatePublicKey(ca2Cert3),
+				},
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert3, nil),
+				}
+			},
+		},
+		{
+			name: "custom subject targets single cert",
+			req: &subcapb.CreateCSRRequest{
+				CaType:        string(caType1), // only one active cert.
+				CustomSubject: customDN,
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca1Cert, &wantCustomSubject),
+				}
+			},
+		},
+		{
+			name: "custom subject and public_key_hash",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: subca.HashCertificatePublicKey(ca2Cert3),
+				},
+				CustomSubject: customDN,
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert3, &wantCustomSubject),
 				}
 			},
 		},
@@ -482,13 +563,17 @@ func csrSubjectFromCACert(caCert *x509.Certificate) pkix.Name {
 	return subj
 }
 
-func newExpectedCSR(caCert *x509.Certificate) *x509.CertificateRequest {
+func newExpectedCSR(caCert *x509.Certificate, subj *pkix.Name) *x509.CertificateRequest {
+	if subj == nil {
+		s := csrSubjectFromCACert(caCert)
+		subj = &s
+	}
 	return &x509.CertificateRequest{
 		RawSubjectPublicKeyInfo: caCert.RawSubjectPublicKeyInfo,
 		SignatureAlgorithm:      caCert.SignatureAlgorithm,
 		PublicKeyAlgorithm:      caCert.PublicKeyAlgorithm,
 		PublicKey:               caCert.PublicKey,
-		Subject:                 csrSubjectFromCACert(caCert),
+		Subject:                 *subj,
 	}
 }
 func normalizeCSRForCompare(csr *x509.CertificateRequest) {
@@ -512,6 +597,18 @@ func TestService_CreateCSR_errors(t *testing.T) {
 	})
 	subCA := env.SubCAClient
 
+	// Add multiple active keys so a custom subject always needs a target.
+	addKeysToCA(t, env, addKeysToCAParams{
+		CAType:        validCAType,
+		NewActiveKeys: 1, // total 2
+	})
+
+	customCN := "Llama CA"
+	validATV := &subcapb.AttributeTypeAndValue{
+		Oid:   []int32{2, 5, 4, 3},
+		Value: &customCN,
+	}
+
 	tests := []struct {
 		name    string
 		req     *subcapb.CreateCSRRequest
@@ -530,32 +627,80 @@ func TestService_CreateCSR_errors(t *testing.T) {
 			wantErr: "authority type is not supported",
 		},
 		{
-			name: "public_key_hash not implemented",
+			name: "public_key_hash empty",
 			req: &subcapb.CreateCSRRequest{
 				CaType: string(validCAType),
 				PublicKeyHash: &subcapb.PublicKeyHash{
-					Value: "f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc",
+					Value: "", // invalid
 				},
 			},
-			wantErr: "not implemented",
+			wantErr: "public_key_hash",
 		},
 		{
-			name: "custom_subject not implemented",
+			name: "public_key_hash not found",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(validCAType),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: "0000000000000000000000000000000000000000000000000000000000000000",
+				},
+			},
+			wantErr: "matches no CA certificate",
+		},
+		{
+			name: "custom_subject invalid",
+			req: &subcapb.CreateCSRRequest{
+				CaType:        string(validCAType),
+				CustomSubject: &subcapb.DistinguishedName{},
+			},
+			wantErr: "empty distinguished name",
+		},
+		{
+			name: "custom_subject invalid: nil ATV",
 			req: &subcapb.CreateCSRRequest{
 				CaType: string(validCAType),
 				CustomSubject: &subcapb.DistinguishedName{
 					Names: []*subcapb.AttributeTypeAndValue{
-						{
-							Oid: []int32{2, 5, 4, 3}, // CN
-							Value: func() *string {
-								x := "Llama CA"
-								return &x
-							}(),
-						},
+						nil,
 					},
 				},
 			},
-			wantErr: "not implemented",
+			wantErr: "empty OID",
+		},
+		{
+			name: "custom_subject invalid: empty ATV.Oid",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(validCAType),
+				CustomSubject: &subcapb.DistinguishedName{
+					Names: []*subcapb.AttributeTypeAndValue{
+						{Value: validATV.Value},
+					},
+				},
+			},
+			wantErr: "empty OID",
+		},
+		{
+			name: "custom_subject invalid: nil ATV.Value",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(validCAType),
+				CustomSubject: &subcapb.DistinguishedName{
+					Names: []*subcapb.AttributeTypeAndValue{
+						{Oid: validATV.Oid},
+					},
+				},
+			},
+			wantErr: "empty Value",
+		},
+		{
+			name: "custom_subject targets multiple certificates",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(validCAType),
+				CustomSubject: &subcapb.DistinguishedName{
+					Names: []*subcapb.AttributeTypeAndValue{
+						validATV,
+					},
+				},
+			},
+			wantErr: "cannot match more than one certificate",
 		},
 	}
 	for _, test := range tests {
