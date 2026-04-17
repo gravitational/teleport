@@ -43,7 +43,7 @@ func TestCheckReturnsContextCancellation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	ready, err := checker.check(ctx)
@@ -65,7 +65,7 @@ func TestCheckTimeoutReturnsNotReady(t *testing.T) {
 		},
 	}
 
-	ready, err := checker.check(context.Background())
+	ready, err := checker.check(t.Context())
 	require.NoError(t, err)
 	require.False(t, ready)
 }
@@ -81,7 +81,7 @@ func TestCheckRetriesOnConnectionError(t *testing.T) {
 		},
 	}
 
-	ready, err := checker.check(context.Background())
+	ready, err := checker.check(t.Context())
 	require.NoError(t, err)
 	require.False(t, ready)
 }
@@ -97,7 +97,7 @@ func TestCheckReturnsReady(t *testing.T) {
 		},
 	}
 
-	ready, err := checker.check(context.Background())
+	ready, err := checker.check(t.Context())
 	require.NoError(t, err)
 	require.True(t, ready)
 }
