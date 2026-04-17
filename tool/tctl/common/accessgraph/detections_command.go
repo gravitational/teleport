@@ -27,15 +27,17 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	accessgraph "github.com/gravitational/access-graph/api/client"
+	logmodels "github.com/gravitational/access-graph/api/client/models/logs"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/google/uuid"
 )
 
 type detectionsArgs struct {
 	cmd *kingpin.CmdClause
 	ls  detectionsListArgs
+	get detectionsGetArgs
 
 	// Date filters
 	from time.Time
@@ -55,21 +57,25 @@ type detectionsListArgs struct {
 	severity []string
 }
 
+type detectionsGetArgs struct {
+	cmd *kingpin.CmdClause
+	id  string
+}
+
 func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
 	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.").Hidden()
-
-	detectionsCmd.Flag("from", fmt.Sprintf("Filter requests created at or after this time. (Examples: %s, 24h, 7d, Default: 30d)", time.RFC3339)).
-		Default("30d").
-		SetValue(timeValue{target: &c.detections.from})
-	detectionsCmd.Flag("to", fmt.Sprintf("Filter requests created at or before this time. (Examples: %s, 24h, 7d, Default: now)", time.RFC3339)).
-		Default(time.Now().Format(time.RFC3339)).
-		SetValue(timeValue{target: &c.detections.to})
-	detectionsCmd.Flag("format", "Output format: text, json, yaml.").
-		Default(teleport.Text).
-		EnumVar(&c.detections.format, teleport.Text, teleport.JSON, teleport.YAML)
+	registerTimeRangeFlags(detectionsCmd, &c.detections.from, &c.detections.to, "30d")
+	registerFormatFlag(detectionsCmd, &c.detections.format, teleport.Text)
 	c.detections.cmd = detectionsCmd
 
 	c.initDetectionsList(c.detections.cmd)
+	c.initDetectionsGet(c.detections.cmd)
+}
+
+func (c *AccessGraphCommand) initDetectionsGet(parent *kingpin.CmdClause) {
+	getCmd := parent.Command("get", "Get details for a specific detection.")
+	getCmd.Arg("id", "The detection ID to retrieve.").Required().StringVar(&c.detections.get.id)
+	c.detections.get.cmd = getCmd
 }
 
 func (c *AccessGraphCommand) initDetectionsList(parent *kingpin.CmdClause) {
@@ -106,19 +112,123 @@ func (c *AccessGraphCommand) DetectionsList(ctx context.Context, args accessGrap
 	return displayDetections(c.stdout, resp.JSON200.Data, c.detections.format)
 }
 
+// DetectionGetOutput is the response payload for `detections get`. Events are
+// fetched for the alert's log entries so JSON/YAML callers don't get stuck
+// with bare UUIDs.
+type DetectionGetOutput struct {
+	Alert  accessgraph.SecurityAlert                  `json:"alert" yaml:"alert"`
+	Events []logmodels.AccessgraphStorageV1alphaEvent `json:"events" yaml:"events"`
+}
+
+// DetectionsGet executes `tctl detections get <id>`.
+func (c *AccessGraphCommand) DetectionsGet(ctx context.Context, args accessGraphServices) error {
+	id, err := uuid.Parse(c.detections.get.id)
+	if err != nil {
+		return trace.BadParameter("invalid detection id %q: %v", c.detections.get.id, err)
+	}
+	resp, err := doRequest(args.accessGraph.GetAlertV1WithResponse(ctx, id))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	alert := resp.JSON200.Data
+
+	events, err := fetchAlertEvents(ctx, args, alert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	out := DetectionGetOutput{Alert: alert, Events: events}
+	return writeOutput(c.stdout, out, c.detections.format, func(w io.Writer) error {
+		return displayDetectionText(w, alert, events)
+	})
+}
+
+// fetchAlertEvents queries the logs referenced by the alert's LogEntries. Uses
+// the alert's own period as the time window and returns an empty slice when
+// there are no referenced entries.
+func fetchAlertEvents(ctx context.Context, args accessGraphServices, a accessgraph.SecurityAlert) ([]logmodels.AccessgraphStorageV1alphaEvent, error) {
+	if a.LogEntries == nil || len(*a.LogEntries) == 0 {
+		return nil, nil
+	}
+	query := dslClause("uuid", quoteAll(*a.LogEntries))
+	order := accessgraph.Asc
+	return fetchAllLogs(ctx, args.accessGraph, accessgraph.ExecuteLogsQueryV1Params{
+		Query:     &query,
+		StartTime: &a.StartTime,
+		EndTime:   &a.EndTime,
+		Order:     &order,
+	})
+}
+
+func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []logmodels.AccessgraphStorageV1alphaEvent) error {
+	fmt.Fprintf(out, "ID:         %s\n", a.Id.String())
+	fmt.Fprintf(out, "Title:      %s\n", a.Title)
+	fmt.Fprintf(out, "Type:       %s\n", a.Type)
+	fmt.Fprintf(out, "Severity:   %s\n", a.Severity)
+	fmt.Fprintf(out, "Status:     %s\n", a.Status)
+	fmt.Fprintf(out, "Source:     %s\n", a.Source)
+	if a.ReportedBy != nil {
+		fmt.Fprintf(out, "Reported:   %s\n", *a.ReportedBy)
+	}
+	fmt.Fprintf(out, "Period:     %s → %s\n", a.StartTime.Format(time.RFC3339), a.EndTime.Format(time.RFC3339))
+	fmt.Fprintf(out, "Created:    %s\n", a.CreatedAt.Format(time.RFC3339))
+	if a.UpdatedAt != nil {
+		fmt.Fprintf(out, "Updated:    %s\n", a.UpdatedAt.Format(time.RFC3339))
+	}
+	if a.AffectedEntity != nil {
+		name, entType := "", ""
+		if a.AffectedEntity.Name != nil {
+			name = *a.AffectedEntity.Name
+		}
+		if a.AffectedEntity.Type != nil {
+			entType = *a.AffectedEntity.Type
+		}
+		fmt.Fprintf(out, "Affected:   %s [%s]\n", name, entType)
+	}
+	if a.Tags != nil && len(*a.Tags) > 0 {
+		fmt.Fprintf(out, "Tags:       %s\n", strings.Join(*a.Tags, ", "))
+	}
+	if a.Description != nil && *a.Description != "" {
+		fmt.Fprintf(out, "\nDescription:\n%s\n", *a.Description)
+	}
+	if a.MitigationSteps != nil && len(*a.MitigationSteps) > 0 {
+		fmt.Fprintln(out, "\nMitigation Steps:")
+		for _, step := range *a.MitigationSteps {
+			fmt.Fprintf(out, "  • %s\n", step)
+		}
+	}
+	if len(events) > 0 || (a.LogEntries != nil && len(*a.LogEntries) > 0) {
+		fmt.Fprintln(out, "\nLog Entries:")
+		if err := displayEventsText(out, events); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if len(a.StatusChangeLogs) > 0 {
+		fmt.Fprintln(out, "\nStatus Changes:")
+		changes := asciitable.MakeTable([]string{"Time", "Status", "User", "Reason"})
+		for _, log := range a.StatusChangeLogs {
+			reason := ""
+			if log.Reason != nil {
+				reason = *log.Reason
+			}
+			changes.AddRow([]string{log.CreatedAt.Format(time.RFC3339), string(log.Status), log.User, reason})
+		}
+		fmt.Fprintln(out, changes.AsBuffer().String())
+	}
+	return nil
+}
+
 func constructAlertsListQuery(args detectionsArgs) accessgraph.ListAlertsV1Params {
-	queryParts := []string{}
-	if len(args.ls.status) > 0 {
-		queryParts = append(queryParts, fmt.Sprintf("status:(%s)", strings.Join(args.ls.status, " OR ")))
-	}
-	if len(args.ls.source) > 0 {
-		queryParts = append(queryParts, fmt.Sprintf("source:(%s)", strings.Join(args.ls.source, " OR ")))
-	}
-	if len(args.ls.typ) > 0 {
-		queryParts = append(queryParts, fmt.Sprintf("type:(%s)", strings.Join(args.ls.typ, " OR ")))
-	}
-	if len(args.ls.severity) > 0 {
-		queryParts = append(queryParts, fmt.Sprintf("severity:(%s)", strings.Join(args.ls.severity, " OR ")))
+	var queryParts []string
+	for field, values := range map[string][]string{
+		"status":   args.ls.status,
+		"source":   args.ls.source,
+		"type":     args.ls.typ,
+		"severity": args.ls.severity,
+	} {
+		if clause := dslClause(field, quoteAll(values)); clause != "" {
+			queryParts = append(queryParts, clause)
+		}
 	}
 	query := strings.Join(queryParts, " AND ")
 	return accessgraph.ListAlertsV1Params{
@@ -129,14 +239,12 @@ func constructAlertsListQuery(args detectionsArgs) accessgraph.ListAlertsV1Param
 }
 
 func displayDetections(out io.Writer, alerts []accessgraph.SecurityAlert, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(out, alerts))
-	case teleport.Text:
-		return trace.Wrap(displayDetectionsText(out, alerts))
-	default:
-		return trace.Wrap(utils.WriteYAML(out, alerts))
+	if alerts == nil {
+		alerts = []accessgraph.SecurityAlert{}
 	}
+	return writeOutput(out, alerts, format, func(w io.Writer) error {
+		return displayDetectionsText(w, alerts)
+	})
 }
 
 func displayDetectionsText(out io.Writer, alerts []accessgraph.SecurityAlert) error {

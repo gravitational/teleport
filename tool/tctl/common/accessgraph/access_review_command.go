@@ -31,9 +31,7 @@ import (
 	accessgraph "github.com/gravitational/access-graph/api/client"
 	models "github.com/gravitational/access-graph/api/client/models/graph"
 	logmodels "github.com/gravitational/access-graph/api/client/models/logs"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	utilslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
 	"github.com/oapi-codegen/runtime/types"
@@ -60,13 +58,7 @@ type accessReviewRoleArgs struct {
 // initAccessReview registers `tctl access review` and its subcommands.
 func (c *AccessGraphCommand) initAccessReview(parent *kingpin.CmdClause) {
 	reviewCmd := parent.Command("review", "Review which users accessed a resource, ACL, or role over a given period.")
-
-	reviewCmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, 24h, 7d, Default: 30d)", time.RFC3339)).
-		Default("30d").
-		SetValue(timeValue{target: &c.access.review.from})
-	reviewCmd.Flag("to", fmt.Sprintf("Include activity at or before this time. (Examples: %s, 24h, 7d, Default: now)", time.RFC3339)).
-		Default(time.Now().Format(time.RFC3339)).
-		SetValue(timeValue{target: &c.access.review.to})
+	registerTimeRangeFlags(reviewCmd, &c.access.review.from, &c.access.review.to, "30d")
 	reviewCmd.Flag("unused", "Show only users who had no access in the given period.").
 		BoolVar(&c.access.review.unused)
 	reviewCmd.Flag("detailed", "Show per-resource access breakdown for each user.").
@@ -349,7 +341,12 @@ func (c *AccessGraphCommand) runReview(
 		"identities", len(identities),
 	)
 	if len(identities) == 0 {
-		fmt.Fprintf(c.stdout, "No identities have standing access to any resource.\n")
+		switch subjectType {
+		case "resource":
+			fmt.Fprintln(c.stdout, "No identities have standing access to this resource.")
+		default:
+			fmt.Fprintf(c.stdout, "The %s grants access to %d resource(s) but has no standing members.\n", subjectType, len(resourceNodes))
+		}
 		return nil
 	}
 
@@ -475,97 +472,45 @@ func fetchResourceActivity(
 	query := buildSessionActivityQuery(identities, resources)
 	slog.DebugContext(ctx, "logs query", "query", query)
 	order := accessgraph.Desc
-
-	var (
-		all      []logmodels.AccessgraphStorageV1alphaEvent
-		cursor   *string
-		pages    int
-		rawTotal int
-	)
-	for {
-		params := accessgraph.ExecuteLogsQueryV1Params{
-			Query:     &query,
-			StartTime: &from,
-			EndTime:   &to,
-			Order:     &order,
-			Iterator:  cursor,
-		}
-		resp, err := doRequest(args.accessGraph.ExecuteLogsQueryV1WithResponse(ctx, &params))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		pages++
-		rawTotal += len(resp.JSON200.Data)
-		slog.DebugContext(ctx, "logs page fetched",
-			"page", pages,
-			"page_size", len(resp.JSON200.Data),
-		)
-		all = append(all, resp.JSON200.Data...)
-		if resp.JSON200.NextCursor == nil {
-			break
-		}
-		cursor = resp.JSON200.NextCursor
-	}
-	slog.DebugContext(ctx, "logs fetch complete",
-		"pages", pages,
-		"raw_events", rawTotal,
-		"matched_events", len(all),
-	)
-	return all, nil
+	return fetchAllLogs(ctx, args.accessGraph, accessgraph.ExecuteLogsQueryV1Params{
+		Query:     &query,
+		StartTime: &from,
+		EndTime:   &to,
+		Order:     &order,
+	})
 }
 
 // buildSessionActivityQuery builds a logs DSL query that matches session-start
 // events for the given identities and resources. Resource names and event types
 // are OR'd so a single query covers all provided resources.
 func buildSessionActivityQuery(identities []*models.Node, resources []*models.Node) string {
-	// Quote each name so special characters (e.g. "@" in bot names) are treated
-	// as literals rather than DSL tokens.
-	quotedNames := utilslices.Map(identities, func(id *models.Node) string {
-		return fmt.Sprintf("%q", id.Name)
-	})
-	var identityClause string
-	if len(quotedNames) == 1 {
-		identityClause = fmt.Sprintf("identity_id:%s", quotedNames[0])
-	} else {
-		identityClause = fmt.Sprintf("identity_id:(%s)", strings.Join(quotedNames, " OR "))
-	}
-
+	identityNames := utilslices.Map(identities, func(id *models.Node) string { return id.Name })
 	// Use alias when available as it's the human-readable identifier in events.
-	quotedResourceNames := make([]string, 0, len(resources))
-	for _, r := range resources {
-		name := r.Name
+	resourceNames := utilslices.Map(resources, func(r *models.Node) string {
 		if props, err := r.Properties.AsResourceProperties(); err == nil && props.Alias != nil && *props.Alias != "" {
-			name = *props.Alias
+			return *props.Alias
 		}
-		quotedResourceNames = append(quotedResourceNames, fmt.Sprintf("%q", name))
-	}
-	var resourceClause string
-	if len(quotedResourceNames) == 1 {
-		resourceClause = fmt.Sprintf("resource:%s", quotedResourceNames[0])
-	} else {
-		resourceClause = fmt.Sprintf("resource:(%s)", strings.Join(quotedResourceNames, " OR "))
-	}
+		return r.Name
+	})
 
-	// Collect event types as the union across all resource sub-kinds.
+	// Union of event types across all resource sub-kinds.
 	eventTypeSet := make(map[string]struct{})
 	for _, r := range resources {
 		for _, et := range sessionEventTypesForSubKind(r.SubKind) {
 			eventTypeSet[et] = struct{}{}
 		}
 	}
-	quotedEventTypes := make([]string, 0, len(eventTypeSet))
+	eventTypes := make([]string, 0, len(eventTypeSet))
 	for et := range eventTypeSet {
-		quotedEventTypes = append(quotedEventTypes, fmt.Sprintf("%q", et))
+		eventTypes = append(eventTypes, et)
 	}
-	slices.Sort(quotedEventTypes)
-	var eventTypeClause string
-	if len(quotedEventTypes) == 1 {
-		eventTypeClause = fmt.Sprintf("event_type:%s", quotedEventTypes[0])
-	} else {
-		eventTypeClause = fmt.Sprintf("event_type:(%s)", strings.Join(quotedEventTypes, " OR "))
-	}
+	slices.Sort(eventTypes)
 
-	return fmt.Sprintf("%s AND (%s AND %s)", identityClause, resourceClause, eventTypeClause)
+	return fmt.Sprintf("%s AND (%s AND %s)",
+		dslClause("identity_id", quoteAll(identityNames)),
+		dslClause("resource", quoteAll(resourceNames)),
+		dslClause("event_type", quoteAll(eventTypes)),
+	)
 }
 
 // sessionEventTypesForSubKind returns the access-graph logs event_type values
@@ -772,14 +717,9 @@ func compareByLastAccessEntry(a, b *time.Time) int {
 // --- display ----------------------------------------------------------------
 
 func displayReviewOutput(out io.Writer, output ReviewOutput, from, to time.Time, detailed bool, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(out, output))
-	case teleport.Text:
-		return trace.Wrap(displayReviewText(out, output, from, to, detailed))
-	default:
-		return trace.Wrap(utils.WriteYAML(out, output))
-	}
+	return writeOutput(out, output, format, func(w io.Writer) error {
+		return displayReviewText(w, output, from, to, detailed)
+	})
 }
 
 func displayReviewText(out io.Writer, output ReviewOutput, from, to time.Time, detailed bool) error {

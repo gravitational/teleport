@@ -29,23 +29,16 @@ import (
 	models "github.com/gravitational/access-graph/api/client/models/graph"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
 type accessArgs struct {
 	cmd    *kingpin.CmdClause
-	whoCan accessWhoCanArgs
 	query  accessQueryArgs
 	review accessReviewArgs
 
 	// Output format
 	format string
-}
-
-type accessWhoCanArgs struct {
-	cmd      *kingpin.CmdClause
-	resource string
 }
 
 type accessQueryArgs struct {
@@ -69,18 +62,11 @@ type accessReviewArgs struct {
 
 func (c *AccessGraphCommand) initAccess(app *kingpin.Application) {
 	accessCmd := app.Command("access", "Analyze who has access to what.").Hidden()
-
-	accessCmd.Flag("format", "Output format (text, json, yaml)").Default(teleport.YAML).EnumVar(&c.access.format, teleport.Text, teleport.JSON, teleport.YAML)
-
+	registerFormatFlag(accessCmd, &c.access.format, teleport.YAML)
 	c.access.cmd = accessCmd
-	c.initAccessWhoCan(c.access.cmd)
+
 	c.initAccessQuery(c.access.cmd)
 	c.initAccessReview(c.access.cmd)
-}
-
-func (c *AccessGraphCommand) initAccessWhoCan(parent *kingpin.CmdClause) {
-	c.access.whoCan.cmd = parent.Command("who-can", "Show which identities have access to a resource.")
-	c.access.whoCan.cmd.Arg("resource", "The resource to inspect.").Required().StringVar(&c.access.whoCan.resource)
 }
 
 func (c *AccessGraphCommand) initAccessQuery(parent *kingpin.CmdClause) {
@@ -88,146 +74,44 @@ func (c *AccessGraphCommand) initAccessQuery(parent *kingpin.CmdClause) {
 	c.access.query.cmd.Arg("query", "The query to execute.").Required().StringVar(&c.access.query.query)
 }
 
-// AccessWhoCan executes `tctl access who-can`, which tells you who has standing access to a given resource
-func (c *AccessGraphCommand) AccessWhoCan(ctx context.Context, args accessGraphServices) error {
-	search := c.access.whoCan.resource
-	resourceQuery := fmt.Sprintf("SELECT * from nodes WHERE (name ILIKE '%%%s%%' OR properties->>'alias' ILIKE '%%%s%%')", search, search)
-	resourceRsp, err := doRequest(args.accessGraph.ExecuteQueryV1WithResponse(ctx, &accessgraph.ExecuteQueryV1Params{
-		Query: resourceQuery,
-	}))
-
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if resourceRsp.JSON200 == nil || resourceRsp.JSON200.Nodes == nil || len(*resourceRsp.JSON200.Nodes) == 0 {
-		return trace.NotFound("resource %q not found in access graph", c.access.whoCan.resource)
-	}
-
-	if len(*resourceRsp.JSON200.Nodes) > 1 {
-		fmt.Fprintln(c.stdout, "Multiple resources found matching query:")
-		resources := make([]*models.Node, 0)
-		for _, resource := range *resourceRsp.JSON200.Nodes {
-			resources = append(resources, &resource)
-		}
-		err := displayResources(c.stdout, resources, c.access.format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.BadParameter("multiple resources found matching %q, please refine your query", c.access.whoCan.resource)
-	}
-
-	resource := (*resourceRsp.JSON200.Nodes)[0]
-	query := fmt.Sprintf("SELECT * from access_path WHERE id = '%s'", resource.Id)
-
-	resp, err := doRequest(args.accessGraph.ExecuteQueryV1WithResponse(ctx, &accessgraph.ExecuteQueryV1Params{
-		Query: query,
-	}))
-
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	graph := newTraversalGraph(resp.JSON200.Nodes, resp.JSON200.Edges)
-	identitiesWithAccess := graph.GetIdentityNodesWithAccess(
-		resource,
-	)
-	return displayWhoCanResult(c.stdout, identitiesWithAccess, c.access.format)
-}
-
-// AccessQuery executes `tctl access query`, which allows you to run a custom query against the Access Graph and return
-// the resource nodes
+// AccessQuery executes `tctl access query`, running a custom query against the
+// Access Graph and returning every matched node. Resource nodes are listed
+// first so that the most actionable results are visible at the top.
 func (c *AccessGraphCommand) AccessQuery(ctx context.Context, args accessGraphServices) error {
 	resp, err := doRequest(args.accessGraph.ExecuteQueryV1WithResponse(ctx, &accessgraph.ExecuteQueryV1Params{
 		Query: c.access.query.query,
 	}))
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	resources := make([]*models.Node, 0)
-	for _, node := range *resp.JSON200.Nodes {
-		if node.Kind == "resource" {
-			resources = append(resources, &node)
+	var resources, other []*models.Node
+	if resp.JSON200 != nil && resp.JSON200.Nodes != nil {
+		for i := range *resp.JSON200.Nodes {
+			n := &(*resp.JSON200.Nodes)[i]
+			if n.Kind == "resource" {
+				resources = append(resources, n)
+			} else {
+				other = append(other, n)
+			}
 		}
 	}
-	return displayResources(c.stdout, resources, c.access.format)
-}
-
-func displayWhoCanResult(out io.Writer, reqs []*models.Node, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(out, reqs))
-	case teleport.Text:
-		return trace.Wrap(displayWhoCanResultText(out, reqs))
-	default:
-		return trace.Wrap(utils.WriteYAML(out, reqs))
-	}
-}
-
-func displayWhoCanResultText(out io.Writer, identies []*models.Node) error {
-	if len(identies) == 0 {
-		_, err := fmt.Fprintln(out, "No identities have access to this resource.")
-		return trace.Wrap(err)
-	}
-
-	table := asciitable.MakeTable([]string{
-		"Identity ID",
-		"Name",
-		"Kind",
-		"Subkind",
-		"Source",
-		"Origin",
-		"Origin Type",
+	nodes := append(resources, other...)
+	return writeOutput(c.stdout, nodes, c.access.format, func(w io.Writer) error {
+		return displayNodesText(w, nodes)
 	})
-
-	for _, identity := range identies {
-		props, err := identity.Properties.AsIdentityProperties()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		table.AddRow([]string{
-			identity.Id.String(),
-			identity.Name,
-			string(identity.Kind),
-			identity.SubKind,
-			*props.Source,
-			*props.Origin,
-			props.OriginType,
-		})
-	}
-	_, err := fmt.Fprintln(out, table.AsBuffer().String())
-	return trace.Wrap(err)
 }
 
-func displayResources(out io.Writer, resources []*models.Node, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(out, resources))
-	case teleport.Text:
-		return trace.Wrap(displayResourcesText(out, resources))
-	default:
-		return trace.Wrap(utils.WriteYAML(out, resources))
-	}
-}
-
-func strPtrToStr(str *string) string {
-	if str == nil {
-		return ""
-	}
-	return *str
-}
-
-func displayResourcesText(out io.Writer, resources []*models.Node) error {
-	if len(resources) == 0 {
-		_, err := fmt.Fprintln(out, "No resources found.")
+// displayNodesText renders a mixed list of nodes as a single table with Kind
+// and Alias columns so resources and non-resources can be shown together.
+func displayNodesText(out io.Writer, nodes []*models.Node) error {
+	if len(nodes) == 0 {
+		_, err := fmt.Fprintln(out, "No nodes found.")
 		return trace.Wrap(err)
 	}
 
 	table := asciitable.MakeTable([]string{
-		"Resource Id",
+		"Node Id",
 		"Name",
 		"Alias",
 		"Kind",
@@ -237,23 +121,32 @@ func displayResourcesText(out io.Writer, resources []*models.Node) error {
 		"Origin Type",
 	})
 
-	for _, resource := range resources {
-		props, err := resource.Properties.AsResourceProperties()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	for _, n := range nodes {
+		alias, source, origin, originType := extractCommonProps(n)
 		table.AddRow([]string{
-			resource.Id.String(),
-			resource.Name,
-			strPtrToStr(props.Alias),
-			string(resource.Kind),
-			resource.SubKind,
-			strPtrToStr(props.Source),
-			strPtrToStr(props.Origin),
-			props.OriginType,
+			n.Id.String(),
+			n.Name,
+			alias,
+			string(n.Kind),
+			n.SubKind,
+			source,
+			origin,
+			originType,
 		})
 	}
 	_, err := fmt.Fprintln(out, table.AsBuffer().String())
 	return trace.Wrap(err)
+}
+
+// extractCommonProps pulls out the common display fields (alias, source,
+// origin, origin type) from either resource or identity properties, returning
+// empty strings for fields that don't apply to the node's kind.
+func extractCommonProps(n *models.Node) (alias, source, origin, originType string) {
+	if props, err := n.Properties.AsResourceProperties(); err == nil {
+		return strPtrToStr(props.Alias), strPtrToStr(props.Source), strPtrToStr(props.Origin), props.OriginType
+	}
+	if props, err := n.Properties.AsIdentityProperties(); err == nil {
+		return "", strPtrToStr(props.Source), strPtrToStr(props.Origin), props.OriginType
+	}
+	return "", "", "", ""
 }

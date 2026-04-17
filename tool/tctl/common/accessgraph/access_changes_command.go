@@ -31,7 +31,6 @@ import (
 	accessgraph "github.com/gravitational/access-graph/api/client"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -64,11 +63,7 @@ type accessChangeGetArgs struct {
 
 func (c *AccessGraphCommand) initAccessChanges(app *kingpin.Application) {
 	accessChangesCmd := app.Command("access-changes", "Monitor access path changes to crown jewels.").Hidden()
-
-	accessChangesCmd.Flag("format", "Output format. (Values: text, json, yaml)").
-		Default(teleport.YAML).
-		EnumVar(&c.accessChanges.format, teleport.Text, teleport.JSON, teleport.YAML)
-
+	registerFormatFlag(accessChangesCmd, &c.accessChanges.format, teleport.YAML)
 	c.accessChanges.cmd = accessChangesCmd
 	c.initAccessChangesList(c.accessChanges.cmd)
 	c.initAccessChangeGet(c.accessChanges.cmd)
@@ -166,14 +161,12 @@ func constructAccessChangesListQuery(args accessChangesArgs) (*accessgraph.ListC
 }
 
 func displayAccessChanges(writer io.Writer, changes []accessgraph.AccessPathSummaryItem, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(writer, changes))
-	case teleport.Text:
-		return trace.Wrap(displayAccessChangesText(writer, changes))
-	default:
-		return trace.Wrap(utils.WriteYAML(writer, changes))
+	if changes == nil {
+		changes = []accessgraph.AccessPathSummaryItem{}
 	}
+	return writeOutput(writer, changes, format, func(w io.Writer) error {
+		return displayAccessChangesText(w, changes)
+	})
 }
 
 func displayAccessChangesText(writer io.Writer, changes []accessgraph.AccessPathSummaryItem) error {
@@ -203,14 +196,9 @@ func displayAccessChangesText(writer io.Writer, changes []accessgraph.AccessPath
 }
 
 func displayAccessChange(writer io.Writer, change *accessgraph.AccessPathDiff, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(writer, change))
-	case teleport.Text:
-		return trace.Wrap(displayAccessChangeText(writer, change))
-	default:
-		return trace.Wrap(utils.WriteYAML(writer, change))
-	}
+	return writeOutput(writer, change, format, func(w io.Writer) error {
+		return displayAccessChangeText(w, change)
+	})
 }
 
 func displayAccessChangeText(writer io.Writer, change *accessgraph.AccessPathDiff) error {

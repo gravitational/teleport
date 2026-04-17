@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	types "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -65,17 +64,8 @@ type accessRequestsListArgs struct {
 
 func (c *AccessGraphCommand) initAccessRequests(app *kingpin.Application) {
 	accessRequestCmd := app.Command("access-requests", "Review access requests and approvals.").Hidden()
-
-	accessRequestCmd.Flag("from", fmt.Sprintf("Filter requests created at or after this time. (Examples: %s, 24h, 7d, Default: 30d)", time.RFC3339)).
-		Default("30d").
-		SetValue(timeValue{target: &c.accessRequests.from})
-	accessRequestCmd.Flag("to", fmt.Sprintf("Filter requests created at or before this time. (Examples: %s, 24h, 7d, Default: now)", time.RFC3339)).
-		Default(time.Now().Format(time.RFC3339)).
-		SetValue(timeValue{target: &c.accessRequests.to})
-	accessRequestCmd.Flag("format", "Output format. (Values: text, json, yaml)").
-		Default(teleport.YAML).
-		EnumVar(&c.accessRequests.format, teleport.Text, teleport.JSON, teleport.YAML)
-
+	registerTimeRangeFlags(accessRequestCmd, &c.accessRequests.from, &c.accessRequests.to, "30d")
+	registerFormatFlag(accessRequestCmd, &c.accessRequests.format, teleport.YAML)
 	c.accessRequests.cmd = accessRequestCmd
 
 	c.initAccessRequestsList(c.accessRequests.cmd)
@@ -116,23 +106,71 @@ func (c *AccessGraphCommand) AccessRequestsList(ctx context.Context, args access
 		requests = append(requests, parseAccessRequest(id, logs))
 	}
 
+	// Cross-reference with cert.create events to figure out which approved
+	// requests actually had a cert issued for them.
+	usage, err := fetchAccessRequestUsage(ctx, args, c.accessRequests.from, c.accessRequests.to)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for i := range requests {
+		if firstUse, ok := usage[requests[i].Id]; ok {
+			t := firstUse
+			requests[i].UsedOn = &t
+		}
+	}
+
 	return displayAccessRequests(c.stdout, requests, c.accessRequests.format)
+}
+
+// fetchAccessRequestUsage returns map[requestID]firstUseTime derived from
+// cert.create events whose access_requests field includes the request id.
+// One query covers all requests in the window, avoiding N per-request lookups.
+func fetchAccessRequestUsage(ctx context.Context, args accessGraphServices, from, to time.Time) (map[string]time.Time, error) {
+	query := "event_type:cert.create"
+	order := accessgraph.Asc
+	events, err := fetchAllLogs(ctx, args.accessGraph, accessgraph.ExecuteLogsQueryV1Params{
+		Query:     &query,
+		StartTime: &from,
+		EndTime:   &to,
+		Order:     &order,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	usage := make(map[string]time.Time)
+	for _, ev := range events {
+		data, err := ev.EventData.AsTeleportAuditLog()
+		if err != nil {
+			continue
+		}
+		ids := getStringSlice(data, "access_requests")
+		for _, id := range ids {
+			if existing, ok := usage[id]; !ok || ev.Time.Before(existing) {
+				usage[id] = ev.Time
+			}
+		}
+	}
+	return usage, nil
 }
 
 // constructAccessRequestsListQuery builds the query for listing access requests based on the provided arguments.
 func constructAccessRequestsListQuery(args accessRequestsArgs) accessgraph.ExecuteLogsQueryV1Params {
-	queryParts := []string{"event_type:(access_request.create OR access_request.review OR access_request.expire OR access_request.update OR access_request.delete)"}
+	eventTypes := []string{
+		"access_request.create", "access_request.review", "access_request.expire",
+		"access_request.update", "access_request.delete",
+	}
+	queryParts := []string{dslClause("event_type", quoteAll(eventTypes))}
 	if args.ls.kind != "" {
-		queryParts = append(queryParts, fmt.Sprintf("target_kind:%s", args.ls.kind))
+		queryParts = append(queryParts, dslClause("target_kind", quoteAll([]string{args.ls.kind})))
 	}
 	if args.ls.state != types.RequestState_NONE {
-		queryParts = append(queryParts, fmt.Sprintf("status:%s", args.ls.state.String()))
+		queryParts = append(queryParts, dslClause("status", quoteAll([]string{args.ls.state.String()})))
 	}
 	if args.ls.requester != "" {
-		queryParts = append(queryParts, fmt.Sprintf("identity:%s", args.ls.requester))
+		queryParts = append(queryParts, dslClause("identity", quoteAll([]string{args.ls.requester})))
 	}
 	if args.ls.approver != "" {
-		queryParts = append(queryParts, fmt.Sprintf("approver:%s", args.ls.approver))
+		queryParts = append(queryParts, dslClause("approver", quoteAll([]string{args.ls.approver})))
 	}
 	query := strings.Join(queryParts, " AND ")
 
@@ -190,7 +228,7 @@ func groupRequestsById(logs []models.AccessgraphStorageV1alphaEvent) map[string]
 	return requestsByID
 }
 
-func getReview(eventType string, data map[string]interface{}) (*Review, bool) {
+func getReview(eventType string, data map[string]any) (*Review, bool) {
 	if eventType == "access_request.review" {
 		time, err := time.Parse(time.RFC3339, data["time"].(string))
 		if err != nil {
@@ -213,37 +251,13 @@ func getReview(eventType string, data map[string]interface{}) (*Review, bool) {
 	return nil, false
 }
 
-func getReason(eventType string, data map[string]interface{}) string {
+func getReason(eventType string, data map[string]any) string {
 	if eventType == "access_request.create" {
 		if reason, ok := data["reason"].(string); ok && reason != "" {
 			return reason
 		}
 	}
 	return ""
-}
-
-func getStringSlice(data map[string]interface{}, key string) []string {
-	raw, ok := data[key]
-	if !ok || raw == nil {
-		return nil
-	}
-
-	switch values := raw.(type) {
-	case []string:
-		return slices.Clone(values)
-	case []any:
-		result := make([]string, 0, len(values))
-		for _, value := range values {
-			str, ok := value.(string)
-			if !ok || str == "" {
-				continue
-			}
-			result = append(result, str)
-		}
-		return result
-	default:
-		return nil
-	}
 }
 
 func mergeCompactStrings(dst []string, src []string) []string {
@@ -308,14 +322,12 @@ func parseAccessRequest(id string, logs []models.AccessgraphStorageV1alphaEvent)
 }
 
 func displayAccessRequests(out io.Writer, reqs []AccessRequestListResult, format string) error {
-	switch format {
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(out, reqs))
-	case teleport.Text:
-		return trace.Wrap(displayAccessRequestsText(out, reqs))
-	default:
-		return trace.Wrap(utils.WriteYAML(out, reqs))
+	if reqs == nil {
+		reqs = []AccessRequestListResult{}
 	}
+	return writeOutput(out, reqs, format, func(w io.Writer) error {
+		return displayAccessRequestsText(w, reqs)
+	})
 }
 
 func formatReviews(reviews []Review) string {
@@ -336,9 +348,14 @@ func displayAccessRequestsText(out io.Writer, reqs []AccessRequestListResult) er
 		"Reason",
 		"Reviews",
 		"Created At",
+		"Used On",
 	})
 
 	for _, req := range reqs {
+		used := "never"
+		if req.UsedOn != nil {
+			used = req.UsedOn.Format(time.RFC3339)
+		}
 		table.AddRow([]string{
 			req.Id,
 			req.User,
@@ -348,6 +365,7 @@ func displayAccessRequestsText(out io.Writer, reqs []AccessRequestListResult) er
 			req.Reason,
 			formatReviews(req.Reviews),
 			req.CreatedAt.Format(time.RFC3339),
+			used,
 		})
 	}
 	_, err := fmt.Fprintln(out, table.AsBuffer().String())
