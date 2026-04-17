@@ -379,6 +379,15 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 }
 
 func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+	const skipNotSupported = false
+	return trace.Wrap(rc.getMany(ctx, client, skipNotSupported))
+}
+
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -387,6 +396,9 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
+		if skipNotSupported && trace.IsNotImplemented(err) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -409,7 +421,12 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported)
 }
 
 // Create updates or inserts one or many resources

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package services_test
+package services
 
 import (
 	"testing"
@@ -26,10 +26,11 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
-func TestMarshalCertAuthOverrideRoundtrip(t *testing.T) {
+func TestMarshalCertAuthorityOverrideRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	want := &subcav1.CertAuthorityOverride{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.DatabaseClientCA),
@@ -41,11 +42,31 @@ func TestMarshalCertAuthOverrideRoundtrip(t *testing.T) {
 	}
 
 	t.Run("ok", func(t *testing.T) {
-		val, err := services.MarshalCertAuthorityOverride(want)
+		t.Parallel()
+
+		val, err := MarshalCertAuthorityOverride(want)
 		require.NoError(t, err)
 
-		got, err := services.UnmarshalCertAuthorityOverride(val)
+		got, err := UnmarshalCertAuthorityOverride(val)
 		require.NoError(t, err)
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("dynamic", func(t *testing.T) {
+		t.Parallel()
+		initSubCA()
+		initSubCA() // check that a duplicate call is harmless
+
+		val, err := MarshalResource(types.Resource153ToLegacy(want))
+		require.NoError(t, err)
+
+		wrapped, err := UnmarshalResource(types.KindCertAuthorityOverride, val)
+		require.NoError(t, err)
+		unwrapper, ok := wrapped.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
+		require.True(t, ok, "Wrapped resource has unexpected type: %T", wrapped)
+		got := unwrapper.UnwrapT()
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
 		}

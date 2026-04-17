@@ -35,10 +35,12 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -822,6 +824,40 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(wid), nil
+	})
+
+	// Gate these behind the feature flag, as they have an effect on user-visible product surface
+	// (ie, "tctl get all").
+	if subca.Enabled() {
+		initSubCA()
+	}
+}
+
+func initSubCA() {
+	// TODO(codingllama): Remove this method and inline calls on init() once the
+	//  feature flag is no more.
+
+	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
+		if !ok {
+			return nil, trace.BadParameter("expected wrapped CertAuthorityOverride resource, got %T", resource)
+		}
+		caOverride := unwrapper.UnwrapT()
+		if caOverride == nil {
+			return nil, trace.BadParameter("nil CertAuthorityOverride resource")
+		}
+		bytes, err := MarshalCertAuthorityOverride(caOverride, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindCertAuthorityOverride, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		caOverride, err := UnmarshalCertAuthorityOverride(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(caOverride), nil
 	})
 }
 
