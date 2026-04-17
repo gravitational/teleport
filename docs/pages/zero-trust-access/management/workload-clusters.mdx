@@ -49,16 +49,17 @@ update users and roles in the child Teleport Cloud cluster.
 ## Prerequisites
 
 - A Teleport Cloud cluster to use as the parent cluster.
-- `tctl` and `tbot` installed. For installation and deployment guidance, see
-  the [Machine & Workload Identity deployment guides](../../machine-workload-identity/deployment/deployment.mdx).
-- An AWS identity that matches the IAM join token rules configured for the
-  child Teleport Cloud cluster Bot.
 
-<Admonition type="note" title="Feature availability">
+<Admonition type="warning" title="Feature availability">
 Teleport Cloud customers must contact support at
 <a href="mailto:support@goteleport.com">support@goteleport.com</a> to enable
 the workload cluster feature.
 </Admonition>
+
+- `tctl` and `tbot` installed. For installation and deployment guidance, see
+  the [Machine & Workload Identity deployment guides](../../machine-workload-identity/deployment/deployment.mdx).
+- An AWS identity that matches the IAM join token rules configured for the
+  child Teleport Cloud cluster Bot.
 
 <Admonition type="note" title="About this example">
 This guide uses AWS IAM joining for the child Teleport Cloud cluster Bot because
