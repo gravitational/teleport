@@ -169,9 +169,10 @@ type SessionBoundCeremonyConfig struct {
 	ValidateSessionChallenge ValidateSessionChallengeFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
-	// CallbackCeremony is optional and if provided, will be used to complete an SSO or Browser MFA challenge that may
-	// be offered by the server as part of the session-bound challenges.
-	CallbackCeremony CallbackCeremony
+	// CallbackCeremonyConstructor is optional and, if provided, constructs a callback
+	// ceremony for the current run to complete SSO or Browser MFA challenges offered
+	// by the server as part of the session-bound challenge.
+	CallbackCeremonyConstructor MFACeremonyConstructor
 	// TargetCluster is the name of the cluster to target for the session-bound challenge.
 	TargetCluster string
 }
@@ -193,20 +194,20 @@ func NewSessionBoundCeremony(config SessionBoundCeremonyConfig) (*SessionBoundCe
 	}
 
 	return &SessionBoundCeremony{
-		createSessionChallenge:   config.CreateSessionChallenge,
-		validateSessionChallenge: config.ValidateSessionChallenge,
-		promptConstructor:        config.PromptConstructor,
-		callbackCeremony:         config.CallbackCeremony,
-		targetCluster:            config.TargetCluster,
+		createSessionChallenge:      config.CreateSessionChallenge,
+		validateSessionChallenge:    config.ValidateSessionChallenge,
+		promptConstructor:           config.PromptConstructor,
+		callbackCeremonyConstructor: config.CallbackCeremonyConstructor,
+		targetCluster:               config.TargetCluster,
 	}, nil
 }
 
 // SessionBoundCeremony represents a ceremony that is bound to a specific session.
 type SessionBoundCeremony struct {
-	createSessionChallenge   CreateSessionChallengeFunc
-	validateSessionChallenge ValidateSessionChallengeFunc
-	promptConstructor        PromptConstructor
-	callbackCeremony         CallbackCeremony
+	createSessionChallenge      CreateSessionChallengeFunc
+	validateSessionChallenge    ValidateSessionChallengeFunc
+	promptConstructor           PromptConstructor
+	callbackCeremonyConstructor MFACeremonyConstructor
 
 	targetCluster string
 }
@@ -221,13 +222,19 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 
 	// If a callback ceremony is provided, set the client callback URL in the create challenge request to request an SSO
 	// or Browser challenge in addition to other challenges. The callback ceremony will be used to complete the SSO or
-	// Browser challenge if it is offered by the server.
-	if c.callbackCeremony != nil {
-		createReq.SsoClientRedirectUrl = c.callbackCeremony.GetClientCallbackURL()
-		createReq.BrowserMfaTshRedirectUrl = c.callbackCeremony.GetClientCallbackURL()
-		createReq.ProxyAddressForSso = c.callbackCeremony.GetProxyAddress()
+	// Browser challenge if it is offered by the server. If the callback ceremony fails to start, continue with the
+	// session-bound challenge without SSO or Browser MFA.
+	if c.callbackCeremonyConstructor != nil {
+		callbackCeremony, err := c.callbackCeremonyConstructor(ctx)
+		if err == nil {
+			defer callbackCeremony.Close()
 
-		promptOpts = append(promptOpts, withSSOMFACeremony(c.callbackCeremony))
+			createReq.SsoClientRedirectUrl = callbackCeremony.GetClientCallbackURL()
+			createReq.BrowserMfaTshRedirectUrl = callbackCeremony.GetClientCallbackURL()
+			createReq.ProxyAddressForSso = callbackCeremony.GetProxyAddress()
+
+			promptOpts = append(promptOpts, withSSOMFACeremony(callbackCeremony))
+		}
 	}
 
 	createResp, err := c.createSessionChallenge(ctx, createReq)
@@ -257,11 +264,6 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 		},
 	); err != nil {
 		return "", trace.Wrap(err)
-	}
-
-	// If a callback ceremony was used, close it to clean up any resources associated with it.
-	if c.callbackCeremony != nil {
-		c.callbackCeremony.Close()
 	}
 
 	return createResp.MfaChallenge.GetName(), nil
