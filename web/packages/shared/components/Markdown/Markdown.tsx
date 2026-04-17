@@ -254,6 +254,10 @@ function parseListItems(
   let i = startIndex;
 
   while (i < lines.length) {
+    if (i - startIndex > MAX_ITERATIONS) {
+      break;
+    }
+
     const raw = lines[i];
 
     if (raw.trim() === '') {
@@ -355,10 +359,6 @@ function parseListItems(
         {nestedList}
       </li>
     );
-
-    if (i - startIndex > MAX_ITERATIONS) {
-      break;
-    }
   }
 
   const key = `list-${startIndex}`;
