@@ -1819,6 +1819,14 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	firstInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
 	require.Equal(t, uint64(1), generation)
 
+	// The BotInstance should have the scope set.
+	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+		BotName:    "test-scoped",
+		InstanceId: firstInstance,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/test", botInstance.GetScope())
+
 	// Status should be updated.
 	token, err := adminClient.GetScopedToken(ctx, "example-token", false)
 	require.NoError(t, err)

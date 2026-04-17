@@ -318,6 +318,7 @@ func (a *Server) updateBotInstance(
 	username, botName, botInstanceID string,
 	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
 	currentIdentityGeneration int32,
+	scope string,
 ) error {
 	if botName == "" {
 		// Only applies to bot identities
@@ -421,6 +422,7 @@ func (a *Server) updateBotInstance(
 			BotName:    botName,
 			InstanceId: instanceID.String(),
 		}, authRecord, expires)
+		bi.Scope = scope
 
 		if _, err := a.BotInstance.CreateBotInstance(ctx, bi); err != nil {
 			return trace.Wrap(err)
@@ -635,6 +637,7 @@ func (a *Server) generateInitialBotCerts(
 			InstanceId:         uuid.String(),
 			PreviousInstanceId: previousInstanceID,
 		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+		bi.Scope = botScope
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 		if err != nil {
@@ -651,7 +654,7 @@ func (a *Server) generateInitialBotCerts(
 		// value sent by the client, so we can trust it.
 		if err := a.updateBotInstance(
 			ctx, &certReq, username, botName, existingInstanceID,
-			initialAuth, currentIdentityGeneration,
+			initialAuth, currentIdentityGeneration, botScope,
 		); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
