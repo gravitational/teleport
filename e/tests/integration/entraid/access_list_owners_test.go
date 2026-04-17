@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/entraid"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
@@ -118,8 +118,8 @@ func TestAccessListUnsupportedEntraIDGroupOwners(t *testing.T) {
 
 	// fion'a@example.com is an unsupported user account (contains quote "'"),
 	// should be filtered if configured as group owner.
-	fiona := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	fiona := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("fion'a@example.com"),
 			DisplayName: to.Ptr("Fiona F"),
 		},
@@ -138,7 +138,7 @@ func TestAccessListUnsupportedEntraIDGroupOwners(t *testing.T) {
 	group1Owners = append(group1Owners, fiona)
 	env.fakeServer.SetGroupOwners("group1", group1Owners)
 	// Add one unsupported user account as group3 owner.
-	env.fakeServer.SetGroupOwners("group3", []*msgraph.User{fiona})
+	env.fakeServer.SetGroupOwners("group3", []*models.User{fiona})
 
 	// Plugin with Entra ID group owners as Access List owner source.
 	plugin := newDefaultPluginSpec(t)

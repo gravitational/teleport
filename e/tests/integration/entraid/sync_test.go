@@ -18,7 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
@@ -43,8 +43,8 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 	ctx := t.Context()
 
 	// Unsupported user with quote "'" in username.
-	david := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	david := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("dav'id@example.com"),
 			DisplayName: to.Ptr("David D"),
 		},
@@ -54,8 +54,8 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 		UserPrincipalName: to.Ptr("dav'id@example.com"),
 	}
 	// Unsupported user with forward slash "/"" in username.
-	eve := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	eve := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("ev/e@example.com"),
 			DisplayName: to.Ptr("Eve E"),
 		},
@@ -65,8 +65,8 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 		UserPrincipalName: to.Ptr("ev/e@example.com"),
 	}
 	// Supported username
-	fiona := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	fiona := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("fiona@example.com"),
 			DisplayName: to.Ptr("Fiona F"),
 		},
@@ -82,8 +82,8 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 	defaultStorage.Users[*eve.ID] = eve
 	defaultStorage.Users[*fiona.ID] = fiona
 	// Add new group members david, fiona, eve to the default storage group members.
-	defaultStorage.GroupMembers["group2"] = slices.Concat(defaultStorage.GroupMembers["group2"], []msgraph.GroupMember{david, fiona, eve})
-	defaultStorage.GroupMembers["group3"] = slices.Concat(defaultStorage.GroupMembers["group3"], []msgraph.GroupMember{david, fiona, eve})
+	defaultStorage.GroupMembers["group2"] = slices.Concat(defaultStorage.GroupMembers["group2"], []models.GroupMember{david, fiona, eve})
+	defaultStorage.GroupMembers["group3"] = slices.Concat(defaultStorage.GroupMembers["group3"], []models.GroupMember{david, fiona, eve})
 
 	env := newTestEnv(t, defaultStorage)
 

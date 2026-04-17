@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -158,10 +158,10 @@ func listEntraIDMembers(ctx context.Context, accessListName string, aclClient se
 	return out, nil
 }
 
-func entraGroup(t *testing.T, name string) *msgraph.Group {
+func entraGroup(t *testing.T, name string) *models.Group {
 	t.Helper()
-	return &msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
+	return &models.Group{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr(name),
 			DisplayName: to.Ptr(name),
 		},
@@ -169,10 +169,10 @@ func entraGroup(t *testing.T, name string) *msgraph.Group {
 	}
 }
 
-func entraUser(t *testing.T, name string) *msgraph.User {
+func entraUser(t *testing.T, name string) *models.User {
 	t.Helper()
-	return &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	return &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID: to.Ptr(name),
 		},
 		UserPrincipalName: to.Ptr(name),

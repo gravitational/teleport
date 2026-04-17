@@ -12,7 +12,7 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
@@ -37,20 +37,20 @@ func TestSyncErrorStatusReport(t *testing.T) {
 
 	group1 := entraGroup(t, "group1")
 	group2 := entraGroup(t, "group2")
-	group3invalid := &msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
+	group3invalid := &models.Group{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("group3invalid"),
 			DisplayName: nil, // trigger group conversion error, causing this group to be skipped.
 		},
 	}
-	storage.Groups = make(map[string]*msgraph.Group)
+	storage.Groups = make(map[string]*models.Group)
 	storage.Groups["group1"] = group1
 	storage.Groups["group2"] = group2
 	storage.Groups["group3invalid"] = group3invalid
 
 	// Add new group members david, fiona, eve to the default storage group members.
-	storage.GroupMembers["group1"] = slices.Concat(storage.GroupMembers["group2"], []msgraph.GroupMember{davidInvalid, fiona, eveInvalid})
-	storage.GroupMembers["group2"] = slices.Concat(storage.GroupMembers["group2"], []msgraph.GroupMember{davidInvalid, fiona, eveInvalid})
+	storage.GroupMembers["group1"] = slices.Concat(storage.GroupMembers["group2"], []models.GroupMember{davidInvalid, fiona, eveInvalid})
+	storage.GroupMembers["group2"] = slices.Concat(storage.GroupMembers["group2"], []models.GroupMember{davidInvalid, fiona, eveInvalid})
 
 	env := newTestEnv(t, storage)
 

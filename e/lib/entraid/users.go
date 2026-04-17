@@ -18,7 +18,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -379,7 +378,7 @@ func isValidUsername(in string) error {
 	return nil
 }
 
-func unameForLog(in *msgraph.User) string {
+func unameForLog(in *models.User) string {
 	if in == nil {
 		return ""
 	}
