@@ -696,6 +696,12 @@ const (
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
 
+	// KindDelegationSession is the resource kind for Delegation Sessions.
+	//
+	// Delegation Sessions allow users to temporarily lend (a subset of) their
+	// access to a bot or workload, such as an AI Agent.
+	KindDelegationSession = "delegation_session"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
