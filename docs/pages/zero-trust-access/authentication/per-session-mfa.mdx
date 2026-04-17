@@ -171,7 +171,9 @@ $ tsh ssh jerry@prod3.example.com
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
+{/* vale messaging.protocol-products = NO */}
 ## Per-session MFA for Database Access
+{/* vale messaging.protocol-products = YES */}
 
 The Teleport Database Service supports per-connection MFA. When Jerry connects
 to the database `prod-mysql-instance` (with label `env: prod`), he gets prompted
@@ -256,7 +258,9 @@ Summary is saved at "logs/summary.json".
 Note that each MFA check remains valid for up to 5 minutes. After the 5-minutes
 window, a new MFA check will be requested for new connections.
 
+{/* vale messaging.protocol-products = NO */}
 ## Per-session MFA for Kubernetes Access
+{/* vale messaging.protocol-products = YES */}
 
 When per-session MFA is required, each `kubectl` command Jerry will execute
 will require confirmation using an MFA device.
