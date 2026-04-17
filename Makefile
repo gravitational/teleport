@@ -98,6 +98,11 @@ RDPCLIENT_ENV = CGO_ENABLED=0 BORING_BSSL_FIPS_SYSROOT=$(CROSSTOOLNG_SYSROOT)
 endif
 endif
 
+SESSIONHELPER_EMBED_TAG :=
+ifeq ("$(OS)","linux")
+SESSIONHELPER_EMBED_TAG = sessionhelper_embed
+endif
+
 # Look for the PAM header "security/pam_appl.h" to determine if we should
 # enable PAM support in teleport. A native build will have it in /usr/include.
 # Darwin has it in /usr/local/include (SIP prevents us from modifying/creating
@@ -389,7 +394,11 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+ifneq ("$(SESSIONHELPER_EMBED_TAG)","")
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C ./session/ build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o "./reexec/sessionhelper_$(OS)_$(ARCH)" $(BUILDFLAGS) ./cmd/sessionhelper
+	gzip --best --force "./session/reexec/sessionhelper_$(OS)_$(ARCH)"
+endif
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
