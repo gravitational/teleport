@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -49,6 +50,59 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 	return rootClient.CreateAuthenticateChallenge(ctx, req)
+}
+
+func (tc *TeleportClient) NewSessionBoundCeremony(ctx context.Context) (*mfa.SessionBoundCeremony, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaClient := rootClient.MFAServiceClient()
+	if mfaClient == nil {
+		return nil, trace.BadParameter("MFA service client is not initialized (this is a bug)")
+	}
+
+	config := mfa.SessionBoundCeremonyConfig{
+		CreateSessionChallenge:      mfaClient.CreateSessionChallenge,
+		ValidateSessionChallenge:    mfaClient.ValidateSessionChallenge,
+		PromptConstructor:           tc.NewMFAPrompt,
+		CallbackCeremonyConstructor: tc.NewRedirectorMFACeremony,
+		TargetCluster:               tc.SiteName,
+	}
+
+	ceremony, err := mfa.NewSessionBoundCeremony(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ceremony, nil
+}
+
+func (tc *TeleportClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (challengeName string, err error) {
+	ceremony, err := tc.NewSessionBoundCeremony(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	name, err := ceremony.Run(
+		ctx,
+		&mfav1.SessionIdentifyingPayload{
+			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+				SshSessionId: sessionID,
+			},
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return name, nil
 }
 
 // WebauthnLoginFunc is a function that performs WebAuthn login.

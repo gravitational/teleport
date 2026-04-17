@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -56,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -108,6 +111,7 @@ type UserAuthClient interface {
 	GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error)
 	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
 	ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error)
+	MFAServiceClient() mfav1.MFAServiceClient
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -633,45 +637,102 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
-		MFACeremonyConstructor: func(ctx context.Context) (mfa.CallbackCeremony, error) {
+		MFACeremonyConstructor: func(context.Context) (mfa.CallbackCeremony, error) {
+			return newMFACallbackCeremony(channelID, proxyAddr)
+		},
+		PromptConstructor: newMFAPromptConstructor(stream, channelID),
+	}
+}
 
-			u, err := url.Parse(sso.WebMFARedirect)
+type mfaPerformerFunc func(ctx context.Context, sessionID []byte) (string, error)
+
+func (f mfaPerformerFunc) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	return f(ctx, sessionID)
+}
+
+func newMFACeremonyPerformer(ws terminal.WSConn, mfaClient mfav1.MFAServiceClient, proxyAddr string, targetCluster string) (clientssh.MFACeremonyPerformer, error) {
+	stream, ok := ws.(*terminal.Stream)
+	if !ok {
+		return nil, trace.BadParameter("expected terminal.Stream type for ws connection (this is a bug)")
+	}
+
+	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
+	channelID := uuid.NewString()
+
+	config := mfa.SessionBoundCeremonyConfig{
+		CreateSessionChallenge:   mfaClient.CreateSessionChallenge,
+		ValidateSessionChallenge: mfaClient.ValidateSessionChallenge,
+		PromptConstructor:        newMFAPromptConstructor(stream.WSStream, channelID),
+		CallbackCeremonyConstructor: func(context.Context) (mfa.CallbackCeremony, error) {
+			return newMFACallbackCeremony(channelID, proxyAddr)
+		},
+		TargetCluster: targetCluster,
+	}
+
+	ceremony, err := mfa.NewSessionBoundCeremony(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return mfaPerformerFunc(
+		func(ctx context.Context, sessionID []byte) (string, error) {
+			name, err := ceremony.Run(
+				ctx,
+				&mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+						SshSessionId: sessionID,
+					},
+				},
+			)
 			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			return name, nil
+		},
+	), nil
+}
+
+func newMFAPromptConstructor(stream *terminal.WSStream, channelID string) mfa.PromptConstructor {
+	return func(...mfa.PromptOpt) mfa.Prompt {
+		return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+			// Convert from proto to JSON types.
+			var challenge client.MFAAuthenticateChallenge
+			if chal.WebauthnChallenge != nil {
+				challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
+			}
+
+			if chal.SSOChallenge != nil {
+				challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+				challenge.SSOChallenge.ChannelID = channelID
+			}
+
+			if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+				return nil, trace.Wrap(authclient.ErrNoMFADevices)
+			}
+
+			var codec protobufMFACodec
+			if err := stream.WriteChallenge(&challenge, codec); err != nil {
 				return nil, trace.Wrap(err)
 			}
-			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
-			return &sso.MFACeremony{
-				ClientCallbackURL: u.String(),
-				ProxyAddress:      proxyAddr,
-			}, nil
-		},
-		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
-			return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-				// Convert from proto to JSON types.
-				var challenge client.MFAAuthenticateChallenge
-				if chal.WebauthnChallenge != nil {
-					challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
-				}
 
-				if chal.SSOChallenge != nil {
-					challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
-					challenge.SSOChallenge.ChannelID = channelID
-				}
-
-				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.Wrap(authclient.ErrNoMFADevices)
-				}
-
-				var codec protobufMFACodec
-				if err := stream.WriteChallenge(&challenge, codec); err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resp, err := stream.ReadChallengeResponse(codec)
-				return resp, trace.Wrap(err)
-			})
-		},
+			resp, err := stream.ReadChallengeResponse(codec)
+			return resp, trace.Wrap(err)
+		})
 	}
+}
+
+func newMFACallbackCeremony(channelID string, proxyAddr string) (mfa.CallbackCeremony, error) {
+	u, err := url.Parse(sso.WebMFARedirect)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
+
+	return &sso.MFACeremony{
+		ClientCallbackURL: u.String(),
+		ProxyAddress:      proxyAddr,
+	}, nil
 }
 
 type connectWithMFAFn = func(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error)
@@ -875,6 +936,40 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	t.logger.DebugContext(ctx, "Sent close event to web client")
 }
 
+// generateClientConfig creates an [apissh.ClientConfig] for the Teleport client connection.
+func (t *sshBaseHandler) generateClientConfig(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient) apissh.ClientConfig {
+	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+		// If the server responds with partial success for publickey auth method and keyboard-interactive is allowed,
+		// then the server is likely enforcing in-band MFA. In this case, return a keyboard-interactive callback that
+		// will perform the MFA ceremony when invoked.
+		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") && slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") {
+			p, err := newMFACeremonyPerformer(
+				ws,
+				t.userAuthClient.MFAServiceClient(),
+				t.proxyPublicAddr,
+				tc.SiteName,
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return clientssh.KeyboardInteractive(ctx, p, authCtx.Metadata), nil
+		}
+
+		// Returning nil, nil tells the SSH client there is no additional auth method to offer for this server
+		// response and fallback to the default behavior of trying the next auth method in the list.
+		return nil, nil
+	}
+
+	return apissh.ClientConfig{
+		User:            tc.HostLogin,
+		PublicKeyAuth:   tc.PublicKeyAuthConfig,
+		AuthCallback:    authCallback,
+		HostKeyCallback: tc.HostKeyCallback,
+		Timeout:         t.sshDialTimeout,
+	}
+}
+
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
 func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
@@ -890,12 +985,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig := apissh.ClientConfig{
-		User:            tc.HostLogin,
-		PublicKeyAuth:   tc.PublicKeyAuthConfig,
-		HostKeyCallback: tc.HostKeyCallback,
-		Timeout:         t.sshDialTimeout,
-	}
+	sshConfig := t.generateClientConfig(ctx, ws, tc)
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),

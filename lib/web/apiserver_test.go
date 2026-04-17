@@ -8576,6 +8576,10 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
+func (mock authProviderMock) MFAServiceClient() mfav1.MFAServiceClient {
+	return nil
+}
+
 func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 

@@ -212,6 +212,7 @@ func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 		Config:            c.SSHConfig,
 		User:              c.User,
 		Auth:              authMethods,
+		AuthCallback:      c.AuthCallback,
 		HostKeyCallback:   c.HostKeyCallback,
 		BannerCallback:    c.BannerCallback,
 		ClientVersion:     c.clientVersion(),

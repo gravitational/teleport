@@ -1906,6 +1906,53 @@ func TestGenerateClientConfig(t *testing.T) {
 		_, err := tc.generateClientConfig(t.Context())
 		require.ErrorIs(t, err, trace.BadParameter("no SSH auth methods loaded, are you logged in?"))
 	})
+
+	t.Run("configures auth callback", func(t *testing.T) {
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: sshProxyAddr,
+				SiteName:     leafCluster,
+				HostLogin:    username,
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{
+							&mockSigner{
+								ValidPrincipals: []string{"static-principal"},
+							},
+						}, nil
+					},
+				},
+				Tracer: tracing.NoopTracer("i-have-no-purpose"),
+			},
+		}
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.NotNil(t, cfg.AuthCallback)
+
+		t.Run("returns keyboard-interactive method when publickey succeeds and keyboard-interactive is allowed", func(t *testing.T) {
+			authMethod, err := cfg.AuthCallback(
+				&ssh.ClientAuthContext{
+					PartialSuccessMethods: []string{"publickey"},
+					AllowedMethods:        []string{"keyboard-interactive"},
+					Metadata:              &mockConnMetadata{},
+				},
+			)
+			require.NoError(t, err)
+			require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), authMethod)
+		})
+
+		t.Run("returns nil, nil when keyboard-interactive is not allowed", func(t *testing.T) {
+			authMethod, err := cfg.AuthCallback(
+				&ssh.ClientAuthContext{
+					PartialSuccessMethods: []string{"publickey"},
+					AllowedMethods:        []string{"password"},
+				},
+			)
+			require.NoError(t, err)
+			require.Nil(t, authMethod)
+		})
+	})
 }
 
 func newTestLocalAgent(t *testing.T, proxyHost, username, siteName string) *LocalKeyAgent {
@@ -1924,4 +1971,8 @@ func newTestLocalAgent(t *testing.T, proxyHost, username, siteName string) *Loca
 	require.NoError(t, err)
 
 	return localAgent
+}
+
+type mockConnMetadata struct {
+	ssh.ConnMetadata
 }
