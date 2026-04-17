@@ -18,6 +18,9 @@ package msgraph
 
 import "github.com/gravitational/teleport/lib/msgraph/models"
 
+// TODO(sshah): Delete type alias below once teleport.e is updated
+// to import new models package.
+
 type GroupMember = models.GroupMember
 type DirectoryObject = models.DirectoryObject
 type Group = models.Group

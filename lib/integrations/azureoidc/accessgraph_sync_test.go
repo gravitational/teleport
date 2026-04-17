@@ -28,9 +28,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 type mockClientConfig struct {

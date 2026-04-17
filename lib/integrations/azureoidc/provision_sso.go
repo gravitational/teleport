@@ -19,9 +19,10 @@ package azureoidc
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/msgraph/models"
-	"github.com/gravitational/trace"
 )
 
 // setupSSO sets up SAML based SSO to Teleport for the given application (service principal).
