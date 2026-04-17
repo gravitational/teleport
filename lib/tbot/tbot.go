@@ -343,7 +343,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	}
 
 	if b.cfg.FIPS {
-		if !b.modules.IsBoringBinary() {
+		if !b.modules.IsFIPSBuild() {
 			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
 			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
 		}

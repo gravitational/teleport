@@ -22,9 +22,9 @@ import (
 )
 
 // IsFIPSEnabled returns true if FIPS should be enabled for DynamoDB.
-// FIPS is enabled is the binary is boring ([modules.Modules.IsBoringBinary])
+// FIPS is enabled is the binary is a FIPS build ([modules.Modules.IsFIPSBuild])
 // and if FIPS is not disabled by the environment
 // ([awsfips.IsFIPSDisabledByEnv]).
 func IsFIPSEnabled() bool {
-	return !awsfips.IsFIPSDisabledByEnv() && modules.GetModules().IsBoringBinary()
+	return !awsfips.IsFIPSDisabledByEnv() && modules.GetModules().IsFIPSBuild()
 }
