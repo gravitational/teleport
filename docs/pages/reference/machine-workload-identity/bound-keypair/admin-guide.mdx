@@ -404,10 +404,10 @@ That said, you might consider bound keypair for Agents in certain circumstances:
   registration secret to a user would only allow them to join a single node.
 
 - You do not want any shared secrets in your joining process. Bound Keypair's
-  [preregistered keys](./getting-started.mdx#alternative-preregistered-keys)
-  allow you to generate a keypair on the target node itself. Only the public key
-  would ever leave the system, and no secrets or private key material would ever
-  have to leave the host.
+  [static keys](#configuring-an-agent-with-a-static-key) allow you to generate a
+  keypair on the target node itself. Only the public key would ever leave the
+  system, and no secrets or private key material would ever have to leave the
+  host.
 
 ### Configuring an agent with a registration secret
 
