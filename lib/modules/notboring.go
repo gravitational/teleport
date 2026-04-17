@@ -18,7 +18,12 @@
 
 package modules
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func IsBoringBinary() bool {
-	return false
+// FIPSTestOverride allows the result of IsFIPSBuild() to be overridden.
+// Do not use this in production code. It should only be used via
+// moduletest.SetFIPS().
+var FIPSTestOverride *bool
+
+// IsFIPSBuild checks if the binary was compiled with BoringCrypto.
+func IsFIPSBuild() bool {
+	return FIPSTestOverride != nil && *FIPSTestOverride
 }

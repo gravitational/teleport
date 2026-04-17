@@ -215,10 +215,10 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, requested
 	}
 
 	var flags autoupdate.InstallFlags
-	if m.IsBoringBinary() {
+	if modules.IsFIPSBuild() {
 		flags |= autoupdate.FlagFIPS
 	}
-	if m.IsEnterpriseBuild() || m.IsBoringBinary() {
+	if m.IsEnterpriseBuild() || modules.IsFIPSBuild() {
 		flags |= autoupdate.FlagEnterprise
 	}
 

@@ -54,10 +54,7 @@ func TestIsFIPSEnabled(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", test.envVarValue)
 
-			modulestest.SetTestModules(t, modulestest.Modules{
-				FIPS: test.fips,
-			})
-
+			modulestest.SetFIPS(t, test.fips)
 			got := dynamodbutils.IsFIPSEnabled()
 			assert.Equal(t, test.want, got, "IsFIPSEnabled mismatch")
 		})

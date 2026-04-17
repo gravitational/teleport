@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,17 +14,21 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package dynamodbutils
+//go:build !boringcrypto
+
+package modulestest
 
 import (
+	"testing"
+
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
-// IsFIPSEnabled returns true if FIPS should be enabled for DynamoDB.
-// FIPS is enabled is the binary is built with FIPS crypto ([modules.IsFIPSBuild()])
-// and if FIPS is not disabled by the environment
-// ([awsfips.IsFIPSDisabledByEnv]).
-func IsFIPSEnabled() bool {
-	return !awsfips.IsFIPSDisabledByEnv() && modules.IsFIPSBuild()
+// SetFIPS sets the value to be returned by modules.IsFIPSBuild for the
+// purposes of testing FIPS-related functionality.
+func SetFIPS(t *testing.T, isFIPS bool) {
+	t.Helper()
+	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
+	t.Cleanup(func() { modules.FIPSTestOverride = nil })
+	modules.FIPSTestOverride = &isFIPS
 }

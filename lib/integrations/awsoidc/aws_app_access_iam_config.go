@@ -94,7 +94,7 @@ type defaultAWSAppAccessConfigureClient struct {
 func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureClient, error) {
 	var configOptions []func(*awsconfig.LoadOptions) error
 
-	if modules.GetModules().IsBoringBinary() {
+	if modules.IsFIPSBuild() {
 		configOptions = append(configOptions, awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
 

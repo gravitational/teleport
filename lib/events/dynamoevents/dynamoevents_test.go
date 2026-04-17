@@ -852,9 +852,7 @@ func TestEndpoints(t *testing.T) {
 			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
 			if tt.fips {
 				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
-				modulestest.SetTestModules(t, modulestest.Modules{
-					FIPS: true,
-				})
+				modulestest.SetFIPS(t, true)
 			}
 
 			mux := http.NewServeMux()

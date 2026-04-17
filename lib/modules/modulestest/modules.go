@@ -80,8 +80,6 @@ type Modules struct {
 	TestBuildType string
 	// TestFeatures is returned from the Features function.
 	TestFeatures modules.Features
-	// FIPS is returned from the IsBoringBinary function.
-	FIPS bool
 	// MockAttestationData is fake attestation data to return
 	// during tests when hardware key support is enabled. This
 	// attestation data is shared by all logins when set.
@@ -149,11 +147,6 @@ func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, g
 // GetSuggestedAccessLists implements modules.Modules.
 func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient, accessListGetter modules.AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
-}
-
-// IsBoringBinary implements modules.Modules.
-func (m *Modules) IsBoringBinary() bool {
-	return m.FIPS
 }
 
 // IsEnterpriseBuild implements modules.Modules.

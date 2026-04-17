@@ -255,8 +255,6 @@ type AccessListAndMembersGetter interface {
 type Modules interface {
 	// PrintVersion prints teleport version
 	PrintVersion()
-	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
 	// SetFeatures set features queried from Cloud
@@ -407,10 +405,6 @@ func (p *defaultModules) Features() Features {
 // SetFeatures sets features queried from Cloud.
 // This is a noop since OSS teleport does not support enterprise features
 func (p *defaultModules) SetFeatures(f Features) {
-}
-
-func (p *defaultModules) IsBoringBinary() bool {
-	return IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.
