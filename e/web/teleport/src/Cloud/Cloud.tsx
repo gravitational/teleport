@@ -18,6 +18,7 @@ import cfg, { EnterpriseConfig } from 'e-teleport/config';
 import CloudService from 'e-teleport/services/cloud';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { useNoMinWidth } from 'teleport/Main';
+import { userEventService } from 'teleport/services/userEvent';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { loadCloud } from './loader';
@@ -39,6 +40,7 @@ export type CloudUIProps = {
   urlPrefix?: string;
   cloudService: CloudService;
   setInfoGuideConfig?: (cfg: InfoGuideConfig | null) => void;
+  userEventService?: typeof userEventService;
 };
 
 function CloudLoading() {
@@ -110,6 +112,7 @@ export function Cloud() {
           urlPrefix={cfg.routes.cloud.root}
           cloudService={ctx.cloudService}
           setInfoGuideConfig={setInfoGuideConfig}
+          userEventService={userEventService}
         />
       </Flex>
     </ErrorSuspenseWrapper>
