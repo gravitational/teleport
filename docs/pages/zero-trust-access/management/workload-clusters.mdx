@@ -48,6 +48,11 @@ update users and roles in the child Teleport Cloud cluster.
 
 ## Prerequisites
 
+This guide uses AWS IAM joining for the child Teleport Cloud cluster Bot because
+`workload_cluster` currently supports IAM joining only. Learn more
+about IAM joining in the
+[join methods reference](../../reference/deployment/join-methods.mdx#aws-iam-role-iam).
+
 - A Teleport Cloud cluster to use as the parent cluster.
 
 <Admonition type="warning" title="Feature availability">
@@ -60,13 +65,6 @@ the workload cluster feature.
   the [Machine & Workload Identity deployment guides](../../machine-workload-identity/deployment/deployment.mdx).
 - An AWS identity that matches the IAM join token rules configured for the
   child Teleport Cloud cluster Bot.
-
-<Admonition type="note" title="About this example">
-This guide uses AWS IAM joining for the child Teleport Cloud cluster Bot because
-`workload_cluster` currently supports IAM joining only. Learn more
-about IAM joining in the
-[join methods reference](../../reference/deployment/join-methods.mdx#aws-iam-role-iam).
-</Admonition>
 
 ## Step 1/5. Configure RBAC in the parent cluster
 
