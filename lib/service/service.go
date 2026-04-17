@@ -195,6 +195,7 @@ import (
 	webapp "github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/selinux"
 )
 
@@ -3536,6 +3537,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
+		if !cfg.SSH.EnableSELinux {
+			checkEmbeddedReexecAndLog(process.ExitContext(), logger)
+		} else {
+			logger.DebugContext(process.ExitContext(),
+				"The embedded session helper is not supported when SELinux support is enabled.",
+			)
+		}
+
 		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
 
 		// Provide helpful log message if listen_addr or public_addr are not being
@@ -3826,6 +3836,23 @@ func (process *TeleportProcess) initSSH() error {
 	})
 
 	return nil
+}
+
+func checkEmbeddedReexecAndLog(ctx context.Context, logger *slog.Logger) {
+	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
+		logger.WarnContext(ctx,
+			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
+			"error", err,
+		)
+	} else if ok {
+		logger.DebugContext(ctx,
+			"The embedded session helper is available and will be used for user sessions.",
+		)
+	} else {
+		logger.DebugContext(ctx,
+			"This Teleport build does not support the embedded session helper for user sessions.",
+		)
+	}
 }
 
 // RegisterWithAuthServer uses one time provisioning token obtained earlier

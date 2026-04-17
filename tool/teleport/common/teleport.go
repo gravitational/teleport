@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
-	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
 )
@@ -115,7 +114,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	exec := app.Command(reexecconstants.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	networking := app.Command(reexecconstants.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
 	checkHomeDir := app.Command(reexecconstants.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
-	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing, forever.").Hidden()
+	trueCmd := app.Command(reexecconstants.TrueSubCommand, "Used internally by Teleport to re-exec itself to do nothing, successfully.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -746,20 +746,13 @@ Examples:
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 
-	// TODO(espadolini): replace these after enterprise calls reexec.MaybeReexec
-	// in main with an error message ("invalid format for reexec subcommand")
-	// because if we got here it's because MaybeReexec didn't find the correct
-	// first argument
-	case exec.FullCommand():
-		reexec.RunAndExit(reexecconstants.ExecSubCommand)
-	case networking.FullCommand():
-		reexec.RunAndExit(reexecconstants.NetworkingSubCommand)
-	case checkHomeDir.FullCommand():
-		reexec.RunAndExit(reexecconstants.CheckHomeDirSubCommand)
-	case park.FullCommand():
-		reexec.RunAndExit(reexecconstants.ParkSubCommand)
-	case sftp.FullCommand():
-		reexec.RunAndExit(reexecconstants.SFTPSubCommand)
+	case exec.FullCommand(),
+		networking.FullCommand(),
+		checkHomeDir.FullCommand(),
+		park.FullCommand(),
+		trueCmd.FullCommand(),
+		sftp.FullCommand():
+		err = trace.BadParameter("invalid command line format for internal reexecution command (this is a bug)")
 
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
