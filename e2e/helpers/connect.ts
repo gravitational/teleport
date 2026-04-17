@@ -83,6 +83,7 @@ export async function login(page: Page): Promise<void> {
 export interface App {
   electronApp: ElectronApplication;
   page: Page;
+  userDataDir: string;
   appConfigPath: string;
 }
 
@@ -109,6 +110,7 @@ export const test = fixtureBase.extend<{
     }
     await use({
       electronApp: launchedApp.electronApp,
+      userDataDir: temp.path,
       page: launchedApp.page,
       appConfigPath,
     });
