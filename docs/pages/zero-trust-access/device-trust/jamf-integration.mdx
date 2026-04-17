@@ -215,7 +215,14 @@ by the [Jamf Pro API](
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
 Jamf recommends a full sync no more than once every 24 hours.
 
-The default "inventory" configuration is roughly equivalent to the one below:
+Where you apply the customization depends on your deployment. The default
+"inventory" configuration is roughly equivalent to:
+
+<Tabs>
+<TabItem label="Self-Hosted">
+
+Edit the `jamf_service.inventory` list in your `teleport.yaml` and restart the
+`teleport` process:
 
 ```yaml
 jamf_service:
@@ -228,6 +235,38 @@ jamf_service:
     on_missing: DELETE
     filter_rsql: general.remoteManagement.managed==true
 ```
+
+</TabItem>
+<TabItem label="Teleport Cloud">
+
+The hosted Jamf plugin stores the same configuration on the plugin resource.
+Open it for editing with `tctl edit plugins/jamf` and update
+`spec.Settings.jamf.jamf_spec.inventory`. Updating the config restarts the
+plugin immediately with the changes applied.
+
+```yaml
+kind: plugin
+metadata:
+  name: jamf
+spec:
+  Settings:
+    jamf:
+      jamf_spec:
+        inventory:
+        - device_type: computers
+          sync_period_partial: 6h
+          sync_period_full: 24h
+          on_missing: DELETE
+          filter_rsql: general.remoteManagement.managed==true
+version: v1
+```
+
+</TabItem>
+</Tabs>
+
+Subsequent examples in this section show the self-hosted form for brevity. To
+apply them to the hosted plugin, copy the `inventory` entries into
+`spec.Settings.jamf.jamf_spec.inventory` on the plugin resource.
 
 Each inventory entry syncs a single device type. To also sync iOS and iPadOS
 mobile devices, add a second entry with `device_type: mobile_devices`:
