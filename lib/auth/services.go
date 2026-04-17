@@ -99,6 +99,7 @@ type Services struct {
 	MFAService
 	services.WorkloadClusterService
 	services.Beams
+	services.SubCAService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.
