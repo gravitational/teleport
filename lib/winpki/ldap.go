@@ -332,7 +332,21 @@ func extractReferrals(ldapErr *ldap.Error) []string {
 	return out
 }
 
-func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
+// searchResult attempts to emulate the behavior of
+// a tagged union. The 'search' function returns a
+// list of ldap entries XOR a list of referral strings
+// in the success path.
+type searchResult interface {
+	isSearchResult()
+}
+
+type searchResultEntry struct{ entries []*ldap.Entry }
+type searchResultReferral struct{ referrals []string }
+
+func (searchResultEntry) isSearchResult()    {}
+func (searchResultReferral) isSearchResult() {}
+
+func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) (searchResult, error) {
 	l.cfg.Logger.DebugContext(ctx, "Executing paged query", "filter", searchRequest.Filter, "baseDN", searchRequest.BaseDN)
 	res, err := client.SearchWithPaging(searchRequest, searchPageSize)
 
@@ -342,17 +356,23 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
 			referrals := extractReferrals(ldapErr)
 			l.cfg.Logger.DebugContext(ctx, "Got referrals from paged query error", "referrals", referrals)
-			return nil, referrals, nil
+			return searchResultReferral{
+				referrals: referrals,
+			}, nil
 		}
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	case len(res.Entries) > 0:
 		l.cfg.Logger.DebugContext(ctx, "Got results from paged query", "count", len(res.Entries))
-		return res.Entries, nil, nil
+		return searchResultEntry{
+			entries: res.Entries,
+		}, nil
 	case len(res.Referrals) > 0:
 		l.cfg.Logger.DebugContext(ctx, "Got referrals from paged query", "referrals", res.Referrals)
-		return nil, res.Referrals, nil
+		return searchResultReferral{
+			referrals: res.Referrals,
+		}, nil
 	default:
-		return nil, nil, trace.NotFound("no results found for LDAP query")
+		return nil, trace.NotFound("no results found for LDAP query")
 	}
 }
 
@@ -386,17 +406,17 @@ func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
 }
 
 type searcher interface {
-	search(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error)
+	search(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error)
 }
 
-type searcherFunc func(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error)
+type searcherFunc func(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error)
 
-func (s searcherFunc) search(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
+func (s searcherFunc) search(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error) {
 	return s(ctx, searchRequest)
 }
 
 func ldapSearcher(l *LDAPClient) searcher {
-	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
+	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error) {
 		return l.search(ctx, l.conn, searchRequest)
 	})
 }
@@ -431,13 +451,18 @@ func (r *recursiveSearch) start(ctx context.Context, client searcher) ([]*ldap.E
 }
 
 func (r *recursiveSearch) run(ctx context.Context, client searcher, depth uint) ([]*ldap.Entry, error) {
-	entries, referrals, err := client.search(ctx, r.request)
+	res, err := client.search(ctx, r.request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(entries) > 0 {
-		return entries, nil
+	if entryResult, ok := res.(searchResultEntry); ok {
+		return entryResult.entries, nil
+	}
+
+	referralResult, ok := res.(searchResultReferral)
+	if !ok {
+		return nil, trace.Errorf("unexpected search result type")
 	}
 
 	if depth >= r.maxDepth {
@@ -446,7 +471,7 @@ func (r *recursiveSearch) run(ctx context.Context, client searcher, depth uint) 
 
 	// Parse LDAP referrals, filter out those that have already been encountered,
 	// and add new ones to the referrals set.
-	parsedReferrals := libslices.FilterMapUnique(referrals, func(ref string) (ldapReferral, bool) {
+	parsedReferrals := libslices.FilterMapUnique(referralResult.referrals, func(ref string) (ldapReferral, bool) {
 		defer r.referrals.Add(ref)
 		referral, err := newLDAPReferral(ref)
 		if err != nil {
