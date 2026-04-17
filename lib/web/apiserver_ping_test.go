@@ -267,7 +267,7 @@ func TestPing_scopesEnabled(t *testing.T) {
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
 
 			assert.Equal(t, test.expectProxyEnabled, pingResp.Proxy.ScopesEnabled)
-			assert.Equal(t, test.expectAuthServerScopesField, pingResp.AuthServerScopesStatus)
+			assert.Equal(t, test.expectAuthServerScopesField, pingResp.Auth.Scopes)
 		})
 	}
 }

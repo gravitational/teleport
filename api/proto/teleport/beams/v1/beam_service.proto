@@ -1,0 +1,135 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/beams/v1/beam.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// BeamService provides methods to create and manage beams - ephemeral
+// AI-optimized compute environments. It is only available in Teleport Cloud.
+service BeamService {
+  // CreateBeam creates a new beam. It will block until the beam is ready to
+  // accept SSH connections.
+  rpc CreateBeam(CreateBeamRequest) returns (CreateBeamResponse);
+
+  // UpdateBeam updates an existing beam's spec and metadata, conditionally
+  // based on the given beam's revision.
+  //
+  // Set or omit `spec.publish` to publish or unpublish the beam's application.
+  //
+  // Add or remove FQDNs to `spec.allowed_domains` to allow or deny the beam
+  // to dial connections to them.
+  //
+  // The `status`, `spec.egress`, and `spec.expires` fields are immutable. It is
+  // also not possible to change labels with the "teleport.internal/beam/" prefix.
+  rpc UpdateBeam(UpdateBeamRequest) returns (UpdateBeamResponse);
+
+  // DeleteBeam deletes given beam, and all of its associated resources.
+  rpc DeleteBeam(DeleteBeamRequest) returns (google.protobuf.Empty);
+
+  // GetBeam reads a beam by its UUID name or human-friendly alias.
+  rpc GetBeam(GetBeamRequest) returns (GetBeamResponse);
+
+  // ListBeams returns a list of beams, authorized by the `beam_labels` and
+  // `beam_labels_expression` role options.
+  rpc ListBeams(ListBeamsRequest) returns (ListBeamsResponse);
+}
+
+// CreateBeamRequest contains the parameters to the CreateBeam RPC.
+message CreateBeamRequest {
+  // Configures outgoing network connectivity from the beam.
+  EgressMode egress = 1;
+
+  // An allow-list of FQDNs that can be dialed from inside the beam. Can only
+  // be provided when EGRESS_MODE_RESTRICTED is set.
+  repeated string allowed_domains = 2;
+}
+
+// CreateBeamResponse contains the results of the CreateBeam RPC.
+message CreateBeamResponse {
+  // Beam that was created.
+  Beam beam = 1;
+}
+
+// UpdateBeamRequest contains the parameters to the UpdateBeam RPC.
+message UpdateBeamRequest {
+  // Beam to be updated. See the UpdateBeam RPC docs for details of which
+  // fields can be updated.
+  Beam beam = 1;
+}
+
+// UpdateBeamResponse contains the results of the UpdateBeam RPC.
+message UpdateBeamResponse {
+  // Beam that was updated.
+  Beam beam = 1;
+}
+
+// DeleteBeamRequest contains the parameters to the DeleteBeam RPC.
+message DeleteBeamRequest {
+  // Name is the UUID name of the beam that will be deleted.
+  string name = 1;
+}
+
+// GetBeamRequest contains the parameters to the GetBeam RPC.
+message GetBeamRequest {
+  oneof id {
+    // Name is the UUID name of the beam.
+    string name = 1;
+
+    // Alias is the human-friendly handle of the beam.
+    string alias = 2;
+  }
+}
+
+// GetBeamResponse contains the results of the GetBeam RPC.
+message GetBeamResponse {
+  // Beam that was retrieved.
+  Beam beam = 1;
+}
+
+// ListBeamsRequest contains the parameters to the ListBeams RPC.
+message ListBeamsRequest {
+  // The maximum number of items to return. The server may impose a different
+  // page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Filters that will be applied to filter the list of results.
+  Filters filters = 3;
+
+  // Filters contains fields that will be used to filter the results. When
+  // multiple filters are provided, they will be combined with AND.
+  message Filters {
+    // Users filters the list of beams to those belonging only to the given
+    // users.
+    repeated string users = 1;
+  }
+}
+
+// ListBeamsResponse contains the results of the ListBeams RPC.
+message ListBeamsResponse {
+  // The page of beams that matched the request.
+  repeated Beam beams = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no more
+  // results in the list.
+  string next_page_token = 2;
+}

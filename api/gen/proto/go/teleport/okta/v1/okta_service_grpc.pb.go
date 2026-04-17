@@ -35,24 +35,26 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	OktaService_ListOktaImportRules_FullMethodName        = "/teleport.okta.v1.OktaService/ListOktaImportRules"
-	OktaService_GetOktaImportRule_FullMethodName          = "/teleport.okta.v1.OktaService/GetOktaImportRule"
-	OktaService_CreateOktaImportRule_FullMethodName       = "/teleport.okta.v1.OktaService/CreateOktaImportRule"
-	OktaService_UpdateOktaImportRule_FullMethodName       = "/teleport.okta.v1.OktaService/UpdateOktaImportRule"
-	OktaService_DeleteOktaImportRule_FullMethodName       = "/teleport.okta.v1.OktaService/DeleteOktaImportRule"
-	OktaService_DeleteAllOktaImportRules_FullMethodName   = "/teleport.okta.v1.OktaService/DeleteAllOktaImportRules"
-	OktaService_ListOktaAssignments_FullMethodName        = "/teleport.okta.v1.OktaService/ListOktaAssignments"
-	OktaService_GetOktaAssignment_FullMethodName          = "/teleport.okta.v1.OktaService/GetOktaAssignment"
-	OktaService_CreateOktaAssignment_FullMethodName       = "/teleport.okta.v1.OktaService/CreateOktaAssignment"
-	OktaService_UpdateOktaAssignment_FullMethodName       = "/teleport.okta.v1.OktaService/UpdateOktaAssignment"
-	OktaService_UpdateOktaAssignmentStatus_FullMethodName = "/teleport.okta.v1.OktaService/UpdateOktaAssignmentStatus"
-	OktaService_DeleteOktaAssignment_FullMethodName       = "/teleport.okta.v1.OktaService/DeleteOktaAssignment"
-	OktaService_DeleteAllOktaAssignments_FullMethodName   = "/teleport.okta.v1.OktaService/DeleteAllOktaAssignments"
-	OktaService_ValidateClientCredentials_FullMethodName  = "/teleport.okta.v1.OktaService/ValidateClientCredentials"
-	OktaService_CreateIntegration_FullMethodName          = "/teleport.okta.v1.OktaService/CreateIntegration"
-	OktaService_UpdateIntegration_FullMethodName          = "/teleport.okta.v1.OktaService/UpdateIntegration"
-	OktaService_GetApps_FullMethodName                    = "/teleport.okta.v1.OktaService/GetApps"
-	OktaService_GetGroups_FullMethodName                  = "/teleport.okta.v1.OktaService/GetGroups"
+	OktaService_ListOktaImportRules_FullMethodName             = "/teleport.okta.v1.OktaService/ListOktaImportRules"
+	OktaService_GetOktaImportRule_FullMethodName               = "/teleport.okta.v1.OktaService/GetOktaImportRule"
+	OktaService_CreateOktaImportRule_FullMethodName            = "/teleport.okta.v1.OktaService/CreateOktaImportRule"
+	OktaService_UpdateOktaImportRule_FullMethodName            = "/teleport.okta.v1.OktaService/UpdateOktaImportRule"
+	OktaService_DeleteOktaImportRule_FullMethodName            = "/teleport.okta.v1.OktaService/DeleteOktaImportRule"
+	OktaService_DeleteAllOktaImportRules_FullMethodName        = "/teleport.okta.v1.OktaService/DeleteAllOktaImportRules"
+	OktaService_ListOktaAssignments_FullMethodName             = "/teleport.okta.v1.OktaService/ListOktaAssignments"
+	OktaService_GetOktaAssignment_FullMethodName               = "/teleport.okta.v1.OktaService/GetOktaAssignment"
+	OktaService_CreateOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/CreateOktaAssignment"
+	OktaService_UpdateOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/UpdateOktaAssignment"
+	OktaService_UpdateOktaAssignmentStatus_FullMethodName      = "/teleport.okta.v1.OktaService/UpdateOktaAssignmentStatus"
+	OktaService_DeleteOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/DeleteOktaAssignment"
+	OktaService_DeleteAllOktaAssignments_FullMethodName        = "/teleport.okta.v1.OktaService/DeleteAllOktaAssignments"
+	OktaService_ConditionalUpdateOktaAssignment_FullMethodName = "/teleport.okta.v1.OktaService/ConditionalUpdateOktaAssignment"
+	OktaService_UpsertOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/UpsertOktaAssignment"
+	OktaService_ValidateClientCredentials_FullMethodName       = "/teleport.okta.v1.OktaService/ValidateClientCredentials"
+	OktaService_CreateIntegration_FullMethodName               = "/teleport.okta.v1.OktaService/CreateIntegration"
+	OktaService_UpdateIntegration_FullMethodName               = "/teleport.okta.v1.OktaService/UpdateIntegration"
+	OktaService_GetApps_FullMethodName                         = "/teleport.okta.v1.OktaService/GetApps"
+	OktaService_GetGroups_FullMethodName                       = "/teleport.okta.v1.OktaService/GetGroups"
 )
 
 // OktaServiceClient is the client API for OktaService service.
@@ -87,6 +89,10 @@ type OktaServiceClient interface {
 	DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(ctx context.Context, in *DeleteAllOktaAssignmentsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(ctx context.Context, in *ConditionalUpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*ConditionalUpdateOktaAssignmentResponse, error)
+	// UpsertOktaAssignment upserts an Okta assignment resource.
+	UpsertOktaAssignment(ctx context.Context, in *UpsertOktaAssignmentRequest, opts ...grpc.CallOption) (*UpsertOktaAssignmentResponse, error)
 	// ValidateClientCredentials checks if the provided client credentials are valid.
 	ValidateClientCredentials(ctx context.Context, in *ValidateClientCredentialsRequest, opts ...grpc.CallOption) (*ValidateClientCredentialsResponse, error)
 	// EnrollIntegration enrolls a new integration with the specified parameters.
@@ -237,6 +243,26 @@ func (c *oktaServiceClient) DeleteAllOktaAssignments(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *oktaServiceClient) ConditionalUpdateOktaAssignment(ctx context.Context, in *ConditionalUpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*ConditionalUpdateOktaAssignmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConditionalUpdateOktaAssignmentResponse)
+	err := c.cc.Invoke(ctx, OktaService_ConditionalUpdateOktaAssignment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaServiceClient) UpsertOktaAssignment(ctx context.Context, in *UpsertOktaAssignmentRequest, opts ...grpc.CallOption) (*UpsertOktaAssignmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertOktaAssignmentResponse)
+	err := c.cc.Invoke(ctx, OktaService_UpsertOktaAssignment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *oktaServiceClient) ValidateClientCredentials(ctx context.Context, in *ValidateClientCredentialsRequest, opts ...grpc.CallOption) (*ValidateClientCredentialsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ValidateClientCredentialsResponse)
@@ -319,6 +345,10 @@ type OktaServiceServer interface {
 	DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error)
+	// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(context.Context, *ConditionalUpdateOktaAssignmentRequest) (*ConditionalUpdateOktaAssignmentResponse, error)
+	// UpsertOktaAssignment upserts an Okta assignment resource.
+	UpsertOktaAssignment(context.Context, *UpsertOktaAssignmentRequest) (*UpsertOktaAssignmentResponse, error)
 	// ValidateClientCredentials checks if the provided client credentials are valid.
 	ValidateClientCredentials(context.Context, *ValidateClientCredentialsRequest) (*ValidateClientCredentialsResponse, error)
 	// EnrollIntegration enrolls a new integration with the specified parameters.
@@ -377,6 +407,12 @@ func (UnimplementedOktaServiceServer) DeleteOktaAssignment(context.Context, *Del
 }
 func (UnimplementedOktaServiceServer) DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllOktaAssignments not implemented")
+}
+func (UnimplementedOktaServiceServer) ConditionalUpdateOktaAssignment(context.Context, *ConditionalUpdateOktaAssignmentRequest) (*ConditionalUpdateOktaAssignmentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ConditionalUpdateOktaAssignment not implemented")
+}
+func (UnimplementedOktaServiceServer) UpsertOktaAssignment(context.Context, *UpsertOktaAssignmentRequest) (*UpsertOktaAssignmentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertOktaAssignment not implemented")
 }
 func (UnimplementedOktaServiceServer) ValidateClientCredentials(context.Context, *ValidateClientCredentialsRequest) (*ValidateClientCredentialsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateClientCredentials not implemented")
@@ -648,6 +684,42 @@ func _OktaService_DeleteAllOktaAssignments_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OktaService_ConditionalUpdateOktaAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConditionalUpdateOktaAssignmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).ConditionalUpdateOktaAssignment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_ConditionalUpdateOktaAssignment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).ConditionalUpdateOktaAssignment(ctx, req.(*ConditionalUpdateOktaAssignmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaService_UpsertOktaAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertOktaAssignmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).UpsertOktaAssignment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_UpsertOktaAssignment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).UpsertOktaAssignment(ctx, req.(*UpsertOktaAssignmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _OktaService_ValidateClientCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ValidateClientCredentialsRequest)
 	if err := dec(in); err != nil {
@@ -796,6 +868,14 @@ var OktaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllOktaAssignments",
 			Handler:    _OktaService_DeleteAllOktaAssignments_Handler,
+		},
+		{
+			MethodName: "ConditionalUpdateOktaAssignment",
+			Handler:    _OktaService_ConditionalUpdateOktaAssignment_Handler,
+		},
+		{
+			MethodName: "UpsertOktaAssignment",
+			Handler:    _OktaService_UpsertOktaAssignment_Handler,
 		},
 		{
 			MethodName: "ValidateClientCredentials",

@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -50,6 +49,10 @@ const (
 
 	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
 	SubKindMaterialized = "materialized"
+
+	// CreatorKindAccessList indicates that the creator is an access list, for
+	// scoped role assignments materialized from access list membership.
+	CreatorKindAccessList = "access_list"
 
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
@@ -407,8 +410,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
-	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
+	if err := scopes.StrongValidateSegment(assignment.GetMetadata().GetName()); err != nil {
+		return trace.BadParameter("scoped role assignment name %q does not conform to segment naming rules: %v", assignment.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(assignment.GetScope()); err != nil {

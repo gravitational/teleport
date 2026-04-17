@@ -110,6 +110,8 @@ func TestJoinGHA(t *testing.T) {
 				Actor:           "octocat",
 				Ref:             "refs/heads/main",
 				RefType:         "branch",
+				Enterprise:      "my-enterprise",
+				EnterpriseID:    "123456",
 			},
 		},
 	}
@@ -150,6 +152,8 @@ func TestJoinGHA(t *testing.T) {
 			Actor:           "octocat",
 			Ref:             "refs/heads/main",
 			RefType:         "branch",
+			Enterprise:      "my-enterprise",
+			EnterpriseID:    "123456",
 		}
 		if modifier != nil {
 			modifier(rule)
@@ -644,6 +648,38 @@ func TestJoinGHA(t *testing.T) {
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
 							rule.RefType = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Enterprise = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise-id",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.EnterpriseID = "not matching"
 						}),
 					},
 				},

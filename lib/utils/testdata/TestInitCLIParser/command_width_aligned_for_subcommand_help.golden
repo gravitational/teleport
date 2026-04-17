@@ -5,8 +5,8 @@ Create.
 Flags:
 
 Commands:
-  create box    Box.
-  create rocket Rocket.
+  box          Box.
+  rocket       Rocket.
 
 Aliases:
 

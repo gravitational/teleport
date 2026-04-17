@@ -508,15 +508,35 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName   string           `yaml:"token_name"`
-	TokenSecret string           `yaml:"token_secret,omitempty"`
-	Method      types.JoinMethod `yaml:"method"`
-	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName    string             `yaml:"token_name"`
+	TokenSecret  string             `yaml:"token_secret,omitempty"`
+	Method       types.JoinMethod   `yaml:"method"`
+	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
+	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
 type AzureJoinParams struct {
 	ClientID string `yaml:"client_id"`
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string `yaml:"registration_secret_value"`
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string `yaml:"registration_secret_path"`
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string `yaml:"static_key_path"`
 }
 
 // ConnectionRate configures rate limiter
@@ -2445,6 +2465,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *LLM `yaml:"inference,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2512,6 +2535,29 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// LLM contains LLM inference endpoint related configurations.
+type LLM struct {
+	// Format is the LLM inference API format.
+	Format string `yaml:"format"`
+	// Provider is the inference provider that will be used to serve the
+	// requests.
+	Provider string `yaml:"provider"`
+	// Models is the list of supported models, and optionally their name on the
+	// inference provider.
+	Models []LLMModel `yaml:"models,omitempty"`
+	// FallbackModel is a model that will be used if the model requested is not
+	// on the list.
+	FallbackModel string `yaml:"fallback_model,omitempty"`
+}
+
+// LLMModel is a provider model definition.
+type LLMModel struct {
+	// Name defines the model name.
+	Name string `yaml:"name"`
+	// ProviderName is the model name in the configured provider.
+	ProviderName string `yaml:"provider_name,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

@@ -1410,6 +1410,13 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	userNameRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-username", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{user.metadata.name}}"},
+		},
+	})
+	require.NoError(t, err)
+
 	impersonatorRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
@@ -1417,6 +1424,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 					accessFooRole.GetName(),
 					accessBarRole.GetName(),
 					loginsTraitsRole.GetName(),
+					userNameRole.GetName(),
 				},
 			},
 		},
@@ -1494,6 +1502,14 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			roleRequests:     []string{loginsTraitsRole.GetName()},
 			useRoleRequests:  true,
 			expectPrincipals: []string{"trait-login"},
+		},
+		{
+			desc:             "requesting a role preserves the teleport username",
+			username:         "ivy",
+			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
+			roleRequests:     []string{userNameRole.GetName()},
+			useRoleRequests:  true,
+			expectPrincipals: []string{"ivy"},
 		},
 		{
 			// Users not using role requests should keep their own roles
@@ -2061,8 +2077,13 @@ func TestAuthPreferenceRBAC(t *testing.T) {
 }
 
 func TestClusterNetworkingCloudUpdates(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
+
+	testModules := modulestest.EnterpriseModules()
+
+	srv := newTestTLSServer(t, withModules(testModules))
+
 	_, err := srv.Auth().UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
@@ -2155,13 +2176,7 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
-
+			testModules.TestFeatures.Cloud = tc.cloud
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
@@ -3438,12 +3453,10 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 }
 
 func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
+	t.Parallel()
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-	ctx := context.Background()
-	srv := newTestTLSServer(t, withCacheEnabled(true))
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withCacheEnabled(true), withModules(modulestest.EnterpriseModules()))
 
 	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 		Name: "saml-app",
@@ -3490,12 +3503,10 @@ func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
 // RBAC and search filters when fetching SAML IdP service providers.
 func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
+	t.Parallel()
 
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 
 	for i := range 5 {
 		name := fmt.Sprintf("saml-app-%v", i)
@@ -10659,6 +10670,7 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 }
 
 func TestCloudDefaultPasswordless(t *testing.T) {
+	t.Parallel()
 	tt := []struct {
 		name                     string
 		cloud                    bool
@@ -10706,15 +10718,16 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			// create new server
-			ctx := context.Background()
-			srv := newTestTLSServer(t)
-
-			modulestest.SetTestModules(t, modulestest.Modules{
+			ctx := t.Context()
+			t.Parallel()
+			testModules := &modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},
-			})
+			}
+
+			srv := newTestTLSServer(t, withModules(testModules))
 
 			// set cluster Webauthn
 			authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -10730,7 +10743,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, modules.BuildEnterprise, srv.Auth())
+				auth.CreatePresetUsers(ctx, testModules.BuildType(), srv.Auth())
 			}
 
 			// create preexisting users

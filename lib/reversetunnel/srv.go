@@ -1370,6 +1370,47 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 	}
 
 	go leaf.updateLocks(lockRetry)
+
+	mfaRetry := retryutils.LinearConfig{
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
+		Step:   srv.Config.PollingPeriod / 5,
+		Max:    srv.Config.PollingPeriod,
+		Jitter: retryutils.HalfJitter,
+		Clock:  srv.Clock,
+	}
+
+	validatedMFAChallengeWatcher, err := NewValidatedMFAChallengeWatcher(
+		closeContext,
+		ValidatedMFAChallengeWatcherConfig{
+			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClient(),
+			ClusterName:                 leaf.GetName(),
+			ResourceWatcherConfig: &services.ResourceWatcherConfig{
+				Clock:     srv.Clock,
+				Component: srv.Component,
+				Logger:    srv.Logger.With("leaf_cluster", leaf.GetName()),
+				Client:    leaf.localClient,
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	leaf.validatedMFAChallengeWatcher = validatedMFAChallengeWatcher
+
+	go func() {
+		if err := leaf.runValidatedMFAChallengeSync(closeContext, mfaRetry); err != nil {
+			if err := srv.onClusterTunnelClose(&alwaysClose{Cluster: leaf}); err != nil {
+				srv.Logger.ErrorContext(
+					closeContext,
+					"Failed to clean up leaf cluster resources after runValidatedMFAChallengeSync loop exited",
+					"leaf_cluster", leaf.GetName(),
+					"error", err,
+				)
+			}
+		}
+	}()
+
 	return leaf, nil
 }
 

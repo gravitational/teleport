@@ -53,6 +53,7 @@ Optional:
 - `cors` (Attributes) CORSPolicy defines the Cross-Origin Resource Sharing settings for the app. (see [below for nested schema](#nested-schema-for-speccors))
 - `dynamic_labels` (Attributes Map) DynamicLabels are the app's command labels. (see [below for nested schema](#nested-schema-for-specdynamic_labels))
 - `identity_center` (Attributes) IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps. (see [below for nested schema](#nested-schema-for-specidentity_center))
+- `inference` (Attributes) LLM contains LLM inference endpoint related configurations. (see [below for nested schema](#nested-schema-for-specinference))
 - `insecure_skip_verify` (Boolean) InsecureSkipVerify disables app's TLS certificate verification.
 - `integration` (String) Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 - `mcp` (Attributes) MCP contains MCP server related configurations. (see [below for nested schema](#nested-schema-for-specmcp))
@@ -115,6 +116,24 @@ Optional:
 - `arn` (String) ARN is the fully-formed ARN of the Permission Set.
 - `assignment_name` (String) AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.
 - `name` (String) Name is the human-readable name of the Permission Set.
+
+
+
+### Nested Schema for `spec.inference`
+
+Optional:
+
+- `fallback_model` (String) Defines a model that will be used if the model requested is not on the list. The fallback model must be in the "models" list.
+- `format` (String) Defines the LLM inference API format.
+- `models` (Attributes List) Defines the list of supported models, and optionally their name on the inference provider. (see [below for nested schema](#nested-schema-for-specinferencemodels))
+- `provider` (String) Defines which inference provider will be used to serve the requests.
+
+### Nested Schema for `spec.inference.models`
+
+Optional:
+
+- `name` (String) Name defines the model name. This is the requested value.
+- `provider_name` (String) Represents the model name in the configured provider.
 
 
 

@@ -578,12 +578,12 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "malformed name",
+			name: "malformed name - long name",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
-					Name: "not-a-uuid",
+					Name: "thisiswaytoolongofanameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 				Scope: "/",
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{

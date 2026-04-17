@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
+// TODO(gabrielcorado): add support to LLM.
 var supportedResourceKinds = []string{
 	types.KindNode,
 	types.KindDatabase,

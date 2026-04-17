@@ -47,8 +47,6 @@ export async function login(
     .getByRole('button', { name: 'Sign In' })
     .click();
 
-  await page.waitForLoadState('networkidle');
-
   await expect(page.getByText(/^Resources$/).first()).toBeVisible();
 }
 

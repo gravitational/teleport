@@ -250,6 +250,35 @@ func TestTrimToMaxSize(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "AppSessionLLMRequest trimmed",
+			maxSize: 200,
+			in: &AppSessionLLMRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "T2014I",
+					Type: "app.session.llm.request.success",
+				},
+				Path:           strings.Repeat("/path", 20),
+				Method:         strings.Repeat("POST", 20),
+				RequestedModel: strings.Repeat("requested-model", 20),
+				// Models and provider comes from the app config and should not
+				// be trimmed.
+				Provider: "a-long-provider-name-not-trimmed",
+				Model:    "a-long-model-name-not-trimmed",
+			},
+			want: &AppSessionLLMRequest{
+				Metadata: Metadata{
+					Code: "T2014I",
+					Type: "app.session.llm.request.success",
+				},
+				Path:           "/path/path/path/",
+				Method:         "POSTPOSTPOSTPOST",
+				RequestedModel: "requested-modelr",
+				Provider:       "a-long-provider-name-not-trimmed",
+				Model:          "a-long-model-name-not-trimmed",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

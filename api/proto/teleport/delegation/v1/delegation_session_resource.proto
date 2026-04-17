@@ -68,12 +68,18 @@ message DelegationUserSpec {
 // DelegationResourceSpec describes a Teleport Protected Resource that the bot
 // or workload will be allowed to access on behalf of the user.
 message DelegationResourceSpec {
-  // Kind of resource. A wildcard (kind="*", name="*") may be specified to allow
-  // the bot or workload to use all of the user's permissions.
+  // Kind of resource.
+  //
+  // A wildcard (kind="*", name="*") may be specified to allow the bot or
+  // workload to use all of the user's permissions, including administrative
+  // permissions.
   string kind = 1;
 
-  // Name of the resource. A wildcard (kind="*", name="*") may be specified to
-  // allow the bot or workload to use all of the user's permissions.
+  // Name of the resource.
+  //
+  // A wildcard (kind="*", name="*") may be specified to allow the bot or
+  // workload to use all of the user's permissions, including administrative
+  // permissions.
   string name = 2;
 
   oneof constraints {

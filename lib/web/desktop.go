@@ -151,7 +151,7 @@ type tdpHandshaker struct {
 func (t *tdpHandshaker) sendError(ctx context.Context, log *slog.Logger, err error) error {
 	if err == nil {
 		log.WarnContext(ctx, "SendError called with empty message")
-		err = errors.New("an an unknown error has occurred")
+		err = errors.New("an unknown error has occurred")
 	}
 
 	return trace.Wrap(t.connection.WriteMessage((&legacy.Alert{
