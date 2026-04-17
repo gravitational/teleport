@@ -26,16 +26,20 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// GroupMember represents Microsoft Graph API group members.
 type GroupMember interface {
 	GetID() *string
 	isGroupMember()
 }
 
+// DirectoryObject is a core object structure of the
+// Microsoft Graph API resource properties.
 type DirectoryObject struct {
 	ID          *string `json:"id,omitempty"`
 	DisplayName *string `json:"displayName,omitempty"`
 }
 
+// Group defines Microsoft Graph API group object.
 type Group struct {
 	DirectoryObject
 	// GroupTypes is a list of group type strings.
@@ -50,14 +54,18 @@ type Group struct {
 	Owners []*User `json:"owners,omitempty"`
 }
 
+// IsOffice365Group checks if the group is a Office 365 group.
 func (g *Group) IsOffice365Group() bool {
 	const office365Group = "Unified"
 	return slices.Contains(g.GroupTypes, office365Group)
 }
 
 func (g *Group) isGroupMember() {}
+
+// GetID returns ID of the group.
 func (g *Group) GetID() *string { return g.ID }
 
+// Group defines Microsoft Graph API user object.
 type User struct {
 	DirectoryObject
 
@@ -69,8 +77,11 @@ type User struct {
 }
 
 func (g *User) isGroupMember() {}
+
+// GetID returns ID of the user.
 func (u *User) GetID() *string { return u.ID }
 
+// Application defines Microsoft Graph API Application object.
 type Application struct {
 	DirectoryObject
 
@@ -115,17 +126,20 @@ type OptionalClaim struct {
 	Source               *string  `json:"source,omitempty"`
 }
 
-// OptionalClaims represents optional claims in a token.
+// OptionalClaims represents optional claims in an OIDC token.
 type OptionalClaims struct {
 	IDToken     []OptionalClaim `json:"idToken,omitempty"`
 	AccessToken []OptionalClaim `json:"accessToken,omitempty"`
 	SAML2Token  []OptionalClaim `json:"saml2Token,omitempty"`
 }
 
+// WebApplication defines Microsoft Graph API web application object
+// used to configure SSO redirect URL for the Enterprise Application.
 type WebApplication struct {
 	RedirectURIs *[]string `json:"redirectUris,omitempty"`
 }
 
+// ServicePrincipal defines Microsoft Graph API service principal object.
 type ServicePrincipal struct {
 	DirectoryObject
 	AppRoleAssignmentRequired          *bool      `json:"appRoleAssignmentRequired,omitempty"`
@@ -134,11 +148,16 @@ type ServicePrincipal struct {
 	AppRoles                           []*AppRole `json:"appRoles,omitempty"`
 }
 
+// ApplicationServicePrincipal defines Microsoft Graph API
+// application service principal associated with the Enterprise APplication.
 type ApplicationServicePrincipal struct {
 	Application      *Application      `json:"application,omitempty"`
 	ServicePrincipal *ServicePrincipal `json:"servicePrincipal,omitempty"`
 }
 
+// FederatedIdentityCredential defines Microsoft Graph API
+// federated identity credential type associated with the Enterprise
+// Application.
 type FederatedIdentityCredential struct {
 	Audiences *[]string `json:"audiences,omitempty"`
 	Issuer    *string   `json:"issuer,omitempty"`
@@ -146,15 +165,21 @@ type FederatedIdentityCredential struct {
 	Subject   *string   `json:"subject,omitempty"`
 }
 
+// SelfSignedCertificate defines Microsoft Graph API self-signed
+// token-signing certificate for the Service Principal.
 type SelfSignedCertificate struct {
 	Thumbprint *string `json:"thumbprint,omitempty"`
 }
 
+// AppRole defines Microsoft Graph API
+// App Role object.
 type AppRole struct {
 	ID    *string `json:"id,omitempty"`
 	Value *string `json:"value,omitempty"`
 }
 
+// AppRoleAssignment defines Microsoft Graph API
+// App Role Assignment object.
 type AppRoleAssignment struct {
 	ID          *string `json:"id,omitempty"`
 	AppRoleID   *string `json:"appRoleId,omitempty"`
@@ -162,6 +187,8 @@ type AppRoleAssignment struct {
 	ResourceID  *string `json:"resourceId,omitempty"`
 }
 
+// DecodeGroupMember decodes raw group member response
+// checks for supported group member type of user or group.
 func DecodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	var temp struct {
 		Type string `json:"@odata.type"`
@@ -197,6 +224,7 @@ type UnsupportedGroupMember struct {
 	Type string
 }
 
+// Error returns friendly string for UnsupportedGroupMember error.
 func (u *UnsupportedGroupMember) Error() string {
 	return fmt.Sprintf("Unsupported group member: %q", u.Type)
 }
