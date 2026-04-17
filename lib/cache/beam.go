@@ -19,9 +19,11 @@ package cache
 import (
 	"context"
 	"iter"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"rsc.io/ordered"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -34,8 +36,9 @@ import (
 type beamIndex string
 
 const (
-	beamNameIndex  beamIndex = "name"
-	beamAliasIndex beamIndex = "alias"
+	beamNameIndex    beamIndex = "name"
+	beamAliasIndex   beamIndex = "alias"
+	beamExpiresIndex beamIndex = "expires"
 )
 
 func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collection[*beamsv1.Beam, beamIndex], error) {
@@ -48,8 +51,9 @@ func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collec
 			types.KindBeam,
 			proto.CloneOf[*beamsv1.Beam],
 			map[beamIndex]func(*beamsv1.Beam) string{
-				beamNameIndex:  keyForBeamNameIndex,
-				beamAliasIndex: keyForBeamAliasIndex,
+				beamNameIndex:    keyForBeamNameIndex,
+				beamAliasIndex:   keyForBeamAliasIndex,
+				beamExpiresIndex: keyForBeamExpiryIndex,
 			},
 		),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*beamsv1.Beam, error) {
@@ -127,10 +131,43 @@ func (c *Cache) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*b
 	return lister.Range(ctx, pageToken, "")
 }
 
+// IterateExpiredBeams returns beams whose spec.expires is before expiresBefore,
+// ordered by expiry time and then metadata.name.
+func (c *Cache) IterateExpiredBeams(ctx context.Context, expiresBefore time.Time) iter.Seq2[*beamsv1.Beam, error] {
+	return func(yield func(*beamsv1.Beam, error) bool) {
+		rg, err := acquireReadGuard(c, c.collections.beams)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			yield(nil, trace.BadParameter("IterateExpiredBeams requires a healthy cache"))
+			return
+		}
+
+		end := keyForBeamExpiryIndexAt(expiresBefore, "")
+		for beam := range rg.store.resources(beamExpiresIndex, "", end) {
+			if !yield(c.collections.beams.store.clone(beam), nil) {
+				return
+			}
+		}
+	}
+}
+
 func keyForBeamNameIndex(beam *beamsv1.Beam) string {
 	return beam.GetMetadata().GetName()
 }
 
 func keyForBeamAliasIndex(beam *beamsv1.Beam) string {
 	return beam.GetStatus().GetAlias()
+}
+
+func keyForBeamExpiryIndex(beam *beamsv1.Beam) string {
+	return keyForBeamExpiryIndexAt(beam.GetSpec().GetExpires().AsTime(), beam.GetMetadata().GetName())
+}
+
+func keyForBeamExpiryIndexAt(expires time.Time, name string) string {
+	return string(ordered.Encode(expires.Unix(), name))
 }
