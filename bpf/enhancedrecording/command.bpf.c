@@ -88,7 +88,11 @@ static int enter_execve(const char *filename, const char *const *argv)
     }
 
     info->valid = true;
-    bpf_probe_read_user_str(&info->filename, sizeof(info->filename), filename);
+    if (bpf_probe_read_user_str(&info->filename, sizeof(info->filename), filename) <= 0) {
+        // if reading the filename failed set it to empty to it won't
+        // be used in an event
+        info->filename[0] = 0;
+    }
     info->argv = (u64)argv;
     info->emitted = false;
 
