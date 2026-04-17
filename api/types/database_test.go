@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -1499,4 +1501,28 @@ func TestIsAutoUsersEnabled(t *testing.T) {
 			require.Equal(t, tc.expectedResult, db.IsAutoUsersEnabled())
 		})
 	}
+}
+
+func TestVNetDNSName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("deterministic", func(t *testing.T) {
+		// Verify the output matches a hand-computed value so the
+		// algorithm doesn't silently change (would break VNet lookups).
+		name := "my-postgres"
+		hash := sha256.Sum256([]byte(name))
+		want := strings.ToLower(
+			base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8]),
+		)
+		require.Equal(t, want, VNetDNSName(name))
+	})
+
+	t.Run("lowercase", func(t *testing.T) {
+		result := VNetDNSName("my-postgres")
+		require.Equal(t, strings.ToLower(result), result)
+	})
+
+	t.Run("different names produce different hashes", func(t *testing.T) {
+		require.NotEqual(t, VNetDNSName("db-one"), VNetDNSName("db-two"))
+	})
 }

@@ -6756,6 +6756,8 @@ func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, serve
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	setDatabaseVNetDNSName(server)
+
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6768,6 +6770,14 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	})
 
 	return lease, nil
+}
+
+// setDatabaseVNetDNSName sets the VNet DNS name on the embedded database's
+// status so VNet can resolve databases by their hashed DNS name.
+func setDatabaseVNetDNSName(server types.DatabaseServer) {
+	if dbv3, ok := server.GetDatabase().(*types.DatabaseV3); ok {
+		dbv3.Status.VNetDNSName = types.VNetDNSName(dbv3.GetName())
+	}
 }
 
 func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {

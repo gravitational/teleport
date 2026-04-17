@@ -18,6 +18,8 @@ package types
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -80,6 +82,8 @@ type Database interface {
 	GetMySQLServerVersion() string
 	// SetMySQLServerVersion sets the runtime MySQL server version.
 	SetMySQLServerVersion(version string)
+	// GetStatusVNetDNSName returns the VNet DNS name from the database status.
+	GetStatusVNetDNSName() string
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
@@ -397,6 +401,11 @@ func (d *DatabaseV3) GetMySQLServerVersion() string {
 // SetMySQLServerVersion sets the runtime MySQL server version.
 func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 	d.Status.MySQL.ServerVersion = version
+}
+
+// GetStatusVNetDNSName returns the VNet DNS name from the database status.
+func (d *DatabaseV3) GetStatusVNetDNSName() string {
+	return d.Status.VNetDNSName
 }
 
 // IsEmpty returns true if AWS metadata is empty.
@@ -725,6 +734,13 @@ var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z
 // 63 chars in length and allow upper case chars.
 func ValidateDatabaseName(name string) error {
 	return ValidateResourceName(validDatabaseNameRegexp, name)
+}
+
+// VNetDNSName returns the VNet DNS name for a given database name.
+func VNetDNSName(name string) string {
+	hash := sha256.Sum256([]byte(name))
+	base32Encoding := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8])
+	return strings.ToLower(base32Encoding)
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
