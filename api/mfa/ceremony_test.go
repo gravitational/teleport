@@ -281,18 +281,6 @@ func TestNewSessionBoundCeremonyErrors(t *testing.T) {
 		wantErr     error
 	}{
 		{
-			name: "missing payload",
-			buildConfig: func() mfa.SessionBoundCeremonyConfig {
-				return mfa.SessionBoundCeremonyConfig{
-					CreateSessionChallenge:   newSessionBindingConfig().CreateSessionChallenge,
-					ValidateSessionChallenge: newSessionBindingConfig().ValidateSessionChallenge,
-					PromptConstructor:        newSessionBindingConfig().PromptConstructor,
-					TargetCluster:            mockTargetCluster,
-				}
-			},
-			wantErr: trace.BadParameter("config.Payload must not be nil"),
-		},
-		{
 			name: "missing create session challenge func",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
@@ -451,7 +439,6 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 
 			ceremony, err := mfa.NewSessionBoundCeremony(mfa.SessionBoundCeremonyConfig{
 				CreateSessionChallenge: func(_ context.Context, req *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					require.Empty(t, cmp.Diff(config.Payload, req.GetPayload(), protocmp.Transform()))
 					require.Equal(t, config.TargetCluster, req.GetTargetCluster())
 
 					if test.callbackCeremony == nil {
@@ -492,12 +479,11 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 					return &mfav1.ValidateSessionChallengeResponse{}, nil
 				},
 				CallbackCeremony: test.callbackCeremony,
-				Payload:          config.Payload,
 				TargetCluster:    config.TargetCluster,
 			})
 			require.NoError(t, err)
 
-			gotName, err := ceremony.Run(t.Context())
+			gotName, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
 			require.NoError(t, err)
 			require.Equal(t, test.createResp.MfaChallenge.GetName(), gotName, "expected challenge name to be returned")
 		})
@@ -549,7 +535,7 @@ func TestSessionBoundCeremonyRun_CallbackCeremony(t *testing.T) {
 	ceremony, err := mfa.NewSessionBoundCeremony(config)
 	require.NoError(t, err)
 
-	gotName, err := ceremony.Run(t.Context())
+	gotName, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
 	require.NoError(t, err)
 	require.Equal(t, mockChallengeName, gotName)
 }
@@ -607,28 +593,6 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 				return config
 			},
 			wantErr: trace.BadParameter("AuthenticateChallenge must not be nil"),
-		},
-		{
-			name: "prompt returns nil response payload",
-			buildConfig: func() mfa.SessionBoundCeremonyConfig {
-				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					resp := newSessionBindingCreateResp(mockChallengeName)
-					resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-					return resp, nil
-				}
-				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
-					return mfa.PromptFunc(
-						func(_ context.Context, _ *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-							return nil, nil
-						},
-					)
-				}
-
-				return config
-			},
-			wantErr: trace.BadParameter("MFAAuthenticateResponse must not be nil"),
 		},
 		{
 			name: "prompt returns response with empty challenge name",
@@ -691,7 +655,7 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			ceremony, err := mfa.NewSessionBoundCeremony(test.buildConfig())
 			require.NoError(t, err)
 
-			name, err := ceremony.Run(t.Context())
+			name, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
 			require.ErrorIs(t, err, test.wantErr)
 			require.Empty(t, name)
 		})
@@ -779,7 +743,6 @@ func newSessionBindingConfig() mfa.SessionBoundCeremonyConfig {
 		ValidateSessionChallenge: func(_ context.Context, _ *mfav1.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error) {
 			return &mfav1.ValidateSessionChallengeResponse{}, nil
 		},
-		Payload:       &mfav1.SessionIdentifyingPayload{},
 		TargetCluster: mockTargetCluster,
 	}
 }
