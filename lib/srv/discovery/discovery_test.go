@@ -135,13 +135,32 @@ type mockEmitter struct {
 	eventHandler func(*testing.T, events.AuditEvent, *Server)
 	server       *Server
 	t            *testing.T
+
+	mu      sync.Mutex
+	emitted []events.AuditEvent
 }
 
 func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	me.mu.Lock()
+	me.emitted = append(me.emitted, event)
+	me.mu.Unlock()
 	if me.eventHandler != nil {
 		me.eventHandler(me.t, event, me.server)
 	}
 	return nil
+}
+
+// emittedEventsOfType returns a snapshot of emitted audit events whose type matches eventType.
+func (me *mockEmitter) emittedEventsOfType(eventType string) []events.AuditEvent {
+	me.mu.Lock()
+	defer me.mu.Unlock()
+	var out []events.AuditEvent
+	for _, e := range me.emitted {
+		if e.GetType() == eventType {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 type mockUsageReporter struct {
@@ -3124,28 +3143,35 @@ func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV
 }
 
 type mockAzureRunCommandClient struct {
-	mu                 sync.Mutex
-	installedInstances map[string]struct{}
-	runErr             error
+	mu           sync.Mutex
+	attemptedVMs map[string]struct{}
+	runErr       error
 }
 
-func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) error {
+func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.attemptedVMs == nil {
+		m.attemptedVMs = make(map[string]struct{})
+	}
+	m.attemptedVMs[req.VMName] = struct{}{}
+
 	if m.runErr != nil {
-		return m.runErr
+		return nil, m.runErr
 	}
-	if m.installedInstances == nil {
-		m.installedInstances = make(map[string]struct{})
-	}
-	m.installedInstances[req.VMName] = struct{}{}
-	return nil
+
+	return &azure.RunCommandResult{
+		ExecutionState: string(armcompute.ExecutionStateSucceeded),
+		StdErr:         "Mock stderr",
+		StdOut:         "Mock stdout",
+		ExitCode:       0,
+	}, nil
 }
 
-func (m *mockAzureRunCommandClient) getInstalled() []string {
+func (m *mockAzureRunCommandClient) getAttempted() []string {
 	m.mu.Lock()
-	elems := slices.Sorted(maps.Keys(m.installedInstances))
+	elems := slices.Sorted(maps.Keys(m.attemptedVMs))
 	m.mu.Unlock()
 	return elems
 }
@@ -3281,43 +3307,43 @@ func TestAzureVMDiscovery(t *testing.T) {
 		presentVMs               []types.Server
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
-		wantInstalledInstances   []string
+		wantInstances            []string
 		expectedIntegrationNames []string
 		runError                 error
 		userTasksCheck           func(*testing.T, UserTaskLister)
 	}{
 		{
-			name:                   "no nodes present, 1 found",
-			presentVMs:             []types.Server{},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+			name:           "no nodes present, 1 found",
+			presentVMs:     []types.Server{},
+			staticMatchers: vmMatcherFn(),
+			wantInstances:  []string{"testvm", "testvm-integration"},
 		},
 		{
-			name:                   "nodes present, instance filtered",
-			presentVMs:             []types.Server{presentNode},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm-integration"},
+			name:           "nodes present, instance filtered",
+			presentVMs:     []types.Server{presentNode},
+			staticMatchers: vmMatcherFn(),
+			wantInstances:  []string{"testvm-integration"},
 		},
 		{
-			name:                   "nodes present, instance not filtered",
-			presentVMs:             []types.Server{presentNodeAlt},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+			name:           "nodes present, instance not filtered",
+			presentVMs:     []types.Server{presentNodeAlt},
+			staticMatchers: vmMatcherFn(),
+			wantInstances:  []string{"testvm", "testvm-integration"},
 		},
 		{
-			name:                   "no nodes present, 1 found using dynamic matchers",
-			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig(),
-			staticMatchers:         Matchers{},
-			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+			name:            "no nodes present, 1 found using dynamic matchers",
+			presentVMs:      []types.Server{},
+			discoveryConfig: defaultDiscoveryConfig(),
+			staticMatchers:  Matchers{},
+			wantInstances:   []string{"testvm", "testvm-integration"},
 		},
 		{
-			name:                   "installation failure creates user task",
-			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig(),
-			staticMatchers:         Matchers{},
-			wantInstalledInstances: []string{},
-			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			name:            "installation failure creates user task",
+			presentVMs:      []types.Server{},
+			discoveryConfig: defaultDiscoveryConfig(),
+			staticMatchers:  Matchers{},
+			wantInstances:   []string{"testvm", "testvm-integration"},
+			runError:        azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				var tasks []*usertasksv1.UserTask
 				var err error
@@ -3361,11 +3387,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 			},
 		},
 		{
-			name:                   "static matcher failure does not create user task",
-			presentVMs:             []types.Server{},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{},
-			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			name:           "static matcher failure does not create user task",
+			presentVMs:     []types.Server{},
+			staticMatchers: vmMatcherFn(),
+			wantInstances:  []string{"testvm", "testvm-integration"},
+			runError:       azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
@@ -3379,7 +3405,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 			t.Parallel()
 
 			runClient := &mockAzureRunCommandClient{
-				runErr: tc.runError,
+				attemptedVMs: make(map[string]struct{}),
+				runErr:       tc.runError,
 			}
 
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
@@ -3454,17 +3481,29 @@ func TestAzureVMDiscovery(t *testing.T) {
 				t.Cleanup(server.Stop)
 
 				synctest.Wait()
-				if len(tc.wantInstalledInstances) == 0 {
-					require.Empty(t, runClient.getInstalled())
-				} else {
-					require.Equal(t, tc.wantInstalledInstances, runClient.getInstalled())
-				}
+
+				// verify installation for matched VMs have been attempted
+				require.Equal(t, tc.wantInstances, runClient.getAttempted())
+
+				// verify expected amount of "resource created" events
 				expectedEvents := 1
 				if tc.runError != nil {
 					expectedEvents = 0
 				}
 				require.Equal(t, expectedEvents, reporter.ResourceCreateEventCount())
 
+				// verify one AzureRun audit event was emitted per attempted VM, with the right code.
+				wantCode := libevents.AzureRunSuccessCode
+				if tc.runError != nil {
+					wantCode = libevents.AzureRunFailCode
+				}
+				azureRuns := emitter.emittedEventsOfType(libevents.AzureRunEvent)
+				require.Len(t, azureRuns, len(tc.wantInstances))
+				for _, ae := range azureRuns {
+					require.Equal(t, wantCode, ae.GetCode())
+				}
+
+				// verify user tasks state
 				if tc.userTasksCheck != nil {
 					tc.userTasksCheck(t, tlsServer.Auth())
 				}

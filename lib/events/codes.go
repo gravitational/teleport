@@ -454,8 +454,13 @@ const (
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"
-	// SSMRunFailCode is the discovery script success code.
+	// SSMRunFailCode is the discovery script failure code.
 	SSMRunFailCode = "TDS00W"
+
+	// AzureRunSuccessCode is the Azure discovery script success code.
+	AzureRunSuccessCode = "TDA00I"
+	// AzureRunFailCode is the Azure discovery script failure code.
+	AzureRunFailCode = "TDA00W"
 
 	// DeviceCreateCode is the device creation/registration code.
 	DeviceCreateCode = "TV001I"

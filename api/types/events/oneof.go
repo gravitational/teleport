@@ -476,6 +476,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SSMRun{
 			SSMRun: e,
 		}
+	case *AzureRun:
+		out.Event = &OneOf_AzureRun{
+			AzureRun: e,
+		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
 			Unknown: e,

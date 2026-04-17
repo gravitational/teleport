@@ -1430,7 +1430,7 @@ func (s *Server) startAWSServerDiscovery() {
 	go s.watchCARotation(s.ctx)
 }
 
-func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallFailure, error) {
+func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallResult, error) {
 	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1441,45 +1441,92 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		return nil, trace.Wrap(err)
 	}
 
-	req := server.AzureInstallRequest{
-		Instances:       instances.Instances,
-		Region:          instances.Region,
-		ResourceGroup:   instances.ResourceGroup,
-		InstallerParams: instances.InstallerParams,
-		ProxyAddrGetter: s.publicProxyAddress,
+	const maxReportedErrors = 10
+	reported := 0
+
+	var mu sync.Mutex
+	var failedInstances []server.AzureInstallResult
+
+	// this callback will fire as soon as installation results on a particular machine are known.
+	callback := func(result server.AzureInstallResult) {
+		var err error
+
+		// 1. emit run event.
+		runEvent := instances.MakeRunEvent(result)
+		err = s.Emitter.EmitAuditEvent(s.ctx, runEvent)
+		if err != nil {
+			log.WarnContext(s.ctx, "Failed to emit audit event", "error", err)
+		}
+
+		if result.Failure() {
+			// 2. collect failed instance.
+			mu.Lock()
+			defer mu.Unlock()
+
+			failedInstances = append(failedInstances, result)
+
+			// 3. log failure, up to the reporting limit.
+			reported++
+			if reported <= maxReportedErrors {
+				instance := result.Instance
+				commandResult := result.CommandResult
+
+				var vmID string
+				if instance.Properties != nil {
+					vmID = azure.StringVal(instance.Properties.VMID)
+				}
+
+				if commandResult != nil {
+					log.WarnContext(s.ctx, "Teleport installation script failed",
+						"vm_id", vmID,
+						"resource_id", azure.StringVal(instance.ID),
+						"state", commandResult.ExecutionState,
+						"exit_code", commandResult.ExitCode,
+						"stdout", commandResult.StdOut,
+						"stderr", commandResult.StdErr,
+					)
+				} else {
+					log.WarnContext(s.ctx, "Failed to execute Teleport installation script",
+						"vm_id", vmID,
+						"resource_id", azure.StringVal(instance.ID),
+						"api_error", result.APIError,
+					)
+				}
+			}
+
+		} else {
+			// 3. emit usage event on success.
+			vmKey, usageEvent := instances.MakeUsageEvent(result.Instance)
+			err = s.emitUsageEvent(vmKey, usageEvent)
+			if err != nil {
+				log.WarnContext(s.ctx, "Failed to emit usage event", "error", err)
+			}
+		}
 	}
 
-	failures, err := req.Run(s.ctx, runClient)
+	req := server.AzureInstallRequest{
+		Instances:            instances.Instances,
+		Region:               instances.Region,
+		ResourceGroup:        instances.ResourceGroup,
+		InstallerParams:      instances.InstallerParams,
+		ProxyAddrGetter:      s.publicProxyAddress,
+		OnRunCommandFinished: callback,
+	}
+
+	err = req.Run(s.ctx, runClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	const maxReportedErrors = 10
-
-	for reported, failure := range failures {
-		if reported >= maxReportedErrors {
-			omitted := len(failures) - maxReportedErrors
-
-			log.WarnContext(s.ctx, "Too many install failures; suppressing further errors",
-				"reported", maxReportedErrors,
-				"total", len(failures),
-				"omitted", omitted,
-			)
-
-			break
-		}
-		log.WarnContext(s.ctx, "Failed to install Teleport on a virtual machine",
-			"vm_id", azure.StringVal(failure.Instance.Properties.VMID),
-			"resource_id", azure.StringVal(failure.Instance.ID),
-			"install_error", failure.Error,
-		)
+	log.InfoContext(s.ctx, "Finished installation batch.", "size", len(instances.Instances))
+	if reported >= maxReportedErrors {
+		log.WarnContext(s.ctx, "Too many install failures; suppressed some log entries",
+			"reported", maxReportedErrors,
+			"failures", len(failedInstances),
+			"suppressed", len(failedInstances)-maxReportedErrors)
 	}
 
-	err = s.emitUsageEvents(instances.MakeEvents(failures))
-	if err != nil {
-		log.WarnContext(s.ctx, "Error emitting usage event", "error", err)
-	}
-	return failures, nil
+	return failedInstances, nil
 }
 
 // startAzureServerDiscovery starts the Azure VM discovery.
@@ -1669,8 +1716,13 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	results[statusFailed] = len(failures)
 
 	// Record failures as user tasks.
-	for _, failure := range failures {
-		addFailedEnrollment(failure.Instance, classifyAzureVMEnrollmentError(failure.Error))
+	for _, result := range failures {
+		if result.CommandResult != nil {
+			// TODO (Tener): check exit codes and create more detailed user tasks.
+			addFailedEnrollment(result.Instance, usertasks.AutoDiscoverAzureVMIssueEnrollmentError)
+		} else {
+			addFailedEnrollment(result.Instance, classifyAzureVMEnrollmentError(result.APIError))
+		}
 	}
 
 	pendingCount := len(instances.Instances) - len(failures)
@@ -1777,24 +1829,34 @@ func (s *Server) handleGCPDiscovery() {
 }
 
 func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreateEvent) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	for name, event := range events {
-		if _, exists := s.usageEventCache[name]; exists {
-			continue
-		}
-		s.usageEventCache[name] = struct{}{}
-		if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
-			Event: &usageeventsv1.UsageEventOneOf{
-				Event: &usageeventsv1.UsageEventOneOf_ResourceCreateEvent{
-					ResourceCreateEvent: event,
-				},
-			},
-		}); err != nil {
+		err := s.emitUsageEvent(name, event)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
+}
+
+func (s *Server) emitUsageEvent(resourceKey string, event *usageeventsv1.ResourceCreateEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.usageEventCache[resourceKey]; exists {
+		return nil
+	}
+
+	s.usageEventCache[resourceKey] = struct{}{}
+
+	err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_ResourceCreateEvent{
+				ResourceCreateEvent: event,
+			},
+		},
+	})
+
+	return trace.Wrap(err)
 }
 
 func (s *Server) submitFetchersEvent(fetchers []common.Fetcher) {
