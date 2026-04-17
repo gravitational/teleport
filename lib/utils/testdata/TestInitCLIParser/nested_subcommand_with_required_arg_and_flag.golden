@@ -1,14 +1,14 @@
-usage: widget start <command> [<args> ...]
+usage: widget inventory add [<flags>] <name>
 
-Start.
+Add a widget to inventory.
 
 Flags:
   -v, --[no-]verbose  Enable verbose output.
   -c, --config="/etc/widget.yaml"  
                       Path to config file. ($WIDGET_CONFIG)
   -t, --tag=TAG ...   Tags to apply. Repeatable.
+      --count=1       How many to add.
 
-Commands:
-  legacy            (Default) Legacy.
-  workload-identity Workload identity.
+Args:
+  <name>  Widget name.
 

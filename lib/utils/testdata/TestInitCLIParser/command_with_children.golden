@@ -1,6 +1,6 @@
-usage: widget start <command> [<args> ...]
+usage: widget inventory <command> [<args> ...]
 
-Start.
+Manage the widget inventory.
 
 Flags:
   -v, --[no-]verbose  Enable verbose output.
@@ -9,6 +9,6 @@ Flags:
   -t, --tag=TAG ...   Tags to apply. Repeatable.
 
 Commands:
-  legacy            (Default) Legacy.
-  workload-identity Workload identity.
+  list         List all widgets currently in inventory.
+  add          Add a widget to inventory.
 

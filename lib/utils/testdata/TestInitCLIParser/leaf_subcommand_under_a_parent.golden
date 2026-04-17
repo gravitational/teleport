@@ -1,14 +1,10 @@
-usage: widget start <command> [<args> ...]
+usage: widget inventory list
 
-Start.
+List all widgets currently in inventory.
 
 Flags:
   -v, --[no-]verbose  Enable verbose output.
   -c, --config="/etc/widget.yaml"  
                       Path to config file. ($WIDGET_CONFIG)
   -t, --tag=TAG ...   Tags to apply. Repeatable.
-
-Commands:
-  legacy            (Default) Legacy.
-  workload-identity Workload identity.
 
