@@ -60,7 +60,7 @@ import (
 const (
 	// JoinFailureTimeout is the maximum amount of time the installer waits for a
 	// node to become ready before returning the join-failure exit code.
-	JoinFailureTimeout = 3 * time.Minute
+	JoinFailureTimeout = 2 * time.Minute
 
 	// joinFailureDiagnosticsTimeout bounds the time spent collecting systemd state
 	// and journal output after the readyz poll has already timed out.
