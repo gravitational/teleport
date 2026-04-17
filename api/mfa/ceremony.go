@@ -172,8 +172,6 @@ type SessionBoundCeremonyConfig struct {
 	// CallbackCeremony is optional and if provided, will be used to complete an SSO or Browser MFA challenge that may
 	// be offered by the server as part of the session-bound challenges.
 	CallbackCeremony CallbackCeremony
-	// Payload is the session identifying payload to use for the session-bound challenge.
-	Payload *mfav1.SessionIdentifyingPayload
 	// TargetCluster is the name of the cluster to target for the session-bound challenge.
 	TargetCluster string
 }
@@ -190,9 +188,6 @@ func NewSessionBoundCeremony(config SessionBoundCeremonyConfig) (*SessionBoundCe
 	case config.PromptConstructor == nil:
 		return nil, trace.BadParameter("config.PromptConstructor must not be nil")
 
-	case config.Payload == nil:
-		return nil, trace.BadParameter("config.Payload must not be nil")
-
 	case config.TargetCluster == "":
 		return nil, trace.BadParameter("config.TargetCluster must not be empty")
 	}
@@ -202,7 +197,6 @@ func NewSessionBoundCeremony(config SessionBoundCeremonyConfig) (*SessionBoundCe
 		validateSessionChallenge: config.ValidateSessionChallenge,
 		promptConstructor:        config.PromptConstructor,
 		callbackCeremony:         config.CallbackCeremony,
-		payload:                  config.Payload,
 		targetCluster:            config.TargetCluster,
 	}, nil
 }
@@ -213,15 +207,15 @@ type SessionBoundCeremony struct {
 	validateSessionChallenge ValidateSessionChallengeFunc
 	promptConstructor        PromptConstructor
 	callbackCeremony         CallbackCeremony
-	payload                  *mfav1.SessionIdentifyingPayload
-	targetCluster            string
+
+	targetCluster string
 }
 
 // RunWithSessionBinding runs the ceremony with a session-bound challenge using the provided binding parameters and
 // returns the name of the challenge that was satisfied.
-func (c *SessionBoundCeremony) Run(ctx context.Context, promptOpts ...PromptOpt) (string, error) {
+func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionIdentifyingPayload, promptOpts ...PromptOpt) (string, error) {
 	createReq := &mfav1.CreateSessionChallengeRequest{
-		Payload:       c.payload,
+		Payload:       payload,
 		TargetCluster: c.targetCluster,
 	}
 
