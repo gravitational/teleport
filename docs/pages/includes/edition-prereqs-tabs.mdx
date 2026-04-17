@@ -16,16 +16,16 @@
      with the web address of your Teleport Proxy Service:
   
      <Tabs>
-       <TabItem Label="Mac/Linux">
+       <TabItem label="Mac/Linux">
         ```code
         $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
         $ TELEPORT_VERSION="$(curl -s https://$TELEPORT_DOMAIN/v1/webapi/find | jq -r '.server_version')"
         ```
        </TabItem>
-       <TabItem Label="Windows - Powershell">
+       <TabItem label="Windows - Powershell">
         ```code
-        $ $TELEPORT_DOMAIN = "<Var name="teleport.example.com:443" />""
-        $ $TELEPORT_VERSION = (Invoke-RestMethod -Uri "https://$TELEPORT_DOMAIN/v1/webapi/find").server_version
+        $ $TELEPORT_DOMAIN = "<Var name="teleport.example.com:443" />"
+        $ $TELEPORT_VERSION = (Invoke-RestMethod -Uri "https://${TELEPORT_DOMAIN}/v1/webapi/find").server_version
         ```
        </TabItem>
       </Tabs>
