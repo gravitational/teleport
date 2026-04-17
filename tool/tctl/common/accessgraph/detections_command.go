@@ -150,7 +150,7 @@ func fetchAlertEvents(ctx context.Context, args accessGraphServices, a accessgra
 	if a.LogEntries == nil || len(*a.LogEntries) == 0 {
 		return nil, nil
 	}
-	query := dslClause("uuid", quoteAll(*a.LogEntries))
+	query := dslClause("uid", quoteAll(*a.LogEntries))
 	order := accessgraph.Asc
 	return fetchAllLogs(ctx, args.accessGraph, accessgraph.ExecuteLogsQueryV1Params{
 		Query:     &query,
