@@ -267,6 +267,8 @@ type Modules interface {
 	IsEnterpriseBuild() bool
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
+	// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+	IsFIPSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -409,8 +411,14 @@ func (p *defaultModules) Features() Features {
 func (p *defaultModules) SetFeatures(f Features) {
 }
 
+// IsBoringBinary is a transition method that will be removed soon.
 func (p *defaultModules) IsBoringBinary() bool {
-	return IsBoringBinary()
+	return p.IsFIPSBuild()
+}
+
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *defaultModules) IsFIPSBuild() bool {
+	return IsFIPSBuild()
 }
 
 // AttestHardwareKey attests a hardware key.

@@ -80,7 +80,7 @@ type Modules struct {
 	TestBuildType string
 	// TestFeatures is returned from the Features function.
 	TestFeatures modules.Features
-	// FIPS is returned from the IsBoringBinary function.
+	// FIPS is returned from the IsFIPSBuild function.
 	FIPS bool
 	// MockAttestationData is fake attestation data to return
 	// during tests when hardware key support is enabled. This
@@ -151,8 +151,13 @@ func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.I
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 
-// IsBoringBinary implements modules.Modules.
+// IsBoringBinary is a transition method that will be removed soon.
 func (m *Modules) IsBoringBinary() bool {
+	return m.IsFIPSBuild()
+}
+
+// IsFIPSBuild implements modules.Modules.
+func (m *Modules) IsFIPSBuild() bool {
 	return m.FIPS
 }
 

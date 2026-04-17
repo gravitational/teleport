@@ -126,8 +126,13 @@ func (p *TestModules) Features() modules.Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+// IsBoringBinary is a transition method that will be removed soon.
 func (p *TestModules) IsBoringBinary() bool {
+	return p.IsFIPSBuild()
+}
+
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *TestModules) IsFIPSBuild() bool {
 	return false
 }
 
