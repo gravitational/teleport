@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	accessgraph "github.com/gravitational/access-graph/api/client"
+	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 )

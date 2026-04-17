@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	accessgraph "github.com/gravitational/access-graph/api/client"
-	logmodels "github.com/gravitational/access-graph/api/client/models/logs"
+	"github.com/google/uuid"
+	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
+	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/trace"
-	"github.com/google/uuid"
 )
 
 type detectionsArgs struct {
@@ -251,6 +251,7 @@ func displayDetectionsText(out io.Writer, alerts []accessgraph.SecurityAlert) er
 	table := asciitable.MakeTable([]string{
 		"ID",
 		"Source",
+		"Reported By",
 		"Type",
 		"Severity",
 		"Status",
@@ -262,6 +263,7 @@ func displayDetectionsText(out io.Writer, alerts []accessgraph.SecurityAlert) er
 		table.AddRow([]string{
 			alert.Id.String(),
 			string(alert.Source),
+			strPtrToStr(alert.ReportedBy),
 			alert.Type,
 			string(alert.Severity),
 			string(alert.Status),

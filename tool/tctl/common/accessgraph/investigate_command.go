@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	accessgraph "github.com/gravitational/access-graph/api/client"
-	logmodels "github.com/gravitational/access-graph/api/client/models/logs"
+	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
+	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/trace"

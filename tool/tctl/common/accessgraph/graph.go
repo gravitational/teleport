@@ -26,7 +26,7 @@ import (
 	"maps"
 	"slices"
 
-	models "github.com/gravitational/access-graph/api/client/models/graph"
+	models "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
 	"github.com/oapi-codegen/runtime/types"
 )
 

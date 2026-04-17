@@ -25,7 +25,7 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
-	accessgraphclient "github.com/gravitational/access-graph/api/client"
+	accessgraphclient "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
