@@ -250,17 +250,18 @@ func TestMFACeremony_BrowserMFA(t *testing.T) {
 }
 
 const (
-	mockTargetCluster       = "root"
-	mockRedirectURL         = "https://example.com/redirect"
-	mockCallbackURL         = "https://example.com/callback"
-	mockProxyAddress        = "proxy.example.com:443"
-	mockSSORequestID        = "sso-request-id"
-	mockSSOToken            = "sso-token"
-	mockChallengeName       = "challenge"
-	mockWebauthnChallenge   = "challenge"
-	mockCredentialID        = "credential-id"
-	mockBrowserRequestID    = "browser-request-id"
-	mockBrowserCredentialID = "browser-credential-id"
+	mockTargetCluster        = "root"
+	mockRedirectURL          = "https://example.com/redirect"
+	mockCallbackURL          = "https://example.com/callback"
+	mockCallbackProxyAddress = "proxy.example.com:3080"
+	mockProxyAddress         = "proxy.example.com:443"
+	mockSSORequestID         = "sso-request-id"
+	mockSSOToken             = "sso-token"
+	mockChallengeName        = "challenge"
+	mockWebauthnChallenge    = "challenge"
+	mockCredentialID         = "credential-id"
+	mockBrowserRequestID     = "browser-request-id"
+	mockBrowserCredentialID  = "browser-credential-id"
 )
 
 func TestNewSessionBoundCeremony(t *testing.T) {
@@ -283,9 +284,9 @@ func TestNewSessionBoundCeremonyErrors(t *testing.T) {
 			name: "missing payload",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				return mfa.SessionBoundCeremonyConfig{
-					CreateSessionChallenge:   newValidSessionBindingConfig().CreateSessionChallenge,
-					ValidateSessionChallenge: newValidSessionBindingConfig().ValidateSessionChallenge,
-					PromptConstructor:        newValidSessionBindingConfig().PromptConstructor,
+					CreateSessionChallenge:   newSessionBindingConfig().CreateSessionChallenge,
+					ValidateSessionChallenge: newSessionBindingConfig().ValidateSessionChallenge,
+					PromptConstructor:        newSessionBindingConfig().PromptConstructor,
 					TargetCluster:            mockTargetCluster,
 				}
 			},
@@ -506,8 +507,6 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 func TestSessionBoundCeremonyRun_CallbackCeremony(t *testing.T) {
 	t.Parallel()
 
-	mockCallbackURL := "https://example.com/session-bound-callback"
-	mockCallbackProxyAddress := "proxy.example.com:3080"
 	wantResp := &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_SSO{
 			SSO: newProtoSSOResponse(mockSSOToken),
@@ -748,10 +747,6 @@ func newMFABrowserResponse(requestID string, webauthnResp *webauthnpb.Credential
 	}
 }
 
-func newSessionBindingConfig() mfa.SessionBoundCeremonyConfig {
-	return newValidSessionBindingConfig()
-}
-
 func newSessionBindingCreateResp(name string) *mfav1.CreateSessionChallengeResponse {
 	return &mfav1.CreateSessionChallengeResponse{
 		MfaChallenge: &mfav1.AuthenticateChallenge{
@@ -764,7 +759,7 @@ func newProtoMFAChallenge() *proto.MFAAuthenticateChallenge {
 	return &proto.MFAAuthenticateChallenge{}
 }
 
-func newValidSessionBindingConfig() mfa.SessionBoundCeremonyConfig {
+func newSessionBindingConfig() mfa.SessionBoundCeremonyConfig {
 	return mfa.SessionBoundCeremonyConfig{
 		CreateSessionChallenge: func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
 			resp := newSessionBindingCreateResp(mockChallengeName)
