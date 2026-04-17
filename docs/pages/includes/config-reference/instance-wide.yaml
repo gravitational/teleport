@@ -37,7 +37,7 @@ teleport:
   join_params:
     # When `method` is set to "token", it is the equivalent to using `auth_token` above.
     # You should only use either auth_token or join_params.
-    method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"
+    method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"|"bound_keypair"
 
     # If method is not "token", token_name will be will be the name of
     # the joining token resource, e.g., "ec2-token" or "iam-token" as created
@@ -51,6 +51,24 @@ teleport:
     # File path example:
     # token_name: /var/lib/teleport/tokenjoin
     token_name: "token-name"
+
+    # bound_keypair specifies parameters specific to the `bound_keypair` join
+    # method and should not be configured if any other join method is configured
+    # in the `method` field above.
+    bound_keypair:
+      # Configures the bound keypair registration secret, used to authenticate
+      # the initial agent join.
+      registration_secret_value: "1234567890"
+
+      # Sets the path to a file containing the registration secret, useful if
+      # you don't want to specify it in this file directly. If this is set,
+      # `registration_secret_value` cannot be specified.
+      registration_secret_path: /path/to/secret
+
+      # If using bound keypair static keys, this contains the path to the
+      # generated static key. When set, neither of the above
+      # `registration_secret_` fields should be set.
+      static_key_path: /path/to/key
 
   # Optional CA pin of the Auth Service. Specifying a CA pin enables new
   # agents to trust a Teleport cluster when joining via the Auth Service

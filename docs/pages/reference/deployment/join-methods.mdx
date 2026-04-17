@@ -279,18 +279,18 @@ New Bot deployments should consider upgrading to the
 ### Bound Keypair: `bound_keypair`
 
 Bound Keypair tokens are an alternative to
-[secret-based join methods](#secret-based-join-methods) for Machine and Workload
-ID bots that improve security and flexibility. They are best used on platforms
-with persistent storage, but can be configured for use in nearly any
-environment.
+[secret-based join methods](#secret-based-join-methods) that improve security
+and flexibility. They are best used on platforms with persistent storage, but
+can be configured for use in nearly any environment.
 
 This join method is recommended for on-prem environments
 [without TPMs](#trusted-platform-module-tpm) or cloud platforms
 without a specialized [delegated join method](#delegated-join-methods).
 
-The `bound_keypair` join method can be used for both bots and nodes as of
-Teleport v18.8, however it offers limited benefits for traditional Teleport
-Agents as they are still ultimately issued long-lived certificates.
+The `bound_keypair` was designed for and works best with Machine & Workload ID
+bots, but can also be used to join standard Teleport agents as of Teleport
+v18.8. Note that it offers limited benefits for traditional Teleport Agents as
+they are still ultimately issued long-lived certificates.
 
 (!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
 
