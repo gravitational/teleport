@@ -16,22 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test as base } from './fixtures';
-import { PlayerPage } from './pages/Player';
-import { UnifiedResourcesPage } from './pages/UnifiedResources';
+import { expect, type Page } from '@playwright/test';
 
-export const CLUSTER_NAME = 'teleport-e2e';
+import { CLUSTER_NAME } from '../test';
 
-export const test = base.extend<{
-  unifiedResourcesPage: UnifiedResourcesPage;
-  playerPage: PlayerPage;
-}>({
-  unifiedResourcesPage: async ({ page }, use) => {
-    await use(new UnifiedResourcesPage(page));
-  },
-  playerPage: async ({ page }, use) => {
-    await use(new PlayerPage(page));
-  },
-});
+export type RecordingType = 'ssh' | 'k8s' | 'desktop' | 'database';
 
-export { expect } from '@playwright/test';
+export class PlayerPage {
+  constructor(private page: Page) {}
+
+  async goto(sessionId: string, recordingType: RecordingType) {
+    await this.page.goto(
+      `/web/cluster/${CLUSTER_NAME}/session/${sessionId}?recordingType=${recordingType}&durationMs=1000`
+    );
+  }
+
+  async expectError(text: string | RegExp) {
+    await expect(this.page.getByText(text)).toBeVisible();
+  }
+}
