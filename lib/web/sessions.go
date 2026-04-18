@@ -604,9 +604,10 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
+	expiry := c.cfg.Session.GetEarliestExpiry()
+
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
-	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
