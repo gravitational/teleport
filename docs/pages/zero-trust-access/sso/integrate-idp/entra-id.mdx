@@ -144,6 +144,7 @@ Entra ID and issue certificates to users.
 
 (!docs/pages/includes/sso/role-mapping.mdx fieldType="attribute"!)
 
+You can choose your own variables for the `mapping_1` and `mapping_2` entries.
 Make sure that, in your role mapping, each attribute begins with the following
 namespace prefix:
 
@@ -157,9 +158,9 @@ Now, create a SAML connector resource using `tctl`.
 
 ```code
 $ tctl sso configure saml --preset ad \
-  --entity-descriptor "https://login.microsoftonline.com/<Directory ID>/federationmetadata/2007-06/federationmetadata.xml?appid=<App ID>" \
-  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<admins-group-object-id>,auditor,editor" \
-  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<devs-group-object-id>,access" \
+  --entity-descriptor "https://login.microsoftonline.com/<Var name="tenant-id"/>/federationmetadata/2007-06/federationmetadata.xml?appid=<Var name="app-id"/>" \
+  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<Var name="group-1-object-id"/>,<Var name="group-1-roles"/>" \
+  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<Var name="group-2-object-id"/>,<Var name="group-2-roles"/>" \
   > azure-connector.yaml
 ```
 
@@ -167,10 +168,15 @@ Replace the following values in the example above:
 
 | Placeholder | Description |
 |-------------|-------------|
-| `<Directory ID>` | Your Microsoft Entra AD tenant (directory) ID. |
-| `<App ID>` | The application ID of the Microsoft Entra AD enterprise app. The `--entity-descriptor` flag specifies the app federation metadata URL saved in the previous step. |
-| <Var name="mapping_1"/> | The first group-to-role mapping in the format `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<group-object-id>,<teleport-role>`. Each `--attributes-to-roles` flag specifies the schema definition name for groups, the UUID of an AD group, and the Teleport role that members of the group will be assigned. For example: `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,b9b12345-1234-1234-1234-123456789012,auditor,editor`. |
-| <Var name="mapping_2"/> | A second group-to-role mapping in the same format. For example: `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,a1a09876-9876-9876-9876-987654321098,access`. Add or remove `--attributes-to-roles` flags as needed for each group. |
+| <Var name="tenant-id"/> | Your Microsoft Entra ID tenant (directory) ID. |
+| <Var name="app-id"/> | The application ID of the Microsoft Entra ID enterprise app. The `--entity-descriptor` flag specifies the app federation metadata URL saved in the previous step. |
+| <Var name="group-1-object-id"/> | Object ID of the first Entra ID group to map. |
+| <Var name="group-1-roles"/> | Comma-separated Teleport roles to assign to members of the first group (for example, `auditor,editor`). |
+| <Var name="group-2-object-id"/> | Object ID of the second Entra ID group to map. |
+| <Var name="group-2-roles"/> | Comma-separated Teleport roles to assign to members of the second group (for example, `access`). |
+
+Add or remove `--attributes-to-roles` flags as needed for each group you want to
+map.
 
 The file `azure-connector.yaml` should now resemble the following:
 
@@ -437,18 +443,23 @@ the attribute.
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-### Failed to process SAML callback
+<Checkpoint
+  title="Verify SSO login works"
+  description="Log in to Teleport using the Entra ID connector you just created. The Teleport Web UI should redirect you to Entra ID, accept your credentials, and return you to Teleport authenticated as your user."
+>
 
-If you encounter a "Failed to process SAML callback" error, take a look at the audit log.
+If login fails, check the Teleport audit log for a `Failed to process SAML callback` error. The message resembles:
 
 ```text
 Special characters are not allowed in resource names. Use a name composed only from
 alphanumeric characters, hyphens, and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
 ```
 
-The error above is caused by a Name ID format that is not compatible with Teleport's naming conventions.
+This error means the Name ID returned by Entra ID contains characters that Teleport does not allow in resource names. 
+Teleport maps each external SSO identity to an internal user resource, and those resources must use only alphanumeric characters (`a-z`, `A-Z`, `0-9`), hyphens (`-`), and dots (`.`).
 
-Change the Name ID format to use email instead:
+To resolve this, change the Name ID format in the Entra ID application's **Single sign-on** settings to **Email address** so the assertion contains a clean user identifier:
 
 ![Change NameID format to use email](../../../../img/azuread/azuread-nameid.png)
 
+</Checkpoint>
