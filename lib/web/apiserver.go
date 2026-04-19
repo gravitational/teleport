@@ -5039,6 +5039,9 @@ func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) getSiteByParams(ctx context.Context, sctx *SessionContext, p httprouter.Params) (reversetunnelclient.Cluster, error) {
 	clusterName := p.ByName("site")
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name in request path")
+	}
 	site, err := h.getSiteByClusterName(ctx, sctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
