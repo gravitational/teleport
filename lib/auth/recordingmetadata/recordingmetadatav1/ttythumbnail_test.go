@@ -19,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 	startTime := time.Now()
 
 	t.Run("session start sets terminal size", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "100:50")))
 
@@ -42,7 +43,7 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("resize updates terminal size", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(resizeEvent(startTime.Add(1*time.Second), "120:40")))
@@ -54,7 +55,7 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("session print writes data to terminal", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "Hello World\r\n")))
@@ -67,7 +68,7 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("unhandled event types are ignored", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(&apievents.SessionEnd{
 			Metadata: apievents.Metadata{Type: "session.end", Time: startTime},
@@ -78,7 +79,7 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("malformed terminal size returns error on start", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 		err := gen.handleEvent(sessionStartEvent(startTime, "invalid"))
 
 		require.Error(t, err)
@@ -86,11 +87,21 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("malformed terminal size returns error on resize", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 		err := gen.handleEvent(resizeEvent(startTime, "not:valid:size"))
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "parsing terminal size")
+	})
+
+	t.Run("malicious csi sequence disables thumbnails without panicking", func(t *testing.T) {
+		gen := newTTYThumbnailGenerator(slog.Default())
+
+		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
+		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "\x1b[-1@")))
+		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(2*time.Second), "still running\r\n")))
+
+		require.Nil(t, gen.produceThumbnail())
 	})
 }
 
@@ -98,7 +109,7 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 	startTime := time.Now()
 
 	t.Run("produces valid thumbnail with all fields", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "hello\r\n")))
@@ -114,7 +125,7 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 	})
 
 	t.Run("cursor tracks print output position", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 
@@ -130,7 +141,7 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 	})
 
 	t.Run("reflects latest terminal size after resize", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "before resize\r\n")))
@@ -145,7 +156,7 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 	})
 
 	t.Run("snapshots are independent after more output", func(t *testing.T) {
-		gen := newTTYThumbnailGenerator()
+		gen := newTTYThumbnailGenerator(slog.Default())
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "first\r\n")))

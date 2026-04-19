@@ -170,6 +170,37 @@ func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
 	require.Empty(t, uploadHandler.metadata, "no metadata should be uploaded after cancelUpload")
 }
 
+func TestProcessSessionRecording_MaliciousTTYSequenceDoesNotCrash(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	evts := []apievents.AuditEvent{
+		sessionStartEvent(startTime, "80:24"),
+		sessionPrintEvent(startTime.Add(1*time.Second), "\x1b[-1@"),
+		sessionPrintEvent(startTime.Add(2*time.Second), "still running\n"),
+		sessionEndEvent(startTime, startTime.Add(10*time.Second)),
+	}
+
+	streamer := &mockStreamer{
+		events:       evts,
+		errorOnEvent: -1,
+	}
+	uploadHandler := newMockUploadHandler()
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: uploadHandler,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second))
+
+	uploadHandler.mu.Lock()
+	defer uploadHandler.mu.Unlock()
+
+	require.NotEmpty(t, uploadHandler.metadata, "metadata should still be uploaded")
+}
+
 func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
 	startTime := time.Now()
 	sessionID := session.NewID()

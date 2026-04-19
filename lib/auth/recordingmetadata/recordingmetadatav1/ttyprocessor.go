@@ -40,7 +40,7 @@ type ttyRecordingProcessor struct {
 }
 
 func newTTYRecordingProcessor(base baseRecordingProcessor) *ttyRecordingProcessor {
-	base.thumbnailGenerator = newTTYThumbnailGenerator()
+	base.thumbnailGenerator = newTTYThumbnailGenerator(base.logger)
 
 	return &ttyRecordingProcessor{
 		baseRecordingProcessor: base,

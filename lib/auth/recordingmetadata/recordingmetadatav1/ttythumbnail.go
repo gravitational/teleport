@@ -19,6 +19,9 @@
 package recordingmetadatav1
 
 import (
+	"fmt"
+	"log/slog"
+
 	"github.com/gravitational/trace"
 	"github.com/hinshun/vt10x"
 
@@ -31,16 +34,27 @@ import (
 // ttyThumbnailGenerator is a thumbnail generator that produces thumbnails for a terminal session (i.e. SSH, kubernetes)
 // by maintaining an internal virtual terminal that it updates as it processes events from the session recording.
 type ttyThumbnailGenerator struct {
-	vt vt10x.Terminal
+	vt       vt10x.Terminal
+	logger   *slog.Logger
+	disabled bool
 }
 
-func newTTYThumbnailGenerator() *ttyThumbnailGenerator {
+func newTTYThumbnailGenerator(logger *slog.Logger) *ttyThumbnailGenerator {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &ttyThumbnailGenerator{
-		vt: vt10x.New(),
+		vt:     vt10x.New(),
+		logger: logger,
 	}
 }
 
 func (t *ttyThumbnailGenerator) handleEvent(event apievents.AuditEvent) error {
+	if t.disabled {
+		return nil
+	}
+
 	switch e := event.(type) {
 	case *apievents.SessionStart:
 		return t.handleSessionStart(e)
@@ -64,6 +78,14 @@ func (t *ttyThumbnailGenerator) handleResize(evt *apievents.Resize) error {
 }
 
 func (t *ttyThumbnailGenerator) handleSessionPrint(evt *apievents.SessionPrint) error {
+	defer func() {
+		if recoverValue := recover(); recoverValue != nil {
+			t.disabled = true
+			t.logger.Warn("Disabling TTY thumbnail generation after vt10x panic",
+				"panic", fmt.Sprint(recoverValue))
+		}
+	}()
+
 	if _, err := t.vt.Write(evt.Data); err != nil {
 		return trace.Errorf("writing data to terminal: %w", err)
 	}
@@ -72,6 +94,10 @@ func (t *ttyThumbnailGenerator) handleSessionPrint(evt *apievents.SessionPrint) 
 }
 
 func (t *ttyThumbnailGenerator) handleTerminalResize(terminalSize string) error {
+	if t.disabled {
+		return nil
+	}
+
 	size, err := session.UnmarshalTerminalParams(terminalSize)
 	if err != nil {
 		return trace.Wrap(err, "parsing terminal size %q", terminalSize)
@@ -83,6 +109,10 @@ func (t *ttyThumbnailGenerator) handleTerminalResize(terminalSize string) error 
 }
 
 func (t *ttyThumbnailGenerator) produceThumbnail() *pb.SessionRecordingThumbnail {
+	if t.disabled {
+		return nil
+	}
+
 	cols, rows := t.vt.Size()
 	cursor := t.vt.Cursor()
 

@@ -87,6 +87,10 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time) {
 	b.lastThumbnailTime = eventTime
 
 	thumbnail := b.thumbnailGenerator.produceThumbnail()
+	if thumbnail == nil {
+		return
+	}
+
 	thumbnail.StartOffset = durationpb.New(eventTime.Sub(b.startTime))
 	thumbnail.EndOffset = durationpb.New(eventTime.Add(b.thumbnailInterval).Add(-1 * time.Millisecond).Sub(b.startTime))
 
