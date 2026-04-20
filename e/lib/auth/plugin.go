@@ -264,12 +264,12 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 	p.authServer.AuthServer.SetOIDCService(oas)
 
-	if modules.GetModules().Features().Cloud {
+	if p.Config.Modules.Features().Cloud {
 		workloadclusterServiceServer, err := workloadclusterv1.NewService(workloadclusterv1.ServiceConfig{
 			Authorizer:        p.authServer.Authorizer,
 			Emitter:           p.authServer.Emitter,
 			CloudClientGetter: p,
-			Modules:           modules.GetModules(),
+			Modules:           p.Config.Modules,
 			Logger:            p.logger,
 		})
 		if err != nil {
