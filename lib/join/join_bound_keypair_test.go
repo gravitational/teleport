@@ -29,6 +29,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -75,7 +76,7 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 	return &doc
 }
 
-func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
+func newTestTLSServer(t *testing.T, clock clockwork.Clock, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
@@ -83,7 +84,7 @@ func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	srv, err := as.NewTestTLSServer()
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := srv.Close()
@@ -1670,15 +1671,18 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 // verification will trigger a lock if the original client and a secondary
 // client both attempt to recover in sequence.
 func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
+	synctest.Test(t, testJoinBoundKeypairJoinStateFailureInstance)
+}
 
+func testJoinBoundKeypairJoinStateFailureInstance(t *testing.T) {
+	ctx := t.Context()
 	correctSigner, correctPublicKey := testBoundKeypair(t)
 	signers := map[string]crypto.Signer{
 		correctPublicKey: correctSigner,
 	}
 
-	srv := newTestTLSServer(t, clockwork.NewRealClock())
+	srv := newTestTLSServer(t, clockwork.NewRealClock(), authtest.WithBufconnListener())
+	defer srv.Close()
 	authServer := srv.Auth()
 
 	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
@@ -1707,6 +1711,7 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 	// Make an unauthenticated auth client that will be used for joining.
 	nopClient, err := srv.NewClient(authtest.TestNop())
 	require.NoError(t, err)
+	defer nopClient.Close()
 
 	clientState := makeMockBoundKeypairState(signers,
 		withSingleSigningKey(correctPublicKey),
@@ -1738,6 +1743,7 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 
 	recoveredClient, err := clientFromJoinResult(srv, recoverResult)
 	require.NoError(t, err)
+	defer recoveredClient.Close()
 
 	// Try an API call with these certs.
 	_, err = recoveredClient.Ping(ctx)
@@ -1768,32 +1774,30 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 
 	// The previously working client should be locked.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = recoveredClient.Ping(ctx)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "access denied")
-	}, 5*time.Second, 100*time.Millisecond)
+	synctest.Wait()
+	_, err = recoveredClient.Ping(ctx)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "access denied")
 
 	// Repeat the recovery attempt but with an Eventually() to consistently
 	// check the error message. Depending on exact timing / cache propagation /
 	// etc the lock may or may not be in force, but we also need to be
 	// absolutely certain to try to generate at least 2 locking events.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		tempClientState := makeMockBoundKeypairState(signers,
-			withSingleSigningKey(correctPublicKey),
-			withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
-			withNoRotation(),
-		)
-		_, err = joinclient.Join(ctx, joinclient.JoinParams{
-			Token: token.GetName(),
-			ID: state.IdentityID{
-				Role: types.RoleInstance,
-			},
-			AuthClient:        nopClient,
-			BoundKeypairState: tempClientState,
-		})
-		require.ErrorContains(t, err, "a client failed to verify its join state")
-	}, 5*time.Second, 100*time.Millisecond)
+	synctest.Wait()
+	tempClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: tempClientState,
+	})
+	require.ErrorContains(t, err, "a client failed to verify its join state")
 }
 
 // createScopedBot creates a scoped bot with necessary role assignments for testing.
