@@ -1,7 +1,13 @@
 import cfg from 'e-teleport/config';
 import {
+  GetMAUDailyBreakdownRequest,
+  GetMAUDailyBreakdownResponse,
+  GetTPRDailyBreakdownRequest,
+  GetTPRDailyBreakdownResponse,
   GetUsageRequest,
   GetUsageResponse,
+  MAUDailyPoint,
+  TPRDailyPoint,
   Usage,
   UsageCycle,
   UsageLimits,
@@ -44,6 +50,24 @@ class CloudService {
       null,
       mfaResponse
     );
+  }
+
+  fetchMAUDailyBreakdown(
+    req: GetMAUDailyBreakdownRequest
+  ): Promise<GetMAUDailyBreakdownResponse> {
+    const params = buildBreakdownQueryParams(req);
+    return api
+      .get(`${cfg.api.mauBreakdownPath}?${params}`)
+      .then(makeMAUDailyBreakdownResponse);
+  }
+
+  fetchTPRDailyBreakdown(
+    req: GetTPRDailyBreakdownRequest
+  ): Promise<GetTPRDailyBreakdownResponse> {
+    const params = buildBreakdownQueryParams(req);
+    return api
+      .get(`${cfg.api.tprBreakdownPath}?${params}`)
+      .then(makeTPRDailyBreakdownResponse);
   }
 }
 
@@ -102,4 +126,66 @@ function makeUsageLimits(json: any): UsageLimits {
 
 function makeNonBillableUsageSummary(json: any) {
   return json as NonBillableSummaryInformation;
+}
+
+function makeMAUDailyBreakdownResponse(
+  json: any
+): GetMAUDailyBreakdownResponse {
+  return {
+    days: (json?.days || []).map(makeMAUDailyPoint),
+    rangeStart: Number(json?.rangeStart) || 0,
+    rangeEnd: Number(json?.rangeEnd) || 0,
+    calibratingAccounts: json.calibratingAccounts || 0,
+  };
+}
+
+function makeMAUDailyPoint(json: any): MAUDailyPoint {
+  return {
+    day: Number(json?.day) || 0,
+    newInWindow: Number(json?.newInWindow) || 0,
+    returning: Number(json?.returning) || 0,
+    contributingClusters: json?.contributingClusters || 0,
+  };
+}
+
+function makeTPRDailyBreakdownResponse(
+  json: any
+): GetTPRDailyBreakdownResponse {
+  return {
+    days: (json?.days || []).map(makeTPRDailyPoint),
+    rangeStart: Number(json?.rangeStart) || 0,
+    rangeEnd: Number(json?.rangeEnd) || 0,
+    calibratingAccounts: json.calibratingAccounts || 0,
+  };
+}
+
+function makeTPRDailyPoint(json: any): TPRDailyPoint {
+  return {
+    day: Number(json?.day) || 0,
+    periodAvg: Number(json?.periodAvg) || 0,
+    contributingClusters: json?.contributingClusters || 0,
+    metrics: Object.fromEntries(
+      Object.entries(json?.metrics || {}).map(([k, v]) => [k, Number(v)])
+    ),
+  };
+}
+
+function buildBreakdownQueryParams(
+  req: GetMAUDailyBreakdownRequest | GetTPRDailyBreakdownRequest
+): string {
+  const params = new URLSearchParams();
+
+  for (const tenant of req.tenants) {
+    params.append('tenants', tenant);
+  }
+
+  const w = req.window?.window;
+  if (w && 'cycle' in w) {
+    params.set('window-cycle', String(w.cycle));
+  } else if (w && 'range' in w) {
+    params.set('window-range-start', String(w.range.start));
+    params.set('window-range-end', String(w.range.end));
+  }
+
+  return params.toString();
 }

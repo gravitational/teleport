@@ -762,6 +762,13 @@ export interface GetFeaturesResponse {
      * @generated from protobuf field: bytes cloud_anonymization_key = 28
      */
     cloudAnonymizationKey: Uint8Array;
+    /**
+     * beams_ui indicates that the teleport product experience is beams-ui, lite-ui (onboarding, in product). This is a
+     * plan level setting, is not set by the subscription
+     *
+     * @generated from protobuf field: bool beams_ui = 29
+     */
+    beamsUi: boolean;
 }
 /**
  * EntitlementInfo is the state and limits of a particular entitlement
@@ -2370,6 +2377,227 @@ export interface ListChildClustersResponse {
     nextPageToken: string;
 }
 /**
+ * DateRange is an explicit start/end date range.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.DateRange
+ */
+export interface DateRange {
+    /**
+     * start is the beginning of the range (Unix timestamp, inclusive).
+     *
+     * @generated from protobuf field: int64 start = 1
+     */
+    start: number;
+    /**
+     * end is the end of the range (Unix timestamp, inclusive).
+     *
+     * @generated from protobuf field: int64 end = 2
+     */
+    end: number;
+}
+/**
+ * DailyBreakdownWindow specifies the time range for a daily breakdown query.
+ * Exactly one of cycle_start or range must be set.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.DailyBreakdownWindow
+ */
+export interface DailyBreakdownWindow {
+    /**
+     * @generated from protobuf oneof: window
+     */
+    window: {
+        oneofKind: "cycle";
+        /**
+         * cycle is the Unix timestamp of a day in the billing cycle to query.
+         * The server resolves the full cycle bounds and returns data for that cycle.
+         *
+         * @generated from protobuf field: int64 cycle = 1
+         */
+        cycle: number;
+    } | {
+        oneofKind: "range";
+        /**
+         * range is an explicit start/end date range.
+         *
+         * @generated from protobuf field: gravitational.cloud.tenants.v1.DateRange range = 2
+         */
+        range: DateRange;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * GetMAUDailyBreakdownRequest is the request for GetMAUDailyBreakdown.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest
+ */
+export interface GetMAUDailyBreakdownRequest {
+    /**
+     * tenants is the list of tenants represented by account ID to include.
+     * Empty indicates customer aggregate. Follows the same semantics as GetUsageRequest.
+     *
+     * @generated from protobuf field: repeated string tenants = 1
+     */
+    tenants: string[];
+    /**
+     * window specifies the time range to query.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.DailyBreakdownWindow window = 2
+     */
+    window?: DailyBreakdownWindow;
+}
+/**
+ * GetMAUDailyBreakdownResponse is the response for GetMAUDailyBreakdown.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse
+ */
+export interface GetMAUDailyBreakdownResponse {
+    /**
+     * days contains one entry per day in the requested range, ordered oldest to newest.
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.MAUDailyPoint days = 1
+     */
+    days: MAUDailyPoint[];
+    /**
+     * range_start is the resolved start of the returned range (Unix timestamp).
+     *
+     * @generated from protobuf field: int64 range_start = 2
+     */
+    rangeStart: number;
+    /**
+     * range_end is the resolved end of the returned range (Unix timestamp).
+     *
+     * @generated from protobuf field: int64 range_end = 3
+     */
+    rangeEnd: number;
+    /**
+     * calibrating_accounts is the number of accounts with a calibration date (at any point in time).
+     * Pre-calibration rows are excluded from the breakdown; post-calibration rows are counted normally.
+     *
+     * @generated from protobuf field: int32 calibrating_accounts = 4
+     */
+    calibratingAccounts: number;
+}
+/**
+ * MAUDailyPoint is the MAU breakdown for a single day.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.MAUDailyPoint
+ */
+export interface MAUDailyPoint {
+    /**
+     * day is the date as a Unix timestamp.
+     *
+     * @generated from protobuf field: int64 day = 1
+     */
+    day: number;
+    /**
+     * new_in_window is the number of users active for the first time within the queried range.
+     *
+     * @generated from protobuf field: int64 new_in_window = 2
+     */
+    newInWindow: number;
+    /**
+     * returning is the number of users who were also active on an earlier day in the queried range.
+     *
+     * @generated from protobuf field: int64 returning = 3
+     */
+    returning: number;
+    /**
+     * contributing_clusters is the number of distinct clusters that reported MAU activity on this day.
+     * Always 1 for tenant-level queries; >= 1 for customer-level queries.
+     *
+     * @generated from protobuf field: int32 contributing_clusters = 4
+     */
+    contributingClusters: number;
+}
+/**
+ * GetTPRDailyBreakdownRequest is the request for GetTPRDailyBreakdown.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest
+ */
+export interface GetTPRDailyBreakdownRequest {
+    /**
+     * tenants is the list of tenants represented by account ID to include.
+     * Empty indicates customer aggregate. Follows the same semantics as GetUsageRequest.
+     *
+     * @generated from protobuf field: repeated string tenants = 1
+     */
+    tenants: string[];
+    /**
+     * window specifies the time range to query.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.DailyBreakdownWindow window = 2
+     */
+    window?: DailyBreakdownWindow;
+}
+/**
+ * GetTPRDailyBreakdownResponse is the response for GetTPRDailyBreakdown.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse
+ */
+export interface GetTPRDailyBreakdownResponse {
+    /**
+     * days contains one entry per day in the requested range, ordered oldest to newest.
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.TPRDailyPoint days = 1
+     */
+    days: TPRDailyPoint[];
+    /**
+     * range_start is the resolved start of the returned range (Unix timestamp).
+     *
+     * @generated from protobuf field: int64 range_start = 2
+     */
+    rangeStart: number;
+    /**
+     * range_end is the resolved end of the returned range (Unix timestamp).
+     *
+     * @generated from protobuf field: int64 range_end = 3
+     */
+    rangeEnd: number;
+    /**
+     * calibrating_accounts is the number of accounts that have a calibration event
+     * (anonymization key rotation) during the requested range. Their data may be unreliable.
+     *
+     * @generated from protobuf field: int32 calibrating_accounts = 4
+     */
+    calibratingAccounts: number;
+}
+/**
+ * TPRDailyPoint is the TPR breakdown for a single day.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.TPRDailyPoint
+ */
+export interface TPRDailyPoint {
+    /**
+     * day is the date as a Unix timestamp.
+     *
+     * @generated from protobuf field: int64 day = 1
+     */
+    day: number;
+    /**
+     * period_avg is the running average of total daily resources from range start through this day.
+     * This is the billable TPR value accumulated so far in the period.
+     *
+     * @generated from protobuf field: int64 period_avg = 2
+     */
+    periodAvg: number;
+    /**
+     * contributing_clusters is the number of distinct clusters that reported TPR activity on this day.
+     * Always 1 for tenant-level queries; >= 1 for customer-level queries.
+     *
+     * @generated from protobuf field: int32 contributing_clusters = 3
+     */
+    contributingClusters: number;
+    /**
+     * metrics are specific to the pricing model of the customer and are returned in a metric to value format
+     *
+     * @generated from protobuf field: map<string, int64> metrics = 4
+     */
+    metrics: {
+        [key: string]: number;
+    };
+}
+/**
  * UsageResourceType is the type of consumed Teleport resource
  *
  * @generated from protobuf enum gravitational.cloud.tenants.v1.UsageResourceType
@@ -3897,7 +4125,8 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
             { no: 25, name: "join_active_sessions", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 26, name: "mobile_device_management", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 27, name: "entitlements", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => EntitlementInfo } },
-            { no: 28, name: "cloud_anonymization_key", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+            { no: 28, name: "cloud_anonymization_key", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 29, name: "beams_ui", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<GetFeaturesResponse>): GetFeaturesResponse {
@@ -3930,6 +4159,7 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
         message.mobileDeviceManagement = false;
         message.entitlements = {};
         message.cloudAnonymizationKey = new Uint8Array(0);
+        message.beamsUi = false;
         if (value !== undefined)
             reflectionMergePartial<GetFeaturesResponse>(this, message, value);
         return message;
@@ -4022,6 +4252,9 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
                     break;
                 case /* bytes cloud_anonymization_key */ 28:
                     message.cloudAnonymizationKey = reader.bytes();
+                    break;
+                case /* bool beams_ui */ 29:
+                    message.beamsUi = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4139,6 +4372,9 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
         /* bytes cloud_anonymization_key = 28; */
         if (message.cloudAnonymizationKey.length)
             writer.tag(28, WireType.LengthDelimited).bytes(message.cloudAnonymizationKey);
+        /* bool beams_ui = 29; */
+        if (message.beamsUi !== false)
+            writer.tag(29, WireType.Varint).bool(message.beamsUi);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -8008,6 +8244,529 @@ class ListChildClustersResponse$Type extends MessageType<ListChildClustersRespon
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.ListChildClustersResponse
  */
 export const ListChildClustersResponse = new ListChildClustersResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DateRange$Type extends MessageType<DateRange> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.DateRange", [
+            { no: 1, name: "start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DateRange>): DateRange {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.start = 0;
+        message.end = 0;
+        if (value !== undefined)
+            reflectionMergePartial<DateRange>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DateRange): DateRange {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 start */ 1:
+                    message.start = reader.int64().toNumber();
+                    break;
+                case /* int64 end */ 2:
+                    message.end = reader.int64().toNumber();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DateRange, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 start = 1; */
+        if (message.start !== 0)
+            writer.tag(1, WireType.Varint).int64(message.start);
+        /* int64 end = 2; */
+        if (message.end !== 0)
+            writer.tag(2, WireType.Varint).int64(message.end);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.DateRange
+ */
+export const DateRange = new DateRange$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DailyBreakdownWindow$Type extends MessageType<DailyBreakdownWindow> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.DailyBreakdownWindow", [
+            { no: 1, name: "cycle", kind: "scalar", oneof: "window", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "range", kind: "message", oneof: "window", T: () => DateRange }
+        ]);
+    }
+    create(value?: PartialMessage<DailyBreakdownWindow>): DailyBreakdownWindow {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.window = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<DailyBreakdownWindow>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DailyBreakdownWindow): DailyBreakdownWindow {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 cycle */ 1:
+                    message.window = {
+                        oneofKind: "cycle",
+                        cycle: reader.int64().toNumber()
+                    };
+                    break;
+                case /* gravitational.cloud.tenants.v1.DateRange range */ 2:
+                    message.window = {
+                        oneofKind: "range",
+                        range: DateRange.internalBinaryRead(reader, reader.uint32(), options, (message.window as any).range)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DailyBreakdownWindow, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 cycle = 1; */
+        if (message.window.oneofKind === "cycle")
+            writer.tag(1, WireType.Varint).int64(message.window.cycle);
+        /* gravitational.cloud.tenants.v1.DateRange range = 2; */
+        if (message.window.oneofKind === "range")
+            DateRange.internalBinaryWrite(message.window.range, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.DailyBreakdownWindow
+ */
+export const DailyBreakdownWindow = new DailyBreakdownWindow$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetMAUDailyBreakdownRequest$Type extends MessageType<GetMAUDailyBreakdownRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest", [
+            { no: 1, name: "tenants", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "window", kind: "message", T: () => DailyBreakdownWindow }
+        ]);
+    }
+    create(value?: PartialMessage<GetMAUDailyBreakdownRequest>): GetMAUDailyBreakdownRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.tenants = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetMAUDailyBreakdownRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetMAUDailyBreakdownRequest): GetMAUDailyBreakdownRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string tenants */ 1:
+                    message.tenants.push(reader.string());
+                    break;
+                case /* gravitational.cloud.tenants.v1.DailyBreakdownWindow window */ 2:
+                    message.window = DailyBreakdownWindow.internalBinaryRead(reader, reader.uint32(), options, message.window);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetMAUDailyBreakdownRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string tenants = 1; */
+        for (let i = 0; i < message.tenants.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.tenants[i]);
+        /* gravitational.cloud.tenants.v1.DailyBreakdownWindow window = 2; */
+        if (message.window)
+            DailyBreakdownWindow.internalBinaryWrite(message.window, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest
+ */
+export const GetMAUDailyBreakdownRequest = new GetMAUDailyBreakdownRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetMAUDailyBreakdownResponse$Type extends MessageType<GetMAUDailyBreakdownResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse", [
+            { no: 1, name: "days", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => MAUDailyPoint },
+            { no: 2, name: "range_start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 3, name: "range_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "calibrating_accounts", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetMAUDailyBreakdownResponse>): GetMAUDailyBreakdownResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.days = [];
+        message.rangeStart = 0;
+        message.rangeEnd = 0;
+        message.calibratingAccounts = 0;
+        if (value !== undefined)
+            reflectionMergePartial<GetMAUDailyBreakdownResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetMAUDailyBreakdownResponse): GetMAUDailyBreakdownResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.MAUDailyPoint days */ 1:
+                    message.days.push(MAUDailyPoint.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* int64 range_start */ 2:
+                    message.rangeStart = reader.int64().toNumber();
+                    break;
+                case /* int64 range_end */ 3:
+                    message.rangeEnd = reader.int64().toNumber();
+                    break;
+                case /* int32 calibrating_accounts */ 4:
+                    message.calibratingAccounts = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetMAUDailyBreakdownResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.MAUDailyPoint days = 1; */
+        for (let i = 0; i < message.days.length; i++)
+            MAUDailyPoint.internalBinaryWrite(message.days[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* int64 range_start = 2; */
+        if (message.rangeStart !== 0)
+            writer.tag(2, WireType.Varint).int64(message.rangeStart);
+        /* int64 range_end = 3; */
+        if (message.rangeEnd !== 0)
+            writer.tag(3, WireType.Varint).int64(message.rangeEnd);
+        /* int32 calibrating_accounts = 4; */
+        if (message.calibratingAccounts !== 0)
+            writer.tag(4, WireType.Varint).int32(message.calibratingAccounts);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse
+ */
+export const GetMAUDailyBreakdownResponse = new GetMAUDailyBreakdownResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MAUDailyPoint$Type extends MessageType<MAUDailyPoint> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.MAUDailyPoint", [
+            { no: 1, name: "day", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "new_in_window", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 3, name: "returning", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "contributing_clusters", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MAUDailyPoint>): MAUDailyPoint {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.day = 0;
+        message.newInWindow = 0;
+        message.returning = 0;
+        message.contributingClusters = 0;
+        if (value !== undefined)
+            reflectionMergePartial<MAUDailyPoint>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MAUDailyPoint): MAUDailyPoint {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 day */ 1:
+                    message.day = reader.int64().toNumber();
+                    break;
+                case /* int64 new_in_window */ 2:
+                    message.newInWindow = reader.int64().toNumber();
+                    break;
+                case /* int64 returning */ 3:
+                    message.returning = reader.int64().toNumber();
+                    break;
+                case /* int32 contributing_clusters */ 4:
+                    message.contributingClusters = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MAUDailyPoint, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 day = 1; */
+        if (message.day !== 0)
+            writer.tag(1, WireType.Varint).int64(message.day);
+        /* int64 new_in_window = 2; */
+        if (message.newInWindow !== 0)
+            writer.tag(2, WireType.Varint).int64(message.newInWindow);
+        /* int64 returning = 3; */
+        if (message.returning !== 0)
+            writer.tag(3, WireType.Varint).int64(message.returning);
+        /* int32 contributing_clusters = 4; */
+        if (message.contributingClusters !== 0)
+            writer.tag(4, WireType.Varint).int32(message.contributingClusters);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.MAUDailyPoint
+ */
+export const MAUDailyPoint = new MAUDailyPoint$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetTPRDailyBreakdownRequest$Type extends MessageType<GetTPRDailyBreakdownRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest", [
+            { no: 1, name: "tenants", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "window", kind: "message", T: () => DailyBreakdownWindow }
+        ]);
+    }
+    create(value?: PartialMessage<GetTPRDailyBreakdownRequest>): GetTPRDailyBreakdownRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.tenants = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetTPRDailyBreakdownRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetTPRDailyBreakdownRequest): GetTPRDailyBreakdownRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string tenants */ 1:
+                    message.tenants.push(reader.string());
+                    break;
+                case /* gravitational.cloud.tenants.v1.DailyBreakdownWindow window */ 2:
+                    message.window = DailyBreakdownWindow.internalBinaryRead(reader, reader.uint32(), options, message.window);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetTPRDailyBreakdownRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string tenants = 1; */
+        for (let i = 0; i < message.tenants.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.tenants[i]);
+        /* gravitational.cloud.tenants.v1.DailyBreakdownWindow window = 2; */
+        if (message.window)
+            DailyBreakdownWindow.internalBinaryWrite(message.window, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest
+ */
+export const GetTPRDailyBreakdownRequest = new GetTPRDailyBreakdownRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetTPRDailyBreakdownResponse$Type extends MessageType<GetTPRDailyBreakdownResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse", [
+            { no: 1, name: "days", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => TPRDailyPoint },
+            { no: 2, name: "range_start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 3, name: "range_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "calibrating_accounts", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetTPRDailyBreakdownResponse>): GetTPRDailyBreakdownResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.days = [];
+        message.rangeStart = 0;
+        message.rangeEnd = 0;
+        message.calibratingAccounts = 0;
+        if (value !== undefined)
+            reflectionMergePartial<GetTPRDailyBreakdownResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetTPRDailyBreakdownResponse): GetTPRDailyBreakdownResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.TPRDailyPoint days */ 1:
+                    message.days.push(TPRDailyPoint.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* int64 range_start */ 2:
+                    message.rangeStart = reader.int64().toNumber();
+                    break;
+                case /* int64 range_end */ 3:
+                    message.rangeEnd = reader.int64().toNumber();
+                    break;
+                case /* int32 calibrating_accounts */ 4:
+                    message.calibratingAccounts = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetTPRDailyBreakdownResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.TPRDailyPoint days = 1; */
+        for (let i = 0; i < message.days.length; i++)
+            TPRDailyPoint.internalBinaryWrite(message.days[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* int64 range_start = 2; */
+        if (message.rangeStart !== 0)
+            writer.tag(2, WireType.Varint).int64(message.rangeStart);
+        /* int64 range_end = 3; */
+        if (message.rangeEnd !== 0)
+            writer.tag(3, WireType.Varint).int64(message.rangeEnd);
+        /* int32 calibrating_accounts = 4; */
+        if (message.calibratingAccounts !== 0)
+            writer.tag(4, WireType.Varint).int32(message.calibratingAccounts);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse
+ */
+export const GetTPRDailyBreakdownResponse = new GetTPRDailyBreakdownResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class TPRDailyPoint$Type extends MessageType<TPRDailyPoint> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.TPRDailyPoint", [
+            { no: 1, name: "day", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "period_avg", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 3, name: "contributing_clusters", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "metrics", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ } }
+        ]);
+    }
+    create(value?: PartialMessage<TPRDailyPoint>): TPRDailyPoint {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.day = 0;
+        message.periodAvg = 0;
+        message.contributingClusters = 0;
+        message.metrics = {};
+        if (value !== undefined)
+            reflectionMergePartial<TPRDailyPoint>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: TPRDailyPoint): TPRDailyPoint {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 day */ 1:
+                    message.day = reader.int64().toNumber();
+                    break;
+                case /* int64 period_avg */ 2:
+                    message.periodAvg = reader.int64().toNumber();
+                    break;
+                case /* int32 contributing_clusters */ 3:
+                    message.contributingClusters = reader.int32();
+                    break;
+                case /* map<string, int64> metrics */ 4:
+                    this.binaryReadMap4(message.metrics, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap4(map: TPRDailyPoint["metrics"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof TPRDailyPoint["metrics"] | undefined, val: TPRDailyPoint["metrics"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.int64().toNumber();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for gravitational.cloud.tenants.v1.TPRDailyPoint.metrics");
+            }
+        }
+        map[key ?? ""] = val ?? 0;
+    }
+    internalBinaryWrite(message: TPRDailyPoint, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 day = 1; */
+        if (message.day !== 0)
+            writer.tag(1, WireType.Varint).int64(message.day);
+        /* int64 period_avg = 2; */
+        if (message.periodAvg !== 0)
+            writer.tag(2, WireType.Varint).int64(message.periodAvg);
+        /* int32 contributing_clusters = 3; */
+        if (message.contributingClusters !== 0)
+            writer.tag(3, WireType.Varint).int32(message.contributingClusters);
+        /* map<string, int64> metrics = 4; */
+        for (let k of globalThis.Object.keys(message.metrics))
+            writer.tag(4, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.Varint).int64(message.metrics[k]).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.TPRDailyPoint
+ */
+export const TPRDailyPoint = new TPRDailyPoint$Type();
 /**
  * @generated ServiceType for protobuf service gravitational.cloud.tenants.v1.TenantsService
  */
@@ -8024,6 +8783,8 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "GetBillingSummaryInformation", options: {}, I: EmptyRequest, O: GetBillingSummaryInformationResponse },
     { name: "GetSurveyCompany", options: {}, I: EmptyRequest, O: SurveyCompanyResponse },
     { name: "GetUsage", options: {}, I: GetUsageRequest, O: GetUsageResponse },
+    { name: "GetMAUDailyBreakdown", options: {}, I: GetMAUDailyBreakdownRequest, O: GetMAUDailyBreakdownResponse },
+    { name: "GetTPRDailyBreakdown", options: {}, I: GetTPRDailyBreakdownRequest, O: GetTPRDailyBreakdownResponse },
     { name: "SetSurveyResults", options: {}, I: SetSurveyResultsRequest, O: EmptyResponse },
     { name: "SendTeleportInvite", options: {}, I: SendTeleportInviteRequest, O: EmptyResponse },
     { name: "ClusterAlertInfo", options: {}, I: EmptyRequest, O: ClusterAlertInfoResponse },

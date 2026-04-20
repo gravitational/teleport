@@ -413,6 +413,219 @@ func TestPlugin_getCloudAssetHandle(t *testing.T) {
 	}
 }
 
+func TestPlugin_getMAUBreakdownHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+
+	pass := &cloudapi.GetMAUDailyBreakdownResponse{
+		Days: []*cloudapi.MAUDailyPoint{
+			{Day: 1775001600, NewInWindow: 2, ContributingClusters: 1},
+		},
+		RangeStart: 1775001600,
+		RangeEnd:   1776124800,
+	}
+
+	tests := []struct {
+		name      string
+		query     string
+		wantReq   *cloudapi.GetMAUDailyBreakdownRequest
+		clientErr error
+		wantErr   bool
+	}{
+		{
+			name:    "missing window errors",
+			query:   "",
+			wantErr: true,
+		},
+		{
+			name:  "tenants passed as repeated param",
+			query: "tenants=acc1&tenants=acc2&window-cycle=1775001600",
+			wantReq: &cloudapi.GetMAUDailyBreakdownRequest{
+				Tenants: []string{"acc1", "acc2"},
+				Window: &cloudapi.DailyBreakdownWindow{
+					Window: &cloudapi.DailyBreakdownWindow_Cycle{Cycle: 1775001600},
+				},
+			},
+		},
+		{
+			name:  "cycle window",
+			query: "window-cycle=1775001600",
+			wantReq: &cloudapi.GetMAUDailyBreakdownRequest{
+				Window: &cloudapi.DailyBreakdownWindow{
+					Window: &cloudapi.DailyBreakdownWindow_Cycle{Cycle: 1775001600},
+				},
+			},
+		},
+		{
+			name:  "range window",
+			query: "window-range-start=1775001600&window-range-end=1776124800",
+			wantReq: &cloudapi.GetMAUDailyBreakdownRequest{
+				Window: &cloudapi.DailyBreakdownWindow{
+					Window: &cloudapi.DailyBreakdownWindow_Range{
+						Range: &cloudapi.DateRange{Start: 1775001600, End: 1776124800},
+					},
+				},
+			},
+		},
+		{
+			name:    "range start after end errors",
+			query:   "window-range-start=1776124800&window-range-end=1775001600",
+			wantErr: true,
+		},
+		{
+			name:      "client error is propagated",
+			query:     "window-cycle=1775001600",
+			clientErr: trace.NotFound("not found"),
+			wantErr:   true,
+		},
+		{
+			name:      "access denied is propagated",
+			query:     "window-cycle=1775001600",
+			clientErr: trace.AccessDenied("access denied"),
+			wantErr:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/billing/breakdown/mau?"+tc.query, nil)
+			w := httptest.NewRecorder()
+			r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+
+			var calledWith *cloudapi.GetMAUDailyBreakdownRequest
+			client := &testClient{
+				MockedClient: cloud.MockedClient{
+					MockGetMAUDailyBreakdown: func(ctx context.Context, in *cloudapi.GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*cloudapi.GetMAUDailyBreakdownResponse, error) {
+						calledWith = in
+						if tc.clientErr != nil {
+							return nil, tc.clientErr
+						}
+						return pass, nil
+					},
+				},
+			}
+
+			actual, err := s.webPlugin.getMAUBreakdownHandle(w, r, &web.SessionContext{}, client)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, pass, actual)
+			require.Equal(t, tc.wantReq, calledWith)
+		})
+	}
+}
+
+func TestPlugin_getTPRBreakdownHandle(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t)
+
+	pass := &cloudapi.GetTPRDailyBreakdownResponse{
+		Days: []*cloudapi.TPRDailyPoint{
+			{Day: 1775001600, PeriodAvg: 5, ContributingClusters: 1},
+		},
+		RangeStart: 1775001600,
+		RangeEnd:   1776124800,
+	}
+
+	tests := []struct {
+		name      string
+		query     string
+		wantReq   *cloudapi.GetTPRDailyBreakdownRequest
+		clientErr error
+		wantErr   bool
+	}{
+		{
+			name:    "missing window errors",
+			query:   "",
+			wantErr: true,
+		},
+		{
+			name:  "tenants passed as repeated param",
+			query: "tenants=acc1&tenants=acc2&window-cycle=1775001600",
+			wantReq: &cloudapi.GetTPRDailyBreakdownRequest{
+				Tenants: []string{"acc1", "acc2"},
+				Window: &cloudapi.DailyBreakdownWindow{
+					Window: &cloudapi.DailyBreakdownWindow_Cycle{Cycle: 1775001600},
+				},
+			},
+		},
+		{
+			name:  "cycle window",
+			query: "window-cycle=1775001600",
+			wantReq: &cloudapi.GetTPRDailyBreakdownRequest{
+				Window: &cloudapi.DailyBreakdownWindow{
+					Window: &cloudapi.DailyBreakdownWindow_Cycle{Cycle: 1775001600},
+				},
+			},
+		},
+		{
+			name:  "range window",
+			query: "window-range-start=1775001600&window-range-end=1776124800",
+			wantReq: &cloudapi.GetTPRDailyBreakdownRequest{
+				Window: &cloudapi.DailyBreakdownWindow{
+					Window: &cloudapi.DailyBreakdownWindow_Range{
+						Range: &cloudapi.DateRange{Start: 1775001600, End: 1776124800},
+					},
+				},
+			},
+		},
+		{
+			name:    "range start after end errors",
+			query:   "window-range-start=1776124800&window-range-end=1775001600",
+			wantErr: true,
+		},
+		{
+			name:      "client error is propagated",
+			query:     "window-range-start=1775001600&window-range-end=1776124800",
+			clientErr: trace.NotFound("not found"),
+			wantErr:   true,
+		},
+		{
+			name:      "access denied is propagated",
+			query:     "window-range-start=1775001600&window-range-end=1776124800",
+			clientErr: trace.AccessDenied("access denied"),
+			wantErr:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/billing/breakdown/tpr?"+tc.query, nil)
+			r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+
+			var calledWith *cloudapi.GetTPRDailyBreakdownRequest
+			client := &testClient{
+				MockedClient: cloud.MockedClient{
+					MockGetTPRDailyBreakdown: func(ctx context.Context, in *cloudapi.GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*cloudapi.GetTPRDailyBreakdownResponse, error) {
+						calledWith = in
+						if tc.clientErr != nil {
+							return nil, tc.clientErr
+						}
+						return pass, nil
+					},
+				},
+			}
+
+			actual, err := s.webPlugin.getTPRBreakdownHandle(w, r, &web.SessionContext{}, client)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, pass, actual)
+			require.Equal(t, tc.wantReq, calledWith)
+		})
+	}
+}
+
 func TestPlugin_withCloudCache(t *testing.T) {
 	t.Parallel()
 	counter := 0

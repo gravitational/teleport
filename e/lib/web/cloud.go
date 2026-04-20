@@ -7,7 +7,9 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +52,8 @@ func (p *Plugin) registerCloudHandlers() {
 	if features.GetCloud() || (services.IsDashboard(features) && features.IsUsageBased && !features.IsStripeManaged) {
 		p.h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.withCloudCache(p.getBillingSummaryInformationHandle)))
 		p.h.POST("/enterprise/cloud/billing-summary", p.withCloudAuth(p.withCloudCache(p.getUsageHandle)))
+		p.h.GET("/enterprise/cloud/billing/breakdown/mau", p.withCloudAuth(p.getMAUBreakdownHandle))
+		p.h.GET("/enterprise/cloud/billing/breakdown/tpr", p.withCloudAuth(p.getTPRBreakdownHandle))
 	}
 
 	// the following endpoints are only available to Cloud cloud-hosted customers (not Cloud dashboard customers)
@@ -104,6 +108,83 @@ func (p *Plugin) getUsageHandle(w http.ResponseWriter, r *http.Request, sctx *we
 	}
 
 	return res, nil
+}
+
+func (p *Plugin) getMAUBreakdownHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	window, err := parseDailyBreakdownWindow(r.URL.Query())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req := &cloudapi.GetMAUDailyBreakdownRequest{
+		Tenants: r.URL.Query()["tenants"],
+		Window:  window,
+	}
+
+	res, err := client.GetMAUDailyBreakdown(r.Context(), req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) getTPRBreakdownHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	window, err := parseDailyBreakdownWindow(r.URL.Query())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req := &cloudapi.GetTPRDailyBreakdownRequest{
+		Tenants: r.URL.Query()["tenants"],
+		Window:  window,
+	}
+
+	res, err := client.GetTPRDailyBreakdown(r.Context(), req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+// parseDailyBreakdownWindow builds a DailyBreakdownWindow from query params.
+// Accepts either window-cycle=<int64> or window-range-start=<int64>&window-range-end=<int64>.
+// When using a range window, start must be before end.
+func parseDailyBreakdownWindow(query url.Values) (*cloudapi.DailyBreakdownWindow, error) {
+	if cycleStr := query.Get("window-cycle"); cycleStr != "" {
+		cycle, err := strconv.ParseInt(cycleStr, 10, 64)
+		if err != nil {
+			return nil, trace.BadParameter("cannot convert cycle start '%s' into unix timestamp", cycleStr)
+		}
+
+		return &cloudapi.DailyBreakdownWindow{
+			Window: &cloudapi.DailyBreakdownWindow_Cycle{Cycle: cycle},
+		}, nil
+	}
+
+	startStr := query.Get("window-range-start")
+	endStr := query.Get("window-range-end")
+	if startStr != "" || endStr != "" {
+		start, err := strconv.ParseInt(startStr, 10, 64)
+		if err != nil {
+			return nil, trace.BadParameter("cannot convert start date %q into unix timestamp", startStr)
+		}
+		end, err := strconv.ParseInt(endStr, 10, 64)
+		if err != nil {
+			return nil, trace.BadParameter("cannot convert end data %q into unix timestamp", endStr)
+		}
+
+		if start > end {
+			return nil, trace.BadParameter("start date %q must come before end date %q", startStr, endStr)
+		}
+
+		return &cloudapi.DailyBreakdownWindow{
+			Window: &cloudapi.DailyBreakdownWindow_Range{
+				Range: &cloudapi.DateRange{Start: start, End: end},
+			},
+		}, nil
+	}
+
+	return nil, trace.BadParameter("window must have either range or cycle")
 }
 
 func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {

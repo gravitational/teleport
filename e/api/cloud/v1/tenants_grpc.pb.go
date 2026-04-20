@@ -48,6 +48,12 @@ type TenantsServiceClient interface {
 	GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error)
 	// GetUsage returns usage information for one or more tenants.
 	GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error)
+	// GetMAUDailyBreakdown returns a per-day MAU breakdown (new vs returning users) for a usage cycle or
+	// arbitrary date range. Used to render the MAU chart page.
+	GetMAUDailyBreakdown(ctx context.Context, in *GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*GetMAUDailyBreakdownResponse, error)
+	// GetTPRDailyBreakdown returns a per-day TPR breakdown by resource type for a usage cycle or
+	// arbitrary date range. Used to render the TPR chart page.
+	GetTPRDailyBreakdown(ctx context.Context, in *GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*GetTPRDailyBreakdownResponse, error)
 	// SetSurveyResults updates the account object with onboarding survey results
 	SetSurveyResults(ctx context.Context, in *SetSurveyResultsRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// SendTeleportInvite sends a user invite link to onboard a new user in an existing cluster
@@ -233,6 +239,24 @@ func (c *tenantsServiceClient) GetSurveyCompany(ctx context.Context, in *EmptyRe
 func (c *tenantsServiceClient) GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error) {
 	out := new(GetUsageResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetUsage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) GetMAUDailyBreakdown(ctx context.Context, in *GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*GetMAUDailyBreakdownResponse, error) {
+	out := new(GetMAUDailyBreakdownResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetMAUDailyBreakdown", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) GetTPRDailyBreakdown(ctx context.Context, in *GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*GetTPRDailyBreakdownResponse, error) {
+	out := new(GetTPRDailyBreakdownResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetTPRDailyBreakdown", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -555,6 +579,12 @@ type TenantsServiceServer interface {
 	GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error)
 	// GetUsage returns usage information for one or more tenants.
 	GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error)
+	// GetMAUDailyBreakdown returns a per-day MAU breakdown (new vs returning users) for a usage cycle or
+	// arbitrary date range. Used to render the MAU chart page.
+	GetMAUDailyBreakdown(context.Context, *GetMAUDailyBreakdownRequest) (*GetMAUDailyBreakdownResponse, error)
+	// GetTPRDailyBreakdown returns a per-day TPR breakdown by resource type for a usage cycle or
+	// arbitrary date range. Used to render the TPR chart page.
+	GetTPRDailyBreakdown(context.Context, *GetTPRDailyBreakdownRequest) (*GetTPRDailyBreakdownResponse, error)
 	// SetSurveyResults updates the account object with onboarding survey results
 	SetSurveyResults(context.Context, *SetSurveyResultsRequest) (*EmptyResponse, error)
 	// SendTeleportInvite sends a user invite link to onboard a new user in an existing cluster
@@ -670,6 +700,12 @@ func (UnimplementedTenantsServiceServer) GetSurveyCompany(context.Context, *Empt
 }
 func (UnimplementedTenantsServiceServer) GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsage not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetMAUDailyBreakdown(context.Context, *GetMAUDailyBreakdownRequest) (*GetMAUDailyBreakdownResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMAUDailyBreakdown not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetTPRDailyBreakdown(context.Context, *GetTPRDailyBreakdownRequest) (*GetTPRDailyBreakdownResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTPRDailyBreakdown not implemented")
 }
 func (UnimplementedTenantsServiceServer) SetSurveyResults(context.Context, *SetSurveyResultsRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSurveyResults not implemented")
@@ -980,6 +1016,42 @@ func _TenantsService_GetUsage_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TenantsServiceServer).GetUsage(ctx, req.(*GetUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_GetMAUDailyBreakdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMAUDailyBreakdownRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetMAUDailyBreakdown(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetMAUDailyBreakdown",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetMAUDailyBreakdown(ctx, req.(*GetMAUDailyBreakdownRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_GetTPRDailyBreakdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTPRDailyBreakdownRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetTPRDailyBreakdown(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetTPRDailyBreakdown",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetTPRDailyBreakdown(ctx, req.(*GetTPRDailyBreakdownRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1545,6 +1617,14 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUsage",
 			Handler:    _TenantsService_GetUsage_Handler,
+		},
+		{
+			MethodName: "GetMAUDailyBreakdown",
+			Handler:    _TenantsService_GetMAUDailyBreakdown_Handler,
+		},
+		{
+			MethodName: "GetTPRDailyBreakdown",
+			Handler:    _TenantsService_GetTPRDailyBreakdown_Handler,
 		},
 		{
 			MethodName: "SetSurveyResults",

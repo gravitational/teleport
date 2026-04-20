@@ -160,6 +160,8 @@ const cfg = {
 
     billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
     nonBillableUsageSummaryPath: '/v1/enterprise/cloud/nonbillable-summary',
+    mauBreakdownPath: '/v1/enterprise/cloud/billing/breakdown/mau',
+    tprBreakdownPath: '/v1/enterprise/cloud/billing/breakdown/tpr',
     teleportInvitePath: '/v1/enterprise/cloud/teleportinvite',
     teleportCredentialResetPath: '/v1/enterprise/cloud/teleportcredentialreset',
 

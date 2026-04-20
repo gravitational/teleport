@@ -263,6 +263,22 @@ func (ac *cloudWithRoles) PutClientIPRestrictions(ctx context.Context, in *v1.Pu
 	return resp, err
 }
 
+func (ac *cloudWithRoles) GetMAUDailyBreakdown(ctx context.Context, in *v1.GetMAUDailyBreakdownRequest) (*v1.GetMAUDailyBreakdownResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetMAUDailyBreakdown(ctx, in)
+}
+
+func (ac *cloudWithRoles) GetTPRDailyBreakdown(ctx context.Context, in *v1.GetTPRDailyBreakdownRequest) (*v1.GetTPRDailyBreakdownResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetTPRDailyBreakdown(ctx, in)
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, resource string, actions ...string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")

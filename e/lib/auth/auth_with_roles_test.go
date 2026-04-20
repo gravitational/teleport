@@ -498,6 +498,96 @@ func newAccessList(t *testing.T, name string, roleGrants []string) *accesslist.A
 	return accessList
 }
 
+func TestGetMAUDailyBreakdown(t *testing.T) {
+	ctx := t.Context()
+	suite := newCloudSuite(t)
+	suite.cloudClient.MockGetMAUDailyBreakdown = func(ctx context.Context, req *cloudv1.GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*cloudv1.GetMAUDailyBreakdownResponse, error) {
+		return &cloudv1.GetMAUDailyBreakdownResponse{}, nil
+	}
+
+	tt := []struct {
+		name       string
+		allowRules []types.Rule
+		assert     require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no billing read permission",
+			allowRules: []types.Rule{},
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:       "with billing read permission",
+			allowRules: []types.Rule{{Resources: []string{types.KindBilling}, Verbs: []string{types.VerbRead}}},
+			assert:     require.NoError,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			role, err := types.NewRole("test-role", types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: tc.allowRules},
+			})
+			require.NoError(t, err)
+			suite.authorizer.authorize = func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					User:     newUser(t, "testuser", types.UserTypeLocal, role.GetName()),
+					Checker:  services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.RoleSet{role}),
+					Identity: suite.authIdentity,
+				}, nil
+			}
+			_, err = suite.cloudWithRoles.GetMAUDailyBreakdown(ctx, &cloudv1.GetMAUDailyBreakdownRequest{})
+			tc.assert(t, err)
+		})
+	}
+}
+
+func TestGetTPRDailyBreakdown(t *testing.T) {
+	ctx := t.Context()
+	suite := newCloudSuite(t)
+	suite.cloudClient.MockGetTPRDailyBreakdown = func(ctx context.Context, req *cloudv1.GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*cloudv1.GetTPRDailyBreakdownResponse, error) {
+		return &cloudv1.GetTPRDailyBreakdownResponse{}, nil
+	}
+
+	tt := []struct {
+		name       string
+		allowRules []types.Rule
+		assert     require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no billing read permission",
+			allowRules: []types.Rule{},
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:       "with billing read permission",
+			allowRules: []types.Rule{{Resources: []string{types.KindBilling}, Verbs: []string{types.VerbRead}}},
+			assert:     require.NoError,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			role, err := types.NewRole("test-role", types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: tc.allowRules},
+			})
+			require.NoError(t, err)
+			suite.authorizer.authorize = func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					User:     newUser(t, "testuser", types.UserTypeLocal, role.GetName()),
+					Checker:  services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.RoleSet{role}),
+					Identity: suite.authIdentity,
+				}, nil
+			}
+			_, err = suite.cloudWithRoles.GetTPRDailyBreakdown(ctx, &cloudv1.GetTPRDailyBreakdownRequest{})
+			tc.assert(t, err)
+		})
+	}
+}
+
 func newAccessListMember(t *testing.T, accessList, name string) *accesslist.AccessListMember {
 	t.Helper()
 

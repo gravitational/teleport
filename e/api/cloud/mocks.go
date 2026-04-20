@@ -55,6 +55,10 @@ type MockedClient struct {
 	MockRemoveContact func(ctx context.Context, in *v1.RemoveContactRequest, opts ...grpc.CallOption) (*v1.RemoveContactResponse, error)
 	// MockGetFile returns a static file to be rendered on the Teleport UI.
 	MockGetFile func(ctx context.Context, in *v1.GetFileRequest, opts ...grpc.CallOption) (v1.TenantsService_GetFileClient, error)
+	// MockGetMAUDailyBreakdown returns a per-day MAU breakdown.
+	MockGetMAUDailyBreakdown func(ctx context.Context, in *v1.GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*v1.GetMAUDailyBreakdownResponse, error)
+	// MockGetTPRDailyBreakdown returns a per-day TPR breakdown.
+	MockGetTPRDailyBreakdown func(ctx context.Context, in *v1.GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*v1.GetTPRDailyBreakdownResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -211,4 +215,22 @@ func (m *MockedClient) GetFile(ctx context.Context, in *v1.GetFileRequest, opts 
 	}
 
 	return nil, trace.NotImplemented("GetFile is not implemented")
+}
+
+// GetMAUDailyBreakdown calls MockGetMAUDailyBreakdown if it exists and returns trace.NotImplemented otherwise.
+func (m *MockedClient) GetMAUDailyBreakdown(ctx context.Context, in *v1.GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*v1.GetMAUDailyBreakdownResponse, error) {
+	if m.MockGetMAUDailyBreakdown != nil {
+		return m.MockGetMAUDailyBreakdown(ctx, in, opts...)
+	}
+
+	return nil, trace.NotImplemented("GetMAUDailyBreakdown is not implemented")
+}
+
+// GetTPRDailyBreakdown calls MockGetTPRDailyBreakdown if it exists and returns trace.NotImplemented otherwise.
+func (m *MockedClient) GetTPRDailyBreakdown(ctx context.Context, in *v1.GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*v1.GetTPRDailyBreakdownResponse, error) {
+	if m.MockGetTPRDailyBreakdown != nil {
+		return m.MockGetTPRDailyBreakdown(ctx, in, opts...)
+	}
+
+	return nil, trace.NotImplemented("GetTPRDailyBreakdown is not implemented")
 }
