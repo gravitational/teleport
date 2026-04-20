@@ -15,7 +15,7 @@ infrastructure and inference services — with no secrets, no static API keys, a
 full audit coverage.
 
 Beams are part of the [Teleport Agentic Identity
-Framework](../agentic-identity-framework.mdx) and are designed to solve the core
+Framework](../agentic-identity-framework/agentic-identity-framework.mdx) and are designed to solve the core
 adoption blockers for running agents in production: security, IAM, and
 operational overhead.
 
@@ -259,23 +259,20 @@ This role is automatically assigned to users on Beams-enabled clusters.
 ## Security model
 
 Beams run on the Teleport Cloud platform. Each beam runs in a restricted
-containerized environment inside of a dedicated Firecracker microVM.
+containerized environment inside of a dedicated Firecracker microVM. A beam can
+only access your Teleport resources (like apps and databases) if it is granted
+the appropriate permissions. 
 
-A beam can only access your Teleport resources (like apps and databases) if it
-is granted the appropriate permissions. For now, beams run with a delegated
-identity inheriting the full privileges of the user who started them. In the
-future, users will be able to delegate a subset of their permissions to the
-beam.
-
-During the beta period beams have unrestricted access to the public internet.
-In the future, beams will have restricted egress networking by default.
-
-Ingress traffic to beams is either protected by Teleport SSH (for console access)
-or via Teleport application tunnels (for published apps).
+Ingress traffic to beams is either protected by Teleport SSH (for console
+access) or via Teleport application tunnels (for published apps).
 
 Egress traffic to inference APIs is proxied by Teleport VNet. Credentials are
 injected after traffic leaves the beam, ensuring that sensitive API keys do not
 reside on the beam.
+
+For an explanation of the architectural principles behind Teleport Beams, and a
+breakdown of how Beams implements those principles, see [Secure Agent
+Environment](../agentic-identity-framework/secure-agent-environment.mdx).
 
 ## Resource limits
 

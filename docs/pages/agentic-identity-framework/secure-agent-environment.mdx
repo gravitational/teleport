@@ -1,0 +1,214 @@
+---
+title: Secure Agent Environment
+description: Provides architectural principles for isolating agentic workloads in order to manage agentic identity.
+tags:
+  - conceptual
+  - ai
+---
+
+An AI agent running on a local workstation can read any credentials available to
+it, giving it permissions to perform any operations the user can, and in the
+user's name. As with all agent activity, the way agents use credentials to
+access infrastructure is indeterministic. To run AI agents without unintended
+damage, your system needs to incorporate security as a first principle.
+
+The Teleport Agentic Identity framework introduces the recommended approach to
+securely running agentic workloads, the **secure agent environment**. In this
+approach, security is built into the system. AI agents have a limited range of
+operations they are allowed to complete, with each operation subject to auditing
+and access controls. 
+
+The implementation of a secure agent environment, [Teleport
+Beams](../beams/beams.mdx), is built on Teleport's foundation of authentication
+using cryptographically signed identities with certificate-based access
+controls. With Beams as an extension of Teleport's existing capabilities,
+security is built into AI infrastructure from the bottom up.
+
+## A multi-layered approach
+
+The secure agentic environment builds security into the system, rather than
+bolting it on to an existing system, with a multi-layered approach. Each layer
+takes advantage of features of the layer below.
+
+The layers are:
+
+- **Sandboxing:** Untrusted code is isolated and ephemeral, so there is minimal
+  risk that it will interface with systems it is not supposed to.
+- **Identity:** Each component of the system, including the end user, the
+  agent's execution environment, and the agentic workload to execute, can
+  prove itself to the system as a known, trusted subject.
+- **Access controls:** Encoded in the identity is a list of operations and
+  resources that the identity has access to, and the system checks access before
+  allowing any operation to take place.
+- **Audit:** Access controls associate each operation with an identity, allowing
+  the system to construct logs of which identities performed which operations at
+  different times.
+
+Each layer requires the one below. Without sandboxing, the agentic workload can
+access network sockets, credentials, and other resources that evade the system's
+authentication and access control checks, regardless of the agent's identity.
+Identity is necessary for access controls and auditing, which rely on the
+presence of a subject.
+
+## Sandboxing
+
+The first layer of the secure agent environment is **sandboxing**. Agentic
+workloads are untrusted. Since agentic output is indeterministic, we must assume
+that any code an agent executes is arbitrary. As a result, the only truly secure
+way to protect a system against abuse by an agent is to isolate the agent from
+the system.
+
+As the first layer, sandboxing ensures that the agentic workload has no effect
+on the surrounding system unless other parts of the system let it escape the
+sandbox.
+
+There are two components to sandboxing. The first is hardware isolation. In the
+secure agent environment, we recommend hardware-level virtualization, e.g., a
+Type 1 hypervisor, for running agent workloads. The agent has no access to the
+operating system on the host, so there is no attack surface on other software
+running in your environment.
+
+The second component is ephemerality. We recommend placing a time to live on
+the virtual machine that runs agentic workloads. This way, the untrusted code is
+isolated in time: it exists only as long as it is needed, and not long enough
+for unintended side effects to take hold.
+
+## Identity
+
+The **identity** layer of the secure agent environment is consistent with
+Teleport's overall approach to infrastructure: every human and non-human
+component of the system receives an identity. That way, every component that
+interacts with it can perform authentication and authorization checks on the
+identity. 
+
+In the case of an agentic AI workload, we recommend distributing identities to
+end users, the execution environment for the agentic workload, and the agentic
+workload itself, in addition to infrastructure components such as Kubernetes
+clusters, databases, and web applications.
+
+Once the agentic workload has an identity, other components can verify that
+identity. A database, for example, can verify that the agentic workload is a
+trusted part of the system and not a rogue actor.
+
+For agentic workloads, it is crucial that the system associate the workload with
+the human user that initiated it. There must be no way for human users to
+conceal themselves by running agentic workloads.
+
+## Access controls
+
+In the secure agent environment, **access controls** take advantage of the
+identity layer to enable components that interact with the agentic workload to
+allow or deny operations. And because of the sandboxing layer, the agentic workload
+has no default ability to operate on other components. If an operation is to
+succeed, a component must explicitly allow it. This makes it impossible to
+bypass one access control system by authenticating to another one, e.g., letting
+an agent use SSH keys or AWS credentials with broad permissions.
+
+If every component of the system already has an identity, the system can encode
+in each identity the permissions each component has to interact with other
+components. Since end users have identities as well, the system can check
+whether the end user has permissions to manage agentic workloads before running
+them in the secure environment. In addition, infrastructure components in the
+environment can check whether the agentic workload can operate on them before
+allowing those operations.
+
+## Audit
+
+The final layer of the secure agent environment is **auditing**. Auditing allows
+administrators to track the operations that an AI agent has performed in a
+system so they can identify potential threats and investigate security breaches.
+
+In the secure agent environment, sandboxing, identity, and access controls make
+auditing a natural next step. Since an AI agent must route its connections to
+external infrastructure through components of the system that enforce access
+controls, these parts of the system already are aware of the agent's identity
+and the operations it is attempting. An auditing system only needs to emit
+telemetry that includes this information.
+
+## Reference implementation
+
+Teleport has implemented the secure agent environment in Teleport Beams. Beams
+allows you to run agentic workloads securely on Teleport-managed infrastructure.
+A beam is a remote environment for running an untrusted workload, designed for
+AI agents. Each beam has the following components, which correspond to the
+layers of the secure agent environment.
+
+### Sandboxing
+
+A beam runs on a Firecracker virtual machine with a time to live of under 24
+hours. An instance of `tbot` runs on the virtual machine. The `tbot` instance
+runs Teleport VNet, which sets up a TUN interface on the VM that intercepts all
+traffic that flows from the agentic workload. The agentic workload queries the
+VNet instance as its DNS resolver, and VNet returns the public addresses of
+Teleport protected resources in your infrastructure.
+
+From the point of view of the agentic workload, it can attempt a connection to
+any Teleport-protected resource. However, all traffic from the workload to the
+infrastructure outside the sandbox must go through the local VNet TUN interface.
+From there, since the VNet resolver returns addresses of Teleport-protected
+resources, the workload can only dial the Teleport Proxy Service.
+
+Since Teleport-managed infrastructure tears down the virtual machine after the
+TTL, we can minimize the risk of the agent finding and exploiting
+vulnerabilities.
+
+### Identity
+
+Every component of Teleport Beams has its own identity. As in any Teleport
+deployment the Auth Service maintains several certificate authorities that it
+uses to issue certificates to end users and Teleport services. 
+
+In the case of Beams, the `tbot` instance authenticates itself to the Teleport
+Auth Service using [Bound Keypair
+Joining](../reference/machine-workload-identity/bound-keypair/admin-guide.mdx)
+and receives an identity of its own, then periodically issues identities to the
+agentic workload (TLS and SSH user certificates) and the Firecracker VM (an SSH
+host certificate).
+
+`tbot` issues a **delegated identity** to the agentic workload. The `tbot`
+configuration specifies the ID of a **delegation session** resource, which
+indicates the user the bot is authorized to delegate identity to. The Auth
+Service looks up the delegation session and issues certificates with the same
+subject information as the end user who initialized the beam, including the
+user's login and Teleport roles.
+
+When the agentic workload attempts to authenticate to a Teleport-protected
+resource, it presents its Teleport-issued certificate for validation against an
+Auth Service CA.
+
+### Access controls
+
+Because an agentic workload running on a beam must use Teleport-controlled
+infrastructure to connect to resources outside the sandbox, and receives a
+Teleport-issued identity, the Teleport-controlled infrastructure can execute
+access controls. 
+
+Teleport Agents inspect the certificate issued to the agentic workload just as
+they do with any Teleport-issued certificate, determining from the user's roles
+which protected resources it can access. From the perspective of a Teleport
+Agent, the certificate could be that of a human user or the delegated agentic
+identity. The Teleport RBAC system provides a centralized means of configuring
+access for AI agents. 
+
+While `tbot` issues a delegated identity with the originating user's full set of
+Teleport roles, the architecture of Beams allows future development to limit the
+permissions of the delegated identity to a subset of the user's.
+
+### Auditing
+
+Because Teleport Agents handle the agentic workload's certificate as they would
+any user certificate, Beams has auditing built in. Components of a Teleport
+cluster emit audit events by sending a message to the gRPC API on the Teleport
+Auth Service. Teleport Agents emit audit events throughout the lifecycle of a
+session with a Teleport-protected resource, from an authentication attempt to
+activity within the session and the closure of the connection. 
+
+And because `tbot` issues a delegated certificate with the subject information
+of the originating user, auditors can see which users are managing which agentic
+operations, and these workloads cannot hide behind anonymous logins. Audit
+events include the name of the originating user as well as the name of the
+`tbot` Bot that runs inside the beam, which always begins with `beam-`.
+
+## Get started with Beams 
+
+Read more about Teleport Beams in the [documentation](../beams/beams.mdx).
