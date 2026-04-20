@@ -61,8 +61,7 @@ module "aws_discovery" {
     },
     {
       types   = ["eks"]
-      # EKS requires region selection.
-      regions = ["us-east-1"]
+      regions = ["*"]
       tags = {
         team = ["platform"]
       }
@@ -76,7 +75,7 @@ module "aws_discovery" {
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `types` | `list(string)` | (required) | AWS resource types to discover. Allowed values: `ec2`, `eks`. |
-| `regions` | `list(string)` | (required) | AWS regions to search. EC2 supports `"*"` for all regions. EKS requires explicit regions. |
+| `regions` | `list(string)` | (required) | AWS regions to search. Use `"*"` for all regions. |
 | `tags` | `map(list(string))` | `{ "*" : ["*"] }` | AWS resource tags to match. The default matches all resources. |
 | `setup_access_for_arn` | `string` | `""` | ARN to configure access for discovered EKS clusters. Only supported for EKS matchers. |
 | `kube_app_discovery` | `bool` | `null` | Teleport's Kubernetes App Discovery will automatically identify and enroll to Teleport HTTP applications running inside a Kubernetes cluster. |
