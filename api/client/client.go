@@ -79,6 +79,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -974,6 +975,12 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 // recording encryption service.
 func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
 	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
+// DelegationSessionServiceClient returns a client for the delegation session
+// service.
+func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
+	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -6261,6 +6268,53 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 // gRPC connection.
 func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
 	return subcav1.NewSubCAServiceClient(c.conn)
+}
+
+// GetCertAuthorityOverride reads a CA override resource by ID.
+//
+// It's equivalent to `c.SubCAClient().GetCertAuthorityOverride(ctx, req)`.
+//
+// If the cluster name is empty it's assumed that the default cluster is being
+// queried (like its namesake RPC). If the cluster name is non-empty, then it's
+// checked against the RPC response.
+func (c *Client) GetCertAuthorityOverride(
+	ctx context.Context,
+	id types.CertAuthorityOverrideID,
+) (*subcav1.CertAuthorityOverride, error) {
+	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
+		CaId: &subcav1.CertAuthorityOverrideID{
+			CaType: id.CAType,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Consider adding ClusterName to requests so the server
+	//  can handle them appropriately/uniformly.
+	if id.ClusterName != "" && resp.GetCaOverride().GetMetadata().GetName() != id.ClusterName {
+		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
+	}
+
+	return resp.CaOverride, nil
+}
+
+// ListCertAuthorityOverrides lists all CA overrides.
+//
+// It's equivalent to `c.SubCAClient().ListCertAuthorityOverrides(ctx, req)`.
+func (c *Client) ListCertAuthorityOverrides(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
+	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, &subcav1.ListCertAuthorityOverrideRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.CaOverrides, resp.NextPageToken, nil
 }
 
 // IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].

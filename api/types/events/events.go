@@ -2920,3 +2920,13 @@ func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		}
 	})
 }
+
+func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
+		}
+	})
+}

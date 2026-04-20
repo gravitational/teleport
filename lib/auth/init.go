@@ -199,6 +199,9 @@ type InitConfig struct {
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
 
+	// DelegationSessions is a service that manages delegation sessions.
+	DelegationSessions services.DelegationSessions
+
 	// Status is a service that manages cluster status info.
 	Status services.Status
 
@@ -447,6 +450,12 @@ type InitConfig struct {
 
 	// WorkloadClusterService is the service that manages WorkloadClusters.
 	WorkloadClusterService services.WorkloadClusterService
+
+	// Beams is the service for reading and writing beams.
+	Beams services.Beams
+
+	// SubCAService manages CertAuthorityOverride resources.
+	SubCAService services.SubCAService
 
 	// FakePasswordHash is the password hash given to all users without a password.
 	// This helps eliminate timing attacks by ensuring that all authentication attempts

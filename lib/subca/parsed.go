@@ -29,6 +29,7 @@ import (
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var (
@@ -92,12 +93,13 @@ func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*Parse
 	case resource.Spec == nil:
 		return nil, trace.BadParameter("spec required")
 	}
+	clusterName := resource.Metadata.Name
 
 	overrides := resource.Spec.CertificateOverrides
 	parsedOverrides := make([]*ParsedCertificateOverride, len(overrides))
 	seenPublicKeys := make(map[string]struct{})
 	for i, co := range overrides {
-		parsedCO, fieldName, err := validateCertificateOverride(co)
+		parsedCO, fieldName, err := validateCertificateOverride(clusterName, co)
 		if err != nil {
 			if fieldName != "" {
 				fieldName = "." + fieldName
@@ -123,6 +125,7 @@ func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*Parse
 }
 
 func validateCertificateOverride(
+	clusterName string,
 	co *subcav1.CertificateOverride,
 ) (_ *ParsedCertificateOverride, fieldName string, _ error) {
 	// Trace not used on purpose. Errors are trace-wrapped up in the chain.
@@ -137,6 +140,9 @@ func validateCertificateOverride(
 		var err error
 		cert, err = ParseCertificateOverrideCertificate(co.Certificate)
 		if err != nil {
+			return nil, "certificate", err
+		}
+		if err := validateOverrideCertificate(clusterName, cert); err != nil {
 			return nil, "certificate", err
 		}
 		wantPublicKey = HashCertificatePublicKey(cert)
@@ -225,4 +231,40 @@ func validateCertificateOverride(
 		Certificate:         cert,
 		Chain:               chain,
 	}, "", nil
+}
+
+func validateOverrideCertificate(
+	clusterName string,
+	cert *x509.Certificate,
+) error {
+	// Trace not used on purpose. Errors are trace-wrapped up in the chain.
+	certClusterName, err := tlsca.ClusterName(cert.Subject)
+	if err != nil {
+		return fmt.Errorf("cluster name: %w", err)
+	}
+	if certClusterName != clusterName {
+		return fmt.Errorf(
+			"incorrect cluster name %q (expected %q)",
+			certClusterName,
+			clusterName,
+		)
+	}
+
+	// Verify certificate constraints.
+	switch {
+	case !cert.IsCA:
+		return errors.New("not a CA certificate (IsCA=false)")
+	case !cert.BasicConstraintsValid:
+		return errors.New("basic constraints not valid (BasicConstraintsValid=false)")
+	case cert.KeyUsage&x509.KeyUsageCertSign == 0:
+		// Usage names per Go 1.26.1.
+		// https://cs.opensource.google/go/go/+/refs/tags/go1.26.1:src/crypto/x509/x509_string.go;l=23
+		return errors.New("missing KeyUsage keyCertSign")
+	case cert.KeyUsage&x509.KeyUsageCRLSign == 0:
+		return errors.New("missing KeyUsage cRLSign")
+	case cert.NotBefore.After(cert.NotAfter):
+		return errors.New("NotBefore > NotAfter")
+	}
+
+	return nil
 }

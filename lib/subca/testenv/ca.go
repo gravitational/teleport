@@ -48,6 +48,10 @@ type CAParams struct {
 	// Template for the CA certificate.
 	// Optional.
 	Template *x509.Certificate
+	// ModifyCertificate is called on the certificate template before issuance.
+	// Unlike Template it may be used to force otherwise "invalid" CA certificates
+	// (wrong KeyUsage, IsCA=false, BasicConstraintsValid=false, etc).
+	ModifyCertificate func(template *x509.Certificate)
 }
 
 // CA represents a CA external to Teleport.
@@ -112,6 +116,10 @@ func createCA(optionalParams *CAParams, parent *CA) (*CA, error) {
 	}
 
 	prepareCATemplate(template, clock, issuerName)
+
+	if optionalParams != nil && optionalParams.ModifyCertificate != nil {
+		optionalParams.ModifyCertificate(template)
+	}
 
 	certRaw, err := x509.CreateCertificate(rand.Reader, template, issuerCert, pub, issuerKey)
 	if err != nil {

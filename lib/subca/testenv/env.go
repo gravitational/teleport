@@ -19,6 +19,7 @@ package testenv
 import (
 	"cmp"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"testing"
 
 	"github.com/jonboulle/clockwork"
@@ -230,6 +231,11 @@ func (env *Env) NewDisabledCertificateOverride(
 	overrideCA, err := externalRoot.NewIntermediateCA(&CAParams{
 		Clock: env.Clock,
 		Pub:   cert.PublicKey,
+		Template: &x509.Certificate{
+			Subject: pkix.Name{
+				Organization: cert.Subject.Organization, // ClusterName.
+			},
+		},
 	})
 	require.NoError(t, err)
 

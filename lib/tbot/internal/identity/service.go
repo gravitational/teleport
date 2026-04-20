@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,6 +72,8 @@ type Config struct {
 	ReloadCh       <-chan struct{}
 	ClientBuilder  *client.Builder
 	StatusReporter readyz.Reporter
+
+	Scoped bool
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -320,6 +323,23 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return trace.Wrap(err, "joining with token")
 		}
 	} else {
+		// If identity is loaded from disk, we need to validate it has the
+		// correct scoped-ness. This catches the case where a user changes the
+		// tbot scoped-ness setting for a pre-existing install of `tbot`.
+		//
+		// Rather than forcing a rejoin, we force a hard exit here to encourage
+		// the user to re-assess what they are doing.
+		if identScope, err := checkScopeCorrectness(
+			loadedIdent.TLSIdentity,
+			s.cfg.Scoped,
+		); err != nil {
+			return trace.BadParameter(
+				"bot identity loaded from storage has scoped %v, but scope config set to %v. change tbot scope configuration or delete the bot storage directory",
+				identScope,
+				s.cfg.Scoped,
+			)
+		}
+
 		if valid {
 			// If the identity is valid (not expired), try to renew it.
 			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, loadedIdent)
@@ -816,5 +836,38 @@ func botIdentityFromToken(
 		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
 		TokenHashBytes:  []byte(tokenHash),
 	}, result.Certs)
-	return ident, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := checkScopeCorrectness(
+		ident.TLSIdentity,
+		cfg.Scoped,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ident, nil
+}
+
+// checkScopeCorrectness returns an error if the presented identity is:
+// - Scoped, but tbot is not running in scoped mode.
+// - Unscoped, but tbot is running in scoped mode.
+func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) (string, error) {
+	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.Scope != ""
+	identScope := ""
+	if identScoped {
+		identScope = tlsIdent.ScopePin.Scope
+	}
+	if identScoped && !scoped {
+		return identScope, trace.BadParameter(
+			"received scoped identity upon join, but tbot is not configured in scoped mode",
+		)
+	}
+	if !identScoped && scoped {
+		return identScope, trace.BadParameter(
+			"received unscoped identity upon join, but tbot is configured in scoped mode",
+		)
+	}
+	return identScope, nil
 }

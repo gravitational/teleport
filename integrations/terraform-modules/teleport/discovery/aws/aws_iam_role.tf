@@ -13,16 +13,13 @@ locals {
     ? null
     : var.aws_iam_role_name
   )
-  trust_roles = try({
-    local.trust_role.role_arn = local.trust_role
-  }, {})
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
   count = local.create ? 1 : 0
 
   dynamic "statement" {
-    for_each = local.use_oidc_integration ? [1] : []
+    for_each = var.discovery_service_iam_credential_source.use_oidc_integration ? [1] : []
     iterator = trust
 
     content {
@@ -44,7 +41,7 @@ data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
   }
 
   dynamic "statement" {
-    for_each = local.trust_roles
+    for_each = var.discovery_service_iam_credential_source.trust_role[*]
     iterator = trust
 
     content {
