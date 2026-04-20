@@ -632,8 +632,8 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
       title={<HighlightField field={mainField} searchResult={searchResult} />}
       action={
         searchResult.requiresRequest
-          ? 'Request access to server '
-          : 'Connect over SSH '
+          ? 'Request access to server'
+          : 'Connect over SSH'
       }
       clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
       searchResult={props.searchResult}
