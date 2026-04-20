@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -640,7 +640,10 @@ func TestService_EnrollDevice(t *testing.T) {
 	}
 }
 
-func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
+// TestService_EnrollDevice_ignoreUsageBasedLimits verifies that legacy
+// device trust limits from old licenses no longer apply.
+// (see https://github.com/gravitational/teleport.e/issues/7490)
+func TestService_EnrollDevice_ignoreUsageBasedLimits(t *testing.T) {
 	t.Parallel()
 
 	const devicesLimit = 3
@@ -658,56 +661,29 @@ func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	// 1. Register limit+1 devices. This is allowed.
+	// 1. Register limit+2 devices. This is allowed.
 	var allDevs []*devicepb.Device
-	for i := range devicesLimit + 1 {
+	for i := range devicesLimit + 2 {
 		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 			Device: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: fmt.Sprintf("dev-%v", i),
 			},
 		})
-		if err != nil {
-			t.Fatalf("CreateDevice failed: %v", err)
-		}
+		require.NoError(t, err, "CreateDevice failed")
 		allDevs = append(allDevs, dev)
 	}
 
-	enrollSuccess := func(t *testing.T, dev *devicepb.Device) {
-		t.Helper()
-		if _, _, err := enrollDevice(ctx, devices, dev, defaultCollectData); err != nil {
-			t.Errorf("enrollDevice returned err=%v, want success", err)
-		}
-	}
-	enrollLimitFailure := func(t *testing.T, dev *devicepb.Device) {
-		t.Helper()
-		if _, _, err := enrollDevice(ctx, devices, dev, defaultCollectData); !trace.IsAccessDenied(err) {
-			t.Errorf("enrollDevice returned err=%v, want AccessDenied/device limit failure", err)
-		}
+	// 2. Attempt to enroll past the limit. This should pass because Enterprise users can now enroll unlimited devices.
+	for i, dev := range allDevs {
+		_, _, err := enrollDevice(ctx, devices, dev, defaultCollectData)
+		require.NoError(t, err, "Device enrollment %d should succeed (limit is %d)", i+1, devicesLimit)
 	}
 
-	// 2. Enroll limit devices.
-	for _, dev := range allDevs[:devicesLimit] {
-		enrollSuccess(t, dev)
+	// 3. Verify all devices are enrolled.
+	for _, dev := range allDevs {
+		got, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: dev.Id})
+		require.NoError(t, err)
+		require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, got.EnrollStatus)
 	}
-
-	// 3. Attempt to enroll past the limit.
-	lastDev := allDevs[devicesLimit]
-	enrollLimitFailure(t, lastDev)
-
-	// 4. Going below the limit allows further enrollments.
-	firstDev := allDevs[0]
-	if _, err := devices.UpdateDevice(ctx, &devicepb.UpdateDeviceRequest{
-		Device: &devicepb.Device{
-			Id:           firstDev.Id,
-			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{
-			Paths: []string{"enroll_status"}, // unenroll device
-		},
-	}); err != nil {
-		t.Fatalf("UpdateDevice failed: %v", err)
-	}
-	enrollSuccess(t, lastDev)       // allowed, below limit
-	enrollLimitFailure(t, firstDev) // limits applied
 }

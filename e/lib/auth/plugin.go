@@ -227,7 +227,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		plugin: p,
 	})
 
-	deviceService, err := registerDeviceTrustService(p.logger, gRPCServer, p.authServer, p.Config.Modules)
+	err = registerDeviceTrustService(p.logger, gRPCServer, p.authServer, p.Config.Modules)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -442,8 +442,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 
 	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
-		GetDevicesUsageFunc: deviceService.GetResourceDevicesUsage,
-		Modules:             p.Config.Modules,
+		Modules: p.Config.Modules,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -744,7 +743,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	return nil
 }
 
-func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *auth.GRPCServer, m modules.Modules) (*devicetrustv1.Service, error) {
+func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *auth.GRPCServer, m modules.Modules) error {
 	authServer := authGRPC.AuthServer
 	deviceStorage, err := dtstorage.New(dtstorage.Params{
 		Logger:       logger,
@@ -753,7 +752,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		Modules:      m,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
@@ -767,7 +766,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		Modules:             m,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	devicepb.RegisterDeviceTrustServiceServer(s, deviceService)
@@ -776,7 +775,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 	authServer.SetCreateDeviceWebTokenFunc(deviceService.CreateDeviceWebToken)
 	authServer.SetDeviceAssertionServer(deviceService.CreateAssertCeremony)
 	authServer.SetDevicesGetter(deviceStorage)
-	return deviceService, nil
+	return nil
 }
 
 func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {

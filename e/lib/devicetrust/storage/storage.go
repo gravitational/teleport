@@ -25,7 +25,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/modules"
@@ -46,9 +45,6 @@ const (
 	// outcome.
 	deviceWebAuthnAttemptExpireDuration = 5 * time.Minute
 )
-
-// ErrEnrolledDeviceLimit is returned when device enrollment is restricted due to license limit.
-var ErrEnrolledDeviceLimit = &trace.AccessDeniedError{Message: "cluster has reached its enrolled trusted device limit, please contact the cluster administrator"}
 
 const (
 	currentAPIVersion = "v1"
@@ -547,9 +543,6 @@ func (s *S) UpdateDevice(
 
 	// Convert updated dev to storage.
 	_, storedU := deviceToStored(updated, now, true /* createAsResource */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Marshal and update.
 	val, err := json.Marshal(storedU)
@@ -1368,14 +1361,6 @@ func (s *S) EnrollDevice(
 		return nil, trace.Wrap(err)
 	}
 
-	updateDevice := func() error {
-		_, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
-			Key:   item.Key,
-			Value: val,
-		})
-		return trace.Wrap(err)
-	}
-
 	// Unassign device from previous owner, if any.
 	// The service layer will redo the assignment if any following updates fail.
 	if prevOwner != "" && prevOwner != owner {
@@ -1384,34 +1369,15 @@ func (s *S) EnrollDevice(
 		}
 	}
 
-	// Verify limits if the account is usage-based, otherwise just update.
-	var completeEnrollFn func() error
-	if f := s.modules.Features(); f.IsUsageBasedBilling {
-		completeEnrollFn = func() error {
-			return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-				LockConfiguration: backend.LockConfiguration{
-					Backend:            s.backend,
-					LockNameComponents: []string{"devicesEnrollLock"},
-					TTL:                5 * time.Second,
-					RetryInterval:      100 * time.Millisecond,
-				},
-			}, func(ctx context.Context) error {
-				if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
-					return trace.Wrap(err)
-				}
-				return trace.Wrap(updateDevice())
-			})
-		}
-	} else {
-		completeEnrollFn = updateDevice
-	}
-
-	if err := completeEnrollFn(); err != nil {
+	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
+		Key:   item.Key,
+		Value: val,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Assign trusted device to user.
-	// This comes after enrollment proper because that's when we check for limits.
 	// Since enrollment already happened, any errors here are swallowed.
 	// The service layer will redo the assignment if this fails.
 	if err := s.assignDeviceToUser(ctx, owner, deviceID); err != nil {
@@ -1606,7 +1572,6 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 				return nil, trace.BadParameter("collected data matches more than one device, aborting")
 			}
 			targetDev = dev
-			break
 		}
 	}
 	if targetDev == nil {
@@ -1756,69 +1721,6 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 	return &DeviceEnrollTokenData{
 		CreatedByAutoEnroll: stored.CreatedByAutoEnroll,
 	}, nil
-}
-
-// GetDevicesUsage returns the current usage numbers for Device Trust.
-// Meant for usage-based accounts.
-func (s *S) GetDevicesUsage(ctx context.Context) (*DevicesUsage, error) {
-	return s.getDevicesUsage(ctx, -1 /* limit */)
-}
-
-func (s *S) getDevicesUsage(ctx context.Context, limit int) (*DevicesUsage, error) {
-	numEnrolled := 0
-
-	const pageSize = 0
-	var pageToken string
-	for {
-		devs, nextPageToken, err := s.ListDevices(ctx, pageSize, pageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, dev := range devs {
-			if dev.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED {
-				numEnrolled++
-			}
-		}
-		if limit > -1 && numEnrolled >= limit {
-			break
-		}
-		if nextPageToken == "" {
-			break
-		}
-		pageToken = nextPageToken
-	}
-
-	return &DevicesUsage{
-		NumEnrolled: numEnrolled,
-	}, nil
-}
-
-// VerifyEnrolledDevicesLimit returns an error if the current account is
-// usage-based and has reached its enrollment limits, otherwise it returns nil.
-// [S.EnrollDevice] will check limits before allowing new enrollments, but this
-// method is exposed so we can avoid starting a costly enrollment ceremony if
-// the limits are already reached.
-func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
-	f := s.modules.Features()
-	deviceEntitlement := f.GetEntitlement(entitlements.DeviceTrust)
-	if deviceEntitlement.Limit == 0 {
-		return nil // unlimited
-	}
-
-	limit := int(deviceEntitlement.Limit)
-	if limit <= 0 {
-		return trace.Wrap(ErrEnrolledDeviceLimit)
-	}
-
-	usage, err := s.getDevicesUsage(ctx, limit)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if usage.NumEnrolled >= limit {
-		return trace.Wrap(ErrEnrolledDeviceLimit)
-	}
-
-	return nil
 }
 
 // CreateDeviceWebToken writes webToken to storage, as part of a new device

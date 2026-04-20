@@ -1180,7 +1180,10 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 	}
 }
 
-func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
+// TestService_SyncInventory_ignoreUsageBased verifies that legacy
+// device trust limits from old licenses no longer apply.
+// (see https://github.com/gravitational/teleport.e/issues/7490)
+func TestService_SyncInventory_ignoreUsageBased(t *testing.T) {
 	t.Parallel()
 
 	env := testenv.NewUsingT(t, testenv.WithModules(&modulestest.Modules{
@@ -1205,13 +1208,11 @@ func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
 	}, [][]*devicepb.Device{
 		{{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "neversynced",
+			AssetTag: "synced",
 		}},
 	})
-	if !trace.IsAccessDenied(err) {
-		t.Errorf("SyncInventory returned err=%v (%T), want AccessDenied/MDM sync disallowed", err, err)
-	}
-	assert.ErrorContains(t, err, "MDM integrations", "SyncInventory error mismatch")
+
+	assert.NoError(t, err, "SyncInventory must work even if MobileDeviceManagement entitlement is disabled")
 }
 
 // syncInventoryPages sends `startReq`, then `devicePages` as `devices_to_add`

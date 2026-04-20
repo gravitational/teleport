@@ -9,10 +9,6 @@ export type UpdateAccountUpgradeWindowStartHourRequest =
   CloudUpdateAccountUpgradeWindowStartHourRequest;
 
 export type NonBillableSummaryInformation = {
-  trustedDeviceUsage: {
-    devicesUsageLimit: number;
-    devicesInUse: number;
-  };
   accessRequestUsage: {
     monthlyLimit: number;
     monthlyUsed: number;

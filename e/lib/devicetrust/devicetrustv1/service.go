@@ -23,13 +23,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
-	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -771,9 +769,6 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	ctx := stream.Context()
 	defer func() {
 		if err != nil {
-			if errors.Is(err, storage.ErrEnrolledDeviceLimit) {
-				s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE)
-			}
 			s.logger.DebugContext(ctx,
 				"EnrollDevice stream exited with error",
 				"error", err,
@@ -800,9 +795,6 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	allowedByAutoEnroll := authorizeOutcome.allowedByAutoEnroll
 	checkErr := authorizeOutcome.checkErr
 
-	if err := s.storage.VerifyEnrolledDevicesLimit(ctx); err != nil {
-		return trace.Wrap(err)
-	}
 	user := authCtx.User.GetName()
 
 	authPref, err := s.authServer.GetAuthPreference(ctx)
@@ -1090,13 +1082,6 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		return trace.Wrap(err)
 	}
 
-	if f := s.modules.Features(); !f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled {
-		// TODO(sshah): update event type once Intune integration is supported.
-		s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
-		return trace.AccessDenied(
-			"this Teleport cluster is not licensed for MDM integrations, please contact the cluster administrator")
-	}
-
 	makeUserMetadata := func() func(source *devicepb.DeviceSource) apievents.UserMetadata {
 		var once sync.Once
 		var userMeta apievents.UserMetadata
@@ -1163,35 +1148,6 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		},
 	}
 	return trace.Wrap(syncer.SyncInventory(stream))
-}
-
-// GetResourceDevicesUsage returns the trusted device limit and usage for
-// usage-based accounts.
-//
-// Unlike other service methods, this is not an RPC.
-//
-// Returns a default instance for non-usage-based accounts.
-func (s *Service) GetResourceDevicesUsage(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error) {
-	switch {
-	case f == nil:
-		return nil, trace.BadParameter("features cannot be nil")
-	case !f.IsUsageBasedBilling:
-		return &resourceusagepb.DevicesUsage{}, nil
-	}
-
-	usage, err := s.storage.GetDevicesUsage(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &resourceusagepb.DevicesUsage{
-		DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
-		DevicesInUse:      int32(usage.NumEnrolled),
-	}, nil
-}
-
-func (s *Service) GetDevicesUsage(_ context.Context, _ *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
-	return nil, trace.BadParameter("deprecated, use ResourceUsageService.GetUsage instead")
 }
 
 // CreateDeviceWebToken creates a device web token for a recently logged in Web
@@ -1513,12 +1469,6 @@ func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
 			"impersonator", um.Impersonator,
 		)
 	}
-}
-
-func (s *Service) emitDeviceLimitEvent(l prehogv1alpha.LicenseLimit) {
-	s.authServer.AnonymizeAndSubmit(&usagereporter.LicenseLimitEvent{
-		LicenseLimit: l,
-	})
 }
 
 func (s *Service) rateLimitByUser(user string) error {

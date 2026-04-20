@@ -94,7 +94,6 @@ func Test_GetUsage(t *testing.T) {
 		want := &resourceusagepb.GetUsageResponse{
 			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
 			AccessRequests:   &resourceusagepb.AccessRequestsUsage{},
-			DevicesUsage:     &resourceusagepb.DevicesUsage{},
 		}
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("GetUsage mismatch (-want +got)\n%s", diff)
@@ -132,10 +131,6 @@ func Test_GetUsage(t *testing.T) {
 		// Set features
 		const monthlyLimit = 42
 
-		devicesUsage := &resourceusagepb.DevicesUsage{
-			DevicesUsageLimit: 10,
-			DevicesInUse:      5,
-		}
 		svc := &Service{
 			authorizer: &fakeAuthorizer{
 				authorize: true,
@@ -152,9 +147,6 @@ func Test_GetUsage(t *testing.T) {
 			},
 			auditLog: al,
 			clock:    clock,
-			getDevicesUsageFunc: func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error) {
-				return devicesUsage, nil
-			},
 		}
 
 		got, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
@@ -166,7 +158,6 @@ func Test_GetUsage(t *testing.T) {
 				MonthlyLimit: monthlyLimit,
 				MonthlyUsed:  int32(len(mockEvents)),
 			},
-			DevicesUsage: devicesUsage,
 		}
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("GetUsage mismatch (-want +got)\n%s", diff)

@@ -25,25 +25,6 @@ describe('DeviceTrust', () => {
     await waitFor(() => {
       expect(screen.getByTestId('devices-empty-state')).toBeInTheDocument();
     });
-
-    expect(screen.queryByTestId('devices-cta')).not.toBeInTheDocument();
-  });
-
-  test('renders empty list and cta', async () => {
-    const ctx = createTeleportContextE();
-    jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
-    ctx.entitlements.DeviceTrust.limit = 5;
-
-    render(<Component ctx={ctx} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('devices-empty-state')).toBeInTheDocument();
-    });
-
-    expect(screen.getByTestId('devices-cta')).toBeInTheDocument();
-    expect(
-      screen.queryByText(/you do not have permissions/i)
-    ).not.toBeInTheDocument();
   });
 
   test('renders permission error', async () => {
@@ -70,23 +51,6 @@ describe('DeviceTrust', () => {
     await waitFor(() => {
       expect(screen.getByTestId('devices-list')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId('devices-empty-state')).not.toBeInTheDocument();
-  });
-
-  test('renders device list when devices are present and a CTA', async () => {
-    const ctx = createTeleportContextE();
-    jest
-      .spyOn(api, 'get')
-      .mockResolvedValue({ items: fakeItems.map(makeDevices) });
-    ctx.entitlements.DeviceTrust.limit = 5;
-
-    render(<Component ctx={ctx} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('devices-list')).toBeInTheDocument();
-    });
-
-    expect(screen.getByTestId('devices-cta')).toBeInTheDocument();
     expect(screen.queryByTestId('devices-empty-state')).not.toBeInTheDocument();
   });
 });

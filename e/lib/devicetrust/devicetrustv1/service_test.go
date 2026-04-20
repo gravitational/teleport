@@ -30,13 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/entitlements"
-	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -44,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 const (
@@ -2489,71 +2486,6 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 	}
 }
 
-func TestService_GetResourceDevicesUsage(t *testing.T) {
-	t.Parallel()
-	m := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust:            {Enabled: true},
-				entitlements.MobileDeviceManagement: {Enabled: true},
-			},
-		},
-	}
-	env := testenv.NewUsingT(t, testenv.WithModules(m))
-
-	devices := env.DevicesClient
-	service := env.DevicesService
-	ctx := context.Background()
-
-	// Enroll a device so the count is not zero.
-	if _, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "llama",
-	}); err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
-	}
-
-	tests := []struct {
-		name           string
-		modifyFeatures func(f *modules.Features)
-		want           *resourceusagepb.DevicesUsage
-	}{
-		{
-			name: "unlimited account",
-			want: &resourceusagepb.DevicesUsage{},
-		},
-		{
-			name: "usage-based account",
-			modifyFeatures: func(f *modules.Features) {
-				f.IsUsageBasedBilling = true
-				f.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Limit: 5}
-			},
-			want: &resourceusagepb.DevicesUsage{
-				DevicesUsageLimit: 5,
-				DevicesInUse:      1,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if test.modifyFeatures != nil {
-				test.modifyFeatures(&m.TestFeatures)
-			}
-
-			f := m.Features()
-			got, err := service.GetResourceDevicesUsage(ctx, &f)
-			if err != nil {
-				t.Fatalf("GetResourceDevicesUsage failed: %v", err)
-			}
-
-			if diff := cmp.Diff(test.want, got, protocmp.Transform()); diff != "" {
-				t.Errorf("GetResourceDevicesUsage mismatch (-want +got)\n%s", diff)
-			}
-		})
-	}
-}
-
 type wantEvent struct {
 	Type, Code string
 	WantFail   bool
@@ -2605,49 +2537,6 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 			t.Errorf(`Audit: event mismatch: got[%v].Device.DeviceId="", want non-empty`, i)
 		}
 	}
-}
-
-func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
-	t.Parallel()
-
-	var emittedEvents []usagereporter.Anonymizable
-	fakeAnonymizeAndSubmit := func(events ...usagereporter.Anonymizable) {
-		emittedEvents = append(emittedEvents, events...)
-	}
-	env := testenv.NewUsingT(
-		t,
-		testenv.WithAnonymizeAndSubmitFunc(fakeAnonymizeAndSubmit),
-		testenv.WithModules(&modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				IsUsageBasedBilling: true,
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.DeviceTrust:            {Enabled: true, Limit: 1},
-					entitlements.MobileDeviceManagement: {Enabled: true},
-				},
-			},
-		}),
-	)
-	devicesClient := env.DevicesClient
-	ctx := context.Background()
-
-	if _, _, err := createAndEnroll(ctx, devicesClient, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "llama",
-	}); err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
-	}
-
-	wantLimitEvent := []usagereporter.Anonymizable{&usagereporter.LicenseLimitEvent{
-		LicenseLimit: prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE,
-	}}
-
-	_, _, err := createAndEnroll(ctx, devicesClient, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "exceeded-llama",
-	})
-	assert.ErrorContains(t, err, "device limit")
-	assert.Equal(t, wantLimitEvent, emittedEvents)
 }
 
 func TestService_deviceModeOff(t *testing.T) {

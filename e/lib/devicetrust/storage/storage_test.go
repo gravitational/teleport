@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,7 +17,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -36,10 +36,8 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -3504,6 +3502,8 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 			JamfBinaryVersion: "10.45.0-t1678116779",
 		},
 	}, false /* createAsResource */)
+	require.NoError(t, err, "CreateDevice failed")
+
 	if err != nil {
 		t.Fatalf("CreateDevice) failed: %v", err)
 	}
@@ -3524,6 +3524,7 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 	}, false /* createAsResource */); err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
+	require.NoError(t, err, "CreateDevice failed")
 
 	const owner = "llama"
 	devEnrolled, _, err := createAndEnroll(ctx, s, &devicepb.Device{
@@ -3533,9 +3534,7 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 		// fact that it already is enrolled.
 		Profile: nil,
 	}, owner)
-	if err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
-	}
+	require.NoError(t, err, "createAndEnroll failed")
 
 	isDriftError := func(err error) bool {
 		return errors.Is(err, &storage.CollectedDataDriftError{})
@@ -3651,15 +3650,71 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.createCD())
-			if err == nil {
-				t.Fatal("CreateDeviceEnrollTokenUsingData returned err=nil, want non-nil", err)
-			}
-			if !test.assertErr(err) {
-				t.Errorf("CreateDeviceEnrollTokenUsingData: assertErr failed, err=%v (%T)", err, err)
-			}
+			require.Error(t, err, "CreateDeviceEnrollTokenUsingData returned err=nil, want non-nil")
+			assert.True(t, test.assertErr(err), "CreateDeviceEnrollTokenUsingData: assertErr failed, err=%v (%T)", err, err)
 			assert.ErrorContains(t, err, test.wantErr, "CreateDeviceEnrollTokenUsingData error mismatch")
 		})
 	}
+}
+
+// TestS_CreateDeviceEnrollTokenUsingData_DuplicateTagAndOSType tests a (largely
+// theoretical) scenario where distinct devices have the same (OsType,AssetTag)
+// pair.
+func TestS_CreateDeviceEnrollTokenUsingData_DuplicateTagAndOSType(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	device1, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "device1",
+	}, false /* createAsResource */)
+	require.NoError(t, err, "CreateDevice failed")
+	// Create a second device in the backend with the same AssetTag and OSType.
+	// If two devices have the same AssetTag and same OsType, then the test should
+	// fail. We insert directly into the backend to bypass validation in
+	// CreateDevice, which would reject this.
+	device2 := &devicepb.Device{
+		Id:       uuid.NewString(),
+		OsType:   device1.OsType,
+		AssetTag: device1.AssetTag,
+	}
+	device2JSON, err := json.Marshal(device2)
+	require.NoError(t, err)
+	_, err = env.mem.Create(ctx, backend.Item{
+		Key:   backend.NewKey("devices", "id", device2.Id),
+		Value: device2JSON,
+	})
+	require.NoError(t, err, "Create device directly in backend failed")
+
+	newIndex := map[string]any{
+		"devices": []map[string]any{
+			{
+				"device_id": device1.Id,
+				"os_type":   int32(device1.OsType),
+			},
+			{
+				"device_id": device2.Id,
+				"os_type":   int32(device2.OsType),
+			},
+		},
+	}
+	indexJSON, err := json.Marshal(newIndex)
+	require.NoError(t, err)
+	_, err = env.mem.Put(ctx, backend.Item{
+		Key:   backend.NewKey("devices", "byTag", "device1"),
+		Value: indexJSON,
+	})
+	require.NoError(t, err)
+
+	_, err = s.CreateDeviceEnrollTokenUsingData(ctx, collectedDataForDevice(device1))
+	require.Error(t, err, "CreateDeviceEnrollTokenUsingData returned err=nil, want non-nil")
+	assert.True(t, trace.IsBadParameter(err), "CreateDeviceEnrollTokenUsingData: assertErr failed, err=%v (%T)", err, err)
+	assert.ErrorContains(t, err, "collected data matches more than one device, aborting", "CreateDeviceEnrollTokenUsingData error mismatch")
 }
 
 func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
@@ -3862,123 +3917,6 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestS_DevicesUsageLimit(t *testing.T) {
-	t.Parallel()
-
-	const devicesLimit = 3
-	m := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			IsUsageBasedBilling: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust:            {Enabled: true, Limit: devicesLimit},
-				entitlements.MobileDeviceManagement: {Enabled: true},
-			},
-		},
-	}
-
-	// Lock acquisition for usage-based enrollments requires a RealClock, the test
-	// will deadlock otherwise.
-	env := mustNewEnv(
-		withClock(clockwork.NewRealClock()),
-		withModules(m),
-	)
-	defer env.Close()
-
-	s := env.S
-	ctx := context.Background()
-
-	assertUsage := func(t *testing.T, wantEnrolled int) {
-		got, err := s.GetDevicesUsage(ctx)
-		if err != nil {
-			t.Errorf("GetDevicesUsage failed: %v", err)
-			return
-		}
-		want := &storage.DevicesUsage{
-			NumEnrolled: wantEnrolled,
-		}
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("GetDevicesUsage mismatch (-want +got)\n%s", diff)
-		}
-	}
-
-	t.Run("GetDevicesUsage/zero", func(t *testing.T) {
-		assertUsage(t, 0 /* wantEnrolled */)
-	})
-
-	// Add a few devices.
-	const allDevsNum = devicesLimit + 10
-	allDevs := make([]*devicepb.Device, allDevsNum)
-	for i := range allDevsNum {
-		dev, err := s.CreateDevice(ctx, &devicepb.Device{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: fmt.Sprintf("dev-%v", i),
-		}, false /* createAsResource */)
-		if err != nil {
-			t.Fatalf("CreateDevice failed: %v", err)
-		}
-		allDevs[i] = dev
-	}
-
-	// Usage is still zero.
-	t.Run("GetDevicesUsage/zero", func(t *testing.T) {
-		assertUsage(t, 0 /* wantEnrolled */)
-	})
-
-	// Enroll a few devices and verify the side effects.
-	const owner = "llama"
-	wantEnrolled := devicesLimit - 1
-	for _, dev := range allDevs[:wantEnrolled] {
-		if _, _, err := enroll(ctx, s, dev, owner); err != nil {
-			t.Errorf("enroll returned err=%v, want success", err)
-		}
-	}
-	t.Run(fmt.Sprintf("GetDevicesUsage/%v", wantEnrolled), func(t *testing.T) {
-		assertUsage(t, wantEnrolled)
-	})
-	t.Run("VerifyEnrolledDevicesLimit/allowed", func(t *testing.T) {
-		if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
-			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want success", err)
-		}
-	})
-
-	// Attempt to enroll past the limit.
-	t.Run("Enroll beyond limit", func(t *testing.T) {
-		var g errgroup.Group
-		var successes atomic.Int32
-		for _, dev := range allDevs[wantEnrolled:] {
-			g.Go(func() error {
-				switch _, _, err := enroll(ctx, s, dev, owner); {
-				case err == nil:
-					successes.Add(1)
-				case !trace.IsAccessDenied(err):
-					t.Errorf("enroll returned unexpected error: %v, want either nil or AccessDenied", err)
-				}
-				return nil
-			})
-		}
-		g.Wait()
-		if got := successes.Load(); got != 1 {
-			t.Errorf("Enrolled %v devices at the limit, want exactly 1", got)
-		}
-	})
-
-	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
-		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
-			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
-		}
-	})
-
-	// Add limit back to Device Trust & disable Identity
-	m.TestFeatures.Entitlements[entitlements.Identity] = modules.EntitlementInfo{Enabled: false, Limit: 0}
-	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
-	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
-		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
-			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
-		}
-	})
 }
 
 func TestS_AssignDeviceOwner(t *testing.T) {
@@ -4841,14 +4779,6 @@ func (e *storageEnv) Close() error {
 }
 
 type opt func(*storageEnv)
-
-func withModules(m *modulestest.Modules) opt {
-	return func(env *storageEnv) { env.modules = m }
-}
-
-func withClock(clock clockwork.Clock) opt {
-	return func(env *storageEnv) { env.memClock = clock }
-}
 
 func mustNewEnv(opts ...opt) *storageEnv {
 	env, err := newEnv(opts...)

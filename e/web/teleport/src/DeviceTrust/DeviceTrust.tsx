@@ -1,28 +1,19 @@
 import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
-import { P, P1, P2 } from 'design/Text/Text';
+import { P } from 'design/Text/Text';
 
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { EmptyList } from 'teleport/DeviceTrust/EmptyList';
-import { CtaEvent } from 'teleport/services/userEvent';
 
 import { DeviceList } from './DeviceList';
 import { useDevices } from './useDevices';
 
 export const DeviceTrust = () => {
   const props = useDevices();
-  let {
-    attempt,
-    items,
-    fetchData,
-    fetchStatus,
-    showTrustedDevicesCTA,
-    missingPermissions,
-  } = props;
+  let { attempt, items, fetchData, fetchStatus, missingPermissions } = props;
   const canList = missingPermissions.length === 0;
   const isEmpty = items?.length === 0;
 
@@ -105,36 +96,8 @@ export const DeviceTrust = () => {
               </Flex>
             </>
           )}
-          {showTrustedDevicesCTA && <CallToAction />}
         </>
       )}
     </FeatureBox>
-  );
-};
-
-const CallToAction = () => {
-  return (
-    <Flex
-      data-testid="devices-cta"
-      flexDirection="column"
-      mt={3}
-      justifyContent="end"
-      alignItems="center"
-    >
-      <P2 color="text.slightlyMuted">
-        <i>Your plan includes five free Trusted Devices.</i>
-      </P2>
-      <P1 mt={2}>
-        Want additional devices?
-        <ButtonLockedFeature
-          width="176px"
-          textLink={true}
-          event={CtaEvent.CTA_ACCESS_LIST}
-          pl={1}
-        >
-          Contact Sales
-        </ButtonLockedFeature>
-      </P1>
-    </Flex>
   );
 };

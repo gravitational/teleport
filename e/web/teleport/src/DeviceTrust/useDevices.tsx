@@ -67,7 +67,6 @@ export const useDevices = () => {
     attempt,
     fetchData,
     missingPermissions,
-    showTrustedDevicesCTA: ctx.entitlements.DeviceTrust.limit > 0,
   };
 };
 

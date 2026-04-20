@@ -354,10 +354,6 @@ test('limited: displays upsell link and button when access request limit is reac
   jest
     .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
     .mockResolvedValueOnce({
-      trustedDeviceUsage: {
-        devicesUsageLimit: 0,
-        devicesInUse: 0,
-      },
       accessRequestUsage: {
         monthlyLimit: 5,
         monthlyUsed: 5,
@@ -814,10 +810,6 @@ const nodesResponse = [
 ];
 
 const mockUsageWithNotLimitReached = {
-  trustedDeviceUsage: {
-    devicesUsageLimit: 0,
-    devicesInUse: 0,
-  },
   accessRequestUsage: {
     monthlyLimit: 5,
     monthlyUsed: 3,

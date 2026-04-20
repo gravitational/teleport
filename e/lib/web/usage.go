@@ -18,10 +18,6 @@ func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	// Important: GetDevicesUsage only returns non-zeroed usage values for
-	// usage-based accounts.
-	// See [devicepb.DevicesUsage.AccountUsageType] (or handle the zeroes
-	// accordingly!)
 	usageResp, err := authClt.ResourceUsageClient().GetUsage(r.Context(), &resourceusagepb.GetUsageRequest{})
 	if trace.IsAccessDenied(err) {
 		// Do not fail the whole request on "access denied", since this endpoint is also called in the "New Request" page,
@@ -32,10 +28,6 @@ func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http
 	}
 
 	return &ui.NonBillableUsageSummary{
-		TrustedDeviceUsage: ui.TrustedDeviceUsage{
-			DevicesUsageLimit: usageResp.GetDevicesUsage().GetDevicesUsageLimit(),
-			DevicesInUse:      usageResp.GetDevicesUsage().GetDevicesInUse(),
-		},
 		AccessRequestUsage: ui.AccessRequestUsage{
 			MonthlyLimit: usageResp.GetAccessRequests().GetMonthlyLimit(),
 			MonthlyUsed:  usageResp.GetAccessRequests().GetMonthlyUsed(),

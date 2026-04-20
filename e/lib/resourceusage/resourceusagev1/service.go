@@ -5,7 +5,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/sync/errgroup"
 
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/entitlements"
@@ -17,11 +16,10 @@ import (
 
 // ServiceConfig contains parameters and dependencies for the resource usage Service.
 type ServiceConfig struct {
-	AuditLog            events.AuditLogger
-	Modules             modules.Modules
-	Authorizer          authz.Authorizer
-	Clock               clockwork.Clock
-	GetDevicesUsageFunc func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error)
+	AuditLog   events.AuditLogger
+	Modules    modules.Modules
+	Authorizer authz.Authorizer
+	Clock      clockwork.Clock
 }
 
 // checkAndSetDefaults checks and sets the defaults.
@@ -33,8 +31,6 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("param Authorizer must be specified")
 	case c.Modules == nil:
 		return trace.BadParameter("param Modules must be specified")
-	case c.GetDevicesUsageFunc == nil:
-		return trace.BadParameter("param GetDevicesUsageFunc must be specified")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -46,11 +42,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 type Service struct {
 	resourceusagepb.UnimplementedResourceUsageServiceServer
 
-	auditLog            events.AuditLogger
-	authorizer          authz.Authorizer
-	modules             modules.Modules
-	clock               clockwork.Clock
-	getDevicesUsageFunc func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error)
+	auditLog   events.AuditLogger
+	authorizer authz.Authorizer
+	modules    modules.Modules
+	clock      clockwork.Clock
 }
 
 // New creates a new Service according to the config.
@@ -60,11 +55,10 @@ func New(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		auditLog:            cfg.AuditLog,
-		authorizer:          cfg.Authorizer,
-		modules:             cfg.Modules,
-		clock:               cfg.Clock,
-		getDevicesUsageFunc: cfg.GetDevicesUsageFunc,
+		auditLog:   cfg.AuditLog,
+		authorizer: cfg.Authorizer,
+		modules:    cfg.Modules,
+		clock:      cfg.Clock,
 	}, nil
 }
 
@@ -79,35 +73,17 @@ func (s *Service) GetUsage(ctx context.Context, in *resourceusagepb.GetUsageRequ
 		return &resourceusagepb.GetUsageResponse{
 			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
 			AccessRequests:   &resourceusagepb.AccessRequestsUsage{},
-			DevicesUsage:     &resourceusagepb.DevicesUsage{},
 		}, nil // unlimited
 	}
 
-	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(4) // arbitrary
-
-	var accessRequests *resourceusagepb.AccessRequestsUsage
-	g.Go(func() error {
-		var err error
-		accessRequests, err = s.getAccessRequestsUsage(gCtx, &f)
-		return trace.Wrap(err)
-	})
-
-	var devicesUsage *resourceusagepb.DevicesUsage
-	g.Go(func() error {
-		var err error
-		devicesUsage, err = s.getDevicesUsageFunc(gCtx, &f)
-		return trace.Wrap(err)
-	})
-
-	if err := g.Wait(); err != nil {
+	accessRequests, err := s.getAccessRequestsUsage(ctx, &f)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &resourceusagepb.GetUsageResponse{
 		AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
 		AccessRequests:   accessRequests,
-		DevicesUsage:     devicesUsage,
 	}, nil
 }
 
