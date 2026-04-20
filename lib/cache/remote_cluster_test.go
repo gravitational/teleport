@@ -100,11 +100,11 @@ func TestTunnelConnections(t *testing.T) {
 			})
 		},
 		create:    p.trustS.UpsertTunnelConnection,
-		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
+		list:      getAllAdapter(p.trustS.GetAllTunnelConnections),
+		cacheList: getAllAdapter(p.cache.GetAllTunnelConnections),
 		update:    p.trustS.UpsertTunnelConnection,
 		deleteAll: func(ctx context.Context) error {
-			all, err := p.trustS.GetAllTunnelConnections()
+			all, err := p.trustS.GetAllTunnelConnections(ctx)
 			if err != nil {
 				return err
 			}
@@ -140,17 +140,17 @@ func TestTunnelConnections(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		tunnels, err := p.cache.GetAllTunnelConnections()
+		tunnels, err := p.cache.GetAllTunnelConnections(t.Context())
 		assert.NoError(tt, err)
 		assert.Len(tt, tunnels, 20)
 
 	}, 15*time.Second, 100*time.Millisecond)
 
-	tunnels, err := p.cache.GetTunnelConnections(clusterName)
+	tunnels, err := p.cache.GetTunnelConnections(t.Context(), clusterName)
 	require.NoError(t, err)
 	require.Len(t, tunnels, 17)
 
-	tunnels, err = p.cache.GetTunnelConnections("other-cluster")
+	tunnels, err = p.cache.GetTunnelConnections(t.Context(), "other-cluster")
 	require.NoError(t, err)
 	require.Len(t, tunnels, 3)
 }

@@ -48,6 +48,7 @@ const (
 	TrustService_ListTrustedClusters_FullMethodName         = "/teleport.trust.v1.TrustService/ListTrustedClusters"
 	TrustService_UpsertTunnelConnection_FullMethodName      = "/teleport.trust.v1.TrustService/UpsertTunnelConnection"
 	TrustService_DeleteTunnelConnection_FullMethodName      = "/teleport.trust.v1.TrustService/DeleteTunnelConnection"
+	TrustService_ListTunnelConnections_FullMethodName       = "/teleport.trust.v1.TrustService/ListTunnelConnections"
 )
 
 // TrustServiceClient is the client API for TrustService service.
@@ -85,6 +86,9 @@ type TrustServiceClient interface {
 	// DeleteTunnelConnection removes a single tunnel connection record by
 	// cluster name and connection name.
 	DeleteTunnelConnection(ctx context.Context, in *DeleteTunnelConnectionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListTunnelConnections returns a page of tunnel connection records,
+	// optionally filtered.
+	ListTunnelConnections(ctx context.Context, in *ListTunnelConnectionsRequest, opts ...grpc.CallOption) (*ListTunnelConnectionsResponse, error)
 }
 
 type trustServiceClient struct {
@@ -225,6 +229,16 @@ func (c *trustServiceClient) DeleteTunnelConnection(ctx context.Context, in *Del
 	return out, nil
 }
 
+func (c *trustServiceClient) ListTunnelConnections(ctx context.Context, in *ListTunnelConnectionsRequest, opts ...grpc.CallOption) (*ListTunnelConnectionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTunnelConnectionsResponse)
+	err := c.cc.Invoke(ctx, TrustService_ListTunnelConnections_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrustServiceServer is the server API for TrustService service.
 // All implementations must embed UnimplementedTrustServiceServer
 // for forward compatibility.
@@ -260,6 +274,9 @@ type TrustServiceServer interface {
 	// DeleteTunnelConnection removes a single tunnel connection record by
 	// cluster name and connection name.
 	DeleteTunnelConnection(context.Context, *DeleteTunnelConnectionRequest) (*emptypb.Empty, error)
+	// ListTunnelConnections returns a page of tunnel connection records,
+	// optionally filtered.
+	ListTunnelConnections(context.Context, *ListTunnelConnectionsRequest) (*ListTunnelConnectionsResponse, error)
 	mustEmbedUnimplementedTrustServiceServer()
 }
 
@@ -308,6 +325,9 @@ func (UnimplementedTrustServiceServer) UpsertTunnelConnection(context.Context, *
 }
 func (UnimplementedTrustServiceServer) DeleteTunnelConnection(context.Context, *DeleteTunnelConnectionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTunnelConnection not implemented")
+}
+func (UnimplementedTrustServiceServer) ListTunnelConnections(context.Context, *ListTunnelConnectionsRequest) (*ListTunnelConnectionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTunnelConnections not implemented")
 }
 func (UnimplementedTrustServiceServer) mustEmbedUnimplementedTrustServiceServer() {}
 func (UnimplementedTrustServiceServer) testEmbeddedByValue()                      {}
@@ -564,6 +584,24 @@ func _TrustService_DeleteTunnelConnection_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrustService_ListTunnelConnections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTunnelConnectionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).ListTunnelConnections(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrustService_ListTunnelConnections_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).ListTunnelConnections(ctx, req.(*ListTunnelConnectionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrustService_ServiceDesc is the grpc.ServiceDesc for TrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -622,6 +660,10 @@ var TrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteTunnelConnection",
 			Handler:    _TrustService_DeleteTunnelConnection_Handler,
+		},
+		{
+			MethodName: "ListTunnelConnections",
+			Handler:    _TrustService_ListTunnelConnections_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

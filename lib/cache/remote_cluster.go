@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -48,7 +49,7 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.TunnelConnection, error) {
-			out, err := upstream.GetAllTunnelConnections()
+			out, err := upstream.GetAllTunnelConnections(ctx)
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.TunnelConnection {
@@ -68,8 +69,8 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
+func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetTunnelConnections")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
@@ -79,7 +80,7 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tunnels, err := c.Config.Trust.GetTunnelConnections(clusterName, opts...)
+		tunnels, err := c.Config.Trust.GetTunnelConnections(ctx, clusterName)
 		return tunnels, trace.Wrap(err)
 	}
 
@@ -94,8 +95,8 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 }
 
 // GetAllTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
+func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.TunnelConnection, err error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetAllTunnelConnections")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
@@ -105,7 +106,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tunnels, err := c.Config.Trust.GetAllTunnelConnections(opts...)
+		tunnels, err := c.Config.Trust.GetAllTunnelConnections(ctx)
 		return tunnels, trace.Wrap(err)
 	}
 
@@ -115,6 +116,38 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	}
 
 	return tunnels, nil
+}
+
+// ListTunnelConnections returns a page of tunnel connections matching the
+// given filter.
+func (c *Cache) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	_, span := c.Tracer.Start(ctx, "cache/ListTunnelConnections")
+	defer span.End()
+
+	lister := genericLister[types.TunnelConnection, tunnelConnectionIndex]{
+		cache:      c,
+		collection: c.collections.tunnelConnections,
+		index:      tunnelConnectionNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.TunnelConnection, string, error) {
+			return c.Config.Trust.ListTunnelConnections(ctx, pageSize, pageToken, filter)
+		},
+		nextToken: func(tc types.TunnelConnection) string {
+			return tc.GetClusterName() + "/" + tc.GetName()
+		},
+	}
+
+	if clusterName := filter.GetClusterName(); clusterName != "" {
+		startToken := clusterName + "/"
+		if pageToken != "" {
+			startToken = pageToken
+		}
+		endToken := sortcache.NextKey(clusterName + "/")
+		out, next, err := lister.listRange(ctx, pageSize, startToken, endToken)
+		return out, next, trace.Wrap(err)
+	}
+
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }
 
 type remoteClusterIndex string

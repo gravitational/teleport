@@ -315,12 +315,14 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
 }
 
-// GetTunnelConnections returns tunnel connections for a given cluster
-func (c *HTTPClient) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+// getTunnelConnectionsLegacy returns tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 21.0.0
+func (c *HTTPClient) getTunnelConnectionsLegacy(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name parameter")
 	}
-	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections", clusterName), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections", clusterName), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,9 +341,11 @@ func (c *HTTPClient) GetTunnelConnections(clusterName string, opts ...services.M
 	return conns, nil
 }
 
-// GetAllTunnelConnections returns all tunnel connections
-func (c *HTTPClient) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections"), url.Values{})
+// getAllTunnelConnectionsLegacy returns all tunnel connections.
+//
+// TODO(noah): DELETE IN 21.0.0
+func (c *HTTPClient) getAllTunnelConnectionsLegacy(ctx context.Context) ([]types.TunnelConnection, error) {
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

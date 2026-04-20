@@ -21,6 +21,7 @@ package trustv1
 import (
 	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1222,6 +1223,166 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			test.assertError(t, err, "RotateExternalCertAuthority error mismatch")
 		})
 	}
+}
+
+func TestListTunnelConnections(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	const leaf1 = "leaf-1.example.com"
+	const leaf2 = "leaf-2.example.com"
+
+	seed := func(t *testing.T, trust *local.CA) {
+		t.Helper()
+		fixtures := []struct {
+			cluster, name, proxy string
+		}{
+			{leaf1, "conn-a", "proxy-1"},
+			{leaf1, "conn-b", "proxy-2"},
+			{leaf2, "conn-a", "proxy-3"},
+		}
+		for _, f := range fixtures {
+			conn, err := types.NewTunnelConnection(f.name, types.TunnelConnectionSpecV2{
+				ClusterName:   f.cluster,
+				ProxyName:     f.proxy,
+				LastHeartbeat: time.Now().UTC(),
+				Type:          types.ProxyTunnel,
+			})
+			require.NoError(t, err)
+			require.NoError(t, trust.UpsertTunnelConnection(ctx, conn))
+		}
+	}
+
+	type want struct {
+		clusters []string
+		names    []string
+	}
+
+	tests := []struct {
+		name      string
+		req       *trustpb.ListTunnelConnectionsRequest
+		allow     map[check]bool
+		assertErr require.ErrorAssertionFunc
+		want      want
+	}{
+		{
+			name:      "success no filter",
+			req:       &trustpb.ListTunnelConnectionsRequest{},
+			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbList}: true, {types.KindTunnelConnection, types.VerbRead}: true},
+			assertErr: require.NoError,
+			want: want{
+				clusters: []string{leaf1, leaf1, leaf2},
+				names:    []string{"conn-a", "conn-b", "conn-a"},
+			},
+		},
+		{
+			name: "success filter by cluster",
+			req: &trustpb.ListTunnelConnectionsRequest{
+				Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: leaf1},
+			},
+			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbList}: true, {types.KindTunnelConnection, types.VerbRead}: true},
+			assertErr: require.NoError,
+			want: want{
+				clusters: []string{leaf1, leaf1},
+				names:    []string{"conn-a", "conn-b"},
+			},
+		},
+		{
+			name: "success filter unknown cluster returns empty",
+			req: &trustpb.ListTunnelConnectionsRequest{
+				Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: "nonexistent"},
+			},
+			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbList}: true, {types.KindTunnelConnection, types.VerbRead}: true},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "access denied",
+			req:       &trustpb.ListTunnelConnectionsRequest{},
+			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbList}: false},
+			assertErr: func(t require.TestingT, err error, _ ...any) { require.True(t, trace.IsAccessDenied(err)) },
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := newTestPack(t)
+			trust := local.NewCAService(p.mem)
+			seed(t, trust)
+			authorizer := &fakeAuthorizer{checker: &fakeChecker{allow: test.allow}}
+			service, err := NewService(&ServiceConfig{
+				Cache:            trust,
+				Backend:          trust,
+				Authorizer:       authorizer,
+				ScopedAuthorizer: authorizer,
+				AuthServer:       &fakeAuthServer{},
+			})
+			require.NoError(t, err)
+
+			resp, err := service.ListTunnelConnections(ctx, test.req)
+			test.assertErr(t, err)
+			if err != nil {
+				return
+			}
+			var gotClusters, gotNames []string
+			for _, c := range resp.TunnelConnections {
+				gotClusters = append(gotClusters, c.GetClusterName())
+				gotNames = append(gotNames, c.GetName())
+			}
+			require.Equal(t, test.want.clusters, gotClusters)
+			require.Equal(t, test.want.names, gotNames)
+		})
+	}
+}
+
+func TestListTunnelConnections_Pagination(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	const cluster = "leaf.example.com"
+
+	p := newTestPack(t)
+	trust := local.NewCAService(p.mem)
+	for i := 0; i < 5; i++ {
+		conn, err := types.NewTunnelConnection(fmt.Sprintf("conn-%d", i), types.TunnelConnectionSpecV2{
+			ClusterName:   cluster,
+			ProxyName:     fmt.Sprintf("proxy-%d", i),
+			LastHeartbeat: time.Now().UTC(),
+			Type:          types.ProxyTunnel,
+		})
+		require.NoError(t, err)
+		require.NoError(t, trust.UpsertTunnelConnection(ctx, conn))
+	}
+
+	authorizer := &fakeAuthorizer{checker: &fakeChecker{allow: map[check]bool{
+		{types.KindTunnelConnection, types.VerbList}: true,
+		{types.KindTunnelConnection, types.VerbRead}: true,
+	}}}
+	service, err := NewService(&ServiceConfig{
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       &fakeAuthServer{},
+	})
+	require.NoError(t, err)
+
+	var gotNames []string
+	var pageToken string
+	for {
+		resp, err := service.ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+			PageSize:  2,
+			PageToken: pageToken,
+		})
+		require.NoError(t, err)
+		for _, c := range resp.TunnelConnections {
+			gotNames = append(gotNames, c.GetName())
+		}
+		if resp.NextPageToken == "" {
+			break
+		}
+		pageToken = resp.NextPageToken
+	}
+	require.Equal(t, []string{"conn-0", "conn-1", "conn-2", "conn-3", "conn-4"}, gotNames)
 }
 
 func TestGenerateHostCert(t *testing.T) {

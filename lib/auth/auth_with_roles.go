@@ -5869,18 +5869,24 @@ func (a *ServerWithRoles) UpsertTunnelConnection(ctx context.Context, conn types
 	return a.authServer.UpsertTunnelConnection(ctx, conn)
 }
 
-func (a *ServerWithRoles) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+// Deprecated: Prefer the [trustv1.Service.ListTunnelConnections] RPC.
+//
+// TODO(noah): DELETE IN v21.0.0
+func (a *ServerWithRoles) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetTunnelConnections(clusterName, opts...)
+	return a.authServer.GetTunnelConnections(ctx, clusterName)
 }
 
-func (a *ServerWithRoles) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+// Deprecated: Prefer the [trustv1.Service.ListTunnelConnections] RPC.
+//
+// TODO(noah): DELETE IN v21.0.0
+func (a *ServerWithRoles) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
 	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetAllTunnelConnections(opts...)
+	return a.authServer.GetAllTunnelConnections(ctx)
 }
 
 // Deprecated: Prefer the [trustv1.Service.DeleteTunnelConnection] RPC.

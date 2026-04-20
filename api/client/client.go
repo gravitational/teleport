@@ -2538,6 +2538,24 @@ func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) it
 	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
 }
 
+// ListTunnelConnections returns a page of tunnel connections matching the
+// given filter.
+func (c *Client) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	resp, err := c.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+		Filter:    filter,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(resp.TunnelConnections))
+	for i, v2 := range resp.TunnelConnections {
+		conns[i] = v2
+	}
+	return conns, resp.NextPageToken, nil
+}
+
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
 //
 // Deprecated: Use [Client.UpsertTrustedClusterV2] instead.

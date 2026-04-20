@@ -56,6 +56,9 @@ service TrustService {
   // DeleteTunnelConnection removes a single tunnel connection record by
   // cluster name and connection name.
   rpc DeleteTunnelConnection(DeleteTunnelConnectionRequest) returns (google.protobuf.Empty);
+  // ListTunnelConnections returns a page of tunnel connection records,
+  // optionally filtered.
+  rpc ListTunnelConnections(ListTunnelConnectionsRequest) returns (ListTunnelConnectionsResponse);
 }
 
 // Request for UpsertTrustedCluster.
@@ -221,4 +224,31 @@ message DeleteTunnelConnectionRequest {
   string cluster_name = 1;
   // ConnectionName is the name of the tunnel connection to delete.
   string connection_name = 2;
+}
+
+// ListTunnelConnectionsRequest is the request for ListTunnelConnections.
+message ListTunnelConnectionsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Filter optionally narrows the returned tunnel connections.
+  ListTunnelConnectionsFilter filter = 3;
+}
+
+// ListTunnelConnectionsFilter narrows the results of ListTunnelConnections.
+message ListTunnelConnectionsFilter {
+  // cluster_name, when set, limits results to tunnel connections for that
+  // cluster.
+  string cluster_name = 1;
+}
+
+// ListTunnelConnectionsResponse is the response for ListTunnelConnections.
+message ListTunnelConnectionsResponse {
+  // TunnelConnections is a page of tunnel connection resources.
+  repeated types.TunnelConnectionV2 tunnel_connections = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }

@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -866,19 +868,21 @@ func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...ser
 }
 
 // GetTunnelConnections returns connections for a trusted cluster
-func (s *CA) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+func (s *CA) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
 	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	conns := make([]types.TunnelConnection, len(result.Items))
 	for i, item := range result.Items {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.AddOptions(opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -888,10 +892,62 @@ func (s *CA) GetTunnelConnections(clusterName string, opts ...services.MarshalOp
 	return conns, nil
 }
 
+// ListTunnelConnections returns a page of tunnel connections, optionally
+// filtered to a single cluster.
+func (s *CA) ListTunnelConnections(
+	ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter,
+) ([]types.TunnelConnection, string, error) {
+	clusterName := filter.GetClusterName()
+
+	var prefix backend.Key
+	if clusterName != "" {
+		prefix = backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	} else {
+		prefix = backend.ExactKey(tunnelConnectionsPrefix)
+	}
+
+	rangeStart := prefix
+	if pageToken != "" {
+		rangeStart = backend.NewKey(tunnelConnectionsPrefix).AppendKey(backend.KeyFromString(pageToken))
+	}
+	rangeEnd := backend.RangeEnd(prefix)
+
+	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
+		pageSize = defaults.DefaultChunkSize
+	}
+	limit := pageSize + 1
+
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	conns := make([]types.TunnelConnection, 0, len(result.Items))
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalTunnelConnection(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "Skipping item during ListTunnelConnections because conversion from backend item failed", "key", item.Key, "error", err)
+			continue
+		}
+		conns = append(conns, conn)
+	}
+
+	next := ""
+	if len(conns) > pageSize {
+		next = conns[pageSize].GetClusterName() + backend.SeparatorString + conns[pageSize].GetName()
+		clear(conns[pageSize:])
+		conns = conns[:pageSize]
+	}
+	return conns, next, nil
+}
+
 // GetAllTunnelConnections returns all tunnel connections
-func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+func (s *CA) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
 	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -899,9 +955,9 @@ func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.Tu
 	conns := make([]types.TunnelConnection, len(result.Items))
 	for i, item := range result.Items {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.AddOptions(opts,
-				services.WithExpires(item.Expires),
-				services.WithRevision(item.Revision))...)
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

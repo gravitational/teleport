@@ -141,6 +141,48 @@ func (c *HTTPClient) deleteTunnelConnection(ctx context.Context, clusterName, co
 	return trace.Wrap(err)
 }
 
+// GetTunnelConnections returns all tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 21.0.0 — inline the gRPC page-loop directly once the
+// HTTP fallback is removed; keep the method signature.
+func (c *Client) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	return c.listAllTunnelConnections(ctx, clusterName)
+}
+
+// GetAllTunnelConnections returns all tunnel connections across all clusters.
+//
+// TODO(noah): DELETE IN 21.0.0
+func (c *Client) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
+	return c.listAllTunnelConnections(ctx, "")
+}
+
+// TODO(noah): DELETE IN 21.0.0
+func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	var filter *trustpb.ListTunnelConnectionsFilter
+	if clusterName != "" {
+		filter = &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName}
+	}
+	var all []types.TunnelConnection
+	var pageToken string
+	for {
+		page, next, err := c.ListTunnelConnections(ctx, 0, pageToken, filter)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				if clusterName != "" {
+					return c.HTTPClient.getTunnelConnectionsLegacy(ctx, clusterName)
+				}
+				return c.HTTPClient.getAllTunnelConnectionsLegacy(ctx)
+			}
+			return nil, trace.Wrap(err)
+		}
+		all = append(all, page...)
+		if next == "" {
+			return all, nil
+		}
+		pageToken = next
+	}
+}
+
 // GetAuthServers returns the list of auth servers registered in the cluster.
 //
 // Deprecated: Prefer paginated variant [APIClient.ListAuthServers].

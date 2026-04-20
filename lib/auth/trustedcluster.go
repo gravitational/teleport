@@ -468,7 +468,7 @@ func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
 
 	// fetch tunnel connections for the cluster to update runtime status
-	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
+	connections, err := a.GetTunnelConnections(ctx, remoteCluster.GetName())
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

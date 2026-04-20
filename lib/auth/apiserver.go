@@ -142,7 +142,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
 	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
+	// TODO(noah): move to httpMigratedHandler in v21.0.0
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
+	// TODO(noah): move to httpMigratedHandler in v21.0.0
 	srv.GET("/:version/tunnelconnections", srv.WithAuth(srv.getAllTunnelConnections))
 	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.WithAuth(srv.deleteTunnelConnection))
@@ -550,9 +552,11 @@ func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.Respons
 	return message("ok"), nil
 }
 
-// getTunnelConnections returns a list of tunnel connections from a cluster
+// getTunnelConnections returns a list of tunnel connections from a cluster.
+//
+// TODO(noah): move to httpMigratedHandler in v21.0.0
 func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	conns, err := auth.GetTunnelConnections(p.ByName("cluster"))
+	conns, err := auth.GetTunnelConnections(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -567,9 +571,11 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 	return items, nil
 }
 
-// getAllTunnelConnections returns a list of tunnel connections from a cluster
+// getAllTunnelConnections returns a list of tunnel connections from a cluster.
+//
+// TODO(noah): move to httpMigratedHandler in v21.0.0
 func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	conns, err := auth.GetAllTunnelConnections()
+	conns, err := auth.GetAllTunnelConnections(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

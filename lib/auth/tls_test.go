@@ -1619,7 +1619,7 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterName := "example.com"
-	out, err := clt.GetTunnelConnections(clusterName)
+	out, err := clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
@@ -1634,12 +1634,12 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	out, err = clt.GetAllTunnelConnections()
+	out, err = clt.GetAllTunnelConnections(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1650,13 +1650,13 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete all to reset test environment
-	out, err = clt.GetAllTunnelConnections()
+	out, err = clt.GetAllTunnelConnections(ctx)
 	require.NoError(t, err)
 	for _, tc := range out {
 		err := testSrv.Auth().DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
@@ -1667,7 +1667,7 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1675,9 +1675,32 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	err = clt.DeleteTunnelConnection(ctx, clusterName, conn.GetName())
 	require.NoError(t, err)
 
-	out, err = clt.GetTunnelConnections(clusterName)
+	out, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	// Exercise the direct gRPC ListTunnelConnections RPC, including the filter.
+	for i := 0; i < 3; i++ {
+		c, err := types.NewTunnelConnection(fmt.Sprintf("grpc-conn-%d", i), types.TunnelConnectionSpecV2{
+			ClusterName:   clusterName,
+			ProxyName:     fmt.Sprintf("p%d", i),
+			LastHeartbeat: dt,
+		})
+		require.NoError(t, err)
+		require.NoError(t, clt.UpsertTunnelConnection(ctx, c))
+	}
+
+	resp, err := clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.TunnelConnections, 3)
+
+	resp, err = clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: "other.example.com"},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resp.TunnelConnections)
 }
 
 // TestTunnelConnectionsLegacyHTTP exercises the legacy HTTP handlers for
@@ -1708,15 +1731,36 @@ func TestTunnelConnectionsLegacyHTTP(t *testing.T) {
 	}{TunnelConnection: data})
 	require.NoError(t, err)
 
-	stored, err := clt.GetTunnelConnections(clusterName)
+	stored, err := clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
 	require.Equal(t, conn.GetName(), stored[0].GetName())
 
+	// Exercise the legacy HTTP GET endpoints directly, so they stay covered
+	// during the v19→v21 fallback window.
+	readFromHTTP := func(path ...string) []types.TunnelConnection {
+		out, err := clt.HTTPClient.Get(ctx, clt.HTTPClient.Endpoint(path...), url.Values{})
+		require.NoError(t, err)
+		var items []json.RawMessage
+		require.NoError(t, json.Unmarshal(out.Bytes(), &items))
+		result := make([]types.TunnelConnection, len(items))
+		for i, raw := range items {
+			c, err := services.UnmarshalTunnelConnection(raw)
+			require.NoError(t, err)
+			result[i] = c
+		}
+		return result
+	}
+	byCluster := readFromHTTP("tunnelconnections", clusterName)
+	require.Len(t, byCluster, 1)
+	require.Equal(t, conn.GetName(), byCluster[0].GetName())
+	all := readFromHTTP("tunnelconnections")
+	require.Len(t, all, 1)
+
 	_, err = clt.HTTPClient.Delete(ctx, clt.HTTPClient.Endpoint("tunnelconnections", clusterName, conn.GetName()))
 	require.NoError(t, err)
 
-	stored, err = clt.GetTunnelConnections(clusterName)
+	stored, err = clt.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, stored)
 }
@@ -5042,7 +5086,7 @@ func TestEvents(t *testing.T) {
 				err = testSrv.Auth().UpsertTunnelConnection(ctx, conn)
 				require.NoError(t, err)
 
-				out, err := testSrv.Auth().GetTunnelConnections("example.com")
+				out, err := testSrv.Auth().GetTunnelConnections(ctx, "example.com")
 				require.NoError(t, err)
 
 				err = testSrv.Auth().DeleteTunnelConnection(ctx, conn.GetClusterName(), conn.GetName())
