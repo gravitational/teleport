@@ -4,7 +4,7 @@
 
 variable "azure_managed_identity_location" {
   type        = string
-  description = "Azure region (location) where the managed identity will be created (e.g., \"westus\")."
+  description = "Azure region (location) where the managed identity will be created (e.g., \"eastus\")."
   nullable    = false
 }
 
@@ -21,7 +21,7 @@ variable "teleport_discovery_group_name" {
 }
 
 variable "teleport_proxy_public_addr" {
-  description = "Teleport cluster proxy public address in the form <host:port> (no URL scheme)."
+  description = "Teleport cluster proxy public address in the form `host:port` (no URL scheme)."
   type        = string
   nullable    = false
 
@@ -44,7 +44,7 @@ variable "azure_matchers" {
     - subscriptions: Azure subscription IDs (UUID format) to discover resources in.
     - resource_groups: Resource groups to search within each subscription. Defaults to ["*"] (all resource groups).
     - regions: Azure regions to search. Defaults to ["*"] (all regions).
-    - tags: Azure resource tags to match, in the form { "key" = ["value1", "value2"] }. Defaults to { "*" = ["*"] } (match all tags).
+    - tags: Azure resource tags to match, in the form `{ "key" = ["value1", "value2"] }`. Defaults to `{ "*" = ["*"] }` (match all tags).
   EOT
   type = list(object({
     types           = list(string)
@@ -142,7 +142,7 @@ variable "azure_managed_identity_name" {
 
 variable "azure_role_assignment_scopes" {
   default     = []
-  description = "The scopes at which the Azure discovery role will be assigned. Must be a management group ID like /providers/Microsoft.Management/managementGroups/<name> to support wildcard ('*') Azure subscription discovery. By default, a role definition and assignment is created for each subscription in azure_matchers."
+  description = "The scopes at which the Azure discovery role will be assigned. Must be a management group ID (e.g. `/providers/Microsoft.Management/managementGroups/<name>`) to support wildcard ('*') Azure subscription discovery. By default, scopes are derived from the subscriptions configured in azure_matchers."
   nullable    = false
   type        = list(string)
 }
