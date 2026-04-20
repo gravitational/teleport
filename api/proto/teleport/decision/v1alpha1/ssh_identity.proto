@@ -179,6 +179,9 @@ message SSHIdentity {
 
   // The hash of the immutable labels assigned to the identity.
   string immutable_label_hash = 38;
+
+  // Delegation session this SSH identity is associated with.
+  string delegation_session_id = 39;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

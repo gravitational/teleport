@@ -13,7 +13,7 @@ enterprise: Identity Governance
 {/* lint disable page-structure remark-lint */}
 
 The Teleport Okta SSO integration allows Teleport users to authenticate using
-Okta as an identity provider. Teleport. The guided enrollment flow for the Okta
+Okta as an identity provider. The guided enrollment flow for the Okta
 SSO integration is part of the [guided Okta integration](./okta.mdx). This
 guide is a companion to the guided Okta SSO integration, showing you how to
 perform required actions within Okta.
@@ -98,7 +98,7 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 
   4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
 
-  5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
+  5. That will bring you to the "Configure SAML" step where you'll have to provide several values:
 
      - Single sign on URL:
 
@@ -162,9 +162,14 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 At this point, you have completed the guided flow for the Okta SSO integration. All users assigned
 to the Okta app are now able to log in to Teleport.
 
+To log in using the Okta connector, open the web UI and click the **Okta** button at the bottom of the page.
+
+To log in using the `tsh` CLI:
+
+
 ## Supported features
 
-By default, the Okta SSO integration supports the SP-initiated flow. To enable the IdP-initiated flow you will have to:
+By default, the Okta SSO integration supports JIT (Just-In-Time) Provisioning using the SP-initiated flow. To enable the IdP-initiated flow you will have to:
 
  1. Edit the Okta SAML connector with the following command:
     ```code
@@ -174,17 +179,26 @@ By default, the Okta SSO integration supports the SP-initiated flow. To enable t
 
 ## SAML attributes mapping
 
+Attributes send by default:
+
+- `username` mapped to `user.login`.
+- `groups` mapped to a list all user's Okta groups.
+
+Extra attributes can be optionally configured using [this Okta guide](https://support.okta.com/help/s/article/pass-extra-attributes-in-saml-oin-apps?language=en_US).
+
 All attributes sent with the SAML assertion will be stored as the [user's external traits](../../../reference/access-controls/roles.mdx#referring-to-external-traits-in-teleport-roles) which then can be used to build RBAC rules.
 
 ## Teleport role assignment
+
 This section explains how to assign Teleport roles to Okta SSO users.
+
 ### Access Lists
 
 The preferred way to assign a Teleport role to an Okta SSO user is by adding them as members of [Access Lists](../../access-lists/access-lists.mdx) granting the desired roles. Access List membership can be created before the SSO user is created (i.e. before the user logs in for the first time).
 
 ### SAML connector attributes to roles mapping
 
-The alternative is to use SAML connector attributes to roles mapping. The mapping is defined in the SAML connector resource and can be edited either the web UI or `tctl`.
+The alternative is to use SAML connector attributes to roles mapping. The mapping is defined in the SAML connector resource and can be edited either in the web UI or `tctl`.
 
 In the web UI:
 

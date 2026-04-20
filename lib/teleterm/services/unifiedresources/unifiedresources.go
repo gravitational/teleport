@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
+// TODO(gabrielcorado): add support to LLM.
 var supportedResourceKinds = []string{
 	types.KindNode,
 	types.KindDatabase,
@@ -108,21 +109,27 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 				return nil, trace.Wrap(err)
 			}
 			autoUsersEnabled := db.IsAutoUsersEnabled() && autoUser.IsEnabled()
-			databaseRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			var autoUserProvisioning *clusters.AutoUserProvisioning
 			if autoUsersEnabled {
+				databaseRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 				autoUserProvisioning = &clusters.AutoUserProvisioning{
 					DatabaseRoles: databaseRoles,
 				}
+			}
+			dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
 					URI:                  cluster.URI.AppendDB(db.GetName()),
 					Database:             db,
 					TargetHealth:         r.GetTargetHealth(),
+					DatabaseUsers:        dbUsers.Allowed(),
+					WildcardUserAllowed:  dbUsers.WildcardAllowed(),
 					AutoUserProvisioning: autoUserProvisioning,
 				},
 				RequiresRequest: requiresRequest,

@@ -310,6 +310,11 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 	case FormatCockroach:
+		// Ensure that the directory we're writing files into exists
+		if err := os.MkdirAll(cfg.OutputPath, 0o700); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// CockroachDB expects files to be named node.crt, node.key, ca.crt,
 		// ca-client.crt
 		certPath := filepath.Join(cfg.OutputPath, "node.crt")

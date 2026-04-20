@@ -46,7 +46,7 @@ e.g. `example.teleport.sh`.
 The workload identifier is encoded in the URI as the path. This should be a
 string that identifies your workload within the trust domain. What you include
 within this path is up to you and your application's requirements. Typically,
-the hierarchical nature of the path is leveraged. For example, you had the
+the hierarchical nature of the path is leveraged. For example, if you had the
 service `foo` operating in the `europe` region, you may wish to represent this
 as: `/region/europe/svc/foo`.
 
@@ -58,8 +58,8 @@ spiffe://example.teleport.sh/region/europe/svc/foo
 
 ## SPIFFE Verifiable Identity Documents (SVIDs)
 
-The SPIFFE ID may be a unique identifier for a workload, but provides no way
-for a workload to verifiably prove its identity. This is where the Secure
+The SPIFFE ID may be a unique identifier for a workload, but it provides no way
+for a workload to verifiably prove its identity. This is where the SPIFFE
 Verifiable Identity Documents (SVIDs) come in.
 
 The SVID is a document that encodes the SPIFFE ID and a cryptographic proof

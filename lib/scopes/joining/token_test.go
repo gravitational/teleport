@@ -17,6 +17,7 @@
 package joining_test
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"testing"
@@ -59,11 +60,38 @@ func TestValidateScopedToken(t *testing.T) {
 			Secret: "secret",
 		},
 	}
+
+	baseBotToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Scope:   "/aa/bb",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:      []string{types.RoleBot.String()},
+			BotScope:   "/aa/bb",
+			BotName:    "test-bot",
+			JoinMethod: string(types.JoinMethodBoundKeypair),
+			UsageMode:  joining.TokenUsageModeBot,
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Usage: &joiningv1.UsageStatus{
+				Status: &joiningv1.UsageStatus_BoundKeypair{
+					BoundKeypair: &joiningv1.BoundKeypairStatus{
+						RegistrationSecret: "secret",
+					},
+				},
+			},
+		},
+	}
+
 	cases := []struct {
 		name              string
 		modFn             func(*joiningv1.ScopedToken)
 		expectedStrongErr string
 		expectedWeakErr   string
+		baseToken         *joiningv1.ScopedToken
 	}{
 		{
 			name: "invalid kind",
@@ -152,7 +180,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.AssignedScope = "/bb/aa"
 			},
-			expectedStrongErr: "scoped token assigned scope must be descendant of its resource scope",
+			expectedStrongErr: "scoped token assigned scope must be descendant of or equivalent to the token's resource scope",
 		},
 		{
 			name: "invalid join method",
@@ -206,7 +234,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "setting ssh labels for role other than node",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = []string{types.RoleBot.String()}
+				tok.Spec.Roles = []string{types.RoleApp.String()}
 				tok.Spec.ImmutableLabels = &joiningv1.ImmutableLabels{
 					Ssh: map[string]string{
 						"one":   "1",
@@ -290,7 +318,256 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "oracle configuration must be defined for a scoped token when using the oracle join method",
 		},
 		{
+			name: "kubernetes token without configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+			},
+			expectedStrongErr: "at least one allow rule must be set",
+			expectedWeakErr:   "at least one allow rule must be set",
+		},
+		{
+			name: "kubernetes token with empty allow rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{},
+				}
+			},
+			expectedStrongErr: "at least one allow rule must be set",
+			expectedWeakErr:   "at least one allow rule must be set",
+		},
+		{
+			name: "kubernetes token with empty service account allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: ""}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account must be set",
+			expectedWeakErr:   "allow[0].service_account must be set",
+		},
+		{
+			name: "kubernetes token with malformed service account allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "malformed"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
+			name: "kubernetes token with service account allow rule made up of too many parts",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "too:many:parts"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
+			name: "kubernetes token with service account allow rule with empty account name",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "namespace:"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
+			name: "kubernetes token with service account allow rule with empty namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: ":service_account"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
+			name: "kubernetes token with unrecognized join type",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: "unknown",
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+				}
+			},
+			expectedStrongErr: "unrecognized type \"unknown\"",
+			expectedWeakErr:   "unrecognized type \"unknown\"",
+		},
+		{
+			name: "kubernetes token with no join type",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+				}
+			},
+			expectedStrongErr: "type must be specified",
+			expectedWeakErr:   "type must be specified",
+		},
+		{
+			name: "kubernetes static_jwks token without configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: "static_jwks",
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+				}
+			},
+			expectedStrongErr: "static_jwks must be set when type is \"static_jwks\"",
+			expectedWeakErr:   "static_jwks must be set when type is \"static_jwks\"",
+		},
+		{
+			name: "kubernetes in_cluster token with static_jwks configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: string(types.KubernetesJoinTypeInCluster),
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{},
+				}
+			},
+			expectedStrongErr: "static_jwks must not be set when type is \"in_cluster\"",
+			expectedWeakErr:   "static_jwks must not be set when type is \"in_cluster\"",
+		},
+		{
+			name: "kubernetes in_cluster token with oidc configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: string(types.KubernetesJoinTypeInCluster),
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Oidc: &joiningv1.Kubernetes_OIDCConfig{},
+				}
+			},
+			expectedStrongErr: "oidc must not be set when type is \"in_cluster\"",
+			expectedWeakErr:   "oidc must not be set when type is \"in_cluster\"",
+		},
+		{
+			name: "kubernetes static_jwks token with oidc configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: string(types.KubernetesJoinTypeStaticJWKS),
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{Jwks: "{\"keys\":[]}"},
+					Oidc:       &joiningv1.Kubernetes_OIDCConfig{},
+				}
+			},
+			expectedStrongErr: "oidc must not be set when type is \"static_jwks\"",
+			expectedWeakErr:   "oidc must not be set when type is \"static_jwks\"",
+		},
+		{
+			name: "kubernetes oidc token without configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: "oidc",
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+				}
+			},
+			expectedStrongErr: "oidc.issuer must be set when type is \"oidc\"",
+			expectedWeakErr:   "oidc.issuer must be set when type is \"oidc\"",
+		},
+		{
+			name: "kubernetes oidc token with static_jwks configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: string(types.KubernetesJoinTypeOIDC),
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Oidc:       &joiningv1.Kubernetes_OIDCConfig{Issuer: "https://oidc.example.com"},
+					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{},
+				}
+			},
+			expectedStrongErr: "static_jwks must not be set when type is \"oidc\"",
+			expectedWeakErr:   "static_jwks must not be set when type is \"oidc\"",
+		},
+		{
+			name: "kubernetes oidc token with malformed issuer",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: string(types.KubernetesJoinTypeOIDC),
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Oidc: &joiningv1.Kubernetes_OIDCConfig{Issuer: "://bad-url"},
+				}
+			},
+			expectedStrongErr: "oidc.issuer must be a valid URL",
+			expectedWeakErr:   "oidc.issuer must be a valid URL",
+		},
+		{
+			name: "kubernetes oidc token with http issuer and insecure flag disabled",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Type: string(types.KubernetesJoinTypeOIDC),
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Oidc: &joiningv1.Kubernetes_OIDCConfig{Issuer: "http://oidc.example.com"},
+				}
+			},
+			expectedStrongErr: "oidc.issuer must be https:// unless insecure_allow_http_issuer is set",
+			expectedWeakErr:   "oidc.issuer must be https:// unless insecure_allow_http_issuer is set",
+		},
+		{
 			name: "valid scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = types.SystemRoles{types.RoleNode, types.RoleKube}.StringSlice()
+			},
 		},
 		{
 			name: "valid ec2 scoped token with TTL",
@@ -384,11 +661,153 @@ func TestValidateScopedToken(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "valid kubernetes in_cluster scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Type: string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+		},
+		{
+			name: "valid kubernetes static_jwks scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Type: string(types.KubernetesJoinTypeStaticJWKS),
+					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{
+						Jwks: "{\"keys\":[]}",
+					},
+				}
+			},
+		},
+		{
+			name: "valid kubernetes oidc scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+					Type: string(types.KubernetesJoinTypeOIDC),
+					Oidc: &joiningv1.Kubernetes_OIDCConfig{
+						Issuer: "https://oidc.example.com/my-cluster",
+					},
+				}
+			},
+		},
+		{
+			name: "non-bot token with bot_scope",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotScope = "/aa/bb"
+			},
+			expectedStrongErr: "bot_scope cannot be set",
+		},
+		{
+			name: "non-bot token with bot_name",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotName = "foo"
+			},
+			expectedStrongErr: "bot_name cannot be set",
+		},
+		{
+			name: "non-bot token with bot usage mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.UsageMode = joining.TokenUsageModeBot
+			},
+			expectedStrongErr: "usage_mode cannot be 'bot'",
+		},
+		{
+			name:      "valid bot bound keypair scoped token",
+			baseToken: baseBotToken,
+		},
+		{
+			name:      "bot token without a bot_name",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotName = ""
+			},
+			expectedStrongErr: "expected non-empty bot_name",
+			expectedWeakErr:   "expected non-empty bot_name",
+		},
+		{
+			name:      "bot token without a bot_scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotScope = ""
+			},
+			expectedStrongErr: "expected non-empty bot_scope",
+			expectedWeakErr:   "expected non-empty bot_scope",
+		},
+		{
+			name:      "bot token with an invalid bot scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.BotScope = "aa/bb}"
+			},
+			expectedStrongErr: "validating scoped token bot_scope",
+			expectedWeakErr:   "validating scoped token bot_scope",
+		},
+		{
+			name:      "bot token with invalid usage mode",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			expectedStrongErr: "usage_mode must be 'bot'",
+		},
+		{
+			name:      "bot token with invalid roles",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = append(tok.Spec.Roles, types.RoleNode.String())
+			},
+			expectedStrongErr: "roles must only be '[Bot]'",
+		},
+		{
+			name:      "bot with non-assignable scope of origin",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Scope = "/aa/bb"
+				tok.Spec.BotScope = "/aa/cc"
+			},
+			expectedStrongErr: "scoped token bot_scope must be a descendant of",
+		},
+		{
+			name:      "bot token with assigned_scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.AssignedScope = "/aa/bb"
+			},
+			expectedStrongErr: "scoped tokens for bots cannot have an assigned_scope",
+		},
+		{
+			name:      "bot token with token join method",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodToken)
+				tok.Status.Secret = "abc123"
+			},
+			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			tok := proto.CloneOf(baseToken)
+			tok := proto.CloneOf(cmp.Or(c.baseToken, baseToken))
 			if c.modFn != nil {
 				c.modFn(tok)
 			}

@@ -247,6 +247,11 @@ Certificate Authority keys.
 
 ## Migrating an existing cluster
 
+Before proceeding, ensure you have configured the cluster to use the
+`hsm-v1` or `fips-v1` signature algorithm. See
+[Signature Algorithm Suites](../../../reference/deployment/signature-algorithms.mdx)
+for more details.
+
 If you have an existing Teleport cluster it will have already created software
 CA keys during its first start.
 Those existing CA keys will have been used to sign all existing user and host

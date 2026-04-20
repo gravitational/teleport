@@ -173,6 +173,11 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	accountRecoveryLimiter, err := newAccountRecoveryLimiter()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
@@ -183,6 +188,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			Handler:       apiServer,
 		},
 		Limiter:                limiter,
+		accountRecoveryLimiter: accountRecoveryLimiter,
 		GRPCMetrics:            grpcMetrics,
 		OldestSupportedVersion: oldestSupportedVersion,
 		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
@@ -342,6 +348,9 @@ type Middleware struct {
 	authz.Middleware
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
+	// accountRecoveryLimiter rate-limits account recovery RPCs
+	// independently from the default limiter.
+	accountRecoveryLimiter *limiter.RateLimiter
 	// GRPCMetrics is the configured gRPC metrics for the interceptors
 	GRPCMetrics *grpcprom.ServerMetrics
 
@@ -358,26 +367,55 @@ type Middleware struct {
 	lastRejectedAlertTime atomic.Int64
 }
 
-func getCustomRate(endpoint string) *limiter.RateSet {
-	switch endpoint {
-	// Account recovery RPCs.
-	case
-		"/proto.AuthService/ChangeUserAuthentication",
-		"/proto.AuthService/ChangePassword",
-		"/proto.AuthService/GetAccountRecoveryToken",
-		"/proto.AuthService/StartAccountRecovery",
-		"/proto.AuthService/VerifyAccountRecovery":
-		rates := limiter.NewRateSet()
-		// This limit means: 1 request per minute with bursts up to 10 requests.
-		if err := rates.Add(time.Minute, 1, 10); err != nil {
-			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
-				"error", err,
-				"rpc_method", endpoint)
-			return nil
-		}
-		return rates
+// newAccountRecoveryLimiter creates the dedicated limiter for
+// account recovery RPCs (1 req/min, burst 10).
+func newAccountRecoveryLimiter() (*limiter.RateLimiter, error) {
+	return limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{Period: time.Minute, Average: 1, Burst: 10}},
+	})
+}
+
+// clientIPFromContext extracts the client IP from the gRPC peer in
+// the given context.
+func clientIPFromContext(ctx context.Context) (string, error) {
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", trace.AccessDenied("missing peer info")
 	}
-	return nil
+	return utils.ClientIPFromAddr(peerInfo.Addr)
+}
+
+// rateLimitUnaryInterceptor returns a gRPC unary interceptor that
+// applies the default rate and connection limiter to all endpoints,
+// plus the stricter account recovery limiter on recovery endpoints.
+func (a *Middleware) rateLimitUnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		clientIP, err := clientIPFromContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		release, err := a.Limiter.RegisterRequestAndConnection(clientIP)
+		if err != nil {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+		defer release()
+		// Additional rate check for account recovery endpoints.
+		switch info.FullMethod {
+		case
+			"/proto.AuthService/ChangeUserAuthentication",
+			"/proto.AuthService/ChangePassword",
+			"/proto.AuthService/GetAccountRecoveryToken",
+			"/proto.AuthService/StartAccountRecovery",
+			"/proto.AuthService/VerifyAccountRecovery":
+			if a.accountRecoveryLimiter != nil {
+				err := a.accountRecoveryLimiter.RegisterRequest(clientIP)
+				if err != nil {
+					return nil, trace.LimitExceeded("rate limit exceeded")
+				}
+			}
+		}
+		return handler(ctx, req)
+	}
 }
 
 // ValidateClientVersion inspects the client version for the connection and terminates
@@ -573,7 +611,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
 		metadata.UnaryServerInterceptor,
-		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
+		a.rateLimitUnaryInterceptor(),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
 }

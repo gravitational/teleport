@@ -25,12 +25,16 @@ import {
   useState,
   type RefObject,
 } from 'react';
+import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import { useEventListener } from 'usehooks-ts';
 
 import { Box, Flex } from 'design';
+import { ButtonSecondary } from 'design';
+import { Alert } from 'design/Alert';
 import { Pause, Play } from 'design/Icon';
 
+import cfg from 'teleport/config';
 import type { SessionRecordingEvent } from 'teleport/services/recordings';
 import {
   CurrentEventInfo,
@@ -47,6 +51,7 @@ import {
   SessionStream,
 } from 'teleport/SessionRecordings/view/stream/SessionStream';
 import type { BaseEvent } from 'teleport/SessionRecordings/view/stream/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 export interface RecordingPlayerProps<
   TEvent extends BaseEvent<TEventType>,
@@ -84,7 +89,11 @@ export function RecordingPlayer<
   ref,
   ws,
 }: RecordingPlayerProps<TEvent>) {
+  const { clusterId } = useStickyClusterId();
+
   const [playerState, setPlayerState] = useState(PlayerState.Loading);
+  const [errorText, setErrorText] = useState('');
+  const [isLoadingError, setIsLoadingError] = useState(false);
   const [speed, setSpeed] = useState(1);
 
   const [showPlayButton, setShowPlayButton] = useState(true);
@@ -101,6 +110,15 @@ export function RecordingPlayer<
   useEffect(() => {
     stream.on('state', next => {
       setPlayerState(next);
+    });
+
+    stream.on('loadingError', message => {
+      setErrorText(message);
+      setIsLoadingError(true);
+    });
+
+    stream.on('error', message => {
+      setErrorText(message);
     });
 
     stream.on('time', time => {
@@ -165,6 +183,25 @@ export function RecordingPlayer<
     moveToTime: handleSeek,
   }));
 
+  if (isLoadingError) {
+    return (
+      <Flex
+        height="100%"
+        flex={1}
+        p={3}
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+      >
+        <Alert kind="danger">{errorText}</Alert>
+
+        <ButtonSecondary as={Link} to={cfg.getRecordingsRoute(clusterId)}>
+          Go back to Session Recordings
+        </ButtonSecondary>
+      </Flex>
+    );
+  }
+
   return (
     <Box height="100%" flex={1} p={3}>
       <Flex
@@ -177,6 +214,14 @@ export function RecordingPlayer<
         overflow="hidden"
         position="relative"
       >
+        {errorText && (
+          <ErrorOverlay>
+            <Alert kind="danger" bg="levels.sunken">
+              {errorText}
+            </Alert>
+          </ErrorOverlay>
+        )}
+
         {events && (
           <CurrentEventInfo
             events={events}
@@ -340,6 +385,15 @@ const AnimatedState = styled.div`
   transform: translate(-50%, 50%);
   z-index: 1;
   animation: ${appear} 0.8s linear forwards;
+`;
+
+const ErrorOverlay = styled.div`
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: ${p => p.theme.space[2]}px;
 `;
 
 const PlayerBox = styled.div`

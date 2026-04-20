@@ -104,6 +104,18 @@ export interface Database {
      * @generated from protobuf field: teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning = 11;
      */
     autoUserProvisioning?: AutoUserProvisioning;
+    /**
+     * database_users is a list of allowed database users that Teleport RBAC permits the user to connect as.
+     *
+     * @generated from protobuf field: repeated string database_users = 12;
+     */
+    databaseUsers: string[];
+    /**
+     * wildcard_user_allowed is true when the user's role grants access with db_users: ["*"],
+     *
+     * @generated from protobuf field: bool wildcard_user_allowed = 13;
+     */
+    wildcardUserAllowed: boolean;
 }
 /**
  * AutoUserProvisioning contains database auto-user provisioning information.
@@ -157,7 +169,9 @@ class Database$Type extends MessageType<Database> {
             { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 9, name: "target_health", kind: "message", T: () => TargetHealth },
             { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "auto_user_provisioning", kind: "message", T: () => AutoUserProvisioning }
+            { no: 11, name: "auto_user_provisioning", kind: "message", T: () => AutoUserProvisioning },
+            { no: 12, name: "database_users", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 13, name: "wildcard_user_allowed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
@@ -171,6 +185,8 @@ class Database$Type extends MessageType<Database> {
         message.addr = "";
         message.labels = [];
         message.gcpProjectId = "";
+        message.databaseUsers = [];
+        message.wildcardUserAllowed = false;
         if (value !== undefined)
             reflectionMergePartial<Database>(this, message, value);
         return message;
@@ -212,6 +228,12 @@ class Database$Type extends MessageType<Database> {
                     break;
                 case /* teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning */ 11:
                     message.autoUserProvisioning = AutoUserProvisioning.internalBinaryRead(reader, reader.uint32(), options, message.autoUserProvisioning);
+                    break;
+                case /* repeated string database_users */ 12:
+                    message.databaseUsers.push(reader.string());
+                    break;
+                case /* bool wildcard_user_allowed */ 13:
+                    message.wildcardUserAllowed = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -258,6 +280,12 @@ class Database$Type extends MessageType<Database> {
         /* teleport.lib.teleterm.v1.AutoUserProvisioning auto_user_provisioning = 11; */
         if (message.autoUserProvisioning)
             AutoUserProvisioning.internalBinaryWrite(message.autoUserProvisioning, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* repeated string database_users = 12; */
+        for (let i = 0; i < message.databaseUsers.length; i++)
+            writer.tag(12, WireType.LengthDelimited).string(message.databaseUsers[i]);
+        /* bool wildcard_user_allowed = 13; */
+        if (message.wildcardUserAllowed !== false)
+            writer.tag(13, WireType.Varint).bool(message.wildcardUserAllowed);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

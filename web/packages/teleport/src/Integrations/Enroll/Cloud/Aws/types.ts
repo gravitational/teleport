@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type WildcardRegion = ['*'];
-
 export type BaseServiceConfig = {
   enabled: boolean;
   tags: AwsLabel[];

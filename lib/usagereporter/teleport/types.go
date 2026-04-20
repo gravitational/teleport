@@ -2076,6 +2076,90 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			InstancesCount: data.InstancesCount,
 		}
 		return ret, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineBasicInfoEvent:
+		ret := &UIAccessListBasicInfoEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineBasicInfoEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineBasicInfoEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListCompleteEvent:
+		ret := &UIAccessListCompletedEvent{
+			Metadata:           accessListMetadataToPrehog(e.UiAccessListCompleteEvent.Metadata, userMD),
+			Status:             accessListStatusToPrehog(e.UiAccessListCompleteEvent.Status),
+			PreferredTerraform: e.UiAccessListCompleteEvent.GetPreferredTerraform(),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineAccessEvent:
+		ret := &UIAccessListDefineAccessEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineAccessEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineAccessEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineIdentitiesEvent:
+		ret := &UIAccessListDefineIdentitiesEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineIdentitiesEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineIdentitiesEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineMembersEvent:
+		ret := &UIAccessListDefineMembersEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineMembersEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineMembersEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineOwnersEvent:
+		ret := &UIAccessListDefineOwnersEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineOwnersEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineOwnersEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListCustomEvent:
+		ret := &UIAccessListCustomEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListCustomEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListCustomEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListIntegrateEvent:
+		ret := &UIAccessListIntegrateEvent{
+			Metadata:  accessListMetadataToPrehog(e.UiAccessListIntegrateEvent.Metadata, userMD),
+			Integrate: accessListIntegrateToPrehog(e.UiAccessListIntegrateEvent.Integrate),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListStartEvent:
+		ret := &UIAccessListStartedEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListStartEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListStartEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
@@ -2131,6 +2215,37 @@ func (e *DiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 				ResourceTypes:       e.ResourceTypes,
 				CloudProviders:      e.CloudProviders,
 				CreationMethod:      e.CreationMethod,
+			},
+		},
+	}
+}
+
+// IdentitySecurityGraphSizeEvent is emitted when the size of a providers access graph is updated.
+type IdentitySecurityGraphSizeEvent prehogv1a.IdentitySecurityGraphSizeEvent
+
+// Anonymize anonymizes the event.
+func (e *IdentitySecurityGraphSizeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_IdentitySecurityGraphSizeEvent{
+			IdentitySecurityGraphSizeEvent: &prehogv1a.IdentitySecurityGraphSizeEvent{
+				Provider:        e.Provider,
+				TotalIdentities: e.TotalIdentities,
+				TotalResources:  e.TotalResources,
+			},
+		},
+	}
+}
+
+// IdentitySecurityAuditLogsIngestedEvent is emitted when logs are ingested into indentity activity center
+type IdentitySecurityAuditLogsIngestedEvent prehogv1a.IdentitySecurityAuditLogsIngestedEvent
+
+// Anonymize anonymizes the event.
+func (e *IdentitySecurityAuditLogsIngestedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_IdentitySecurityAuditLogsIngestedEvent{
+			IdentitySecurityAuditLogsIngestedEvent: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{
+				Provider:     e.Provider,
+				LogsIngested: e.LogsIngested,
 			},
 		},
 	}

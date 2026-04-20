@@ -50,15 +50,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/selinux"
 )
 
 const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
@@ -110,11 +110,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon.")
 	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
-	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	networking := app.Command(teleport.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
-	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
-	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	sftp := app.Command(reexecconstants.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
+	exec := app.Command(reexecconstants.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
+	networking := app.Command(reexecconstants.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
+	checkHomeDir := app.Command(reexecconstants.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
+	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing, forever.").Hidden()
+	trueCmd := app.Command(reexecconstants.TrueSubCommand, "Used internally by Teleport to re-exec itself to do nothing, successfully.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -686,7 +687,7 @@ Examples:
   force: false`)
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, options.Args)
+	utils.UpdateAppUsageTemplate(app)
 	command, err := app.Parse(options.Args)
 	if err != nil {
 		app.Usage(options.Args)
@@ -737,8 +738,6 @@ Examples:
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
-	case sftp.FullCommand():
-		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
@@ -746,14 +745,15 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
-	case exec.FullCommand():
-		srv.RunAndExit(teleport.ExecSubCommand)
-	case networking.FullCommand():
-		srv.RunAndExit(teleport.NetworkingSubCommand)
-	case checkHomeDir.FullCommand():
-		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
-	case park.FullCommand():
-		srv.RunAndExit(teleport.ParkSubCommand)
+
+	case exec.FullCommand(),
+		networking.FullCommand(),
+		checkHomeDir.FullCommand(),
+		park.FullCommand(),
+		trueCmd.FullCommand(),
+		sftp.FullCommand():
+		err = trace.BadParameter("invalid command line format for internal reexecution command (this is a bug)")
+
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():

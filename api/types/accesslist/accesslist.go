@@ -476,6 +476,16 @@ func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
 }
 
+// SetOwnerGrants sets the owner grants of the access list.
+func (a *AccessList) SetOwnerGrants(grants Grants) {
+	a.Spec.OwnerGrants = grants
+}
+
+// SetMemberGrants sets the member grants of the access list.
+func (a *AccessList) SetMemberGrants(grants Grants) {
+	a.Spec.Grants = grants
+}
+
 // GetMembershipRequires returns the membership requires configuration from the access list.
 func (a *AccessList) GetMembershipRequires() Requires {
 	return a.Spec.MembershipRequires
@@ -699,9 +709,7 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
-// to ignore ephemeral fields that are managed by reconcilers or the backend. This function
-// mimics the behavior of services.CompareResources for AccessList types when used with
-// WithIgnoreEphemeralFields().
+// to ignore ephemeral fields that are managed by reconcilers or the backend.
 //
 // By default, this function clones the input access lists before comparison to avoid
 // modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be

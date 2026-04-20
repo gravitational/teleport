@@ -321,6 +321,36 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	kubernetesCluster = payload{
+		Name:                   "KubeCluster",
+		TypeName:               "KubernetesClusterV3",
+		VarName:                "kubeCluster",
+		GetMethod:              "GetKubernetesCluster",
+		CreateMethod:           "CreateKubernetesCluster",
+		UpdateMethod:           "UpdateKubernetesCluster",
+		DeleteMethod:           "DeleteKubernetesCluster",
+		ID:                     `kubeCluster.Metadata.Name`,
+		Kind:                   "kube_cluster",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_kube_cluster",
+		HasCheckAndSetDefaults: true,
+	}
+
+	lock = payload{
+		Name:                   "Lock",
+		TypeName:               "LockV2",
+		VarName:                "lock",
+		GetMethod:              "GetLock",
+		CreateMethod:           "UpsertLock",
+		UpdateMethod:           "UpsertLock",
+		DeleteMethod:           "DeleteLock",
+		ID:                     `lock.Metadata.Name`,
+		Kind:                   "lock",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_lock",
+		HasCheckAndSetDefaults: true,
+	}
+
 	oidcConnector = payload{
 		Name:                   "OIDCConnector",
 		TypeName:               "OIDCConnectorV3",
@@ -352,6 +382,22 @@ var (
 		Kind:                   "saml",
 		HasStaticID:            true,
 		TerraformResourceType:  "teleport_saml_connector",
+		HasCheckAndSetDefaults: true,
+	}
+
+	samlIdPServiceProvider = payload{
+		Name:                   "SAMLIdPServiceProvider",
+		TypeName:               "SAMLIdPServiceProviderV1",
+		VarName:                "samlIdPServiceProvider",
+		IfaceName:              "SAMLIdPServiceProvider",
+		GetMethod:              "GetSAMLIdPServiceProvider",
+		CreateMethod:           "CreateSAMLIdPServiceProvider",
+		UpdateMethod:           "UpdateSAMLIdPServiceProvider",
+		DeleteMethod:           "DeleteSAMLIdPServiceProvider",
+		ID:                     "samlIdPServiceProvider.Metadata.Name",
+		Kind:                   "saml_idp_service_provider",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_saml_idp_service_provider",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -418,6 +464,23 @@ var (
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_trusted_cluster",
 		HasCheckAndSetDefaults: true,
+	}
+
+	uiConfig = payload{
+		Name:                   "UIConfig",
+		TypeName:               "UIConfigV1",
+		VarName:                "uiConfig",
+		IfaceName:              "UIConfig",
+		GetMethod:              "GetUIConfig",
+		CreateMethod:           "SetUIConfig",
+		UpdateMethod:           "SetUIConfig",
+		DeleteMethod:           "DeleteUIConfig",
+		ID:                     `"ui_config"`,
+		Kind:                   "ui_config",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_ui_config",
+		HasCheckAndSetDefaults: true,
+		GetCanReturnNil:        true,
 	}
 
 	user = payload{
@@ -760,7 +823,7 @@ var (
 		UpsertMethodArity:     2,
 		UpdateMethod:          "VnetConfigClient().UpsertVnetConfig",
 		DeleteMethod:          "VnetConfigClient().ResetVnetConfig",
-		ID:                    `"vnet_config"`,
+		ID:                    "apitypes.MetaNameVnetConfig",
 		Kind:                  "vnet_config",
 		HasStaticID:           false,
 		ProtoPackage:          "vnet",
@@ -929,7 +992,41 @@ var (
 		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind:          "apitypes.KindScopedToken",
 	}
-
+	workloadCluster = payload{
+		Name:                  "WorkloadCluster",
+		TypeName:              "WorkloadCluster",
+		VarName:               "workloadcluster",
+		GetMethod:             "GetWorkloadCluster",
+		CreateMethod:          "CreateWorkloadCluster",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertWorkloadCluster",
+		DeleteMethod:          "DeleteWorkloadCluster",
+		ID:                    "workloadcluster.Metadata.Name",
+		Kind:                  "workload_cluster",
+		HasStaticID:           false,
+		ProtoPackage:          "workloadclusterv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1",
+		TerraformResourceType: "teleport_workload_cluster",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindWorkloadCluster",
+		StatePoll: &statePoll{
+			StatePath: []string{
+				"Status",
+				"State",
+			},
+			PendingStates:            []string{"creating"},
+			TargetStates:             []string{"active"},
+			StatePollIntervalSeconds: 30,
+			StateTimeoutSeconds:      15 * 60,
+		},
+	}
 	/*
 		//
 		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
@@ -983,10 +1080,16 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
+	generateResource(kubernetesCluster, pluralResource)
+	generateDataSource(kubernetesCluster, pluralDataSource)
+	generateResource(lock, pluralResource)
+	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
 	generateDataSource(oidcConnector, pluralDataSource)
 	generateResource(samlConnector, pluralResource)
 	generateDataSource(samlConnector, pluralDataSource)
+	generateResource(samlIdPServiceProvider, pluralResource)
+	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
 	generateResource(role, pluralResource)
@@ -995,6 +1098,8 @@ func genTFSchema() {
 	generateDataSource(trustedCluster, pluralDataSource)
 	generateResource(sessionRecording, singularResource)
 	generateDataSource(sessionRecording, singularDataSource)
+	generateResource(uiConfig, singularResource)
+	generateDataSource(uiConfig, singularDataSource)
 	generateResource(user, pluralResource)
 	generateDataSource(user, pluralDataSource)
 	generateResource(loginRule, pluralResource)
@@ -1039,6 +1144,8 @@ func genTFSchema() {
 	generateDataSource(inferencePolicy, pluralDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
+	generateResource(workloadCluster, pluralResource)
+	generateDataSource(workloadCluster, pluralDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 

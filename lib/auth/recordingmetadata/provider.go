@@ -76,6 +76,6 @@ type noopRecordingMetadata struct{}
 
 // ProcessSessionRecording is a no-op implementation of the
 // [Service.ProcessSessionRecording] method.
-func (n noopRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error {
+func (n noopRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType SessionType, duration time.Duration) error {
 	return nil
 }

@@ -207,7 +207,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetHeight(), hello.ScreenSpec.GetHeight()))
+	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
 }
 
 // Run starts the RDP client, using the provided user certificate and private key.
@@ -570,7 +570,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		// file transfer.
 		switch msg.(type) {
 		case *tdpb.KeyboardButton, *tdpb.MouseMove, *tdpb.MouseButton, *tdpb.MouseWheel,
-			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
+			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryRemove, *tdpb.SharedDirectoryResponse:
 
 			c.UpdateClientActivity()
 		}
@@ -718,6 +718,14 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				name:         driveName,
 			}); errCode != C.ErrCodeSuccess {
 				return trace.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
+			}
+		}
+	case *tdpb.SharedDirectoryRemove:
+		if c.cfg.AllowDirectorySharing {
+			if errCode := C.client_handle_tdp_sd_remove(C.uintptr_t(c.handle), C.CGOSharedDirectoryRemove{
+				directory_id: C.uint32_t(m.DirectoryId),
+			}); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("SharedDirectoryRemove: failed with %v", errCode)
 			}
 		}
 	case *tdpb.SharedDirectoryResponse:
@@ -1044,7 +1052,8 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
 		},
-		ClipboardEnabled: true,
+		ClipboardEnabled:         true,
+		DirectoryRemoveSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure
@@ -1150,7 +1159,8 @@ func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCrea
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Create_{
 			Create: &tdpbv1.SharedDirectoryRequest_Create{
-				Path: C.GoString(req.path),
+				Path:     C.GoString(req.path),
+				FileType: req.file_type,
 			},
 		},
 	})

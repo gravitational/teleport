@@ -141,6 +141,38 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		scopedToken.Spec.Oracle = &joiningv1.Oracle{
 			Allow: allow,
 		}
+	case types.JoinMethodKubernetes:
+		if base.Kubernetes == nil {
+			return nil, trace.BadParameter("kubernetes configuration must be defined for kubernetes join method")
+		}
+		allow := make([]*joiningv1.Kubernetes_Rule, len(base.Kubernetes.Allow))
+		for i, rule := range base.Kubernetes.Allow {
+			allow[i] = &joiningv1.Kubernetes_Rule{
+				ServiceAccount: rule.ServiceAccount,
+			}
+		}
+
+		var staticJWKS *joiningv1.Kubernetes_StaticJWKSConfig
+		if base.Kubernetes.StaticJWKS != nil {
+			staticJWKS = &joiningv1.Kubernetes_StaticJWKSConfig{
+				Jwks: base.Kubernetes.StaticJWKS.JWKS,
+			}
+		}
+
+		var oidc *joiningv1.Kubernetes_OIDCConfig
+		if base.Kubernetes.OIDC != nil {
+			oidc = &joiningv1.Kubernetes_OIDCConfig{
+				Issuer:                  base.Kubernetes.OIDC.Issuer,
+				InsecureAllowHttpIssuer: base.Kubernetes.OIDC.InsecureAllowHTTPIssuer,
+			}
+		}
+
+		scopedToken.Spec.Kubernetes = &joiningv1.Kubernetes{
+			Allow:      allow,
+			Type:       string(base.Kubernetes.Type),
+			StaticJwks: staticJWKS,
+			Oidc:       oidc,
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}

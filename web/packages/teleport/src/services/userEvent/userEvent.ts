@@ -19,6 +19,7 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
+import { AccessListEventRequest } from './accessListEvents';
 import {
   CaptureEvent,
   CreateNewRoleSaveClickEvent,
@@ -44,7 +45,8 @@ function captureEvent({
     | IntegrationEnrollEventRequest
     | CtaEventRequest
     | FeatureRecommendationEventRequest
-    | CreateNewRoleSaveClickEvent;
+    | CreateNewRoleSaveClickEvent
+    | AccessListEventRequest;
   path?: string;
 }) {
   // using api.fetch instead of api.fetchJSON
@@ -65,6 +67,10 @@ export const userEventService = {
   },
 
   captureDiscoverEvent(event: DiscoverEventRequest) {
+    captureEvent({ event });
+  },
+
+  captureAccessListEvent(event: AccessListEventRequest) {
     captureEvent({ event });
   },
 

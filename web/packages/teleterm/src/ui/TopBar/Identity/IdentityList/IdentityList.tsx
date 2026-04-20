@@ -20,7 +20,7 @@ import { formatDistanceToNowStrict, isPast } from 'date-fns';
 import { JSX } from 'react';
 import styled from 'styled-components';
 
-import { ButtonText, Flex, Label, P3, Stack } from 'design';
+import { ButtonText, Flex, P3, Stack } from 'design';
 import {
   Clock,
   Logout,
@@ -33,6 +33,7 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -44,6 +45,7 @@ import {
   IdentityListItem,
   TitleAndSubtitle,
 } from './IdentityListItem';
+import { Roles } from './Roles';
 
 export function ActiveCluster(props: {
   activeCluster: Cluster | undefined;
@@ -57,6 +59,11 @@ export function ActiveCluster(props: {
   const validUntil =
     props.activeCluster.loggedInUser?.validUntil &&
     Timestamp.toDate(props.activeCluster.loggedInUser.validUntil);
+  const roles = props.activeCluster.loggedInUser?.roles || [];
+  const [isRolesExpanded, setIsRolesExpanded] = usePersistedState(
+    'showRolesExpanded',
+    false
+  );
 
   return (
     <>
@@ -102,20 +109,12 @@ export function ActiveCluster(props: {
             `}
           />
         )}
-        <Flex flexWrap="wrap" gap={1} mt={1}>
-          {props.activeCluster.loggedInUser?.roles.map(role => (
-            <Label
-              css={`
-                line-height: 20px;
-              `}
-              key={role}
-              kind="secondary"
-            >
-              {role}
-            </Label>
-          ))}
-        </Flex>
         <Stack gap={0}>
+          <Roles
+            roles={roles}
+            expanded={isRolesExpanded}
+            setExpanded={setIsRolesExpanded}
+          />
           {validUntil && (
             <Flex gap={1} color="text.slightlyMuted">
               <Clock size="small" />

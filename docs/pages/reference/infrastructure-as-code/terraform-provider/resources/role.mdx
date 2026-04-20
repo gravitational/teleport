@@ -123,6 +123,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -335,6 +337,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.

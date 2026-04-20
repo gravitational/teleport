@@ -273,14 +273,45 @@ export function DesktopSession({
     inputHandler.current.onFocusOut();
   }
 
-  function handleMouseMove(e: React.MouseEvent) {
+  function scaleEvent(e: React.MouseEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    client.sendMouseMove(x, y);
+    const canvas = e.currentTarget;
+
+    const scale = Math.min(
+      1,
+      rect.width / canvas.width,
+      rect.height / canvas.height
+    );
+
+    const renderedWidth = canvas.width * scale;
+    const renderedHeight = canvas.height * scale;
+
+    // calculate offset from center
+    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetY = (rect.height - renderedHeight) / 2;
+
+    const x = Math.round((e.clientX - rect.left - offsetX) / scale);
+    const y = Math.round((e.clientY - rect.top - offsetY) / scale);
+
+    const inBounds = x >= 0 && y >= 0 && x < canvas.width && y < canvas.height;
+
+    return { x, y, inBounds };
   }
 
-  function handleMouseDown(e: React.MouseEvent) {
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const scaled = scaleEvent(e);
+
+    if (scaled.inBounds) {
+      client.sendMouseMove(scaled.x, scaled.y);
+    }
+  }
+
+  function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    const scaled = scaleEvent(e);
+    if (!scaled.inBounds) {
+      return;
+    }
+
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -293,7 +324,7 @@ export function DesktopSession({
     sendLocalClipboardToRemote();
   }
 
-  function handleMouseUp(e: React.MouseEvent) {
+  function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,

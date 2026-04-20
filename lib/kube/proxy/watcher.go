@@ -43,11 +43,14 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[types.KubeCluster]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredKubeClusters.get,
-		OnCreate:            s.onCreate,
-		OnUpdate:            s.onUpdate,
-		OnDelete:            s.onDelete,
-		Logger:              s.log.With("kind", types.KindKubernetesCluster),
+		CompareResources: func(kc1, kc2 types.KubeCluster) int {
+			return services.EqualFromBool(kc1.IsEqual(kc2))
+		},
+		GetNewResources: s.monitoredKubeClusters.get,
+		OnCreate:        s.onCreate,
+		OnUpdate:        s.onUpdate,
+		OnDelete:        s.onDelete,
+		Logger:          s.log.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)

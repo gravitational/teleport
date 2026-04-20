@@ -14,7 +14,7 @@ This guide describes how to introduce Teleport into an existing Okta-managed AWS
 IAM Identity Center configuration. It specifically describes two scenarios: one where 
 Teleport shares control of your Identity Center managed resources in conjunction
 with Okta, and another where Teleport replaces Okta as the Identity Center SSO
-Provider and user provisioner
+Provider and user provisioner.
 
 ## How it works
 
@@ -51,7 +51,7 @@ Center groups and manage Group membership.
 
 We will start by setting up Teleport, Okta and Identity Center in a Partial hand-off
 configuration, covering
-- integrating Okta and Teleport, ensuring that all users Okta users provisioned 
+- integrating Okta and Teleport, ensuring that all Okta users provisioned 
   into Identity Center are also provisioned into Teleport,
 - configuring Teleport to manage groups and account assignments in Identity Center
 - setting up Teleport group import rules so that Identity Center groups managed
@@ -394,7 +394,7 @@ restart the Identity Center integration in Full Hand-Off mode.
 Once Teleport has full control over provisioning into Identity Center, you can
 deactivate the Identity Center integration in Okta. Leaving the Okta Identity
 Center integration in place will cause Teleport and Okta to both try and control
-the user information 
+the user information. 
 
 ## Extending the integration 
 
@@ -439,10 +439,10 @@ spec:
       # Account import filters. An absent or empty list of filters implies 
       # "manage all AWS accounts"      
       aws_accounts_filters:
-      - Include:
-          id: "058264527036"
-      - Include:
-          name_regex: ^Staging-.*$
+      - id: "058264527036"
+      - nameRegex: ^Staging-.*$
+      - excludeId: "123456789012"
+      - excludeNameRegex: "^Production-.*$"
 
       # User provisioning filters. An absent or empty list of filters implies 
       # "provision all users to AWS"
@@ -452,8 +452,7 @@ spec:
 
       # Group import filters, as per the "Group import control" section above
       group_sync_filters:
-      - Include:
-          name_regex: '^Group #00\d+$'
+      - nameRegex: '^Group #00\d+$'
 ```
 
 Saving the updated resource and quitting the editor will update the remote

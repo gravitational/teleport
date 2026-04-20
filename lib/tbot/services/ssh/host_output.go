@@ -45,7 +45,7 @@ import (
 
 func HostOutputServiceBuilder(cfg *HostOutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &HostOutputService{
@@ -186,12 +186,10 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, s.cfg.CAType, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	exportedCAs, err := exportSSHUserCAs(userCAs, clusterName)
 	if err != nil {
 		return trace.Wrap(err)

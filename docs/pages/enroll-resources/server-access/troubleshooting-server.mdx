@@ -159,3 +159,53 @@ You will need to restart sshd for the change to take effect:
 ```code
 $ sudo systemctl restart sshd
 ```
+
+## Server list shows UUIDs instead of intended hostnames
+
+In some situations, the `tsh ls` command may list servers with node names set to
+UUIDs instead of the intended host names:
+
+```
+Node Name                            Address  Labels
+------------------------------------ -------- ------
+4c022537-268c-4d8a-a79a-605868ee8a67 ⟵ Tunnel        
+ip-172-3-1-75                        ⟵ Tunnel hostname=ip-172-3-1-75
+ip-172-3-2-177                       ⟵ Tunnel hostname=ip-172-3-2-177
+```
+
+When a Teleport SSH Service instance joins a cluster, it begins reporting its
+status to the Teleport Auth Service (usually via the Proxy Service). The Auth
+Service validates the name of the server against the following pattern:
+
+```
+^[a-zA-Z0-9]+[a-zA-Z0-9\.-]*$
+```
+
+In other words, each server's name must begin with an alphanumeric character and
+contain only alphanumeric characters, dots, and hyphens. If a node name violates
+this pattern, the Auth Service replaces it with a UUID.
+
+You can check whether any host names are invalid by adding the `-v` flag when
+listing servers:
+
+```code
+$ tsh ls -v
+```
+
+The Teleport Auth Service rewrites the labels of protected servers with invalid
+host names to include the following:
+
+```
+teleport.internal/invalid-hostname
+```
+
+The `-v` flag shows internal labels, including the invalid host name.
+
+To fix an invalid host name, edit the Teleport configuration file of any
+affected servers, then restart those servers:
+
+```diff
+  teleport:
+-   nodename: "_myhost"
++   nodename: "myhost"
+```

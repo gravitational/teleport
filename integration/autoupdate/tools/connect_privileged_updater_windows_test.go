@@ -261,6 +261,19 @@ func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 	}
 }
 
+func TestPrivilegedUpdateServiceRejectsUnsignedUpdate(t *testing.T) {
+	up := update{
+		version: "999.0.0",
+		binary:  []byte("payload"),
+	}
+
+	// Keep signature verification enabled for this test to ensure unsigned
+	// updates are rejected.
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestVerifySignature(nil))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "verifying update signature")
+}
+
 type serviceConfig struct {
 	privilegedupdater.ServiceTestConfig
 	checksumServerResponseWriter func(http.ResponseWriter)
@@ -283,6 +296,12 @@ func withChecksumServerResponseWriter(checksumResponseWriter func(w http.Respons
 func withServiceTestPolicyToolsVersion(version string) privilegedServiceMainConfigOption {
 	return func(cfg *serviceConfig) {
 		cfg.PolicyToolsVersion = version
+	}
+}
+
+func withServiceTestVerifySignature(fn func(updatePath string) error) privilegedServiceMainConfigOption {
+	return func(cfg *serviceConfig) {
+		cfg.VerifySignature = fn
 	}
 }
 
@@ -332,6 +351,7 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 			PolicyCDNBaseURL:             server.URL,
 			HTTPClient:                   server.Client(),
 			PipeAuthenticatedUsersAccess: cfg.PipeAuthenticatedUsersAccess,
+			VerifySignature:              cfg.VerifySignature,
 		})
 		// We are attempting to run a non-exe file.
 		// It will fail, so we check if we ran the correct file.
@@ -409,6 +429,8 @@ func getDefaultConfig(t *testing.T) *privilegedupdater.ServiceTestConfig {
 		UpdateBaseDir:               t.TempDir(),
 		// Allow Authenticated Users to create the pipe in tests.
 		PipeAuthenticatedUsersAccess: windows.GENERIC_READ | windows.GENERIC_WRITE,
+		// Integration test updates are unsigned.
+		VerifySignature: func(string) error { return nil },
 	}
 }
 

@@ -139,6 +139,7 @@ func ForAuth(cfg Config) Config {
 	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -160,6 +161,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
+		{Kind: types.KindBeam},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -219,6 +221,11 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
 		{Kind: types.KindWorkloadCluster},
+		{Kind: types.KindInferenceModel},
+		{Kind: types.KindInferencePolicy},
+		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindRetrievalModel},
+		{Kind: types.KindValidatedMFAChallenge},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -676,6 +683,8 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Applications
+	// Beams is a beam reader service.
+	Beams services.BeamReader
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -689,7 +698,7 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSession
+	AppSession services.AppSessionReader
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
@@ -797,6 +806,10 @@ type Config struct {
 	AppAuthConfig services.AppAuthConfigReader
 	// WorkloadClusterService is a workload cluster service
 	WorkloadClusterService services.WorkloadClusterService
+	// Summarizer is a summarizer service.
+	Summarizer services.Summarizer
+	// SubCAService reads CertAuthorityOverride resources.
+	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

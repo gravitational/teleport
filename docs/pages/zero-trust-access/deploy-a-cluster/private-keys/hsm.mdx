@@ -338,6 +338,11 @@ auth_service:
 
 ## Step 3/5. (Re)start Teleport Auth
 
+Before proceeding, ensure you have configured the cluster to use the
+`hsm-v1` or `fips-v1` signature algorithm. See
+[Signature Algorithm Suites](../../../reference/deployment/signature-algorithms.mdx)
+for more details.
+
 If this is a new Teleport Auth Service which has not been started yet, starting
 a brand new cluster with an empty backend, HSM keys will be automatically
 generated at startup and no further action is required, skip to step 5.
@@ -362,7 +367,7 @@ Any users allowed the `update` verb for `cert_authority` resources in any of
 their Teleport roles will also see a cluster alert reminding them to rotate the
 CAs.
 
-CA rotation can be performed manually or semi-automatically, see our admin guide
+CA rotation can be performed manually or semi-automatically. See our admin guide
 on [Certificate rotation](../../management/security/ca-rotation.mdx).
 All CAs listed in the output of `tctl status` must be rotated.
 
