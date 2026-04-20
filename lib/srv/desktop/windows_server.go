@@ -926,15 +926,20 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
-	// NLA doesn't like mixing user with and without domain, so make sure we have one
-	if nla && !strings.Contains(windowsUser, "@") {
-		windowsUser = windowsUser + "@" + s.cfg.Domain
-	}
-
-	if nla && !strings.HasSuffix(windowsUser, "@"+s.cfg.Domain) {
-		s.cfg.Logger.WarnContext(ctx, "NLA can't work for users from different domain, disabling")
-		rdpc.DisableNLA()
-		audit.enableNLA = false
+	if nla {
+		// Note: SplitN with a non-empty separator always returns a slice with length >= 1
+		// 'userParts' is guaranteed to have length of either 1 or 2.
+		userParts := strings.SplitN(windowsUser, "@", 2)
+		// NLA doesn't like mixing user with and without domain, so make sure we have one
+		if len(userParts) == 1 {
+			// windowsUser is missing a domain suffix. Add our default domain target.
+			windowsUser = windowsUser + "@" + s.cfg.Domain
+		} else if !strings.EqualFold(userParts[1], s.cfg.Domain) {
+			// windowsUser has a domain, but it doesn't match our configured default.
+			s.cfg.Logger.WarnContext(ctx, "NLA cannot be enabled for users from different domain, disabling")
+			rdpc.DisableNLA()
+			audit.enableNLA = false
+		}
 	}
 
 	// Generate client certificates to be used for the RDP connection.
