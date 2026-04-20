@@ -814,27 +814,38 @@ func (s *CA) DeleteTrustedClusterInternal(ctx context.Context, name string, caID
 	return nil
 }
 
-// UpsertTunnelConnection updates or creates tunnel connection
+// UpsertTunnelConnection updates or creates tunnel connection.
 func (s *CA) UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
+	_, err := s.UpsertTunnelConnectionV2(ctx, conn)
+	return trace.Wrap(err)
+}
+
+// UpsertTunnelConnectionV2 updates or creates a tunnel connection and returns
+// the upserted value with its revision populated from the backend.
+//
+// TODO(strideynet): In v20.0.0, once the legacy HTTP fallback is removed, this
+// can be renamed to UpsertTunnelConnection.
+func (s *CA) UpsertTunnelConnectionV2(ctx context.Context, conn types.TunnelConnection) (types.TunnelConnection, error) {
 	if err := services.CheckAndSetDefaults(conn); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	rev := conn.GetRevision()
 	value, err := services.MarshalTunnelConnection(conn)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:    value,
 		Expires:  conn.Expiry(),
 		Revision: rev,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	conn.SetRevision(lease.Revision)
+	return conn, nil
 }
 
 // GetTunnelConnection returns connection by cluster name and connection name

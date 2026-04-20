@@ -111,12 +111,14 @@ func TestUpsertTunnelConnection(t *testing.T) {
 			if err != nil {
 				return
 			}
+			require.NotEmpty(t, resp.TunnelConnection.GetRevision(), "response should carry the backend-assigned revision")
 			require.Equal(t, req.TunnelConnection, resp.TunnelConnection)
 
 			stored, err := trust.GetTunnelConnections(req.TunnelConnection.GetClusterName())
 			require.NoError(t, err)
 			require.Len(t, stored, 1)
 			require.Equal(t, req.TunnelConnection.GetName(), stored[0].GetName())
+			require.Equal(t, resp.TunnelConnection.GetRevision(), stored[0].GetRevision())
 		})
 	}
 }

@@ -43,12 +43,17 @@ func (s *Service) UpsertTunnelConnection(ctx context.Context, req *trustpb.Upser
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.UpsertTunnelConnection(ctx, req.TunnelConnection); err != nil {
+	stored, err := s.backend.UpsertTunnelConnectionV2(ctx, req.TunnelConnection)
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	storedV2, ok := stored.(*types.TunnelConnectionV2)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected tunnel connection type %T", stored)
 	}
 
 	return &trustpb.UpsertTunnelConnectionResponse{
-		TunnelConnection: req.TunnelConnection,
+		TunnelConnection: storedV2,
 	}, nil
 }
 

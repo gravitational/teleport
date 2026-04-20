@@ -115,6 +115,14 @@ type TrustInternal interface {
 
 	// DeactivateCertAuthorities deactivates multiple cert authorities atomically.
 	DeactivateCertAuthorities(context.Context, ...types.CertAuthID) error
+
+	// UpsertTunnelConnectionV2 upserts a tunnel connection and returns the
+	// upserted value, with its revision populated from the backend.
+	//
+	// TODO(strideynet): In v20.0.0, once the legacy HTTP fallback is removed,
+	// this can be renamed to UpsertTunnelConnection and the error-only
+	// [Clusters.UpsertTunnelConnection] retired.
+	UpsertTunnelConnectionV2(ctx context.Context, conn types.TunnelConnection) (types.TunnelConnection, error)
 }
 
 // Clusters is responsible for managing trusted clusters.
