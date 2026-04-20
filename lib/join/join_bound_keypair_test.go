@@ -1770,9 +1770,10 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 
 	// The previously working client should be locked.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err = recoveredClient.Ping(ctx)
-		return err != nil && strings.Contains(err.Error(), "access denied")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "access denied")
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Repeat the recovery attempt but with an Eventually() to consistently
