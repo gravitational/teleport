@@ -226,7 +226,6 @@ func TestServiceListLinuxDesktops(t *testing.T) {
 	require.Equal(t, []check{
 		{kind: types.KindLinuxDesktop, verb: types.VerbList},
 		{kind: types.KindLinuxDesktop, verb: types.VerbRead},
-		{kind: types.KindLinuxDesktop, verb: types.VerbList},
 	}, checker.checks)
 }
 
@@ -256,7 +255,6 @@ func TestServiceGetLinuxDesktop(t *testing.T) {
 	require.Equal(t, "desktop-1", reader.getName)
 	require.Equal(t, []check{
 		{kind: types.KindLinuxDesktop, verb: types.VerbRead},
-		{kind: types.KindLinuxDesktop, verb: types.VerbRead},
 	}, checker.checks)
 }
 
@@ -283,7 +281,6 @@ func TestServiceCreateLinuxDesktop(t *testing.T) {
 	require.True(t, backend.createCalled)
 	require.Equal(t, desktop, backend.createReq)
 	require.Equal(t, []check{
-		{kind: types.KindLinuxDesktop, verb: types.VerbCreate},
 		{kind: types.KindLinuxDesktop, verb: types.VerbCreate},
 	}, checker.checks)
 }
@@ -330,8 +327,6 @@ func TestServiceUpdateLinuxDesktop(t *testing.T) {
 	require.True(t, backend.updateCalled)
 	require.Equal(t, desktop, backend.updateReq)
 	require.Equal(t, []check{
-		{kind: types.KindLinuxDesktop, verb: types.VerbUpdate},
-		{kind: types.KindLinuxDesktop, verb: types.VerbUpdate},
 		{kind: types.KindLinuxDesktop, verb: types.VerbUpdate},
 	}, checker.checks)
 }
@@ -381,8 +376,6 @@ func TestServiceUpsertLinuxDesktop(t *testing.T) {
 	require.Equal(t, []check{
 		{kind: types.KindLinuxDesktop, verb: types.VerbUpdate},
 		{kind: types.KindLinuxDesktop, verb: types.VerbCreate},
-		{kind: types.KindLinuxDesktop, verb: types.VerbUpdate},
-		{kind: types.KindLinuxDesktop, verb: types.VerbUpdate},
 	}, checker.checks)
 }
 
@@ -427,7 +420,6 @@ func TestServiceDeleteLinuxDesktop(t *testing.T) {
 	require.True(t, backend.deleteCalled)
 	require.Equal(t, "desktop-1", backend.deleteName)
 	require.Equal(t, []check{
-		{kind: types.KindLinuxDesktop, verb: types.VerbDelete},
 		{kind: types.KindLinuxDesktop, verb: types.VerbDelete},
 	}, checker.checks)
 }
