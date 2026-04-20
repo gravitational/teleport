@@ -119,3 +119,24 @@ type nopCloserWrapper struct {
 func (*nopCloserWrapper) Close() error {
 	return nil
 }
+
+// wrapContentEncoding returns a reader/writer pair that handles Content-Encoding.
+// For gzip, it wraps the reader in a gzip decompressor and the writer in a pooled gzip compressor.
+// For identity or no encoding, it returns no-op closers.
+// Returns an error for unsupported encodings.
+func wrapContentEncoding(r io.Reader, w io.Writer, contentEncoding string) (io.ReadCloser, io.WriteCloser, error) {
+	switch contentEncoding {
+	case "", "identity":
+		return io.NopCloser(r), &nopCloserWrapper{w}, nil
+	case "gzip":
+		gzReader, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		gzWriter := gzipPool.Get().(*gzip.Writer)
+		gzWriter.Reset(w)
+		return gzReader, &gzipWrapper{gzWriter}, nil
+	default:
+		return nil, nil, trace.BadParameter("unsupported Content-Encoding: %s", contentEncoding)
+	}
+}
