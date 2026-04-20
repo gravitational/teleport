@@ -14324,10 +14324,8 @@ func (m *OIDCConnectorSpecV3) XXX_DiscardUnknown() {
 var xxx_messageInfo_OIDCConnectorSpecV3 proto.InternalMessageInfo
 
 // EntraIDGroupsProvider configures out-of-band user groups provider.
-//
 // For OIDC, it works by following through the groups claim source, which is sent for
 // "groups" claim when the user's group membership exceeds 200 max item limit.
-//
 // For SAML, it works by following through the "groups.link" SAML attribute,
 // which is sent instead of the "groups" SAML attribute, when the user's group
 // membership exceeds 150 max item limit.
