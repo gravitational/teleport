@@ -388,7 +388,8 @@ func (r *serverConnWithAutoReconnect) checkReplyResponseLocked(msg mcp.JSONRPCMe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if newResult.ServerInfo != r.initResponse.ServerInfo {
+	if newResult.ServerInfo.Name != r.initResponse.ServerInfo.Name ||
+		newResult.ServerInfo.Version != r.initResponse.ServerInfo.Version {
 		return trace.Wrap(&serverInfoChangedError{
 			expectedInfo: r.initResponse.ServerInfo,
 			currentInfo:  newResult.ServerInfo,
