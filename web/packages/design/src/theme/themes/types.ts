@@ -347,6 +347,17 @@ export type SharedStyles = {
   radii: (number | string)[];
   regular: number;
   bold: number;
+  transitions: {
+    /** For interactive state changes: hover, focus, active. */
+    interactive: TransitionTokens;
+    /** For layout/content animations: expand, slide, fade. */
+    layout: TransitionTokens;
+  };
+};
+
+type TransitionTokens = {
+  duration: string;
+  timingFunction: string;
 };
 
 export type Theme = {

@@ -455,12 +455,14 @@ const StyledButton = styled.button.withConfig({
   // it). This could be especially visible when animating horizontal padding and
   // border width together. It would cause table borders on the storybook page
   // to shake.
-  transition:
-    background-color 0.1s,
-    border-color 0.1s,
-    outline-color 0.1s,
-    box-shadow 0.1s;
+  transition-property: background-color, color, border-color, outline-color, box-shadow;
+  transition-duration: ${({ theme }) => theme.transitions.interactive.duration};
+  transition-timing-function: ${({ theme }) => theme.transitions.interactive.timingFunction};
   -webkit-font-smoothing: antialiased;
+
+  svg {
+    transition: color ${({ theme }) => theme.transitions.interactive.duration} ${({ theme }) => theme.transitions.interactive.timingFunction};
+  }
 
   ${themedStyles}
 `;

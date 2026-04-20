@@ -23,7 +23,10 @@ import {
   FloatingArrow,
   FloatingPortal,
   offset,
+  type Placement,
+  safePolygon,
   shift,
+  useClick,
   useDismiss,
   useFloating,
   useFocus,
@@ -31,7 +34,6 @@ import {
   useInteractions,
   useRole,
   useTransitionStyles,
-  type Placement,
 } from '@floating-ui/react';
 import React, {
   Children,
@@ -90,6 +92,19 @@ type HoverTooltipProps = {
    */
   children: ReactElement<{ ref: Ref<HTMLElement> }>;
   /**
+   * How the tooltip is triggered. Defaults to `'hover'`.
+   */
+  trigger?: 'hover' | 'click';
+  /**
+   * When true, the tooltip stays open while the user hovers over it,
+   * allowing interaction with its content.
+   */
+  sticky?: boolean;
+  /**
+   * Maximum width of the tooltip in pixels. Defaults to `350`.
+   */
+  maxWidth?: number;
+  /**
    * Optional HTMLElement to render the portal into.
    * Defaults to `document.body`.
    */
@@ -114,6 +129,9 @@ export const HoverTooltip = ({
   delay = 0,
   disableFlip = false,
   disableTransitions = false,
+  trigger = 'hover',
+  sticky = false,
+  maxWidth = 350,
   portalRoot,
 }: HoverTooltipProps) => {
   const theme = useTheme();
@@ -137,7 +155,7 @@ export const HoverTooltip = ({
       return;
     }
 
-    if (disabled) {
+    if (disabled || !tipContent) {
       return;
     }
 
@@ -196,14 +214,21 @@ export const HoverTooltip = ({
   const openDelay = typeof delay === 'object' ? delay.open : delay;
   const closeDelay = typeof delay === 'object' ? delay.close : delay;
 
-  const { getFloatingProps } = useInteractions([
+  const isClickTrigger = trigger === 'click';
+  const isInteractive = isClickTrigger || sticky;
+
+  const { getReferenceProps, getFloatingProps } = useInteractions([
     useHover(context, {
+      enabled: !isClickTrigger,
       delay: { open: openDelay, close: closeDelay },
-      handleClose: null,
+      handleClose: sticky
+        ? safePolygon({ buffer: 12, blockPointerEvents: true })
+        : null,
     }),
-    useFocus(context),
+    useClick(context, { enabled: isClickTrigger }),
+    useFocus(context, { enabled: !isClickTrigger }),
     useDismiss(context),
-    useRole(context, { role: 'tooltip' }),
+    useRole(context, { role: isClickTrigger ? 'dialog' : 'tooltip' }),
   ]);
 
   // `children` is a single valid React element, as enforced by the ReactElement type.
@@ -214,6 +239,7 @@ export const HoverTooltip = ({
   );
   const childWithRef = cloneElement(child, {
     ref: mergedRef,
+    ...getReferenceProps(),
   });
 
   return (
@@ -222,6 +248,8 @@ export const HoverTooltip = ({
       {isMounted && tipContent && (
         <FloatingPortal root={portalRoot}>
           <StyledTooltip
+            $interactive={isInteractive}
+            $maxWidth={maxWidth}
             data-testid="tooltip"
             ref={refs.setFloating}
             style={{
@@ -253,12 +281,15 @@ export const HoverTooltip = ({
   );
 };
 
-const StyledTooltip = styled.div`
-  max-width: 350px;
+const StyledTooltip = styled.div<{
+  $interactive?: boolean;
+  $maxWidth: number;
+}>`
+  max-width: ${p => p.$maxWidth}px;
   word-wrap: break-word;
   z-index: 1500;
   border-radius: 4px;
-  pointer-events: none;
+  pointer-events: ${p => (p.$interactive ? 'auto' : 'none')};
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
   backdrop-filter: blur(2px);
   a {
@@ -267,6 +298,5 @@ const StyledTooltip = styled.div`
 `;
 
 const StyledContent = styled(Text)`
-  max-width: 350px;
   word-wrap: break-word;
 `;

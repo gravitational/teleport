@@ -16,95 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import React, { PropsWithChildren } from 'react';
+import styled from 'styled-components';
 
 import * as Icons from 'design/Icon';
-import Popover from 'design/Popover';
-import { Position } from 'design/Popover/Popover';
-import Text from 'design/Text';
-
-import { anchorOriginForPosition, transformOriginForPosition } from './shared';
+import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
 type ToolTipKind = 'info' | 'warning' | 'error';
 
 export const IconTooltip: React.FC<
-  PropsWithChildren<{
-    trigger?: 'click' | 'hover';
-    position?: Position;
-    muteIconColor?: boolean;
-    sticky?: boolean;
-    maxWidth?: number;
-    kind?: ToolTipKind;
-  }>
+  PropsWithChildren<
+    {
+      muteIconColor?: boolean;
+      kind?: ToolTipKind;
+    } & Omit<React.ComponentProps<typeof HoverTooltip>, 'children'>
+  >
 > = ({
   children,
-  trigger = 'hover',
-  position = 'bottom',
   muteIconColor = false,
-  sticky = false,
-  maxWidth = 350,
   kind = 'info',
+  ...hoverTooltipProps
 }) => {
-  const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState<Element>();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event: React.MouseEvent) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(undefined);
-  }
-
-  const triggerOnHoverProps = {
-    onMouseEnter: handlePopoverOpen,
-    onMouseLeave: sticky ? undefined : handlePopoverClose,
-  };
-  const triggerOnClickProps = {
-    onClick: handlePopoverOpen,
-  };
-
   return (
-    <>
-      <span
-        role="icon"
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        {...(trigger === 'hover' && triggerOnHoverProps)}
-        {...(trigger === 'click' && triggerOnClickProps)}
-        css={`
-          &:hover {
-            cursor: pointer;
-          }
-          vertical-align: middle;
-          display: inline-block;
-          height: 18px;
-        `}
-      >
+    <HoverTooltip {...hoverTooltipProps} tipContent={children}>
+      <IconWrapper>
         <ToolTipIcon kind={kind} muteIconColor={muteIconColor} />
-      </span>
-      <Popover
-        modalCss={() =>
-          trigger === 'hover' && `pointer-events: ${sticky ? 'auto' : 'none'}`
-        }
-        popoverCss={() => ({
-          background: theme.colors.tooltip.background,
-          backdropFilter: 'blur(2px)',
-        })}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={anchorOriginForPosition(position)}
-        transformOrigin={transformOriginForPosition(position)}
-        arrow
-        popoverMargin={4}
-      >
-        <StyledOnHover px={3} py={2} $maxWidth={maxWidth}>
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
+      </IconWrapper>
+    </HoverTooltip>
   );
 };
 
@@ -125,12 +63,11 @@ const ToolTipIcon = ({
   }
 };
 
-const StyledOnHover = styled(Text)<{ $maxWidth: number }>`
-  color: ${props => props.theme.colors.text.primaryInverse};
-  max-width: ${p => p.$maxWidth}px;
-  a {
-    color: ${props => props.theme.colors.tooltip.inverseLinkDefault};
-  }
+const IconWrapper = styled.span`
+  display: inline-flex;
+  vertical-align: middle;
+  cursor: pointer;
+  height: 18px;
 `;
 
 const InfoIcon = styled(Icons.Info)<{ $muteIconColor?: boolean }>`

@@ -88,6 +88,16 @@ export const sharedStyles: SharedStyles = {
   radii: [0, 2, 4, 8, 16, 9999, '100%', 24],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
+  transitions: {
+    interactive: {
+      duration: '150ms',
+      timingFunction: 'ease',
+    },
+    layout: {
+      duration: '200ms',
+      timingFunction: 'ease',
+    },
+  },
 };
 
 // Colors that are shared between all themes, these should be added to the theme.colors object.
