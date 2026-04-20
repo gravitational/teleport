@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -51,6 +52,7 @@ import (
 	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	tkm "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -565,6 +567,69 @@ func TestListPodRBAC(t *testing.T) {
 	}
 }
 
+// TestListResourcesAuditResponseCode verifies that the KubeRequest audit event
+// emitted after a list request captures the upstream response code.
+func TestListResourcesAuditResponseCode(t *testing.T) {
+	t.Parallel()
+	kubeMock, err := tkm.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	var (
+		mu            sync.Mutex
+		kubeRequestEv *apievents.KubeRequest
+	)
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+			OnEvent: func(evt apievents.AuditEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				if kr, ok := evt.(*apievents.KubeRequest); ok && kr.Verb == http.MethodGet {
+					kubeRequestEv = kr
+				}
+			},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		"audit_user",
+		RoleSpec{
+			Name:       "audit_user",
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, []types.KubernetesResource{{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: metav1.NamespaceDefault,
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				}})
+			},
+		},
+	)
+	client, _ := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster)
+
+	_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(testCtx.Context, metav1.ListOptions{})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return kubeRequestEv != nil
+	}, 5*time.Second, 50*time.Millisecond, "expected KubeRequest audit event")
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, int32(http.StatusOK), kubeRequestEv.ResponseCode)
+}
+
 func TestWatcherResponseWriter(t *testing.T) {
 	defaultNamespace := "default"
 	devNamespace := "dev"
@@ -695,7 +760,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 				},
 				verb: types.KubeVerbWatch,
 			}
-			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, tt.args.allowed, tt.args.denied, logtest.NewLogger())
+			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, tt.args.allowed, tt.args.denied, logtest.NewLogger()), logtest.NewLogger())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
