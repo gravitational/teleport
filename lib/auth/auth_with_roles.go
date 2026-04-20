@@ -1583,7 +1583,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				desktop := proto.UnpackLinuxDesktop(d)
 				logins, err := resourceLister.getAllowedLogins(desktop)
 				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for Linux desktop",
 						"error", err,
 						"resource", desktop.GetName(),
 					)
