@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
@@ -187,11 +188,6 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 	return p, nil
 }
 
-func (p *provisioner) checkSCIMHealth(ctx context.Context) error {
-	_, err := p.scimClient.ListUsers(ctx, scimsdk.WithCount(1))
-	return trace.Wrap(err)
-}
-
 // Provision provisions an arbitrary principal into the configured downstream
 // service. Takes care of updating the resource records and suchlike internally.
 func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.PrincipalState) error {
@@ -220,9 +216,12 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 				return trace.Wrap(p.handleMissingPrincipal(ctx, missingPrincipal.state))
 			}
 
-			log.ErrorContext(ctx, "Provisioning failed", "error", provisioningErr)
 			_, err := markStateInError(ctx, p.stateSvc, state, provisioningErr, log)
-			return trace.Wrap(err)
+			if err != nil {
+				log.ErrorContext(ctx, "Failed to record provisioning error in state", "error", err)
+			}
+
+			return trace.Wrap(provisioningErr)
 		}
 
 		// If the principal has transitioned to the provisioned state, let the
@@ -273,10 +272,12 @@ func (p *provisioner) ProvisionAll(ctx context.Context, states iter.Seq[*provisi
 	for s := range states {
 		group.Go(func() error {
 			if err := p.Provision(groupCtx, s); err != nil {
-				p.log.WarnContext(groupCtx, "Failed provisioning resource",
-					"principal_type", s.Spec.PrincipalType,
-					"principal_id", s.Spec.PrincipalId,
-					"error", err)
+				if !errors.Is(err, breaker.ErrStateTripped) {
+					p.log.WarnContext(groupCtx, "Failed provisioning resource",
+						"principal_type", s.Spec.PrincipalType,
+						"principal_id", s.Spec.PrincipalId,
+						"error", err)
+				}
 			}
 			return nil
 		})
@@ -305,7 +306,7 @@ func (p *provisioner) handleMissingPrincipal(ctx context.Context, state *provisi
 }
 
 func (p *provisioner) deprovisionPrincipal(ctx context.Context, state *provisioningv1.PrincipalState, log *slog.Logger) error {
-	log.InfoContext(ctx, "Deprovisioning principal")
+	log.DebugContext(ctx, "Deprovisioning principal")
 
 	// If the record was never actually provisioned...
 	if state.Status.ExternalId == "" {

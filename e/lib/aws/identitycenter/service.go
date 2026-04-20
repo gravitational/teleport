@@ -128,6 +128,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		// Center API rather than SCIM, since the SCIM API does not reliably
 		// return group membership data for AWS IC.
 		SCIMClient:                newICSCIMClient(config.Provisioning.SCIMClient, config.ICClient),
+		HealthCheckSCIMClient:     config.Provisioning.HealthCheckSCIMClient,
 		StateSvc:                  config.Provisioning.StateSvc,
 		StateSvcCache:             config.Provisioning.StateSvcCache,
 		UsersCache:                config.Provisioning.UsersSvcCache,

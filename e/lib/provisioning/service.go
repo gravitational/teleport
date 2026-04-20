@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -49,6 +50,7 @@ type Service struct {
 	log                 *slog.Logger
 	clock               clockwork.Clock
 	eventsSvc           types.Events
+	scimClient          scimsdk.Client
 
 	provisioner *provisioner
 
@@ -94,6 +96,7 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 		eventsChan:           make(chan *provisioningEvent, cfg.EventBufferSize),
 		fullRefreshSignal:    make(chan struct{}, 1),
 		onExternalIDUpdated:  cfg.OnExternalIDUpdated,
+		scimClient:           cfg.HealthCheckSCIMClient,
 	}
 
 	svc.provisioner, err = newProvisioner(provisionerConfig{
@@ -170,7 +173,8 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 // CheckSCIMHealth verifies that the downstream SCIM endpoint accepts the
 // current credentials.
 func (svc *Service) CheckSCIMHealth(ctx context.Context) error {
-	return trace.Wrap(svc.provisioner.checkSCIMHealth(ctx))
+	_, err := svc.scimClient.ListUsers(ctx, scimsdk.WithCount(1))
+	return trace.Wrap(err)
 }
 
 // SetUserStateLabel sets a label on the user's Provisioning State record.

@@ -114,7 +114,6 @@ func (p *provisioner) adoptOrCreateDownstreamUser(
 
 	default:
 		// any other error is fatal
-		log.ErrorContext(ctx, "existence check failed to execute", "error", err)
 		return nil, trace.Wrap(err, "checking for downstream user existence")
 	}
 }

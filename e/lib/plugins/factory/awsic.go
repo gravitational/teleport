@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
+	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -68,12 +69,21 @@ func AWSIC(ctx context.Context, p *types.PluginV1, deps Dependencies) (Delegate,
 
 		authServer := deps.ParentProcess.GetAuthServer()
 		logger := deps.Logger.With(teleport.ComponentKey, eteleport.ComponentAWSIC)
-
-		scimClient, err := scimsdk.New(&scimsdk.Config{
+		scimConfig := scimsdk.Config{
 			Endpoint:        settings.ProvisioningSpec.BaseUrl,
 			Token:           bearerToken,
 			Log:             logger,
 			IntegrationType: types.PluginTypeAWSIdentityCenter,
+		}
+
+		scimClient, err := scimsdk.New(&scimConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		scimClientWithBreaker, err := icprov.NewSCIMClientWithBreaker(icprov.SCIMClientWithBreakerConfig{
+			SCIMConfig: scimConfig,
+			Clock:      authServer.GetClock(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -112,13 +122,14 @@ func AWSIC(ctx context.Context, p *types.PluginV1, deps Dependencies) (Delegate,
 
 		svc, err := identitycenter.NewService(identitycenter.ServiceConfig{
 			Provisioning: identitycenter.ProvisioningConfig{
-				SCIMClient:           scimClient,
-				StateSvc:             authServer.Services,
-				StateSvcCache:        authServer.Cache,
-				UsersSvcCache:        authServer.Cache,
-				AccessListsSvcCache:  authServer.Cache,
-				LocksSvc:             authServer.Services,
-				UserProvisioningMode: userProvisioningMode,
+				SCIMClient:            scimClientWithBreaker,
+				HealthCheckSCIMClient: scimClient, // Healthcheck shouldn't be tripped by a circuit breaker so we use a separate client without breaker for it.
+				StateSvc:              authServer.Services,
+				StateSvcCache:         authServer.Cache,
+				UsersSvcCache:         authServer.Cache,
+				AccessListsSvcCache:   authServer.Cache,
+				LocksSvc:              authServer.Services,
+				UserProvisioningMode:  userProvisioningMode,
 			},
 			ICClient:                   identityCenterClient,
 			UsersSvc:                   authServer.Services,

@@ -25,6 +25,9 @@ import (
 type ProvisioningConfig struct {
 	// SCIMClient is the SCIM client used to interact with the downstream SCIM
 	SCIMClient scimsdk.Client
+	// HealthCheckSCIMClient is the SCIM client used for explicit SCIM health
+	// checks. If unset, it defaults to SCIMClient.
+	HealthCheckSCIMClient scimsdk.Client
 	// UsersSvcCache is the cache of users to be used by the provisioning service
 	UsersSvcCache provisioning.UsersService
 	// AccessListsSvcCache is the cache of access lists to be used by the provisioning service
@@ -47,6 +50,9 @@ type ProvisioningConfig struct {
 func (cfg *ProvisioningConfig) CheckAndSetDefaults() error {
 	if cfg.SCIMClient == nil {
 		return trace.BadParameter("missing configured SCIM client")
+	}
+	if cfg.HealthCheckSCIMClient == nil {
+		cfg.HealthCheckSCIMClient = cfg.SCIMClient
 	}
 	if cfg.UsersSvcCache == nil {
 		return trace.BadParameter("missing users service cache")

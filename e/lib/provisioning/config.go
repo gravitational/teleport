@@ -78,6 +78,10 @@ type ServiceConfig struct {
 	// use to interact with the downstream server.
 	SCIMClient scimsdk.Client
 
+	// HealthCheckSCIMClient is the SCIM client used for explicit health checks.
+	// If unset, it defaults to SCIMClient.
+	HealthCheckSCIMClient scimsdk.Client
+
 	// UsersCache is the users service used by the provisioning service. The
 	// provisioning service only reads from this service, so a cached service
 	// is appropriate.
@@ -176,6 +180,10 @@ type ServiceConfig struct {
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.SCIMClient == nil {
 		return trace.BadParameter("must supply a configured SCIM client")
+	}
+
+	if cfg.HealthCheckSCIMClient == nil {
+		cfg.HealthCheckSCIMClient = cfg.SCIMClient
 	}
 
 	if cfg.DownstreamID == services.DownstreamID("") {

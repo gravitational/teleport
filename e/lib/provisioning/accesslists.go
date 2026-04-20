@@ -197,7 +197,6 @@ func (p *provisioner) adoptOrCreateDownstreamGroup(
 
 	default:
 		// but any other error is fatal and we need to bail out
-		log.ErrorContext(ctx, "existence check failed to execute", "error", err)
 		return nil, trace.Wrap(err, "checking for downstream group existence")
 	}
 }
