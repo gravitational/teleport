@@ -1978,7 +1978,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			require.NoError(t, err)
 		}
 		var checkAccessListModificationEvent bool
-		if !cmp.Equal(oldAccessList, accessList, ignoreEphemeralFields...) {
+		if !accesslist.EqualAccessLists(oldAccessList, accessList, accesslist.WithIgnoreEphemeralFields()) {
 			checkAccessListModificationEvent = true
 		}
 

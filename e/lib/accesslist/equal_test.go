@@ -5,144 +5,105 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/header"
 )
 
-func TestAccessListEqual(t *testing.T) {
+func Test_isReviewChangesAllowed(t *testing.T) {
 	tests := []struct {
-		name      string
-		first     *accesslist.AccessList
-		second    *accesslist.AccessList
-		wantEqual bool
+		name string
+		in   accesslist.ReviewChanges
+		want bool
 	}{
 		{
-			name:      "both nil",
-			first:     nil,
-			second:    nil,
-			wantEqual: true,
+			name: "empty review changes are allowed",
+			in:   accesslist.ReviewChanges{},
+			want: true,
 		},
 		{
-			name: "nil and empty slice",
-			first: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					OwnershipRequires: accesslist.Requires{
-						Roles:  []string{},
-						Traits: map[string][]string{},
-					},
-				},
+			name: "only removed members is allowed",
+			in: accesslist.ReviewChanges{
+				RemovedMembers: []string{"user1", "user2"},
 			},
-			second: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					OwnershipRequires: accesslist.Requires{
-						Roles:  nil,
-						Traits: nil,
-					},
-				},
-			},
-			wantEqual: true,
+			want: true,
 		},
 		{
-			name: "nil and no empty slice",
-			first: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					OwnershipRequires: accesslist.Requires{
-						Roles: []string{"role1"},
-					},
+			name: "membership requirements changed is not allowed",
+			in: accesslist.ReviewChanges{
+				MembershipRequirementsChanged: &accesslist.Requires{
+					Roles: []string{"role1"},
 				},
 			},
-			second: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					OwnershipRequires: accesslist.Requires{
-						Roles: nil,
-					},
-				},
-			},
-			wantEqual: false,
+			want: false,
 		},
 		{
-			name: "nil and no empty slice",
-			first: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					OwnershipRequires: accesslist.Requires{
-						Traits: map[string][]string{"trait1": {"value1"}},
-					},
-				},
+			name: "review frequency changed is not allowed",
+			in: accesslist.ReviewChanges{
+				ReviewFrequencyChanged: accesslist.ThreeMonths,
 			},
-			second: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					OwnershipRequires: accesslist.Requires{},
-				},
-			},
-			wantEqual: false,
+			want: false,
 		},
 		{
-			name: "ephemeral fields",
-			first: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					Owners: []accesslist.Owner{
-						{
-							IneligibleStatus: "ineligible",
-						},
-					},
+			name: "review day of month changed is not allowed",
+			in: accesslist.ReviewChanges{
+				ReviewDayOfMonthChanged: accesslist.FifteenthDayOfMonth,
+			},
+			want: false,
+		},
+		{
+			name: "removed members with membership requirements changed is not allowed",
+			in: accesslist.ReviewChanges{
+				RemovedMembers: []string{"user1"},
+				MembershipRequirementsChanged: &accesslist.Requires{
+					Roles: []string{"role1"},
 				},
 			},
-			second: &accesslist.AccessList{
-				Spec: accesslist.Spec{
-					Owners: []accesslist.Owner{
-						{
-							IneligibleStatus: "not-ineligible",
-						},
-					},
-				},
+			want: false,
+		},
+		{
+			name: "removed members with review frequency changed is not allowed",
+			in: accesslist.ReviewChanges{
+				RemovedMembers:         []string{"user1"},
+				ReviewFrequencyChanged: accesslist.SixMonths,
 			},
-			wantEqual: true,
+			want: false,
+		},
+		{
+			name: "removed members with review day of month changed is not allowed",
+			in: accesslist.ReviewChanges{
+				RemovedMembers:          []string{"user1"},
+				ReviewDayOfMonthChanged: accesslist.FirstDayOfMonth,
+			},
+			want: false,
+		},
+		{
+			name: "all non-ignored fields changed is not allowed",
+			in: accesslist.ReviewChanges{
+				MembershipRequirementsChanged: &accesslist.Requires{
+					Roles: []string{"role1"},
+				},
+				ReviewFrequencyChanged:  accesslist.ThreeMonths,
+				ReviewDayOfMonthChanged: accesslist.FifteenthDayOfMonth,
+			},
+			want: false,
+		},
+		{
+			name: "all fields populated is not allowed",
+			in: accesslist.ReviewChanges{
+				RemovedMembers: []string{"user1"},
+				MembershipRequirementsChanged: &accesslist.Requires{
+					Roles: []string{"role1"},
+				},
+				ReviewFrequencyChanged:  accesslist.ThreeMonths,
+				ReviewDayOfMonthChanged: accesslist.FifteenthDayOfMonth,
+			},
+			want: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := accessListEqual(tc.first, tc.second)
-			require.Equal(t, tc.wantEqual, got)
-		})
-	}
-}
-
-func Test_isOktaAccessListModificationAllowed(t *testing.T) {
-	tests := []struct {
-		name                    string
-		first                   *accesslist.AccessList
-		second                  *accesslist.AccessList
-		wantModificationAllowed bool
-	}{
-		{
-			name: "labels, including okta orign label, cannot be modified",
-			first: &accesslist.AccessList{
-				ResourceHeader: header.ResourceHeader{
-					Metadata: header.Metadata{
-						Labels: map[string]string{
-							types.OriginLabel: types.OriginOkta,
-						},
-					},
-				},
-			},
-			second: &accesslist.AccessList{
-				ResourceHeader: header.ResourceHeader{
-					Metadata: header.Metadata{
-						Labels: map[string]string{},
-					},
-				},
-			},
-			wantModificationAllowed: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := isOktaAccessListModificationAllowed(tc.first, tc.second)
-			require.Equal(t, tc.wantModificationAllowed, got)
-
+			got := isReviewChangesAllowed(tc.in)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }

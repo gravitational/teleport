@@ -1684,7 +1684,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
 
-	accessListModified = !accessListEqual(oldAccessList, newAccessList)
+	accessListModified = !accesslist.EqualAccessLists(oldAccessList, newAccessList, accesslist.WithIgnoreEphemeralFields())
 
 	// Modifying the access list requires RBAC access.
 	var authErrOld error
@@ -1815,7 +1815,7 @@ func (s *Service) canUpdateMembership(ctx context.Context, authCtx *authz.Contex
 	// actually modify their own entry, we can say that it's okay for them to
 	// modify the users in this list.
 
-	if !membersEqual(oldMember, newMember) {
+	if !oldMember.IsEqual(newMember) {
 		return trace.Wrap(err)
 	}
 

@@ -57,7 +57,7 @@ func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList
 		return true
 	}
 
-	return isOktaAccessListModificationAllowed(oldAccessList, newAccessList)
+	return accesslist.EqualAccessLists(oldAccessList, newAccessList, accesslist.WithIgnoreOktaUserManagedFields())
 }
 
 // hasOktaOrigin returns true if any of the provides Access Lists is Okta originated.
