@@ -31,7 +31,6 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -180,9 +179,6 @@ type Handler struct {
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
-
-	// appServerWatcher ia a app server watcher to speed up app look up.
-	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
@@ -386,68 +382,6 @@ type APIHandler struct {
 // ConnectionHandler defines a function for serving incoming connections.
 type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
-func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
-	raddr, err := utils.ParseAddr(r.Host)
-	if err != nil {
-		return
-	}
-	publicAddr := raddr.Host()
-
-	servers, err := h.handler.appServerWatcher.CurrentResourcesWithFilter(r.Context(), app.MatchPublicAddr(publicAddr))
-	if err != nil {
-		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
-		return
-	}
-
-	if len(servers) == 0 {
-		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
-		return
-	}
-
-	foundApp := servers[rand.N(len(servers))].GetApp()
-	corsPolicy := foundApp.GetCORS()
-	if corsPolicy == nil {
-		return
-	}
-
-	origin := r.Header.Get("Origin")
-	// The Access-Control-Allow-Origin can only include one origin or a wildcard. However,
-	// any request which includes credentials _must_ return an origin and not a wildcard.
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#sect2
-	if slices.Contains(corsPolicy.AllowedOrigins, "*") || slices.Contains(corsPolicy.AllowedOrigins, origin) {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-	} else {
-		return
-	}
-
-	if len(corsPolicy.AllowedMethods) > 0 {
-		w.Header().Set("Access-Control-Allow-Methods", strings.Join(corsPolicy.AllowedMethods, ","))
-	}
-
-	// This is a list of headers that are allowed in the spec. Wildcards are allowed.
-	// Note: "Authorization" headers must be explicitly listed and cannot be wildcarded
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers#sect2
-	if len(corsPolicy.AllowedHeaders) > 0 {
-		w.Header().Set("Access-Control-Allow-Headers", strings.Join(corsPolicy.AllowedHeaders, ","))
-	}
-
-	if len(corsPolicy.ExposedHeaders) > 0 {
-		w.Header().Set("Access-Control-Expose-Headers", strings.Join(corsPolicy.ExposedHeaders, ","))
-	}
-
-	// The only valid value for this header is "true", so we will only set it if configured to true
-	if corsPolicy.AllowCredentials {
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-	}
-
-	// This will allow preflight responses to be cached for the specified duration
-	if corsPolicy.MaxAge > 0 {
-		w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", corsPolicy.MaxAge))
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -462,41 +396,43 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handler.accessGraphHandler.ServeHTTP(w, r)
 		return
 	}
-	// If the request is either to the fragment authentication endpoint or if the
-	// request has a session cookie or a client cert, forward to
-	// application handlers. If the request is requesting a
-	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
-		h.appHandler.ServeHTTP(w, r)
-		return
-	}
-
-	// Build the proxy address list for app routing. When
-	// proxy_service.public_addr is not configured, only activate the
-	// cluster-name fallback if the request host is a subdomain of the
-	// cluster name. This avoids misclassifying requests that arrive on
-	// a different hostname (e.g. behind a load balancer) as app requests.
-	proxyAddrs := h.handler.cfg.ProxyPublicAddrs
-	if len(proxyAddrs) == 0 && h.appHandler != nil {
-		clusterName := h.handler.auth.clusterName
-		raddr, err := utils.ParseAddr(r.Host)
-		if err == nil && clusterName != "" && strings.HasSuffix(raddr.Host(), "."+clusterName) {
-			port := raddr.Port(443)
-			host := net.JoinHostPort(clusterName, strconv.Itoa(port))
-			proxyAddrs = []utils.NetAddr{{Addr: host}}
+	if h.appHandler != nil {
+		// If the request is either to the fragment authentication endpoint or
+		// if the request has a session cookie or a client cert, forward to
+		// application handlers. If the request is requesting a FQDN that is not
+		// of the proxy, redirect to application launcher.
+		if app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r) {
+			h.appHandler.ServeHTTP(w, r)
+			return
 		}
-	}
 
-	// if the request is for an app, passthrough OPTIONS requests to the app handler
-	redir, ok := app.HasName(r, proxyAddrs)
-	if ok && r.Method == http.MethodOptions {
-		h.handlePreflight(w, r)
-		return
-	}
-	// Only try to redirect if the handler is serving the full Web API.
-	if !h.handler.cfg.MinimalReverseTunnelRoutesOnly && ok {
-		http.Redirect(w, r, redir, http.StatusFound)
-		return
+		// Build the proxy address list for app routing. When
+		// proxy_service.public_addr is not configured, only activate the
+		// cluster-name fallback if the request host is a subdomain of the
+		// cluster name. This avoids misclassifying requests that arrive on
+		// a different hostname (e.g. behind a load balancer) as app requests.
+		proxyAddrs := h.handler.cfg.ProxyPublicAddrs
+		if len(proxyAddrs) == 0 {
+			clusterName := h.handler.auth.clusterName
+			raddr, err := utils.ParseAddr(r.Host)
+			if err == nil && clusterName != "" && strings.HasSuffix(raddr.Host(), "."+clusterName) {
+				port := raddr.Port(443)
+				host := net.JoinHostPort(clusterName, strconv.Itoa(port))
+				proxyAddrs = []utils.NetAddr{{Addr: host}}
+			}
+		}
+
+		// if the request is for an app, passthrough OPTIONS requests to the app handler
+		redir, ok := app.HasName(r, proxyAddrs)
+		if ok && r.Method == http.MethodOptions {
+			h.appHandler.HandlePreflight(w, r)
+			return
+		}
+		// Only try to redirect if the handler is serving the full Web API.
+		if !h.handler.cfg.MinimalReverseTunnelRoutesOnly && ok {
+			http.Redirect(w, r, redir, http.StatusFound)
+			return
+		}
 	}
 
 	// Serve the Web UI.
@@ -705,10 +641,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.nodeWatcher = cfg.NodeWatcher
 	}
 
-	if cfg.AppServerWatcher != nil {
-		h.appServerWatcher = cfg.AppServerWatcher
-	}
-
 	const v1Prefix = "/v1"
 	notFoundRoutingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request is going to the API?
@@ -810,6 +742,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			CipherSuites:          cfg.CipherSuites,
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
 			IntegrationAppHandler: cfg.IntegrationAppHandler,
+			AppServerWatcher:      cfg.AppServerWatcher,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

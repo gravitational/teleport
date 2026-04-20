@@ -438,6 +438,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 				ClusterGetter:         tunnel,
 				CipherSuites:          utils.DefaultCipherSuites(),
 				IntegrationAppHandler: &mockIntegrationAppHandler{},
+				AppServerWatcher:      fakeWatcher{},
 			})
 			require.NoError(t, err)
 
@@ -460,6 +461,7 @@ func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.Clien
 		ClusterGetter:         clusterGetter,
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		AppServerWatcher:      fakeWatcher{},
 	})
 	require.NoError(t, err)
 
@@ -880,6 +882,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 		},
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		AppServerWatcher:      fakeWatcher{},
 	})
 	require.NoError(t, err)
 
@@ -953,6 +956,7 @@ func TestRedirectToLauncherClusterFallback(t *testing.T) {
 		AccessPoint:           authClient,
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		AppServerWatcher:      fakeWatcher{},
 	})
 	require.NoError(t, err)
 

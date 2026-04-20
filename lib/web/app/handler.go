@@ -67,6 +67,8 @@ type HandlerConfig struct {
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
+	// AppServerWatcher is used by HandlePreflight to resolve apps by public addr.
+	AppServerWatcher Watcher
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -86,6 +88,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.IntegrationAppHandler == nil {
 		return trace.BadParameter("integration app handler missing")
+	}
+	if c.AppServerWatcher == nil {
+		return trace.BadParameter("app server watcher missing")
 	}
 
 	return nil
