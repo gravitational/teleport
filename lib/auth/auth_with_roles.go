@@ -5862,20 +5862,6 @@ func (a *ServerWithRoles) DeleteTunnelConnection(clusterName string, connName st
 	return a.authServer.DeleteTunnelConnection(clusterName, connName)
 }
 
-func (a *ServerWithRoles) DeleteTunnelConnections(clusterName string) error {
-	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteTunnelConnections(clusterName)
-}
-
-func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
-	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllTunnelConnections()
-}
-
 // AcquireSemaphore acquires lease with requested resources from semaphore.
 func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	if err := a.authorizeAction(types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
