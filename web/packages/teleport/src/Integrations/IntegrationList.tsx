@@ -40,6 +40,7 @@ import cfg from 'teleport/config';
 import {
   filterByIntegrationStatus,
   filterBySearch,
+  getAwsIcErrorMessage,
   sortByStatus,
 } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
@@ -489,9 +490,8 @@ export function percent(n: number, d: number): string {
 }
 
 const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
-  let content = (
-    <Text>{integration.status?.errorMessage || integration.details}</Text>
-  );
+  const awsIcErrorMessage = getAwsIcErrorMessage(integration);
+  let content = <Text>{awsIcErrorMessage ?? integration.details}</Text>;
   switch (integration.kind) {
     case IntegrationKind.AwsOidc:
     case IntegrationKind.AzureOidc:
