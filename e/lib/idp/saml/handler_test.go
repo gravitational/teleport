@@ -233,6 +233,56 @@ func TestMetadataValues(t *testing.T) {
 	require.Equal(t, string(rawCert), metadata.X509PEM)
 }
 
+func TestCreateIdPError(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	env := newTEnv(ctx, t, clock)
+	env.testServices.Client.SigningCtx = testenv.WithRole(ctx, types.RoleProxy)
+
+	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
+
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{Name: "sp1"},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", "https://sp1.com/acs"),
+			EntityID:         "sp1",
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
+
+	// Delete the SAML IdP CA to induce failures.
+	require.NoError(t, env.testServices.CAService.DeleteCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SAMLIDPCA,
+		DomainName: "test-cluster",
+	}))
+
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		needAuth bool
+	}{
+		{name: "metadata", method: http.MethodGet, path: path.Join(IdPRoute, "metadata")},
+		{name: "metadata-values", method: http.MethodGet, path: path.Join(IdPRoute, "metadata-values")},
+		{name: "sso GET", method: http.MethodGet, path: path.Join(IdPRoute, "sso"), needAuth: true},
+		{name: "sso POST", method: http.MethodPost, path: path.Join(IdPRoute, "sso"), needAuth: true},
+		{name: "idp-initiated login", method: http.MethodGet, path: path.Join(IdPRoute, "login", sp1.GetName()), needAuth: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.needAuth {
+				r = r.WithContext(authz.ContextWithUser(r.Context(), user))
+			}
+			env.samlIdPService.ServeHTTP(w, r)
+			require.Equal(t, http.StatusForbidden, w.Code)
+		})
+	}
+}
+
 func TestSSOGET(t *testing.T) {
 	testSSO(t, http.MethodGet)
 }

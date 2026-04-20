@@ -102,7 +102,7 @@ func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp
 	return nil, nil
 }
 
-// newTEnv creates test environemtn with testenv.BASEURL as base URL.
+// newTEnv creates a test environment with testenv.BASEURL as base URL.
 func newTEnv(ctx context.Context, t *testing.T, clock clockwork.Clock) *tEnvWithSAMLService {
 	return newTEnvWithURL(ctx, t, clock, testenv.BASEURL)
 }

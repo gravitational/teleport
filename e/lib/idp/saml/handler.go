@@ -181,6 +181,7 @@ func (s *Service) handleMetadata(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, err)
+		return
 	}
 	idp.ServeMetadata(w, r) // The saml.IdentityProvider does the response handling here.
 }
@@ -199,6 +200,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, err)
+		return
 	}
 	ed := idp.Metadata()
 
@@ -221,6 +223,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 				if err != nil {
 					s.logger.ErrorContext(r.Context(), "Error decoding IdP certificate", "error", err)
 					s.writeError(w, err)
+					return
 				}
 				certPEM := pem.EncodeToMemory(&pem.Block{
 					Type:  "CERTIFICATE",
@@ -234,6 +237,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 	resp, err := json.Marshal(metadata)
 	if err != nil {
 		s.writeError(w, err)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -246,6 +250,7 @@ func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, err)
+		return
 	}
 	idp.ServeSSO(w, r) // The saml.IdentityProvider does the response handling here.
 }
@@ -292,6 +297,7 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, err)
+		return
 	}
 	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), sp.GetRelayState())
 }
