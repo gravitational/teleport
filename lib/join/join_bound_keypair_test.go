@@ -1678,9 +1678,7 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 		correctPublicKey: correctSigner,
 	}
 
-	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
-
-	srv := newTestTLSServer(t, clock)
+	srv := newTestTLSServer(t, clockwork.NewRealClock())
 	authServer := srv.Auth()
 
 	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
