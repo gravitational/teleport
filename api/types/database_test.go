@@ -1507,6 +1507,7 @@ func TestVNetDNSName(t *testing.T) {
 	t.Parallel()
 
 	t.Run("deterministic", func(t *testing.T) {
+		t.Parallel()
 		// Verify the output matches a hand-computed value so the
 		// algorithm doesn't silently change (would break VNet lookups).
 		name := "my-postgres"
@@ -1518,11 +1519,13 @@ func TestVNetDNSName(t *testing.T) {
 	})
 
 	t.Run("lowercase", func(t *testing.T) {
+		t.Parallel()
 		result := VNetDNSName("my-postgres")
 		require.Equal(t, strings.ToLower(result), result)
 	})
 
 	t.Run("different names produce different hashes", func(t *testing.T) {
+		t.Parallel()
 		require.NotEqual(t, VNetDNSName("db-one"), VNetDNSName("db-two"))
 	})
 }

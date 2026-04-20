@@ -84,6 +84,8 @@ type Database interface {
 	SetMySQLServerVersion(version string)
 	// GetStatusVNetDNSName returns the VNet DNS name from the database status.
 	GetStatusVNetDNSName() string
+	// SetStatusVNetDNSName sets the VNet DNS name in the database status.
+	SetStatusVNetDNSName(name string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
@@ -406,6 +408,11 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 // GetStatusVNetDNSName returns the VNet DNS name from the database status.
 func (d *DatabaseV3) GetStatusVNetDNSName() string {
 	return d.Status.VNetDNSName
+}
+
+// SetStatusVNetDNSName sets the VNet DNS name in the database status.
+func (d *DatabaseV3) SetStatusVNetDNSName(name string) {
+	d.Status.VNetDNSName = name
 }
 
 // IsEmpty returns true if AWS metadata is empty.
