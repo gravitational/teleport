@@ -257,7 +257,8 @@ func (c *Cache) getFromCache(k key) *clientWithMetadata {
 // NoCache is a client cache implementation that returns a new client
 // on each call to Get.
 //
-// ClearForRoot and Clear still work as expected.
+// Clear works as expected.
+// ClearStaleClientsForRoot always clears clients for the root cluster.
 type NoCache struct {
 	mu            sync.Mutex
 	newClientFunc NewClientFunc
