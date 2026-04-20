@@ -185,6 +185,16 @@ func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	// Lookup paths of programs that are also shell builtins.
 	echoPath := lookResolvedPath(t, "echo")
 
+	// Create symlinks to test symlink handling.
+	symlinkDir := t.TempDir()
+	echoSymlinkPath := filepath.Join(symlinkDir, "echo-symlink")
+	err = os.Symlink(echoPath, echoSymlinkPath)
+	require.NoError(t, err)
+	etcSymlinkDir := "etc-symlink"
+	etcSymlinkPath := filepath.Join(symlinkDir, etcSymlinkDir)
+	err = os.Symlink("/etc", etcSymlinkPath)
+	require.NoError(t, err)
+
 	// Create a TCP listener for each IP family. Register the listeners
 	// to be closed in case the test fails before the connection
 	// handling goroutines are started, the listeners will be closed
@@ -268,6 +278,29 @@ eval $(echo %s | base64 --decode)`,
 			},
 		},
 		{
+			name:    "symlink command",
+			command: "bash -c '" + echoSymlinkPath + " salutations'",
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program: "bash",
+						args:    []string{"-c", echoSymlinkPath + " salutations"},
+					},
+					paths: []string{
+						echoPath,
+					},
+				},
+				{
+					cmdInfo: commandInfo{
+						program:           filepath.Base(echoSymlinkPath),
+						path:              echoSymlinkPath,
+						alternateFirstArg: echoSymlinkPath,
+						args:              []string{"salutations"},
+					},
+				},
+			},
+		},
+		{
 			name:    "reading file",
 			command: "cat " + tempFilePath,
 			eventInfos: []expectedEvents{
@@ -328,6 +361,36 @@ eval $(echo %s | base64 --decode)`,
 						"/etc/passwd",
 						"/etc/group",
 						cmdDir,
+					},
+				},
+			},
+		},
+		{
+			name:    "symlinked dir",
+			command: "dir " + etcSymlinkPath,
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program: "dir",
+						args:    []string{etcSymlinkPath},
+					},
+					paths: []string{
+						"/etc",
+					},
+				},
+			},
+		},
+		{
+			name:    "relative symlinked dir",
+			command: "cd " + symlinkDir + "; dir " + etcSymlinkDir,
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program: "dir",
+						args:    []string{etcSymlinkDir},
+					},
+					paths: []string{
+						"/etc",
 					},
 				},
 			},
@@ -550,6 +613,7 @@ func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, cl
 		}
 
 		cmdArgKey := commandKey(cmdInfo.program, args)
+		t.Logf("adding expected command: %s", cmdArgKey)
 		commandArgs[cmdArgKey] = count
 
 		// Build a map of expected opened files.
@@ -640,8 +704,9 @@ func TestBPFFailedCommandMaxArgsWithPAM(t *testing.T) {
 // testBPFFailedCommandMaxArgs tests that argument handling works as
 // expected when exit_execve is emitting the event.
 func testBPFFailedCommandMaxArgs(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	const path = "/dir/thesolution"
+
 	t.Run("oversized arg", func(t *testing.T) {
-		const path = "/dir/thesolution"
 		command := path + " " + overMaxArg
 		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
 
@@ -660,7 +725,6 @@ func testBPFFailedCommandMaxArgs(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	})
 
 	t.Run("too many oversized args", func(t *testing.T) {
-		const path = "/dir/thesolution"
 		command := path + " " + strings.Repeat(overMaxArg[:maxArgLength+1]+" ", maxArgCount+1)
 		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
 
@@ -674,6 +738,30 @@ func testBPFFailedCommandMaxArgs(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 						slices.Repeat([]string{overMaxArg[:maxArgLength-1]}, maxArgCount-1)...,
 					)
 					expectedArgs = append(expectedArgs, "...")
+
+					require.Equal(t, expectedArgs, e.Argv)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+
+	t.Run("max args", func(t *testing.T) {
+		arg := "arg"
+		command := path + " " + strings.Repeat(arg+" ", maxArgCount-1)
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				if e.Path == path {
+					expectedArgs := append(
+						[]string{path},
+						slices.Repeat([]string{arg}, maxArgCount-1)...,
+					)
 
 					require.Equal(t, expectedArgs, e.Argv)
 					found = true
