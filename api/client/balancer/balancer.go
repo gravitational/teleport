@@ -137,7 +137,7 @@ func (b *Balancer) UpdateClientConnState(state balancer.ClientConnState) error {
 // UpdateSubConnState is deprecated but still required to implement the
 // [balancer.Balancer] interface.
 func (b *Balancer) UpdateSubConnState(subConn balancer.SubConn, state balancer.SubConnState) {
-	b.log.Warn("UpdateSubConnState called unexpectedly", "subconn", subConn, "state", state)
+	b.log.WarnContext(b.ctx, "UpdateSubConnState called unexpectedly", "subconn", subConn, "state", state)
 }
 
 // ResolverError receives errors from a [grpc.Resolver].
