@@ -465,14 +465,14 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 		return nil, trace.Wrap(err)
 	}
 	if err := checkSubjectToken(subjectValue, ws); err != nil {
-		identity, _ := getIdentityFromWebSession(ws)
 		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata:       userMetadata(identity, ws.GetUser()),
-			AppMetadata:        appMetadata(identity),
+			// Do not use an identity in this event since token cannot be
+			// validated.
+			UserMetadata:       userMetadata(nil, ws.GetUser()),
 			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,

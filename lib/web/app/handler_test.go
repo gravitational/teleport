@@ -925,9 +925,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 		require.NotNil(t, event)
 		attempt, ok := event.(*apievents.AuthAttempt)
 		require.True(t, ok)
-		require.NotNil(t, attempt.AppMetadata)
-		require.Equal(t, "testapp", attempt.AppMetadata.AppName)
-		require.Equal(t, publicAddr, attempt.AppMetadata.AppPublicAddr)
+		require.Equal(t, "unknown", attempt.UserMetadata.User)
 		require.Equal(t, "testuser", attempt.UserMetadata.Login)
 	})
 
