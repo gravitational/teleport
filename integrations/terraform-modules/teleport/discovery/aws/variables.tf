@@ -169,6 +169,13 @@ variable "aws_iam_role_use_name_prefix" {
   nullable    = false
 }
 
+variable "teleport_discovery_config_install_suffix" {
+  description = "An optional installation suffix to use in the Teleport discovery_config. A suffix can be used to allow multiple Teleport installations on the same EC2 instance, which allows the instance to join multiple Teleport clusters. If specified, agent managed updates must be enabled on the cluster. See https://goteleport.com/docs/upgrading/agent-managed-updates/"
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
 variable "teleport_discovery_config_name" {
   description = "Name for the `teleport_discovery_config` resource."
   type        = string
