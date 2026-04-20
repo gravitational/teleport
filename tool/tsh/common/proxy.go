@@ -455,11 +455,20 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 	return dbProxyAuthMultiTpl
 }
 
-func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
-	if app.IsTCP() {
-		return alpncommon.ProtocolTCP
+func alpnProtocolForApp(app types.Application, appHTTPSTunnel bool) (alpncommon.Protocol, error) {
+	if appHTTPSTunnel {
+		switch app.GetProtocol() {
+		case types.ApplicationProtocolHTTP, types.ApplicationProtocolLLM:
+			return alpncommon.ProtocolAppHTTPS, nil
+		default:
+			return "", trace.BadParameter("--https-tunnel not supported for %s applications", app.GetProtocol())
+		}
 	}
-	return alpncommon.ProtocolHTTP
+
+	if app.IsTCP() {
+		return alpncommon.ProtocolTCP, nil
+	}
+	return alpncommon.ProtocolHTTP, nil
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
@@ -509,7 +518,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
+
+	alpnProtocol, err := alpnProtocolForApp(app, cf.AppHTTPSTunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -517,10 +531,18 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if portMapping.TargetPort != 0 {
 		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
-	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	fmt.Fprintf(cf.Stdout(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
 	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+		fmt.Fprintln(cf.Stdout(), "To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
+
+	if cf.AppHTTPSTunnel {
+		curlCmd := fmt.Sprintf("curl --connect-to %s:443:%s https://%s", app.GetPublicAddr(), proxyApp.GetAddr(), app.GetPublicAddr())
+		if cf.InsecureSkipVerify {
+			curlCmd += " -k"
+		}
+		fmt.Fprintf(cf.Stdout(), "\nExample curl command:\n%s\n", curlCmd)
 	}
 
 	defer func() {
