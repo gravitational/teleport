@@ -37,7 +37,9 @@ type ManagedDevice struct {
 	// certificateReset, notRegisteredPendingEnrollment, unknown.
 	DeviceRegistrationState string `json:"deviceRegistrationState"`
 	SerialNumber            string `json:"serialNumber"`
-	Model                   string `json:"model"`
+	// Model is a human-friendly description of the model of the device, e.g. "iPad mini (A17 Pro)",
+	// "iPhone 14", "iPad (A16)".
+	Model string `json:"model"`
 	// OperatingSystem is the OS of the device, e.g. "Windows", "macOS", "Linux (ubuntu)".
 	OperatingSystem string `json:"operatingSystem"`
 	// OSVersion is the version of the OS, e.g. "10.0.26100.4351" (Windows), "15.5 (24F74)" (macOS),
