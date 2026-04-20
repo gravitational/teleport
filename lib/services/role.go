@@ -509,7 +509,7 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inLinuxDesktopLogins := r.GetLinuxDesktopLogins(condition)
-		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, traits, "linux_desktop_login")
+		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, ctx, "linux_desktop_login")
 		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
 		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
 
