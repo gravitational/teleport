@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/e/lib/jamf"
@@ -188,7 +189,21 @@ func TestClient_GetComputersInventoryID(t *testing.T) {
 
 	api := env.API
 	client := env.Client
-	ctx := context.Background()
+	ctx := t.Context()
+
+	t.Run("invalid ID", func(t *testing.T) {
+		for _, id := range []string{
+			"../scripts",
+			"..",
+			"foo/bar",
+			"with space",
+		} {
+			_, err := client.GetComputersInventoryByID(ctx, &jamf.GetComputersInventoryByIDRequest{ID: id})
+			require.Error(t, err, "ID %q", id)
+			require.True(t, trace.IsBadParameter(err), "ID %q", id)
+		}
+
+	})
 
 	inv := []*jamf.ComputerInventory{
 		{

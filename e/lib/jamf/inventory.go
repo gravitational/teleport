@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -246,6 +247,12 @@ func (c *Client) getComputersInventoryByID(
 		// Don't query without an ID, the response is the same as
 		// listing/GetComputersInventory.
 		return nil, trace.BadParameter("id required")
+
+	// Prevent malicious request IDs from making requests to other APIs.
+	case url.PathEscape(req.ID) != req.ID:
+		return nil, trace.BadParameter("invalid device ID %q", req.ID)
+	case req.ID == ".." || strings.Contains(req.ID, "../"):
+		return nil, trace.BadParameter("invalid device ID %q", req.ID)
 	}
 
 	q := make(url.Values)
