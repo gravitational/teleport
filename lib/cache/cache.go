@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -556,6 +557,8 @@ type Cache struct {
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
+
+	boom atomic.Bool
 }
 
 var _ authclient.Cache = (*Cache)(nil)
@@ -955,6 +958,15 @@ func New(config Config) (*Cache, error) {
 	if err := cs.Start(); err != nil {
 		cs.Close()
 		return nil, trace.Wrap(err)
+	}
+
+	if os.Getenv("CACHE_BOOM") != "" {
+		go func() {
+			cs.Logger.Warn("CACHE_BOOM is set, cache will break in 2m")
+			time.Sleep(2 * time.Minute)
+			cs.boom.Store(true)
+			cs.Logger.Warn("cache is now broken")
+		}()
 	}
 
 	return cs, nil
@@ -1581,6 +1593,9 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := handler.fetch(ctx, cacheOK)
+			if c.boom.Load() {
+				return trace.BadParameter("cache boom set fetching collection")
+			}
 			if err != nil {
 				return trace.Wrap(err, "failed to fetch resource: %q", kind)
 			}
@@ -1608,6 +1623,10 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 // resources which were not registered are ignored. If processing completed successfully,
 // the event will be emitted via the fanout.
 func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
+	if c.boom.Load() {
+		return trace.BadParameter("cache boom set processing event")
+	}
+
 	resourceKind := resourceKindFromResource(event.Resource)
 
 	handler, handlerFound := c.collections.byKind[resourceKind]
