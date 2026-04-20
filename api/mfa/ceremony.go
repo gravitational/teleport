@@ -226,7 +226,13 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 	// session-bound challenge without SSO or Browser MFA.
 	if c.callbackCeremonyConstructor != nil {
 		callbackCeremony, err := c.callbackCeremonyConstructor(ctx)
-		if err == nil {
+		if err != nil {
+			slog.DebugContext(
+				ctx,
+				"Failed starting callback ceremony for SSO/Browser MFA, continuing with other MFA methods",
+				"error", err,
+			)
+		} else {
 			defer callbackCeremony.Close()
 
 			createReq.SsoClientRedirectUrl = callbackCeremony.GetClientCallbackURL()
@@ -333,7 +339,10 @@ func convertToMFAAuthResp(protoResp *proto.MFAAuthenticateResponse, name string)
 		}
 
 	default:
-		return nil, trace.BadParameter("unknown or nil response with type %T (this is a bug)", protoResp.GetResponse())
+		return nil, trace.BadParameter(
+			"unsupported MFA response from client (type %T); update your client to the latest supported version for this cluster and try again",
+			protoResp.GetResponse(),
+		)
 	}
 
 	return mfaAuthResp, nil

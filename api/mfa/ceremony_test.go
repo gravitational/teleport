@@ -628,6 +628,28 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			wantErr: trace.BadParameter("challenge name must not be empty"),
 		},
 		{
+			name: "prompt returns unsupported or nil MFA response",
+			buildConfig: func() mfa.SessionBoundCeremonyConfig {
+				config := newSessionBindingConfig()
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+					resp := newSessionBindingCreateResp(mockChallengeName)
+					resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
+
+					return resp, nil
+				}
+				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(
+						func(_ context.Context, _ *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+							return &proto.MFAAuthenticateResponse{}, nil
+						},
+					)
+				}
+
+				return config
+			},
+			wantErr: trace.BadParameter("unsupported MFA response from client (type <nil>); update your client to the latest supported version for this cluster and try again"),
+		},
+		{
 			name: "validate session challenge returns error",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
