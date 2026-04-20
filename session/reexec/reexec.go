@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -825,7 +826,7 @@ func RunNetworking() (code int, err error) {
 	// Create a minimal default environment for the user.
 	workingDir := rootDirectory
 
-	hasAccess, err := CheckHomeDir(localUser)
+	hasAccess, err := checkHomeDir(localUser)
 	if hasAccess && err == nil {
 		workingDir = localUser.HomeDir
 	}
@@ -1122,6 +1123,14 @@ func RunAndExit(commandType string) {
 		code = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
 		code = runPark()
+	case reexecconstants.TrueSubCommand:
+		// nothing to do
+	case reexecconstants.SFTPSubCommand:
+		initLogger("sftp", os.Stderr, ExecLogConfig{})
+		err = reexecsftp.RunSFTP(slog.Default())
+		if err != nil {
+			code = 1
+		}
 	default:
 		code, err = reexecconstants.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -1144,19 +1153,37 @@ func RunAndExit(commandType string) {
 	os.Exit(code)
 }
 
+// MaybeReexec checks if the command-line arguments are those of a Teleport
+// reexec command, and if so, runs the logic for the command (terminating the
+// process at the end). Should be the first thing called in the main function
+// for the Teleport binary or in the TestMain for packages that rely on
+// reexecution.
+func MaybeReexec() {
+	if IsReexec() {
+		RunAndExit(os.Args[1])
+	}
+}
+
+// TODO(espadolini): remove IsReexec and RunAndExit in favor of requiring MaybeReexec, after enterprise is updated
+
 // IsReexec determines if the current process is a teleport reexec command.
 // Used by tests to reroute the execution to RunAndExit.
 func IsReexec() bool {
-	if len(os.Args) >= 2 {
-		switch os.Args[1] {
-		case reexecconstants.ExecSubCommand, reexecconstants.NetworkingSubCommand,
-			reexecconstants.CheckHomeDirSubCommand,
-			reexecconstants.ParkSubCommand, reexecconstants.SFTPSubCommand:
-			return true
-		}
+	if len(os.Args) < 2 {
+		return false
 	}
 
-	return false
+	switch os.Args[1] {
+	case reexecconstants.ExecSubCommand,
+		reexecconstants.NetworkingSubCommand,
+		reexecconstants.CheckHomeDirSubCommand,
+		reexecconstants.ParkSubCommand,
+		reexecconstants.TrueSubCommand,
+		reexecconstants.SFTPSubCommand:
+		return true
+	default:
+		return false
+	}
 }
 
 // openFileAsUser opens a file as the given user to ensure proper access checks. This is unsafe and should not be used outside of
@@ -1332,7 +1359,7 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	hasAccess, err := CheckHomeDir(localUser)
+	hasAccess, err := checkHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1433,10 +1460,10 @@ func hasAccessibleHomeDir() error {
 	return nil
 }
 
-// CheckHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
+// checkHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
 // errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
 // in a return of (false, nil)
-func CheckHomeDir(localUser *user.User) (bool, error) {
+func checkHomeDir(localUser *user.User) (bool, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return false, trace.Wrap(err)

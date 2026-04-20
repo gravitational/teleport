@@ -118,7 +118,7 @@ type AuthService interface {
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
 	AuthService        AuthService
-	Authorizer         authz.Authorizer
+	ScopedAuthorizer   authz.ScopedAuthorizer
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
@@ -277,6 +277,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
 		i.BotName = token.GetBotName()
+
+		// It's not worth fetching the true bot scope here (via bot user label)
+		// so we'll just include the one embedded in the token.
+		i.BotScope = token.GetBotScope()
 	})
 
 	// Validate that the requested join method matches the join method
@@ -369,7 +373,7 @@ func (s *Server) handleJoinMethod(
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err, "unexpected error authorizing request")
 	}
@@ -377,9 +381,20 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		// No authentication or AccessDenied is okay, this is not normally an
 		// authenticated endpoint unless the client is re-joining or the
 		// request was forwarded by a proxy, just return an empty Context.
+
+		// A note around use of ScopedAuthorizer: it will return an empty
+		// context if the scopes feature is disabled even if an otherwise-valid
+		// scoped identity is presented, so they will be treated as
+		// unauthenticated and ultimately will fail to join. This edge case will
+		// be resolved when the scopes feature flag is removed.
 		return &joinauthz.Context{}, nil
 	}
-	isProxy := authz.HasBuiltinRole(*authCtx, types.RoleProxy.String())
+	var isProxy bool
+	if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+		// Proxy identities are always unscoped, so the unscoped context should
+		// always be available.
+		isProxy = authz.HasBuiltinRole(*unscopedCtx, types.RoleProxy.String())
+	}
 	if !isProxy && clientInit.ProxySuppliedParams != nil {
 		return nil, trace.AccessDenied("client set ProxySuppliedParameters but did not authenticate as a proxy")
 	}
@@ -767,6 +782,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			TokenName:     info.SafeTokenName,
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
+			Scope:         info.BotScope,
 			Attributes:    attributesStruct,
 		}
 	}

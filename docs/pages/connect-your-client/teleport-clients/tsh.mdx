@@ -354,6 +354,21 @@ a browser of your choice to continue the login flow.
 
 [CLI Docs - tsh login](../../reference/cli/tsh.mdx#tsh-login)
 
+### MFA mode
+
+When a command requires MFA, `tsh` uses the `--mfa-mode` flag to determine how
+to complete the MFA check. If omitted, it defaults to `auto`, which tries each
+method in order until one succeeds:
+
+1. WebAuthn (with TOTP if available)
+1. SSO
+1. Browser MFA
+1. TOTP
+
+[Browser MFA](../../zero-trust-access/authentication/browser-mfa.mdx) allows
+users whose only registered MFA device is browser-based (e.g. a passkey or
+Touch ID) to complete MFA checks from the CLI by opening a browser window.
+
 ### Inspecting an SSH certificate
 
 To inspect the SSH certificates in `~/.tsh`, a user may execute the following

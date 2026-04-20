@@ -13,10 +13,9 @@ locals {
   aws_iam_oidc_provider_url = replace(local.teleport_proxy_public_url, "/:[0-9]+.*/", "")
   create_aws_iam_openid_connect_provider = (
     local.create
-    && local.use_oidc_integration
+    && var.discovery_service_iam_credential_source.use_oidc_integration
     && var.create_aws_iam_openid_connect_provider
   )
-  use_oidc_integration = var.discovery_service_iam_credential_source.use_oidc_integration
 }
 
 data "tls_certificate" "teleport_proxy" {

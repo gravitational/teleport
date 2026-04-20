@@ -20,6 +20,7 @@ package tfgen
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,6 +35,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tfgen/internal"
 )
+
+// invalidTerraformName matches any character that is not valid in a
+// Terraform resource name.
+var invalidTerraformName = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+// SanitizeResourceName returns a copy of name safe for use as Terraform resource
+// name. Chars not matching "a-zA-Z0-9_-" are replaced with underscores.
+func SanitizeResourceName(name string) string {
+	return invalidTerraformName.ReplaceAllString(name, "_")
+}
 
 // Resource for which Terraform configuration can be generated. It's a subset of
 // the common methods between types.Resource and types.Resource153.
@@ -161,6 +172,16 @@ func generateResource(
 		"resource",
 		[]string{resourceType, resourceName},
 	)
+
+	// Add the terraform depends_on meta-argument to the resource block.
+	if len(opts.dependsOn) > 0 {
+		dependsOnTokens := make([]hclwrite.Tokens, 0, len(opts.dependsOn))
+		for _, d := range opts.dependsOn {
+			dependsOnTokens = append(dependsOnTokens, hclwrite.TokensForIdentifier(d))
+		}
+		resourceBlock.Body().SetAttributeRaw("depends_on", hclwrite.TokensForTuple(dependsOnTokens))
+		resourceBlock.Body().AppendNewline()
+	}
 
 	msg, err := reflectMessage(resource)
 	if err != nil {

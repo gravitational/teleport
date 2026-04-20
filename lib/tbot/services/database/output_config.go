@@ -94,6 +94,11 @@ type OutputConfig struct {
 	// Username is the database username to request access as.
 	Username string `yaml:"username,omitempty"`
 
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
@@ -117,7 +122,10 @@ func (o *OutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
-func (o *OutputConfig) CheckAndSetDefaults() error {
+func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -131,6 +139,9 @@ func (o *OutputConfig) CheckAndSetDefaults() error {
 
 	if !slices.Contains(databaseFormats, o.Format) {
 		return trace.BadParameter("unrecognized format (%s)", o.Format)
+	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
 	}
 
 	return nil

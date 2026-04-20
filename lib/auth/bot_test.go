@@ -34,8 +34,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -47,6 +49,8 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -64,6 +68,8 @@ import (
 	"github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -502,6 +508,7 @@ func TestRegisterBotInstance(t *testing.T) {
 				PrivateKeyPolicy: "none",
 				BotName:          "test",
 				BotInstanceID:    ident.BotInstanceID,
+				BotInternal:      true,
 			},
 			CertificateAuthority: &events.CertificateAuthority{
 				Type:   "user",
@@ -1250,6 +1257,157 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	require.NoError(t, err)
 	genStr := botUser.BotGenerationLabel()
 	require.Equal(t, "7", genStr)
+}
+
+// createScopedBot creates a scoped bot with necessary role assignments for testing.
+func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authclient.Client) {
+	t.Helper()
+
+	// Create a scoped role for the bot.
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err := scopedSvc.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-example",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create the scoped bot.
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Scope:   "/test",
+			Metadata: &headerv1.Metadata{
+				Name: "test-scoped",
+			},
+			Spec: &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a scoped role assignment for the bot.
+	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "test-scoped",
+				BotScope: "/test",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "scoped-example", Scope: "/test"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, time.Second*10, 100*time.Millisecond)
+}
+
+func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t)
+	addr := utils.MustParseAddr(srv.Addr().String())
+
+	// Initial setup, create a bot and join token.
+	client, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	createScopedBot(t, srv, client)
+
+	k8s, err := fakeissuer.NewKubernetesSigner(srv.Clock())
+	require.NoError(t, err)
+	jwks, err := k8s.GetMarshaledJWKS()
+	require.NoError(t, err)
+	fakePSAT, err := k8s.SignServiceAccountJWT(
+		"my-pod",
+		"my-namespace",
+		"my-service-account",
+		srv.ClusterName(),
+	)
+	require.NoError(t, err)
+
+	scopedToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/test",
+		Metadata: &headerv1.Metadata{
+			Name: "example-token",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			JoinMethod: string(types.JoinMethodKubernetes),
+			Roles:      []string{string(types.RoleBot)},
+			UsageMode:  joining.TokenUsageModeBot,
+			BotName:    "test-scoped",
+			BotScope:   "/test",
+			Kubernetes: &joiningv1.Kubernetes{
+				Type: string(types.KubernetesJoinTypeStaticJWKS),
+				StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{
+					Jwks: jwks,
+				},
+				Allow: []*joiningv1.Kubernetes_Rule{
+					{
+						ServiceAccount: "my-namespace:my-service-account",
+					},
+				},
+			},
+		},
+	}
+
+	_, err = client.CreateScopedToken(ctx, scopedToken)
+	require.NoError(t, err)
+
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
+		Token:      scopedToken.GetMetadata().GetName(),
+		JoinMethod: types.JoinMethodKubernetes,
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		KubernetesReadFileFunc: func(name string) ([]byte, error) {
+			return []byte(fakePSAT), nil
+		},
+	})
+	require.NoError(t, err)
+
+	cert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+	require.NoError(t, err)
+	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+
+	require.NotNil(t, ident.ScopePin)
+	require.Equal(t, "/test", ident.ScopePin.GetScope())
+	require.True(t, ident.BotInternal)
+	require.Equal(t, "example-token", ident.JoinToken)
+
+	botClient := authClientForRegisterResult(t, ctx, addr, result)
+
+	_, err = botClient.Ping(ctx)
+	require.NoError(t, err)
 }
 
 func checkCertLoginIP(t *testing.T, certBytes []byte, loginIP string) {

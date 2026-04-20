@@ -135,6 +135,7 @@ tcp_ports:
   - # [...]
 use_any_proxy_public_addr: true
 mcp: # [...]
+inference: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -145,6 +146,7 @@ mcp: # [...]
 |cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORS Policy](#cors-policy)|
 |dynamic_labels|The app's command labels.|map[string][Command Label V2](#command-label-v2)|
 |identity_center|Encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
+|inference|Contains LLM inference endpoint related configurations.|[LLM](#llm)|
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
 |integration|The integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|string|
 |mcp|Contains MCP server related configurations.|[MCP](#mcp)|
@@ -254,6 +256,47 @@ assignment_name: "string"
 |arn|The fully-formed ARN of the Permission Set.|string|
 |assignment_name|The ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.|string|
 |name|The human-readable name of the Permission Set.|string|
+
+## LLM
+
+Contains LLM inference endpoint related configurations.
+
+
+Example:
+
+```yaml
+format: "string"
+provider: "string"
+models: 
+  - # [...]
+  - # [...]
+  - # [...]
+fallback_model: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|fallback_model|Defines a model that will be used if the model requested is not on the list. The fallback model must be in the "models" list.|string|
+|format|Defines the LLM inference API format.|string|
+|models|Defines the list of supported models, and optionally their name on the inference provider.|[][LLM_Model](#llm_model)|
+|provider|Defines which inference provider will be used to serve the requests.|string|
+
+## LLM_Model
+
+Model is a provider model definition.
+
+
+Example:
+
+```yaml
+name: "string"
+provider_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Defines the model name. This is the requested value.|string|
+|provider_name|Represents the model name in the configured provider.|string|
 
 ## MCP
 

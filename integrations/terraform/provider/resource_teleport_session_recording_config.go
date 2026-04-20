@@ -184,6 +184,10 @@ func (r resourceTeleportSessionRecordingConfig) Read(ctx context.Context, req tf
 	}
 
 	sessionRecordingConfigI, err := r.p.Client.GetSessionRecordingConfig(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 		return
