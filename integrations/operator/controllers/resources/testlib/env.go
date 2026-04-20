@@ -126,6 +126,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
 				types.NewRule(types.KindAuthConnector, unrestricted),
+				types.NewRule(types.KindLock, unrestricted),
 				types.NewRule(types.KindLoginRule, unrestricted),
 				types.NewRule(types.KindToken, unrestricted),
 				types.NewRule(types.KindOktaImportRule, unrestricted),
