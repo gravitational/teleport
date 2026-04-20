@@ -669,6 +669,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		Req:                req,
 		AgentScope:         identity.AgentScope,
 		ImmutableLabelHash: identity.ImmutableLabelHash,
+		JoinToken:          identity.JoinToken,
 	})
 }
 
