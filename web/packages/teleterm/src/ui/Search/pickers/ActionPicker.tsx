@@ -884,10 +884,10 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
 
 /**
  * Computes secondary matches to display in the item details.
- * Excludes resource/lable matches for terms already found by the main field,
- * so we don't overwhelm users with too much information.
+ * It omits resource and label matches for terms already matched in the main field,
+ * reducing duplicate highlights.
  */
-function getVisibleMatches(
+export function getVisibleMatches(
   searchResult: ResourceSearchResult,
   mainField: ResourceMatch<ResourceSearchResult['kind']>['field']
 ) {
