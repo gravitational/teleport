@@ -145,14 +145,6 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	var allowed []*linuxdesktopv1.LinuxDesktop
-	for _, desktop := range rsp {
-		if err := authCtx.CheckAccessToResource153(desktop, types.VerbList); err != nil {
-			continue
-		}
-		allowed = append(allowed, desktop)
-	}
-
 	return &linuxdesktopv1.ListLinuxDesktopsResponse{
 		LinuxDesktops: rsp,
 		NextPageToken: nextToken,
