@@ -105,10 +105,10 @@ type accessPoint interface {
 	types.Semaphores
 
 	// UpsertTunnelConnection upserts tunnel connection
-	UpsertTunnelConnection(conn types.TunnelConnection) error
+	UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error
 
 	// DeleteTunnelConnection deletes tunnel connection
-	DeleteTunnelConnection(clusterName, connName string) error
+	DeleteTunnelConnection(ctx context.Context, clusterName, connName string) error
 
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)

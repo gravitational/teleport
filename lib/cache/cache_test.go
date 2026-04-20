@@ -2738,12 +2738,6 @@ func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error))
 	}
 }
 
-func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
-	return func(_ context.Context, resource T) error {
-		return fn(resource)
-	}
-}
-
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
 const testEntityDescriptorFmt = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">

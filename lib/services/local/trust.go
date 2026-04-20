@@ -815,7 +815,7 @@ func (s *CA) DeleteTrustedClusterInternal(ctx context.Context, name string, caID
 }
 
 // UpsertTunnelConnection updates or creates tunnel connection
-func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
+func (s *CA) UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
 	if err := services.CheckAndSetDefaults(conn); err != nil {
 		return trace.Wrap(err)
 	}
@@ -825,7 +825,7 @@ func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:    value,
 		Expires:  conn.Expiry(),
@@ -901,14 +901,14 @@ func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.Tu
 }
 
 // DeleteTunnelConnection deletes tunnel connection by name
-func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
+func (s *CA) DeleteTunnelConnection(ctx context.Context, clusterName, connectionName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
 	if connectionName == "" {
 		return trace.BadParameter("missing connection name")
 	}
-	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
+	return s.Delete(ctx, backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
 // CreateRemoteCluster creates a remote cluster

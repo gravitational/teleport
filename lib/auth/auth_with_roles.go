@@ -5862,11 +5862,14 @@ func (a *ServerWithRoles) DeleteTrustedCluster(ctx context.Context, name string)
 	return a.authServer.DeleteTrustedCluster(ctx, name)
 }
 
-func (a *ServerWithRoles) UpsertTunnelConnection(conn types.TunnelConnection) error {
+// Deprecated: Prefer the [trustv1.Service.UpsertTunnelConnection] RPC.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (a *ServerWithRoles) UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
 	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertTunnelConnection(conn)
+	return a.authServer.UpsertTunnelConnection(ctx, conn)
 }
 
 func (a *ServerWithRoles) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
@@ -5883,11 +5886,14 @@ func (a *ServerWithRoles) GetAllTunnelConnections(opts ...services.MarshalOption
 	return a.authServer.GetAllTunnelConnections(opts...)
 }
 
-func (a *ServerWithRoles) DeleteTunnelConnection(clusterName string, connName string) error {
+// Deprecated: Prefer the [trustv1.Service.DeleteTunnelConnection] RPC.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (a *ServerWithRoles) DeleteTunnelConnection(ctx context.Context, clusterName string, connName string) error {
 	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteTunnelConnection(clusterName, connName)
+	return a.authServer.DeleteTunnelConnection(ctx, clusterName, connName)
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.

@@ -138,7 +138,7 @@ type Clusters interface {
 	DeleteTrustedCluster(ctx context.Context, name string) error
 
 	// UpsertTunnelConnection upserts tunnel connection
-	UpsertTunnelConnection(types.TunnelConnection) error
+	UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...MarshalOption) ([]types.TunnelConnection, error)
@@ -147,7 +147,7 @@ type Clusters interface {
 	GetAllTunnelConnections(opts ...MarshalOption) ([]types.TunnelConnection, error)
 
 	// DeleteTunnelConnection deletes tunnel connection by name
-	DeleteTunnelConnection(clusterName string, connName string) error
+	DeleteTunnelConnection(ctx context.Context, clusterName string, connName string) error
 
 	// CreateRemoteCluster creates a remote cluster
 	CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
