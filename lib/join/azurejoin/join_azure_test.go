@@ -36,8 +36,8 @@ import (
 	"time"
 
 	"github.com/digitorus/pkcs7"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
@@ -113,7 +114,7 @@ func mockVerifyToken(err error) azurejoin.AzureVerifyTokenFunc {
 		if err != nil {
 			return nil, err
 		}
-		tok, err := jwt.ParseSigned(rawToken)
+		tok, err := jwt.ParseSigned(rawToken, []jose.SignatureAlgorithm{jose.RS256})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -126,10 +127,16 @@ func mockVerifyToken(err error) azurejoin.AzureVerifyTokenFunc {
 }
 
 func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time.Time) (string, error) {
-	sig, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.HS256,
-		Key:       []byte("test-key"),
-	}, &jose.SignerOptions{})
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	sig, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
+		(&jose.SignerOptions{}).WithType("JWT"),
+	)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -148,7 +155,7 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 		TenantID:                   "test-tenant-id",
 		Version:                    "1.0",
 	}
-	raw, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
+	raw, err := jwt.Signed(sig).Claims(claims).Serialize()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

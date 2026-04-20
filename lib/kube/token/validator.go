@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	josejwt "github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	v1 "k8s.io/api/authentication/v1"
@@ -120,7 +120,7 @@ func (v *TokenReviewValidator) getClient(_ context.Context) (kubernetes.Interfac
 // Bound tokens always have audiences and the list will not be empty.
 // Legacy tokens don't have audiences, the result will be an empty list and no error.
 func unsafeGetTokenAudiences(token string) ([]string, error) {
-	jwt, err := josejwt.ParseSigned(token)
+	jwt, err := josejwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256, jose.ES256, jose.EdDSA})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -262,7 +262,7 @@ func ValidateTokenWithJWKS(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	jwt, err := josejwt.ParseSigned(token)
+	jwt, err := josejwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256, jose.ES256, jose.EdDSA})
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing jwt")
 	}
@@ -282,7 +282,7 @@ func ValidateTokenWithJWKS(
 		// We don't need to check the subject or other claims here.
 		// Anything related to matching the token against ProvisionToken
 		// allow rules is left to the discretion of `lib/auth`.
-		Audience: []string{
+		AnyAudience: []string{
 			clusterName,
 		},
 		Time: now,

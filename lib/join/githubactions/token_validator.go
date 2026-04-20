@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	josejwt "github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/oidc"
@@ -92,7 +92,7 @@ func ValidateTokenWithJWKS(
 	jwksData []byte,
 	token string,
 ) (*IDTokenClaims, error) {
-	parsed, err := josejwt.ParseSigned(token)
+	parsed, err := josejwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256, jose.ES256, jose.EdDSA})
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing jwt")
 	}
@@ -109,7 +109,7 @@ func ValidateTokenWithJWKS(
 
 	leeway := time.Second * 10
 	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
-		Audience: []string{
+		AnyAudience: []string{
 			audience,
 		},
 		Time: now,

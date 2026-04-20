@@ -19,6 +19,9 @@ package join
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
 	"log/slog"
 	"net/http"
@@ -26,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
@@ -60,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
-	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -1053,8 +1055,16 @@ func registerUsingBoundKeypairMethod(
 					return nil, trace.Wrap(err, "could not lookup signer for public key %+v", kind.Challenge.PublicKey)
 				}
 
-				alg, err := jwt.AlgorithmForPublicKey(signer.Public())
-				if err != nil {
+				// TODO(tross): Replace with jwt.AlgorithmForPublicKey once jwt users go-jose/v4
+				var alg jose.SignatureAlgorithm
+				switch signer.Public().(type) {
+				case *rsa.PublicKey:
+					alg = jose.RS256
+				case *ecdsa.PublicKey:
+					alg = jose.ES256
+				case ed25519.PublicKey:
+					alg = jose.EdDSA
+				default:
 					return nil, trace.Wrap(err, "determining signing algorithm for public key")
 				}
 

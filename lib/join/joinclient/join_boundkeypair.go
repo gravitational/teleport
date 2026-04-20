@@ -19,10 +19,13 @@ package joinclient
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"log/slog"
 	"strings"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -31,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/jwt"
 )
 
 type (
@@ -173,9 +175,17 @@ func solveBoundKeypairChallenge(state boundkeypair.ClientState, challengeMsg *me
 		return nil, trace.Wrap(err, "could not lookup signer for public key %s", string(challengeMsg.PublicKey))
 	}
 
-	alg, err := jwt.AlgorithmForPublicKey(signer.Public())
-	if err != nil {
-		return nil, trace.Wrap(err, "determining signing algorithm for public key")
+	// TODO(tross): Replace with jwt.AlgorithmForPublicKey once jwt users go-jose/v4
+	var alg jose.SignatureAlgorithm
+	switch signer.Public().(type) {
+	case *rsa.PublicKey:
+		alg = jose.RS256
+	case *ecdsa.PublicKey:
+		alg = jose.ES256
+	case ed25519.PublicKey:
+		alg = jose.EdDSA
+	default:
+		return nil, trace.BadParameter("unsupported public key type %T", signer.Public())
 	}
 
 	opts := (&jose.SignerOptions{}).WithType("JWT")

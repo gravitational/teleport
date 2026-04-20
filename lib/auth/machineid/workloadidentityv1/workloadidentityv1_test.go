@@ -36,7 +36,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -688,7 +689,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
 
 				// Check the JWT
-				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt(), []jose.SignatureAlgorithm{jose.ES256})
 				require.NoError(t, err)
 
 				claims := jwt.Claims{}
@@ -781,7 +782,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					"unexpected number format: %s", numericClaims.Iat.String(),
 				)
 
-				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
+				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt(), []jose.SignatureAlgorithm{jose.ES256})
 				require.NoError(t, err)
 
 				var claims struct {
@@ -1194,7 +1195,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				wantTTL := time.Hour * 24
 				// Check expiry makes sense
 				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
-				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt(), []jose.SignatureAlgorithm{jose.ES256})
 				require.NoError(t, err)
 				claims := jwt.Claims{}
 				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
@@ -1224,7 +1225,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				wantTTL := time.Minute * 15
 				// Check expiry makes sense
 				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
-				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt(), []jose.SignatureAlgorithm{jose.ES256})
 				require.NoError(t, err)
 				claims := jwt.Claims{}
 				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
@@ -1530,7 +1531,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 					workloadIdentitiesIssued = append(workloadIdentitiesIssued, cred.WorkloadIdentityName)
 
 					// Check a credential was actually included and is valid.
-					parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+					parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt(), []jose.SignatureAlgorithm{jose.ES256})
 					require.NoError(t, err)
 					claims := jwt.Claims{}
 					err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)

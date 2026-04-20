@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
@@ -146,7 +146,7 @@ func (f *fakeIDP) issueToken(
 	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
 		Claims(claims).
-		CompactSerialize()
+		Serialize()
 	require.NoError(t, err)
 
 	return token

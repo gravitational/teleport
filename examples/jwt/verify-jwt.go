@@ -33,7 +33,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 // jwk is a JSON Web Key, described in detail in RFC 7517.
@@ -161,7 +162,7 @@ func unmarshalECDSAJWK(jwk jwk) (*ecdsa.PublicKey, error) {
 // verify will verify the JWT.
 func verify(publicKey crypto.PublicKey, token string) (*claims, error) {
 	// Parse the raw token.
-	t, err := jwt.ParseSigned(token)
+	t, err := jwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.ES256})
 	if err != nil {
 		return nil, err
 	}
@@ -179,10 +180,10 @@ func verify(publicKey crypto.PublicKey, token string) (*claims, error) {
 func validate(claims *claims, issuer string, subject string, audience string) error {
 	// Validate the claims on the JWT.
 	expectedClaims := jwt.Expected{
-		Issuer:   issuer,
-		Subject:  subject,
-		Audience: jwt.Audience{audience},
-		Time:     time.Now(),
+		Issuer:      issuer,
+		Subject:     subject,
+		AnyAudience: jwt.Audience{audience},
+		Time:        time.Now(),
 	}
 
 	return claims.Validate(expectedClaims)

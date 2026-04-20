@@ -24,7 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -331,7 +332,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 				require.NotEmpty(t, svid.Jti)
 				require.NotEmpty(t, svid.Jwt)
 
-				parsed, err := jwt.ParseSigned(svid.Jwt)
+				parsed, err := jwt.ParseSigned(svid.Jwt, []jose.SignatureAlgorithm{jose.ES256})
 				require.NoError(t, err)
 
 				claims := jwt.Claims{}

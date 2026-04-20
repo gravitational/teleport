@@ -23,7 +23,8 @@ import (
 	"crypto/subtle"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -160,7 +161,7 @@ func (v *ChallengeValidator) IssueChallenge() (*ChallengeDocument, error) {
 // signature matches the requested public key, and that the claims pass JWT
 // validation.
 func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument, compactResponse string) error {
-	token, err := jwt.ParseSigned(compactResponse)
+	token, err := jwt.ParseSigned(compactResponse, []jose.SignatureAlgorithm{jose.RS256, jose.ES256, jose.EdDSA})
 	if err != nil {
 		return trace.Wrap(err, "parsing signed response")
 	}
@@ -173,10 +174,10 @@ func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument
 	// Validate the challenge document claims per JWT rules.
 	const leeway time.Duration = time.Minute
 	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
-		Issuer:   v.clusterName,
-		Subject:  v.subject,
-		Audience: jwt.Audience{v.clusterName},
-		Time:     v.clock.Now(),
+		Issuer:      v.clusterName,
+		Subject:     v.subject,
+		AnyAudience: jwt.Audience{v.clusterName},
+		Time:        v.clock.Now(),
 	}, leeway); err != nil {
 		return trace.Wrap(err, "validating challenge claims")
 	}
