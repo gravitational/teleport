@@ -29,12 +29,6 @@ const (
 	// JamfOnMissingDelete is the textual representation for the DELETE on_missing
 	// action.
 	JamfOnMissingDelete = "DELETE"
-
-	// JamfDeviceTypeComputers is the device type for macOS computers.
-	JamfDeviceTypeComputers = "computers"
-	// JamfDeviceTypeMobileDevices is the device type for iOS/iPadOS mobile
-	// devices.
-	JamfDeviceTypeMobileDevices = "mobile_devices"
 )
 
 // JamfOnMissingActions is a slice of all textual on_missing representations,
@@ -43,6 +37,14 @@ var JamfOnMissingActions = []string{
 	JamfOnMissingNoop,
 	JamfOnMissingDelete,
 }
+
+const (
+	// JamfDeviceTypeComputers is the device type for macOS computers.
+	JamfDeviceTypeComputers = "computers"
+	// JamfDeviceTypeMobileDevices is the device type for iOS/iPadOS mobile
+	// devices.
+	JamfDeviceTypeMobileDevices = "mobile_devices"
+)
 
 // JamfDeviceTypes is a slice of all valid device type values.
 var JamfDeviceTypes = []string{
