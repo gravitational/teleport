@@ -8,6 +8,15 @@ locals {
     ? "${var.teleport_provision_token_name}-${local.teleport_resource_name_suffix}"
     : var.teleport_provision_token_name
   )
+
+  token_allow_rules = flatten([
+    for matcher in var.azure_matchers : [
+      for sub in matcher.subscriptions : merge(
+        { subscription = sub },
+        contains(matcher.resource_groups, "*") ? {} : { resource_groups = matcher.resource_groups }
+      )
+    ]
+  ])
 }
 
 # Teleport provision token for Azure join
@@ -21,9 +30,7 @@ resource "teleport_provision_token" "azure" {
   }
   spec = {
     azure = {
-      allow = [for sub in local.azure_matcher_subscriptions : {
-        subscription = sub
-      }]
+      allow = local.token_allow_rules
     }
     join_method = "azure"
     roles       = ["Node"]
