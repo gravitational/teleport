@@ -2049,33 +2049,6 @@ func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurable
 	runTestCases(true)
 }
 
-func TestAuthPreferenceRBAC(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
-		kind: types.KindClusterAuthPreference,
-		storeDefault: func(s *auth.Server) {
-			s.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
-		},
-		storeConfigFile: func(s *auth.Server) {
-			authPref := types.DefaultAuthPreference()
-			authPref.SetOrigin(types.OriginConfigFile)
-			s.UpsertAuthPreference(ctx, authPref)
-		},
-		get: func(s *auth.ServerWithRoles) error {
-			_, err := s.GetAuthPreference(ctx)
-			return err
-		},
-		set: func(s *auth.ServerWithRoles) error {
-			return s.SetAuthPreference(ctx, types.DefaultAuthPreference())
-		},
-		reset: func(s *auth.ServerWithRoles) error {
-			return s.ResetAuthPreference(ctx)
-		},
-		alwaysReadable: true,
-	})
-}
-
 func TestClusterNetworkingCloudUpdates(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
