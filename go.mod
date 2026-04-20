@@ -290,7 +290,7 @@ require (
 
 require github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
 
-require github.com/jezek/xgb v1.3.0
+require github.com/jezek/xgb v1.3.1
 
 require (
 	cel.dev/expr v0.25.1 // indirect
