@@ -33,12 +33,6 @@ import (
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
-type result struct {
-	entries []*ldap.Entry
-	// strings that index into a referrals map
-	referral []string
-}
-
 // referrals tracks fake LDAP referrals which can be
 // resolved to some number of hosts with the accompanied
 // LookupSRV method. This allows us to mock SRV lookups.
@@ -68,7 +62,7 @@ func (r *referrals) clear() {
 // wherein a given host, when searched, returns either
 // LDAP entries or referrals.
 type topology struct {
-	servers     map[string]result
+	servers     map[string]searchResult
 	searches    map[string]int
 	openClients map[string]struct{}
 }
@@ -81,14 +75,14 @@ func (t *topology) clear() {
 func (t topology) newSearcher(_ context.Context, name string) (searcher, func() error, error) {
 	id := uuid.NewV4().String()
 	t.openClients[id] = struct{}{}
-	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
+	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (res searchResult, err error) {
 		res, ok := t.servers[name]
 		t.searches[name] += 1
 		if !ok {
-			return nil, nil, errors.New("search failed for this host")
+			return nil, errors.New("search failed for this host")
 		}
 
-		return res.entries, res.referral, ctx.Err()
+		return res, ctx.Err()
 	}), func() error { delete(t.openClients, id); return nil }, nil
 }
 
@@ -116,23 +110,23 @@ func TestRecursiveSearch(t *testing.T) {
 	// visiting every host, until it finds the single valid LDAP entry held by
 	// "noresolve.com".
 	top := topology{
-		servers: map[string]result{
-			"root": result{
-				referral: []string{"ldaps://a.lab.local"},
+		servers: map[string]searchResult{
+			"root": searchResultReferral{
+				referrals: []string{"ldaps://a.lab.local"},
 			},
-			"hosta4": result{
-				referral: []string{"ldaps://b.lab.local"},
+			"hosta4": searchResultReferral{
+				referrals: []string{"ldaps://b.lab.local"},
 			},
-			"hostb3": result{
-				referral: []string{"ldaps://c.lab.local"},
+			"hostb3": searchResultReferral{
+				referrals: []string{"ldaps://c.lab.local"},
 			},
-			"hostc2": result{
-				referral: []string{"ldaps://d.lab.local"},
+			"hostc2": searchResultReferral{
+				referrals: []string{"ldaps://d.lab.local"},
 			},
-			"hostd1": result{
-				referral: []string{"ldaps://noresolve.com"},
+			"hostd1": searchResultReferral{
+				referrals: []string{"ldaps://noresolve.com"},
 			},
-			"noresolve.com": result{
+			"noresolve.com": searchResultEntry{
 				entries: []*ldap.Entry{&ldap.Entry{
 					DN: "somedn",
 				}},
@@ -301,11 +295,11 @@ func TestRecursiveSearch(t *testing.T) {
 		cycleTopology := topology{
 			searches:    map[string]int{},
 			openClients: map[string]struct{}{},
-			servers: map[string]result{
-				"root":   result{referral: []string{"ldaps://a.lab.local"}},
-				"hosta1": result{referral: []string{"ldaps://b.lab.local"}},
+			servers: map[string]searchResult{
+				"root":   searchResultReferral{referrals: []string{"ldaps://a.lab.local"}},
+				"hosta1": searchResultReferral{referrals: []string{"ldaps://b.lab.local"}},
 				// points back to a previous referral
-				"hostb1": result{referral: []string{"ldaps://a.lab.local"}},
+				"hostb1": searchResultReferral{referrals: []string{"ldaps://a.lab.local"}},
 			},
 		}
 
