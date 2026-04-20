@@ -953,7 +953,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		UserOriginClusterName: identity.OriginClusterName,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
-		MessageWriter:         &monitorErrorSender{tdpConn: translatedConn},
+		MessageWriter:         &monitorErrorSender{tdpConn: auditedConn},
 	}
 
 	// UpdateClientActivity before starting monitor to
