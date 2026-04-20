@@ -24,16 +24,14 @@ locals {
   ))
 }
 
-# Custom role for discovery permissions for each scope.
+# Custom role for Teleport Discovery Service permissions.
 resource "azurerm_role_definition" "teleport_discovery" {
-  for_each = local.create ? toset(local.azure_role_assignment_scopes) : toset([])
+  count = local.create ? 1 : 0
 
-  assignable_scopes = [each.value]
+  assignable_scopes = local.azure_role_assignment_scopes
   description       = "Azure role that allows a Teleport Discovery Service to discover VMs."
-  # Split each scope by '/' and hyphenate the last two segments
-  # e.g. "subscriptions-{uuid}", "managementGroups-{name}".
-  name  = "${var.azure_role_definition_name}-${join("-", slice(split("/", each.value), length(split("/", each.value)) - 2, length(split("/", each.value))))}"
-  scope = each.value
+  name              = var.azure_role_definition_name
+  scope             = local.azure_role_assignment_scopes[0]
 
   permissions {
     actions     = local.role_actions
@@ -41,11 +39,11 @@ resource "azurerm_role_definition" "teleport_discovery" {
   }
 }
 
-# Assign the custom roles to the managed identity principal for each scope.
+# Assign the custom role to the managed identity for each scope.
 resource "azurerm_role_assignment" "teleport_discovery" {
   for_each = local.create ? toset(local.azure_role_assignment_scopes) : toset([])
 
   principal_id       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].principal_id)
-  role_definition_id = azurerm_role_definition.teleport_discovery[each.key].role_definition_resource_id
+  role_definition_id = one(azurerm_role_definition.teleport_discovery[*].role_definition_resource_id)
   scope              = each.value
 }
