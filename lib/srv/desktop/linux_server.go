@@ -297,6 +297,12 @@ func (sess *linuxSession) sendTDPError(message string) {
 	}
 }
 
+func (sess *linuxSession) sendTDPWarning(message string) {
+	if err := sess.tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}); err != nil {
+		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
+	}
+}
+
 func (sess *linuxSession) handleClipboardData(data []byte) {
 	sess.tdpConn.WriteMessage(&tdpb.ClipboardData{
 		Data: data,
@@ -722,6 +728,11 @@ func (sess *linuxSession) changeAuthorityFileOwnership(m *tdpb.ClientHello) erro
 }
 
 func (sess *linuxSession) handleSessionSelection(m *tdpb.SessionSelection) error {
+	if sess.cmd != nil {
+		sess.log.WarnContext(sess.ctx, "session already started")
+		sess.sendTDPWarning("Received session selection message but session is already started")
+		return nil
+	}
 	xsession, ok := sess.xsessions[m.Name]
 	if !ok {
 		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", m.Name)
