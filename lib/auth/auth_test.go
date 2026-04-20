@@ -1619,10 +1619,11 @@ func TestSAMLConnector(t *testing.T) {
 		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
 		require.NoError(t, err)
 
+		// Created connector has private key stripped.
 		createdSKP := createdConnector.GetSigningKeyPair()
 		require.NotNil(t, createdSKP)
 		require.Equal(t, "test-cert", createdSKP.Cert)
-		require.Equal(t, "test-private-key", createdSKP.PrivateKey)
+		require.Empty(t, createdSKP.PrivateKey)
 
 		// Connector without secrets has private key stripped.
 		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
@@ -1694,10 +1695,11 @@ func TestSAMLConnector(t *testing.T) {
 		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
 		require.NoError(t, err)
 
+		// Created connector has client secret stripped.
 		createdCreds := createdConnector.GetOAuthClientCredentials()
 		require.NotNil(t, createdCreds)
 		require.Equal(t, "test-client-id", createdCreds.ClientId)
-		require.Equal(t, "test-client-secret", createdCreds.ClientSecret)
+		require.Empty(t, createdCreds.ClientSecret)
 
 		// Connector without secrets has client secret stripped.
 		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
