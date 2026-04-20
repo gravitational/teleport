@@ -879,17 +879,17 @@ const (
 	// InferencePolicyDeleteCode is the inference policy delete event code.
 	InferencePolicyDeleteCode = "INF009I"
 
+	// SessionSummarizedCode is the session summarized event code.
+	SessionSummarizedCode = "INF010I"
+	// SessionSummarizedErrorCode is the session summarized error event code.
+	SessionSummarizedErrorCode = "INF010E"
+
 	// RetrievalModelCreateCode is the retrieval model create event code.
 	RetrievalModelCreateCode = "INF011I"
 	// RetrievalModelUpdateCode is the retrieval model update event code.
 	RetrievalModelUpdateCode = "INF012I"
 	// RetrievalModelDeleteCode is the retrieval model delete event code.
 	RetrievalModelDeleteCode = "INF013I"
-
-	// SessionSummarizedCode is the session summarized event code.
-	SessionSummarizedCode = "INF010I"
-	// SessionSummarizedErrorCode is the session summarized error event code.
-	SessionSummarizedErrorCode = "INF010E"
 
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"

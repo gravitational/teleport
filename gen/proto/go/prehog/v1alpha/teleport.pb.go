@@ -11765,7 +11765,7 @@ type SubmitEventRequest_UiAccessListCustomEvent struct {
 }
 
 type SubmitEventRequest_SessionSummarySearchEvent struct {
-	SessionSummarySearchEvent *SessionSummarySearchEvent `protobuf:"bytes,119,opt,name=session_summary_search_event,json=sessionSummarySearchEvent,proto3,oneof"`
+	SessionSummarySearchEvent *SessionSummarySearchEvent `protobuf:"bytes,121,opt,name=session_summary_search_event,json=sessionSummarySearchEvent,proto3,oneof"`
 }
 
 func (*SubmitEventRequest_UserLogin) isSubmitEventRequest_Event() {}
@@ -12882,7 +12882,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x1dui_access_list_complete_event\x18t \x01(\v2).prehog.v1alpha.UIAccessListCompleteEventH\x00R\x19uiAccessListCompleteEvent\x12p\n" +
 	"\x1eui_access_list_integrate_event\x18u \x01(\v2*.prehog.v1alpha.UIAccessListIntegrateEventH\x00R\x1auiAccessListIntegrateEvent\x12g\n" +
 	"\x1bui_access_list_custom_event\x18v \x01(\v2'.prehog.v1alpha.UIAccessListCustomEventH\x00R\x17uiAccessListCustomEvent\x12l\n" +
-	"\x1csession_summary_search_event\x18w \x01(\v2).prehog.v1alpha.SessionSummarySearchEventH\x00R\x19sessionSummarySearchEventB\a\n" +
+	"\x1csession_summary_search_event\x18y \x01(\v2).prehog.v1alpha.SessionSummarySearchEventH\x00R\x19sessionSummarySearchEventB\a\n" +
 	"\x05eventJ\x04\b\b\x10\tJ\x04\ba\x10bJ\x04\bb\x10cR\x1cui_onboard_get_started_clickR\x1baccess_request_create_eventR\x1baccess_request_review_event\"\x15\n" +
 	"\x13SubmitEventResponse\"Q\n" +
 	"\x13SubmitEventsRequest\x12:\n" +

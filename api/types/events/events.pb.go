@@ -19756,11 +19756,11 @@ var xxx_messageInfo_InferencePolicyDelete proto.InternalMessageInfo
 type RetrievalModelCreate struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-	// ResourceMetadata is a common resource event metadata
+	// Resource is a common resource event metadata
 	ResourceMetadata `protobuf:"bytes,2,opt,name=Resource,proto3,embedded=Resource" json:""`
 	// User is a common user event metadata
 	UserMetadata `protobuf:"bytes,3,opt,name=User,proto3,embedded=User" json:""`
-	// ConnectionMetadata holds information about the connection
+	// Connection holds information about the connection
 	ConnectionMetadata `protobuf:"bytes,4,opt,name=Connection,proto3,embedded=Connection" json:""`
 	// Status indicates whether the creation was successful.
 	Status `protobuf:"bytes,5,opt,name=Status,proto3,embedded=Status" json:""`
@@ -19808,11 +19808,11 @@ var xxx_messageInfo_RetrievalModelCreate proto.InternalMessageInfo
 type RetrievalModelUpdate struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-	// ResourceMetadata is a common resource event metadata
+	// Resource is a common resource event metadata
 	ResourceMetadata `protobuf:"bytes,2,opt,name=Resource,proto3,embedded=Resource" json:""`
 	// User is a common user event metadata
 	UserMetadata `protobuf:"bytes,3,opt,name=User,proto3,embedded=User" json:""`
-	// ConnectionMetadata holds information about the connection
+	// Connection holds information about the connection
 	ConnectionMetadata `protobuf:"bytes,4,opt,name=Connection,proto3,embedded=Connection" json:""`
 	// Status indicates whether the update was successful.
 	Status `protobuf:"bytes,5,opt,name=Status,proto3,embedded=Status" json:""`
@@ -19860,11 +19860,11 @@ var xxx_messageInfo_RetrievalModelUpdate proto.InternalMessageInfo
 type RetrievalModelDelete struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-	// ResourceMetadata is a common resource event metadata
+	// Resource is a common resource event metadata
 	ResourceMetadata `protobuf:"bytes,2,opt,name=Resource,proto3,embedded=Resource" json:""`
 	// User is a common user event metadata
 	UserMetadata `protobuf:"bytes,3,opt,name=User,proto3,embedded=User" json:""`
-	// ConnectionMetadata holds information about the connection
+	// Connection holds information about the connection
 	ConnectionMetadata `protobuf:"bytes,4,opt,name=Connection,proto3,embedded=Connection" json:""`
 	// Status indicates whether the deletion was successful.
 	Status               `protobuf:"bytes,5,opt,name=Status,proto3,embedded=Status" json:""`

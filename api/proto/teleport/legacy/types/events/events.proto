@@ -10224,7 +10224,7 @@ message RetrievalModelCreate {
     (gogoproto.jsontag) = ""
   ];
 
-  // ResourceMetadata is a common resource event metadata
+  // Resource is a common resource event metadata
   ResourceMetadata Resource = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -10238,7 +10238,7 @@ message RetrievalModelCreate {
     (gogoproto.jsontag) = ""
   ];
 
-  // ConnectionMetadata holds information about the connection
+  // Connection holds information about the connection
   ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -10268,7 +10268,7 @@ message RetrievalModelUpdate {
     (gogoproto.jsontag) = ""
   ];
 
-  // ResourceMetadata is a common resource event metadata
+  // Resource is a common resource event metadata
   ResourceMetadata Resource = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -10282,7 +10282,7 @@ message RetrievalModelUpdate {
     (gogoproto.jsontag) = ""
   ];
 
-  // ConnectionMetadata holds information about the connection
+  // Connection holds information about the connection
   ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -10312,7 +10312,7 @@ message RetrievalModelDelete {
     (gogoproto.jsontag) = ""
   ];
 
-  // ResourceMetadata is a common resource event metadata
+  // Resource is a common resource event metadata
   ResourceMetadata Resource = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -10326,7 +10326,7 @@ message RetrievalModelDelete {
     (gogoproto.jsontag) = ""
   ];
 
-  // ConnectionMetadata holds information about the connection
+  // Connection holds information about the connection
   ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,

@@ -2238,7 +2238,7 @@ message SubmitEventRequest {
     UIAccessListCompleteEvent ui_access_list_complete_event = 116;
     UIAccessListIntegrateEvent ui_access_list_integrate_event = 117;
     UIAccessListCustomEvent ui_access_list_custom_event = 118;
-    SessionSummarySearchEvent session_summary_search_event = 119;
+    SessionSummarySearchEvent session_summary_search_event = 121;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

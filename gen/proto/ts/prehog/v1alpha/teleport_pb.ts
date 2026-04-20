@@ -4214,7 +4214,7 @@ export interface SubmitEventRequest {
     } | {
         oneofKind: "sessionSummarySearchEvent";
         /**
-         * @generated from protobuf field: prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 119;
+         * @generated from protobuf field: prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121;
          */
         sessionSummarySearchEvent: SessionSummarySearchEvent;
     } | {
@@ -13252,7 +13252,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 116, name: "ui_access_list_complete_event", kind: "message", oneof: "event", T: () => UIAccessListCompleteEvent },
             { no: 117, name: "ui_access_list_integrate_event", kind: "message", oneof: "event", T: () => UIAccessListIntegrateEvent },
             { no: 118, name: "ui_access_list_custom_event", kind: "message", oneof: "event", T: () => UIAccessListCustomEvent },
-            { no: 119, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent }
+            { no: 121, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -13950,7 +13950,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiAccessListCustomEvent: UIAccessListCustomEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListCustomEvent)
                     };
                     break;
-                case /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event */ 119:
+                case /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event */ 121:
                     message.event = {
                         oneofKind: "sessionSummarySearchEvent",
                         sessionSummarySearchEvent: SessionSummarySearchEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummarySearchEvent)
@@ -14313,9 +14313,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118; */
         if (message.event.oneofKind === "uiAccessListCustomEvent")
             UIAccessListCustomEvent.internalBinaryWrite(message.event.uiAccessListCustomEvent, writer.tag(118, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 119; */
+        /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121; */
         if (message.event.oneofKind === "sessionSummarySearchEvent")
-            SessionSummarySearchEvent.internalBinaryWrite(message.event.sessionSummarySearchEvent, writer.tag(119, WireType.LengthDelimited).fork(), options).join();
+            SessionSummarySearchEvent.internalBinaryWrite(message.event.sessionSummarySearchEvent, writer.tag(121, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
