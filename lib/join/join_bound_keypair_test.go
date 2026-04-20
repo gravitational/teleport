@@ -29,7 +29,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -1671,10 +1670,6 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 // verification will trigger a lock if the original client and a secondary
 // client both attempt to recover in sequence.
 func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
-	synctest.Test(t, testJoinBoundKeypairJoinStateFailureInstance)
-}
-
-func testJoinBoundKeypairJoinStateFailureInstance(t *testing.T) {
 	ctx := t.Context()
 	correctSigner, correctPublicKey := testBoundKeypair(t)
 	signers := map[string]crypto.Signer{
@@ -1749,6 +1744,13 @@ func testJoinBoundKeypairJoinStateFailureInstance(t *testing.T) {
 	_, err = recoveredClient.Ping(ctx)
 	require.NoError(t, err)
 
+	// Subscribe to events from the LockWatcher
+	lockSub, err := srv.AuthServer.LockWatcher.Subscribe(ctx, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	defer lockSub.Close()
+
 	// Try to recover again, but with the original join state.
 	outdatedClientState := makeMockBoundKeypairState(signers,
 		withSingleSigningKey(correctPublicKey),
@@ -1773,17 +1775,25 @@ func testJoinBoundKeypairJoinStateFailureInstance(t *testing.T) {
 	require.Len(t, locks, 1, "only one lock should be generated")
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 
+	// Wait for the LockWatcher to notify us about the new lock. Since this
+	// otherwise happens async, we need to wait explicitly, otherwise the lock
+	// may exist in the backend without being enforced.
+	select {
+	case event := <-lockSub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+	case <-lockSub.Done():
+		t.Fatal("lock subscription closed unexpectedly")
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for lock event")
+	}
+
 	// The previously working client should be locked.
-	synctest.Wait()
 	_, err = recoveredClient.Ping(ctx)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "access denied")
 
-	// Repeat the recovery attempt but with an Eventually() to consistently
-	// check the error message. Depending on exact timing / cache propagation /
-	// etc the lock may or may not be in force, but we also need to be
-	// absolutely certain to try to generate at least 2 locking events.
-	synctest.Wait()
+	// Try joining again with the same parameters to try to generate another
+	// lock - they should not be duplicated.
 	tempClientState := makeMockBoundKeypairState(signers,
 		withSingleSigningKey(correctPublicKey),
 		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
@@ -1798,6 +1808,14 @@ func testJoinBoundKeypairJoinStateFailureInstance(t *testing.T) {
 		BoundKeypairState: tempClientState,
 	})
 	require.ErrorContains(t, err, "a client failed to verify its join state")
+
+	// Check the lock count again - only one lock should be created.
+	locks, err = srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 }
 
 // createScopedBot creates a scoped bot with necessary role assignments for testing.
