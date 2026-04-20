@@ -1,6 +1,6 @@
-output "azure_discovery_role_definitions" {
-  description = "The Azure role definitions, per scope, for Teleport discovery service."
-  value       = azurerm_role_definition.teleport_discovery
+output "azure_discovery_role_definition" {
+  description = "The Azure role definition for the Teleport Discovery Service."
+  value       = one(azurerm_role_definition.teleport_discovery[*])
 }
 
 output "azure_oidc_integration_managed_identity" {
