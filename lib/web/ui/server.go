@@ -543,7 +543,7 @@ func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string
 // MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
 func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRdpPort := func(addr string) string {
+	stripRDPPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
 		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
