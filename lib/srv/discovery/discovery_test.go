@@ -1032,6 +1032,7 @@ func (f *fakeAccessPointWithWatcher) createDiscoveryConfig(discoveryConfig *disc
 		Resource: discoveryConfig,
 	}
 }
+
 func (f *fakeAccessPointWithWatcher) closeDiscoveryConfigWatcher() error {
 	f.discoveryConfigMu.Lock()
 	defer f.discoveryConfigMu.Unlock()
@@ -1959,7 +1960,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 			},
 		},
 		{
-			desc:         "EKS fetcher is skipped on initialization error (missing region)",
+			desc:         "EKS fetcher surfaces initialization error (missing region)",
 			cloudClients: &mockFetchersClients{},
 			matchers: Matchers{
 				AWS: []types.AWSMatcher{
@@ -1983,12 +1984,9 @@ func TestDiscoveryServer_New(t *testing.T) {
 					},
 				},
 			},
-			errAssertion: require.NoError,
-			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.NotNil(t, i)
-				val, ok := i.(*Server)
-				require.True(t, ok)
-				require.Len(t, val.kubeFetchers, 1, "unexpected amount of kube fetchers")
+			errAssertion: require.Error,
+			discServerAssertion: func(t require.TestingT, i any, i2 ...any) {
+				require.Nil(t, i)
 			},
 		},
 	}

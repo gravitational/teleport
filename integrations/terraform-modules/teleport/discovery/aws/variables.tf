@@ -74,14 +74,6 @@ variable "aws_matchers" {
   validation {
     condition = !anytrue([
       for matcher in var.aws_matchers :
-      contains(matcher.types, "eks") && contains(matcher.regions, "*")
-    ])
-    error_message = "EKS discovery does not support wildcard regions. Specify explicit regions for EKS matchers."
-  }
-
-  validation {
-    condition = !anytrue([
-      for matcher in var.aws_matchers :
       matcher.setup_access_for_arn != "" && !contains(matcher.types, "eks")
     ])
     error_message = "setup_access_for_arn is only supported for EKS matchers."
