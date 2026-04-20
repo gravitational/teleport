@@ -137,6 +137,7 @@ type SAMLConnector interface {
 	GetOAuthClientCredentials() *OAuthClientCredentials
 	// SetOAuthClientCredentials sets the OAuth client credentials.
 	SetOAuthClientCredentials(*OAuthClientCredentials)
+	// GetCredentials returns the credentials.
 	GetCredentials() *SAMLConnectorCredentials
 }
 
@@ -525,6 +526,7 @@ func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredential
 	r.Spec.Credentials = &SAMLConnectorCredentials{Oauth: creds}
 }
 
+// GetCredentials returns the credentials.
 func (r *SAMLConnectorV2) GetCredentials() *SAMLConnectorCredentials {
 	return r.Spec.Credentials
 }
@@ -540,6 +542,8 @@ func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
 	return entra != nil && entra.Disabled
 }
 
+// Validate checks that the required fields are present on the key pair.
+// cert is required, private_key is required if withSecrets=true.
 func (k *AsymmetricKeyPair) Validate(withSecrets bool) error {
 	if k == nil {
 		return nil
@@ -557,27 +561,29 @@ func (k *AsymmetricKeyPair) Validate(withSecrets bool) error {
 }
 
 // Validate checks that the type of credentials configured is valid.
-// For OAuth, both client_id and client_secret must be present.
-// NOTE: Due to inability to use oneof with gogoproto (see https://github.com/gogo/protobuf/issues/623),
-// the 'one of' invariant needs to be maintained here.
-// When adding credential types, a mutual exclusion check must be added,
-// e.g. if c.NewType != nil && c.Oauth != nil { return BadParameterError }
+//
+// For OAuth, client_id is required, client_secret is required if withSecrets=true.
 func (c *SAMLConnectorCredentials) Validate(withSecrets bool) error {
 	if c == nil {
 		return nil
 	}
+	// NOTE: Due to inability to use oneof with gogoproto (see https://github.com/gogo/protobuf/issues/623),
+	// the 'one of' invariant needs to be maintained here.
+	// When adding credential types, a mutual exclusion check must be added,
+	// e.g. if c.NewType != nil && c.Oauth != nil { return trace.BadParameter("only a single credential type may be specified") }
 
-	if c.Oauth != nil {
+	switch {
+	case c.Oauth != nil:
 		if c.Oauth.ClientId == "" {
 			return trace.BadParameter("missing required client_id in credentials.oauth")
 		}
-
 		if withSecrets && c.Oauth.ClientSecret == "" {
 			return trace.BadParameter("missing required client_secret in credentials.oauth")
 		}
+		return nil
+	default:
+		return trace.BadParameter("missing required credential type in credentials")
 	}
-
-	return nil
 }
 
 const (

@@ -200,7 +200,7 @@ func TestSAMLEntraIDCredentialsValidation(t *testing.T) {
 		{
 			name:        "empty credentials",
 			credentials: &types.SAMLConnectorCredentials{},
-			assertErr:   require.NoError,
+			assertErr:   require.Error,
 		},
 		{
 			name:        "nil credentials",
