@@ -1179,6 +1179,18 @@
           },
           {
             "resources": [
+              "retrieval_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "client_ip_restriction"
             ],
             "verbs": [
@@ -1228,6 +1240,18 @@
           {
             "resources": [
               "app_auth_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_cluster"
             ],
             "verbs": [
               "list",

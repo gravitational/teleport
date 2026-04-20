@@ -19,7 +19,9 @@
 import styled from 'styled-components';
 
 import { Cell } from 'design/DataTable';
+import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
+import Text from 'design/Text/Text';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
@@ -71,6 +73,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SFTP_DISALLOWED]: Icons.FolderPlus,
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
+  [eventCodes.APP_SESSION_START_FAILURE]: Icons.Warning,
   [eventCodes.APP_SESSION_END]: Icons.Info,
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
@@ -348,13 +351,30 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.VNET_CONFIG_CREATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.INFERENCE_MODEL_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_DELETE]: Icons.Info,
+  [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {
   const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
-    p: 1,
+    p: 2,
     mr: 3,
   };
 
@@ -362,7 +382,19 @@ export default function renderTypeCell(event: Event) {
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
         <Icon {...iconProps} size="medium" />
-        {event.codeDesc}
+        <Flex
+          gap={0}
+          flexDirection="column"
+          minHeight={64}
+          justifyContent="center"
+        >
+          <Text typography="body2" fontWeight={500} mb={0}>
+            {event.raw.event}
+          </Text>
+          <Text typography="body2" color="text.muted">
+            {event.codeDesc}
+          </Text>
+        </Flex>
       </StyledEventType>
     </Cell>
   );

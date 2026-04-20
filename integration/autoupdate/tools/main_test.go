@@ -127,11 +127,11 @@ func TestMain(m *testing.M) {
 	if err := updater.Update(ctx, testVersions[0]); err != nil {
 		log.Fatalf("failed to update: %v", err)
 	}
-	tshPath, err = updater.ToolPath(tools.DefaultClientTools()[0], testVersions[0])
+	tshPath, err = updater.SelectTool(tools.DefaultClientTools()[0], testVersions[0])
 	if err != nil {
 		log.Fatalf("failed to get tsh path: %v", err)
 	}
-	tctlPath, err = updater.ToolPath(tools.DefaultClientTools()[1], testVersions[0])
+	tctlPath, err = updater.SelectTool(tools.DefaultClientTools()[1], testVersions[0])
 	if err != nil {
 		log.Fatalf("failed to get tctl path: %v", err)
 	}

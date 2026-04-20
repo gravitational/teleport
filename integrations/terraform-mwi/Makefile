@@ -7,6 +7,7 @@ TERRAFORM_ARCH=$(OS)_$(ARCH)
 RELEASE = terraform-provider-teleportmwi-v$(VERSION)-$(OS)-$(ARCH)-bin
 
 BUILDDIR ?= build
+TEST_LOG_DIR ?= ${abspath ./test-logs}
 
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
@@ -56,9 +57,12 @@ release: build
 endif
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
 
-PHONY: test
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
+PHONY: test | $(TEST_LOG_DIR)
 test:
-	gotestsum --junitfile unit-tests-terraform-mwi.xml --jsonfile unit-tests-terraform-mwi.json
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform-mwi.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-terraform-mwi.json
 
 PHONY: testacc
 testacc:

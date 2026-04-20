@@ -26,8 +26,8 @@ import { ButtonBorder, ButtonPrimary } from 'design/Button';
 import Table, { Cell } from 'design/DataTable';
 import { TableColumn } from 'design/DataTable/types';
 import { displayDateTime } from 'design/datetime';
-import { CircleCross, Cross, Link as LinkIcon, Warning } from 'design/Icon';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
+import { Cross, Link as LinkIcon } from 'design/Icon';
+import { Status } from 'design/Status';
 import { P } from 'design/Text/Text';
 import { Markdown } from 'shared/components/Markdown/Markdown';
 import { useToastNotifications } from 'shared/components/ToastNotification';
@@ -174,15 +174,11 @@ export function UserTaskDrawer(props: {
 
 function TaskTypePill({ task }: { task: UserTaskDetail }) {
   const eventType = getTaskEventType(task);
-  const IconLeft = eventType === 'Error' ? CircleCross : Warning;
 
   return (
-    <LabelButtonWithIcon
-      IconLeft={IconLeft}
-      kind={eventType === 'Error' ? 'outline-danger' : 'outline-warning'}
-    >
+    <Status kind={eventType === 'Error' ? 'danger' : 'warning'}>
       {eventType}
-    </LabelButtonWithIcon>
+    </Status>
   );
 }
 
@@ -206,12 +202,17 @@ function DetailsTab({ task }: { task: UserTaskDetail }) {
       <H3 mt={3}>Details</H3>
       <Markdown text={task.description || ''} enableLinks />
 
-      <H3 mt={4}>Impacted resources ({impacted.count})</H3>
-      <Table
-        data={impactsTable.data}
-        columns={impactsTable.columns}
-        emptyText="No impacted resources"
-      />
+      {impacted.count > 0 && (
+        <>
+          <H3 mt={4}>Impacted resources ({impacted.count})</H3>
+          <Table
+            data={impactsTable.data}
+            columns={impactsTable.columns}
+            emptyText="No impacted resources"
+          />
+        </>
+      )}
+
       <H3 mt={4}>Mark as Resolved</H3>
       <P>
         This issue will reappear if the underlying problem is not fixed.

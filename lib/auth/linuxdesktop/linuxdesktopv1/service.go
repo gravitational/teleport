@@ -25,8 +25,11 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // ServiceConfig holds configuration options for the LinuxDesktop gRPC service.
@@ -37,28 +40,11 @@ type ServiceConfig struct {
 	// Backend is the backend for storing LinuxDesktop.
 	Backend services.LinuxDesktops
 
-	// Reader is the cache for storing LinuxDesktop.
+	// Reader is the cache for looking up LinuxDesktops.
 	Reader Reader
 
 	// Emitter is the event emitter.
 	Emitter events.Emitter
-}
-
-// CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
-// a required param is not provided.
-// Authorizer, Cache and Backend are required params
-func (s *ServiceConfig) CheckAndSetDefaults() error {
-	switch {
-	case s.Authorizer == nil:
-		return trace.BadParameter("authorizer is required")
-	case s.Backend == nil:
-		return trace.BadParameter("backend is required")
-	case s.Reader == nil:
-		return trace.BadParameter("cache is required")
-	case s.Emitter == nil:
-		return trace.BadParameter("emitter is required")
-	}
-	return nil
 }
 
 type Reader interface {
@@ -78,8 +64,15 @@ type Service struct {
 
 // NewService returns a new LinuxDesktop gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+	switch {
+	case cfg.Authorizer == nil:
+		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Backend == nil:
+		return nil, trace.BadParameter("backend is required")
+	case cfg.Reader == nil:
+		return nil, trace.BadParameter("cache is required")
+	case cfg.Emitter == nil:
+		return nil, trace.BadParameter("emitter is required")
 	}
 
 	return &Service{
@@ -88,6 +81,10 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		reader:     cfg.Reader,
 		emitter:    cfg.Emitter,
 	}, nil
+}
+
+func checkAccess(authCtx *authz.Context, desktop *linuxdesktopv1.LinuxDesktop) error {
+	return authCtx.Checker.CheckAccess(types.ProtoResource153ToLegacy(desktop), services.AccessState{MFAVerified: true})
 }
 
 // CreateLinuxDesktop creates Linux desktop resource.
@@ -110,7 +107,7 @@ func (s *Service) CreateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource153(desktop, types.VerbCreate); err != nil {
+	if err := checkAccess(authCtx, desktop); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -130,7 +127,20 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.reader.ListLinuxDesktops(ctx, int(req.PageSize), req.PageToken)
+	resources := clientutils.Resources(ctx, s.reader.ListLinuxDesktops)
+	rsp, nextToken, err := generic.CollectPageAndCursor(
+		iterstream.FilterMap(resources, func(desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, bool) {
+			if err := checkAccess(authCtx, desktop); err == nil {
+				return desktop, true
+			}
+
+			return nil, false
+		}),
+		int(req.PageSize),
+		func(t *linuxdesktopv1.LinuxDesktop) string {
+			return t.GetMetadata().GetName()
+		})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,7 +154,7 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 	}
 
 	return &linuxdesktopv1.ListLinuxDesktopsResponse{
-		LinuxDesktops: allowed,
+		LinuxDesktops: rsp,
 		NextPageToken: nextToken,
 	}, nil
 }
@@ -165,7 +175,7 @@ func (s *Service) GetLinuxDesktop(ctx context.Context, req *linuxdesktopv1.GetLi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource153(rsp, types.VerbRead); err != nil {
+	if err := checkAccess(authCtx, rsp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -197,11 +207,11 @@ func (s *Service) UpdateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Up
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource153(existing, types.VerbUpdate); err != nil {
+	if err := checkAccess(authCtx, existing); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource153(desktop, types.VerbUpdate); err != nil {
+	if err := checkAccess(authCtx, desktop); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -235,14 +245,15 @@ func (s *Service) UpsertLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Up
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := authCtx.CheckAccessToResource153(existing, types.VerbUpdate); err != nil {
+		if err := checkAccess(authCtx, existing); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := authCtx.CheckAccessToResource153(desktop, types.VerbUpdate); err != nil {
+
+		if err := checkAccess(authCtx, desktop); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		if err := authCtx.CheckAccessToResource153(desktop, types.VerbCreate); err != nil {
+		if err := checkAccess(authCtx, desktop); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -272,7 +283,7 @@ func (s *Service) DeleteLinuxDesktop(ctx context.Context, req *linuxdesktopv1.De
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource153(existing, types.VerbDelete); err != nil {
+	if err := checkAccess(authCtx, existing); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

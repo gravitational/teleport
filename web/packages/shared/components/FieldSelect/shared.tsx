@@ -192,6 +192,7 @@ export function splitSelectProps<
     inputValue,
     isClearable,
     isDisabled,
+    isLoading,
     readOnly,
     isMulti,
     isSearchable,
@@ -238,6 +239,7 @@ export function splitSelectProps<
       inputValue,
       isClearable,
       isDisabled,
+      isLoading,
       readOnly,
       isMulti,
       isSearchable,
@@ -287,6 +289,7 @@ type KeysRemovedFromOthers =
   | 'inputValue'
   | 'isClearable'
   | 'isDisabled'
+  | 'isLoading'
   | 'readOnly'
   | 'isMulti'
   | 'isSearchable'

@@ -25,6 +25,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -34,7 +35,7 @@ const linuxDesktopNameIndex linuxDesktopIndex = "linux-desktop"
 
 func newLinuxDesktopCollection(upstream services.LinuxDesktops, w types.WatchKind) (*collection[*linuxdesktopv1.LinuxDesktop, linuxDesktopIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter LinuxDesktop")
+		return nil, trace.BadParameter("missing parameter upstream")
 	}
 
 	s := newStore(
@@ -49,19 +50,12 @@ func newLinuxDesktopCollection(upstream services.LinuxDesktops, w types.WatchKin
 		store: s,
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*linuxdesktopv1.LinuxDesktop, error) {
 			var out []*linuxdesktopv1.LinuxDesktop
-			var startKey string
-			for {
-				page, nextKey, err := upstream.ListLinuxDesktops(ctx, 0, startKey)
+
+			for desktop, err := range clientutils.Resources(ctx, upstream.ListLinuxDesktops) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-
-				out = append(out, page...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
+				out = append(out, desktop)
 			}
 
 			return out, nil

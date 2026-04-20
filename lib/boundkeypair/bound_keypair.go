@@ -67,6 +67,16 @@ func RecoveryModes() []RecoveryMode {
 	}
 }
 
+// RecoveryModeStrings returns a list of all supported recovery modes, typed as
+// strings appropriate for use in CLI libraries.
+func RecoveryModeStrings() []string {
+	return []string{
+		string(RecoveryModeStandard),
+		string(RecoveryModeRelaxed),
+		string(RecoveryModeInsecure),
+	}
+}
+
 // ParseRecoveryMode parses a recovery mode from its string form.
 func ParseRecoveryMode(s string) (RecoveryMode, error) {
 	switch s {

@@ -420,7 +420,11 @@ type ResourcesDiscoveredSummary struct {
 	// Enrolled holds the count of the resources that were successfully enrolled.
 	Enrolled uint64 `protobuf:"varint,2,opt,name=enrolled,proto3" json:"enrolled,omitempty"`
 	// Failed holds the count of the resources that failed to enroll.
-	Failed        uint64 `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
+	Failed uint64 `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
+	// Timestamp of when discovering the resources started.
+	SyncStart *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=sync_start,json=syncStart,proto3" json:"sync_start,omitempty"`
+	// Timestamp of when discovering the resources ended.
+	SyncEnd       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=sync_end,json=syncEnd,proto3" json:"sync_end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -476,6 +480,20 @@ func (x *ResourcesDiscoveredSummary) GetFailed() uint64 {
 	return 0
 }
 
+func (x *ResourcesDiscoveredSummary) GetSyncStart() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SyncStart
+	}
+	return nil
+}
+
+func (x *ResourcesDiscoveredSummary) GetSyncEnd() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SyncEnd
+	}
+	return nil
+}
+
 var File_teleport_discoveryconfig_v1_discoveryconfig_proto protoreflect.FileDescriptor
 
 const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
@@ -506,11 +524,14 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"\aaws_ec2\x18\x01 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEc2\x12P\n" +
 	"\aaws_rds\x18\x02 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsRds\x12P\n" +
 	"\aaws_eks\x18\x03 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEks\x12T\n" +
-	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\"f\n" +
+	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\"\xd8\x01\n" +
 	"\x1aResourcesDiscoveredSummary\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\x04R\x05found\x12\x1a\n" +
 	"\benrolled\x18\x02 \x01(\x04R\benrolled\x12\x16\n" +
-	"\x06failed\x18\x03 \x01(\x04R\x06failed*\xa8\x01\n" +
+	"\x06failed\x18\x03 \x01(\x04R\x06failed\x129\n" +
+	"\n" +
+	"sync_start\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tsyncStart\x125\n" +
+	"\bsync_end\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\asyncEnd*\xa8\x01\n" +
 	"\x14DiscoveryConfigState\x12&\n" +
 	"\"DISCOVERY_CONFIG_STATE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eDISCOVERY_CONFIG_STATE_RUNNING\x10\x01\x12 \n" +
@@ -563,12 +584,14 @@ var file_teleport_discoveryconfig_v1_discoveryconfig_proto_depIdxs = []int32{
 	5,  // 12: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
 	5,  // 13: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
 	5,  // 14: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	4,  // 15: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	13, // 15: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_start:type_name -> google.protobuf.Timestamp
+	13, // 16: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_end:type_name -> google.protobuf.Timestamp
+	4,  // 17: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() }

@@ -29,8 +29,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -64,8 +64,6 @@ type HandlerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// WebPublicAddr
-	WebPublicAddr string
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
@@ -246,7 +244,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 		return isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if i < 0 {
-		return trace.NotFound("all app servers unheatlhy")
+		return trace.NotFound("all app servers unhealthy")
 	}
 
 	return nil
@@ -470,8 +468,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ws.GetBearerToken() != subjectValue {
-		err := trace.AccessDenied("subject session token does not match")
+	if err := checkSubjectToken(subjectValue, ws); err != nil {
 		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -669,7 +666,17 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 			}
 		}
 
-		u.Path = path.Join(urlPath...)
+		// Percent-encode every segment so that slashes in ARNs
+		// are not interpreted as path separators during URL
+		// serialization. Use strings.Join instead of path.Join
+		// to preserve the percent-encoded segments.
+		for i, s := range urlPath {
+			urlPath[i] = url.PathEscape(s)
+		}
+		u.RawPath = "/" + strings.Join(urlPath, "/")
+		// Error is unreachable: RawPath was built from
+		// PathEscape output above.
+		u.Path, _ = url.PathUnescape(u.RawPath)
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly

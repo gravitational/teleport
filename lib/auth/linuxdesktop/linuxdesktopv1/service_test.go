@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -51,6 +52,10 @@ func (f *fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, kind s
 		return nil
 	}
 	return trace.AccessDenied("access to %s with verb %s is not allowed", kind, verb)
+}
+
+func (f *fakeChecker) CheckAccess(services.AccessCheckable, services.AccessState, ...services.RoleMatcher) error {
+	return nil
 }
 
 type fakeAuthorizer struct {
@@ -197,7 +202,7 @@ func TestServiceListLinuxDesktops(t *testing.T) {
 
 	reader := &fakeReader{
 		listResp: []*linuxdesktopv1pb.LinuxDesktop{desktop},
-		listNext: "next-token",
+		listNext: "",
 	}
 	backend := &fakeBackend{}
 	checker := &fakeChecker{
@@ -214,10 +219,10 @@ func TestServiceListLinuxDesktops(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []*linuxdesktopv1pb.LinuxDesktop{desktop}, resp.GetLinuxDesktops())
-	require.Equal(t, "next-token", resp.GetNextPageToken())
+	require.Empty(t, resp.GetNextPageToken())
 	require.True(t, reader.listCalled)
-	require.Equal(t, 10, reader.listPageSize)
-	require.Equal(t, "next-token", reader.listToken)
+	require.Equal(t, defaults.DefaultChunkSize, reader.listPageSize)
+	require.Empty(t, reader.listToken)
 	require.Equal(t, []check{
 		{kind: types.KindLinuxDesktop, verb: types.VerbList},
 		{kind: types.KindLinuxDesktop, verb: types.VerbRead},

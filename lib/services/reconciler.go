@@ -97,7 +97,7 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing reconciler OnDelete")
 	}
 	if c.CompareResources == nil {
-		c.CompareResources = CompareResources[T]
+		return trace.BadParameter("missing reconciler CompareResources")
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "reconciler")

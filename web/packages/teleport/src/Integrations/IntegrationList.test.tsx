@@ -16,42 +16,71 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
-import { render, screen, userEvent } from 'design/utils/testing';
+import { CurrentPath, render, screen, userEvent } from 'design/utils/testing';
 
 import { IntegrationList } from 'teleport/Integrations/IntegrationList';
 import {
   IntegrationKind,
   IntegrationStatusCode,
+  type Plugin,
 } from 'teleport/services/integrations';
 
 test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
-  const history = createMemoryHistory();
-  history.push = jest.fn();
-
   render(
-    <Router history={history}>
-      <IntegrationList
-        list={[
-          {
-            resourceType: 'integration',
-            name: 'aws-integration',
-            kind: IntegrationKind.AwsOidc,
-            statusCode: IntegrationStatusCode.Running,
-            spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-          },
-        ]}
-      />
-    </Router>
+    <MemoryRouter initialEntries={['/integrations']}>
+      <Routes>
+        <Route
+          path="/integrations"
+          element={
+            <IntegrationList
+              list={[
+                {
+                  resourceType: 'integration',
+                  name: 'aws-integration',
+                  kind: IntegrationKind.AwsOidc,
+                  statusCode: IntegrationStatusCode.Running,
+                  spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+                },
+              ]}
+            />
+          }
+        />
+        <Route path="*" element={<CurrentPath />} />
+      </Routes>
+    </MemoryRouter>
   );
 
   expect(
     screen.queryByRole('button', { name: 'Options' })
   ).not.toBeInTheDocument();
   await userEvent.click(screen.getAllByRole('row')[1]);
-  expect(history.push).toHaveBeenCalledWith(
+  expect(screen.getByTestId('current-path')).toHaveTextContent(
     '/web/integrations/status/aws-oidc/aws-integration'
   );
+});
+
+test('integration list details prefer plugin status error message over details', () => {
+  const plugin: Plugin = {
+    resourceType: 'plugin',
+    name: 'okta-plugin',
+    kind: 'okta',
+    details: 'fallback details',
+    statusCode: IntegrationStatusCode.OtherError,
+    status: {
+      code: IntegrationStatusCode.OtherError,
+      lastRun: new Date('2026-03-31T00:00:00Z'),
+      errorMessage: 'sync failed',
+    },
+  };
+
+  render(
+    <MemoryRouter>
+      <IntegrationList list={[plugin]} />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('sync failed')).toBeInTheDocument();
+  expect(screen.queryByText('fallback details')).not.toBeInTheDocument();
 });

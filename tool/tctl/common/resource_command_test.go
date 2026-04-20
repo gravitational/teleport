@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
@@ -339,6 +340,7 @@ spec:
 version: v1
 `
 	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
+sub_kind: dynamic
 scope: "/"
 spec:
   user: "bob"
@@ -424,32 +426,39 @@ version: v1
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// now that a role exists, test commands for assignment creation
+
+	// Can't create an assignment without a subkind.
 	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
+	require.NoError(t, os.WriteFile(
+		scopedRoleAssignmentYAMLPath,
+		[]byte(strings.ReplaceAll(scopedRoleAssignmentYAML, "sub_kind: dynamic\n", "")),
+		0644,
+	))
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	require.ErrorContains(t, err, "has empty sub_kind")
+
+	// Create the valid scoped role assignment
 	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
-
-	// Create the scoped role assignment
-	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
 	require.NoError(t, err)
-
-	parts := bytes.Split(buff.Bytes(), []byte("\""))
-	require.Len(t, parts, 3)
-
-	assignmentName := string(parts[1])
-
-	_, err = uuid.Parse(assignmentName)
-	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
 
 	// wait for cache propagation
 	timeout = time.After(time.Second * 30)
 	var rawAssignment []byte
+	var as []*scopedaccessv1.ScopedRoleAssignment
 	for {
-		// Get the scoped role assignment
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		// Get the scoped role assignment.
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "--format=json"})
 		if err == nil {
 			rawAssignment = buff.Bytes()
-			break
+			// Unmarshal the response into a ScopedRoleAssignment object
+			as, err = services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+			require.NoError(t, err)
+			if len(as) > 0 {
+				break
+			}
 		}
-		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 
 		select {
 		case <-timeout:
@@ -458,14 +467,30 @@ version: v1
 		}
 	}
 
-	// Unmarshal the response into a ScopedRoleAssignment object
-	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
-	require.NoError(t, err)
 	require.Len(t, as, 1)
+	assignmentName := as[0].GetMetadata().GetName()
+
+	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized/" + assignmentName, "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+	require.ErrorContains(t, err, "requires an explicit subkind")
+
+	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+	require.NoError(t, err)
+	var asByName []*scopedaccessv1.ScopedRoleAssignment
+	err = json.Unmarshal(buff.Bytes(), &asByName)
+	require.NoError(t, err)
+	require.Len(t, asByName, 1)
+	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
 	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: assignmentName,
 		},
@@ -484,15 +509,23 @@ version: v1
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// verify delete of assignment
+	// verify delete of assignment fails without subkind
 	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
+	require.ErrorContains(t, err, "requires an explicit subkind")
+
+	// verify delete of assignment fails without materialized subkind.
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized/" + assignmentName})
+	require.ErrorContains(t, err, "cannot be deleted")
+
+	// verify delete of assignment
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic/" + assignmentName})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break
@@ -525,6 +558,180 @@ version: v1
 		case <-time.After(time.Millisecond * 100):
 		}
 	}
+}
+
+func TestScopedToken(t *testing.T) {
+	const scopedTokenYAML = `kind: scoped_token
+version: v1
+metadata:
+  name: test-token
+scope: "/"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/foo"
+  join_method: "token"
+  usage_mode: "unlimited"
+`
+
+	const gcpScopedTokenYAML = `kind: scoped_token
+version: v1
+metadata:
+  name: gcp-test-token
+scope: "/"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/foo"
+  join_method: "gcp"
+  usage_mode: "unlimited"
+  gcp:
+    allow:
+      - project_ids:
+          - example-project-123456
+        locations:
+          - us-west1
+        service_accounts:
+          - 123456789-compute@developer.gserviceaccount.com
+`
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	scopedTokenYAMLPath := filepath.Join(t.TempDir(), "test-token.yaml")
+	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, []byte(scopedTokenYAML), 0644))
+
+	// Create the scoped token
+	_, err = runResourceCommand(t, clt, []string{"create", scopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// wait for cache propagation
+	var raw []byte
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// Get the scoped token by name
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		require.NoError(t, err)
+		raw = buff.Bytes()
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
+
+	tokens, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](raw, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+
+	// Compare with expected value
+	token := tokens[0]
+	require.Equal(t, types.KindScopedToken, token.GetKind())
+	require.Equal(t, "test-token", token.GetMetadata().GetName())
+	require.Equal(t, "/", token.GetScope())
+	require.Equal(t, []string{"Node"}, token.GetSpec().GetRoles())
+	require.Equal(t, "/foo", token.GetSpec().GetAssignedScope())
+	require.Equal(t, "token", token.GetSpec().GetJoinMethod())
+	require.Equal(t, "unlimited", token.GetSpec().GetUsageMode())
+	// Secret is stripped server-side when not requested with --with-secrets.
+	require.Empty(t, token.GetStatus().GetSecret())
+
+	// Get all scoped tokens
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json", "--with-secrets"})
+	require.NoError(t, err)
+	var allTokens []*joiningv1.ScopedToken
+	err = json.Unmarshal(buff.Bytes(), &allTokens)
+	require.NoError(t, err)
+	require.Len(t, allTokens, 1)
+	require.Equal(t, "test-token", allTokens[0].GetMetadata().GetName())
+	// Secret should be populated
+	require.NotEmpty(t, allTokens[0].GetStatus().GetSecret())
+	require.NotContains(t, allTokens[0].GetStatus().GetSecret(), "******")
+
+	// Overwrite scopedTokenYAMLPath with the retrieved token
+	retrievedBytes, err := services.MarshalProtoResource(allTokens[0])
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, retrievedBytes, 0644))
+
+	// Create with --force for upsert
+	// Duplicate create without --force should fail
+	_, err = runResourceCommand(t, clt, []string{"create", scopedTokenYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+
+	// Using --force should succeed and act as an upsert
+	allTokens[0].Metadata.Labels = map[string]string{"env": "staging"}
+	allTokens[0].Spec.AssignedScope = "/bar"
+	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, updatedBytes, 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", "--force", scopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// Wait for cache propagation and verify the update took effect
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		require.NoError(t, err)
+		updated, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
+		require.NoError(t, err)
+		require.Len(t, updated, 1)
+		require.Equal(t, "test-token", updated[0].GetMetadata().GetName())
+		require.Equal(ct, "/bar", updated[0].GetSpec().GetAssignedScope())
+		require.Equal(ct, "staging", updated[0].GetMetadata().GetLabels()["env"])
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for upserted scoped token cache propagation")
+
+	// verify delete of token
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token/test-token"})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		require.True(ct, trace.IsNotFound(err))
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
+
+	// Create a GCP scoped token and verify it appears in listings.
+	gcpScopedTokenYAMLPath := filepath.Join(t.TempDir(), "gcp-test-token.yaml")
+	require.NoError(t, os.WriteFile(gcpScopedTokenYAMLPath, []byte(gcpScopedTokenYAML), 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", gcpScopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := runResourceCommand(t, clt, []string{"get", "scoped_token/gcp-test-token", "--format=json"})
+		require.NoError(ct, err)
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for GCP scoped token cache propagation")
+
+	// Verify GCP token fields outside the retry loop.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json"})
+	require.NoError(t, err)
+	gcpTokens, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, gcpTokens, 1)
+	require.Equal(t, "gcp-test-token", gcpTokens[0].GetMetadata().GetName())
+	require.Equal(t, "gcp", gcpTokens[0].GetSpec().GetJoinMethod())
+	require.Len(t, gcpTokens[0].GetSpec().GetGcp().GetAllow(), 1)
+	require.Equal(t, []string{"example-project-123456"}, gcpTokens[0].GetSpec().GetGcp().GetAllow()[0].GetProjectIds())
 }
 
 // TestIntegrationResource tests tctl integration commands.

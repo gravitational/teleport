@@ -110,6 +110,8 @@ func TestJoinGHA(t *testing.T) {
 				Actor:           "octocat",
 				Ref:             "refs/heads/main",
 				RefType:         "branch",
+				Enterprise:      "my-enterprise",
+				EnterpriseID:    "123456",
 			},
 		},
 	}
@@ -150,6 +152,8 @@ func TestJoinGHA(t *testing.T) {
 			Actor:           "octocat",
 			Ref:             "refs/heads/main",
 			RefType:         "branch",
+			Enterprise:      "my-enterprise",
+			EnterpriseID:    "123456",
 		}
 		if modifier != nil {
 			modifier(rule)
@@ -300,6 +304,38 @@ func TestJoinGHA(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name: "sub-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Sub = "repo:octo-org/octo-repo:environment:*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-sub-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Sub = "repo:octo-org/octo-repo:environment:dev*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
 			name: "incorrect-sub",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
@@ -308,6 +344,38 @@ func TestJoinGHA(t *testing.T) {
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
 							rule.Sub = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "repository-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Repository = "octo-org/octo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-repository-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Repository = "octo-org/octoo-*"
 						}),
 					},
 				},
@@ -332,6 +400,38 @@ func TestJoinGHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
+			name: "repository-owner-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.RepositoryOwner = "octo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-repository-owner-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.RepositoryOwner = "octoo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
 			name: "incorrect-repository-owner",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
@@ -340,6 +440,38 @@ func TestJoinGHA(t *testing.T) {
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
 							rule.RepositoryOwner = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "workflow-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Workflow = "example-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-workflow-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Workflow = "examplee-*"
 						}),
 					},
 				},
@@ -364,6 +496,38 @@ func TestJoinGHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
+			name: "environment-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Environment = "pr*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-environment-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Environment = "prr*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
 			name: "incorrect-environment",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
@@ -380,6 +544,38 @@ func TestJoinGHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
+			name: "actor-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Actor = "octo*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-actor-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Actor = "octoo*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
 			name: "incorrect-actor",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
@@ -388,6 +584,38 @@ func TestJoinGHA(t *testing.T) {
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
 							rule.Actor = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "ref-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Ref = "refs/heads/*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-ref-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Ref = "refs/tags/*"
 						}),
 					},
 				},
@@ -420,6 +648,38 @@ func TestJoinGHA(t *testing.T) {
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
 							rule.RefType = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Enterprise = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise-id",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.EnterpriseID = "not matching"
 						}),
 					},
 				},

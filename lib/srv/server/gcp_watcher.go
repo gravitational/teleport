@@ -45,6 +45,8 @@ type GCPInstances struct {
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered GCP virtual machines.
 	Instances []*gcpimds.Instance
+	// DiscoveryConfigName is the name of the DiscoveryConfig that triggered this discovery.
+	DiscoveryConfigName string
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -56,9 +58,10 @@ func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
 		events[fmt.Sprintf("%s%s/%s", gcpEventPrefix, inst.ProjectID, inst.Name)] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudGCP,
+			ResourceType:        resourceType,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       types.CloudGCP,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events
@@ -164,10 +167,11 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*GCPIn
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
 				instances = append(instances, &GCPInstances{
-					InstallerParams: f.InstallerParams,
-					ProjectID:       projectID,
-					Zone:            zone,
-					Instances:       vms,
+					InstallerParams:     f.InstallerParams,
+					ProjectID:           projectID,
+					Zone:                zone,
+					Instances:           vms,
+					DiscoveryConfigName: f.DiscoveryConfigName,
 				})
 			}
 		}

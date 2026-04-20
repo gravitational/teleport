@@ -1009,18 +1009,6 @@ type DiscoveryAccessPoint interface {
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
 
-// ExpiryAccessPoint is the API used by the expiry service.
-type ExpiryAccessPoint interface {
-	// Semaphores provides semaphore operations
-	types.Semaphores
-
-	// ListAccessRequests is an access request getter with pagination and sorting options.
-	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
-
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
-}
-
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
@@ -1146,6 +1134,11 @@ type OktaAccessPoint interface {
 
 	// DeleteLock deletes a given lock
 	DeleteLock(ctx context.Context, name string) error
+
+	// ConditionalUpdateOktaAssignment updates an Okta assignment, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
+	// UpsertOktaAssignment creates or updates an Okta assignment resource.
+	UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1440,6 +1433,9 @@ type Cache interface {
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
+	// GetAccessListOwners returns a list of owners for a particular access list.
+	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
+
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
@@ -1558,6 +1554,16 @@ type Cache interface {
 
 	// AppAuthConfigGetter defines methods for fetching app auth configs.
 	services.AppAuthConfigReader
+
+	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
+	services.WorkloadClusterServiceGetter
+	// SummarizerServiceGetter defines methods for fetching summarizer resources.
+	services.SummarizerServiceGetter
+	// BeamReader defines methods for reading beam resources.
+	services.BeamReader
+
+	// SubCAServiceGetter reads CertAuthorityOverride resources.
+	services.SubCAServiceGetter
 }
 
 type NodeWrapper struct {
@@ -1957,6 +1963,16 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// UpsertOktaAssignment creates or updates an Okta assignment resource.
+func (w *OktaWrapper) UpsertOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.UpsertOktaAssignment(ctx, item)
+}
+
+// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalUpdateOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.ConditionalUpdateOktaAssignment(ctx, item)
 }
 
 // GetLocks fetches locks that target a given set of resources

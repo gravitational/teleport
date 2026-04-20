@@ -17,7 +17,6 @@
  */
 
 import 'jest-canvas-mock';
-
 import { darkTheme } from 'design/theme';
 
 import { SessionRecordingMetadata } from 'teleport/services/recordings';

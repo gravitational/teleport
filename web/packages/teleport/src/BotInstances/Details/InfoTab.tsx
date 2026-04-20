@@ -17,12 +17,13 @@
  */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import Box from 'design/Box/Box';
 import Flex from 'design/Flex/Flex';
-import { SecondaryOutlined } from 'design/Label/Label';
+import { Dot } from 'design/Icon';
+import { Status } from 'design/Status';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { IconTooltip } from 'design/Tooltip/IconTooltip';
@@ -38,7 +39,7 @@ import {
   GetBotInstanceResponseJoinAttrs,
 } from 'teleport/services/bot/types';
 
-import { HealthStatusDot } from './HealthTab';
+import { healthStatusToKind } from './HealthTab';
 
 export function InfoTab(props: {
   data: GetBotInstanceResponse;
@@ -148,18 +149,13 @@ export function InfoTab(props: {
                     placement="top"
                     tipContent={makeHealthTooltip(h.status)}
                   >
-                    <SecondaryOutlined>
-                      <Flex
-                        alignItems={'center'}
-                        gap={2}
-                        padding={1}
-                        paddingLeft={0}
-                        paddingRight={2}
-                      >
-                        <HealthStatusDot $status={h.status} />
-                        <HealthLabelText>{h.service.name}</HealthLabelText>
-                      </Flex>
-                    </SecondaryOutlined>
+                    <Status
+                      kind={healthStatusToKind(h.status)}
+                      variant="border"
+                      icon={Dot}
+                    >
+                      {h.service.name}
+                    </Status>
                   </HoverTooltip>
                 ) : undefined
               )}
@@ -245,12 +241,6 @@ const HealthLabelsContainer = styled(Flex)`
   flex-wrap: wrap;
   overflow: hidden;
   gap: ${props => props.theme.space[1]}px;
-`;
-
-const HealthLabelText = styled(Text).attrs({
-  typography: 'body3',
-})`
-  white-space: nowrap;
 `;
 
 const AccentCountText = styled(Text)`

@@ -17,17 +17,17 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -47,11 +47,9 @@ import {
 
 import { Instances } from './Instances';
 
-const server = setupServer();
+enableMswServer();
 
 beforeAll(() => {
-  server.listen();
-
   global.IntersectionObserver = class IntersectionObserver {
     constructor() {}
     disconnect() {}
@@ -64,12 +62,9 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 it('having no permissions should show correct error', async () => {
   renderComponent({
@@ -148,7 +143,12 @@ it('having only instances permissions should show warning banner', async () => {
 });
 
 it('cache still initializing error should show correct error', async () => {
-  server.use(listInstancesError(503, 'inventory cache is not yet healthy'));
+  server.use(
+    listInstancesError(
+      503,
+      'inventory cache is not yet healthy, please try again in a few minutes'
+    )
+  );
   renderComponent();
 
   await waitFor(() => {
@@ -239,11 +239,12 @@ it('selecting a version filter should append the version predicate expression to
   await user.type(searchInput, 'name == "teleport-auth-01"{Enter}');
 
   await waitFor(() => {
-    expect(lastRequestUrl).toBeDefined();
-    const url = new URL(lastRequestUrl);
-    const query = url.searchParams.get('query');
-    expect(query).toBe('name == "teleport-auth-01"');
+    expect(lastRequestUrl).toContain('query=');
   });
+  {
+    const url = new URL(lastRequestUrl);
+    expect(url.searchParams.get('query')).toBe('name == "teleport-auth-01"');
+  }
 
   // Select a version filter
   const versionButton = screen.getByRole('button', { name: /Version/i });
@@ -257,11 +258,14 @@ it('selecting a version filter should append the version predicate expression to
 
   // Verify that the request made combines both predicates
   await waitFor(() => {
-    expect(lastRequestUrl).toBeDefined();
-    const url = new URL(lastRequestUrl);
-    const query = url.searchParams.get('query');
-    expect(query).toBe('(name == "teleport-auth-01") && (version == "18.2.4")');
+    expect(lastRequestUrl).toContain('version');
   });
+  {
+    const url = new URL(lastRequestUrl);
+    expect(url.searchParams.get('query')).toBe(
+      '(name == "teleport-auth-01") && (version == "18.2.4")'
+    );
+  }
 }, 15000);
 
 function renderComponent(options?: {
@@ -269,15 +273,13 @@ function renderComponent(options?: {
   initialUrl?: string;
 }) {
   const user = userEvent.setup();
-  const history = createMemoryHistory({
-    initialEntries: [options?.initialUrl || cfg.routes.instances],
-  });
+  const initialUrl = options?.initialUrl || cfg.routes.instances;
 
   return {
     ...render(<Instances />, {
       wrapper: makeWrapper({
         customAcl: options?.customAcl,
-        history,
+        initialUrl,
       }),
     }),
     user,
@@ -285,11 +287,11 @@ function renderComponent(options?: {
 }
 
 function makeWrapper(options: {
-  history: ReturnType<typeof createMemoryHistory>;
+  initialUrl: string;
   customAcl?: ReturnType<typeof makeAcl>;
 }) {
   const {
-    history,
+    initialUrl,
     customAcl = makeAcl({
       instances: {
         ...defaultAccess,
@@ -312,13 +314,13 @@ function makeWrapper(options: {
     ctx.storeUser.state.cluster.authVersion = '18.2.4';
 
     return (
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialUrl]}>
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
             <ContextProvider ctx={ctx}>
-              <Router history={history}>
-                <Route path={cfg.routes.instances}>{children}</Route>
-              </Router>
+              <Routes>
+                <Route path={cfg.routes.instances} element={children} />
+              </Routes>
             </ContextProvider>
           </ConfiguredThemeProvider>
         </QueryClientProvider>

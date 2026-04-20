@@ -12,17 +12,8 @@ IMG ?= teleport-operator:latest
 # across all builds.
 include ../../build.assets/versions.mk
 
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# This is a requirement for 'setup-envtest.sh' in the test target.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
-
 # include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
 include ../../build.assets/images.mk
-
-# include setup-envtest binary
-include ./envtest.mk
 
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
@@ -49,6 +40,8 @@ COMPILER ?= aarch64-linux-gnu-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 endif
 endif
+
+TEST_LOG_DIR ?= ${abspath ./test-logs}
 
 .PHONY: all
 all: build
@@ -99,7 +92,10 @@ PROTOS = \
 	teleport/legacy/types/types.proto \
 	teleport/machineid/v1/bot.proto \
 	teleport/workloadidentity/v1/resource.proto \
-	teleport/autoupdate/v1/autoupdate.proto
+	teleport/autoupdate/v1/autoupdate.proto \
+	teleport/summarizer/v1/summarizer.proto \
+	teleport/accessmonitoringrules/v1/access_monitoring_rules.proto \
+	teleport/scopes/joining/v1/token.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.
@@ -148,12 +144,12 @@ crd-manifests-diff: crdgen
 		protoc \
 			-I=../../api/proto/ \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./build/protoc-gen-crd \
+			--plugin=./crdgen/build/protoc-gen-crd \
 			--crd_out=$(CRD_OUT_PATH) \
 			"$${proto}"; \
 	done
 
-	diff config/crd/bases $(CRD_OUT_PATH);\
+	diff -N config/crd/bases $(CRD_OUT_PATH);\
 	EXIT_CODE=$$?;\
 	rm -rf $(CRD_OUT_PATH) $(CUSTOM_IMPORTS_TMP_DIR);\
 	exit $$EXIT_CODE
@@ -172,16 +168,12 @@ debug-dump-request:
 			"$${proto}"; \
 	done
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: generate $(ENVTEST) ## Run tests.
-test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
-test:
-	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
-
-.PHONY: echo-kubebuilder-assets
-echo-kubebuilder-assets:
-	@echo KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
-
+test: generate | $(TEST_LOG_DIR) ## Run tests.
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
 
 ##@ Build
 
@@ -190,6 +182,7 @@ build: generate ## Build manager binary.
 	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
 
 .PHONY: docker-build
+docker-build: OS = linux
 docker-build: ## Build docker image with the manager.
 	docker buildx build --platform="$(OS)/$(ARCH)" \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
@@ -213,9 +206,71 @@ $(LOCALBIN):
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.19.0
+CONTROLLER_TOOLS_VERSION ?= v0.20.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+
+# The target below is used to create an operator build, a local test cluster and run it.
+# This uses k3d, if you want to use kind, feel free to contribute an alternative taget.
+# When running from scratch, run k3d cluster create k3s-default to first create your k3d cluster.
+#
+# By default, this uses a released Teleport image.
+# To use it you must set `TELEPORT_VERSION=X.Y.Z`, with "X.Y.Z" being an existing release.
+# To use a locally built Teleport image instead, override TELEPORT_IMAGE and TELEPORT_IMAGE_VERSION:
+#   make k3d-deploy TELEPORT_IMAGE=teleport TELEPORT_IMAGE_VERSION=19.0.0-dev-arm64
+#
+# When TELEPORT_IMAGE is overridden from its default, a local build is assumed:
+# the local image is imported into k3d and TELEPORT_UNSTABLE_SCOPES=true is set.
+#
+# For enterprise builds, also set ENTERPRISE=1:
+#   make k3d-deploy ENTERPRISE=1 TELEPORT_IMAGE=teleport TELEPORT_IMAGE_VERSION=19.0.0-dev-arm64
+#
+# When using a local build, you must:
+#   1. Build the teleport image first (make image from repo root)
+#   2. For enterprise images, create the license secret before deploying:
+#      kubectl -n test create secret generic license --from-file=license.pem=e/fixtures/license-all-features.pem
+K3D_CLUSTER_NAME ?= k3s-default
+GIT_HASH := $(shell git rev-parse --short HEAD)
+GIT_DIRTY := $(shell git diff-index --quiet HEAD -- || echo "dirty")
+TIMESTAMP := $(shell date +%Y%m%d%H%M%S)
+TELEPORT_VERSION ?= 19.0.0-dev
+TELEPORT_IMAGE_DEFAULT := public.ecr.aws/gravitational/teleport-distroless
+TELEPORT_IMAGE ?= $(TELEPORT_IMAGE_DEFAULT)
+TELEPORT_IMAGE_VERSION ?= 18.6.4
+LOCAL_BUILD := $(if $(filter-out $(TELEPORT_IMAGE_DEFAULT),$(TELEPORT_IMAGE)),1,)
+ARCH ?= $(shell go env GOARCH)
+
+.PHONY: k3d-deploy
+k3d-deploy: VERSION := $(TELEPORT_VERSION)-$(GIT_HASH)$(if $(GIT_DIRTY),-$(TIMESTAMP))
+k3d-deploy: IMG := public.ecr.aws/gravitational-staging/teleport-operator:$(VERSION)
+k3d-deploy: export KUBECONFIG := $(shell mktemp)
+k3d-deploy: generate docker-build
+	echo "Using KUBECONFIG: $(KUBECONFIG)"
+	# check that the cluster exists and build a kubeconfig
+	k3d kubeconfig get $(K3D_CLUSTER_NAME) > "$(KUBECONFIG)"
+	#
+	cat "$(KUBECONFIG)"
+	# Import container images
+ifeq ($(LOCAL_BUILD),1)
+	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG) $(TELEPORT_IMAGE):$(TELEPORT_IMAGE_VERSION)
+else
+	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG)
+endif
+	# deploy a teleport cluster with the operator
+	# To add feature flags, append --set "extraEnv[N].name=..." lines below.
+	KUBECONFIG=$(KUBECONFIG) helm upgrade \
+		--install --create-namespace --namespace=test \
+		teleport-cluster ../../examples/chart/teleport-cluster \
+		--set "clusterName=test" \
+		--set "operator.enabled=true" \
+		--set "teleportVersionOverride=$(TELEPORT_IMAGE_VERSION)" \
+		--set "operator.teleportVersionOverride=$(VERSION)" \
+		--set "operator.image=$(subst :$(VERSION),,$(IMG))" \
+		$(if $(LOCAL_BUILD),--set "image=$(TELEPORT_IMAGE)") \
+		$(if $(ENTERPRISE),--set "enterprise=true") \
+		$(if $(ENTERPRISE),--set "enterpriseImage=$(TELEPORT_IMAGE)")
+
+	rm $$KUBECONFIG

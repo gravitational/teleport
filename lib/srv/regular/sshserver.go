@@ -72,9 +72,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -155,7 +158,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pamcfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -260,6 +263,9 @@ type Server struct {
 
 	// childLogConfig is the log config for child processes.
 	childLogConfig *srv.ChildLogConfig
+
+	// immutableLabels are the immutable labels assigned to the server's host certificate
+	immutableLabels map[string]string
 }
 
 // EventMetadata returns metadata about the server.
@@ -300,7 +306,7 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
 	return s.pamConfig
 }
 
@@ -366,10 +372,8 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
-		},
-		Writer: io.Discard,
+		ExecLogConfig: reexec.ExecLogConfig{},
+		Writer:        io.Discard,
 	}
 }
 
@@ -445,8 +449,14 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	// Set the listener before starting heartbeats so the first node heartbeat
+	// does not advertise an empty address.
+	if err := s.srv.SetListener(l); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.startPeriodicOperations()
-	return trace.Wrap(s.srv.Serve(l))
+	return trace.Wrap(s.srv.Serve())
 }
 
 func (s *Server) startPeriodicOperations() {
@@ -625,7 +635,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pamcfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -803,13 +813,21 @@ func SetScope(scope string) ServerOption {
 	}
 }
 
+// SetImmutableLabels sets the server's immutable labels.
+func SetImmutableLabels(labels map[string]string) ServerOption {
+	return func(s *Server) error {
+		s.immutableLabels = labels
+		return nil
+	}
+}
+
 // SetChildLogConfig sets the config that will be used to handle logs
 // from child processes.
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
-				Level:        cfg.LoggerLevel,
+			ExecLogConfig: reexec.ExecLogConfig{
+				Level:        cfg.LoggerLevel.Level(),
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
 				EnableColors: cfg.LogConfig.EnableColors,
@@ -917,12 +935,13 @@ func New(
 
 	// add in common auth handlers
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:      s,
-		Component:   component,
-		AccessPoint: s.authService,
-		FIPS:        s.fips,
-		Emitter:     s.StreamEmitter,
-		Clock:       s.clock,
+		Server:                        s,
+		Component:                     component,
+		AccessPoint:                   s.authService,
+		FIPS:                          s.fips,
+		Emitter:                       s.StreamEmitter,
+		Clock:                         s.clock,
+		ValidatedMFAChallengeVerifier: auth.MFAServiceClient(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
@@ -944,7 +963,10 @@ func New(
 		component,
 		addr, s,
 		getHostSigners,
-		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
+		sshutils.AuthMethods{
+			PublicKey:         s.authHandlers.PublicKeyCallback,
+			VerifiedPublicKey: s.authHandlers.VerifiedPublicKeyCallback,
+		},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
 		sshutils.SetNewConnHandler(s),
@@ -991,8 +1013,8 @@ func New(
 			Announcer:       s.authService,
 			GetServerInfo:   s.getServerResource,
 			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-			ServerTTL:       apidefaults.ServerAnnounceTTL,
+			AnnouncePeriod:  apidefaults.ProxyAnnounceTTL()/2 + utils.RandomDuration(apidefaults.ProxyAnnounceTTL()/10),
+			ServerTTL:       apidefaults.ProxyAnnounceTTL(),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
 			Clock:           s.clock,
 			OnHeartbeat:     s.onHeartbeat,
@@ -1182,18 +1204,19 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			CmdLabels:  s.getDynamicLabels(),
-			Addr:       addr,
-			Hostname:   s.hostname,
-			UseTunnel:  s.useTunnel,
-			Version:    teleport.Version,
-			ProxyIDs:   s.connectedProxyGetter.GetProxyIDs(),
-			RelayGroup: relayGroup,
-			RelayIds:   relayIDs,
+			CmdLabels:       s.getDynamicLabels(),
+			Addr:            addr,
+			Hostname:        s.hostname,
+			UseTunnel:       s.useTunnel,
+			Version:         teleport.Version,
+			ProxyIDs:        s.connectedProxyGetter.GetProxyIDs(),
+			RelayGroup:      relayGroup,
+			RelayIds:        relayIDs,
+			ImmutableLabels: s.immutableLabels,
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
-	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer())
 
 	return srv
 }
@@ -1285,7 +1308,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
-	nsctx.ExecType = teleport.NetworkingSubCommand
+	nsctx.ExecType = reexecconstants.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The
@@ -2522,9 +2545,6 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 	}
 
 	switch r.Name {
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {

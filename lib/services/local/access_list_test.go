@@ -34,6 +34,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -47,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
@@ -150,6 +154,77 @@ func TestAccessListCRUD(t *testing.T) {
 	created, err := service.UpsertAccessList(ctx, accessListDuplicateOwners)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedAccessList, created.Spec.Owners)
+}
+
+func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	scopedAccessService := NewScopedAccessService(mem)
+
+	for _, role := range []string{"scoped-role-1", "scoped-role-2", "scoped-role-3"} {
+		_, err = scopedAccessService.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: &scopedaccessv1.ScopedRole{
+				Kind: scopedaccess.KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: role,
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/eng", "/platform", "/ops"},
+				},
+				Version: types.V1,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	accessList := newAccessList(t, "accessList-scoped", clock, withOwnerRequires(accesslist.Requires{}), withMemberRequires(accesslist.Requires{}))
+	accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "scoped-role-1",
+			Scope: "/eng",
+		},
+		{
+			Role:  "scoped-role-2",
+			Scope: "/platform",
+		},
+	}
+
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	}
+
+	created, err := service.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList, created, cmpOpts...))
+
+	fetched, err := service.GetAccessList(ctx, accessList.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList, fetched, cmpOpts...))
+
+	fetched.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "scoped-role-3",
+			Scope: "/ops",
+		},
+	}
+
+	updated, err := service.UpdateAccessList(ctx, fetched)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(fetched, updated, cmpOpts...))
+
+	fetched, err = service.GetAccessList(ctx, accessList.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(updated, fetched, cmpOpts...))
 }
 
 func requireAccessDenied(t require.TestingT, err error, i ...any) {
@@ -1544,28 +1619,20 @@ func Test_CreateAccessListReview_FailForNonReviewable(t *testing.T) {
 	require.NoError(t, err)
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
-	// Create a couple access lists.
+	// Create an access lists.
 	accessList1 := newAccessList(t, "accessList1", clock, withType(accesslist.Static))
-	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.SCIM))
 
-	// Create both access lists.
 	_, err = service.UpsertAccessList(ctx, accessList1)
-	require.NoError(t, err)
-	_, err = service.UpsertAccessList(ctx, accessList2)
 	require.NoError(t, err)
 
 	accessList1Review := newAccessListReview(t, accessList1.GetName(), "al1-review")
-	accessList2Review := newAccessListReview(t, accessList2.GetName(), "al2-review")
 
 	// Add access list review.
 	_, _, err = service.CreateAccessListReview(ctx, accessList1Review)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "is not reviewable")
 	require.True(t, trace.IsBadParameter(err))
-	_, _, err = service.CreateAccessListReview(ctx, accessList2Review)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "is not reviewable")
-	require.True(t, trace.IsBadParameter(err))
+
 }
 
 func TestAccessListRequiresEqual(t *testing.T) {
@@ -1711,6 +1778,18 @@ func withType(typ accesslist.Type) newAccessListOpt {
 func withOwners(owners []accesslist.Owner) newAccessListOpt {
 	return func(o *newAccessListOptions) {
 		o.owners = owners
+	}
+}
+
+func withOwnerRequires(requires accesslist.Requires) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.ownerRequires = requires
+	}
+}
+
+func withMemberRequires(requires accesslist.Requires) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.memberRequires = requires
 	}
 }
 
@@ -2939,6 +3018,71 @@ func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
 			}
 		},
 	)
+}
+
+// TestAccessListUpsertUpdateWithMembersValidation tests that Upsert/UpdateAccessListWithMembers validates that
+// all members in the list reference the correct AccessList.
+// This prevents cross-references between access lists, allowing validation to detect and reject
+// incorrectly linked members to another access list in the upsert request.
+func TestAccessListUpsertUpdateWithMembersValidation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	mainAcl := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+	otherAcl := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+
+	t.Run("empty member access list name", func(t *testing.T) {
+		m := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m.Spec.AccessList = ""
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+
+	})
+
+	t.Run("wrong m.Spec.AccessList ref should be rejected", func(t *testing.T) {
+		m := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m.Spec.AccessList = otherAcl.GetName()
+		// The call is trying to changes in Main ACL, but the member is referencing other ACL, this should be
+		// validated and rejected, otherwise it can lead to cross-references vulnerability.
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("correct m.Spec.AccessList ref should succeed", func(t *testing.T) {
+		m := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m.Spec.AccessList = mainAcl.GetName()
+		// the member correctly references the parent ACL, so the upsert call should succeed.
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m})
+		require.NoError(t, err)
+	})
+
+	t.Run("mix of valid correct and incorrect references should be rejected", func(t *testing.T) {
+		m1 := newAccessListMember(t, mainAcl.GetName(), "alice")
+		m2 := newAccessListMember(t, mainAcl.GetName(), "bob")
+		m3 := newAccessListMember(t, mainAcl.GetName(), "charlie")
+
+		m2.Spec.AccessList = otherAcl.GetName()
+		// This call attempts to upsert/update three members to the main ACL, but m2 (bob) references otherAcl. Reject the entire request.
+		_, _, err = service.UpsertAccessListWithMembers(ctx, mainAcl, []*accesslist.AccessListMember{m1, m2, m3})
+		require.True(t, trace.IsBadParameter(err))
+
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, mainAcl, []*accesslist.AccessListMember{m1, m2, m3})
+		require.True(t, trace.IsBadParameter(err))
+	})
 }
 
 func addListOwner(accessList, owner *accesslist.AccessList) {

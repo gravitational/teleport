@@ -111,11 +111,11 @@ Service](./enroll-resources/desktop-access/introduction.mdx).
 
 ### Teleport Jamf Service
 
-The Jamf Service integrates with Jamf to enrolls trusted devices for macOS endpoints. 
+The Jamf Service integrates with Jamf to enroll trusted devices for macOS endpoints. 
 Before a user is granted access, Teleport checks the device's compliance status with Jamf. 
 This service is ideal for organizations that need to verify macOS device posture as part of 
 their access control strategy, ensuring only trusted devices are allowed to connect. 
-[Read more about the Jamf Service](./identity-governance/device-trust/jamf-integration.mdx).
+[Read more about the Jamf Service](./zero-trust-access/device-trust/jamf-integration.mdx).
 
 ### Teleport Debug Service
 
@@ -207,6 +207,12 @@ Read our [guide to Teleport roles](zero-trust-access/rbac-get-started/role-templ
 
 ### Teleport users
 
+A Teleport user is an identity, whether of an AI agent, human, or machine, that
+is registered with a Teleport cluster. The **Teleport Auth Service** verifies
+that a client or service attempting to connect has a valid Teleport-issued
+certificate. It then uses the subject of the certificate—including its username
+and Teleport roles—to authorize the user.
+
 Teleport allows for two kinds of users:
 
 - **Local users** correspond to a `user` **configuration resource** stored on
@@ -216,14 +222,16 @@ Teleport allows for two kinds of users:
   solution, Teleport issues a certificate for the user and creates a temporary
   **local user** that is valid for the lifetime of the certificate.
 
-Ultimately, a Teleport user is the subject of a certificate issued by the
-**Teleport Auth Service**. The Auth Service verifies that a client or service
-attempting to connect has a valid Teleport-issued certificate. It then uses the
-subject of the certificate—including its username and Teleport roles—to
-authorize the user.
+Only humans can authenticate as SSO users. Humans, machines and AI agents can
+authenticate as local users. Machines and AI agents join a cluster using a
+Machine and Workload Identity join token. See the [Machine & Workload Identity
+introduction](machine-workload-identity/introduction.mdx) for how Machine &
+Workload Identity works.
 
-Read more about [local users](reference/access-controls/authentication.mdx) and how [SSO
-authentication works in Teleport](zero-trust-access/sso/sso.mdx).
+Read more:
+- [Local users](reference/access-controls/authentication.mdx)
+- [How SSO authentication works in Teleport](zero-trust-access/sso/sso.mdx)
+- [Teleport user types](reference/access-controls/user-types.mdx)
 
 ### Authentication connector
 
@@ -238,7 +246,7 @@ Teleport allows you to configure a **trusted cluster relationship** between a
 **root cluster** and one or more **leaf clusters** that trust the root cluster
 certificate authority. The trust relationship between the root and leaf clusters
 enables users authenticated in the root cluster to access resources
-in leaf cluster. The root and leaf cluster operate independently with their own
+in the leaf cluster. The root and leaf cluster operate independently with their own
 users, roles, and resources, but the trust relationship allows users with certain roles
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 

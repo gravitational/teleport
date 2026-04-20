@@ -16,11 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
+import { http, HttpResponse } from 'msw';
 
 import { ButtonPrimary } from 'design/Button';
 import { ListThin } from 'design/Icon';
-import { act, fireEvent, render, screen } from 'design/utils/testing';
+import {
+  act,
+  enableMswServer,
+  fireEvent,
+  render,
+  Router,
+  screen,
+  server,
+} from 'design/utils/testing';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 import {
   autoRemoveDurationMs,
@@ -43,11 +51,28 @@ import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
+import { successGetUsersV2 } from 'teleport/test/helpers/users';
 import { TeleportFeature } from 'teleport/types';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { Main, MainProps } from './Main';
+
+enableMswServer();
+
+beforeEach(() => {
+  server.use(
+    userEventCaptureSuccess(),
+    successGetUsersV2([]),
+    http.get('/v1/webapi/sites/:clusterId/alerts', () =>
+      HttpResponse.json({ alerts: [] })
+    ),
+    http.get('/v1/webapi/sites/:clusterId/notifications', () =>
+      HttpResponse.json({ notifications: [] })
+    )
+  );
+});
 
 const setupContext = (): TeleportContext => {
   const ctx = new Context();
@@ -77,7 +102,7 @@ test('renders', () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <ToastNotificationProvider>
@@ -85,7 +110,7 @@ test('renders', () => {
           </ToastNotificationProvider>
         </ContextProvider>
       </LayoutContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -103,7 +128,7 @@ test('toggle rendering of info guide panel', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -111,7 +136,7 @@ test('toggle rendering of info guide panel', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -145,7 +170,7 @@ test('notification render and auto dismissal', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -153,7 +178,7 @@ test('notification render and auto dismissal', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();

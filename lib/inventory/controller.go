@@ -22,6 +22,7 @@ import (
 	"context"
 	"iter"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"strings"
@@ -921,6 +922,10 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
 	if sshServer.Scope != handle.Hello().GetScope() {
 		return trace.AccessDenied("incorrect ssh server scope (expected %q, got %q)", handle.Hello().GetScope(), sshServer.Scope)
+	}
+
+	if !maps.Equal(sshServer.GetImmutableLabels(), handle.Hello().GetImmutableLabels().GetSsh()) {
+		return trace.AccessDenied("immutable labels changed after registration")
 	}
 
 	// if a peer address is available in the context, use it to override zero-value addresses from

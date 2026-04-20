@@ -165,15 +165,20 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestBotCreation(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewBotV1Reconciler, test)
+}
+
+func TestBotDeletion(t *testing.T) {
+	test := &botTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewBotV1Reconciler, test)
 }
 
 func TestBotDeletionDrift(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewBotV1Reconciler, test)
 }
 
 func TestBotUpdate(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewBotV1Reconciler, test)
 }

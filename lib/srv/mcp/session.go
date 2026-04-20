@@ -20,7 +20,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
@@ -291,8 +290,8 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return resp
 	}
 
-	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal(resp.Result, &listResult); err != nil {
+	listResult, err := resp.GetListToolResult()
+	if err != nil {
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 

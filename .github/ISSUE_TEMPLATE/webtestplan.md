@@ -180,6 +180,54 @@ All actions should require re-authn with a webauthn device.
   - [ ] Reviews are not required for synced Access Lists
 - [ ] Verify an enrolled Okta Integration's SCIM, User, and App/Group Sync levels can be edited from the Integration Status page.
 
+### Discovery – AWS IaC Integration
+
+#### 1. Enroll New Integration
+- [ ] Select **Amazon Web Services (AWS)**
+
+##### Configuration
+- [ ] Resource Types
+  - [ ] EC2 Instances
+    - [ ] Tag Filters (test independently)
+      - [ ] No tags (blank)
+      - [ ] Specific tag(s)
+      - [ ] Tag(s) with wildcard
+- [ ] Regions (test independently)
+  - [ ] All regions
+  - [ ] Single region
+  - [ ] Multiple regions
+
+- [ ] Copy generated Terraform module
+
+#### 2. Provisioning
+- [ ] `terraform init` completes successfully
+- [ ] `terraform apply` completes successfully
+
+#### 3. Integration Validation
+- [ ] Integration appears in integrations list
+- [ ] Integration details load correctly
+  - [ ] Overview
+  - [ ] Activity
+  - [ ] Settings
+- [ ] Discovered resource counts match expectations
+
+#### 4. Issues Handling
+- [ ] Issues are visible
+  - [ ] View issue details
+  - [ ] Mark issue as resolved
+  - [ ] Verify issue is re-created on next discovery scan (if condition persists)
+
+#### 5. Configuration Updates
+- [ ] Update integration settings
+- [ ] Re-run `terraform apply`
+- [ ] Verify updated settings are reflected in integration details
+- [ ] Verify resource counts and issues update as expected
+
+#### 6. Deprovisioning
+- [ ] `terraform destroy` completes successfully
+- [ ] Integration is removed from integrations list
+- [ ] Previously discovered resources remain present in inventory (no deletion)
+
 #### Enroll new resources using Discover Wizard
 
 Use Discover Wizard to enroll new resources and access them:

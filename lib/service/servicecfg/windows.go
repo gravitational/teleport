@@ -179,8 +179,8 @@ type LDAPConfig struct {
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.
 	ServerName string
-	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate
+	// CAs are an optional CA certs to be used for verification if InsecureSkipVerify is set to false.
+	CAs []*x509.Certificate
 }
 
 // CheckAndSetDefaults verifies this LDAPConfig

@@ -1,0 +1,27 @@
+name: Upload test metrics
+description: Uploads test logs to s3. Designed to be used in test workflows after test execution.
+
+# Requires 'write' on 'id-token'.
+# Assumes default artifact location of "$GITHUB_WORKSPACE/test-logs/"
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+      id: aws-setup
+      if: always()
+      continue-on-error: true
+      with:
+        aws-region: us-west-2
+        role-to-assume: arn:aws:iam::278576220453:role/tf-ci-test-artifacts-upload-gha-role
+        role-session-name: gha-ci-test-artifacts-${{ github.event.repository.name }}-${{ github.run_number }}
+        role-duration-seconds: 900 # Minimum by policy.
+
+    - name: Normalize test results and push to s3
+      uses: gravitational/shared-workflows/tools/ci-normalize@b676318d4b4d54844f19a6fc59473b95962b1887 # tools/ci-normalize/v0.0.4
+      if: always() && steps.aws-setup.outcome == 'success'
+      continue-on-error: true # Do not fail the workflow
+      with:
+        s3-bucket: "s3://tp-278576220453-ci-test-artifacts-storage/ci-metrics"
+        junit-files: "$GITHUB_WORKSPACE/test-logs/*.xml"
+        tool-version: v0.0.4

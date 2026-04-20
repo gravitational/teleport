@@ -23,6 +23,7 @@ export enum NavigationCategory {
   IdentityGovernance = 'Identity Governance',
   IdentitySecurity = 'Identity Security',
   Audit = 'Audit',
+  Beams = 'Beams',
   AddNew = 'Add New',
 }
 
@@ -48,6 +49,14 @@ export const NAVIGATION_CATEGORIES = [
   NavigationCategory.MachineWorkloadId,
   NavigationCategory.IdentityGovernance,
   NavigationCategory.IdentitySecurity,
+  NavigationCategory.Beams,
   NavigationCategory.Audit,
   NavigationCategory.AddNew,
+];
+
+// BEAMS_NAVIGATION_CATEGORIES is a re-ordered list of categories for the beams
+// onboarding experience.
+export const BEAMS_NAVIGATION_CATEGORIES: typeof NAVIGATION_CATEGORIES = [
+  NavigationCategory.Beams,
+  ...NAVIGATION_CATEGORIES.filter(c => c !== NavigationCategory.Beams),
 ];

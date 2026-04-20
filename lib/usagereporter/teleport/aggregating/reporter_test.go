@@ -23,6 +23,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -71,7 +72,7 @@ func TestReporter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
@@ -248,7 +249,7 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
@@ -389,4 +390,354 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
 		return record.BotJoins == 0 && record.CertificatesIssued == 0 && record.SpiffeSvidsIssued == 1
 	}))
+}
+
+func TestReporterSessionSummariesAccessed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			e := <-w.Events()
+			return e
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      uuid.NewString(),
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		{
+			r.ingested = make(chan usagereporter.Anonymizable, 10)
+			recvIngested := func() {
+				<-r.ingested
+			}
+
+			// Create a user login event so alice has a user record
+			r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+				UserName:   "alice",
+				UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_LOCAL,
+			})
+			recvIngested()
+
+			// Alice accesses a session summary 3 times
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-01",
+			})
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-01",
+			})
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-01",
+			})
+			recvIngested()
+			recvIngested()
+			recvIngested()
+			// Alice accesses a different session summary once
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-02",
+			})
+			recvIngested()
+
+			// Wait for the aggregation window to complete
+			time.Sleep(sessionSummaryReportGranularity)
+			synctest.Wait()
+
+			require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+			reports, err := svc.listUserActivityReports(ctx, 10)
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
+			require.Len(t, reports[0].Records, 1)
+
+			record := reports[0].Records[0]
+			require.Equal(t, anonymizer.AnonymizeNonEmpty("alice"), record.UserName)
+			require.Len(t, record.SessionSummariesAccessed, 2)
+			require.Equal(t, string(types.SSHSessionKind), record.SessionSummariesAccessed[0].SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("server-01"), record.SessionSummariesAccessed[0].ResourceName)
+			require.Equal(t, uint64(3), record.SessionSummariesAccessed[0].Count)
+
+			require.Equal(t, string(types.SSHSessionKind), record.SessionSummariesAccessed[1].SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("server-02"), record.SessionSummariesAccessed[1].ResourceName)
+			require.Equal(t, uint64(1), record.SessionSummariesAccessed[1].Count)
+
+			require.NoError(t, svc.deleteUserActivityReport(ctx, reports[0]))
+			require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+		}
+	})
+}
+
+func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		// Set up a watcher to not have to poll the backend for newly added items
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			e := <-w.Events()
+			return e
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      uuid.NewString(),
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		// Test multiple session summary creation events with token tracking
+		{
+			r.ingested = make(chan usagereporter.Anonymizable, 10)
+			recvIngested := func() {
+				<-r.ingested
+			}
+
+			// Successful SSH session summary generation on server-01 with 100 input and 50 output tokens
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.SSHSessionKind),
+				Provider:          "bedrock",
+				ResourceName:      "server-01",
+				TotalInputTokens:  100,
+				TotalOutputTokens: 50,
+				Success:           true,
+			})
+			recvIngested()
+
+			// Another successful SSH session summary on same server with 150 input and 75 output tokens
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.SSHSessionKind),
+				Provider:          "bedrock",
+				ResourceName:      "server-01",
+				TotalInputTokens:  150,
+				TotalOutputTokens: 75,
+				Success:           true,
+			})
+			recvIngested()
+
+			// Successful Kubernetes session summary on different resource
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.KubernetesSessionKind),
+				Provider:          "openai",
+				ResourceName:      "kube-cluster-01",
+				TotalInputTokens:  200,
+				TotalOutputTokens: 100,
+				Success:           true,
+			})
+			recvIngested()
+
+			// Failed session summary - should NOT be tracked
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.SSHSessionKind),
+				Provider:          "bedrock",
+				ResourceName:      "server-02",
+				TotalInputTokens:  50,
+				TotalOutputTokens: 25,
+				Success:           false,
+			})
+			recvIngested()
+
+			// Wait for the aggregation window to complete
+			time.Sleep(userActivityReportGranularity)
+			synctest.Wait()
+
+			require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+			reports, err := svc.listIdentitySecuritySummariesGeneratedReports(ctx, 10)
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
+			require.Len(t, reports[0].Records, 2) // Only 2 records (failed one not tracked)
+
+			// Verify SSH session summary record (aggregated tokens from both events)
+			var sshRecord *prehogv1.SessionSummariesGeneratedRecord
+			var kubeRecord *prehogv1.SessionSummariesGeneratedRecord
+			for _, record := range reports[0].Records {
+				if record.SessionType == string(types.SSHSessionKind) {
+					sshRecord = record
+				} else if record.SessionType == string(types.KubernetesSessionKind) {
+					kubeRecord = record
+				}
+			}
+
+			require.NotNil(t, sshRecord)
+			require.Equal(t, string(types.SSHSessionKind), sshRecord.SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("server-01"), sshRecord.ResourceName)
+			require.Equal(t, uint64(250), sshRecord.TotalInputTokens)  // 100 + 150
+			require.Equal(t, uint64(125), sshRecord.TotalOutputTokens) // 50 + 75
+			require.Equal(t, uint64(2), sshRecord.SummariesGenerated)  // 2 successful summaries
+
+			require.NotNil(t, kubeRecord)
+			require.Equal(t, string(types.KubernetesSessionKind), kubeRecord.SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("kube-cluster-01"), kubeRecord.ResourceName)
+			require.Equal(t, uint64(200), kubeRecord.TotalInputTokens)
+			require.Equal(t, uint64(100), kubeRecord.TotalOutputTokens)
+			require.Equal(t, uint64(1), kubeRecord.SummariesGenerated)
+
+			require.NoError(t, svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, reports[0]))
+			require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+		}
+	})
+}
+
+func TestReporterIdentitySecurity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		// Set up a watcher to not have to poll the backend for newly added items
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			return <-w.Events()
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      "host-id",
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		r.ingested = make(chan usagereporter.Anonymizable, 10)
+		recvIngested := func() {
+			<-r.ingested
+		}
+
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityGraphSizeEvent{
+			Provider:        "teleport",
+			TotalIdentities: 1,
+			TotalResources:  2,
+		})
+		recvIngested()
+
+		// Later size should overwrite earlier size for the same provider.
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityGraphSizeEvent{
+			Provider:        "teleport",
+			TotalIdentities: 3,
+			TotalResources:  4,
+		})
+		recvIngested()
+
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityAuditLogsIngestedEvent{
+			Provider:     "teleport",
+			LogsIngested: 5,
+		})
+		recvIngested()
+
+		// Audit log counts are accumulated.
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityAuditLogsIngestedEvent{
+			Provider:     "teleport",
+			LogsIngested: 7,
+		})
+		recvIngested()
+
+		time.Sleep(identitySecurityReportGranularity)
+
+		for putCount := 0; putCount < 2; {
+			if recvBackendEvent().Type == types.OpPut {
+				putCount++
+			}
+		}
+
+		reports, err := svc.listIdentitySecurityReports(ctx, 10)
+		require.NoError(t, err)
+		require.Len(t, reports, 2)
+
+		expectedCluster := anonymizer.AnonymizeNonEmpty(clusterName.GetClusterName())
+		expectedHostID := anonymizer.AnonymizeNonEmpty("host-id")
+
+		var graphReport *prehogv1.IdentitySecurityReport
+		var auditReport *prehogv1.IdentitySecurityReport
+		for _, report := range reports {
+			require.Equal(t, expectedCluster, report.ClusterName)
+			require.Equal(t, expectedHostID, report.ReporterHostid)
+			if len(report.GraphSizeRecords) > 0 {
+				graphReport = report
+			}
+			if len(report.AuditLogRecords) > 0 {
+				auditReport = report
+			}
+		}
+
+		require.NotNil(t, graphReport)
+		require.Len(t, graphReport.GraphSizeRecords, 1)
+		require.Equal(t, "teleport", graphReport.GraphSizeRecords[0].Provider)
+		require.Equal(t, uint64(3), graphReport.GraphSizeRecords[0].TotalIdentities)
+		require.Equal(t, uint64(4), graphReport.GraphSizeRecords[0].TotalResources)
+
+		require.NotNil(t, auditReport)
+		require.Len(t, auditReport.AuditLogRecords, 1)
+		require.Equal(t, "teleport", auditReport.AuditLogRecords[0].Provider)
+		require.Equal(t, uint64(12), auditReport.AuditLogRecords[0].LogsIngested)
+	})
 }

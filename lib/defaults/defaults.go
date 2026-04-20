@@ -552,12 +552,18 @@ func ReadableDatabaseProtocol(p string) string {
 }
 
 const (
-	// PerfBufferPageCount is the size of the perf ring buffer.
-	PerfBufferPageCount = 64
+	// CmdPerfBufferPageCount is the size of buffered channel that receives
+	// eBPF command event messages.
+	CmdPerfBufferPageCount = 64
 
-	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
-	// events generate many events so this buffer needs to be extra large.
+	// OpenPerfBufferPageCount is the size of buffered channel that receives
+	// eBPF disk event messages. Open events generate many events so this
+	// buffer needs to be extra large.
 	OpenPerfBufferPageCount = 128
+
+	// NetPerfBufferPageCount is the size of the buffered channel that receives
+	// eBPF network event messages.
+	NetPerfBufferPageCount = 64
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
@@ -828,14 +834,25 @@ var (
 type HTTPClientOption func(*httpClientOptions) *httpClientOptions
 
 type httpClientOptions struct {
-	useProxyFromEnvironment bool
+	useProxyFromEnvironment *bool
 }
 
 // UseProxyFromEnvironment configures the HTTP client to use proxy
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func UseProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		opts.useProxyFromEnvironment = true
+		enable := true
+		opts.useProxyFromEnvironment = &enable
+		return opts
+	}
+}
+
+// DisableProxyFromEnvironment configures the HTTP client to ignore proxy
+// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+func DisableProxyFromEnvironment() HTTPClientOption {
+	return func(opts *httpClientOptions) *httpClientOptions {
+		enable := false
+		opts.useProxyFromEnvironment = &enable
 		return opts
 	}
 }
@@ -852,8 +869,12 @@ func HTTPClient(opts ...HTTPClientOption) (*http.Client, error) {
 		httpOpts = o(httpOpts)
 	}
 
-	if httpOpts.useProxyFromEnvironment {
+	switch {
+	case httpOpts.useProxyFromEnvironment == nil:
+	case *httpOpts.useProxyFromEnvironment == true:
 		transport.Proxy = http.ProxyFromEnvironment
+	case *httpOpts.useProxyFromEnvironment == false:
+		transport.Proxy = nil
 	}
 
 	return &http.Client{

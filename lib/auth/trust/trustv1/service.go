@@ -20,18 +20,26 @@ package trustv1
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
+var minGetUserCASemver = &semver.Version{Major: 18, Minor: 7, Patch: 0}
 
 type authServer interface {
 	// GetClusterName returns cluster name
@@ -101,14 +109,20 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetCertAuthority retrieves the matching certificate authority.
 func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuthorityRequest) (*types.CertAuthorityV2, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// For read without secrets, we use RiskyUnpinnedDecision, this is to allow
+	// scoped identities (regardless of their pinned scope) to be able to fetch
+	// cert_authority resources (which are currently unscoped/treated as root
+	// scope).
+	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
 		readVerb = types.VerbRead
+		decisionFn = authCtx.CheckerContext.Decision
 	}
 
 	// Before looking up the requested CA perform RBAC on a dummy CA to
@@ -122,14 +136,28 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource = contextCA
+	if err := decisionFn(
+		ctx,
+		scopes.Root,
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Require admin MFA to read secrets.
 	if req.IncludeKey {
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		unscopedCtx, ok := authCtx.UnscopedContext()
+		if !ok {
+			return nil, trace.AccessDenied(
+				"cannot perform admin action %s:%s as scoped identity",
+				types.KindCertAuthority, types.VerbRead,
+			)
+		}
+		if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -141,16 +169,75 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authCtx.CheckAccessToResource(ca, readVerb); err != nil {
+	ruleCtx.Resource = ca
+	if err := decisionFn(
+		ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(
+				&ruleCtx, types.KindCertAuthority, readVerb)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := failPreWindowsCATctlUserCAQuery(ctx, req.Type); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authority, ok := ca.(*types.CertAuthorityV2)
 	if !ok {
 		return nil, trace.BadParameter("unexpected ca type %T", ca)
 	}
 
 	return authority, nil
+}
+
+// failPreWindowsCATctlUserCAQuery checks if the client requesting the UserCA is
+// a version of tctl that does not know about the WindowsCA. Older Auth servers
+// used the UserCA for Windows desktop sessions. Newer Auth servers use
+// WindowsCA. If an old tctl is requesting the UserCA, we do not know if it is
+// meant for Windows desktop purposes, so deny the request and require the user
+// upgrade the tctl client so that the intent is clear.
+// See RFD 0239 for details:
+// https://github.com/gravitational/teleport/blob/master/rfd/0239-windows-ca-split.md
+// TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
+func failPreWindowsCATctlUserCAQuery(ctx context.Context, caType string) error {
+	// Query for UserCA?
+	if caType != string(types.UserCA) {
+		return nil
+	}
+
+	// Client metadata present?
+	clientVersion, ok := metadata.ClientVersionFromContext(ctx)
+	ua := metadata.UserAgentFromContext(ctx)
+	if !ok || ua == "" {
+		slog.WarnContext(ctx,
+			"Client context lacks version or user agent. Unable to make GetCertAuthority compatibility decision, letting the request through.",
+			"client_version", clientVersion,
+			"user_agent", ua,
+		)
+		return nil
+	}
+
+	// Client is tctl?
+	if !strings.HasPrefix(ua, teleport.ComponentTCTL+"/") {
+		return nil
+	}
+
+	// tctl pre WindowsCA?
+	clientSemver, err := semver.NewVersion(clientVersion)
+	if err != nil {
+		slog.WarnContext(ctx,
+			"Client version invalid. Unable to make GetCertAuthority compatibility decision, letting the request through.",
+			"error", err,
+			"client_version", clientVersion,
+		)
+		return nil
+	}
+	if clientSemver.Compare(*minGetUserCASemver) >= 0 {
+		return nil
+	}
+
+	return trace.BadParameter(
+		"in order to query the User CA, tctl must be upgraded to version %v or newer", minGetUserCASemver)
 }
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
@@ -193,8 +280,8 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 	// perform access-control decision. all cert authorities can be considered as being "root" resources from
 	// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
-	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -397,7 +484,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 
 	// CASing `updated` over `existing` if they're equivalent will only cause
 	// backend and watcher spam for no gain, so we exit early if that's the case
-	if services.CertAuthoritiesEquivalent(existing, updated) {
+	if existing.IsEqual(updated) {
 		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
 	}
 

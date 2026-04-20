@@ -86,6 +86,9 @@ export enum IntegrationEnrollKind {
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
   AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
   GitHubRepoAccess = 'INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS',
+  AwsCloud = 'INTEGRATION_ENROLL_KIND_AWS_CLOUD',
+  AzureCloud = 'INTEGRATION_ENROLL_KIND_AZURE_CLOUD',
+  GoogleCloud = 'INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD',
 }
 
 /**
@@ -116,6 +119,8 @@ export enum IntegrationEnrollStep {
   MWIGHAK8SConnectGitHub = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
   MWIGHAK8SConfigureAccess = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
   MWIGHAK8SSetupWorkflow = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
+
+  VerifyIntegration = 'INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION',
 }
 
 /**
@@ -164,6 +169,7 @@ export enum IntegrationEnrollField {
   MWIGHAK8SKubernetesGroups = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS',
   MWIGHAK8SKubernetesUsers = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS',
   MWIGHAK8SKubernetesResourceRules = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES',
+  MWIGHAK8SKubernetesClusterName = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME',
 }
 
 /**
@@ -309,7 +315,7 @@ export type UserEvent<E = CaptureEvent> = {
   alert?: string;
 };
 
-type UserEventWithData<E, D> = UserEvent<E> & {
+export type UserEventWithData<E, D> = UserEvent<E> & {
   eventData: D;
 };
 

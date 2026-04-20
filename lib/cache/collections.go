@@ -25,6 +25,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -37,8 +38,12 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -74,6 +79,7 @@ type collections struct {
 
 	provisionTokens                    *collection[types.ProvisionToken, provisionTokenIndex]
 	staticTokens                       *collection[types.StaticTokens, staticTokensIndex]
+	staticScopedTokens                 *collection[*joiningv1.StaticScopedTokens, staticScopedTokensIndex]
 	certAuthorities                    *collection[types.CertAuthority, certAuthorityIndex]
 	users                              *collection[types.User, userIndex]
 	roles                              *collection[types.Role, roleIndex]
@@ -81,6 +87,7 @@ type collections struct {
 	proxyServers                       *collection[types.Server, proxyServerIndex]
 	nodes                              *collection[types.Server, nodeIndex]
 	apps                               *collection[types.Application, appIndex]
+	beams                              *collection[*beamsv1.Beam, beamIndex]
 	appServers                         *collection[types.AppServer, appServerIndex]
 	dbs                                *collection[types.Database, databaseIndex]
 	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
@@ -148,6 +155,12 @@ type collections struct {
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
 	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
+	workloadClusters                   *collection[*workloadclusterv1.WorkloadCluster, workloadClusterIndex]
+	inferenceModels                    *collection[*summarizerv1.InferenceModel, inferenceModelIndex]
+	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
+	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
+	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
+	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -155,7 +168,7 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment, types.KindValidatedMFAChallenge:
 		return true
 	default:
 		return false
@@ -193,6 +206,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.staticTokens = collect
 			out.byKind[resourceKind] = out.staticTokens
+		case types.KindStaticScopedTokens:
+			collect, err := newStaticScopedTokensCollection(c.StaticScopedToken, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.staticScopedTokens = collect
+			out.byKind[resourceKind] = out.staticScopedTokens
 		case types.KindCertAuthority:
 			collect, err := newCertAuthorityCollection(c.Trust, watch)
 			if err != nil {
@@ -249,6 +270,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.apps = collect
 			out.byKind[resourceKind] = out.apps
+		case types.KindBeam:
+			collect, err := newBeamCollection(c.Beams, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.beams = collect
+			out.byKind[resourceKind] = out.beams
 		case types.KindAppServer:
 			collect, err := newAppServerCollection(c.Presence, watch)
 			if err != nil {
@@ -787,6 +816,53 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.appAuthConfig = collect
 			out.byKind[resourceKind] = out.appAuthConfig
+		case types.KindWorkloadCluster:
+			collect, err := newWorkloadClusterCollection(c.WorkloadClusterService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadClusters = collect
+			out.byKind[resourceKind] = out.workloadClusters
+		case types.KindInferenceModel:
+			collect, err := newInferenceModelCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.inferenceModels = collect
+			out.byKind[resourceKind] = out.inferenceModels
+		case types.KindInferenceSecret:
+			collect, err := newInferenceSecretCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.inferenceSecrets = collect
+			out.byKind[resourceKind] = out.inferenceSecrets
+		case types.KindInferencePolicy:
+			collect, err := newInferencePolicyCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.inferencePolicies = collect
+			out.byKind[resourceKind] = out.inferencePolicies
+		case types.KindRetrievalModel:
+			collect, err := newRetrievalModelCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.retrievalModels = collect
+			out.byKind[resourceKind] = out.retrievalModels
+		case types.KindCertAuthorityOverride:
+			collect, err := newCertAuthorityOverrideCollection(c.SubCAService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.certAuthorityOverrides = collect
+			out.byKind[resourceKind] = out.certAuthorityOverrides
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

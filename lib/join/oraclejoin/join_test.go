@@ -43,6 +43,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -53,8 +55,10 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinclient/oracle"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -338,29 +342,66 @@ func TestJoinOracle(t *testing.T) {
 			imdsClient, err := newFakeHTTPClient(imdsListener.Addr())
 			require.NoError(t, err)
 
+			spec := types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodOracle,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Oracle: &types.ProvisionTokenSpecV2Oracle{
+					Allow: tc.allowRules,
+				},
+			}
 			token, err := types.NewProvisionTokenFromSpec(
 				tc.tokenName,
 				time.Now().Add(time.Minute),
-				types.ProvisionTokenSpecV2{
-					JoinMethod: types.JoinMethodOracle,
-					Roles:      []types.SystemRole{types.RoleNode},
-					Oracle: &types.ProvisionTokenSpecV2Oracle{
-						Allow: tc.allowRules,
-					},
-				},
+				spec,
 			)
 			require.NoError(t, err)
 			require.NoError(t, server.Auth().UpsertToken(t.Context(), token))
 
-			_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-				Token: tc.requestTokenName,
-				ID: state.IdentityID{
-					Role: types.RoleInstance,
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
 				},
-				AuthClient:       nopClient,
-				OracleIMDSClient: imdsClient,
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
 			})
-			tc.assertion(t, err)
+			require.NoError(t, err)
+			_, err = server.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := server.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
+			t.Run("unscoped", func(t *testing.T) {
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient:       nopClient,
+					OracleIMDSClient: imdsClient,
+				})
+				tc.assertion(t, err)
+			})
+
+			t.Run("scoped", func(t *testing.T) {
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient:       nopClient,
+					OracleIMDSClient: imdsClient,
+				})
+				tc.assertion(t, err)
+			})
 		})
 	}
 }

@@ -67,7 +67,8 @@ func (f *RoleFilter) Match(role *RoleV6) bool {
 type Role interface {
 	// Resource provides common resource methods.
 	ResourceWithLabels
-
+	// IsEqual determines if two roles are equivalent to one another.
+	IsEqual(Role) bool
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
 
@@ -358,6 +359,15 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+func (r *RoleV6) IsEqual(other Role) bool {
+	otherv6, ok := other.(*RoleV6)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualRoleV6(r, otherv6)
+}
 
 // GetVersion returns resource version
 func (r *RoleV6) GetVersion() string {
@@ -1505,6 +1515,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
 		r.Spec.Allow.WorkloadIdentityLabels,
+		r.Spec.Allow.BeamLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -2297,6 +2308,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindBeam:
+		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2353,6 +2366,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindWorkloadIdentity:
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindBeam:
+		cond.BeamLabels = labelMatchers.Labels
+		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -2468,6 +2485,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+	KindBeam,
 }
 
 const (
@@ -2585,6 +2603,16 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 	}
 
 	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// UnmarshalText supports parsing CreateHostUserMode from string.
+//
+// The JSON and YAML unmarshaller will not call this method because CreateHostUserMode
+// also implements yaml/json.Unmarshaler, which takes precedence.
+// Callers that have a plain string should call UnmarshalText directly.
+func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
+	err := h.decode(string(text))
 	return trace.Wrap(err)
 }
 

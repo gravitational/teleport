@@ -48,7 +48,13 @@ import {
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
-import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
+import {
+  ArrowBack,
+  ChevronDown,
+  ChevronRight,
+  Cross,
+  Warning,
+} from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import {
   LongTermGroupingErrors,
@@ -56,13 +62,27 @@ import {
   UNSUPPORTED_KINDS,
 } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import {
+  formatAWSRoleARNForDisplay,
+  toggleAWSConsoleConstraint,
+  toggleSSHConstraint,
+} from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { mergeRefs } from 'shared/libs/mergeRefs';
-import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
+import {
+  AccessRequest,
+  getResourceIDString,
+  hasResourceConstraints,
+  RequestKind,
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+  WithResourceConstraints,
+} from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
 import { AccessDurationRequest } from '../../AccessDuration';
@@ -148,6 +168,115 @@ export const RequestCheckoutWithSlider = forwardRef<
   }
 );
 
+type DisplayRow<T extends PendingListItem> = T & {
+  constraints?: ResourceConstraints;
+};
+
+const StyledAWSRoleARNDisplayRow = styled(Flex).attrs({
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  gap: 2,
+})<{ $idx: number; $len: number }>`
+  border-radius: ${({ theme }) => theme.radii[1]}px;
+  border-bottom: ${({ theme, $idx, $len }) =>
+    theme.borders[$idx !== $len - 1 ? 1 : 0]};
+  border-bottom-color: ${({ theme }) =>
+    theme.colors.interactive.tonal.neutral[0]};
+  margin: 0 -${({ theme }) => theme.space[1]}px;
+  padding: ${({ theme }) => theme.space[1] + theme.space[1] / 2}px;
+  transition: all 150ms;
+
+  &:hover,
+  &:focus-visible {
+    background-color: ${({ theme }) => theme.colors.levels.sunken};
+    border-bottom-color: transparent;
+  }
+`;
+
+const AWSConsoleConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>Role ARNs</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.aws_console.role_arns.map((arn, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={arn}
+          $idx={idx}
+          $len={item.constraints.aws_console.role_arns.length}
+        >
+          <Text style={{ alignContent: 'center' }}>
+            {formatAWSRoleARNForDisplay(arn)}
+          </Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Role ARN"
+            onClick={() => {
+              clearAttempt();
+              toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
+const SSHConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'ssh', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>SSH Logins</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.ssh.logins.map((login, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={login}
+          $idx={idx}
+          $len={item.constraints.ssh.logins.length}
+        >
+          <Text style={{ alignContent: 'center' }}>{login}</Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Login"
+            onClick={() => {
+              clearAttempt();
+              toggleSSHConstraint(item, login, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
   toggleResources,
@@ -186,6 +315,8 @@ export function RequestCheckout<T extends PendingListItem>({
   updateNamespacesForKubeCluster,
   requestKind = RequestKind.ShortTerm,
   setRequestKind,
+  addedResourceConstraints,
+  setResourceConstraints,
 }: RequestCheckoutProps<T>) {
   const theme = useTheme();
   const [reason, setReason] = useState('');
@@ -193,6 +324,23 @@ export function RequestCheckout<T extends PendingListItem>({
   const supportsLongTerm =
     setRequestKind !== undefined && toggleResources !== undefined;
   const isLongTerm = requestKind === RequestKind.LongTerm;
+
+  const displayRows = useMemo<DisplayRow<T>[]>(() => {
+    // Kube namespaces are displayed as part of their parent kube_cluster.
+    const base = pendingAccessRequests.filter(d => d.kind !== 'namespace');
+
+    if (!addedResourceConstraints) return base;
+
+    return base.map(row => {
+      const rcId = getResourceIDString({
+        cluster: row.clusterName,
+        kind: row.kind,
+        name: row.id,
+      });
+      const rc = addedResourceConstraints[rcId];
+      return rc ? { ...row, constraints: rc } : row;
+    });
+  }, [pendingAccessRequests, addedResourceConstraints]);
 
   function updateReason(reason: string) {
     setReason(reason);
@@ -280,6 +428,14 @@ export function RequestCheckout<T extends PendingListItem>({
     return [false, undefined];
   }, [isResourceRequest, isLongTerm, dryRunResponse?.longTermResourceGrouping]);
 
+  const longTermButtonTooltipText =
+    longTermDisabledReason ||
+    (addedResourceConstraints &&
+    Object.entries(addedResourceConstraints).length &&
+    !isLongTerm
+      ? 'Selecting Permanent access will remove added resource constraints'
+      : undefined);
+
   const numPendingAccessRequests = pendingAccessRequests.filter(
     item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
   ).length;
@@ -304,7 +460,42 @@ export function RequestCheckout<T extends PendingListItem>({
     );
   };
 
-  function customRow(item: T) {
+  const renderAfter = (item: DisplayRow<T>) => {
+    if (hasResourceConstraints(item, 'aws_console')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <AWSConsoleConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'ssh')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <SSHConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+  };
+
+  function customRow(item: DisplayRow<T>) {
     if (item.kind === 'kube_cluster') {
       const unsupported =
         requestKind === RequestKind.LongTerm &&
@@ -356,7 +547,7 @@ export function RequestCheckout<T extends PendingListItem>({
   }
 
   const getStyle = useMemo(
-    () => (item: T) => {
+    () => (item: DisplayRow<T>) => {
       if (
         !shouldShowLongTermGroupingErrors({
           requestKind,
@@ -497,11 +688,10 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                   )}
                   <StyledTable
-                    data={pendingAccessRequests.filter(
-                      d => d.kind !== 'namespace'
-                    )}
+                    data={displayRows}
                     row={{
                       customRow,
+                      renderAfter,
                       getStyle,
                     }}
                     columns={[
@@ -563,7 +753,7 @@ export function RequestCheckout<T extends PendingListItem>({
                               value: RequestKind.LongTerm,
                               label: 'Permanent',
                               disabled: longTermDisabled,
-                              tooltip: longTermDisabledReason,
+                              tooltip: longTermButtonTooltipText,
                             },
                           ]}
                           activeValue={
@@ -1039,6 +1229,23 @@ const StyledTable = styled(Table)`
   border-radius: 8px;
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
+
+  tr,
+  [data-render-after-row] {
+    transition: background-color 150ms ease;
+  }
+
+  // Handle hovering/focusing constraint rows / their parent row the same.
+  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
+  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
+  [data-render-after-row]:hover,
+  [data-render-after-row]:focus-visible,
+  tr:hover:has(+ [data-render-after-row]),
+  tr:focus-visible:has(+ [data-render-after-row]),
+  tr:has(+ [data-render-after-row]:hover),
+  tr:has(+ [data-render-after-row]:focus-visible) {
+    background-color: ${({ theme }) => theme.colors.levels.surface};
+  }
 ` as typeof Table;
 
 const ShortenedText = styled(Text)`
@@ -1122,6 +1329,11 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     startTime: Date;
     requestKind?: RequestKind;
     setRequestKind?: React.Dispatch<React.SetStateAction<RequestKind>>;
+    addedResourceConstraints: ResourceConstraintsMap;
+    setResourceConstraints: (
+      key: ResourceIDString,
+      rc?: ResourceConstraints
+    ) => void;
     onStartTimeChange(t?: Date): void;
     fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
     updateNamespacesForKubeCluster(

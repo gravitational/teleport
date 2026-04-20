@@ -17,10 +17,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNowStrict } from 'date-fns';
-import { useState, type ReactNode } from 'react';
-import { useParams } from 'react-router';
-import { Link as RouterLink } from 'react-router-dom';
+import { formatDistanceStrict, formatDistanceToNowStrict } from 'date-fns';
+import { useState, useEffect, type ReactNode } from 'react';
+import { Link as RouterLink, useParams } from 'react-router';
 
 import { Box, Card, Flex, H2, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -31,11 +30,9 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronRight,
-  CircleCheck,
   CircleCross,
   Warning,
 } from 'design/Icon';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { TabBorder, useSlidingBottomBorderTabs } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
@@ -43,12 +40,21 @@ import { pluralize } from 'shared/utils/text';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import {
+  ContentWithSidePanel,
+  InfoGuideSwitch,
+  useTerraformInfoGuide,
+} from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
+import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
+import { useNoMinWidth } from 'teleport/Main';
+import {
+  INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS,
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
+import { SETTINGS_PANEL_WIDTH, SettingsTab } from './SettingsTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -67,12 +73,15 @@ export function formatRelativeDate(value?: string | Date): string {
     return displayDateTime(date);
   }
 }
-type TabId = 'overview' | 'activity';
+type TabId = 'overview' | 'activity' | 'settings';
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'activity', label: 'Activity' },
+  { id: 'activity', label: 'Issues' },
+  { id: 'settings', label: 'Settings' },
 ] as const;
+
+const OVERDUE_REFETCH_INTERVAL_MS = 10 * 1000;
 
 export function IaCIntegrationOverview() {
   const { name } = useParams<{ name: string }>();
@@ -82,14 +91,17 @@ export function IaCIntegrationOverview() {
     error,
     isLoading,
     isError,
-  } = useQuery({
+  } = useQuery<IntegrationWithSummary>({
     queryKey: ['integrationStats', name],
     queryFn: () => integrationService.fetchIntegrationStats(name),
     enabled: !!name,
+    refetchInterval: query => getStatsRefetchIntervalMs(query.state.data),
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const { activeInfoGuideTab, setActiveInfoGuideTab } = useTerraformInfoGuide();
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+  useNoMinWidth();
 
   if (isLoading) {
     return (
@@ -109,41 +121,62 @@ export function IaCIntegrationOverview() {
     );
   }
 
+  const isPanelOpen = activeTab === 'settings' && !!activeInfoGuideTab;
+
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
-      <Flex alignItems="center" justifyContent="space-between" mb={3}>
-        <Flex alignItems="center">
-          <HoverTooltip placement="bottom" tipContent="Back to Integrations">
-            <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
-              <ArrowLeft size="medium" />
-            </ButtonIcon>
-          </HoverTooltip>
-          <Text bold fontSize={6} mr={2}>
-            {stats.name}
-          </Text>
+      <ContentWithSidePanel
+        isPanelOpen={isPanelOpen}
+        panelWidth={SETTINGS_PANEL_WIDTH}
+      >
+        <Flex alignItems="center" justifyContent="space-between" mb={3}>
+          <Flex alignItems="center">
+            <HoverTooltip placement="bottom" tipContent="Back to Integrations">
+              <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
+                <ArrowLeft size="medium" />
+              </ButtonIcon>
+            </HoverTooltip>
+            <Text bold fontSize={6} mr={2}>
+              {stats.name}
+            </Text>
+          </Flex>
+          {activeTab === 'settings' && (
+            <InfoGuideSwitch
+              isPanelOpen={isPanelOpen}
+              activeTab={activeInfoGuideTab}
+              onSwitch={setActiveInfoGuideTab}
+            />
+          )}
         </Flex>
-      </Flex>
-      <SmallTabsContainer ref={parentRef} mb={4}>
-        {TABS.map(t => (
-          <SmallTab
-            key={t.id}
-            data-tab-id={t.id}
-            selected={activeTab === t.id}
-            onClick={() => setActiveTab(t.id)}
-          >
-            {t.label}
-          </SmallTab>
-        ))}
-        <TabBorder ref={borderRef} />
-      </SmallTabsContainer>
+        <SmallTabsContainer ref={parentRef} mb={4}>
+          {TABS.map(t => (
+            <SmallTab
+              key={t.id}
+              data-tab-id={t.id}
+              selected={activeTab === t.id}
+              onClick={() => setActiveTab(t.id)}
+            >
+              {t.label}
+            </SmallTab>
+          ))}
+          <TabBorder ref={borderRef} />
+        </SmallTabsContainer>
 
-      {activeTab === 'overview' && (
-        <OverviewTab
-          stats={stats}
-          onViewIssues={() => setActiveTab('activity')}
-        />
-      )}
-      {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'overview' && (
+          <OverviewTab
+            stats={stats}
+            onViewIssues={() => setActiveTab('activity')}
+          />
+        )}
+        {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'settings' && (
+          <SettingsTab
+            stats={stats}
+            activeInfoGuideTab={activeInfoGuideTab}
+            onInfoGuideTabChange={setActiveInfoGuideTab}
+          />
+        )}
+      </ContentWithSidePanel>
     </FeatureBox>
   );
 }
@@ -171,10 +204,22 @@ function IntegrationHealthCard({
   onViewIssues: () => void;
 }) {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const hasIssues = stats.unresolvedUserTasks > 0;
   const lastScanDate = getIntegrationLastScan(stats);
   const lastScanText = formatRelativeDate(lastScanDate);
+  const nextScanText = formatTimeUntilNextScan(lastScanDate, nowMs);
   const configDetails = getIntegrationConfigDetails(stats);
 
   return (
@@ -186,12 +231,7 @@ function IntegrationHealthCard({
       <Flex flexDirection="column" gap={2}>
         <StatusRow label="Status:">
           <Flex alignItems="center" gap={2} flexWrap="wrap">
-            <LabelButtonWithIcon
-              IconLeft={hasIssues ? Warning : CircleCheck}
-              kind={hasIssues ? 'outline-warning' : 'outline-success'}
-            >
-              {hasIssues ? 'Issues' : 'Healthy'}
-            </LabelButtonWithIcon>
+            <SummaryStatusLabel summary={stats} />
             {hasIssues && (
               <>
                 <Text typography="body3">
@@ -213,7 +253,14 @@ function IntegrationHealthCard({
         </StatusRow>
 
         <StatusRow label="Last verified:">
-          <Text typography="body3">{lastScanText}</Text>
+          <Flex alignItems="center" gap={2} flexWrap="wrap">
+            <Text typography="body3">{lastScanText}</Text>
+            {lastScanDate && nextScanText && (
+              <Text typography="body3" color="text.slightlyMuted">
+                {nextScanText}
+              </Text>
+            )}
+          </Flex>
         </StatusRow>
 
         <StatusRow label="Resources:">
@@ -404,6 +451,43 @@ function formatResourceCounts(stats: IntegrationWithSummary): string {
   }
 
   return `${total} Discovered (${parts.join(', ')})`;
+}
+
+function formatTimeUntilNextScan(
+  lastScanDate: Date | undefined,
+  nowMs: number
+): string {
+  if (!lastScanDate) {
+    return '';
+  }
+
+  const nextScanAt =
+    lastScanDate.getTime() + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS;
+  const remainingMs = nextScanAt - nowMs;
+
+  if (remainingMs <= 0) {
+    return '';
+  }
+
+  return `Next scan expected in ${formatDistanceStrict(0, remainingMs, {
+    unit: 'minute',
+    roundingMethod: 'ceil',
+  })}`;
+}
+
+function getStatsRefetchIntervalMs(stats: IntegrationWithSummary | undefined) {
+  const lastScanDate = stats ? getIntegrationLastScan(stats) : undefined;
+
+  if (!lastScanDate) {
+    return OVERDUE_REFETCH_INTERVAL_MS;
+  }
+
+  const remainingMs =
+    lastScanDate.getTime() +
+    INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS -
+    Date.now();
+
+  return remainingMs <= 0 ? OVERDUE_REFETCH_INTERVAL_MS : remainingMs;
 }
 
 function getTimestamp(value: unknown): number {

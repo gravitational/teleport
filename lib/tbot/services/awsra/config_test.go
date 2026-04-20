@@ -323,6 +323,27 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "validating region",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *Config {
+				return &Config{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+					RoleARN:        "arn:aws:iam::123456789012:role/example-role",
+					TrustAnchorARN: "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
+					ProfileARN:     "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
+					Region:         "us-east-1",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

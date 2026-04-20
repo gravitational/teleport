@@ -62,9 +62,7 @@ func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
 func TestFeaturesWatcher(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &mockedFeatureGetter{features: proto.Features{
-			Kubernetes:     true,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}}
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -94,21 +92,15 @@ func TestFeaturesWatcher(t *testing.T) {
 		// after starting the watcher, handler.GetClusterFeatures should return
 		// values matching the client's response
 		features := proto.Features{
-			Kubernetes:     true,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}
-		entitlements.BackfillFeatures(&features)
 		expected := utils.CloneProtoMsg(&features)
 		require.Equal(t, *expected, handler.GetClusterFeatures())
 
 		// update values once again and check if the features are properly updated
 		features = proto.Features{
-			Kubernetes:     false,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}
-		entitlements.BackfillFeatures(&features)
 		mockClient.setFeatures(features)
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
@@ -119,7 +111,6 @@ func TestFeaturesWatcher(t *testing.T) {
 
 		// test updating entitlements
 		features = proto.Features{
-			Kubernetes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
 				string(entitlements.ExternalAuditStorage):   {Enabled: true},
 				string(entitlements.AccessLists):            {Enabled: true},
@@ -127,16 +118,13 @@ func TestFeaturesWatcher(t *testing.T) {
 				string(entitlements.App):                    {Enabled: true},
 				string(entitlements.CloudAuditLogRetention): {Enabled: true},
 			},
-			AccessRequests: &proto.AccessRequestsFeature{},
 		}
-		entitlements.BackfillFeatures(&features)
 		mockClient.setFeatures(features)
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
 		synctest.Wait()
 
 		expected = &proto.Features{
-			Kubernetes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
 				string(entitlements.ExternalAuditStorage):   {Enabled: true},
 				string(entitlements.AccessLists):            {Enabled: true},
@@ -144,9 +132,7 @@ func TestFeaturesWatcher(t *testing.T) {
 				string(entitlements.App):                    {Enabled: true},
 				string(entitlements.CloudAuditLogRetention): {Enabled: true},
 			},
-			AccessRequests: &proto.AccessRequestsFeature{},
 		}
-		entitlements.BackfillFeatures(expected)
 		require.Equal(t, *expected, handler.GetClusterFeatures())
 
 		// stop watcher and ensure it stops updating features
@@ -154,13 +140,8 @@ func TestFeaturesWatcher(t *testing.T) {
 		synctest.Wait()
 
 		features = proto.Features{
-			Kubernetes:     !features.Kubernetes,
-			App:            !features.App,
-			DB:             true,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}
-		entitlements.BackfillFeatures(&features)
 		mockClient.setFeatures(features)
 		notExpected := utils.CloneProtoMsg(&features)
 

@@ -1147,17 +1147,14 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	allowedAWSRolesLookup := map[string][]string{
-		appServer.GetName(): allowedAWSRoles,
-	}
-
+	roleSet := set.New(allowedAWSRoles...)
 	return ui.MakeApp(appServer.GetApp(), ui.MakeAppsConfig{
-		LocalClusterName:      h.auth.clusterName,
-		LocalProxyDNSName:     h.proxyDNSName(),
-		AppClusterName:        cluster.GetName(),
-		AllowedAWSRolesLookup: allowedAWSRolesLookup,
-		UserGroupLookup:       getUserGroupLookup(),
-		Logger:                h.logger,
+		LocalClusterName:  h.auth.clusterName,
+		LocalProxyDNSName: h.proxyDNSName(),
+		AppClusterName:    cluster.GetName(),
+		AWSRoles:          &ui.PrincipalSet{All: roleSet, Granted: roleSet},
+		UserGroupLookup:   getUserGroupLookup(),
+		Logger:            h.logger,
 	}), nil
 }
 
@@ -1335,6 +1332,38 @@ func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Reques
 	default:
 		return nil, trace.BadParameter("unsupported kind provided %q", kind)
 	}
+}
+
+func (h *Handler) awsBedrockSummarizerOIDC(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+	awsAccountID := queryParams.Get("awsAccountID")
+	// The script must execute the following command:
+	// "teleport integration configure session-summaries bedrock"
+	argsList := []string{
+		"integration", "configure", "session-summaries", "bedrock",
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--resource=%s", shsprintf.EscapeDefaultContext(queryParams.Get("resource"))),
+	}
+	if awsAccountID != "" {
+		argsList = append(argsList, fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)))
+	}
+
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		EntrypointArgs: strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Access Graph AWS Sync enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = w.Write([]byte(script))
+
+	return nil, trace.Wrap(err)
 }
 
 func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {

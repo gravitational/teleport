@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
@@ -48,7 +49,6 @@ type ClusterConfiguration interface {
 	SetStaticTokens(types.StaticTokens) error
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
-
 	// GetUIConfig gets the proxy service UI config from the backend
 	GetUIConfig(context.Context) (types.UIConfig, error)
 	// SetUIConfig sets the proxy service UI config from the backend
@@ -141,6 +141,7 @@ type ClusterConfiguration interface {
 // auth-specific methods.
 type ClusterConfigurationInternal interface {
 	ClusterConfiguration
+	StaticScopedTokenService
 
 	// SetClusterName sets services.ClusterName on the backend.
 	SetClusterName(types.ClusterName) error
@@ -156,6 +157,18 @@ type ClusterConfigurationInternal interface {
 	// applied should be the same backend used by the
 	// ClusterConfigurationInternal.
 	AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error)
+}
+
+// StaticScopedTokenService is the interface for interacting with the cluster's
+// [*joiningv1.StaticScopedTokens].
+type StaticScopedTokenService interface {
+	// GetStaticScopedTokens gets [*joiningv1.StaticScopedTokens] from the backend.
+	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
+	// SetStaticScopedTokens sets [*joiningv1.StaticScopedTokens] to the backend.
+	SetStaticScopedTokens(context.Context, *joiningv1.StaticScopedTokens) error
+	// DeleteStaticScopedTokens deletes the [*joiningv1.StaticScopedTokens] resource resource
+	// from the backend
+	DeleteStaticScopedTokens(context.Context) error
 }
 
 // ValidateAuthPreference performs checks that should happen before persisting a

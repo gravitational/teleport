@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -123,7 +123,7 @@ describe('configureBot Component', () => {
     await userEvent.click(screen.getByTestId('button-next'));
     expect(
       screen.getByText(
-        'A bot with this name already exist, please use a different name.'
+        'A bot with this name already exists, please use a different name.'
       )
     ).toBeInTheDocument();
   });

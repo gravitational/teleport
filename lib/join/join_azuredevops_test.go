@@ -27,11 +27,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type mockAzureDevopsTokenValidator struct {
@@ -325,9 +329,44 @@ func TestJoinAzureDevops(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, auth.UpsertToken(ctx, token))
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tt.tokenSpec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = auth.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := auth.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			t.Run("new", func(t *testing.T) {
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token: token.GetName(),
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
+					},
+					IDToken:    tt.idToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: "scoped_" + token.GetName(),
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
 						NodeName: "testnode",

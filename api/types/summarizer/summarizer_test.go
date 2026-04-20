@@ -117,7 +117,7 @@ func TestValidateInferenceModel(t *testing.T) {
 		{
 			base: validOpenAI,
 			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.Provider = nil },
-			msg:  "missing or unsupported inference provider in spec, supported providers: openai",
+			msg:  "missing or unsupported inference provider in spec, supported providers: openai, bedrock",
 		},
 		{
 			base: validOpenAI,
@@ -143,6 +143,20 @@ func TestValidateInferenceModel(t *testing.T) {
 			base: invalidBedrockRegionPlaceholder,
 			fn:   func(m *summarizerv1.InferenceModel) {},
 			msg:  "spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: {{env.bedrock_region}}; got {{ env.bedrock_regio}}",
+		},
+		{
+			base: validBedrock,
+			fn: func(m *summarizerv1.InferenceModel) {
+				m.Spec.GetBedrock().Region = "eu-west-1?path"
+			},
+			msg: "invalid spec.bedrock.region: \"eu-west-1?path\"",
+		},
+		{
+			base: validBedrock,
+			fn: func(m *summarizerv1.InferenceModel) {
+				m.Spec.GetBedrock().Region = "eu-west-1.something"
+			},
+			msg: "invalid spec.bedrock.region: \"eu-west-1.something\"",
 		},
 	}
 

@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
-
 import { EventEmitter } from 'node:events';
 
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-
+import 'jest-canvas-mock';
 import { render } from 'design/utils/testing';
 
 import Logger, { NullService } from 'teleterm/logger';

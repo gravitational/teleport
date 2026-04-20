@@ -135,6 +135,24 @@ type IntegrationWithSummary struct {
 	IsManagedByTerraform bool `json:"isManagedByTerraform"`
 }
 
+// BriefSummary contains gathered information about an integration surfaced in the UI.
+type BriefSummary struct {
+	// UnresolvedUserTasks contains the list of open user tasks associated with this integration
+	UnresolvedUserTasks []UserTask `json:"unresolvedUserTasks"`
+	// ResourcesCount show the count of resources found, enrolled, and failed from this integration
+	ResourcesCount *ResourcesCount `json:"resourcesCount,omitempty"`
+}
+
+// ResourcesCount contains counts of resources by status.
+type ResourcesCount struct {
+	// Found is the count of resources discovered
+	Found int `json:"found"`
+	// Enrolled is the count of resources found and enrolled to the cluster
+	Enrolled int `json:"enrolled"`
+	// Failed is the count of resources that were found but failed to be enrolled
+	Failed int `json:"failed"`
+}
+
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
 type ResourceTypeSummary struct {
 	// RulesCount is the number of enrollment rules that are using this integration.
@@ -340,6 +358,8 @@ type IntegrationsListResponse struct {
 	Items []*Integration `json:"items"`
 	// NextKey is the position to resume listing events.
 	NextKey string `json:"nextKey"`
+	// Summaries are abbreviated details about the integration.
+	Summaries map[string]*BriefSummary `json:"summaries,omitempty"`
 }
 
 // MakeIntegrations creates a UI list of Integrations.

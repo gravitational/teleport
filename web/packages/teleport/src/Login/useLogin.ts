@@ -42,7 +42,10 @@ export default function useLogin() {
   const [showMotd, setShowMotd] = useState<boolean>(() => {
     const redirectUri = history.getRedirectParam();
 
-    if (redirectUri?.includes('headless')) {
+    if (
+      redirectUri?.includes('headless') ||
+      redirectUri?.includes('/mfa/browser')
+    ) {
       return false;
     }
     return !!cfg.getMotd();
@@ -74,13 +77,12 @@ export default function useLogin() {
     if (session.isValid()) {
       try {
         const redirectUrlWithBase = new URL(getEntryRoute());
-        const matched = matchPath(redirectUrlWithBase.pathname, {
-          path: cfg.routes.samlIdpSso,
-          strict: true,
-          exact: true,
-        });
+        const matched = matchPath(
+          cfg.routes.samlIdpSso,
+          redirectUrlWithBase.pathname
+        );
         if (matched) {
-          history.push(redirectUrlWithBase, true);
+          history.push(redirectUrlWithBase.toString(), true);
           return;
         } else {
           history.replace(cfg.routes.root);

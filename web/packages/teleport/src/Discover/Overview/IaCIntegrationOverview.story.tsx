@@ -17,15 +17,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
-import { Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router';
 
-import {
-  ToastNotificationProvider,
-  ToastNotifications,
-} from 'shared/components/ToastNotification';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 
 import cfg from 'teleport/config';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IaCIntegrationOverview } from './IaCIntegrationOverview';
@@ -42,14 +40,14 @@ const path = cfg.routes.integrationOverview;
 
 function Component() {
   return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <ToastNotifications />
-        <Route path={path}>
-          <IaCIntegrationOverview />
-        </Route>
-      </ToastNotificationProvider>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={initialEntries}>
+      <ToastNotifications />
+      <ContentMinWidth>
+        <Routes>
+          <Route path={path} element={<IaCIntegrationOverview />} />
+        </Routes>
+      </ContentMinWidth>
+    </TeleportProviderBasic>
   );
 }
 
@@ -60,6 +58,8 @@ Default.parameters = {
   msw: {
     handlers: [
       http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
+        const lastSync = Date.now() - 2 * 60 * 1000;
+
         return HttpResponse.json({
           name: integrationName,
           subKind: IntegrationKind.AwsOidc,
@@ -89,9 +89,9 @@ Default.parameters = {
           awsoidc: {
             roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
           },
-          awsec2: { enrolled: 5, failed: 1 },
-          awsrds: { enrolled: 3, failed: 0 },
-          awseks: { enrolled: 2, failed: 0 },
+          awsec2: { enrolled: 5, failed: 1, discoverLastSync: lastSync },
+          awsrds: { enrolled: 3, failed: 0, discoverLastSync: lastSync },
+          awseks: { enrolled: 2, failed: 0, discoverLastSync: lastSync },
           isManagedByTerraform: true,
         });
       }),
@@ -182,6 +182,8 @@ Healthy.parameters = {
   msw: {
     handlers: [
       http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
+        const lastSync = Date.now() - 2 * 60 * 1000;
+
         return HttpResponse.json({
           name: integrationName,
           subKind: IntegrationKind.AwsOidc,
@@ -190,9 +192,9 @@ Healthy.parameters = {
           awsoidc: {
             roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
           },
-          awsec2: { enrolled: 10, failed: 0 },
-          awsrds: { enrolled: 5, failed: 0 },
-          awseks: { enrolled: 3, failed: 0 },
+          awsec2: { enrolled: 10, failed: 0, discoverLastSync: lastSync },
+          awsrds: { enrolled: 5, failed: 0, discoverLastSync: lastSync },
+          awseks: { enrolled: 3, failed: 0, discoverLastSync: lastSync },
           isManagedByTerraform: true,
         });
       }),

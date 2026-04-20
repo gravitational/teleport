@@ -1,13 +1,17 @@
+{/* this comment is here to make the includes below render */}
+
 <Tabs>
-<TabItem label="Linux server">
+<TabItem label="Executable">
 
 Earlier, we generated a file called `teleport-event-handler.toml` to configure
-the Fluentd event handler. This file includes setting similar to the following:
+the Teleport Event Handler. This file includes setting similar to the following:
 
 ```toml
 storage = "./storage"
 timeout = "10s"
 batch = 20
+# concurrency is the number of concurrent sessions to process. By default, this is set to 5.
+concurrency = 5
 # The window size configures the duration of the time window for the event handler
 # to request events from Teleport. By default, this is set to 24 hours.
 # Reduce the window size if the events backend cannot manage the event volume
@@ -31,30 +35,36 @@ skip-event-types = []
 skip-session-types = []
 
 [forward.fluentd]
-ca = "/home/bob/event-handler/ca.crt"
-cert = "/home/bob/event-handler/client.crt"
-key = "/home/bob/event-handler/client.key"
+ca = <Var name="/home/bob/event-handler" />/ca.crt
+cert = <Var name="/home/bob/event-handler" />/client.crt
+key = <Var name="/home/bob/event-handler" />/client.key
 url = "https://fluentd.example.com:8888/test.log"
+# The Event Handler appends `.<session-id>.log` to `session-url` when sending
+# session recording events. For example, if `session-url` is
+# `https://fluentd.example.com:8888/session`, the actual requests are sent to
+# paths like `/session.<session-id>.log`. Ensure that your log collector's
+# tag matching or routing rules account for this suffix (e.g., use `session.*`
+# as a match pattern in Fluentd or Fluent Bit).
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
-addr = "teleport.example.com:443"
+addr = <Var name="teleport.example.com:443" />
 identity = "identity"
 ```
-
-Modify the configuration to replace `fluentd.example.com` with the domain name
-of your Fluentd deployment.
 
 </TabItem>
 <TabItem label="Helm Chart">
 
-Use the following template to create `teleport-plugin-event-handler-values.yaml`:
+Earlier, we generated a file called `teleport-plugin-event-handler-values.yaml` to configure
+the Teleport Event Handler. This file includes setting similar to the following:
 
 ```yaml
 eventHandler:
   storagePath: "./storage"
   timeout: "10s"
   batch: 20
+  # concurrency is the number of concurrent sessions to process. By default, this is set to 5.
+  concurrency: 5
   # The window size configures the duration of the time window for the event handler
   # to request events from Teleport. By default, this is set to 24 hours.
   # Reduce the window size if the events backend cannot manage the event volume
@@ -77,12 +87,18 @@ eventHandler:
   skipSessionTypes: []
 
 teleport:
-  address: "teleport.example.com:443"
+  address: <Var name="teleport.example.com:443" />
   identitySecretName: teleport-event-handler-identity
   identitySecretPath: identity
 
 fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"
+  # The Event Handler appends `.<session-id>.log` to `session-url` when sending
+  # session recording events. For example, if `session-url` is
+  # `https://fluentd.example.com:8888/session`, the actual requests are sent to
+  # paths like `/session.<session-id>.log`. Ensure that your log collector's
+  # tag matching or routing rules account for this suffix (e.g., use `session.*`
+  # as a match pattern in Fluentd or Fluent Bit).
   sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
   certificate:
     secretName: "teleport-event-handler-client-tls"
@@ -93,6 +109,14 @@ fluentd:
 persistentVolumeClaim:
   enabled: true
 ```
+
+</TabItem>
+<TabItem label="Helm Chart with Kubernetes Operator">
+
+Your helm configuration file `teleport-plugin-event-handler-values.yaml` should
+contain settings similar to the following:
+
+(!docs/pages/includes/plugins/helm-operator-config.mdx!)
 
 </TabItem>
 </Tabs>

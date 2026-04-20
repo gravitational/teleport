@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -46,8 +46,8 @@ import (
 )
 
 var (
-	bold    = color.New(color.Bold).SprintFunc()
-	boldRed = color.New(color.Bold, color.FgRed).SprintFunc()
+	bold    = lipgloss.NewStyle().Bold(true).Render
+	boldRed = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render
 
 	step1Template = bold("Step 1: Run the Setup Script") + `
 
@@ -114,12 +114,12 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Flag("use-system-credentials", "Uses system credentials instead of OIDC.").
 		BoolVar(&p.install.entraID.useSystemCredentials)
 
-	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported access lists. Multiple flags allowed.").
+	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported Access Lists. Multiple flags allowed.").
 		Required().
 		StringsVar(&p.install.entraID.defaultOwners)
 
 	cmd.
-		Flag("accessListOwnersSource", "Source of the Access List owners.").
+		Flag("access-list-owners-source", "Source of the Access List owners.").
 		Default("plugin").
 		StringVar(&p.install.entraID.accessListOwnersSource)
 	cmd.

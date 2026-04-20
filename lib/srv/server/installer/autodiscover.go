@@ -275,7 +275,10 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 
 	if err := ani.configureTeleportNode(ctx, imdsClient); err != nil {
 		if trace.IsAlreadyExists(err) {
-			ani.Logger.InfoContext(ctx, "Configuration at /etc/teleport.yaml already exists and has the same values, skipping teleport.service restart")
+			ani.Logger.InfoContext(ctx, "Teleport configuration already exists and has the same values, skipping systemd service restart",
+				"configuration_file", ani.buildTeleportConfigurationPath(),
+				"systemd_service", ani.buildTeleportSystemdUnitName(),
+			)
 			// Restarting teleport is not required because the target teleport.yaml
 			// is up to date with the existing one.
 			return nil
@@ -283,9 +286,13 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 
 		return trace.Wrap(err)
 	}
-	ani.Logger.InfoContext(ctx, "Configuration written at /etc/teleport.yaml")
+	ani.Logger.InfoContext(ctx, "Configuration written",
+		"configuration_file", ani.buildTeleportConfigurationPath(),
+	)
 
-	ani.Logger.InfoContext(ctx, "Enabling and starting teleport.service")
+	ani.Logger.InfoContext(ctx, "Enabling and starting teleport service",
+		"systemd_service", ani.buildTeleportSystemdUnitName(),
+	)
 	if err := ani.enableAndRestartTeleportService(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -532,6 +539,12 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
+		// XXXInternal are hidden labels (teleport.internal/) that are preserved for backward
+		// compatibility with nodes enrolled before visible labels were introduced.
+		nodeLabels[types.SubscriptionIDLabelInternal] = instanceInfo.SubscriptionID
+		nodeLabels[types.VMIDLabelInternal] = instanceInfo.VMID
+		nodeLabels[types.RegionLabelInternal] = instanceInfo.Location
+		nodeLabels[types.ResourceGroupLabelInternal] = instanceInfo.ResourceGroupName
 		nodeLabels[types.SubscriptionIDLabel] = instanceInfo.SubscriptionID
 		nodeLabels[types.VMIDLabel] = instanceInfo.VMID
 		nodeLabels[types.RegionLabel] = instanceInfo.Location
@@ -576,10 +589,15 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
+		// XXXDiscovery are hidden labels (teleport.internal/) that are preserved for backward
+		// compatibility with nodes enrolled before visible labels were introduced.
 		nodeLabels[types.NameLabelDiscovery] = name
 		nodeLabels[types.ZoneLabelDiscovery] = zone
 		nodeLabels[types.ProjectIDLabelDiscovery] = projectID
+
 		nodeLabels[types.ProjectIDLabel] = projectID
+		nodeLabels[types.NameLabel] = name
+		nodeLabels[types.ZoneLabel] = zone
 
 	default:
 		return nil, trace.BadParameter("Unsupported cloud provider: %v", imdsClient.GetType())

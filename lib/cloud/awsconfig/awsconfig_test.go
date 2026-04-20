@@ -91,7 +91,7 @@ func TestGetConfigIntegration(t *testing.T) {
 
 func testGetConfigIntegration(t *testing.T, provider Provider) {
 	dummyIntegration := "integration-test"
-	dummyRegion := "test-region-123"
+	dummyRegion := "us-region-1"
 
 	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "integration-test"},
@@ -112,6 +112,12 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	stsClt := func(cfg aws.Config) STSClient {
 		return &mockAssumeRoleAPIClient{}
 	}
+
+	t.Run("with an invalid region must return bad parameter error", func(t *testing.T) {
+		_, err := provider.GetConfig(t.Context(), "test-region-1", WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}))
+		require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+		require.ErrorContains(t, err, "region \"test-region-1\" is invalid")
+	})
 
 	t.Run("without an integration client, must return missing integration getter error", func(t *testing.T) {
 		ctx := context.Background()

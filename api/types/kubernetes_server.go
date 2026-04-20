@@ -74,6 +74,8 @@ type KubeServer interface {
 	SetTargetHealthStatus(status TargetHealthStatus)
 	// GetScope returns the scope this server belongs to.
 	GetScope() string
+	// IsEqual determines if two kube server resources are equivalent to one another.
+	IsEqual(i KubeServer) bool
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -304,7 +306,7 @@ func (s *KubernetesServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.Cluster.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the kube server static labels.
