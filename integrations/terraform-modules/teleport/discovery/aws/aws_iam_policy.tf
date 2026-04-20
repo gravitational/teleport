@@ -14,21 +14,18 @@ locals {
     : var.aws_iam_policy_name
   )
 
-  uses_ec2 = contains(local.aws_matcher_types, "ec2")
-  uses_eks = contains(local.aws_matcher_types, "eks")
+  uses_ec2             = contains(local.aws_matcher_types, "ec2")
+  uses_eks             = contains(local.aws_matcher_types, "eks")
+  uses_wildcard_region = contains(local.aws_matcher_regions, "*")
 
-  ec2_actions = concat(
-    contains(local.aws_matcher_regions, "*") ? ["account:ListRegions"] : [],
-    [
-      "ec2:DescribeInstances",
-      "ssm:DescribeInstanceInformation",
-      "ssm:GetCommandInvocation",
-      "ssm:ListCommandInvocations",
-      "ssm:SendCommand",
-    ]
-  )
+  ec2_actions = [
+    "ec2:DescribeInstances",
+    "ssm:DescribeInstanceInformation",
+    "ssm:GetCommandInvocation",
+    "ssm:ListCommandInvocations",
+    "ssm:SendCommand",
+  ]
 
-  # TODO(charles): add account:ListRegions when EKS supports wildcard region
   eks_actions = [
     "eks:ListClusters",
     "eks:DescribeCluster",
@@ -42,6 +39,7 @@ locals {
   ]
 
   policy_actions = concat(
+    local.uses_wildcard_region ? ["account:ListRegions"] : [],
     local.uses_ec2 ? local.ec2_actions : [],
     local.uses_eks ? local.eks_actions : [],
   )

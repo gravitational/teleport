@@ -56,22 +56,28 @@ import (
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
+		Matcher: types.AWSMatcher{
+			Regions: []string{"region1"},
+			Tags:    types.Labels{"l1": []string{"v1"}},
+		},
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
-		Integration:  "aws1",
+		Matcher: types.AWSMatcher{
+			Regions:     []string{"region1"},
+			Tags:        types.Labels{"l1": []string{"v1"}},
+			Integration: "aws1",
+		},
 	})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
-		Integration:  "aws1",
+		Matcher: types.AWSMatcher{
+			Regions:     []string{"region1"},
+			Tags:        types.Labels{"l1": []string{"v1"}},
+			Integration: "aws1",
+		},
 	})
 	require.NoError(t, err)
 
@@ -281,6 +287,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -311,6 +318,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -341,6 +349,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
