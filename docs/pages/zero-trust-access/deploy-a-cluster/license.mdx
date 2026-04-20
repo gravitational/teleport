@@ -209,3 +209,11 @@ It can take up to 15 minutes for a change on the backend to be detected by the
 cluster. There is no way to disable this functionality, but the cluster will
 continue to function even if network access to api.teleport.sh is not available
 (so long as the license remains valid).
+
+If the Teleport service can’t write the new license to disk due to permissions or 
+the environment setup, Teleport will maintain an up-to-date record of your
+organization's subscription. This means that new features will 
+be enabled in the cluster even though the license file is not updated. The next 
+time the service starts, the old license features will be available, but 
+shortly after it will update again. You will observe warnings in the logs, but 
+everything else will work normally.
