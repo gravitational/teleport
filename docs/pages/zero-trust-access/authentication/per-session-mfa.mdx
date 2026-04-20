@@ -13,7 +13,8 @@ when starting new:
 
 - SSH connections (a single `tsh ssh` call, Web UI SSH session or Teleport Connect SSH session)
 - Kubernetes sessions (a single `kubectl` call or a single `tsh proxy kube` run)
-- Database sessions (a single `tsh db connect` call or a single `tsh proxy db --tunnel` run)
+- Database sessions (a single `tsh db connect` call, a single `tsh db exec`
+  call, or a single `tsh proxy db --tunnel` run)
 - Application sessions
 - Desktop sessions
 
@@ -199,7 +200,7 @@ $ tsh db connect prod-mysql-instance
 ```
 
 If Jerry wants to avoid frequent MFA ceremonies, he can launch a local proxy
-tunnel using `tsh proxy --tunnel` command. He will then only be required to
+tunnel using `tsh proxy db --tunnel` command. He will then only be required to
 perform MFA when establishing the tunnel.
 
 ```code
@@ -286,11 +287,11 @@ proxy. That eliminates the need to confirm every single command; instead, MFA
 confirmation is required by the proxy itself.
 
 ```code
-tsh proxy kube prod-kube-cluster
-Preparing the following Teleport Kubernetes clusters:
+$ tsh proxy kube --exec
+Preparing the following Teleport Kubernetes clusters from the default kubeconfig:
 Teleport Cluster Name Kube Cluster Name Context Name
---------------------- ----------------- ------------------------------
-ent-all.test          prod-kube-cluster ent-all.test-prod-kube-cluster
+--------------------- ----------------- -----------------------------
+example.com           prod-kube-cluster example.com-prod-kube-cluster
 
 MFA is required to access Kubernetes cluster "prod-kube-cluster"
 Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
@@ -298,20 +299,21 @@ If you wish to perform MFA with another method, specify with flag --mfa-mode=<we
 
 Tap any security key <tap>
 Detected security key tap
-Started local proxy for Kubernetes on 127.0.0.1:50497
-To avoid port randomization, you can choose the listening port using the --port flag.
+Started local proxy for Kubernetes Access in the background.
 
-Use the following config for your Kubernetes applications. For example:
-export KUBECONFIG="/Users/jerry/.tsh/keys/example.com/admin-kube/example.com/localproxy-50497-kubeconfig"
-kubectl version
+Warning! Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
+the local proxy will be closed, and future access through this headless session won't be possible.
+
+
+Try issuing a command, for example "kubectl version".
 ```
 
-The `tsh proxy kube` command performs the MFA ceremony and prints commands that
-are necessary to connect. Jerry can now execute them:
+The `tsh proxy kube --exec` command performs the MFA ceremony and opens up a
+shell configured to access the given cluster using `kubectl`. Jerry can now
+execute this command without additional MFA:
 
 ```code
-$ export KUBECONFIG="/Users/jerry/.tsh/keys/example.com/admin-kube/example.com/localproxy-50497-kubeconfig"
-
 $ kubectl version
 Client Version: v1.34.1
 Kustomize Version: v5.7.1
