@@ -36,7 +36,14 @@ const (
 
 	// Default to running synchronizations every half hour.
 	oktaTransportIdleTimeout = 30 * time.Second
-	oktaConnectionTimeout    = 30 * time.Second
+	// oktaHTTPClientTimeout limits the total time for a single HTTP round-trip to the Okta API.
+	// Some requests can take more than 30s, e.g. /api/v1/apps/{appID}/users?limit=500
+	// (For instance in our Okta Prod Ashby or Anthropic apps)
+	// To avoid hitting the HTTP client timeout, we set it to 5 minutes
+	// TODO(smallinsky) switch  from apps/{appID}/users to semi official apps/{appID}/skinny_users skinny users app API
+	// that allows list list app users instantly.
+	// See: https://support.okta.com/help/s/article/efficiently-retrieve-user-lists-using-skinny-users-endpoints
+	oktaHTTPClientTimeout = 5 * time.Minute
 )
 
 // Interface provides higher-level operations on underlying Okta SDK API client. It's implemented
@@ -153,7 +160,7 @@ func (cfg *Config) Check() error {
 				rateLimiter: rate.NewLimiter(
 					rate.Every(time.Second/time.Duration(APICallsPerSecond)), 1),
 			},
-			Timeout: oktaConnectionTimeout,
+			Timeout: oktaHTTPClientTimeout,
 		}
 	}
 	return nil
