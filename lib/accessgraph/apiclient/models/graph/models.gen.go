@@ -4,17 +4,9 @@
 package models
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"net/url"
-	"path"
-	"strings"
 	"time"
 
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -384,21 +376,26 @@ type IdentityGroupTeleportProperties struct {
 
 // IdentityGroupTeleportPropertiesCond defines model for IdentityGroupTeleportPropertiesCond.
 type IdentityGroupTeleportPropertiesCond struct {
-	AppLabels            *map[string][]string `json:"app_labels,omitempty"`
-	AwsRoleArns          *[]string            `json:"aws_role_arns,omitempty"`
-	AzureIdentities      *[]string            `json:"azure_identities,omitempty"`
-	DatabaseLabels       *map[string][]string `json:"database_labels,omitempty"`
-	DatabaseNames        *[]string            `json:"database_names,omitempty"`
-	DatabaseRoles        *[]string            `json:"database_roles,omitempty"`
-	DatabaseUsers        *[]string            `json:"database_users,omitempty"`
-	GcpServiceAccounts   *[]string            `json:"gcp_service_accounts,omitempty"`
-	KubernetesGroups     *[]string            `json:"kubernetes_groups,omitempty"`
-	KubernetesLabels     *map[string][]string `json:"kubernetes_labels,omitempty"`
-	KubernetesUsers      *[]string            `json:"kubernetes_users,omitempty"`
-	Logins               *[]string            `json:"logins,omitempty"`
-	NodeLabels           *map[string][]string `json:"node_labels,omitempty"`
-	WindowsDesktopLabels *map[string][]string `json:"windows_desktop_labels,omitempty"`
-	WindowsDesktopLogins *[]string            `json:"windows_desktop_logins,omitempty"`
+	AppLabels                      *map[string][]string `json:"app_labels,omitempty"`
+	AppLabelsExpression            *string              `json:"app_labels_expression,omitempty"`
+	AwsRoleArns                    *[]string            `json:"aws_role_arns,omitempty"`
+	AzureIdentities                *[]string            `json:"azure_identities,omitempty"`
+	DatabaseLabels                 *map[string][]string `json:"database_labels,omitempty"`
+	DatabaseLabelsExpression       *string              `json:"database_labels_expression,omitempty"`
+	DatabaseNames                  *[]string            `json:"database_names,omitempty"`
+	DatabaseRoles                  *[]string            `json:"database_roles,omitempty"`
+	DatabaseUsers                  *[]string            `json:"database_users,omitempty"`
+	GcpServiceAccounts             *[]string            `json:"gcp_service_accounts,omitempty"`
+	KubernetesGroups               *[]string            `json:"kubernetes_groups,omitempty"`
+	KubernetesLabels               *map[string][]string `json:"kubernetes_labels,omitempty"`
+	KubernetesLabelsExpression     *string              `json:"kubernetes_labels_expression,omitempty"`
+	KubernetesUsers                *[]string            `json:"kubernetes_users,omitempty"`
+	Logins                         *[]string            `json:"logins,omitempty"`
+	NodeLabels                     *map[string][]string `json:"node_labels,omitempty"`
+	NodeLabelsExpression           *string              `json:"node_labels_expression,omitempty"`
+	WindowsDesktopLabels           *map[string][]string `json:"windows_desktop_labels,omitempty"`
+	WindowsDesktopLabelsExpression *string              `json:"windows_desktop_labels_expression,omitempty"`
+	WindowsDesktopLogins           *[]string            `json:"windows_desktop_logins,omitempty"`
 }
 
 // IdentityGroupTeleportPropertiesValues defines model for IdentityGroupTeleportPropertiesValues.
@@ -639,6 +636,7 @@ type ResourceGroupProperties_Properties struct {
 // ResourceGroupTeleportProperties defines model for ResourceGroupTeleportProperties.
 type ResourceGroupTeleportProperties struct {
 	AccessRequestId *string            `json:"access_request_id,omitempty"`
+	LabelExpression *string            `json:"label_expression,omitempty"`
 	MatchingLabels  *map[string]string `json:"matching_labels,omitempty"`
 	ResourceKind    *string            `json:"resource_kind,omitempty"`
 }
@@ -2129,126 +2127,4 @@ func (t ResourceProperties_Properties) MarshalJSON() ([]byte, error) {
 func (t *ResourceProperties_Properties) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
-}
-
-// Base64 encoded, gzipped, json marshaled Swagger object
-var swaggerSpec = []string{
-
-	"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",
-}
-
-// GetSwagger returns the content of the embedded swagger specification file
-// or error if failed to decode
-func decodeSpec() ([]byte, error) {
-	zipped, err := base64.StdEncoding.DecodeString(strings.Join(swaggerSpec, ""))
-	if err != nil {
-		return nil, fmt.Errorf("error base64 decoding spec: %w", err)
-	}
-	zr, err := gzip.NewReader(bytes.NewReader(zipped))
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing spec: %w", err)
-	}
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(zr)
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing spec: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-var rawSpec = decodeSpecCached()
-
-// a naive cached of a decoded swagger spec
-func decodeSpecCached() func() ([]byte, error) {
-	data, err := decodeSpec()
-	return func() ([]byte, error) {
-		return data, err
-	}
-}
-
-// Constructs a synthetic filesystem for resolving external references when loading openapi specifications.
-func PathToRawSpec(pathToFile string) map[string]func() ([]byte, error) {
-	res := make(map[string]func() ([]byte, error))
-	if len(pathToFile) > 0 {
-		res[pathToFile] = rawSpec
-	}
-
-	return res
-}
-
-// GetSwagger returns the Swagger specification corresponding to the generated code
-// in this file. The external references of Swagger specification are resolved.
-// The logic of resolving external references is tightly connected to "import-mapping" feature.
-// Externally referenced files must be embedded in the corresponding golang packages.
-// Urls can be supported but this task was out of the scope.
-func GetSwagger() (swagger *openapi3.T, err error) {
-	resolvePath := PathToRawSpec("")
-
-	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
-	loader.ReadFromURIFunc = func(loader *openapi3.Loader, url *url.URL) ([]byte, error) {
-		pathToFile := url.String()
-		pathToFile = path.Clean(pathToFile)
-		getSpec, ok := resolvePath[pathToFile]
-		if !ok {
-			err1 := fmt.Errorf("path not found: %s", pathToFile)
-			return nil, err1
-		}
-		return getSpec()
-	}
-	var specData []byte
-	specData, err = rawSpec()
-	if err != nil {
-		return
-	}
-	swagger, err = loader.LoadFromData(specData)
-	if err != nil {
-		return
-	}
-	return
 }
