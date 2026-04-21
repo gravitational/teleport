@@ -4,14 +4,14 @@
 
 variable "azure_managed_identity_location" {
   type        = string
-  description = "Azure region (location) where the managed identity will be created (e.g., \"eastus\"). Required when `create_teleport_integration` is `true`."
+  description = "Azure region (location) where the managed identity will be created (e.g., \"eastus\"). Required when `create_azure_managed_identity` is `true`."
   default     = null
   nullable    = true
 }
 
 variable "azure_resource_group_name" {
   type        = string
-  description = "Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_teleport_integration` is `true`."
+  description = "Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_azure_managed_identity` is `true`."
   default     = null
   nullable    = true
 }
@@ -184,7 +184,14 @@ variable "teleport_integration_name" {
 }
 
 variable "create_teleport_integration" {
-  description = "Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure resources are created; ideal for self-hosted Teleport clusters where a Teleport Discovery Service instance is using an existing Azure managed identity."
+  description = "Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "create_azure_managed_identity" {
+  description = "Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `create_teleport_integration` is `true`."
   type        = bool
   default     = true
   nullable    = false
