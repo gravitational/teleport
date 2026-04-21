@@ -3,8 +3,8 @@ output "azure_discovery_role_definition" {
   value       = one(azurerm_role_definition.teleport_discovery[*])
 }
 
-output "azure_oidc_integration_managed_identity" {
-  description = "Managed identity used by the Teleport Azure OIDC integration."
+output "azure_teleport_discovery_managed_identity" {
+  description = "Managed identity created for the Teleport Discovery Service."
   value       = one(azurerm_user_assigned_identity.teleport_discovery_service[*])
 }
 
