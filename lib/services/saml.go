@@ -240,7 +240,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	}
 
 	// TODO(nixpig): Add validation for when EntraIDGroupsProvider is present and not disbled then
-	// a validate authentication mechanism must be available. Proposed solution is to inject the
+	// a valid authentication mechanism must be available. Proposed solution is to inject the
 	// token provider and ensure a valid azcore.TokenCredential can be resolved.
 
 	slog.DebugContext(context.Background(), "connector validated",
