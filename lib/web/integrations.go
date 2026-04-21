@@ -363,6 +363,8 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 			ret.AWSEKS.UnresolvedUserTasks++
 		case usertasks.TaskTypeDiscoverRDS:
 			ret.AWSRDS.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverAzureVM:
+			ret.AzureVM.UnresolvedUserTasks++
 		}
 	}
 	ret.UnresolvedUserTasks = len(ret.UserTasks)
@@ -390,6 +392,11 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName()); matchers != 0 {
 			ret.AWSEKS.RulesCount += matchers
 			mergeResourceTypeSummary(&ret.AWSEKS, cfg.Status.LastSyncTime, discoveredResources.AwsEks)
+		}
+
+		if matchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName()); matchers != 0 {
+			ret.AzureVM.RulesCount += matchers
+			mergeResourceTypeSummary(&ret.AzureVM, cfg.Status.LastSyncTime, discoveredResources.AzureVms)
 		}
 	}
 
@@ -527,6 +534,10 @@ func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegr
 }
 
 func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if new == nil {
+		return
+	}
+
 	in.DiscoverLastSync = lastSync(in.DiscoverLastSync, lastSyncTime)
 	in.ResourcesFound += int(new.Found)
 	in.ResourcesEnrollmentSuccess += int(new.Enrolled)
@@ -552,6 +563,16 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 	ret := 0
 
 	for _, matcher := range dc.Spec.AWS {
+		if matcher.Integration != integration {
+			continue
+		}
+		if !slices.Contains(matcher.Types, matcherType) {
+			continue
+		}
+		ret += len(matcher.Regions)
+	}
+
+	for _, matcher := range dc.Spec.Azure {
 		if matcher.Integration != integration {
 			continue
 		}
@@ -645,13 +666,18 @@ func collectAutoDiscoveryRules(
 }
 
 func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string) []ui.IntegrationDiscoveryRule {
-	var ret []ui.IntegrationDiscoveryRule
-
 	lastSync := &dc.Status.LastSyncTime
 	if lastSync.IsZero() {
 		lastSync = nil
 	}
 
+	awsRules := collectAWSAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter, lastSync)
+	azureRules := collectAzureAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter, lastSync)
+
+	return append(awsRules, azureRules...)
+}
+
+func collectAWSAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string, lastSync *time.Time) (ret []ui.IntegrationDiscoveryRule) {
 	for _, matcher := range dc.Spec.AWS {
 		if matcher.Integration != integrationName {
 			continue
@@ -667,10 +693,10 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 					continue
 				}
 
-				uiLables := make([]libui.Label, 0, len(matcher.Tags))
+				uiLabels := make([]libui.Label, 0, len(matcher.Tags))
 				for labelKey, labelValues := range matcher.Tags {
 					for _, labelValue := range labelValues {
-						uiLables = append(uiLables, libui.Label{
+						uiLabels = append(uiLabels, libui.Label{
 							Name:  labelKey,
 							Value: labelValue,
 						})
@@ -679,7 +705,7 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 				rule := ui.IntegrationDiscoveryRule{
 					ResourceType:    resourceType,
 					Region:          region,
-					LabelMatcher:    uiLables,
+					LabelMatcher:    uiLabels,
 					DiscoveryConfig: dc.GetName(),
 					LastSync:        lastSync,
 				}
@@ -692,7 +718,49 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 		}
 	}
 
-	return ret
+	return
+}
+
+func collectAzureAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string, lastSync *time.Time) (ret []ui.IntegrationDiscoveryRule) {
+	for _, matcher := range dc.Spec.Azure {
+		if matcher.Integration != integrationName {
+			continue
+		}
+
+		for _, resourceType := range matcher.Types {
+			if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
+				continue
+			}
+
+			for _, region := range matcher.Regions {
+				if len(regionsFilter) > 0 && !slices.Contains(regionsFilter, region) {
+					continue
+				}
+
+				uiLabels := make([]libui.Label, 0, len(matcher.ResourceTags))
+				for labelKey, labelValues := range matcher.ResourceTags {
+					for _, labelValue := range labelValues {
+						uiLabels = append(uiLabels, libui.Label{
+							Name:  labelKey,
+							Value: labelValue,
+						})
+					}
+				}
+
+				ret = append(ret, ui.IntegrationDiscoveryRule{
+					ResourceType:    resourceType,
+					Region:          region,
+					LabelMatcher:    uiLabels,
+					Subscriptions:   matcher.Subscriptions,
+					ResourceGroups:  matcher.ResourceGroups,
+					DiscoveryConfig: dc.GetName(),
+					LastSync:        lastSync,
+				})
+			}
+		}
+	}
+
+	return
 }
 
 // integrationsList returns a page of Integrations
