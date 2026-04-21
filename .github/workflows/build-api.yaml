@@ -31,6 +31,13 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v6
 
+      - name: Initialize crypto submodule only
+        run: |
+          # TODO(cthach): Temporary for testing; remove before merging.
+          git config --global --add safe.directory "$PWD"
+          git submodule sync -- crypto
+          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:

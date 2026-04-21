@@ -51,6 +51,14 @@ jobs:
           repository: 'gravitational/teleport'
           path: 'teleport'
 
+      - name: Initialize crypto submodule only
+        working-directory: teleport
+        run: |
+          # TODO(cthach): Temporary for testing; remove before merging.
+          git config --global --add safe.directory "$PWD"
+          git submodule sync -- crypto
+          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
+
       - name: Checkout
         uses: actions/checkout@v6
         with:

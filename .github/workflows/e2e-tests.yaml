@@ -84,6 +84,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Initialize crypto submodule only
+        run: |
+          # TODO(cthach): Temporary for testing; remove before merging.
+          git config --global --add safe.directory "$PWD"
+          git submodule sync -- crypto
+          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
+
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
@@ -218,6 +225,13 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Initialize crypto submodule only
+        run: |
+          # TODO(cthach): Temporary for testing; remove before merging.
+          git config --global --add safe.directory "$PWD"
+          git submodule sync -- crypto
+          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
 
       - name: Install Docker CLI
         run: |
