@@ -906,7 +906,7 @@ type ScopedTokenService interface {
 func HandleBoundKeypairJoin(
 	ctx context.Context,
 	params *JoinParams,
-) (*messages.BotResult, error) {
+) (messages.Response, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1296,11 +1296,26 @@ func HandleBoundKeypairJoin(
 		return nil, trace.Wrap(err, "issuing join state document")
 	}
 
-	return &messages.BotResult{
-		Certificates: *certs,
-		BoundKeypairResult: &messages.BoundKeypairResult{
-			JoinState: []byte(newJoinState),
-			PublicKey: []byte(boundPublicKey),
-		},
-	}, nil
+	switch systemRole {
+	case types.RoleInstance:
+		return &messages.HostResult{
+			Certificates:    *certs,
+			HostID:          generatedHostID,
+			ImmutableLabels: finalToken.GetImmutableLabels(),
+			BoundKeypairResult: &messages.BoundKeypairResult{
+				JoinState: []byte(newJoinState),
+				PublicKey: []byte(boundPublicKey),
+			},
+		}, nil
+	case types.RoleBot:
+		return &messages.BotResult{
+			Certificates: *certs,
+			BoundKeypairResult: &messages.BoundKeypairResult{
+				JoinState: []byte(newJoinState),
+				PublicKey: []byte(boundPublicKey),
+			},
+		}, nil
+	default:
+		return nil, trace.NotImplemented("bound keypair joining only supports Instance and Bot system roles, client requested %s", systemRole)
+	}
 }
