@@ -269,7 +269,7 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	}
 
 	switch event.GetType() {
-	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
+	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent, "":
 		return nil
 	}
 
