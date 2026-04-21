@@ -797,6 +797,8 @@ func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOptio
 	}
 }
 
+// SAMLConnectorValidationWithSecrets returns a SAMLConnectorValidation that sets whether to
+// include secrets when validating the connector.
 func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.WithSecrets = withSecrets
