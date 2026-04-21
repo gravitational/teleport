@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -302,6 +303,35 @@ func TestGetAccessList(t *testing.T) {
 	// Members are returned by the API.
 	require.Len(t, accessListResp.AccessList.Members, 1)
 	require.Equal(t, createdMember.Spec, accessListResp.AccessList.Members[0])
+
+	t.Run("returns members across multiple pages", func(t *testing.T) {
+		pagedAccessList, err := authClient.AccessListClient().UpsertAccessList(t.Context(), newAccessList(t, "paged-accesslist"))
+		require.NoError(t, err)
+
+		memberCount := apidefaults.DefaultChunkSize + 1
+		for i := range memberCount {
+			member, err := accesslist.NewAccessListMember(
+				header.Metadata{Name: fmt.Sprintf("member-%04d", i)},
+				accesslist.AccessListMemberSpec{
+					AccessList: pagedAccessList.GetName(),
+					Name:       fmt.Sprintf("member-%04d", i),
+					Joined:     time.Now(),
+					Expires:    time.Now().Add(time.Hour),
+					Reason:     "reason",
+					AddedBy:    "admin",
+				},
+			)
+			require.NoError(t, err)
+
+			_, err = authClient.AccessListClient().UpsertAccessListMember(context.Background(), member)
+			require.NoError(t, err)
+		}
+
+		accessListResp := getAccessList(t, webPack, s, pagedAccessList.GetName())
+		require.Len(t, accessListResp.AccessList.Members, memberCount)
+		require.Equal(t, "member-0000", accessListResp.AccessList.Members[0].Name)
+		require.Equal(t, fmt.Sprintf("member-%04d", memberCount-1), accessListResp.AccessList.Members[memberCount-1].Name)
+	})
 }
 
 func TestDeleteAccessList(t *testing.T) {

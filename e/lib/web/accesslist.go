@@ -238,7 +238,7 @@ func listAllMembers(ctx context.Context, accessListClient services.AccessLists, 
 		}
 
 		fillMemberListTitles(ctx, accessListClient, members)
-		allMembers = members
+		allMembers = append(allMembers, members...)
 
 		if pageToken == "" {
 			break
