@@ -55,6 +55,7 @@ import (
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
+	appllm "github.com/gravitational/teleport/lib/srv/app/llm"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -203,6 +204,7 @@ type ConnectionsHandler struct {
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
+	llmHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
@@ -244,12 +246,21 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	llmHandler, err := appllm.NewHandler(closeContext, appllm.HandlerConfig{
+		Log:               cfg.Logger.With(teleport.ComponentKey, teleport.ComponentLLM),
+		AWSConfigProvider: awsConfigProvider,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
 		awsHandler:   awsHandler,
 		azureHandler: azureHandler,
 		gcpHandler:   gcpHandler,
+		llmHandler:   llmHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
@@ -476,9 +487,8 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
 
-	// TODO(gabrielcorado): implement inference endpoint handler.
 	case app.IsLLM():
-		return trace.NotImplemented("LLM access is not implemented")
+		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
