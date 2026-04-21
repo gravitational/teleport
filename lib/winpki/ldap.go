@@ -608,10 +608,15 @@ func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, fil
 		maxHosts:     maxSearchHosts,
 		maxReferrals: maxReferralsCount,
 		newSearcher: func(ctx context.Context, host string) (searcher, func() error, error) {
+			serverName, _, err := net.SplitHostPort(host)
+			if err != nil {
+				serverName = host
+			}
+
 			// Clone the existing credentials, so that we can change the 'ServerName' to
 			// match the hostname of the new LDAP server that we're about to dial.
 			referralCreds := l.credentials.Clone()
-			referralCreds.ServerName = host
+			referralCreds.ServerName = serverName
 			client, err := DialLDAP(ctx, &LDAPConfig{
 				Addr:   host,
 				Logger: l.cfg.Logger,
