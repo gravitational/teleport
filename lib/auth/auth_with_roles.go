@@ -2029,7 +2029,16 @@ func (a *ServerWithRoles) scopedListResources(ctx context.Context, req proto.Lis
 	if _, ok := supportedKinds[req.ResourceType]; !ok {
 		return nil, trace.AccessDenied("resource kind %q not supported for scoped identities", req.ResourceType)
 	}
+
 	if req.RequiresFakePagination() {
+		if req.ResourceType != types.KindKubernetesCluster {
+			// Kube clusters always use fake pagination but we don't have a need to support other kinds while using
+			// scoped credentials at this time. We explicitly disallow other kinds to avoid any potential for calling
+			// listResourcesWithSort with a kind that does not properly support scoped access.
+			return nil, trace.BadParameter("scoped resource kind %q does not support fake pagination", req.ResourceType)
+		}
+		// listResourcesWithSort is unsafe to call with req.IncludeLogins in a scoped context. We guard against it at
+		// the top of this function but it is worth repeating explicitly here.
 		resp, err := a.listResourcesWithSort(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -6381,12 +6390,7 @@ func (a *ServerWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
-func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if a.scopedContext != nil {
-		return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
-			return checker.Kube().CanAccessCluster(cluster)
-		})
-	}
+func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) error {
 	return a.context.Checker.CheckAccess(
 		cluster,
 		// MFA is not required for operations on kube clusters resources but
@@ -6394,16 +6398,26 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster 
 		services.AccessState{MFAVerified: true})
 }
 
-// GetKubernetesServers returns all registered kubernetes servers.
-func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	if err := a.authorizeAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
+func (a *ServerWithRoles) scopedCheckAccessToKubeClusterWithVerbs(ctx context.Context, cluster types.KubeCluster, verbs ...string) error {
+	if a.scopedContext == nil {
+		return trace.AccessDenied("must use scoped credentials when checking scoped access to kube cluster")
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verbs...); err != nil {
+			return trace.Wrap(err)
 		}
-		ruleCtx := a.scopedContext.RuleContext()
-		if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+		return checker.Kube().CanAccessCluster(cluster)
+	})
+}
+
+func (a *ServerWithRoles) getScopedKubeServers(ctx context.Context) ([]types.KubeServer, error) {
+	verbs := []string{types.VerbList, types.VerbRead}
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubeServer, verbs...); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	servers, err := a.authServer.GetKubernetesServers(ctx)
@@ -6413,7 +6427,37 @@ func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.Kub
 	// Filter out kube servers the caller doesn't have access to.
 	var filtered []types.KubeServer
 	for _, server := range servers {
-		err := a.checkAccessToKubeCluster(ctx, server.GetCluster())
+		err := a.scopedCheckAccessToKubeClusterWithVerbs(ctx, server.GetCluster(), verbs...)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered, nil
+
+}
+
+// GetKubernetesServers returns all registered kubernetes servers.
+func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	if err := a.authorizeAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+
+		return a.getScopedKubeServers(ctx)
+	}
+
+	servers, err := a.authServer.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out kube servers the caller doesn't have access to.
+	var filtered []types.KubeServer
+	for _, server := range servers {
+		err := a.checkAccessToKubeCluster(server.GetCluster())
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
@@ -6909,7 +6953,7 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 	}
 	// Don't allow users create clusters they wouldn't have access to (e.g.
 	// non-matching labels).
-	if err := a.checkAccessToKubeCluster(ctx, cluster); err != nil {
+	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
@@ -6930,10 +6974,10 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(ctx, existing); err != nil {
+	if err := a.checkAccessToKubeCluster(existing); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(ctx, cluster); err != nil {
+	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
@@ -6952,7 +6996,7 @@ func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(ctx, kubeCluster); err != nil {
+	if err := a.checkAccessToKubeCluster(kubeCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return kubeCluster, nil
@@ -6968,7 +7012,7 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 			a.authServer.RangeKubernetesClusters(ctx, "", ""),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if a.checkAccessToKubeCluster(ctx, cluster) == nil {
+				if a.checkAccessToKubeCluster(cluster) == nil {
 					return cluster, true
 				}
 				return nil, false
@@ -6993,7 +7037,7 @@ func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int,
 			a.authServer.RangeKubernetesClusters(ctx, start, ""),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if a.checkAccessToKubeCluster(ctx, cluster) == nil {
+				if a.checkAccessToKubeCluster(cluster) == nil {
 					return cluster, true
 				}
 				return nil, false
@@ -7014,7 +7058,7 @@ func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name stri
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(ctx, cluster); err != nil {
+	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
@@ -7031,7 +7075,7 @@ func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error
 		return trace.Wrap(err)
 	}
 	for _, cluster := range clusters {
-		if err := a.checkAccessToKubeCluster(ctx, cluster); err == nil {
+		if err := a.checkAccessToKubeCluster(cluster); err == nil {
 			if err := a.authServer.DeleteKubernetesCluster(ctx, cluster.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
