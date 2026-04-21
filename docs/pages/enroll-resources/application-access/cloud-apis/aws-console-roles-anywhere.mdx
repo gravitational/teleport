@@ -61,8 +61,8 @@ For CLI and SDK-based access, use `tsh` to obtain AWS credentials.
 In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
 
 The recommended approach is to use the guided flow in the Teleport Web UI. If you prefer to
-configure AWS resources manually — for example, because you manage them with infrastructure as
-code — see [Manually configure the integration](#manually-configure-the-integration) below.
+configure AWS resources manually, for example because you manage them with infrastructure as
+code, see [Manually configure the integration](#manually-configure-the-integration) below.
 
 ### Use the guided flow (recommended)
 
@@ -141,7 +141,7 @@ Next, create the required AWS resources to enable profile sync.
    ```
 
    <Admonition type="warning" title="Trust policy placement">
-   Paste this JSON into the **Custom trust policy** editor on the **Select trusted entity** page —
+   Paste this JSON into the **Custom trust policy** editor on the **Select trusted entity** page,
    not into a permissions policy and not into the **Session policies** field on the profile creation
    page. Placing it in the wrong field will cause a `Bad Request` error when a user tries to assume
    the role.
@@ -303,7 +303,7 @@ If you are already using AWS IAM Roles Anywhere profiles, you can skip this step
    ```
 
    <Admonition type="warning" title="Trust policy placement">
-   Paste this JSON into the **Custom trust policy** editor on the **Select trusted entity** page —
+   Paste this JSON into the **Custom trust policy** editor on the **Select trusted entity** page,
    not into a permissions policy and not into the **Session policies** field on the profile creation
    page. Placing it in the wrong field will cause a `Bad Request` error.
    </Admonition>
@@ -413,7 +413,7 @@ Assign this role to the users you want to grant access. You can also assign it t
 
 Here are some troubleshooting tips:
 - If the AWS profile does not appear in a later step when running `tsh apps login`, the most
-  common cause is a missing re-login. Run `tsh logout` and `tsh login` again before continuing.
+  common cause is needing to log in again. Run `tsh logout` and `tsh login` again before continuing.
 - If the role is not listed in `tsh status`, confirm it was assigned to your user or Access List
   and that you have logged out and back in since the assignment.
 
