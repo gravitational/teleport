@@ -2,9 +2,13 @@
 # Managed identity + federation
 ################################################################################
 
+locals {
+  create_azure_managed_identity = local.create && var.create_azure_managed_identity
+}
+
 # User-assigned managed identity for discovery
 resource "azurerm_user_assigned_identity" "teleport_discovery_service" {
-  count = local.create_teleport_integration ? 1 : 0
+  count = local.create_azure_managed_identity ? 1 : 0
 
   location            = var.azure_managed_identity_location
   name                = var.azure_managed_identity_name
@@ -14,11 +18,11 @@ resource "azurerm_user_assigned_identity" "teleport_discovery_service" {
   lifecycle {
     precondition {
       condition     = var.azure_resource_group_name != null
-      error_message = "azure_resource_group_name is required when create_teleport_integration is true."
+      error_message = "azure_resource_group_name is required when create_azure_managed_identity is true."
     }
     precondition {
       condition     = var.azure_managed_identity_location != null
-      error_message = "azure_managed_identity_location is required when create_teleport_integration is true."
+      error_message = "azure_managed_identity_location is required when create_azure_managed_identity is true."
     }
   }
 }
