@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -55,7 +56,7 @@ const (
 
 // SummarizerConfig contains configuration for the SessionSummarizer.
 type SummarizerConfig struct {
-	Backend  services.Summarizer
+	Cache    services.SummarizerServiceGetter
 	Streamer events.SessionStreamer
 	// Encrypter is used to encrypt session summaries before uploading them.
 	Encrypter events.EncryptionWrapper
@@ -81,11 +82,17 @@ type SummarizerConfig struct {
 	// EnvBedrockModelID, if set to a non-empty value, will override Amazon
 	// Bedrock model ID where it's set to {{env.bedrock_model_id}}.
 	EnvBedrockModelID string
-
 	// UsageReporter reports usage events.
 	UsageReporter usagereporter.UsageReporter
 	// Emitter emits audit events.
 	Emitter apievents.Emitter
+	// AccessGraphClientGetter is the pre-built access graph client getter used to search
+	// session summaries and store them.
+	AccessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
+	// AvailabilityCache caches the session search availability state so that
+	// the summarizer can skip the expensive embedding-generation and push
+	// pipeline when the access graph does not support session search.
+	AvailabilityCache AvailabilityChecker
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -117,13 +124,37 @@ type InferenceProvider interface {
 
 	// GetType returns the type of the inference provider.
 	GetType() string
+
+	// CondenseForEmbedding generates text suitable for embedding based on the session summary.
+	CondenseForEmbedding(ctx context.Context, input *summarizerv1pb.Summary) (string, error)
+}
+
+// ProseProvider is an interface for providers that can generate prose text suitable for embedding based on session summaries.
+type ProseProvider interface {
+	// GenerateProseEmbeddings generates text suitable for embedding based on the session summary.
+	CondenseForEmbedding(context.Context, *summarizerv1pb.Summary) (string, error)
+}
+
+// EmbeddingProvider is an interface for providers that can generate text
+// ragpipeline.
+type EmbeddingProvider interface {
+	// GenerateEmbeddings generates embeddings for the provided text.
+	// Returns the embeddings as []float32, the tokens consumed and an error.
+	GenerateEmbeddings(ctx context.Context, text string) ([]float32, int, error)
+}
+
+// AvailabilityChecker returns the session search availability state reported by
+// the access graph. Implementations may cache the result to avoid repeatedly
+// calling the access graph for the same availability check.
+type AvailabilityChecker interface {
+	// Get returns the current session search availability state.
+	Get(ctx context.Context) (accessgraphv1.SessionSearchAvailability, error)
 }
 
 // SessionSummarizer summarizes session recordings using language model
 // inference.
 type SessionSummarizer struct {
-	// TODO(bl-nero): use cache instead of raw backend.
-	backend                          services.Summarizer
+	cache                            services.SummarizerServiceGetter
 	streamer                         events.SessionStreamer
 	summaryUploader                  SummaryUploader
 	openAIClientFactory              openai.ClientFactory
@@ -139,6 +170,8 @@ type SessionSummarizer struct {
 	envBedrockModelID                string
 	usageReporter                    usagereporter.UsageReporter
 	emitter                          apievents.Emitter
+	accessGraphClientGetter          func() (accessgraphv1.SessionRecordingServiceClient, error)
+	accessGraphAvailabilityChecker   AvailabilityChecker
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -146,8 +179,8 @@ var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
 // NewSessionSummarizer creates a new session summarizer with given
 // configuration.
 func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
-	if cfg.Backend == nil {
-		return nil, trace.BadParameter("backend is required")
+	if cfg.Cache == nil {
+		return nil, trace.BadParameter("cache is required")
 	}
 	if cfg.Streamer == nil {
 		return nil, trace.BadParameter("streamer is required")
@@ -164,6 +197,12 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	if cfg.Emitter == nil {
 		return nil, trace.BadParameter("emitter is required")
 	}
+	if cfg.AccessGraphClientGetter == nil {
+		return nil, trace.BadParameter("access graph client getter is required")
+	}
+	if cfg.AvailabilityCache == nil {
+		return nil, trace.BadParameter("availability cache is required")
+	}
 
 	clock := cfg.Clock
 	if clock == nil {
@@ -171,7 +210,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	}
 
 	return &SessionSummarizer{
-		backend:                          cfg.Backend,
+		cache:                            cfg.Cache,
 		streamer:                         cfg.Streamer,
 		summaryUploader:                  cfg.SummaryUploader,
 		openAIClientFactory:              cfg.OpenAIClientFactory,
@@ -187,6 +226,8 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		envBedrockModelID:                cfg.EnvBedrockModelID,
 		usageReporter:                    cfg.UsageReporter,
 		emitter:                          cfg.Emitter,
+		accessGraphClientGetter:          cfg.AccessGraphClientGetter,
+		accessGraphAvailabilityChecker:   cfg.AvailabilityCache,
 	}, nil
 }
 
@@ -466,7 +507,7 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDet
 
 	result.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
 
-	return s.uploadSummary(ctx, log, details.sessionID, result, sumErr, details.sessionEnd)
+	return s.uploadSummary(ctx, log, details, result, sumErr)
 }
 
 // summarizeSession performs the actual summarization of the session recording.
@@ -563,7 +604,7 @@ func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details s
 	defer cancel()
 
 	log := s.logger.With("session_id", details.sessionID)
-	if err := s.uploadSummary(ctx, log, details.sessionID, failed, nil, details.sessionEnd); err != nil {
+	if err := s.uploadSummary(ctx, log, details, failed, nil); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to persist failed summary state after panic recovery",
 			"session_id", details.sessionID, "error", err)
 	}
@@ -572,10 +613,9 @@ func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details s
 func (s *SessionSummarizer) uploadSummary(
 	ctx context.Context,
 	log *slog.Logger,
-	sessionID session.ID,
+	details sessionDetails,
 	result *summarizerv1pb.Summary,
 	sumErr error,
-	sessionEnd apievents.AuditEvent,
 ) error {
 	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
 	if err != nil {
@@ -593,15 +633,18 @@ func (s *SessionSummarizer) uploadSummary(
 	}
 
 	log.DebugContext(ctx, "Uploading session summary")
-	path, err := s.summaryUploader.UploadSummary(ctx, sessionID, bytes.NewReader(rBytes))
+	path, err := s.summaryUploader.UploadSummary(ctx, details.sessionID, bytes.NewReader(rBytes))
 	if err != nil {
 		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to upload summary result"))
 	}
-
+	details.summary = result
+	if err := s.pushSummaryToAccessGraph(ctx, details); err != nil {
+		log.ErrorContext(ctx, "failed to push summary to access graph", "error", err)
+	}
 	log.DebugContext(ctx, "Session summary uploaded", "path", path)
 
 	// Emit audit event for the summary creation
-	if err := s.emitSummaryCreateEvent(ctx, result, sessionEnd); err != nil {
+	if err := s.emitSummaryCreateEvent(ctx, result, details.sessionEnd); err != nil {
 		log.WarnContext(ctx, "Failed to emit session summary create audit event", "error", err)
 	}
 
@@ -681,7 +724,7 @@ func (s *SessionSummarizer) matchPolicy(
 		return nil, trace.Wrap(err)
 	}
 
-	for policy, err := range s.backend.AllInferencePolicies(ctx) {
+	for policy, err := range s.cache.AllInferencePolicies(ctx) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -715,14 +758,14 @@ func (s *SessionSummarizer) matchPolicy(
 // It also returns a function that can be used to format errors from the provider
 // in a user-friendly way, and an error if the provider could not be created.
 func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (InferenceProvider, func(error) string, error) {
-	model, err := s.backend.GetInferenceModel(ctx, modelName)
+	model, err := s.cache.GetInferenceModel(ctx, modelName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	switch providerCfg := model.Spec.Provider.(type) {
 	case *summarizerv1pb.InferenceModelSpec_Openai:
-		apiKey, err := s.backend.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+		apiKey, err := s.cache.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

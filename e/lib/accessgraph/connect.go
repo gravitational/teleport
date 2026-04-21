@@ -29,6 +29,11 @@ type ServiceClientConfig struct {
 	Insecure bool
 	// AuditLog contains configuration for processing audit log events.
 	AuditLog AuditLogConfig
+	// LazyConnect defers connection establishment until the first RPC call,
+	// using grpc.NewClient instead of the deprecated grpc.DialContext.
+	// When false (default), the connection is established eagerly at client
+	// creation time, which validates connectivity early.
+	LazyConnect bool
 }
 
 // AuditLogConfig specifies the audit log event export setup.
@@ -58,11 +63,11 @@ func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, getCr
 	))
 
 	opts = append([]grpc.DialOption{credsOpt, otelOpt}, opts...)
-	conn, err := dial(ctx, config.Addr, opts...)
+	conn, err := dial(ctx, config.Addr, config.LazyConnect, opts...)
 	return conn, trace.Wrap(err)
 }
 
-func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+func dial(ctx context.Context, addr string, lazyConnect bool, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	const maxMessageSize = 50 * 1024 * 1024 // 50MB
 	opts = append(opts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
@@ -72,6 +77,11 @@ func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.Clie
 			grpc.MaxCallSendMsgSize(maxMessageSize),
 		),
 	)
+
+	if lazyConnect {
+		conn, err := grpc.NewClient(addr, opts...)
+		return conn, trace.Wrap(err)
+	}
 
 	conn, err := grpc.DialContext(ctx, addr, opts...)
 	return conn, trace.Wrap(err)

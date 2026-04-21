@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -26,6 +27,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -40,6 +42,8 @@ import (
 	summopenai "github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -83,6 +87,7 @@ type summarizerTestPlugin struct {
 	enableBedrockWithoutRestrictions bool
 	decrypter                        events.DecryptionWrapper
 	encrypter                        events.EncryptionWrapper
+	accessGraphClientGetter          func() (accessgraphv1.SessionRecordingServiceClient, error)
 	envBedrockRegion                 string
 	envBedrockModelID                string
 	mockEmitter                      *eventstest.MockRecorderEmitter
@@ -104,14 +109,15 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	}
 
 	svc, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
-		Authorizer:        authServer.Authorizer,
-		Backend:           authServer.AuthServer,
-		Cache:             authServer.AuthServer,
-		SummaryDownloader: authServer.AuthServer,
-		Emitter:           authServer.AuthServer.GetEmitter(),
-		Decrypter:         p.decrypter,
-		UsageReporter:     authServer.AuthServer.UsageReporter,
-		Modules:           modulestest.EnterpriseModules(),
+		Authorizer:                       authServer.Authorizer,
+		Backend:                          authServer.AuthServer,
+		Cache:                            authServer.AuthServer,
+		SummaryDownloader:                authServer.AuthServer,
+		Emitter:                          authServer.AuthServer.GetEmitter(),
+		Decrypter:                        p.decrypter,
+		UsageReporter:                    authServer.AuthServer.UsageReporter,
+		Modules:                          modulestest.EnterpriseModules(),
+		EnableBedrockWithoutRestrictions: p.enableBedrockWithoutRestrictions,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,8 +146,13 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		emitter = p.mockEmitter
 	}
 
+	availabilityChecker, err := NewAvailabilityCache(p.accessGraphClientGetter, authServer.AuthServer.GetClock(), 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	summarizer, err := NewSessionSummarizer(SummarizerConfig{
-		Backend:                          authServer.AuthServer,
+		Cache:                            authServer.AuthServer,
 		Streamer:                         authServer.AuthServer,
 		SummaryUploader:                  authServer.AuthServer,
 		OpenAIClientFactory:              openAIClientFactory,
@@ -154,6 +165,8 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		EnvBedrockModelID:                p.envBedrockModelID,
 		UsageReporter:                    authServer.AuthServer.UsageReporter,
 		Emitter:                          emitter,
+		AccessGraphClientGetter:          p.accessGraphClientGetter,
+		AvailabilityCache:                availabilityChecker,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -172,6 +185,7 @@ type summarizerTestTLSServerConfig struct {
 	envBedrockModelID                string
 	usageReporter                    usagereporter.UsageReporter
 	mockEmitter                      *eventstest.MockRecorderEmitter
+	accessGraphClientGetter          func() (accessgraphv1.SessionRecordingServiceClient, error)
 }
 
 func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
@@ -199,19 +213,28 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 		as.AuthServer.SetUsageReporter(scfg.usageReporter)
 	}
 
-	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
-		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
-		err = cfg.APIConfig.PluginRegistry.Add(&summarizerTestPlugin{
-			clock:                            clock,
-			enableBedrockWithoutRestrictions: scfg.enableBedrockWithoutRestrictions,
-			decrypter:                        scfg.decrypter,
-			encrypter:                        scfg.encrypter,
-			envBedrockRegion:                 scfg.envBedrockRegion,
-			envBedrockModelID:                scfg.envBedrockModelID,
-			mockEmitter:                      scfg.mockEmitter,
-		})
-		require.NoError(t, err)
-	})
+	srv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(cfg *authtest.TLSServerConfig) {
+			cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
+			err = cfg.APIConfig.PluginRegistry.Add(&summarizerTestPlugin{
+				clock:                            clock,
+				enableBedrockWithoutRestrictions: scfg.enableBedrockWithoutRestrictions,
+				decrypter:                        scfg.decrypter,
+				encrypter:                        scfg.encrypter,
+				envBedrockRegion:                 scfg.envBedrockRegion,
+				envBedrockModelID:                scfg.envBedrockModelID,
+				mockEmitter:                      scfg.mockEmitter,
+				accessGraphClientGetter: func() (accessgraphv1.SessionRecordingServiceClient, error) {
+					if scfg.accessGraphClientGetter != nil {
+						return scfg.accessGraphClientGetter()
+					}
+					return nil, trace.NotFound("not found")
+				},
+			})
+			require.NoError(t, err)
+		},
+	)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -239,6 +262,7 @@ func createTestUser(
 					types.KindInferenceSecret,
 					types.KindInferenceModel,
 					types.KindInferencePolicy,
+					types.KindRetrievalModel,
 					types.KindNode,
 					types.KindDatabase,
 					types.KindSession,
@@ -1245,6 +1269,12 @@ func createCache() (*awsconfig.Cache, error) {
 	)
 }
 
+type fakeAvailabilityCache struct{}
+
+func (f *fakeAvailabilityCache) Get(_ context.Context) (accessgraphv1.SessionSearchAvailability, error) {
+	return accessgraphv1.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE, nil
+}
+
 // TestSummarizeNowAndReportMetrics_RecoversFromPanic verifies that a panic in
 // the summarization worker goroutine (e.g. vt10x tripping over a corrupt
 // recording) is converted into a logged error rather than propagating and
@@ -1264,10 +1294,11 @@ func TestSummarizeNowAndReportMetrics_RecoversFromPanic(t *testing.T) {
 
 	uploader := &capturingSummaryUploader{}
 	s := &SessionSummarizer{
-		logger:          logger,
-		clock:           clockwork.NewRealClock(),
-		summaryUploader: uploader,
-		emitter:         &eventstest.MockRecorderEmitter{},
+		logger:                         logger,
+		clock:                          clockwork.NewRealClock(),
+		summaryUploader:                uploader,
+		emitter:                        &eventstest.MockRecorderEmitter{},
+		accessGraphAvailabilityChecker: &fakeAvailabilityCache{},
 		// concurrencyLimiter left nil on purpose.
 	}
 
@@ -1327,4 +1358,124 @@ func (c *capturingSummaryUploader) UploadSummary(_ context.Context, _ session.ID
 	c.lastSummary = &summary
 
 	return "captured", nil
+}
+
+// fakeAGRecordingClient captures StoreSessionSummary calls for testing.
+type fakeAGRecordingClient struct {
+	mu    sync.Mutex
+	calls []*accessgraphv1.StoreSessionSummaryRequest
+}
+
+func (f *fakeAGRecordingClient) StoreSessionSummary(
+	_ context.Context, req *accessgraphv1.StoreSessionSummaryRequest, _ ...grpc.CallOption,
+) (*accessgraphv1.StoreSessionSummaryResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, req)
+	return &accessgraphv1.StoreSessionSummaryResponse{}, nil
+}
+
+func (f *fakeAGRecordingClient) getCalls() []*accessgraphv1.StoreSessionSummaryRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.calls)
+}
+
+func (f *fakeAGRecordingClient) SearchSessionSummaries(
+	_ context.Context, _ ...grpc.CallOption,
+) (grpc.BidiStreamingClient[accessgraphv1.SearchSessionSummariesRequest, accessgraphv1.SearchSessionSummariesResponse], error) {
+	panic("SearchSessionSummaries not expected in this test")
+}
+
+func (f *fakeAGRecordingClient) IsSessionSearchEnabled(
+	_ context.Context, _ *accessgraphv1.IsSessionSearchEnabledRequest, _ ...grpc.CallOption,
+) (*accessgraphv1.IsSessionSearchEnabledResponse, error) {
+	return &accessgraphv1.IsSessionSearchEnabledResponse{
+		Availability: accessgraphv1.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_AVAILABLE,
+	}, nil
+}
+
+func TestSummarizeSSHPushesToAccessGraph(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	agClient := &fakeAGRecordingClient{}
+
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:                         eventstest.NewMemoryUploader(),
+		enableBedrockWithoutRestrictions: true,
+		accessGraphClientGetter: func() (accessgraphv1.SessionRecordingServiceClient, error) {
+			return agClient, nil
+		},
+	})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		Model: apisummarizer.NewInferenceModel("bedrock-model", &summarizerv1pb.InferenceModelSpec{
+			Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1pb.BedrockProvider{
+					BedrockModelId: "amazon.nova-lite-v1:0",
+					Region:         "us-east-1",
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+		Policy: apisummarizer.NewInferencePolicy("bedrock-policy", &summarizerv1pb.InferencePolicySpec{
+			Kinds: []string{string(types.SSHSessionKind)},
+			Model: "bedrock-model",
+		}),
+	})
+	require.NoError(t, err)
+
+	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+		Model: apisummarizer.NewRetrievalModel(&summarizerv1pb.RetrievalModelSpec{
+			InferenceModelName: "bedrock-model",
+			EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
+				Bedrock: &summarizerv1pb.BedrockProvider{
+					BedrockModelId: "amazon.titan-embed-text-v1",
+					Region:         "us-east-1",
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	sessionID := uuid.NewString()
+	sessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		PrintData: []string{"ls"},
+		SessionID: sessionID,
+	})
+
+	// Pre-initialize the tiktoken encoder outside the synctest bubble.
+	// Inside synctest, time.Now() returns a fake time, causing TLS certificate
+	// validation to fail when the encoder tries to download its BPE file.
+	// The encoder uses sync.Once, so this one-time initialization is reused
+	// for all subsequent calls inside the bubble.
+	_, err = tokenizer.EncodeTokens("warmup")
+	require.NoError(t, err)
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
+
+		// Wait until every goroutine in the bubble (including the summarizer)
+		// has exited or is blocked outside of synctest.
+		synctest.Wait()
+
+		calls := agClient.getCalls()
+
+		require.Len(t, calls, 1)
+		req := calls[0]
+		assert.Equal(t, sessionID, req.GetSessionId())
+		assert.Equal(t, string(types.SSHSessionKind), req.GetKind())
+		require.NotEmpty(t, req.GetEmbeddings(), "expected at least one embedding chunk")
+		assert.Equal(t, []float32{0.1, 0.2, 0.3}, req.GetEmbeddings()[0].GetValues())
+	})
 }

@@ -26,6 +26,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	workloadclusterv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/sessionsearchv1"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/e/lib/auth/workloadcluster/workloadclusterv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
@@ -57,7 +59,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
 	"github.com/gravitational/teleport/e/lib/sigstore"
 	"github.com/gravitational/teleport/entitlements"
-	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -405,8 +408,41 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			return trace.Wrap(err)
 		}
 
+		var accessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
+		if p.Config.AccessGraph.Enabled {
+			accessGraphConn, err := accessgraph.NewAccessGraphClient(
+				ctx,
+				accessgraph.ServiceClientConfig{
+					Addr:        p.Config.AccessGraph.Addr,
+					CA:          p.Config.AccessGraph.CA,
+					Insecure:    p.Config.AccessGraph.Insecure,
+					LazyConnect: true,
+				},
+				getClientCert,
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			client := accessgraphv1.NewSessionRecordingServiceClient(accessGraphConn)
+			accessGraphClientGetter = func() (accessgraphv1.SessionRecordingServiceClient, error) {
+				return client, nil
+			}
+		} else {
+			accessGraphClientGetter = func() (accessgraphv1.SessionRecordingServiceClient, error) {
+				return nil, trace.NotFound("access graph is not enabled")
+			}
+		}
+		availabilityCache, err := summarizer.NewAvailabilityCache(
+			accessGraphClientGetter,
+			p.authServer.AuthServer.GetClock(),
+			0, // use default TTL
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
-			Backend:                          p.authServer.AuthServer,
+			Cache:                            p.authServer.AuthServer.Cache,
 			Streamer:                         p.authServer.AuthServer,
 			SummaryUploader:                  p.authServer.AuthServer,
 			Clock:                            p.authServer.AuthServer.GetClock(),
@@ -415,8 +451,10 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			AWSConfigCache:                   cfgCache,
 			EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
 			EnvBedrockModelID:                os.Getenv(envVarNameBedrockModel),
+			AvailabilityCache:                availabilityCache,
 			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
 			Emitter:                          p.authServer.AuthServer.GetEmitter(),
+			AccessGraphClientGetter:          accessGraphClientGetter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -439,6 +477,20 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			return trace.Wrap(err)
 		}
 		summarizerv1pb.RegisterSummarizerServiceServer(gRPCServer, summarizerService)
+
+		sessionSearchService, err := sessionsearchv1.NewService(
+			sessionsearchv1.ServiceConfig{
+				Authorizer:              p.authServer.Authorizer,
+				Cache:                   p.authServer.AuthServer.Cache,
+				AWSConfigCache:          cfgCache,
+				AccessGraphClientGetter: accessGraphClientGetter,
+				AvailabilityCache:       availabilityCache,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		sessionsearchv1pb.RegisterSessionSearchServiceServer(gRPCServer, sessionSearchService)
 	}
 
 	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
@@ -618,7 +670,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	agClient := accessgraphv1.NewAccessGraphServiceClient(agConn)
+	agClient := accessgraphv1alpha.NewAccessGraphServiceClient(agConn)
 	clusterName, err := authServer.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err, "failed to get cluster name")
@@ -644,7 +696,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 		return trace.Wrap(err)
 	}
 
-	accessgraphv1.RegisterAccessGraphServiceServer(service, accessGraphService)
+	accessgraphv1alpha.RegisterAccessGraphServiceServer(service, accessGraphService)
 	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(service, accessGraphService)
 
 	p.authServer.AuthServer.SetAccessGraphSecretService(storage)
