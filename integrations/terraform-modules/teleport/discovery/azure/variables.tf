@@ -4,14 +4,16 @@
 
 variable "azure_managed_identity_location" {
   type        = string
-  description = "Azure region (location) where the managed identity will be created (e.g., \"eastus\")."
-  nullable    = false
+  description = "Azure region (location) where the managed identity will be created (e.g., \"eastus\"). Required when `create_teleport_integration` is `true`."
+  default     = null
+  nullable    = true
 }
 
 variable "azure_resource_group_name" {
   type        = string
-  description = "Name of an existing Azure Resource Group where Azure resources will be created."
-  nullable    = false
+  description = "Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_teleport_integration` is `true`."
+  default     = null
+  nullable    = true
 }
 
 variable "teleport_discovery_group_name" {
@@ -181,6 +183,13 @@ variable "teleport_integration_name" {
   nullable    = false
 }
 
+variable "create_teleport_integration" {
+  description = "Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure resources are created; ideal for self-hosted Teleport clusters where a Teleport Discovery Service instance is using an existing Azure managed identity."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "teleport_integration_use_name_prefix" {
   description = "Whether `teleport_integration_name` is used as a name prefix (true) or as the exact name (false)."
   type        = bool
@@ -189,7 +198,7 @@ variable "teleport_integration_use_name_prefix" {
 }
 
 variable "teleport_provision_token_allow_rules" {
-  description = "Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and teleport_provision_token_create = `true`."
+  description = "Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and `create_teleport_provision_token` is `true`."
   type = list(object({
     subscription    = optional(string)
     resource_groups = optional(list(string))
