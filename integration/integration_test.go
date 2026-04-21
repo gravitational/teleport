@@ -91,7 +91,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -210,12 +209,11 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	tconf := suite.defaultServiceConfig()
+	tconf.Modules = modulestest.EnterpriseModules()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
 	tconf.SSH.Enabled = true
@@ -7657,15 +7655,17 @@ func isNilOrEOFErr(t *testing.T, err error) {
 }
 
 func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
 	// Create Teleport instance
-	instance := suite.newTeleport(t, nil, true)
-	t.Cleanup(func() {
-		instance.StopAll()
-	})
+	tconf := suite.defaultServiceConfig()
+	tconf.Modules = modulestest.EnterpriseModules()
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = true
+	tconf.SSH.Enabled = true
+
+	instance := suite.NewTeleportInstance(t)
+	require.NoError(t, instance.CreateEx(t, nil, tconf))
+	require.NoError(t, instance.Start())
+	t.Cleanup(func() { instance.StopAll() })
 
 	ctx := context.Background()
 	authServer := instance.Process.GetAuthServer()
@@ -8575,8 +8575,6 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 // can/cannot be established with an existing certificate
 // based on cluster configuration or roles.
 func TestConnectivityWithoutAuth(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	tests := []struct {
 		name         string
 		adjustRole   func(r types.Role)
@@ -8637,6 +8635,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 
 			// Create auth config.
 			authCfg := servicecfg.MakeDefaultConfig()
+			authCfg.Modules = modulestest.EnterpriseModules()
 			authCfg.Logger = logtest.NewLogger()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
@@ -8656,6 +8655,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				Priv:        privateKey,
 				Pub:         publicKey,
 				Logger:      logtest.NewLogger(),
+				Modules:     authCfg.Modules,
 			})
 
 			// Create a user and role.
@@ -8691,10 +8691,12 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				Priv:        privateKey,
 				Pub:         publicKey,
 				Logger:      logtest.NewLogger(),
+				Modules:     authCfg.Modules,
 			})
 
 			// Create node config.
 			nodeCfg := servicecfg.MakeDefaultConfig()
+			nodeCfg.Modules = authCfg.Modules
 			nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true
@@ -8937,8 +8939,6 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 }
 
 func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	const password = "supersecretpassword"
 	inputReader := prompt.NewFakeReader().
 		AddString(password).
@@ -8969,6 +8969,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 
 	// Enable web service.
 	cfg := suite.defaultServiceConfig()
+	cfg.Modules = modulestest.EnterpriseModules()
 	cfg.Auth.Enabled = true
 	cfg.Auth.Preference.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 	cfg.Auth.Preference.(*types.AuthPreferenceV2).Spec.RequireMFAType = types.RequireMFAType_SESSION

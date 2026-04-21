@@ -80,7 +80,7 @@ func ValidRandomResourceName(prefix string) string {
 }
 
 func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.TeleInstance, string) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -88,16 +88,18 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.Tel
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
 		Logger:      slog.Default(),
+		Modules:     testModules,
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.Modules = testModules
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
