@@ -20,6 +20,7 @@ package dns
 
 import (
 	"context"
+	"log/slog"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -28,11 +29,10 @@ import (
 var (
 	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-	// Satisfy unused linter.
-	_ = withDNSPort
 )
 
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+func platformUpstreamNameserverSource(*slog.Logger) UpstreamNameserverSource {
+	return upstreamNameserverSourceFn(func(context.Context) ([]string, error) {
+		return nil, trace.Wrap(vnetNotImplemented)
+	})
 }
