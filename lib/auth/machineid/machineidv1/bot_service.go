@@ -1189,3 +1189,8 @@ func botExpiryFromUser(user types.User) *timestamppb.Timestamp {
 	}
 	return timestamppb.New(userExpiry)
 }
+
+// BotToUserAndRole converts the given bot into a user and role for storage.
+func BotToUserAndRole(bot *pb.Bot, createdBy string) (types.User, types.Role, error) {
+	return botToUserAndRole(bot, time.Now(), createdBy)
+}

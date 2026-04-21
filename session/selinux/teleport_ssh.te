@@ -1,12 +1,12 @@
-policy_module(teleport_ssh, 1.0.0)
+policy_module(teleport_ssh, 1.0.1)
 
 require {
     attribute can_change_process_identity;
     attribute can_change_process_role;
+    attribute userdomain;
 
     type bin_t;
     type config_home_t;
-    type default_t;
     type default_context_t;
     type devlog_t;
     type devpts_t;
@@ -22,7 +22,6 @@ require {
     type passwd_exec_t;
     type passwd_file_t;
     type ptmx_t;
-    type root_t;
     type security_t;
     type selinux_config_t;
     type semanage_store_t;
@@ -43,11 +42,11 @@ require {
     type var_run_t;
     type wtmp_t;
 
-    class capability { audit_control audit_write chown dac_read_search dac_override fowner fsetid net_admin net_bind_service setgid setuid sys_admin sys_resource };
+    class capability { audit_control audit_write chown dac_read_search dac_override fowner fsetid kill net_admin net_bind_service setgid setuid sys_admin sys_resource };
     class chr_file { append read write };
     class dbus { send_msg };
     class file { create getattr ioctl map open read remove_name setattr unlink write };
-    class filesystem { getattr mount unmount };
+    class filesystem { getattr unmount };
     class process { setsched transition };
     class service { status };
     class sock_file { append create getattr open read setattr unlink write };
@@ -184,6 +183,19 @@ allow teleport_ssh_t http_port_t:tcp_socket name_connect;
 ##
 type_transition teleport_ssh_t teleport_ssh_exec_t:process teleport_ssh_t;
 allow teleport_ssh_t self:process { transition setexec setkeycreate setrlimit setsched };
+allow teleport_ssh_t self:capability kill;
+
+# Allow Teleport to send SIGKILL to child processes in the user domain, 
+# as well as unconfined processes. This is needed to ensure that when a
+# user exits an SSH session, all child processes are killed properly
+# regardless of their SELinux context.
+#
+# Note that SELinux doesn't allow this to be scoped to child processes
+# only, so this allows Teleport to SIGKILL any process in a user or 
+# unconfined domain. This does not allow Teleport to SIGKILL system
+# processes in other domains though.
+allow teleport_ssh_t userdomain:process sigkill;
+allow teleport_ssh_t unconfined_t:process sigkill;
 
 ##
 # handling SSH connections
@@ -221,17 +233,19 @@ allow teleport_ssh_t wtmp_t:file rw_file_perms;
 allow teleport_ssh_t lastlog_t:file read_file_perms;
 
 # enhanced session recording
-allow teleport_ssh_t cgroup_t:filesystem { mount unmount };
+# TODO(capnspacehook) REMOVE IN v20: cleaning up cgroup dirs won't be needed by that point
+allow teleport_ssh_t cgroup_t:filesystem unmount;
 allow teleport_ssh_t cgroup_t:dir manage_dir_perms;
-allow teleport_ssh_t default_t:dir mounton;
+
 allow teleport_ssh_t self:bpf { map_create map_read map_write prog_load prog_run };
-allow teleport_ssh_t self:perf_event { cpu kernel open write };
+allow teleport_ssh_t sysfs_t:file map;
+allow teleport_ssh_t tracefs_t:filesystem getattr;
 allow teleport_ssh_t tracefs_t:file read_file_perms;
-allow teleport_ssh_t root_t:dir { add_name create mounton write };
+allow teleport_ssh_t self:perf_event { cpu kernel open tracepoint write };
 allow teleport_ssh_t self:capability sys_admin;
 # not available on RHEL 8
 optional_policy(`
-    require { 
+    require {
         class capability2 { bpf perfmon };
     };
     allow teleport_ssh_t self:capability2 { bpf perfmon };

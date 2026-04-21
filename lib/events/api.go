@@ -423,6 +423,13 @@ const (
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
 
+	// AppSessionLLMRequestSuccessEvent is emitted when an LLM inference request
+	// is sent and succeeds.
+	AppSessionLLMRequestSuccessEvent = "app.session.llm.request.success"
+	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
+	// is sent and fails.
+	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.

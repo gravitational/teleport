@@ -21,6 +21,8 @@ module "aws_discovery" {
       tags = {
         team = ["platform"]
       }
+      # Teleport's Kubernetes App Discovery will automatically identify and enroll HTTP applications running inside a Kubernetes cluster.
+      kube_app_discovery = true
     }
   ]
 

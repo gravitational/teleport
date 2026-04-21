@@ -286,7 +286,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
 func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.AccessInfo().Username, accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
@@ -542,8 +542,8 @@ func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string
 
 // MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
 func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
-	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRdpPort := func(addr string) string {
+	// stripRDPPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRDPPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
 		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
@@ -557,7 +557,7 @@ func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, re
 		Kind:            windowsDesktop.GetKind(),
 		OS:              constants.WindowsOS,
 		Name:            windowsDesktop.GetName(),
-		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
+		Addr:            stripRDPPort(windowsDesktop.GetAddr()),
 		Labels:          uiLabels,
 		HostID:          windowsDesktop.GetHostID(),
 		Logins:          logins,

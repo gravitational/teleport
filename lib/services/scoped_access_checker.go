@@ -276,6 +276,14 @@ func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) con
 	return c.scopedCompatChecker.LockingMode(defaultMode)
 }
 
+// DelegationSessionID returns the ID of the current Delegation Session.
+func (c *ScopedAccessChecker) DelegationSessionID() string {
+	if !c.isScoped() {
+		return c.unscopedChecker.DelegationSessionID()
+	}
+	return c.scopedCompatChecker.DelegationSessionID()
+}
+
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.

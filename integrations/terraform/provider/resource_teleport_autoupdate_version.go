@@ -184,6 +184,10 @@ func (r resourceTeleportAutoUpdateVersion) Read(ctx context.Context, req tfsdk.R
 	}
 
 	autoUpdateVersionI, err := r.p.Client.GetAutoUpdateVersion(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(err), "autoupdate_version"))
 		return

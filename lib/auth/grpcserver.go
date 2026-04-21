@@ -64,6 +64,7 @@ import (
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
@@ -112,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	"github.com/gravitational/teleport/lib/auth/delegation/delegationv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
 	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
@@ -6172,7 +6174,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -6278,6 +6280,23 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating database object service")
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
+
+	delegationSessionService, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
+		Authorizer:        cfg.Authorizer,
+		SessionReader:     cfg.AuthServer,
+		SessionWriter:     cfg.AuthServer,
+		ResourceLister:    cfg.AuthServer,
+		RoleGetter:        cfg.AuthServer,
+		UserGetter:        cfg.AuthServer,
+		CertGenerator:     cfg.AuthServer,
+		ClusterNameGetter: cfg.AuthServer,
+		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
+		Logger:            cfg.AuthServer.logger.With(teleport.ComponentKey, "delegation_sessions"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating delegation session service")
+	}
+	delegationv1pb.RegisterDelegationSessionServiceServer(server, delegationSessionService)
 
 	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: cfg.Authorizer,
@@ -6412,7 +6431,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	if !cfg.DisableJoinV1 {
 		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-			Authorizer:         cfg.Authorizer,
+			ScopedAuthorizer:   cfg.ScopedAuthorizer,
 			AuthService:        cfg.AuthServer,
 			FIPS:               cfg.AuthServer.fips,
 			ScopedTokenService: cfg.AuthServer.Services,

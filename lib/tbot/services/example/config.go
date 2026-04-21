@@ -55,7 +55,7 @@ func (s *Config) MarshalYAML() (any, error) {
 	return encoding.WithTypeHeader((*raw)(s), ServiceType)
 }
 
-func (s *Config) CheckAndSetDefaults() error {
+func (s *Config) CheckAndSetDefaults(scoped bool) error {
 	if s.Message == "" {
 		return trace.BadParameter("message: should not be empty")
 	}

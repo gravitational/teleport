@@ -24,6 +24,7 @@ import { IntegrationList } from 'teleport/Integrations/IntegrationList';
 import {
   IntegrationKind,
   IntegrationStatusCode,
+  type Plugin,
 } from 'teleport/services/integrations';
 
 test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
@@ -58,4 +59,28 @@ test('integration list does not display action menu for aws-oidc, row click navi
   expect(screen.getByTestId('current-path')).toHaveTextContent(
     '/web/integrations/status/aws-oidc/aws-integration'
   );
+});
+
+test('integration list details prefer plugin status error message over details', () => {
+  const plugin: Plugin = {
+    resourceType: 'plugin',
+    name: 'okta-plugin',
+    kind: 'okta',
+    details: 'fallback details',
+    statusCode: IntegrationStatusCode.OtherError,
+    status: {
+      code: IntegrationStatusCode.OtherError,
+      lastRun: new Date('2026-03-31T00:00:00Z'),
+      errorMessage: 'sync failed',
+    },
+  };
+
+  render(
+    <MemoryRouter>
+      <IntegrationList list={[plugin]} />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('sync failed')).toBeInTheDocument();
+  expect(screen.queryByText('fallback details')).not.toBeInTheDocument();
 });

@@ -604,11 +604,13 @@ func InitAuthCache(p AuthCacheParams) error {
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
+		Beams:                   p.AuthServer.Services.Beams,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
 		Databases:               p.AuthServer.Services.Databases,
+		DelegationSessions:      p.AuthServer.Services.DelegationSessions,
 		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
 		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
 		Events:                  p.AuthServer.Services.Events,
@@ -648,6 +650,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
+		Summarizer:              p.AuthServer.Services.Summarizer,
+		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)

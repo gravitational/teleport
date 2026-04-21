@@ -160,6 +160,12 @@
   },
   "overrides": [
     {
+      "files": ["web/packages/teleterm/**"],
+      "rules": {
+        "no-console": "off",
+      }
+    },
+    {
       "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       "rules": {
         "constructor-super": "off",

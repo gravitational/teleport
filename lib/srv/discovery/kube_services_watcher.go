@@ -55,6 +55,9 @@ func (s *Server) startKubeAppsWatchers() error {
 
 				return utils.FromSlice(filterResources(apps, types.OriginDiscoveryKubernetes, s.DiscoveryGroup), types.Application.GetName)
 			},
+			CompareResources: func(a1, a2 types.Application) int {
+				return services.EqualFromBool(a1.IsEqual(a2))
+			},
 			GetNewResources: func() map[string]types.Application {
 				mu.Lock()
 				defer mu.Unlock()

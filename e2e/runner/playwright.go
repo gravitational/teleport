@@ -37,7 +37,7 @@ type playwrightRunner struct {
 	config *e2eConfig
 }
 
-func (p *playwrightRunner) startURL(inst *browserInstance) string {
+func (p *playwrightRunner) startURL(inst *testInstance) string {
 	if p.config.teleportURL != "" {
 		return p.config.teleportURL + "/web"
 	}
@@ -98,8 +98,16 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 	}
 
 	var g errgroup.Group
+
+	g.SetLimit(2)
+
 	for _, inst := range p.config.instances {
 		g.Go(func() error {
+			if err := inst.start(ctx); err != nil {
+				return err
+			}
+			defer inst.stop()
+
 			env, err := p.startEnv(inst)
 			if err != nil {
 				return fmt.Errorf("building env for %s: %w", inst.browser, err)
@@ -137,6 +145,11 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 	if ci := p.config.connectInstance; ci != nil {
 		g.Go(func() error {
+			if err := ci.start(ctx); err != nil {
+				return err
+			}
+			defer ci.stop()
+
 			env, err := p.startEnv(ci)
 			if err != nil {
 				return fmt.Errorf("building env for connect: %w", err)
@@ -187,7 +200,16 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 func (p *playwrightRunner) ui(ctx context.Context) error {
 	slog.Info("starting playwright in UI mode")
 
+	if len(p.config.instances) == 0 {
+		return fmt.Errorf("no test instances configured")
+	}
+
 	inst := p.config.instances[0]
+	if err := inst.start(ctx); err != nil {
+		return err
+	}
+	defer inst.stop()
+
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
@@ -209,7 +231,16 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 // a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
 // MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
+	if len(p.config.instances) == 0 {
+		return fmt.Errorf("no test instances configured")
+	}
+
 	inst := p.config.instances[0]
+	if err := inst.start(ctx); err != nil {
+		return err
+	}
+	defer inst.stop()
+
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
@@ -232,8 +263,14 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 	inst := p.config.connectInstance
 	if inst == nil {
-		return fmt.Errorf("connect instance not configured (use --with-connect)")
+		return fmt.Errorf("connect instance not configured (run Connect specific tests or use --with-connect)")
 	}
+
+	if err := inst.start(ctx); err != nil {
+		return err
+	}
+	defer inst.stop()
+
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
@@ -246,7 +283,7 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 
 // startEnv builds the environment variables that Playwright tests need,
 // including START_URL, credentials, and tctl paths for invite URL generation.
-func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
+func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 	env := os.Environ()
 	// Force color output since Playwright's TTY detection won't work
 	// when stdout/stderr are wrapped by the rewrite writer.
