@@ -35,7 +35,7 @@ import (
 
 // SessionService manages DelegationSession resources.
 type SessionService struct {
-	delegationv1.UnimplementedDelegationSessionServiceServer
+	delegationv1.UnsafeDelegationSessionServiceServer
 
 	authorizer        authz.Authorizer
 	sessionReader     SessionReader

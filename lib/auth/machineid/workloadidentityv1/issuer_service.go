@@ -107,7 +107,7 @@ type IssuanceServiceConfig struct {
 // IssuanceService is the gRPC service for managing workload identity resources.
 // It implements the workloadidentityv1pb.WorkloadIdentityIssuanceServiceServer.
 type IssuanceService struct {
-	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
+	workloadidentityv1pb.UnsafeWorkloadIdentityIssuanceServiceServer
 
 	authorizer                 authz.Authorizer
 	cache                      issuerCache

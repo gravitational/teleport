@@ -81,7 +81,7 @@ type KnownHardwareKeyFn func(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey
 
 // agentService implements [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
 type agentService struct {
-	hardwarekeyagentv1.UnimplementedHardwareKeyAgentServiceServer
+	hardwarekeyagentv1.UnsafeHardwareKeyAgentServiceServer
 	s hardwarekey.Service
 
 	// knownKeyFn is a function to determine if the hardware private key, described by the given

@@ -34,7 +34,7 @@ import (
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
-	dynamicwindowspb.UnimplementedDynamicWindowsServiceServer
+	dynamicwindowspb.UnsafeDynamicWindowsServiceServer
 
 	authorizer authz.Authorizer
 	backend    Backend

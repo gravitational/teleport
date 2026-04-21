@@ -22,6 +22,8 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
@@ -39,7 +41,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 type Service struct {
-	decisionpb.UnimplementedDecisionServiceServer
+	decisionpb.UnsafeDecisionServiceServer
 	pdp        *decision.Service
 	authorizer authz.Authorizer
 	logger     *slog.Logger
@@ -87,7 +89,7 @@ func (s *Service) EvaluateSSHJoin(ctx context.Context, req *decisionpb.EvaluateS
 		return nil, trace.AccessDenied("user %q does not have permission to evaluate SSH session-joining", authzContext.User.GetName())
 	}
 
-	return s.UnimplementedDecisionServiceServer.EvaluateSSHJoin(ctx, req)
+	return nil, status.Errorf(codes.Unimplemented, "method EvaluateSSHJoin not implemented")
 }
 
 func (s *Service) EvaluateDatabaseAccess(ctx context.Context, req *decisionpb.EvaluateDatabaseAccessRequest) (*decisionpb.EvaluateDatabaseAccessResponse, error) {
@@ -101,5 +103,5 @@ func (s *Service) EvaluateDatabaseAccess(ctx context.Context, req *decisionpb.Ev
 		return nil, trace.AccessDenied("user %q does not have permission to evaluate database access", authzContext.User.GetName())
 	}
 
-	return s.UnimplementedDecisionServiceServer.EvaluateDatabaseAccess(ctx, req)
+	return nil, status.Errorf(codes.Unimplemented, "method EvaluateDatabaseAccess not implemented")
 }

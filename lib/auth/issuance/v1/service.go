@@ -57,7 +57,7 @@ type authServer interface {
 //     CA information, we MUST ensure that different CA types are not
 //     intermingled - it must be explicit what CA is being returned.
 type Service struct {
-	issuancev1pb.UnimplementedIssuanceServiceServer
+	issuancev1pb.UnsafeIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
 	authServer       authServer
 }

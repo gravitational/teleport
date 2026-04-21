@@ -85,7 +85,7 @@ type RevocationServiceConfig struct {
 // revocations.
 // It implements the workloadidentityv1pb.WorkloadIdentityRevocationServiceServer
 type RevocationService struct {
-	workloadidentityv1pb.UnimplementedWorkloadIdentityRevocationServiceServer
+	workloadidentityv1pb.UnsafeWorkloadIdentityRevocationServiceServer
 
 	authorizer          authz.Authorizer
 	store               workloadIdentityX509RevocationReadWriter

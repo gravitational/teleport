@@ -52,7 +52,7 @@ type Cache interface {
 // Service implements the teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer
 // RPC service.
 type Service struct {
-	kubewaitingcontainerpb.UnimplementedKubeWaitingContainersServiceServer
+	kubewaitingcontainerpb.UnsafeKubeWaitingContainersServiceServer
 
 	authorizer authz.Authorizer
 	backend    services.KubeWaitingContainer

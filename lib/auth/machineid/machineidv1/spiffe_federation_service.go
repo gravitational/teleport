@@ -96,7 +96,7 @@ func NewSPIFFEFederationService(
 // SPIFFEFederationService is an implementation of
 // teleport.machineid.v1.SPIFFEFederationService
 type SPIFFEFederationService struct {
-	machineidv1.UnimplementedSPIFFEFederationServiceServer
+	machineidv1.UnsafeSPIFFEFederationServiceServer
 
 	authorizer authz.Authorizer
 	backend    spiffeFederationReadWriter

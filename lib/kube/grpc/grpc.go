@@ -49,7 +49,7 @@ var errDone = errors.New("done iterating")
 
 // Server implements KubeService gRPC server.
 type Server struct {
-	proto.UnimplementedKubeServiceServer
+	proto.UnsafeKubeServiceServer
 	cfg               Config
 	proxyAddress      string
 	kubeProxySNI      string

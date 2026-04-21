@@ -72,7 +72,7 @@ type Backend interface {
 
 // Service implements the teleport.notifications.v1.NotificationsService RPC Service.
 type Service struct {
-	notificationsv1.UnimplementedNotificationServiceServer
+	notificationsv1.UnsafeNotificationServiceServer
 
 	authorizer              authz.Authorizer
 	backend                 Backend

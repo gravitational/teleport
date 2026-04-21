@@ -217,8 +217,8 @@ var (
 
 // GRPCServer is gRPC Auth Server API
 type GRPCServer struct {
-	authpb.UnimplementedAuthServiceServer
-	auditlogpb.UnimplementedAuditLogServiceServer
+	authpb.UnsafeAuthServiceServer
+	auditlogpb.UnsafeAuditLogServiceServer
 	logger *slog.Logger
 	APIConfig
 	server      *grpc.Server
@@ -6921,4 +6921,69 @@ func (g *GRPCServer) ValidateTrustedCluster(
 	}
 
 	return protoResp, nil
+}
+
+// CreateSAMLIdPSession implements [authpb.AuthServiceServer].
+func (*GRPCServer) CreateSAMLIdPSession(context.Context, *authpb.CreateSAMLIdPSessionRequest) (*authpb.CreateSAMLIdPSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSAMLIdPSession not implemented")
+}
+
+// CreateUser implements [authpb.AuthServiceServer].
+func (*GRPCServer) CreateUser(context.Context, *types.UserV2) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")
+}
+
+// DeleteAllSAMLIdPSessions implements [authpb.AuthServiceServer].
+func (*GRPCServer) DeleteAllSAMLIdPSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllSAMLIdPSessions not implemented")
+}
+
+// DeleteSAMLIdPSession implements [authpb.AuthServiceServer].
+func (*GRPCServer) DeleteSAMLIdPSession(context.Context, *authpb.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteSAMLIdPSession not implemented")
+}
+
+// DeleteUser implements [authpb.AuthServiceServer].
+func (*GRPCServer) DeleteUser(context.Context, *authpb.DeleteUserRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
+}
+
+// DeleteUserSAMLIdPSessions implements [authpb.AuthServiceServer].
+func (*GRPCServer) DeleteUserSAMLIdPSessions(context.Context, *authpb.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserSAMLIdPSessions not implemented")
+}
+
+// GetCurrentUser implements [authpb.AuthServiceServer].
+func (*GRPCServer) GetCurrentUser(context.Context, *emptypb.Empty) (*types.UserV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentUser not implemented")
+}
+
+// GetSAMLIdPSession implements [authpb.AuthServiceServer].
+func (*GRPCServer) GetSAMLIdPSession(context.Context, *authpb.GetSAMLIdPSessionRequest) (*authpb.GetSAMLIdPSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLIdPSession not implemented")
+}
+
+// GetUser implements [authpb.AuthServiceServer].
+func (*GRPCServer) GetUser(context.Context, *authpb.GetUserRequest) (*types.UserV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
+}
+
+// GetUsers implements [authpb.AuthServiceServer].
+func (*GRPCServer) GetUsers(*authpb.GetUsersRequest, grpc.ServerStreamingServer[types.UserV2]) error {
+	return status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
+}
+
+// ListSAMLIdPSessions implements [authpb.AuthServiceServer].
+func (*GRPCServer) ListSAMLIdPSessions(context.Context, *authpb.ListSAMLIdPSessionsRequest) (*authpb.ListSAMLIdPSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSAMLIdPSessions not implemented")
+}
+
+// UpdateRemoteCluster implements [authpb.AuthServiceServer].
+func (*GRPCServer) UpdateRemoteCluster(context.Context, *types.RemoteClusterV3) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateRemoteCluster not implemented")
+}
+
+// UpdateUser implements [authpb.AuthServiceServer].
+func (*GRPCServer) UpdateUser(context.Context, *types.UserV2) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }

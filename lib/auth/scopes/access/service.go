@@ -69,7 +69,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // Server is the [scopedaccessv1.UnimplementedScopedAccessServiceServer] returned by [New].
 type Server struct {
-	scopedaccessv1.UnimplementedScopedAccessServiceServer
+	scopedaccessv1.UnsafeScopedAccessServiceServer
 	cfg Config
 }
 

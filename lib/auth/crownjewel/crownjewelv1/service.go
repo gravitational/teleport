@@ -78,7 +78,7 @@ type Reader interface {
 
 // Service implements the teleport.CrownJewel.v1.CrownJewelService RPC service.
 type Service struct {
-	crownjewelv1.UnimplementedCrownJewelServiceServer
+	crownjewelv1.UnsafeCrownJewelServiceServer
 
 	authorizer authz.Authorizer
 	backend    services.CrownJewels

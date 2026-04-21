@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -59,7 +61,7 @@ const (
 
 // Service implements gRPC service for VNet.
 type Service struct {
-	api.UnimplementedVnetServiceServer
+	api.UnsafeVnetServiceServer
 
 	cfg                Config
 	mu                 sync.Mutex
@@ -830,3 +832,13 @@ func (r *disabledTelemetryUsageReporter) ReportSSHSession(profileName, rootClust
 }
 
 func (r *disabledTelemetryUsageReporter) Stop() {}
+
+// CheckInstallTimeRequirements implements [api.VnetServiceServer].
+func (*Service) CheckInstallTimeRequirements(context.Context, *api.CheckInstallTimeRequirementsRequest) (*api.CheckInstallTimeRequirementsResponse, error) {
+	return nil, grpcstatus.Errorf(codes.Unimplemented, "method CheckInstallTimeRequirements not implemented")
+}
+
+// GetBackgroundItemStatus implements [api.VnetServiceServer].
+func (*Service) GetBackgroundItemStatus(context.Context, *api.GetBackgroundItemStatusRequest) (*api.GetBackgroundItemStatusResponse, error) {
+	return nil, grpcstatus.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
+}

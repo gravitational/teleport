@@ -128,7 +128,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 // Service implements the teleport.transport.v1.TransportService RPC
 // service.
 type Service struct {
-	transportv1pb.UnimplementedTransportServiceServer
+	transportv1pb.UnsafeTransportServiceServer
 
 	cfg ServerConfig
 }

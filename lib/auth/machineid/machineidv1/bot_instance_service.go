@@ -104,7 +104,7 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 
 // BotInstanceService implements the teleport.machineid.v1.BotInstanceService RPC service.
 type BotInstanceService struct {
-	pb.UnimplementedBotInstanceServiceServer
+	pb.UnsafeBotInstanceServiceServer
 
 	backend    services.BotInstance
 	authorizer authz.ScopedAuthorizer

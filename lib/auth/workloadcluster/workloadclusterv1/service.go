@@ -35,7 +35,7 @@ type Backend interface {
 
 // Service implements the gRPC API layer for the WorkloadCluster.
 type Service struct {
-	workloadcluster.UnimplementedWorkloadClusterServiceServer
+	workloadcluster.UnsafeWorkloadClusterServiceServer
 }
 
 // NewService returns a new service that returns a license error for every RPC

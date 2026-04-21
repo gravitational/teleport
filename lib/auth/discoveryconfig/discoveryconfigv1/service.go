@@ -98,7 +98,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 
 // Service implements the teleport.DiscoveryConfig.v1.DiscoveryConfigService RPC service.
 type Service struct {
-	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
+	discoveryconfigv1.UnsafeDiscoveryConfigServiceServer
 
 	log           *slog.Logger
 	authorizer    authz.Authorizer

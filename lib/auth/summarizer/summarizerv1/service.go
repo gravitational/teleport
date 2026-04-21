@@ -33,7 +33,7 @@ func NewService() *UnimplementedService {
 // UnimplementedService is an OSS version of the UnimplementedService. It
 // returns a licensing error from every RPC.
 type UnimplementedService struct {
-	summarizerv1pb.UnimplementedSummarizerServiceServer
+	summarizerv1pb.UnsafeSummarizerServiceServer
 }
 
 // CRUD operations for models
@@ -212,6 +212,46 @@ func (s *UnimplementedService) IsEnabled(
 	ctx context.Context, req *summarizerv1pb.IsEnabledRequest,
 ) (*summarizerv1pb.IsEnabledResponse, error) {
 	return &summarizerv1pb.IsEnabledResponse{Enabled: false}, nil
+}
+
+// CreateRetrievalModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) CreateRetrievalModel(context.Context, *summarizerv1pb.CreateRetrievalModelRequest) (*summarizerv1pb.CreateRetrievalModelResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// DeleteRetrievalModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) DeleteRetrievalModel(context.Context, *summarizerv1pb.DeleteRetrievalModelRequest) (*summarizerv1pb.DeleteRetrievalModelResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// GetRetrievalModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) GetRetrievalModel(context.Context, *summarizerv1pb.GetRetrievalModelRequest) (*summarizerv1pb.GetRetrievalModelResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// GetSummary implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) GetSummary(context.Context, *summarizerv1pb.GetSummaryRequest) (*summarizerv1pb.GetSummaryResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// TestInferenceModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) TestInferenceModel(context.Context, *summarizerv1pb.TestInferenceModelRequest) (*summarizerv1pb.TestInferenceModelResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// TestRetrievalModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) TestRetrievalModel(context.Context, *summarizerv1pb.TestRetrievalModelRequest) (*summarizerv1pb.TestRetrievalModelResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// UpdateRetrievalModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) UpdateRetrievalModel(context.Context, *summarizerv1pb.UpdateRetrievalModelRequest) (*summarizerv1pb.UpdateRetrievalModelResponse, error) {
+	return nil, requireEnterprise()
+}
+
+// UpsertRetrievalModel implements [summarizerv1pb.SummarizerServiceServer].
+func (s *UnimplementedService) UpsertRetrievalModel(context.Context, *summarizerv1pb.UpsertRetrievalModelRequest) (*summarizerv1pb.UpsertRetrievalModelResponse, error) {
+	return nil, requireEnterprise()
 }
 
 func requireEnterprise() error {

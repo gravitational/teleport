@@ -48,7 +48,7 @@ type ServiceConfig struct {
 // Service implements the teleport.appauthconfig.v1.AppAuthConfigServer gRPC
 // API.
 type Service struct {
-	appauthconfigv1.UnimplementedAppAuthConfigServiceServer
+	appauthconfigv1.UnsafeAppAuthConfigServiceServer
 
 	authorizer authz.Authorizer
 	backend    services.AppAuthConfig

@@ -94,7 +94,7 @@ type Reader interface {
 
 // Service implements the teleport.UserTask.v1.UserTaskService RPC service.
 type Service struct {
-	usertasksv1.UnimplementedUserTaskServiceServer
+	usertasksv1.UnsafeUserTaskServiceServer
 
 	authorizer    authz.Authorizer
 	backend       services.UserTasks

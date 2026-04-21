@@ -91,6 +91,7 @@ type Engine struct {
 	engineErrors prometheus.Counter
 
 	// UnimplementedSpannerServer is embedded for forward interface compat.
+	//nolint:forbidigo // we don't own the google.spanner.v1.Spanner service
 	spannerpb.UnimplementedSpannerServer
 }
 

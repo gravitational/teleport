@@ -37,7 +37,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.userpreferences.v1.UserPreferencesService RPC service.
 type Service struct {
-	userpreferences.UnimplementedUserPreferencesServiceServer
+	userpreferences.UnsafeUserPreferencesServiceServer
 
 	backend    services.UserPreferences
 	authorizer authz.Authorizer

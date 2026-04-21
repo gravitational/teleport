@@ -123,7 +123,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 type Service struct {
-	mfav1.UnimplementedMFAServiceServer
+	mfav1.UnsafeMFAServiceServer
 
 	logger     *slog.Logger
 	authorizer authz.Authorizer

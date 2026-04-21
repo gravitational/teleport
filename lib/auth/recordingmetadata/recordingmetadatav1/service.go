@@ -41,7 +41,7 @@ import (
 // Service implements the RecordingMetadataServiceServer interface, providing methods to retrieve session recording
 // metadata and thumbnails.
 type Service struct {
-	pb.UnimplementedRecordingMetadataServiceServer
+	pb.UnsafeRecordingMetadataServiceServer
 
 	authorizer      Authorizer
 	streamer        player.Streamer

@@ -224,7 +224,7 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 
 // AWSOIDCService implements the teleport.integration.v1.AWSOIDCService RPC service.
 type AWSOIDCService struct {
-	integrationpb.UnimplementedAWSOIDCServiceServer
+	integrationpb.UnsafeAWSOIDCServiceServer
 
 	integrationService    *Service
 	authorizer            authz.Authorizer

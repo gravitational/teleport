@@ -80,7 +80,7 @@ type AppSessionCreator interface {
 // Service implements the teleport.appauthconfig.v1.AppAuthConfigSessionsServiceServer
 // gRPC API.
 type SessionsService struct {
-	appauthconfigv1.UnimplementedAppAuthConfigSessionsServiceServer
+	appauthconfigv1.UnsafeAppAuthConfigSessionsServiceServer
 
 	authorizer authz.Authorizer
 	cache      services.AppAuthConfigReader

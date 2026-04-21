@@ -46,7 +46,7 @@ type Cache interface {
 
 // Service implements the teleport.accessmonitoringrules.v1.AccessMonitoringRulesService RPC service.
 type Service struct {
-	accessmonitoringrulesv1.UnimplementedAccessMonitoringRulesServiceServer
+	accessmonitoringrulesv1.UnsafeAccessMonitoringRulesServiceServer
 
 	backend    services.AccessMonitoringRules
 	authorizer authz.Authorizer

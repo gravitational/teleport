@@ -61,6 +61,7 @@ type storedDeviceAuthnAttempt struct {
 }
 
 type FakeDeviceService struct {
+	//nolint:forbidigo // this is testing code
 	devicepb.UnimplementedDeviceTrustServiceServer
 
 	autoCreateDevice bool

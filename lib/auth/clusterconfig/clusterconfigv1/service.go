@@ -21,6 +21,8 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -101,7 +103,7 @@ type AccessGraphConfig struct {
 
 // Service implements the teleport.clusterconfig.v1.ClusterConfigService RPC service.
 type Service struct {
-	clusterconfigpb.UnimplementedClusterConfigServiceServer
+	clusterconfigpb.UnsafeClusterConfigServiceServer
 
 	cache                         Cache
 	backend                       Backend
@@ -1192,4 +1194,9 @@ func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClus
 		return nil, trace.BadParameter("unexpected cluster name type %T (expected %T)", cn, cast)
 	}
 	return cast, nil
+}
+
+// GetClusterAuditConfig implements [clusterconfigpb.ClusterConfigServiceServer].
+func (*Service) GetClusterAuditConfig(context.Context, *clusterconfigpb.GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAuditConfig not implemented")
 }

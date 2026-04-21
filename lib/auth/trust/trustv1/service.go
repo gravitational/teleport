@@ -77,7 +77,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
-	trustpb.UnimplementedTrustServiceServer
+	trustpb.UnsafeTrustServiceServer
 	authorizer       authz.Authorizer
 	scopedAuthorizer authz.ScopedAuthorizer
 	cache            services.AuthorityGetter

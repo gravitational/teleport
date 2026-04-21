@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -62,7 +64,7 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 }
 
 type Service struct {
-	userloginstatev1.UnimplementedUserLoginStateServiceServer
+	userloginstatev1.UnsafeUserLoginStateServiceServer
 
 	authorizer      authz.Authorizer
 	userLoginStates services.UserLoginStates
@@ -189,4 +191,9 @@ func (s *Service) DeleteAllUserLoginStates(ctx context.Context, _ *userloginstat
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ListUserLoginStates implements [userloginstatev1.UserLoginStateServiceServer].
+func (*Service) ListUserLoginStates(context.Context, *userloginstatev1.ListUserLoginStatesRequest) (*userloginstatev1.ListUserLoginStatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserLoginStates not implemented")
 }

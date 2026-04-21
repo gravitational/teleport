@@ -27,6 +27,8 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
@@ -46,7 +48,7 @@ const (
 
 // Service implements gRPC service for autoupdate.
 type Service struct {
-	api.UnimplementedAutoUpdateServiceServer
+	api.UnsafeAutoUpdateServiceServer
 
 	cfg Config
 }
@@ -211,4 +213,9 @@ func readConfigFromEnvVars() (*api.GetConfigResponse, error) {
 			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
 		},
 	}, nil
+}
+
+// GetInstallationMetadata implements [api.AutoUpdateServiceServer].
+func (*Service) GetInstallationMetadata(context.Context, *api.GetInstallationMetadataRequest) (*api.GetInstallationMetadataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstallationMetadata not implemented")
 }
