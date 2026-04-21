@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.tiago.3.search"
+.version: &version "19.0.0-dev.tiago.4.search"
 
 apiVersion: v2
 name: teleport-plugin-email
