@@ -20,5 +20,5 @@ output "teleport_integration_name" {
 
 output "teleport_provision_token_name" {
   description = "Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Token details can be viewed with `tctl get token/<name>`."
-  value       = nonsensitive(try(teleport_provision_token.azure[0].metadata.name, null))
+  value       = nonsensitive(local.teleport_provision_token_name)
 }
