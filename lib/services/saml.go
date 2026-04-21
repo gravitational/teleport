@@ -52,7 +52,9 @@ type SAMLConnectorGetter interface {
 type samlConnectorGetter func() (types.SAMLConnector, error)
 
 const (
+	// ErrMsgHowToFixMissingPrivateKey is the error message displayed when validation of the signing key pair for secret refill fails.
 	ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
+	// ErrMsgHowToFixMissingOAuthCreds is the error message displayed when validation of the OAuth credentials for secret refill fails.
 	ErrMsgHowToFixMissingOAuthCreds = "You must specify the OAuth credentials (obtain the existing one with `tctl get saml --with-secrets`)."
 )
 
