@@ -46,6 +46,8 @@ type Audit interface {
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
 	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
+	// OnLLMRequest is called when app request for LLM inference endpoint is sent and a response is received.
+	OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, llmReq LLMRequest, llmResp LLMResponse) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -225,6 +227,34 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
+// OnLLMRequest is called when app request for LLM inference endpoint is sent and a response is received.
+func (a *audit) OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, llmReq LLMRequest, llmResp LLMResponse) error {
+	event := &apievents.AppSessionLLMRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionLLMRequestSuccessEvent,
+			Code: events.AppSessionLLMRequestSuccessCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		AppMetadata:      *MakeAppMetadata(sessionCtx.App),
+		Method:           req.Method,
+		Path:             req.URL.Path,
+		Provider:         llmReq.Provider,
+		Model:            llmReq.Model,
+		RequestedModel:   llmReq.RequestedModel,
+		InputTokenCount:  int64(llmResp.InputTokenCount),
+		OutputTokenCount: int64(llmResp.OutputTokenCount),
+	}
+	if llmResp.Error != nil {
+		event.Metadata.Type = events.AppSessionLLMRequestFailureEvent
+		event.Metadata.Code = events.AppSessionLLMRequestFailureCode
+		event.Status.Success = false
+		event.Status.Error = llmResp.Error.Error()
+	}
+	return trace.Wrap(a.EmitEvent(ctx, event))
+}
+
 // EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(e)
@@ -235,8 +265,10 @@ func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	recErr := a.cfg.Recorder.RecordEvent(ctx, preparedEvent)
 	event := preparedEvent.GetAuditEvent()
 	var emitErr error
-	// AppSessionRequest events should only go to session recording
-	if event.GetType() != events.AppSessionRequestEvent {
+	// Request and LLM request events should only go to session recording
+	switch event.GetType() {
+	case events.AppSessionRequestEvent, events.AppSessionLLMRequestSuccessEvent, events.AppSessionLLMRequestFailureEvent:
+	default:
 		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
 	}
 
