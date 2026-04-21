@@ -535,7 +535,7 @@ func fillSAMLOAuthClientSecretFromExisting(connector types.SAMLConnector, getExi
 
 	oauthCreds := existing.GetOAuthClientCredentials()
 	if oauthCreds == nil {
-		return trace.BadParameter("the existing SAML connector has no oauth credentials. " + ErrMsgHowToFixMissingOAuthCreds)
+		return trace.BadParameter("the existing SAML connector has no OAuth credentials. " + ErrMsgHowToFixMissingOAuthCreds)
 	}
 
 	if oauthCreds.ClientId != connectorOAuthCreds.ClientId {
