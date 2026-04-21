@@ -43,87 +43,73 @@ func NewStorage() *Storage {
 	}
 }
 
-// NewDefaultStorage creates a new Storage with hardcoded test data.
-func NewDefaultStorage() *Storage {
-	alice := &models.User{
+// NewEntraGroup returns a new Entra ID group.
+func NewEntraGroup(id, name string) *models.Group {
+	return &models.Group{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("alice@example.com"),
-			DisplayName: to.Ptr("Alice Alison"),
+			ID:          to.Ptr(id),
+			DisplayName: to.Ptr(name),
 		},
-		GivenName:         to.Ptr("Alice"),
-		Surname:           to.Ptr("Alison"),
-		Mail:              to.Ptr("alice@example.com"),
-		UserPrincipalName: to.Ptr("alice@example.com"),
+		GroupTypes: []string{types.EntraIDSecurityGroups},
 	}
-	bob := &models.User{
-		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("bob@example.com"),
-			DisplayName: to.Ptr("Bob Bobert"),
-		},
-		GivenName:         to.Ptr("Bob"),
-		Surname:           to.Ptr("Bobert"),
-		Mail:              to.Ptr("bob@example.com"),
-		UserPrincipalName: to.Ptr("bob@example.com"),
-	}
-	carol := &models.User{
-		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("carol@example.com"),
-			DisplayName: to.Ptr("Carol C"),
-		},
-		GivenName:         to.Ptr("Carol"),
-		Surname:           to.Ptr("C"),
-		Mail:              to.Ptr("carol@example.com"),
-		UserPrincipalName: to.Ptr("carol@example.com"),
-	}
+}
 
-	group1 := &models.Group{
+// NewEntraUser returns a new Entra ID user.
+func NewEntraUser(id, name string) *models.User {
+	return &models.User{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("group1"),
-			DisplayName: to.Ptr("group1"),
+			ID: to.Ptr(id),
 		},
-		GroupTypes: []string{types.EntraIDSecurityGroups},
+		UserPrincipalName: to.Ptr(name),
+		Mail:              to.Ptr(name),
 	}
-	group2 := &models.Group{
-		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("group2"),
-			DisplayName: to.Ptr("group2"),
-		},
-		GroupTypes: []string{types.EntraIDSecurityGroups},
-	}
-	group3 := &models.Group{
-		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("group3"),
-			DisplayName: to.Ptr("group3"),
-		},
-		GroupTypes: []string{types.EntraIDSecurityGroups},
-	}
+}
+
+const (
+	AliceID = "2765d9b2-a70c-4d30-a1ec-f02c40fcf4ad"
+	BobID   = "aace3f26-9f57-4519-b5fb-0d38fe93d3c2"
+	CarolID = "1c5f5517-27dc-415f-9793-c9531cd17d48"
+
+	Group1ID = "fdfc6317-cc24-4c9c-b32a-143b0fbf3cd0"
+	Group2ID = "7b1e66cc-3768-4281-bc4d-b84720654842"
+	Group3ID = "4698ee2a-bf74-467e-8bde-63db8f323a44"
+
+	App1ID = "0e0038e9-6653-4701-8c44-826afbbc39f6"
+)
+
+// NewDefaultStorage creates a new msgraphtest.Storage with hardcoded test data.
+func NewDefaultStorage() *Storage {
+	storage := NewStorage()
+
+	alice := NewEntraUser(AliceID, "alice@example.com")
+	storage.Users[AliceID] = alice
+	bob := NewEntraUser(BobID, "bob@example.com")
+	storage.Users[BobID] = bob
+	carol := NewEntraUser(CarolID, "carol@example.com")
+	storage.Users[CarolID] = carol
+
+	group1 := NewEntraGroup(Group1ID, "group1")
+	storage.Groups[Group1ID] = group1
+	group2 := NewEntraGroup(Group2ID, "group2")
+	storage.Groups[Group2ID] = group2
+	group3 := NewEntraGroup(Group3ID, "group3")
+	storage.Groups[Group3ID] = group3
+
+	storage.GroupMembers[Group1ID] = []models.GroupMember{alice, group2}
+	storage.GroupMembers[Group2ID] = []models.GroupMember{alice, bob, carol}
+	storage.GroupMembers[Group3ID] = []models.GroupMember{alice, bob, carol}
+
+	storage.GroupOwners[Group1ID] = []*models.User{alice, bob}
+	storage.GroupOwners[Group3ID] = []*models.User{bob, carol}
 
 	app1 := &models.Application{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("app1"),
+			ID:          to.Ptr(App1ID),
 			DisplayName: to.Ptr("test SAML App"),
 		},
 		AppID: to.Ptr("app1"),
 	}
-
-	storage := NewStorage()
-
-	storage.Users[*alice.ID] = alice
-	storage.Users[*bob.ID] = bob
-	storage.Users[*carol.ID] = carol
-
-	storage.Groups[*group1.ID] = group1
-	storage.Groups[*group2.ID] = group2
-	storage.Groups[*group3.ID] = group3
-
-	storage.GroupMembers["group1"] = []models.GroupMember{alice, group2}
-	storage.GroupMembers["group2"] = []models.GroupMember{alice, bob, carol}
-	storage.GroupMembers["group3"] = []models.GroupMember{alice, bob, carol}
-
-	storage.GroupOwners["group1"] = []*models.User{alice, bob}
-	storage.GroupOwners["group3"] = []*models.User{bob, carol}
-
-	storage.Applications[*app1.AppID] = app1
+	storage.Applications[App1ID] = app1
 
 	return storage
 }
