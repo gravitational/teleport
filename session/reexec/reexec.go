@@ -1770,6 +1770,9 @@ func (e *CommandExecutor) Kill() error {
 // ConfigureCommand creates a command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
+// Context passed to this function is used only for logging and waiting for
+// the ready signal from child, the returned command will not be terminated
+// when it's done
 func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles ...*os.File) (executor *CommandExecutor, err error) {
 	executor = &CommandExecutor{
 		ctx:    ctx,
