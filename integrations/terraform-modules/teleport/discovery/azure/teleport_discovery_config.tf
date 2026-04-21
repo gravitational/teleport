@@ -49,7 +49,7 @@ resource "teleport_discovery_config" "azure" {
 
   lifecycle {
     precondition {
-      condition     = !local.create_teleport_integration || !local.has_wildcard_subscription_matcher || length(var.azure_role_assignment_scopes) > 0
+      condition     = !local.create_azure_managed_identity || !local.has_wildcard_subscription_matcher || length(var.azure_role_assignment_scopes) > 0
       error_message = "Wildcard ('*') subscription discovery requires azure_role_assignment_scopes to be set, preferably with a management group scope, e.g. /providers/Microsoft.Management/managementGroups/<name>."
     }
   }
