@@ -111,13 +111,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Initialize crypto submodule only
-        run: |
-          # TODO(cthach): Temporary for testing; remove before merging.
-          git config --global --add safe.directory "$PWD"
-          git submodule sync -- crypto
-          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
-
       - name: Check for untidy go modules
         shell: bash
         run: |
@@ -219,13 +212,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Initialize crypto submodule only
-        run: |
-          # TODO(cthach): Temporary for testing; remove before merging.
-          git config --global --add safe.directory "$PWD"
-          git submodule sync -- crypto
-          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
-
       - name: Set Rust version
         run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
 
@@ -256,13 +242,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Initialize crypto submodule only
-        run: |
-          # TODO(cthach): Temporary for testing; remove before merging.
-          git config --global --add safe.directory "$PWD"
-          git submodule sync -- crypto
-          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
 
       - name: Set linter versions
         run: |
@@ -335,13 +314,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Initialize crypto submodule only
-        run: |
-          # TODO(cthach): Temporary for testing; remove before merging.
-          git config --global --add safe.directory "$PWD"
-          git submodule sync -- crypto
-          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
-
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
@@ -363,13 +335,6 @@ jobs:
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v6
-
-      - name: Initialize crypto submodule only
-        run: |
-          # TODO(cthach): Temporary for testing; remove before merging.
-          git config --global --add safe.directory "$PWD"
-          git submodule sync -- crypto
-          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
 
       - name: Print Node version
         run: |
@@ -423,13 +388,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Initialize crypto submodule only
-        run: |
-          # TODO(cthach): Temporary for testing; remove before merging.
-          git config --global --add safe.directory "$PWD"
-          git submodule sync -- crypto
-          git -c submodule.e.update=none submodule update --init --depth 1 -- crypto
 
       - name: Check if BPF generated files are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.

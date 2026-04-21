@@ -1406,7 +1406,6 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'build.assets/.cache/**' \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
-		-ignore 'crypto/**' \
 		-ignore 'e/**' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
@@ -1419,7 +1418,6 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
-# TODO(cthach): Temporary for testing; remove before merging.
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
 		-f $(CURDIR)/build.assets/LICENSE.header
