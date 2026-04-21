@@ -142,7 +142,6 @@ func TestRecursiveSearch(t *testing.T) {
 			maxHosts:     100,
 			maxReferrals: 100,
 			referrals:    make(libSet.Set[string]),
-			request:      &ldap.SearchRequest{},
 			newSearcher:  top.newSearcher,
 			resolver:     refs,
 			logger:       discardLogger,
@@ -151,7 +150,7 @@ func TestRecursiveSearch(t *testing.T) {
 		// Start the search from the "root" mock LDAPS server
 		root, closer, _ := top.newSearcher(t.Context(), "root")
 		closer()
-		entries, err := testSearch.start(t.Context(), root)
+		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		require.NoError(t, err)
 		assert.Len(t, entries, 1)
 		// Should have followed all 5 referrals
@@ -170,7 +169,6 @@ func TestRecursiveSearch(t *testing.T) {
 			maxHosts:     100,
 			maxReferrals: 2,
 			referrals:    make(libSet.Set[string]),
-			request:      &ldap.SearchRequest{},
 			newSearcher:  top.newSearcher,
 			resolver:     refs,
 			logger:       discardLogger,
@@ -179,7 +177,7 @@ func TestRecursiveSearch(t *testing.T) {
 		// Start the search from the "root" mock LDAPS server
 		root, closer, _ := top.newSearcher(t.Context(), "root")
 		closer()
-		entries, err := testSearch.start(t.Context(), root)
+		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
 		// As a quirk, the third referral ends up on the referral list (since we *did* see it),
@@ -204,7 +202,6 @@ func TestRecursiveSearch(t *testing.T) {
 			maxHosts:     3,
 			maxReferrals: 100,
 			referrals:    make(libSet.Set[string]),
-			request:      &ldap.SearchRequest{},
 			newSearcher:  top.newSearcher,
 			resolver:     refs,
 			logger:       discardLogger,
@@ -213,7 +210,7 @@ func TestRecursiveSearch(t *testing.T) {
 		// Start the search from the "root" mock LDAPS server
 		root, closer, _ := top.newSearcher(t.Context(), "root")
 		closer()
-		entries, err := testSearch.start(t.Context(), root)
+		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
 		for _, key := range []string{"ldaps://a.lab.local"} {
@@ -236,7 +233,6 @@ func TestRecursiveSearch(t *testing.T) {
 			maxHosts:     100,
 			maxReferrals: 100,
 			referrals:    make(libSet.Set[string]),
-			request:      &ldap.SearchRequest{},
 			newSearcher:  top.newSearcher,
 			resolver:     refs,
 			logger:       discardLogger,
@@ -245,7 +241,7 @@ func TestRecursiveSearch(t *testing.T) {
 		// Start the search from the "root" mock LDAPS server
 		root, closer, _ := top.newSearcher(t.Context(), "root")
 		closer()
-		entries, err := testSearch.start(t.Context(), root)
+		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
 		for _, key := range []string{"ldaps://a.lab.local", "ldaps://b.lab.local", "ldaps://c.lab.local", "ldaps://d.lab.local"} {
@@ -266,7 +262,6 @@ func TestRecursiveSearch(t *testing.T) {
 			maxHosts:     100,
 			maxReferrals: 100,
 			referrals:    make(libSet.Set[string]),
-			request:      &ldap.SearchRequest{},
 			newSearcher:  top.newSearcher,
 			resolver:     refs,
 			logger:       discardLogger,
@@ -276,7 +271,7 @@ func TestRecursiveSearch(t *testing.T) {
 		// Start the search from the "root" mock LDAPS server
 		root, closer, _ := top.newSearcher(t.Context(), "root")
 		closer()
-		entries, err := testSearch.start(subCtx, root)
+		entries, err := testSearch.start(subCtx, root, &ldap.SearchRequest{})
 		assert.Error(t, err)
 		assert.Empty(t, entries)
 		// All client handles closed
@@ -309,7 +304,6 @@ func TestRecursiveSearch(t *testing.T) {
 			maxHosts:     100,
 			maxReferrals: math.MaxInt32,
 			referrals:    make(libSet.Set[string]),
-			request:      &ldap.SearchRequest{},
 			newSearcher:  cycleTopology.newSearcher,
 			resolver:     cycleRefs,
 			logger:       slog.Default(),
@@ -318,7 +312,7 @@ func TestRecursiveSearch(t *testing.T) {
 		// Start the search from the "root" mock LDAPS server
 		root, closer, _ := top.newSearcher(t.Context(), "root")
 		closer()
-		entries, err := testSearch.start(t.Context(), root)
+		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 		// Referral and associated host are only resolved/searched once
@@ -326,5 +320,87 @@ func TestRecursiveSearch(t *testing.T) {
 		assert.Equal(t, 1, cycleTopology.searches["hosta1"])
 		// All client handles closed
 		assert.Empty(t, top.openClients)
+	})
+}
+
+func TestReferralParsing(t *testing.T) {
+	t.Run("full url", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com?cn,mail?sub?filter")
+		require.NoError(t, err)
+		assert.Equal(t, "somehost:123", ref.host)
+		assert.Equal(t, "DC=example,DC=com", ref.baseDN)
+		assert.Equal(t, "cn,mail", ref.attributes)
+		assert.Equal(t, "filter", ref.filter)
+		assert.Equal(t, "sub", ref.scope)
+	})
+
+	t.Run("attributes only", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123?cn,mail")
+		require.NoError(t, err)
+		assert.Equal(t, "somehost:123", ref.host)
+		assert.Empty(t, ref.baseDN)
+		assert.Equal(t, "cn,mail", ref.attributes)
+		assert.Empty(t, ref.filter)
+		assert.Empty(t, ref.scope)
+	})
+
+	t.Run("scope only", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com??one")
+		require.NoError(t, err)
+		assert.Equal(t, "somehost:123", ref.host)
+		assert.Equal(t, "DC=example,DC=com", ref.baseDN)
+		assert.Empty(t, ref.attributes)
+		assert.Empty(t, ref.filter)
+		assert.Equal(t, "one", ref.scope)
+	})
+
+	t.Run("filter only", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com???filter")
+		require.NoError(t, err)
+		assert.Equal(t, "somehost:123", ref.host)
+		assert.Equal(t, "DC=example,DC=com", ref.baseDN)
+		assert.Empty(t, ref.attributes)
+		assert.Equal(t, "filter", ref.filter)
+		assert.Empty(t, ref.scope)
+	})
+
+	t.Run("attributes and filter only", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com?cn,mail??filter")
+		require.NoError(t, err)
+		assert.Equal(t, "somehost:123", ref.host)
+		assert.Equal(t, "DC=example,DC=com", ref.baseDN)
+		assert.Equal(t, "cn,mail", ref.attributes)
+		assert.Equal(t, "filter", ref.filter)
+		assert.Empty(t, ref.scope)
+	})
+
+	t.Run("extensions only - with dn", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com????extensions")
+		require.NoError(t, err)
+		assert.Equal(t, "somehost:123", ref.host)
+		assert.Equal(t, "DC=example,DC=com", ref.baseDN)
+		assert.Empty(t, ref.attributes)
+		assert.Empty(t, ref.filter)
+		assert.Empty(t, ref.scope)
+	})
+
+	t.Run("extensions only - no dn", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123/????extensions")
+		require.NoError(t, err)
+		assert.Equal(t, ref.host, "somehost:123")
+		assert.Empty(t, ref.baseDN)
+		assert.Empty(t, ref.attributes)
+		assert.Empty(t, ref.filter)
+		assert.Empty(t, ref.scope)
+	})
+
+	t.Run("extensions only - no dn - no leading slash", func(t *testing.T) {
+		ref, err := newLDAPReferral("ldaps://somehost:123??????extensions")
+		require.NoError(t, err)
+		assert.Equal(t, ref.host, "somehost:123")
+		assert.Empty(t, ref.baseDN)
+		assert.Empty(t, ref.attributes)
+		assert.Empty(t, ref.filter)
+		assert.Empty(t, ref.scope)
 	})
 }

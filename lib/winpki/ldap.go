@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -379,17 +380,79 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 type ldapReferral struct {
 	// The raw referral received from LDAP server.
 	raw string
-	// The result of parsing the raw referral as a URL.
-	// May be nil if parsing failed.
-	url *url.URL
+	// host is the add:port (port optional) hostname
+	host string
+
+	// Parameters specified by the referral which *should* be used in the
+	// search request to the referred server.
+	// (optional) base distinguished name specified by the referral.
+	baseDN string
+	// (optional) scope specified by the referral.
+	scope string
+	// (optional) comma separated list of attributes specified by the referral.
+	attributes string
+	// (optional) filter specified by the referral.
+	filter string
+	// (optional) comma separated list of extensions specified by the referral.
+	extensions string
 }
 
+// Referral grammar:
+// ldap[s]://hostname[:port]/[base-dn[?[attributes][?[scope][?[filter][?extensions]]]]]
+// https://datatracker.ietf.org/doc/html/rfc4516
 func newLDAPReferral(ref string) (ldapReferral, error) {
 	u, err := url.Parse(ref)
-	return ldapReferral{
-		raw: ref,
-		url: u,
-	}, err
+	if err != nil {
+		return ldapReferral{}, trace.BadParameter("failed to parse ldap referral URL: %v", err)
+	}
+
+	if u.Scheme != "ldaps" {
+		return ldapReferral{}, trace.BadParameter("ldap referral URL contains invalid scheme")
+	}
+
+	// Parse the attributes, scope, filters, and extensions from the query string
+	startIdx := 0
+	args := []string{}
+	// Note, RawQuery omits the first '?'
+	for idx, char := range u.RawQuery {
+		// Begin match
+		if char == '?' {
+			// End of this argument
+			args = append(args, u.RawQuery[startIdx:idx])
+			startIdx = idx + 1
+		}
+
+		// There should be at most 4 '?' delimited args
+		if len(args) == 3 {
+			break
+		}
+	}
+	// Capture the remainder of the query string
+	args = append(args, u.RawQuery[startIdx:len(u.RawQuery)])
+
+	referral := ldapReferral{
+		raw:    ref,
+		host:   u.Host,
+		baseDN: strings.TrimPrefix(u.Path, "/"),
+	}
+
+	// arguments are positional, so assign them to their respective
+	// struct members based on the order in which they were parsed
+	switch len(args) {
+	case 4:
+		referral.extensions = args[3]
+		fallthrough
+	case 3:
+		referral.filter = args[2]
+		fallthrough
+	case 2:
+		referral.scope = args[1]
+		fallthrough
+	case 1:
+		referral.attributes = args[0]
+	}
+
+	return referral, nil
 }
 
 // A referral may be a hostname, or a *domain referral* which needs to be
@@ -397,13 +460,17 @@ func newLDAPReferral(ref string) (ldapReferral, error) {
 // Returns either a slice of the resolved hosts, or upon failure, a slice
 // containing only parsed hostname of the raw referral.
 func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
-	_, records, err := rslv.LookupSRV(ctx, "ldap", "tcp", r.url.Hostname())
+	_, records, err := rslv.LookupSRV(ctx, "ldap", "tcp", r.host)
 	if err == nil && len(records) > 0 {
 		return libslices.Map(records, func(srv *net.SRV) string {
-			return srv.Target
+			host := srv.Target
+			if srv.Port > 0 {
+				host += ":" + strconv.Itoa(int(srv.Port))
+			}
+			return host
 		})
 	}
-	return []string{r.url.Hostname()}
+	return []string{r.host}
 }
 
 type searcher interface {
@@ -426,6 +493,38 @@ type resolver interface {
 	LookupSRV(ctx context.Context, service, proto, name string) (string, []*net.SRV, error)
 }
 
+func newRequestFromReferral(originalRequest *ldap.SearchRequest, referral ldapReferral) *ldap.SearchRequest {
+	getScope := func(scope string) int {
+		switch scope {
+		case "base":
+			return ldap.ScopeBaseObject
+		case "one":
+			return ldap.ScopeSingleLevel
+		case "sub":
+			return ldap.ScopeWholeSubtree
+		default:
+			return originalRequest.Scope
+		}
+	}
+
+	attributes := originalRequest.Attributes
+	if referral.attributes != "" {
+		attributes = strings.Split(referral.attributes, ",")
+	}
+
+	return ldap.NewSearchRequest(
+		cmp.Or(referral.baseDN, originalRequest.BaseDN),
+		getScope(referral.scope),
+		originalRequest.DerefAliases,
+		originalRequest.SizeLimit,
+		originalRequest.TimeLimit,
+		originalRequest.TypesOnly,
+		cmp.Or(referral.filter, originalRequest.Filter),
+		attributes,
+		originalRequest.Controls,
+	)
+}
+
 // recursiveSearch maintains context for an LDAP
 // query that chases referrals.
 type recursiveSearch struct {
@@ -437,8 +536,6 @@ type recursiveSearch struct {
 	maxReferrals uint
 	// Maximum number of hosts to try per referral.
 	maxHosts uint
-	// The actual LDAP query being performed.
-	request *ldap.SearchRequest
 	// constructor for new searcher (wrapped LDAP client) and associated close function
 	// to be called when the searcher is no longer needed.
 	newSearcher func(context.Context, string) (searcher, func() error, error)
@@ -447,12 +544,12 @@ type recursiveSearch struct {
 	logger   *slog.Logger
 }
 
-func (r *recursiveSearch) start(ctx context.Context, client searcher) ([]*ldap.Entry, error) {
-	return r.run(ctx, client, 0)
+func (r *recursiveSearch) start(ctx context.Context, client searcher, request *ldap.SearchRequest) ([]*ldap.Entry, error) {
+	return r.run(ctx, client, request, 0)
 }
 
-func (r *recursiveSearch) run(ctx context.Context, client searcher, depth uint) ([]*ldap.Entry, error) {
-	res, err := client.search(ctx, r.request)
+func (r *recursiveSearch) run(ctx context.Context, client searcher, request *ldap.SearchRequest, depth uint) ([]*ldap.Entry, error) {
+	res, err := client.search(ctx, request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -499,7 +596,7 @@ referralLoop:
 				}
 				defer closer()
 
-				entries, err := r.run(ctx, newClient, depth+1)
+				entries, err := r.run(ctx, newClient, newRequestFromReferral(request, ref), depth+1)
 				if err != nil {
 					r.logger.InfoContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
 					return nil, err
@@ -537,17 +634,6 @@ func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, fil
 		maxDepth:     maxSearchDepth,
 		maxHosts:     maxSearchHosts,
 		maxReferrals: maxReferralsCount,
-		request: ldap.NewSearchRequest(
-			dn,
-			ldap.ScopeWholeSubtree,
-			ldap.DerefAlways,
-			0,     // no SizeLimit
-			0,     // no TimeLimit
-			false, // TypesOnly == false, we want attribute values
-			filter,
-			attrs,
-			nil, // no Controls)
-		),
 		newSearcher: func(ctx context.Context, host string) (searcher, func() error, error) {
 			// Clone the existing credentials, so that we can change the 'ServerName' to
 			// match the hostname of the new LDAP server that we're about to dial.
@@ -562,7 +648,17 @@ func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, fil
 		resolver: net.DefaultResolver,
 		logger:   l.cfg.Logger,
 	}
-	return search.start(ctx, ldapSearcher(l))
+	return search.start(ctx, ldapSearcher(l), ldap.NewSearchRequest(
+		dn,
+		ldap.ScopeWholeSubtree,
+		ldap.DerefAlways,
+		0,     // no SizeLimit
+		0,     // no TimeLimit
+		false, // TypesOnly == false, we want attribute values
+		filter,
+		attrs,
+		nil, // no Controls)
+	))
 }
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
