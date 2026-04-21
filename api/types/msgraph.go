@@ -82,6 +82,9 @@ func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
 		}
 	}
 
+	// Pass empty string for login endpoint option, only Graph endpoint applicable to EntraIDGroupsProvider.
+	// TODO(nixpig): Refactor ValidateMSGraphEndpoints. Split out into two separate validation functions.
+	// One for Graph endpoint and one for login endpoint.
 	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
