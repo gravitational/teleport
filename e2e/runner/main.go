@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/lmittmann/tint"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
@@ -143,8 +142,8 @@ type e2eConfig struct {
 
 	creds *credentials
 
-	instances       []*browserInstance
-	connectInstance *browserInstance
+	instances       []*testInstance
+	connectInstance *testInstance
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
@@ -203,18 +202,20 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	for _, browser := range config.browsers {
-		inst := &browserInstance{
+		inst := &testInstance{
 			browser: browser,
 			log:     newBrowserLogger(browser),
+			e2eDir:  e2eDir,
 			dataDir: filepath.Join(e2eDir, "data", browser),
 		}
 		config.instances = append(config.instances, inst)
 	}
 
 	if fixtures.Connect.Enabled {
-		config.connectInstance = &browserInstance{
+		config.connectInstance = &testInstance{
 			browser: "connect",
 			log:     newBrowserLogger("connect"),
+			e2eDir:  e2eDir,
 			dataDir: filepath.Join(e2eDir, "data", "connect"),
 		}
 	}
@@ -303,7 +304,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			inst.log.Debug("generated Teleport config", "path", tcfg)
 		}
 
-		g, gctx := errgroup.WithContext(ctx)
+		// Create teleport instances (started lazily by the playwright runner so that at most 2 run concurrently).
 		for _, inst := range allInstances {
 			teleport := &teleportInstance{
 				log:         inst.log,
@@ -312,46 +313,14 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				configPath:  inst.teleportConfigPath,
 				stateFile:   stateFile,
 			}
+
 			if config.isCI || config.quiet {
 				teleport.logFile = filepath.Join(config.e2eDir, "teleport-"+inst.browser+".log")
 				inst.log.Debug("redirecting Teleport logs to file", "path", teleport.logFile)
 			}
+
 			inst.teleport = teleport
-
-			g.Go(func() error {
-				if err := teleport.start(ctx); err != nil {
-					return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
-				}
-				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
-					return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
-				}
-				if err := seedRecordings(gctx, config.e2eDir, inst.dataDir); err != nil {
-					return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
-				}
-				return nil
-			})
 		}
-		if err := g.Wait(); err != nil {
-			for _, inst := range allInstances {
-				if inst.teleport != nil {
-					inst.teleport.stop()
-				}
-			}
-			return err
-		}
-
-		defer func() {
-			for _, inst := range allInstances {
-				if inst.node != nil {
-					inst.node.stop(context.Background())
-				}
-			}
-			for _, inst := range allInstances {
-				if inst.teleport != nil {
-					inst.teleport.stop()
-				}
-			}
-		}()
 
 		if fixtures.SSHNode.Enabled {
 			slog.Info("running with SSH node fixture enabled")
@@ -397,22 +366,6 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 			if err := pullImage(ctx, nodeImage); err != nil {
 				return fmt.Errorf("pulling docker image: %w", err)
-			}
-
-			g, gctx := errgroup.WithContext(ctx)
-			for _, inst := range config.instances {
-				g.Go(func() error {
-					if err := inst.node.start(gctx); err != nil {
-						return fmt.Errorf("failed to start docker node for %s: %w", inst.browser, err)
-					}
-					if err := inst.node.waitJoined(gctx, 30*time.Second); err != nil {
-						return fmt.Errorf("docker node for %s failed to join cluster: %w", inst.browser, err)
-					}
-					return nil
-				})
-			}
-			if err := g.Wait(); err != nil {
-				return err
 			}
 		}
 	}

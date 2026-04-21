@@ -32,8 +32,9 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: OutputV2Config{
-				Destination:       dest,
-				DisableExecPlugin: true,
+				Destination:         dest,
+				DisableExecPlugin:   true,
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				Selectors: []*KubernetesSelector{
 					{
 						Name: "foo",
@@ -169,6 +170,20 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "can't evaluate field InvalidVariable",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
+					Destination: destination.NewMemory(),
+					Selectors: []*KubernetesSelector{
+						{Name: "foo", Labels: map[string]string{}},
+					},
+					ContextNameTemplate: "{{.KubeName}}",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

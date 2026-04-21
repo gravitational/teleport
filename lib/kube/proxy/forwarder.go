@@ -1011,7 +1011,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role.
 		matchers = append(matchers,
-			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.Traits()),
+			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.AccessInfo().Username, accessChecker.Traits()),
 		)
 
 		// If the kubeResource is available, append an extra matcher that validates

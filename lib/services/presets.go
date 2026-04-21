@@ -223,6 +223,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
 					types.NewRule(scopedaccess.KindScopedRole, RW()),
 					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
@@ -821,6 +822,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindInstaller, RW()),
@@ -1333,12 +1335,12 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalGitHubOrgs},
 	}
 }
 
 func defaultMCPTools() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalMCPTools},
 	}
 }

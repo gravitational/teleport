@@ -236,6 +236,10 @@ type Identity struct {
 	// authenticated.
 	OriginClusterName string
 
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
+
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
@@ -652,6 +656,10 @@ var (
 	// are for a bot internal identity, rather than an output certificate.
 	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
 
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 30}
+
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
 	//
@@ -1003,6 +1011,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AgentScopeASN1ExtensionOID,
 				Value: id.AgentScope,
+			})
+	}
+
+	if id.DelegationSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DelegationSessionIDASN1ExtensionOID,
+				Value: id.DelegationSessionID,
 			})
 	}
 
@@ -1370,6 +1386,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AgentScope = val
 			}
+		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DelegationSessionID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1523,6 +1543,11 @@ func (id *Identity) IsMFAVerified() bool {
 // IsBot returns whether this identity belongs to a bot.
 func (id *Identity) IsBot() bool {
 	return id.BotName != ""
+}
+
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
 }
 
 // CertificateRequest is a X.509 signing certificate request

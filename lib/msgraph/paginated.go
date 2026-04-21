@@ -30,6 +30,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -193,7 +194,7 @@ func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/application-list].
-func (c *Client) IterateApplications(ctx context.Context, f func(*Application) bool, opts ...IterateOpt) error {
+func (c *Client) IterateApplications(ctx context.Context, f func(*models.Application) bool, opts ...IterateOpt) error {
 	return iterateSimple(c, ctx, "applications", f, opts...)
 }
 
@@ -201,7 +202,7 @@ func (c *Client) IterateApplications(ctx context.Context, f func(*Application) b
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list].
-func (c *Client) IterateGroups(ctx context.Context, f func(*Group) bool, opts ...IterateOpt) error {
+func (c *Client) IterateGroups(ctx context.Context, f func(*models.Group) bool, opts ...IterateOpt) error {
 	return iterateSimple(c, ctx, "groups", f, opts...)
 }
 
@@ -209,7 +210,7 @@ func (c *Client) IterateGroups(ctx context.Context, f func(*Group) bool, opts ..
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
-func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool, opts ...IterateOpt) error {
+func (c *Client) IterateUsers(ctx context.Context, f func(*models.User) bool, opts ...IterateOpt) error {
 	return iterateSimple(c, ctx, "users", f, opts...)
 }
 
@@ -217,7 +218,7 @@ func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool, opts ...I
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
-func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal *ServicePrincipal) bool, opts ...IterateOpt) error {
+func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal *models.ServicePrincipal) bool, opts ...IterateOpt) error {
 	return iterateSimple(c, ctx, "servicePrincipals", f, opts...)
 }
 
@@ -225,7 +226,7 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-members].
-func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool, opts ...IterateOpt) error {
+func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func(models.GroupMember) bool, opts ...IterateOpt) error {
 	var err error
 	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
 		var page []json.RawMessage
@@ -233,10 +234,10 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 			return false
 		}
 		for _, entry := range page {
-			var member GroupMember
-			member, err = decodeGroupMember(entry)
+			var member models.GroupMember
+			member, err = models.DecodeGroupMember(entry)
 			if err != nil {
-				var gmErr *unsupportedGroupMember
+				var gmErr *models.UnsupportedGroupMember
 				if errors.As(err, &gmErr) {
 					slog.DebugContext(ctx, "unsupported group member", "type", gmErr.Type)
 					err = nil // Reset so that we do not return the error up if this is the last entry
@@ -263,7 +264,7 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-owners?view=graph-rest-1.0].
-func (c *Client) IterateGroupOwners(ctx context.Context, groupID string, f func(*User) bool, opts ...IterateOpt) error {
+func (c *Client) IterateGroupOwners(ctx context.Context, groupID string, f func(*models.User) bool, opts ...IterateOpt) error {
 	// Group owners of user type is requested by
 	// using "microsoft.graph.user" OData cast.
 	return iterateSimple(c, ctx, path.Join("groups", groupID, "owners", "microsoft.graph.user"), f, opts...)
@@ -287,7 +288,7 @@ const (
 // - Directory roles: /v1.0/users/<user-id>/transitiveMemberOf/microsoft.graph.directoryRole
 // Only group ID is extracted from the response, so the DirectoryObject struct is sufficient
 // to parse groups as well ass directory roles response.
-func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, groupType string, f func(*Group) bool) error {
+func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, groupType string, f func(*models.Group) bool) error {
 	// MS Graph expects $count query parameter and
 	// "ConsistencyLevel: eventual" header set when using
 	// advanced query parameter such as $filter.
@@ -313,7 +314,7 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 
 	var err error
 	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
-		var page []Group
+		var page []models.Group
 		if err = utils.FastUnmarshal(msg, &page); err != nil {
 			return false
 		}
