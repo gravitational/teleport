@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
@@ -132,8 +131,8 @@ type Config struct {
 	// AuthProvider is the auth provider for the Okta service.
 	AuthProvider oktaapi.AuthProvider
 
-	// AssignmentsService is the service for managing Okta assignments.
-	AssignmentsService oktacommon.OktaAssignmentService
+	// Backend is used to directly interact with the backend instead of fetching thought cache
+	Backend Backend
 
 	// TestHTTPClient is an optional HTTP client that can be used to override the
 	// default client for testing. Do not set in production.
@@ -141,6 +140,12 @@ type Config struct {
 
 	// Plugin is the Plugin object.
 	Plugin types.Plugin
+}
+
+// Backend groups the service interfaces backed by auth.Server.Services
+// direct backend reads
+type Backend interface {
+	oktacommon.OktaAssignmentService
 }
 
 var (
@@ -193,13 +198,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		// Default to running 5 backend tasks per second.
 		c.BackendTasksPerSecond = 5
 	}
-	if c.AssignmentsService == nil {
+	if c.Backend == nil {
 		return trace.BadParameter("OktaAssignmentService is missing")
 	}
-	if _, ok := c.AssignmentsService.(*cache.Cache); ok {
-		return trace.BadParameter("AssignmentsService must not be a cache; A non-cached service is required to fetch up-to-date assignments state")
-	}
-
 	if c.SyncSettings.SyncUsers {
 		if c.SyncSettings.SsoConnectorId == "" {
 			return ErrMissingSsoConnectorId
@@ -551,23 +552,23 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	if accessListSyncEnabled {
 		config.Logger.InfoContext(ctx, "Access List sync is enabled", "bidirectional", bidirectionalSyncEnabled)
 		s.accessListSync, err = newAccessListSync(accessListSyncConfig{
-			Logger:                s.logger,
-			Clock:                 s.clock,
-			ClusterName:           s.clusterName,
-			Client:                s.client,
-			Emitter:               config.Emitter,
-			Access:                config.Access,
-			AccessLists:           config.AccessLists,
-			SyncInterval:          config.TimeBetweenImports,
-			OrgURL:                s.orgURL,
-			Owners:                config.SyncSettings.DefaultOwners,
-			AppsGetter:            s.appServers.Clone,
-			GroupsGetter:          s.groups.Clone,
-			AppFilters:            config.accessListSyncAppFilters,
-			GroupFilters:          config.accessListSyncGroupFilters,
-			ServiceStatus:         s.serviceStatus,
-			StopChannel:           s.stopCh,
-			OktaAssignmentService: config.AssignmentsService,
+			Logger:        s.logger,
+			Clock:         s.clock,
+			ClusterName:   s.clusterName,
+			Client:        s.client,
+			Emitter:       config.Emitter,
+			Access:        config.Access,
+			AccessLists:   config.AccessLists,
+			SyncInterval:  config.TimeBetweenImports,
+			OrgURL:        s.orgURL,
+			Owners:        config.SyncSettings.DefaultOwners,
+			AppsGetter:    s.appServers.Clone,
+			GroupsGetter:  s.groups.Clone,
+			AppFilters:    config.accessListSyncAppFilters,
+			GroupFilters:  config.accessListSyncGroupFilters,
+			ServiceStatus: s.serviceStatus,
+			StopChannel:   s.stopCh,
+			Backend:       config.Backend,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -142,9 +142,9 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		GroupsGetter: func() map[string]types.UserGroup {
 			return alsCtx.groups
 		},
-		StopChannel:           stopCh,
-		ServiceStatus:         nullStatusUpdate{},
-		OktaAssignmentService: ap,
+		StopChannel:   stopCh,
+		ServiceStatus: nullStatusUpdate{},
+		Backend:       ap,
 	})
 	require.NoError(t, err)
 
@@ -630,7 +630,7 @@ func TestAccessListSync(t *testing.T) {
 						return oldGetGroupAssignmentsFunc(t, ctx, groupID)
 					}
 
-					// WHEN I force a new Access List Sync
+				// WHEN I force a new Access List Sync
 				c.svc.sync(ctx)
 
 				// EXPECT that an appropriate sync event has been emitted

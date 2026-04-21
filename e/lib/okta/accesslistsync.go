@@ -94,10 +94,9 @@ type accessListSyncConfig struct {
 	// ServiceStatus is the sink for detailed status information
 	ServiceStatus serviceStatusUpdater
 
-	// AssignmentsService is the service to use for assignments.
-	// It MUST NOT be a cache, otherwise we will risk privileges escalation of short-term Access Requests turning into long-t erm.
-	// https://github.com/gravitational/teleport-private/issues/1944.
-	OktaAssignmentService common.OktaAssignmentService
+	// Backend is used to directly interact with the backend instead of fetching thought cache
+	// where stale object can be returned.
+	Backend Backend
 }
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
@@ -153,8 +152,8 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing service status")
 	}
 
-	if a.OktaAssignmentService == nil {
-		return trace.BadParameter("missing assignments service")
+	if a.Backend == nil {
+		return trace.BadParameter("missing backend service")
 	}
 
 	return nil
@@ -230,8 +229,9 @@ type accessListSync struct {
 
 	stopCh chan struct{}
 
-	serviceStatus      serviceStatusUpdater
-	assignmentsService common.OktaAssignmentService
+	serviceStatus serviceStatusUpdater
+	// Backend is used to directly interact with the backend instead of fetching thought cache
+	Backend Backend
 }
 
 // newAccessListSync will create a new access list synchronizer.
@@ -249,23 +249,23 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	}
 
 	a := &accessListSync{
-		logger:             cfg.Logger,
-		clock:              cfg.Clock,
-		clusterName:        cfg.ClusterName,
-		client:             cfg.Client,
-		owners:             owners,
-		emitter:            cfg.Emitter,
-		access:             cfg.Access,
-		accessLists:        cfg.AccessLists,
-		orgURL:             cfg.OrgURL,
-		syncInterval:       cfg.SyncInterval,
-		appsGetter:         cfg.AppsGetter,
-		groupsGetter:       cfg.GroupsGetter,
-		appFilters:         cfg.AppFilters,
-		groupFilters:       cfg.GroupFilters,
-		stopCh:             cfg.StopChannel,
-		serviceStatus:      cfg.ServiceStatus,
-		assignmentsService: cfg.OktaAssignmentService,
+		logger:        cfg.Logger,
+		clock:         cfg.Clock,
+		clusterName:   cfg.ClusterName,
+		client:        cfg.Client,
+		owners:        owners,
+		emitter:       cfg.Emitter,
+		access:        cfg.Access,
+		accessLists:   cfg.AccessLists,
+		orgURL:        cfg.OrgURL,
+		syncInterval:  cfg.SyncInterval,
+		appsGetter:    cfg.AppsGetter,
+		groupsGetter:  cfg.GroupsGetter,
+		appFilters:    cfg.AppFilters,
+		groupFilters:  cfg.GroupFilters,
+		stopCh:        cfg.StopChannel,
+		serviceStatus: cfg.ServiceStatus,
+		Backend:       cfg.Backend,
 	}
 
 	// Create the reconcilers we need.
@@ -347,7 +347,7 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	// originating from the access request is not created. Instead, the Access Request promotion
 	// results in a new Okta assignment based on the ACL membership.
 	ongoingAccessRequestFilter := common.OngoingAssignmentsMembershipFilter{
-		AssignmentsService: a.assignmentsService,
+		AssignmentsService: a.Backend,
 	}
 	if err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers); err != nil {
 		return trace.Wrap(err)

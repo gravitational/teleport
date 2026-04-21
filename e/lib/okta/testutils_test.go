@@ -283,7 +283,7 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 			SyncAccessLists:      true,
 			DefaultOwners:        []string{"the-owner"},
 		},
-		AssignmentsService: ap,
+		Backend: ap,
 	}
 	for _, opt := range options {
 		opt(&config)

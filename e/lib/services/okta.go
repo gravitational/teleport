@@ -215,7 +215,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		SyncSettings:                      settings.syncSettings,
 		SCIMEnabled:                       settings.scimEnabled,
 		AuthProvider:                      settings.authProvider,
-		AssignmentsService:                conn.Client.OktaClient(),
+		Backend:                           process.GetAuthServer().Services,
 		TestHTTPClient:                    clt,
 		Plugin:                            settings.plugin,
 	})
