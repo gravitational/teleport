@@ -167,6 +167,10 @@ func (e *mockEKSClientGetter) GetAWSSTSPresignClient(aws.Config) kubeutils.STSPr
 	return &mockSTSPresignAPI{}
 }
 
+func (e *mockEKSClientGetter) GetAWSIAMClient(aws.Config) IAMClient {
+	return nil
+}
+
 type mockSTSPresignAPI struct{}
 
 func (a *mockSTSPresignAPI) PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error) {

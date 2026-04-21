@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -89,6 +90,11 @@ type STSClient interface {
 // STSPresignClient is the subset of the STS presign interface we use in fetchers.
 type STSPresignClient = kubeutils.STSPresignClient
 
+// IAMClient is the subset of the IAM interface we use in fetchers.
+type IAMClient interface {
+	GetRole(ctx context.Context, params *iam.GetRoleInput, optFns ...func(*iam.Options)) (*iam.GetRoleOutput, error)
+}
+
 // AWSClientGetter is an interface for getting an EKS client and an STS client.
 type AWSClientGetter interface {
 	awsconfig.Provider
@@ -98,6 +104,8 @@ type AWSClientGetter interface {
 	GetAWSSTSClient(aws.Config) STSClient
 	// GetAWSSTSPresignClient returns AWS STS presign client for the specified config.
 	GetAWSSTSPresignClient(aws.Config) STSPresignClient
+	// GetAWSIAMClient returns AWS IAM client for the specified config.
+	GetAWSIAMClient(aws.Config) IAMClient
 }
 
 // EKSFetcherConfig configures the EKS fetcher.
@@ -752,8 +760,38 @@ func (a *eksFetcher) setCallerIdentity(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.callerIdentity = convertAssumedRoleToIAMRole(aws.ToString(identity.Arn))
+	callerARN := aws.ToString(identity.Arn)
+	iamARN, err := resolveIAMRoleARN(ctx, a.ClientGetter.GetAWSIAMClient(cfg), callerARN)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.callerIdentity = iamARN
 	return nil
+}
+
+// resolveIAMRoleARN converts an STS caller identity ARN to the corresponding IAM role ARN.
+// For assumed-role ARNs it calls iam:GetRole to retrieve the exact ARN (including any path),
+// which is required for SSO roles that include a region in their path
+// (e.g. /aws-reserved/sso.amazonaws.com/us-west-2/). Falls back to string conversion on error.
+func resolveIAMRoleARN(ctx context.Context, iamClient IAMClient, callerARN string) (string, error) {
+	parsed, err := arn.Parse(callerARN)
+	if err != nil || !strings.HasPrefix(parsed.Resource, "assumed-role/") {
+		return callerARN, nil
+	}
+	parts := strings.SplitN(parsed.Resource, "/", 3)
+	if len(parts) < 2 {
+		return callerARN, nil
+	}
+	roleName := parts[1]
+	if iamClient == nil {
+		return convertAssumedRoleToIAMRole(callerARN), nil
+	}
+	resp, err := iamClient.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(roleName)})
+	if err != nil {
+		// Fall back to best-effort string conversion rather than failing entirely.
+		return convertAssumedRoleToIAMRole(callerARN), nil
+	}
+	return aws.ToString(resp.Role.Arn), nil
 }
 
 func getAWSOpts(assumeRole types.AssumeRole, integration string) []awsconfig.OptionsFn {
@@ -774,6 +812,7 @@ func convertAWSError[T any](rsp T, err error) (T, error) {
 // convertAssumedRoleToIAMRole converts the assumed role ARN to an IAM role ARN.
 // The assumed role ARN is in the format "arn:aws:sts::account-id:assumed-role/role-name/role-session-name".
 // The IAM role ARN is in the format "arn:aws:iam::account-id:role/role-name".
+// Note: this does not handle roles with non-default paths (e.g. AWS SSO roles); use resolveIAMRoleARN instead.
 func convertAssumedRoleToIAMRole(callerIdentity string) string {
 	const (
 		assumeRolePrefix = "assumed-role/"
@@ -914,5 +953,4 @@ func DeleteKubernetesDanglingResources(ctx context.Context, cfg DeleteKubernetes
 	default:
 		return trace.Wrap(err, "failed to delete access entry for cluster %q", clusterName)
 	}
-
 }
