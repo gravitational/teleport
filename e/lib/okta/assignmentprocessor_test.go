@@ -3,9 +3,12 @@ package okta
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"slices"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -748,6 +751,44 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 
 }
 
+func Test_assignmentProcessor_processTimerEvent_timer_resets_when_not_leader(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		leader := &togglingLeader{}
+		countingOktaAssignmentService := &countingOktaAssignmentService{}
+
+		processor := &assignmentProcessor{
+			leader: leader,
+			logger: slog.Default(),
+			clock:  clockwork.NewRealClock(),
+			accessPoint: assignmentProcessorAccessPoint{
+				oktaAssignmentService: countingOktaAssignmentService,
+			},
+			stopCh:                            make(chan struct{}),
+			timeBetweenAssignmentProcessLoops: 1 * time.Minute,
+		}
+		t.Cleanup(processor.stop)
+
+		go processor.loop(ctx)
+		synctest.Wait()
+
+		time.Sleep(processor.timeBetweenAssignmentProcessLoops)
+		synctest.Wait()
+
+		require.Zero(t, countingOktaAssignmentService.ListOktaAssignmentsCnt.Load())
+
+		leader.isLeader.Store(true)
+
+		time.Sleep(processor.timeBetweenAssignmentProcessLoops)
+		synctest.Wait()
+
+		require.EqualValues(t, 1, countingOktaAssignmentService.ListOktaAssignmentsCnt.Load())
+	})
+}
+
 func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {
 	var res []string
 	for _, r := range assignments {
@@ -785,3 +826,22 @@ func requireEqualOktaAssignments(t *testing.T, expected, actual []types.OktaAssi
 type dummyEmitter struct{}
 
 func (dummyEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error { return nil }
+
+type togglingLeader struct {
+	isLeader atomic.Bool
+}
+
+func (l *togglingLeader) IsLeader() bool {
+	return l.isLeader.Load()
+}
+
+type countingOktaAssignmentService struct {
+	oktaAssignmentService
+
+	ListOktaAssignmentsCnt atomic.Int64
+}
+
+func (s *countingOktaAssignmentService) ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error) {
+	s.ListOktaAssignmentsCnt.Add(1)
+	return nil, "", nil
+}

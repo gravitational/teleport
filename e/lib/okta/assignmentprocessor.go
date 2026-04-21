@@ -159,11 +159,9 @@ func (a *assignmentProcessor) loop(ctx context.Context) {
 		}
 
 		// If the parent Okta service is not the leader, skip processing.
-		if !a.leader.IsLeader() {
-			continue
+		if a.leader.IsLeader() {
+			a.processTimerEvent(ctx)
 		}
-
-		a.processTimerEvent(ctx)
 
 		timer.Reset(a.timeBetweenAssignmentProcessLoops)
 	}
