@@ -1665,10 +1665,12 @@ func (e *CommandExecutor) childToParentPipe(fd FileFD) (*os.File, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.parentFiles = append(e.parentFiles, r)
 	if e.childFiles, err = addFile(e.childFiles, w, fd); err != nil {
+		r.Close()
+		w.Close()
 		return nil, trace.Wrap(err)
 	}
+	e.parentFiles = append(e.parentFiles, r)
 	return r, nil
 }
 
@@ -1677,10 +1679,12 @@ func (e *CommandExecutor) parentToChildPipe(fd FileFD) (*os.File, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.parentFiles = append(e.parentFiles, w)
 	if e.childFiles, err = addFile(e.childFiles, r, fd); err != nil {
+		r.Close()
+		w.Close()
 		return nil, trace.Wrap(err)
 	}
+	e.parentFiles = append(e.parentFiles, w)
 	return w, nil
 }
 
@@ -1854,7 +1858,10 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	childFiles := slices.Clone(executor.childFiles)
 
 	if canReuseLogWriter {
-		addFile(childFiles, logFileWriter, LogFile)
+		childFiles, err = addFile(childFiles, logFileWriter, LogFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Build the "teleport exec" command.
