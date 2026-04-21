@@ -17,6 +17,9 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"iter"
 	"net/url"
@@ -112,6 +115,12 @@ type Application interface {
 	GetMCP() *MCP
 	// GetLLM fetches LLM specific configuration.
 	GetLLM() *LLM
+	// GetTLS fetches TLS configuration.
+	GetTLS() *AppTLS
+	// GetClientCertMode returns the client certificate mode used.
+	GetClientCertMode() AppClientCertMode
+	// GetTLSMode returns the TLS mode.
+	GetTLSMode() AppTLSMode
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
 }
@@ -517,6 +526,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
 	}
+
+	if a.Spec.TLS != nil {
+		if err := a.checkTLS(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -619,11 +635,11 @@ func (a *AppV3) checkLLM() error {
 	// This also covers the requirement of supported format and provider values.
 	providers, ok := supportedFormatInferenceProviders[llm.Format]
 	if !ok {
-		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'. Supported formats are: %s", a.GetName(), llm.Format, strings.Join(SupportedLLMFormats, ", "))
+		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'. Supported formats are: %s", a.GetName(), llm.Format, quoteAndJoin(SupportedLLMFormats))
 	}
 
 	if !slices.Contains(providers, llm.Provider) {
-		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, strings.Join(providers, ", "))
+		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, quoteAndJoin(providers))
 	}
 
 	for _, model := range llm.Models {
@@ -640,6 +656,119 @@ func (a *AppV3) checkLLM() error {
 	}
 
 	return nil
+}
+
+func (a *AppV3) checkTLS() error {
+	if !SupportsTLSConfig(a.Spec.URI) {
+		return trace.BadParameter(
+			"App %q can only specify 'tls' settings for URI schemes that use upstream TLS. Supported schemes are: %s",
+			a.GetName(),
+			quoteAndJoin(appSchemasWithTLSSupport),
+		)
+	}
+
+	tls := a.Spec.TLS
+	var mode AppTLSMode
+	switch tls.Mode {
+	case AppTLSModeInsecure, AppTLSModeVerifyFull:
+		mode = tls.Mode
+	case "":
+		// When not specified, use the evaluated mode.
+		mode = a.GetTLSMode()
+	default:
+		return trace.BadParameter(
+			"App %q has invalid 'tls.mode' %q. Supported values are: %s",
+			a.GetName(),
+			tls.Mode,
+			quoteAndJoin([]string{AppTLSModeInsecure, AppTLSModeVerifyFull}),
+		)
+	}
+
+	if a.Spec.InsecureSkipVerify && mode == AppTLSModeVerifyFull {
+		return trace.BadParameter(
+			"App %q cannot specify 'insecure_skip_verify: true' (deprecated) and 'tls.mode: %q'. Drop 'insecure_skip_verify', and if you want the app to use insecure connections set 'tls.mode: %q'",
+			a.GetName(),
+			AppTLSModeVerifyFull,
+			AppTLSModeInsecure,
+		)
+	}
+
+	switch tls.ClientCertMode {
+	case AppClientCertModeManaged:
+		if mode == AppTLSModeInsecure {
+			return trace.BadParameter("App %q can only enable 'tls.client_cert_mode' when 'tls.mode' is %q", a.GetName(), AppTLSModeVerifyFull)
+		}
+	case AppClientCertModeDisabled, "":
+	default:
+		return trace.BadParameter(
+			"App %q has invalid 'tls.client_cert_mode'. Supported values are: %s",
+			a.GetName(),
+			quoteAndJoin([]string{"", AppClientCertModeDisabled, AppClientCertModeManaged}),
+		)
+	}
+
+	switch {
+	case (tls.ServerName != "" || tls.ServerSpiffeId != "") && mode == AppTLSModeInsecure:
+		return trace.BadParameter("App %q can only specify 'tls.server_name' or 'tls.server_spiffe_id' when 'tls.mode' is set to %q", a.GetName(), AppTLSModeVerifyFull)
+	case tls.ServerSpiffeId != "" && !strings.HasPrefix(tls.ServerSpiffeId, "spiffe://"):
+		// TODO(gabrielcorado): enhance the SPIFFE ID validation.
+		return trace.BadParameter("App %q has invalid 'tls.server_spiffe_id'. The SPIFFE ID must be complete (trust domain and path) and start with 'spiffe://'.", a.GetName())
+	}
+
+	for _, allowedCA := range tls.AllowedCas {
+		if slices.Contains(supportedAllowedInternalCAs, allowedCA) {
+			continue
+		}
+		if err := isValidSingleCertificatePEM(allowedCA); err != nil {
+			return trace.BadParameter(
+				"App %q 'tls.allowed_cas' values must each be a single PEM-encoded certificate or a Teleport CA alias (%s): %s",
+				a.GetName(),
+				quoteAndJoin(supportedAllowedInternalCAs),
+				err,
+			)
+		}
+	}
+
+	return nil
+}
+
+// isValidSingleCertificatePEM validates that s contains exactly one
+// PEM-encoded certificate.
+func isValidSingleCertificatePEM(s string) error {
+	block, rest := pem.Decode([]byte(s))
+	if block == nil {
+		return trace.BadParameter("expected a PEM-encoded certificate")
+	}
+	if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+		return trace.BadParameter("invalid certificate: %s", err)
+	}
+	if len(bytes.TrimSpace(rest)) > 0 {
+		return trace.BadParameter("expected exactly one PEM-encoded certificate")
+	}
+	return nil
+}
+
+// SupportsTLSConfig returns if app supports TLS config based on its URI.
+func SupportsTLSConfig(uri string) bool {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+
+	return slices.Contains(appSchemasWithTLSSupport, parsed.Scheme)
+}
+
+// quoteAndJoin takes a slice of strings and returns them quoted and
+// comma-separated.
+func quoteAndJoin(items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	quotedItems := make([]string, len(items))
+	for i, item := range items {
+		quotedItems[i] = `"` + item + `"`
+	}
+	return strings.Join(quotedItems, ", ")
 }
 
 // GetIdentityCenter returns the Identity Center information for the app, if any.
@@ -672,9 +801,42 @@ func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
 }
 
-// GetMCP returns LLM specific configuration.
+// GetLLM returns LLM specific configuration.
 func (a *AppV3) GetLLM() *LLM {
 	return a.Spec.LLM
+}
+
+// GetTLS returns TLS configuration.
+func (a *AppV3) GetTLS() *AppTLS {
+	return a.Spec.TLS
+}
+
+// GetTLSMode returns the TLS mode.
+func (a *AppV3) GetTLSMode() AppTLSMode {
+	switch {
+	case a.Spec.InsecureSkipVerify:
+		return AppTLSModeInsecure
+	case a.Spec.TLS != nil && a.Spec.TLS.Mode != "":
+		// Rely on specified value when available.
+		return a.Spec.TLS.Mode
+	case a.IsTCP():
+		// For TCP apps without specifed mode value, default to insecure. This
+		// will keep the TCP connections as is.
+		return AppTLSModeInsecure
+	case SupportsTLSConfig(a.Spec.URI):
+		return AppTLSModeVerifyFull
+	default:
+		return AppTLSModeInsecure
+	}
+}
+
+// GetClientCertMode returns the client certificate mode used.
+func (a *AppV3) GetClientCertMode() AppClientCertMode {
+	if a.Spec.TLS == nil || a.Spec.TLS.ClientCertMode == "" {
+		return AppClientCertModeDisabled
+	}
+
+	return a.Spec.TLS.ClientCertMode
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
@@ -829,3 +991,47 @@ var SupportedLLMProviders = []LLMProvider{
 	LLMProviderAnthropic,
 	LLMProviderAWSBedrock,
 }
+
+// appSchemasWithTLSSupport list of app schemas that support TLS configurations.
+var appSchemasWithTLSSupport = []string{
+	"https",
+	"tcp",
+	"cloud",
+	SchemeLLMEndpoint,
+	SchemeMCPHTTPS,
+	SchemeMCPSSEHTTPS,
+}
+
+// AppTLSMode defines TLS verification.
+type AppTLSMode = string
+
+const (
+	// AppTLSModeVerifyFull performs full certificate verification.
+	AppTLSModeVerifyFull AppTLSMode = "verify-full"
+	// AppTLSModeInsecure disables app's TLS certificate verification.
+	AppTLSModeInsecure AppTLSMode = "insecure"
+)
+
+// AppClientCertMode specifies which client certificate mode to use for the
+// upstream connection.
+type AppClientCertMode = string
+
+const (
+	// AppClientCertModeManaged indicates app service will issue client certificates to use in the app upstream connection, establishing mTLS connections.
+	AppClientCertModeManaged AppClientCertMode = "managed"
+	// AppClientCertModeDisabled indicates the app upstream connection won't use client certificates.
+	AppClientCertModeDisabled AppClientCertMode = "disabled"
+)
+
+// AppTLSInternalCA represents a Teleport CA that the app service will accept
+// certificates from when establishing a app upstream connection.
+type AppTLSInternalCA = string
+
+const (
+	// AppTLSInternalCAWorkloadIdentity represents the Workload Identity CA.
+	AppTLSInternalCAWorkloadIdentity AppTLSInternalCA = "workload_identity"
+)
+
+// supportedAllowedInternalCAs is the list of internal CAs that can be used in
+// the app TLS configuration.
+var supportedAllowedInternalCAs = []string{AppTLSInternalCAWorkloadIdentity}

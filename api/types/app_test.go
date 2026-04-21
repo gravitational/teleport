@@ -1045,3 +1045,321 @@ func TestLLMConfiguration(t *testing.T) {
 		}
 	})
 }
+
+func TestAppTLSConfiguration(t *testing.T) {
+	for name, tc := range map[string]struct {
+		uri          string
+		tls          *AppTLS
+		insecureSkip bool
+		expectErr    require.ErrorAssertionFunc
+	}{
+		"full valid configuration": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{"workload_identity", appExternalAllowedCA},
+				ClientCertMode: AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"mcp https valid configuration": {
+			uri: "mcp+https://localhost",
+			tls: &AppTLS{
+				Mode:           AppTLSModeVerifyFull,
+				ClientCertMode: AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"minimal": {
+			tls: &AppTLS{
+				Mode: AppTLSModeVerifyFull,
+			},
+			expectErr: require.NoError,
+		},
+		"insecure with client cert mode": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeInsecure,
+				ClientCertMode: AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"conflicting insecure skip verify and verify full": {
+			tls: &AppTLS{
+				Mode: AppTLSModeVerifyFull,
+			},
+			insecureSkip: true,
+			expectErr:    require.Error,
+		},
+		"incomplete server spiffe id": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeVerifyFull,
+				ServerSpiffeId: "/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid mode": {
+			tls: &AppTLS{
+				Mode: "invalid",
+			},
+			expectErr: require.Error,
+		},
+		"invalid allowed CA": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeVerifyFull,
+				AllowedCas: []string{"workload_identity", "malformed cert"},
+			},
+			expectErr: require.Error,
+		},
+		"allowed CA with multiple certificates per entry": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeVerifyFull,
+				AllowedCas: []string{appExternalAllowedCA + "\n" + appExternalAllowedCA},
+			},
+			expectErr: require.Error,
+		},
+		"server name with insecure mode": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeInsecure,
+				ServerName: "example.com",
+			},
+			expectErr: require.Error,
+		},
+		"server spiffe id with insecure mode": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeInsecure,
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid client cert mode value": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeVerifyFull,
+				ClientCertMode: "foo",
+			},
+			expectErr: require.Error,
+		},
+		"insecure skip verify compatible with mode insecure": {
+			tls:          &AppTLS{Mode: AppTLSModeInsecure},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"insecure skip verify with empty mode defaults to insecure": {
+			tls:          &AppTLS{},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"allowed cas with only internal alias": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeVerifyFull,
+				AllowedCas: []string{AppTLSInternalCAWorkloadIdentity},
+			},
+			expectErr: require.NoError,
+		},
+		"allowed cas with empty string entry": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeVerifyFull,
+				AllowedCas: []string{""},
+			},
+			expectErr: require.Error,
+		},
+		"allowed cas with non-certificate PEM block": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeVerifyFull,
+				AllowedCas: []string{appPrivateKeyPEM},
+			},
+			expectErr: require.Error,
+		},
+		"cloud app with tls block": {
+			uri: "cloud://aws",
+			tls: &AppTLS{
+				Mode: AppTLSModeVerifyFull,
+			},
+			expectErr: require.NoError,
+		},
+		"http app with tls mode": {
+			uri: "http://localhost",
+			tls: &AppTLS{
+				Mode: AppTLSModeVerifyFull,
+			},
+			expectErr: require.Error,
+		},
+		"mcp http app with client cert mode": {
+			uri: "mcp+http://localhost",
+			tls: &AppTLS{
+				ClientCertMode: AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"mcp stdio app with allowed CAs": {
+			uri: "mcp+stdio://teleport-mcp-demo",
+			tls: &AppTLS{
+				AllowedCas: []string{appExternalAllowedCA},
+			},
+			expectErr: require.Error,
+		},
+		"http app with empty tls config": {
+			uri:       "http://localhost",
+			tls:       &AppTLS{},
+			expectErr: require.Error,
+		},
+		"empty": {
+			tls:       &AppTLS{},
+			expectErr: require.NoError,
+		},
+		"nil": {
+			tls:       nil,
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			uri := tc.uri
+			if uri == "" {
+				uri = "https://localhost"
+			}
+
+			_, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{
+				URI:                uri,
+				InsecureSkipVerify: tc.insecureSkip,
+				TLS:                tc.tls,
+			})
+			tc.expectErr(t, err)
+		})
+	}
+}
+
+func TestAppTLSMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppTLSMode
+	}{
+		"tcp default": {
+			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"http default": {
+			spec:         AppSpecV3{URI: "http://localhost:80"},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"https insecure": {
+			spec: AppSpecV3{
+				URI: "https://localhost:443",
+				TLS: &AppTLS{
+					Mode: AppTLSModeInsecure,
+				},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"cloud default": {
+			spec:         AppSpecV3{Cloud: CloudAWS},
+			expectedMode: AppTLSModeVerifyFull,
+		},
+		"mcp http default": {
+			spec:         AppSpecV3{URI: "mcp+http://localhost:8080"},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"insecure skip verify is respected": {
+			spec: AppSpecV3{
+				URI:                "http://localhost:80",
+				InsecureSkipVerify: true,
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"tcp with specified value": {
+			spec: AppSpecV3{
+				URI: "tcp://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode: AppTLSModeVerifyFull,
+				},
+			},
+			expectedMode: AppTLSModeVerifyFull,
+		},
+		"https default": {
+			spec:         AppSpecV3{URI: "https://localhost:443"},
+			expectedMode: AppTLSModeVerifyFull,
+		},
+		"mcp https default": {
+			spec:         AppSpecV3{URI: "mcp+https://localhost:8080"},
+			expectedMode: AppTLSModeVerifyFull,
+		},
+		"insecure skip verify with mode insecure": {
+			spec: AppSpecV3{
+				URI:                "https://localhost",
+				InsecureSkipVerify: true,
+				TLS:                &AppTLS{Mode: AppTLSModeInsecure},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetTLSMode())
+		})
+	}
+}
+
+func TestAppClientCertMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppClientCertMode
+	}{
+		"default disabled": {
+			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"empty tls block returns disabled": {
+			spec: AppSpecV3{
+				URI: "tcp://0.0.0.0:8000",
+				TLS: &AppTLS{},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"explict disable": {
+			spec: AppSpecV3{
+				URI: "tcp://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyFull,
+					ClientCertMode: AppClientCertModeDisabled,
+				},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"managed": {
+			spec: AppSpecV3{
+				URI: "tcp://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyFull,
+					ClientCertMode: AppClientCertModeManaged,
+				},
+			},
+			expectedMode: AppClientCertModeManaged,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetClientCertMode())
+		})
+	}
+}
+
+const (
+	appExternalAllowedCA = `-----BEGIN CERTIFICATE-----
+MIICFjCCAbugAwIBAgIRAIoq9H5/Uxz1oJS17hjFjKEwCgYIKoZIzj0EAwIwajEa
+MBgGA1UEChMRcm9vdC50ZWxlcG9ydC5kZXYxGjAYBgNVBAMTEXJvb3QudGVsZXBv
+cnQuZGV2MTAwLgYDVQQFEycxODM2NTY0OTg4MTY0NzM2OTQ4NzM2MzczNjQ4MTU2
+NjQzNTI0MTcwHhcNMjYwNDE2MjEwOTA4WhcNMzYwNDEzMjEwOTA4WjBqMRowGAYD
+VQQKExFyb290LnRlbGVwb3J0LmRldjEaMBgGA1UEAxMRcm9vdC50ZWxlcG9ydC5k
+ZXYxMDAuBgNVBAUTJzE4MzY1NjQ5ODgxNjQ3MzY5NDg3MzYzNzM2NDgxNTY2NDM1
+MjQxNzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABDW7XPEplPkWWAZuQX6V/kqn
+T3iGcib+nYPFEOtWYZae3deF7wxcfyRTH4vsVOQhe9+TwJ92WwVnBCT/2U4QzgSj
+QjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSF
+51FfpZdVovLDB7CJg6BcU8MiFzAKBggqhkjOPQQDAgNJADBGAiEAh4qZv2xmwTM0
+TLezizSVzQRvrtY6t3lBqzSPUVx4JWcCIQDwBW5pscq6hxYBRpDRJxVghSobJiHk
+VdH2u/w+t7dV5g==
+-----END CERTIFICATE-----`
+	appPrivateKeyPEM = `-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIGp7zs9vCvGUPmVXFbgpppCQ5Tv7KFqGkV9vWzS1WInS
+-----END PRIVATE KEY-----`
+)

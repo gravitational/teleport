@@ -121,6 +121,9 @@ type App struct {
 
 	// LLM contains LLM inference endpoint related configurations.
 	LLM *types.LLM
+
+	// TLS contains the app TLS configuration.
+	TLS *types.AppTLS
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
