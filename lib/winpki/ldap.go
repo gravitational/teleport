@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -463,11 +462,7 @@ func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
 	_, records, err := rslv.LookupSRV(ctx, "ldap", "tcp", r.host)
 	if err == nil && len(records) > 0 {
 		return libslices.Map(records, func(srv *net.SRV) string {
-			host := srv.Target
-			if srv.Port > 0 {
-				host += ":" + strconv.Itoa(int(srv.Port))
-			}
-			return host
+			return srv.Target
 		})
 	}
 	return []string{r.host}
