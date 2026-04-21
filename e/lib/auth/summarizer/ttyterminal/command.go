@@ -1,8 +1,11 @@
 package ttyterminal
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"maps"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
@@ -181,6 +184,38 @@ type line struct {
 // The initial state of the terminal at the start of each chunk (except the first)
 // does not count against the token limit, ensuring context is preserved.
 func reconstructCommand(command commandData, maxTokensPerChunk, chunkLimit int) *reconstructedCommandData {
+	return recoverCommand(command, func() *reconstructedCommandData {
+		return reconstructCommandInner(command, maxTokensPerChunk, chunkLimit)
+	})
+}
+
+// recoverCommand runs fn and, if it panics (e.g. vt10x tripping over a corrupt recording), converts the panic into a
+// per-command error result so the rest of the session summarization still runs.
+// Downstream code renders "[Error recreating input/output: ...]" in the prompt for just this command.
+//
+// The stack stays in server-side logs only: the error message flows into the LLM prompt and into Summary.ErrorMessage
+// via handleError, neither of which should carry internal stack frames.
+func recoverCommand(command commandData, fn func() *reconstructedCommandData) (result *reconstructedCommandData) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.ErrorContext(context.Background(), "panic while reconstructing command",
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+
+			result = &reconstructedCommandData{
+				startTime:         command.startTime,
+				endTime:           command.endTime,
+				error:             trace.Errorf("internal error reconstructing command"),
+				isAlternateScreen: command.isAlternateScreen,
+			}
+		}
+	}()
+
+	return fn()
+}
+
+func reconstructCommandInner(command commandData, maxTokensPerChunk, chunkLimit int) *reconstructedCommandData {
 	duration := command.endTime - command.startTime
 
 	c := &commandRecreator{

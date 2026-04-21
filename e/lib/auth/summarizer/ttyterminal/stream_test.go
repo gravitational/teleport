@@ -2,6 +2,7 @@ package ttyterminal
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,38 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
+
+// TestRecoverAsError verifies the helper wraps worker goroutines so a panic
+// (e.g. vt10x tripping over a corrupt recording inside reconstructCommand)
+// surfaces as an errgroup error instead of crashing auth.
+func TestRecoverAsError(t *testing.T) {
+	t.Run("panic becomes error without leaking stack", func(t *testing.T) {
+		err := recoverAsError(t.Context(), func() error {
+			panic("simulated vt10x panic")
+		})()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "internal error while processing session recording")
+		// The panic reason and stack must stay server-side only — the returned
+		// error flows into Summary.ErrorMessage, which is exposed to end users.
+		require.NotContains(t, err.Error(), "simulated vt10x panic")
+		require.NotContains(t, err.Error(), "goroutine")
+	})
+
+	t.Run("normal error is passed through", func(t *testing.T) {
+		sentinel := errors.New("sentinel")
+		err := recoverAsError(t.Context(), func() error {
+			return sentinel
+		})()
+		require.ErrorIs(t, err, sentinel)
+	})
+
+	t.Run("nil error stays nil", func(t *testing.T) {
+		err := recoverAsError(t.Context(), func() error {
+			return nil
+		})()
+		require.NoError(t, err)
+	})
+}
 
 func TestStreamTtyRecording_BracketedPasteMode(t *testing.T) {
 	evtChan, errChan := makeEventChan(

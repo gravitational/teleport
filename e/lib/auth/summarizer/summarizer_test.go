@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -1241,4 +1243,88 @@ func createCache() (*awsconfig.Cache, error) {
 			}),
 		),
 	)
+}
+
+// TestSummarizeNowAndReportMetrics_RecoversFromPanic verifies that a panic in
+// the summarization worker goroutine (e.g. vt10x tripping over a corrupt
+// recording) is converted into a logged error rather than propagating and
+// crashing auth.
+//
+// summarizeNowAndReportMetrics is the entry point of the goroutine spawned by
+// summarize, which is where the PTY rendering pipeline actually runs. A
+// caller-goroutine defer in SummarizeSSH would not catch panics from there,
+// so the recovery lives on this function.
+//
+// The test leaves s.concurrencyLimiter nil so that summarizeNow panics with a
+// nil pointer dereference when it calls Acquire; the defer/recover at the top
+// of summarizeNowAndReportMetrics is what we're exercising.
+func TestSummarizeNowAndReportMetrics_RecoversFromPanic(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+
+	uploader := &capturingSummaryUploader{}
+	s := &SessionSummarizer{
+		logger:          logger,
+		clock:           clockwork.NewRealClock(),
+		summaryUploader: uploader,
+		emitter:         &eventstest.MockRecorderEmitter{},
+		// concurrencyLimiter left nil on purpose.
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.summarizeNowAndReportMetrics(t.Context(), sessionDetails{
+			sessionID:  "test-session-id",
+			kind:       types.SSHSessionKind,
+			summary:    &summarizerv1pb.Summary{ModelName: "test-model"},
+			sessionEnd: &apievents.SessionEnd{},
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "summarizeNowAndReportMetrics did not return; defer/recover likely did not fire")
+	}
+
+	logs := logBuf.String()
+	require.Contains(t, logs, "panic while summarizing session")
+	require.Contains(t, logs, "test-session-id")
+	// Make sure the stack trace is included in the logs.
+	require.Contains(t, logs, "goroutine")
+
+	// The pending summary uploaded before the worker goroutine started must be
+	// finalized to an error state; otherwise clients polling for completion hang.
+	require.NotNil(t, uploader.lastSummary, "expected the failed summary to be persisted")
+	require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR, uploader.lastSummary.State)
+	require.Equal(t, "internal error while processing session recording", uploader.lastSummary.ErrorMessage)
+	require.NotZero(t, uploader.lastSummary.InferenceFinishedAt.AsTime())
+}
+
+type capturingSummaryUploader struct {
+	mu          sync.Mutex
+	lastSummary *summarizerv1pb.Summary
+}
+
+func (c *capturingSummaryUploader) UploadPendingSummary(context.Context, session.ID, io.Reader) (string, error) {
+	return "", nil
+}
+
+func (c *capturingSummaryUploader) UploadSummary(_ context.Context, _ session.ID, r io.Reader) (string, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+
+	var summary summarizerv1pb.Summary
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(b, &summary); err != nil {
+		return "", err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lastSummary = &summary
+
+	return "captured", nil
 }

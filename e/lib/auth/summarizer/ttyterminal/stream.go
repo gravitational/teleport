@@ -2,6 +2,8 @@ package ttyterminal
 
 import (
 	"context"
+	"log/slog"
+	"runtime/debug"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -30,9 +32,9 @@ func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, s
 
 	g, gCtx := errgroup.WithContext(ctx)
 
-	g.Go(func() error {
+	g.Go(recoverAsError(gCtx, func() error {
 		return tokenizer.processEventStream(gCtx, evts, streamErrs)
-	})
+	}))
 
 	// Peek into the token stream to see if bracketed paste mode escape sequences are
 	// present. If not, we skip the parsing and command recreation stages entirely
@@ -52,14 +54,14 @@ func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, s
 	recreatedChan := make(chan Command, commandBufferSize)
 	parser := newParser()
 
-	g.Go(func() error {
+	g.Go(recoverAsError(gCtx, func() error {
 		return parser.processTokens(gCtx, replayedTokens)
-	})
+	}))
 
-	g.Go(func() error {
+	g.Go(recoverAsError(gCtx, func() error {
 		defer close(recreatedChan)
 		return processCommands(gCtx, parser.commands(), recreatedChan)
-	})
+	}))
 
 	return &TTYRecordingStream{
 		commands: recreatedChan,
@@ -202,4 +204,27 @@ func detectBracketedPaste(peeked []token) bool {
 		return token.tokenType == tokenBracketPasteStart || token.tokenType == tokenBracketPasteEnd
 	}
 	return false
+}
+
+// recoverAsError wraps a pipeline worker as a last-resort safety net so any unexpected panic becomes a normal error
+// that the errgroup surfaces, rather than crashing the auth server. Panics from vt10x are normally caught per-command
+// inside [reconstructCommand] — that preserves partial summarization of the surrounding commands — so reaching this
+// handler means an unexpected panic elsewhere in the pipeline.
+//
+// The stack trace is logged server-side only. The returned error is intentionally stack-free because it flows
+// into summarizer.handleError, which stores err.Error() on Summary.ErrorMessage — a field exposed to end users.
+func recoverAsError(ctx context.Context, fn func() error) func() error {
+	return func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.ErrorContext(ctx, "panic in ttyterminal stream",
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+				err = trace.Errorf("internal error while processing session recording")
+			}
+		}()
+
+		return trace.Wrap(fn())
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -47,6 +48,9 @@ const (
 	concurrencyLimit = 25
 	// Number of workers in the worker pool for summarization.
 	workerCount = 10
+	// failedSummaryUploadTimeout bounds the upload of a SUMMARY_STATE_ERROR
+	// result from finalizeFailedSummary.
+	failedSummaryUploadTimeout = time.Minute
 )
 
 // SummarizerConfig contains configuration for the SessionSummarizer.
@@ -205,6 +209,10 @@ type sessionDetails struct {
 
 // SummarizeSSH summarizes the SSH (or kubectl exec) session recording
 // associated with the provided [apievents.SessionEnd] event.
+//
+// The PTY rendering runs vt10x in a worker goroutine spawned by summarize,
+// so the panic guard lives on [SessionSummarizer.summarizeNowAndReportMetrics]
+// rather than here.
 func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
 	if sessionEndEvent == nil {
 		return trace.BadParameter("session end event is required to summarize an SSH session")
@@ -364,6 +372,25 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 }
 
 func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, details sessionDetails) {
+	// This is the entry point for the worker goroutine that runs the PTY
+	// rendering pipeline (vt10x). Recover any panic so a corrupt recording
+	// cannot crash the auth server, and persist a failed summary so it's not
+	// left in a pending state.
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(ctx, "panic while summarizing session",
+				"session_id", details.sessionID,
+				"kind", details.kind,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+
+			metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
+
+			s.finalizeFailedSummary(ctx, details)
+		}
+	}()
+
 	metrics.SummarizationsTotal.WithLabelValues(details.summary.ModelName).Inc()
 
 	success := true
@@ -516,6 +543,30 @@ func (s *SessionSummarizer) summarizeSimple(
 	result.Content = content
 
 	return nil
+}
+
+// finalizeFailedSummary writes a SUMMARY_STATE_ERROR result to the summary
+// uploader. It's called from the panic-recovery path in
+// summarizeNowAndReportMetrics so the pending summary that was uploaded before
+// the worker goroutine started doesn't get stranded in SUMMARY_STATE_PENDING.
+func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details sessionDetails) {
+	if details.summary == nil {
+		return
+	}
+
+	failed := proto.CloneOf(details.summary)
+	failed.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
+	failed.ErrorMessage = "internal error while processing session recording"
+	failed.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failedSummaryUploadTimeout)
+	defer cancel()
+
+	log := s.logger.With("session_id", details.sessionID)
+	if err := s.uploadSummary(ctx, log, details.sessionID, failed, nil, details.sessionEnd); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to persist failed summary state after panic recovery",
+			"session_id", details.sessionID, "error", err)
+	}
 }
 
 func (s *SessionSummarizer) uploadSummary(

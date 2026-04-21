@@ -400,6 +400,50 @@ func TestCommandReconstructCommand(t *testing.T) {
 	}
 }
 
+// TestRecoverCommand verifies the defer/recover contract used by
+// reconstructCommand: a panic inside the wrapped function (e.g. vt10x
+// tripping over a corrupt recording) is converted into a per-command error
+// result so surrounding commands still get summarized, and the returned error
+// must not carry the panic reason or stack (which would otherwise leak into
+// Summary.ErrorMessage / the LLM prompt).
+//
+// Written against the helper rather than through reconstructCommand so the
+// assertion doesn't depend on vt10x's panic behavior for a specific byte
+// sequence — vt10x is being hardened in parallel, and any trigger we pick
+// there will eventually stop panicking.
+func TestRecoverCommand(t *testing.T) {
+	cmd := commandData{
+		startTime:         2 * time.Second,
+		endTime:           5 * time.Second,
+		isAlternateScreen: true,
+	}
+
+	t.Run("panic becomes per-command error", func(t *testing.T) {
+		result := recoverCommand(cmd, func() *reconstructedCommandData {
+			panic("simulated vt10x panic")
+		})
+		require.NotNil(t, result)
+		require.Error(t, result.error)
+		require.Empty(t, result.chunks)
+		require.Equal(t, cmd.startTime, result.startTime)
+		require.Equal(t, cmd.endTime, result.endTime)
+		require.Equal(t, cmd.isAlternateScreen, result.isAlternateScreen)
+		require.Contains(t, result.error.Error(), "internal error reconstructing command")
+		require.NotContains(t, result.error.Error(), "simulated vt10x panic")
+		require.NotContains(t, result.error.Error(), "goroutine")
+	})
+
+	t.Run("non-panicking result passes through unchanged", func(t *testing.T) {
+		want := &reconstructedCommandData{
+			chunks:    []chunk{{lines: []line{{content: "ok"}}}},
+			startTime: cmd.startTime,
+			endTime:   cmd.endTime,
+		}
+		got := recoverCommand(cmd, func() *reconstructedCommandData { return want })
+		require.Same(t, want, got)
+	})
+}
+
 func TestCommandGenerateTerminalSnapshot(t *testing.T) {
 	t.Parallel()
 
