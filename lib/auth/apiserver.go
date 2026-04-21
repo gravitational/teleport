@@ -131,7 +131,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
-	srv.DELETE("/:version/proxies", srv.WithAuth(srv.deleteAllProxies))
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
@@ -154,6 +153,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/configuration/name", httpMigratedHandler)
 	srv.DELETE("/:version/tunnelconnections/:cluster", httpMigratedHandler)
 	srv.DELETE("/:version/tunnelconnections", httpMigratedHandler)
+	srv.DELETE("/:version/proxies", httpMigratedHandler)
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -320,15 +320,6 @@ func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return marshalServers(servers, version)
-}
-
-// deleteAllProxies deletes all proxies
-func (s *APIServer) deleteAllProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	err := auth.DeleteAllProxies()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
 }
 
 // deleteProxy deletes proxy

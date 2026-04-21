@@ -4782,8 +4782,9 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetProxies()
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteAllProxies()
-				require.NoError(t, err)
+				for _, p := range out {
+					require.NoError(t, testSrv.Auth().DeleteProxy(ctx, p.GetName()))
+				}
 
 				return out[0]
 			},
