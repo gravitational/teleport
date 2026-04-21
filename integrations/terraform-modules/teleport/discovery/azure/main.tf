@@ -1,10 +1,7 @@
 locals {
   create                = var.create
-  azure_subscription_id = data.azurerm_client_config.this.subscription_id
-  scope = {
-    subscription = "/subscriptions/${local.azure_subscription_id}"
-  }
-  azure_tenant_id = data.azurerm_client_config.this.tenant_id
+  azure_subscription_id = one(data.azurerm_client_config.this[*].subscription_id)
+  azure_tenant_id       = one(data.azurerm_client_config.this[*].tenant_id)
   apply_azure_tags = merge(var.apply_azure_tags, {
     "TeleportCluster"     = local.teleport_cluster_name
     "TeleportIntegration" = local.teleport_integration_name
@@ -24,7 +21,9 @@ locals {
   teleport_resource_name_suffix = try("azure-${local.azure_subscription_id}", "")
 }
 
-data "azurerm_client_config" "this" {}
+data "azurerm_client_config" "this" {
+  count = local.create_teleport_integration ? 1 : 0
+}
 
 data "http" "teleport_ping" {
   request_headers = { Accept = "application/json" }
