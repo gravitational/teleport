@@ -83,14 +83,15 @@ No modules.
 | apply\_azure\_tags | Additional Azure tags to apply to all created Azure resources. | `map(string)` | `{}` | no |
 | apply\_teleport\_resource\_labels | Additional Teleport resource labels to apply to all created Teleport resources. | `map(string)` | `{}` | no |
 | azure\_federated\_identity\_credential\_name | Name of the Azure federated identity credential created for workload identity federation. | `string` | `"teleport-federation"` | no |
-| azure\_managed\_identity\_location | Azure region (location) where the managed identity will be created (e.g., "eastus"). Required when `create_teleport_integration` is `true`. | `string` | `null` | no |
+| azure\_managed\_identity\_location | Azure region (location) where the managed identity will be created (e.g., "eastus"). Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
 | azure\_managed\_identity\_name | Name of the Azure user-assigned managed identity created for Teleport Discovery. | `string` | `"discovery-identity"` | no |
 | azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
-| azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_teleport_integration` is `true`. | `string` | `null` | no |
+| azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
 | azure\_role\_assignment\_scopes | The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`. | `list(string)` | `[]` | no |
 | azure\_role\_definition\_name | Name for the Azure custom role definition created for Teleport Discovery. | `string` | `"teleport-discovery"` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
-| create\_teleport\_integration | Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure resources are created; ideal for self-hosted Teleport clusters where a Teleport Discovery Service instance is using an existing Azure managed identity. | `bool` | `true` | no |
+| create\_azure\_managed\_identity | Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `create_teleport_integration` is `true`. | `bool` | `true` | no |
+| create\_teleport\_integration | Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials. | `bool` | `true` | no |
 | create\_teleport\_provision\_token | Whether a Teleport provision token is created (true) or not (false). Set `teleport_provision_token_name` to use an existing provision token. | `bool` | `true` | no |
 | teleport\_discovery\_config\_name | Name for the `teleport_discovery_config` resource. | `string` | `"discovery"` | no |
 | teleport\_discovery\_config\_use\_name\_prefix | Whether `teleport_discovery_config_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
@@ -108,7 +109,7 @@ No modules.
 | Name | Description |
 |------|-------------|
 | azure\_discovery\_role\_definition | The Azure role definition for the Teleport Discovery Service. |
-| azure\_oidc\_integration\_managed\_identity | Managed identity used by the Teleport Azure OIDC integration. |
+| azure\_teleport\_discovery\_managed\_identity | Managed identity created for the Teleport Discovery Service. |
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |
 | teleport\_integration\_name | Name of the Teleport `integration` resource. The integration resource configures Teleport Discovery Service instances to assume an Azure managed identity for discovery using Azure OIDC federation. Integration details can be viewed with `tctl get integrations/<name>` or by visiting the Teleport web UI under 'Zero Trust Access' > 'Integrations'. |
 | teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Token details can be viewed with `tctl get token/<name>`. |
