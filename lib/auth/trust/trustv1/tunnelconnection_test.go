@@ -27,6 +27,7 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -102,6 +103,7 @@ func TestUpsertTunnelConnection(t *testing.T) {
 				Authorizer:       authorizer,
 				ScopedAuthorizer: authorizer,
 				AuthServer:       &fakeAuthServer{},
+				Modules:          modulestest.OSSModules(),
 			})
 			require.NoError(t, err)
 
@@ -194,6 +196,7 @@ func TestDeleteTunnelConnection(t *testing.T) {
 				Authorizer:       authorizer,
 				ScopedAuthorizer: authorizer,
 				AuthServer:       &fakeAuthServer{},
+				Modules:          modulestest.OSSModules(),
 			})
 			require.NoError(t, err)
 

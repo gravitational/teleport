@@ -42,6 +42,9 @@ func (s *Service) UpsertTunnelConnection(ctx context.Context, req *trustpb.Upser
 	if err := authCtx.CheckAccessToKind(types.KindTunnelConnection, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	stored, err := s.backend.UpsertTunnelConnectionV2(ctx, req.TunnelConnection)
 	if err != nil {
@@ -73,6 +76,9 @@ func (s *Service) DeleteTunnelConnection(ctx context.Context, req *trustpb.Delet
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindTunnelConnection, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
