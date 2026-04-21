@@ -373,9 +373,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						},
 					},
 				},
 			},
@@ -389,9 +391,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						},
 					},
 				},
 			},
@@ -405,9 +409,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0},
+						},
 					},
 				},
 			},
@@ -474,9 +480,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						},
 					},
 				},
 			},
@@ -1113,20 +1121,24 @@ func TestBuildBriefSummaries(t *testing.T) {
 
 	mockDC1 := &discoveryconfig.DiscoveryConfig{
 		Status: discoveryconfig.Status{
-			IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 				mockAwsInt.GetName(): {
-					AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
-					AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 3, Enrolled: 0, Failed: 1},
-					AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 5, Enrolled: 2, Failed: 2},
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 3, Enrolled: 0, Failed: 1},
+						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 5, Enrolled: 2, Failed: 2},
+					},
 				},
 			},
 		},
 	}
 	mockDC2 := &discoveryconfig.DiscoveryConfig{
 		Status: discoveryconfig.Status{
-			IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 				mockAwsInt.GetName(): {
-					AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+					},
 				},
 			},
 		},
