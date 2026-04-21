@@ -414,7 +414,7 @@ func (s *Service) CreateOktaAssignment(ctx context.Context, req *oktapb.CreateOk
 	}
 	returnedAssignmentV1, ok := returnedAssignment.(*types.OktaAssignmentV1)
 	if !ok {
-		return nil, trace.BadParameter("expected returned import rule of OktaAssignmentV1, got %T", returnedAssignmentV1)
+		return nil, trace.BadParameter("expected OktaAssignmentV1, got %T", returnedAssignmentV1)
 	}
 	return returnedAssignmentV1, trace.Wrap(err)
 }
@@ -435,9 +435,53 @@ func (s *Service) UpdateOktaAssignment(ctx context.Context, req *oktapb.UpdateOk
 	}
 	returnedAssignmentV1, ok := returnedAssignment.(*types.OktaAssignmentV1)
 	if !ok {
-		return nil, trace.BadParameter("expected returned import rule of OktaAssignmentV1, got %T", returnedAssignmentV1)
+		return nil, trace.BadParameter("expected OktaAssignmentV1, got %T", returnedAssignmentV1)
 	}
 	return returnedAssignmentV1, trace.Wrap(err)
+}
+
+// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource using CAS operation.
+func (s *Service) ConditionalUpdateOktaAssignment(ctx context.Context, req *oktapb.ConditionalUpdateOktaAssignmentRequest) (*oktapb.ConditionalUpdateOktaAssignmentResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := s.oktaAssignments.ConditionalUpdateOktaAssignment(ctx, req.GetAssignment())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v1, ok := item.(*types.OktaAssignmentV1)
+	if !ok {
+		return nil, trace.BadParameter("expected OktaAssignmentV1, got %T", item)
+	}
+	return &oktapb.ConditionalUpdateOktaAssignmentResponse{
+		Assignment: v1,
+	}, nil
+}
+
+// UpsertOktaAssignment upserts an Okta assignment resource, creating it if it doesn't exist or updating it if it does.
+func (s *Service) UpsertOktaAssignment(ctx context.Context, req *oktapb.UpsertOktaAssignmentRequest) (*oktapb.UpsertOktaAssignmentResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := s.oktaAssignments.UpsertOktaAssignment(ctx, req.GetAssignment())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v1, ok := item.(*types.OktaAssignmentV1)
+	if !ok {
+		return nil, trace.BadParameter("expected OktaAssignmentV1, got %T", item)
+	}
+	return &oktapb.UpsertOktaAssignmentResponse{
+		Assignment: v1,
+	}, nil
 }
 
 // UpdateOktaAssignmentStatus will update the status for an Okta assignment.

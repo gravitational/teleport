@@ -169,6 +169,123 @@ func TestOktaAssignments(t *testing.T) {
 	require.Empty(t, listResp.Assignments)
 }
 
+func TestUpsertOktaAssignment(t *testing.T) {
+	t.Parallel()
+	assignment := newOktaAssignment(t, "a1")
+	mock := &fakeOktaAssignments{
+		assignment: assignment,
+	}
+
+	accessDenied := func(t require.TestingT, err error, _ ...any) {
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		allow     map[check]bool
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "allowed with create and update verbs",
+			allow: map[check]bool{
+				{types.KindOktaAssignment, types.VerbCreate}: true,
+				{types.KindOktaAssignment, types.VerbUpdate}: true,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "denied without create verb",
+			allow: map[check]bool{
+				{types.KindOktaAssignment, types.VerbUpdate}: true,
+			},
+			assertErr: accessDenied,
+		},
+		{
+			name: "denied without update verb",
+			allow: map[check]bool{
+				{types.KindOktaAssignment, types.VerbCreate}: true,
+			},
+			assertErr: accessDenied,
+		},
+		{
+			name:      "denied with no rules",
+			assertErr: accessDenied,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &Service{
+				authorizer:      &fakeAuthorizer{checker: &fakeChecker{allow: tt.allow}},
+				oktaAssignments: mock,
+			}
+			_, err := svc.UpsertOktaAssignment(t.Context(), &oktapb.UpsertOktaAssignmentRequest{Assignment: assignment})
+			tt.assertErr(t, err)
+		})
+	}
+}
+
+func TestConditionalUpdateOktaAssignment(t *testing.T) {
+	t.Parallel()
+	assignment := newOktaAssignment(t, "a1")
+	mock := &fakeOktaAssignments{
+		assignment: assignment,
+	}
+
+	accessDenied := func(t require.TestingT, err error, _ ...any) {
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		allow     map[check]bool
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "allowed with update verb",
+			allow: map[check]bool{
+				{types.KindOktaAssignment, types.VerbUpdate}: true,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "denied with no rules",
+			assertErr: accessDenied,
+		},
+		{
+			name: "denied with wrong resource",
+			allow: map[check]bool{
+				{types.KindOktaImportRule, types.VerbUpdate}: true,
+			},
+			assertErr: accessDenied,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &Service{
+				authorizer:      &fakeAuthorizer{checker: &fakeChecker{allow: tt.allow}},
+				oktaAssignments: mock,
+			}
+			_, err := svc.ConditionalUpdateOktaAssignment(t.Context(), &oktapb.ConditionalUpdateOktaAssignmentRequest{Assignment: assignment})
+			tt.assertErr(t, err)
+		})
+	}
+}
+
+type fakeOktaAssignments struct {
+	services.OktaAssignments
+	assignment types.OktaAssignment
+}
+
+func (f *fakeOktaAssignments) UpsertOktaAssignment(_ context.Context, _ types.OktaAssignment) (types.OktaAssignment, error) {
+	return f.assignment, nil
+}
+
+func (f *fakeOktaAssignments) ConditionalUpdateOktaAssignment(_ context.Context, _ types.OktaAssignment) (types.OktaAssignment, error) {
+	return f.assignment, nil
+}
+
 type testClient struct {
 	services.ClusterConfiguration
 	services.Trust
