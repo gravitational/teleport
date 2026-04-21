@@ -81,7 +81,7 @@ func (c *proxyServiceClient) Ping(ctx context.Context, in *ProxyServicePingReque
 }
 
 // ProxyServiceServer is the server API for ProxyService service.
-// All implementations should embed UnimplementedProxyServiceServer
+// All implementations must embed UnimplementedProxyServiceServer
 // for forward compatibility.
 //
 // ProxyPeerService is a proxy to proxy api.
@@ -90,9 +90,10 @@ type ProxyServiceServer interface {
 	DialNode(grpc.BidiStreamingServer[Frame, Frame]) error
 	// Ping checks if the peer is reachable and responsive.
 	Ping(context.Context, *ProxyServicePingRequest) (*ProxyServicePingResponse, error)
+	mustEmbedUnimplementedProxyServiceServer()
 }
 
-// UnimplementedProxyServiceServer should be embedded to have
+// UnimplementedProxyServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -105,7 +106,8 @@ func (UnimplementedProxyServiceServer) DialNode(grpc.BidiStreamingServer[Frame, 
 func (UnimplementedProxyServiceServer) Ping(context.Context, *ProxyServicePingRequest) (*ProxyServicePingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
-func (UnimplementedProxyServiceServer) testEmbeddedByValue() {}
+func (UnimplementedProxyServiceServer) mustEmbedUnimplementedProxyServiceServer() {}
+func (UnimplementedProxyServiceServer) testEmbeddedByValue()                      {}
 
 // UnsafeProxyServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to ProxyServiceServer will
