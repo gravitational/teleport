@@ -53,7 +53,7 @@ resource "teleport_provision_token" "azure" {
   lifecycle {
     precondition {
       condition     = !(local.has_wildcard_subscription_matcher && var.teleport_provision_token_allow_rules == null)
-      error_message = "Wildcard (`*`) subscription discovery requires `teleport_provision_token_allow_rules` to be set."
+      error_message = "Wildcard ('*') subscription discovery requires teleport_provision_token_allow_rules to be set."
     }
   }
 }

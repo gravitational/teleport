@@ -83,13 +83,14 @@ No modules.
 | apply\_azure\_tags | Additional Azure tags to apply to all created Azure resources. | `map(string)` | `{}` | no |
 | apply\_teleport\_resource\_labels | Additional Teleport resource labels to apply to all created Teleport resources. | `map(string)` | `{}` | no |
 | azure\_federated\_identity\_credential\_name | Name of the Azure federated identity credential created for workload identity federation. | `string` | `"teleport-federation"` | no |
-| azure\_managed\_identity\_location | Azure region (location) where the managed identity will be created (e.g., "eastus"). | `string` | n/a | yes |
+| azure\_managed\_identity\_location | Azure region (location) where the managed identity will be created (e.g., "eastus"). Required when `create_teleport_integration` is `true`. | `string` | `null` | no |
 | azure\_managed\_identity\_name | Name of the Azure user-assigned managed identity created for Teleport Discovery. | `string` | `"discovery-identity"` | no |
 | azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
-| azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. | `string` | n/a | yes |
+| azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_teleport_integration` is `true`. | `string` | `null` | no |
 | azure\_role\_assignment\_scopes | The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`. | `list(string)` | `[]` | no |
 | azure\_role\_definition\_name | Name for the Azure custom role definition created for Teleport Discovery. | `string` | `"teleport-discovery"` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
+| create\_teleport\_integration | Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure resources are created; ideal for self-hosted Teleport clusters where a Teleport Discovery Service instance is using an existing Azure managed identity. | `bool` | `true` | no |
 | create\_teleport\_provision\_token | Whether a Teleport provision token is created (true) or not (false). Set `teleport_provision_token_name` to use an existing provision token. | `bool` | `true` | no |
 | teleport\_discovery\_config\_name | Name for the `teleport_discovery_config` resource. | `string` | `"discovery"` | no |
 | teleport\_discovery\_config\_use\_name\_prefix | Whether `teleport_discovery_config_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
@@ -97,7 +98,7 @@ No modules.
 | teleport\_installer\_script\_name | Name of an existing Teleport installer script to use. | `string` | `"default-installer"` | no |
 | teleport\_integration\_name | Name for the `teleport_integration` resource. | `string` | `"discovery"` | no |
 | teleport\_integration\_use\_name\_prefix | Whether `teleport_integration_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
-| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and teleport\_provision\_token\_create = `true`. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
+| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and `create_teleport_provision_token` is `true`. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
 | teleport\_provision\_token\_name | Name for the `teleport_provision_token` resource. | `string` | `"discovery"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Whether `teleport_provision_token_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address in the form `host:port` (no URL scheme). | `string` | n/a | yes |

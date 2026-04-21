@@ -3,6 +3,8 @@
 ################################################################################
 
 locals {
+  create_teleport_integration = local.create && var.create_teleport_integration
+
   teleport_integration_name = (
     var.teleport_integration_use_name_prefix
     ? "${var.teleport_integration_name}-${local.teleport_resource_name_suffix}"
@@ -12,7 +14,7 @@ locals {
 
 # Teleport Azure OIDC integration using the selected identity
 resource "teleport_integration" "azure_oidc" {
-  count = local.create ? 1 : 0
+  count = local.create_teleport_integration ? 1 : 0
 
   metadata = {
     description = "Azure OIDC integration for Azure discovery."
