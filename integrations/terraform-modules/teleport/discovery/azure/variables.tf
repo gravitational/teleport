@@ -37,15 +37,7 @@ variable "teleport_proxy_public_addr" {
 }
 
 variable "azure_matchers" {
-  description = <<-EOT
-    Azure resource discovery matchers. Each matcher specifies resource types to discover and matching criteria.
-
-    - types: Resource types to discover. Currently only "vm" is supported.
-    - subscriptions: Azure subscription IDs (UUID format) to discover resources in.
-    - resource_groups: Resource groups to search within each subscription. Defaults to ["*"] (all resource groups).
-    - regions: Azure regions to search. Defaults to ["*"] (all regions).
-    - tags: Azure resource tags to match, in the form `{ "key" = ["value1", "value2"] }`. Defaults to `{ "*" = ["*"] }` (match all tags).
-  EOT
+  description = "Azure resource discovery matchers. Valid values for azure_matchers.types are: vm."
   type = list(object({
     types           = list(string)
     subscriptions   = list(string)
@@ -57,7 +49,7 @@ variable "azure_matchers" {
 
   validation {
     condition     = length(var.azure_matchers) > 0
-    error_message = "At least one azure_matcher must be provided."
+    error_message = "Must have at least one azure_matcher."
   }
 
   validation {
@@ -65,7 +57,7 @@ variable "azure_matchers" {
       for matcher in var.azure_matchers :
       length(matcher.types) > 0
     ])
-    error_message = "Each azure_matcher must have at least one type set."
+    error_message = "Must have at least one type."
   }
 
   validation {
@@ -73,7 +65,7 @@ variable "azure_matchers" {
       for matcher in var.azure_matchers :
       length(matcher.subscriptions) > 0
     ])
-    error_message = "Each azure_matcher must have at least one subscription."
+    error_message = "Must have at least one subscription."
   }
 
   validation {
@@ -142,7 +134,7 @@ variable "azure_managed_identity_name" {
 
 variable "azure_role_assignment_scopes" {
   default     = []
-  description = "The scopes at which the Azure discovery role will be assigned. Must be a management group ID (e.g. `/providers/Microsoft.Management/managementGroups/<name>`) to support wildcard ('*') Azure subscription discovery. By default, scopes are derived from the subscriptions configured in azure_matchers."
+  description = "The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`."
   nullable    = false
   type        = list(string)
 }
@@ -191,6 +183,24 @@ variable "teleport_integration_name" {
 
 variable "teleport_integration_use_name_prefix" {
   description = "Whether `teleport_integration_name` is used as a name prefix (true) or as the exact name (false)."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "teleport_provision_token_allow_rules" {
+  description = "Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and teleport_provision_token_create = `true`."
+  type = list(object({
+    subscription    = optional(string)
+    resource_groups = optional(list(string))
+    tenant          = optional(string)
+  }))
+  default  = null
+  nullable = true
+}
+
+variable "create_teleport_provision_token" {
+  description = "Whether a Teleport provision token is created (true) or not (false). Set `teleport_provision_token_name` to use an existing provision token."
   type        = bool
   default     = true
   nullable    = false
