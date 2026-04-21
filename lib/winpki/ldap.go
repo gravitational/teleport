@@ -464,6 +464,8 @@ type resolver interface {
 	LookupSRV(ctx context.Context, service, proto, name string) (string, []*net.SRV, error)
 }
 
+// Clones 'originalRequest' and overrides the attributes, filter, and scope
+// parameters if the 'referral' contains a non-empty replacement.
 func newRequestFromReferral(originalRequest *ldap.SearchRequest, referral ldapReferral) *ldap.SearchRequest {
 	getScope := func(scope string) int {
 		switch scope {
