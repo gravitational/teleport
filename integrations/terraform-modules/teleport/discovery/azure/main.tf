@@ -22,7 +22,7 @@ locals {
 }
 
 data "azurerm_client_config" "this" {
-  count = local.create_teleport_integration ? 1 : 0
+  count = local.create_azure_managed_identity ? 1 : 0
 }
 
 data "http" "teleport_ping" {

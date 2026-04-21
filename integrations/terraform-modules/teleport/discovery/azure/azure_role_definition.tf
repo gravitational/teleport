@@ -26,7 +26,7 @@ locals {
 
 # Custom role for Teleport Discovery Service permissions.
 resource "azurerm_role_definition" "teleport_discovery" {
-  count = local.create_teleport_integration ? 1 : 0
+  count = local.create_azure_managed_identity ? 1 : 0
 
   assignable_scopes = local.azure_role_assignment_scopes
   description       = "Azure role that allows a Teleport Discovery Service to discover VMs."
@@ -41,7 +41,7 @@ resource "azurerm_role_definition" "teleport_discovery" {
 
 # Assign the custom role to the managed identity for each scope.
 resource "azurerm_role_assignment" "teleport_discovery" {
-  for_each = local.create_teleport_integration ? toset(local.azure_role_assignment_scopes) : toset([])
+  for_each = local.create_azure_managed_identity ? toset(local.azure_role_assignment_scopes) : toset([])
 
   principal_id       = one(azurerm_user_assigned_identity.teleport_discovery_service[*].principal_id)
   role_definition_id = one(azurerm_role_definition.teleport_discovery[*].role_definition_resource_id)

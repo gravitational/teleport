@@ -11,7 +11,7 @@ module "azure_discovery" {
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_proxy_public_addr    = "example.teleport.sh:443"
 
-  # Name of an existing Azure Resource Group where Azure resources will be created."
+  # Name of an existing Azure Resource Group where Azure resources will be created.
   azure_resource_group_name = azurerm_resource_group.example.name
   # Region where Azure managed identity will be created (westus)
   azure_managed_identity_location = azurerm_resource_group.example.location

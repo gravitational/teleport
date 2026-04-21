@@ -30,6 +30,13 @@ resource "teleport_integration" "azure_oidc" {
   sub_kind = "azure-oidc"
   version  = "v1"
 
+  lifecycle {
+    precondition {
+      condition     = local.create_azure_managed_identity
+      error_message = "create_teleport_integration requires create_azure_managed_identity to be true."
+    }
+  }
+
   depends_on = [
     # Don't create the integration until the federated credential and permissions are in place.
     # This should avoid a ~5 minute delay that can happen if the discovery service tries to run before it has permissions.
