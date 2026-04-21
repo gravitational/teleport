@@ -9,6 +9,12 @@ locals {
     : var.teleport_discovery_config_name
   )
 
+  vm_install_params = {
+    join_method = "azure"
+    join_token  = local.teleport_provision_token_name
+    script_name = var.teleport_installer_script_name
+  }
+
   azure_matchers = [
     for matcher in var.azure_matchers : merge(
       {
@@ -17,16 +23,9 @@ locals {
         resource_groups = compact(matcher.resource_groups)
         regions         = matcher.regions
         tags            = matcher.tags
-        integration     = local.teleport_integration_name
       },
-
-      contains(matcher.types, "vm") ? {
-        install_params = {
-          join_method = "azure"
-          join_token  = local.teleport_provision_token_name
-          script_name = var.teleport_installer_script_name
-        }
-      } : {}
+      local.create_teleport_integration ? { integration = local.teleport_integration_name } : {},
+      contains(matcher.types, "vm") ? { install_params = local.vm_install_params } : {}
     )
   ]
 
@@ -50,10 +49,7 @@ resource "teleport_discovery_config" "azure" {
 
   lifecycle {
     precondition {
-      condition = !anytrue([
-        for matcher in var.azure_matchers :
-        contains(matcher.subscriptions, "*")
-      ]) || length(var.azure_role_assignment_scopes) > 0
+      condition     = !local.create_teleport_integration || !local.has_wildcard_subscription_matcher || length(var.azure_role_assignment_scopes) > 0
       error_message = "Wildcard ('*') subscription discovery requires azure_role_assignment_scopes to be set, preferably with a management group scope, e.g. /providers/Microsoft.Management/managementGroups/<name>."
     }
   }
