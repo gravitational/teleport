@@ -203,9 +203,29 @@ const (
 	TaskTypeDiscoverAzureVM = "discover-azure-vm"
 )
 
-// List of Auto Discover EC2 issues identifiers.
+// Permission-related Auto Discover EC2 issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
 // The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
+//
+// Permissions-related issues occur during the discovery phase when the integration's IAM role
+// lacks permissions to call AWS APIs, preventing Teleport from discovering EC2 instances.
+const (
+	// AutoDiscoverEC2IssuePermAccountDenied indicates the integration lacks
+	// permissions to discover EC2 instances within an account.
+	AutoDiscoverEC2IssuePermAccountDenied = "ec2-perm-account-denied"
+
+	// AutoDiscoverEC2IssuePermOrgDenied indicates the integration lacks
+	// permission to call Organizations APIs (ListRoots, ListChildren, ListAccountsForParent).
+	// This occurs when using organization-wide discovery.
+	AutoDiscoverEC2IssuePermOrgDenied = "ec2-perm-org-denied"
+)
+
+// SSM-related Auto Discover EC2 issues identifiers.
+// This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
+// The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
+//
+// SSM-related issues occur during the installation phase when Teleport
+// attempts to install the agent on discovered EC2 instances via AWS Systems Manager.
 const (
 	// AutoDiscoverEC2IssueSSMInstanceNotRegistered is used to identify instances that failed to auto-enroll
 	// because they are not present in Amazon Systems Manager.
@@ -241,6 +261,8 @@ var DiscoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 	AutoDiscoverEC2IssueSSMScriptFailure,
 	AutoDiscoverEC2IssueSSMInvocationFailure,
+	AutoDiscoverEC2IssuePermAccountDenied,
+	AutoDiscoverEC2IssuePermOrgDenied,
 }
 
 // List of Auto Discover EKS issues identifiers.
@@ -368,20 +390,80 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 	if ut.GetSpec().DiscoverEc2 == nil {
 		return trace.BadParameter("%s requires the discover_ec2 field", TaskTypeDiscoverEC2)
 	}
-	if ut.GetSpec().DiscoverEc2.AccountId == "" {
-		return trace.BadParameter("%s requires the discover_ec2.account_id field", TaskTypeDiscoverEC2)
-	}
-	if ut.GetSpec().DiscoverEc2.Region == "" {
-		return trace.BadParameter("%s requires the discover_ec2.region field", TaskTypeDiscoverEC2)
+
+	// Validate issue type for all tasks.
+	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().GetIssueType()) {
+		return trace.BadParameter("invalid issue type %q, allowed values: %v", ut.GetSpec().GetIssueType(), DiscoverEC2IssueTypes)
 	}
 
+	// Permission issues occur before instance discovery (org/account level),
+	// so account ID, region, and instance list may all be empty.
+	if isPermissionIssueType(ut.GetSpec().GetIssueType()) {
+		return validateDiscoverEC2PermissionIssue(ut)
+	}
+	return validateDiscoverEC2InstallationIssue(ut)
+}
+
+func isPermissionIssueType(issueType string) bool {
+	switch issueType {
+	case AutoDiscoverEC2IssuePermAccountDenied,
+		AutoDiscoverEC2IssuePermOrgDenied:
+		return true
+	default:
+		return false
+	}
+}
+
+// validateDiscoverEC2PermissionIssue validates tasks for IAM permission errors
+// that occur before instance discovery. Account ID, region, and instances are
+// all optional since the error may occur at the organization or account level.
+func validateDiscoverEC2PermissionIssue(ut *usertasksv1.UserTask) error {
+	if err := validateDiscoverEC2TaskName(ut); err != nil {
+		return trace.Wrap(err)
+	}
+	// Permission issues are allowed to have empty instance lists, empty
+	// account ID, and empty region. If instances are present, validate them.
+	for instanceID, instanceIssue := range ut.GetSpec().GetDiscoverEc2().GetInstances() {
+		if err := validateDiscoverEC2Instance(instanceID, instanceIssue); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// validateDiscoverEC2InstallationIssue validates tasks for SSM installation
+// and join failures. Account ID, region, and at least one instance are required.
+func validateDiscoverEC2InstallationIssue(ut *usertasksv1.UserTask) error {
+	if ut.GetSpec().GetDiscoverEc2().GetAccountId() == "" {
+		return trace.BadParameter("%s requires the discover_ec2.account_id field", TaskTypeDiscoverEC2)
+	}
+	if ut.GetSpec().GetDiscoverEc2().GetRegion() == "" {
+		return trace.BadParameter("%s requires the discover_ec2.region field", TaskTypeDiscoverEC2)
+	}
+	if err := validateDiscoverEC2TaskName(ut); err != nil {
+		return trace.Wrap(err)
+	}
+	if len(ut.GetSpec().GetDiscoverEc2().GetInstances()) == 0 {
+		return trace.BadParameter("at least one instance is required")
+	}
+	for instanceID, instanceIssue := range ut.GetSpec().GetDiscoverEc2().GetInstances() {
+		if err := validateDiscoverEC2Instance(instanceID, instanceIssue); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// validateDiscoverEC2TaskName validates that the task name matches the
+// deterministic name derived from its spec fields.
+func validateDiscoverEC2TaskName(ut *usertasksv1.UserTask) error {
 	expectedTaskName := TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
-		Integration:     ut.Spec.Integration,
-		IssueType:       ut.Spec.IssueType,
-		AccountID:       ut.Spec.DiscoverEc2.AccountId,
-		Region:          ut.Spec.DiscoverEc2.Region,
-		SSMDocument:     ut.Spec.DiscoverEc2.SsmDocument,
-		InstallerScript: ut.Spec.DiscoverEc2.InstallerScript,
+		Integration:     ut.GetSpec().GetIntegration(),
+		IssueType:       ut.GetSpec().GetIssueType(),
+		AccountID:       ut.GetSpec().GetDiscoverEc2().GetAccountId(),
+		Region:          ut.GetSpec().GetDiscoverEc2().GetRegion(),
+		SSMDocument:     ut.GetSpec().GetDiscoverEc2().GetSsmDocument(),
+		InstallerScript: ut.GetSpec().GetDiscoverEc2().GetInstallerScript(),
 	})
 	if ut.Metadata.GetName() != expectedTaskName {
 		return trace.BadParameter("task name is pre-defined for discover-ec2 types, expected %q, got %q",
@@ -389,32 +471,26 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 			ut.Metadata.GetName(),
 		)
 	}
+	return nil
+}
 
-	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().IssueType) {
-		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEC2IssueTypes)
+// validateDiscoverEC2Instance validates a single instance entry.
+func validateDiscoverEC2Instance(instanceID string, instance *usertasksv1.DiscoverEC2Instance) error {
+	if instanceID == "" {
+		return trace.BadParameter("instance id in discover_ec2.instances map is required")
 	}
-
-	if len(ut.Spec.DiscoverEc2.Instances) == 0 {
-		return trace.BadParameter("at least one instance is required")
+	if instance.GetInstanceId() == "" {
+		return trace.BadParameter("instance id in discover_ec2.instances field is required")
 	}
-	for instanceID, instanceIssue := range ut.Spec.DiscoverEc2.Instances {
-		if instanceID == "" {
-			return trace.BadParameter("instance id in discover_ec2.instances map is required")
-		}
-		if instanceIssue.InstanceId == "" {
-			return trace.BadParameter("instance id in discover_ec2.instances field is required")
-		}
-		if instanceID != instanceIssue.InstanceId {
-			return trace.BadParameter("instance id in discover_ec2.instances map and field are different")
-		}
-		if instanceIssue.DiscoveryConfig == "" {
-			return trace.BadParameter("discovery config in discover_ec2.instances field is required")
-		}
-		if instanceIssue.DiscoveryGroup == "" {
-			return trace.BadParameter("discovery group in discover_ec2.instances field is required")
-		}
+	if instanceID != instance.GetInstanceId() {
+		return trace.BadParameter("instance id in discover_ec2.instances map and field are different")
 	}
-
+	if instance.GetDiscoveryConfig() == "" {
+		return trace.BadParameter("discovery config in discover_ec2.instances field is required")
+	}
+	if instance.GetDiscoveryGroup() == "" {
+		return trace.BadParameter("discovery group in discover_ec2.instances field is required")
+	}
 	return nil
 }
 
