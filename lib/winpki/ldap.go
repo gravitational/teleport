@@ -409,25 +409,7 @@ func newLDAPReferral(ref string) (ldapReferral, error) {
 		return ldapReferral{}, trace.BadParameter("ldap referral URL contains invalid scheme")
 	}
 
-	// Parse the attributes, scope, filters, and extensions from the query string
-	startIdx := 0
-	args := []string{}
-	// Note, RawQuery omits the first '?'
-	for idx, char := range u.RawQuery {
-		// Begin match
-		if char == '?' {
-			// End of this argument
-			args = append(args, u.RawQuery[startIdx:idx])
-			startIdx = idx + 1
-		}
-
-		// There should be at most 4 '?' delimited args
-		if len(args) == 3 {
-			break
-		}
-	}
-	// Capture the remainder of the query string
-	args = append(args, u.RawQuery[startIdx:len(u.RawQuery)])
+	params := strings.SplitN(u.RawQuery, "?", 4)
 
 	referral := ldapReferral{
 		raw:    ref,
@@ -435,22 +417,16 @@ func newLDAPReferral(ref string) (ldapReferral, error) {
 		baseDN: strings.TrimPrefix(u.Path, "/"),
 	}
 
-	// arguments are positional, so assign them to their respective
-	// struct members based on the order in which they were parsed
-	switch len(args) {
-	case 4:
-		referral.extensions = args[3]
-		fallthrough
-	case 3:
-		referral.filter = args[2]
-		fallthrough
-	case 2:
-		referral.scope = args[1]
-		fallthrough
-	case 1:
-		referral.attributes = args[0]
+	assign := []*string{
+		&referral.attributes,
+		&referral.scope,
+		&referral.filter,
+		&referral.extensions,
 	}
 
+	for idx, param := range params {
+		*assign[idx] = param
+	}
 	return referral, nil
 }
 

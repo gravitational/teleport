@@ -392,6 +392,7 @@ func TestReferralParsing(t *testing.T) {
 		assert.Empty(t, ref.attributes)
 		assert.Empty(t, ref.filter)
 		assert.Empty(t, ref.scope)
+		assert.Equal(t, "extensions", ref.extensions)
 	})
 
 	t.Run("extensions only - no dn - no leading slash", func(t *testing.T) {
@@ -402,5 +403,7 @@ func TestReferralParsing(t *testing.T) {
 		assert.Empty(t, ref.attributes)
 		assert.Empty(t, ref.filter)
 		assert.Empty(t, ref.scope)
+		// Excess '?'s end up in extensions
+		assert.Equal(t, "??extensions", ref.extensions)
 	})
 }
