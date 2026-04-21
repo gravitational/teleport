@@ -1552,6 +1552,33 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
+func TestUpsertDatabaseServerPopulatesVNetDNSName(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	const dbName = "db-a"
+
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost:5432"),
+		Hostname: "localhost",
+		HostID:   "localhost",
+	})
+	require.NoError(t, err)
+	require.Empty(t, server.GetDatabase().GetStatusVNetDNSName())
+
+	_, err = srv.Auth().UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+
+	dbServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, dbServers, 1)
+	require.Equal(t, types.VNetDNSName(dbName), dbServers[0].GetDatabase().GetStatusVNetDNSName())
+}
+
 func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
