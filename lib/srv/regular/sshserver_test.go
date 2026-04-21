@@ -100,12 +100,9 @@ var wildcardAllow = types.Labels{
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	if reexec.IsReexec() {
-		reexec.RunAndExit(os.Args[1])
-		return
-	}
 
 	code := m.Run()
 	os.Exit(code)
@@ -2760,9 +2757,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 			wantErrInRegularMode: false,
 		},
 		{
-			name:                 teleport.GetHomeDirSubsystem,
+			name:                 "gethomedir",
 			wantErrInProxyMode:   true,
-			wantErrInRegularMode: false,
+			wantErrInRegularMode: true,
 		},
 		{
 			name:                 "proxysites",

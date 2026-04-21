@@ -676,13 +676,18 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 						})
 					}
 				}
-				ret = append(ret, ui.IntegrationDiscoveryRule{
+				rule := ui.IntegrationDiscoveryRule{
 					ResourceType:    resourceType,
 					Region:          region,
 					LabelMatcher:    uiLables,
 					DiscoveryConfig: dc.GetName(),
 					LastSync:        lastSync,
-				})
+				}
+				if resourceType == "eks" {
+					kubeAppDiscovery := matcher.KubeAppDiscovery
+					rule.KubeAppDiscovery = &kubeAppDiscovery
+				}
+				ret = append(ret, rule)
 			}
 		}
 	}

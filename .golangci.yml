@@ -9,6 +9,7 @@ linters:
     - depguard
     - errorlint
     - forbidigo
+    - forcetypeassert
     - govet
     - ineffassign
     - misspell
@@ -107,10 +108,6 @@ linters:
             - '!**/integrations/operator/controllers/resources/testlib/**'
             - '!**/lib/auth/test/**'
             - '!**/lib/services/suite/**'
-            - '!**/e/lib/accesslist/equal.go'
-            - '!**/e/lib/auth/saml.go'
-            - '!**lib/services/compare.go'
-            - '!**/lib/services/local/access_list.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
@@ -561,6 +558,13 @@ linters:
           - forbidigo
         path: ^api/ssh/
         text: tracessh.NewClientConnWithTimeout
+
+      # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
+      # enforce this rule everywhere.
+      - linters:
+          - forcetypeassert
+        path-except: ^lib/tlsca/ca\.go$
+
     paths:
       - (^|/)node_modules/
       - ^api/gen/

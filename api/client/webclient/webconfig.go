@@ -98,6 +98,8 @@ type WebConfig struct {
 	// IsPolicyEnabled is true if [Features.Policy] = true
 	// Deprecated, use entitlements
 	IsPolicyEnabled bool `json:"isPolicyEnabled"`
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool `json:"beamsUi"`
 }
 
 // IdentitySecurity contains identity security features and settings.

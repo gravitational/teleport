@@ -232,7 +232,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 	}
 
 	// use the observed revision as the condition so that a concurrent modification is detected.
-	role.GetMetadata().Revision = extant.GetRole().GetMetadata().GetRevision()
+	role = scopedRoleWithRevision(role, extant.GetRole().GetMetadata().GetRevision())
 	item, err := scopedRoleToItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -288,7 +288,7 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 	}
 
 	// upsert operations ignore user-provided revision
-	role.GetMetadata().Revision = ""
+	role = scopedRoleWithRevision(role, "")
 
 	for attempt := range maxScopedResourceUpsertAttempts {
 		if attempt != 0 {
@@ -318,9 +318,8 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 			return nil, trace.Wrap(err)
 		}
 
-		role.GetMetadata().Revision = existing.GetRole().GetMetadata().GetRevision()
 		rsp, err := s.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
-			Role: role,
+			Role: scopedRoleWithRevision(role, existing.GetRole().GetMetadata().GetRevision()),
 		})
 		if err != nil {
 			if trace.IsCompareFailed(err) || trace.IsNotFound(err) {
@@ -520,7 +519,7 @@ func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, re
 	}
 
 	// use the observed revision as the condition so that a concurrent modification is detected.
-	assignment.GetMetadata().Revision = extant.GetAssignment().GetMetadata().GetRevision()
+	assignment = scopedRoleAssignmentWithRevision(assignment, extant.GetAssignment().GetMetadata().GetRevision())
 	item, err := scopedRoleAssignmentToItem(assignment)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,7 +549,7 @@ func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, re
 	}
 
 	// upsert operations ignore user-provided revision
-	assignment.GetMetadata().Revision = ""
+	assignment = scopedRoleAssignmentWithRevision(assignment, "")
 
 	for attempt := range maxScopedResourceUpsertAttempts {
 		if attempt != 0 {

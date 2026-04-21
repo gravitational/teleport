@@ -455,6 +455,21 @@ func TestConfigReading(t *testing.T) {
 						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
 					},
 				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "bedrock",
+						Models: []LLMModel{
+							{
+								Name:         "claude-opus-4-6",
+								ProviderName: "arn:bedrock:inference-profile",
+							},
+						},
+						FallbackModel: "claude-opus-4-6",
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1684,6 +1699,21 @@ func makeConfigFixture() string {
 				RunAsHostUser: "docker",
 			},
 		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "bedrock",
+				Models: []LLMModel{
+					{
+						Name:         "claude-opus-4-6",
+						ProviderName: "arn:bedrock:inference-profile",
+					},
+				},
+				FallbackModel: "claude-opus-4-6",
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2660,6 +2690,19 @@ app_service:
 			name:   "TCP app with port bigger than 65535",
 			outErr: require.Error,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: anthropic
+      inference:
+        format: anthropic
+        provider: anthropic
+`,
+			name:   "LLM inference endpoint",
+			outErr: require.NoError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -3620,6 +3663,7 @@ func TestJoinParams(t *testing.T) {
 		expectToken      string
 		expectJoinMethod types.JoinMethod
 		expectError      bool
+		expectParsed     *servicecfg.JoinParams
 	}{
 		{
 			desc: "empty",
@@ -3687,6 +3731,60 @@ teleport:
 `,
 			expectError: true,
 		},
+		{
+			desc: "bound keypair with registration secret value",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_value: "example-secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: "example-secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair with registration secret path",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_path: "/path/to/secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair with static keypair path",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      static_key_path: "/path/to/secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					StaticPrivateKeyPath: "/path/to/secret",
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))
@@ -3705,6 +3803,10 @@ teleport:
 			require.NoError(t, err)
 			require.Equal(t, tc.expectToken, token)
 			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+
+			if tc.expectParsed != nil {
+				require.Empty(t, cmp.Diff(cfg.JoinParams, *tc.expectParsed))
+			}
 		})
 	}
 }

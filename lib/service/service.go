@@ -82,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -195,6 +194,7 @@ import (
 	webapp "github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/selinux"
 )
 
@@ -2434,6 +2434,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                     b,
+			Modules:                     cfg.Modules,
 			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                   cfg.Keygen,
@@ -3092,12 +3093,15 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.IdentityInternal
 	cfg.Applications = services.ApplicationsInternal
+	cfg.Beams = services.Beams
+	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices
 	cfg.Databases = services.Databases
+	cfg.DelegationSessions = services.DelegationSessions
 	cfg.DiscoveryConfigs = services.DiscoveryConfigs
 	cfg.DynamicAccess = services.DynamicAccessExt
 	cfg.Events = services.Events
@@ -3135,6 +3139,8 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.WorkloadClusterService = services.WorkloadClusterService
+	cfg.Summarizer = services.Summarizer
+	cfg.SubCAService = services.SubCAService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3184,6 +3190,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
 	cfg.AppAuthConfig = client
+	cfg.SubCAService = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3529,6 +3536,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
+		if !cfg.SSH.EnableSELinux {
+			checkEmbeddedReexecAndLog(process.ExitContext(), logger)
+		} else {
+			logger.DebugContext(process.ExitContext(),
+				"The embedded session helper is not supported when SELinux support is enabled.",
+			)
+		}
+
 		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
 
 		// Provide helpful log message if listen_addr or public_addr are not being
@@ -3821,6 +3837,23 @@ func (process *TeleportProcess) initSSH() error {
 	return nil
 }
 
+func checkEmbeddedReexecAndLog(ctx context.Context, logger *slog.Logger) {
+	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
+		logger.WarnContext(ctx,
+			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
+			"error", err,
+		)
+	} else if ok {
+		logger.DebugContext(ctx,
+			"The embedded session helper is available and will be used for user sessions.",
+		)
+	} else {
+		logger.DebugContext(ctx,
+			"This Teleport build does not support the embedded session helper for user sessions.",
+		)
+	}
+}
+
 // RegisterWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
@@ -3923,7 +3956,7 @@ func (process *TeleportProcess) initUploaderService() error {
 
 		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
 		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
-		encryptedRecordingMaxUploadSize = grpcutils.MaxClientRecvMsgSize()
+		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default server-side gRPC max msg recv size
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -6784,6 +6817,7 @@ func (process *TeleportProcess) initApps() {
 				CORS:                  makeApplicationCORS(app.CORS),
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 				MCP:                   app.MCP,
+				LLM:                   app.LLM,
 			})
 			if err != nil {
 				return trace.Wrap(err)

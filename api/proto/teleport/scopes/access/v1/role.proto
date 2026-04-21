@@ -102,6 +102,30 @@ message ScopedRoleSSH {
   // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
   // (or global default) applies.
   string client_idle_timeout = 3;
+
+  // PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions.
+  // If not set, X11 forwarding is not permitted.
+  optional bool permit_x11_forwarding = 4;
+
+  // ForwardAgent enables SSH agent forwarding.
+  optional bool forward_agent = 6;
+
+  // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+  SSHPortForwarding port_forwarding = 7;
+
+  // HostUserCreation configures the creation of host users.
+  CreateHostUser host_user_creation = 8;
+
+  // MaxSessions defines the maximum number of
+  // concurrent sessions per connection.
+  optional int64 max_sessions = 9;
+
+  // Sudoers is a list of entries to include in a users sudoer file
+  repeated string host_sudoers = 10;
+
+  // FileCopy indicates whether remote file operations via SCP or SFTP are allowed
+  // over an SSH session. It defaults to allowing the user to download and upload files by default.
+  optional bool file_copy = 11;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -135,4 +159,34 @@ message ScopedRule {
   repeated string resources = 1;
   // Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
   repeated string verbs = 2;
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow for local port forwarding.
+  SSHLocalPortForwarding local = 1;
+  // Allow for remote port forwarding.
+  SSHRemotePortForwarding remote = 2;
+}
+
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+message SSHLocalPortForwarding {
+  optional bool enabled = 1;
+}
+
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+message SSHRemotePortForwarding {
+  optional bool enabled = 1;
+}
+
+// CreateHostUser configures what types of host user creation are allowed by a role.
+message CreateHostUser {
+  // Mode specifies how the host user should be created.
+  string mode = 1;
+
+  // Groups is a list of host groups to add the user to.
+  repeated string groups = 2;
+
+  // Shell is the shell to set for the user.
+  string shell = 3;
 }

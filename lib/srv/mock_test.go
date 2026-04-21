@@ -459,3 +459,7 @@ func (f fakeBPF) Close(restarting bool) error {
 func (f fakeBPF) Enabled() bool {
 	return true
 }
+
+func (f fakeBPF) LostEvents() bpf.EventCount {
+	return bpf.EventCount{}
+}

@@ -963,7 +963,10 @@ func New(
 		component,
 		addr, s,
 		getHostSigners,
-		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
+		sshutils.AuthMethods{
+			PublicKey:         s.authHandlers.PublicKeyCallback,
+			VerifiedPublicKey: s.authHandlers.VerifiedPublicKeyCallback,
+		},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
 		sshutils.SetNewConnHandler(s),
@@ -2542,9 +2545,6 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 	}
 
 	switch r.Name {
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {

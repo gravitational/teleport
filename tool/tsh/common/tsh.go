@@ -2519,6 +2519,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
+	// When the scope changes between logins (e.g. scoped→unscoped or vice
+	// versa), clear all Teleport keys for this proxy from the SSH agent.
+	if scopeChanged {
+		if agent := tc.LocalAgent(); agent != nil {
+			proxyIdx := client.KeyRingIndex{ProxyHost: tc.WebProxyHost()}
+			if err := agent.UnloadKeyRing(proxyIdx); err != nil {
+				logger.WarnContext(cf.Context, "Failed to unload old keys from agent on scope change", "error", err)
+			}
+		}
+	}
+
 	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, keyRing)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5590,6 +5601,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
+	if p.DelegationSessionID != "" {
+		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
+	}
+
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
@@ -5756,6 +5771,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5809,6 +5825,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		DelegationSessionID:      p.DelegationSessionID,
 	}
 
 	// update active profile info from env

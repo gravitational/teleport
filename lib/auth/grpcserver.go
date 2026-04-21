@@ -64,6 +64,7 @@ import (
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
@@ -71,6 +72,7 @@ import (
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -110,6 +112,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	"github.com/gravitational/teleport/lib/auth/delegation/delegationv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
 	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
@@ -117,6 +120,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/healthcheckconfig/healthcheckconfigv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
+	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -150,7 +154,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -3956,49 +3959,6 @@ func (g *GRPCServer) ResetSessionRecordingConfig(ctx context.Context, _ *emptypb
 	return &emptypb.Empty{}, nil
 }
 
-// GetAuthPreference gets cluster auth preference.
-func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*types.AuthPreferenceV2, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authPref, err := auth.ServerWithRoles.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", authPref))
-	}
-	return authPrefV2, nil
-}
-
-// SetAuthPreference sets cluster auth preference.
-// Deprecated: Use Update/UpsertAuthPreference where appropriate.
-func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authPref.SetOrigin(types.OriginDynamic)
-	if err = auth.ServerWithRoles.SetAuthPreference(ctx, authPref); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
-// ResetAuthPreference resets cluster auth preference to defaults.
-func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = auth.ServerWithRoles.ResetAuthPreference(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
@@ -6155,13 +6115,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	inventorypb.RegisterInventoryServiceServer(server, inventoryService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Emitter:          cfg.Emitter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -6169,7 +6129,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -6275,6 +6235,23 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating database object service")
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
+
+	delegationSessionService, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
+		Authorizer:        cfg.Authorizer,
+		SessionReader:     cfg.AuthServer,
+		SessionWriter:     cfg.AuthServer,
+		ResourceLister:    cfg.AuthServer,
+		RoleGetter:        cfg.AuthServer,
+		UserGetter:        cfg.AuthServer,
+		CertGenerator:     cfg.AuthServer,
+		ClusterNameGetter: cfg.AuthServer,
+		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
+		Logger:            cfg.AuthServer.logger.With(teleport.ComponentKey, "delegation_sessions"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating delegation session service")
+	}
+	delegationv1pb.RegisterDelegationSessionServiceServer(server, delegationSessionService)
 
 	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: cfg.Authorizer,
@@ -6387,6 +6364,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:            cfg.AuthServer.Cache,
 		Backend:          cfg.AuthServer.Services,
 		AuthServer:       cfg.AuthServer,
+		Modules:          cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6398,7 +6376,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	if !cfg.DisableJoinV1 {
 		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-			Authorizer:         cfg.Authorizer,
+			ScopedAuthorizer:   cfg.ScopedAuthorizer,
 			AuthService:        cfg.AuthServer,
 			FIPS:               cfg.AuthServer.fips,
 			ScopedTokenService: cfg.AuthServer.Services,
@@ -6413,6 +6391,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
 		Emitter:         cfg.Emitter,
+		Modules:         cfg.AuthServer.modules,
 		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
 	})
 	if err != nil {
@@ -6427,6 +6406,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
+		Modules:               cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6534,8 +6514,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		SignatureAlgorithmSuiteParams: types.SignatureAlgorithmSuiteParams{
 			FIPS:          cfg.AuthServer.fips,
 			UsingHSMOrKMS: cfg.AuthServer.keyStore.UsingHSMOrKMS(),
-			Cloud:         modules.GetModules().Features().Cloud,
+			Cloud:         cfg.AuthServer.modules.Features().Cloud,
 		},
+		Modules: cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6603,6 +6584,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:    cfg.Emitter,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
+		Modules:    cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6713,8 +6695,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	appauthconfigv1pb.RegisterAppAuthConfigSessionsServiceServer(server, appAuthConfigSessionsSvc)
 
+	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		AuthServer:       cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "instantiating issuancev1 service")
+	}
+	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
+
 	// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud
-	if !modules.GetModules().Features().Cloud {
+	if !cfg.AuthServer.modules.Features().Cloud {
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(server, workloadclusterv1.NewService())
 	}
 

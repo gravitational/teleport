@@ -79,7 +79,6 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -1598,15 +1597,13 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteAllTunnelConnections()
+	// Delete all to reset test environment
+	out, err = clt.GetAllTunnelConnections()
 	require.NoError(t, err)
-
-	out, err = clt.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = clt.DeleteAllTunnelConnections()
-	require.NoError(t, err)
+	for _, tc := range out {
+		err := testSrv.Auth().DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		require.NoError(t, err)
+	}
 
 	// test delete individual connection
 	err = clt.UpsertTunnelConnection(conn)
@@ -1974,13 +1971,10 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 }
 
 func TestWebSessionMultiAccessRequests(t *testing.T) {
-	// Can not use t.Parallel() when changing modules
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
+	ctx := t.Context()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	testSrv := newTestTLSServer(t)
+	testSrv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -4813,7 +4807,7 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteAllTunnelConnections()
+				err = testSrv.Auth().DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]
@@ -5993,6 +5987,7 @@ type testTLSServerOptions struct {
 	accessGraph     *auth.AccessGraphConfig
 	clock           clockwork.Clock
 	bufconnListener bool
+	modules         *modulestest.Modules
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6020,6 +6015,12 @@ func withBufconnListener() testTLSServerOption {
 	}
 }
 
+func withModules(mod *modulestest.Modules) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.modules = mod
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs. For more advanced
 // use-cases, NewTestTLSServer to provide a more detailed configuration.
@@ -6033,10 +6034,14 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	if options.clock == nil {
 		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 	}
+	if options.modules == nil {
+		options.modules = modulestest.OSSModules()
+	}
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        options.clock,
 		CacheEnabled: options.cacheEnabled,
+		Modules:      options.modules,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

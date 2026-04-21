@@ -2197,6 +2197,24 @@ func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 				Success:             e.Success,
 				ResourceName:        a.AnonymizeString(e.ResourceName),
 				IsCloudDefaultModel: e.IsCloudDefaultModel,
+				HasStoredEmbeddings: e.HasStoredEmbeddings,
+			},
+		},
+	}
+}
+
+// SessionSummarySearchEvent is emitted when a user runs a session summary search.
+type SessionSummarySearchEvent prehogv1a.SessionSummarySearchEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummarySearchEvent{
+			SessionSummarySearchEvent: &prehogv1a.SessionSummarySearchEvent{
+				UserName:   a.AnonymizeString(e.UserName),
+				UserKind:   e.UserKind,
+				QueryCount: e.QueryCount,
+				HasFilters: e.HasFilters,
 			},
 		},
 	}
@@ -2215,6 +2233,37 @@ func (e *DiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 				ResourceTypes:       e.ResourceTypes,
 				CloudProviders:      e.CloudProviders,
 				CreationMethod:      e.CreationMethod,
+			},
+		},
+	}
+}
+
+// IdentitySecurityGraphSizeEvent is emitted when the size of a providers access graph is updated.
+type IdentitySecurityGraphSizeEvent prehogv1a.IdentitySecurityGraphSizeEvent
+
+// Anonymize anonymizes the event.
+func (e *IdentitySecurityGraphSizeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_IdentitySecurityGraphSizeEvent{
+			IdentitySecurityGraphSizeEvent: &prehogv1a.IdentitySecurityGraphSizeEvent{
+				Provider:        e.Provider,
+				TotalIdentities: e.TotalIdentities,
+				TotalResources:  e.TotalResources,
+			},
+		},
+	}
+}
+
+// IdentitySecurityAuditLogsIngestedEvent is emitted when logs are ingested into indentity activity center
+type IdentitySecurityAuditLogsIngestedEvent prehogv1a.IdentitySecurityAuditLogsIngestedEvent
+
+// Anonymize anonymizes the event.
+func (e *IdentitySecurityAuditLogsIngestedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_IdentitySecurityAuditLogsIngestedEvent{
+			IdentitySecurityAuditLogsIngestedEvent: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{
+				Provider:     e.Provider,
+				LogsIngested: e.LogsIngested,
 			},
 		},
 	}

@@ -387,6 +387,9 @@ export const eventCodes = {
   INFERENCE_POLICY_DELETE: 'INF009I',
   SESSION_SUMMARIZED: 'INF010I',
   SESSION_SUMMARIZED_FAILURE: 'INF010E',
+  RETRIEVAL_MODEL_CREATE: 'INF011I',
+  RETRIEVAL_MODEL_UPDATE: 'INF012I',
+  RETRIEVAL_MODEL_DELETE: 'INF013I',
 } as const;
 
 /**
@@ -2248,6 +2251,18 @@ export type RawEvents = {
   >;
   [eventCodes.INFERENCE_POLICY_DELETE]: RawEvent<
     typeof eventCodes.INFERENCE_POLICY_DELETE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_DELETE,
     HasName
   >;
   [eventCodes.SESSION_SUMMARIZED]: RawEvent<

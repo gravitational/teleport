@@ -16,18 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
+import {
+  Regions as AwsRegion,
+  AzureRegion,
+} from 'teleport/services/integrations';
 
-export interface Region<R extends CloudRegion> {
-  id: R;
-  name: string;
-}
-
-export interface RegionGroup<R extends CloudRegion> {
-  name: string;
-  regions: readonly Region<R>[];
-}
-
-export type WildcardRegion = ['*'];
-
-export type CloudRegion = AwsRegion;
+export type CloudRegion = AwsRegion | AzureRegion;

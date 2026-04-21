@@ -184,10 +184,18 @@ const (
 	// SubKindMCP represents an MCP server as a subkind of app.
 	SubKindMCP = KindMCP
 
+	// SubKindLLM represents an LLM inference endpoint as a subkind of app.
+	SubKindLLM = KindLLM
+
 	// KindMCP is an MCP server resource.
 	// Currently, MCP servers are accessed through apps.
 	// In the future, they may become a standalone resource kind.
 	KindMCP = "mcp"
+
+	// KindLLM is an LLM inference endpoint server resource.
+	// Currently, inference endpoints are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindLLM = "llm"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -672,6 +680,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -687,6 +698,10 @@ const (
 
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
+
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
 
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
@@ -991,7 +1006,9 @@ const (
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
 	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
-	DiscoveryIACToolLabel = TeleportNamespace + "/iac-tool"
+	IACToolLabel = TeleportNamespace + "/iac-tool"
+	// IACToolTerraform identifies that a IAC tool is Terraform.
+	IACToolTerraform = "terraform"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1027,6 +1044,9 @@ const (
 	SchemeMCPHTTPS = "mcp+https"
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
+
+	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
+	SchemeLLMEndpoint = "llm"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1179,6 +1199,11 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
 
+	// BotScopeLabel is a label used to identify the scope in which a Bot
+	// exists. It is stored on the user resource to allow the Bot to be hydrated
+	// from a user.
+	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
+
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
 	// the Node that used that token to join the cluster
@@ -1316,6 +1341,17 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
+
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
+	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
+
+	// BeamOwnerLabel is the label used to track which user's Beam a resource
+	// belongs to.
+	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
+
+	// BeamAliasLabel is the label used to track the alias of the Beam a
+	// resource belongs to.
+	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
 )
 
 const (

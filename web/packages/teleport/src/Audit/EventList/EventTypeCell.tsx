@@ -366,6 +366,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.INFERENCE_POLICY_CREATE]: Icons.Info,
   [eventCodes.INFERENCE_POLICY_UPDATE]: Icons.Info,
   [eventCodes.INFERENCE_POLICY_DELETE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
 };

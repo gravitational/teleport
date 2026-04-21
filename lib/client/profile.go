@@ -319,6 +319,10 @@ type ProfileStatus struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
+
+	// DelegationSessionID is the ID of the Delegation Session the profile's
+	// credentials are associated with.
+	DelegationSessionID string
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -452,6 +456,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		SSOHost:                  opts.SSOHost,
 		GitHubIdentity:           gitHubIdentity,
 		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
+		DelegationSessionID:      sshIdent.DelegationSessionID,
 	}, nil
 }
 
@@ -728,5 +733,6 @@ func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
 		Roles:                    p.Roles,
 		Traits:                   p.Traits,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
+		DelegationSessionID:      p.DelegationSessionID,
 	}
 }

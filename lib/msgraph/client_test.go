@@ -41,6 +41,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 // Always sleep for a second for predictability
@@ -197,23 +199,20 @@ func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
 func TestIterateUsers_Empty(t *testing.T) {
 	t.Parallel()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1.0/users", func(w http.ResponseWriter, r *http.Request) {
-		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
-		assert.NoError(t, err, "expected to get $top parameter")
-		w.Write([]byte(`{"value": []}`))
-	})
+	storage := msgraphtest.NewDefaultStorage()
+	// overwrite user storage to test empty user response.
+	storage.Users = make(map[string]*models.User)
+	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
 
-	srv := httptest.NewTLSServer(mux)
-	t.Cleanup(func() { srv.Close() })
+	t.Cleanup(func() { fakeServer.TLSServer.Close() })
 
 	client, err := NewClient(Config{
-		HTTPClient:    newHTTPClient(srv),
+		HTTPClient:    newHTTPClient(fakeServer.TLSServer),
 		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 	})
 	require.NoError(t, err)
-	err = client.IterateUsers(t.Context(), func(*User) bool {
+	err = client.IterateUsers(t.Context(), func(*models.User) bool {
 		assert.Fail(t, "should never get called")
 		return true
 	})
@@ -239,8 +238,8 @@ func TestIterateUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var users []*User
-	err = client.IterateUsers(t.Context(), func(u *User) bool {
+	var users []*models.User
+	err = client.IterateUsers(t.Context(), func(u *models.User) bool {
 		users = append(users, u)
 		return true
 	})
@@ -307,7 +306,7 @@ func TestRetry(t *testing.T) {
 	appID := uuid.NewString()
 	route := "POST /v1.0/applications/" + appID + "/federatedIdentityCredentials"
 	name := "foo"
-	fic := &FederatedIdentityCredential{Name: &name}
+	fic := &models.FederatedIdentityCredential{Name: &name}
 	objPayload, err := json.Marshal(fic)
 	require.NoError(t, err)
 
@@ -536,8 +535,8 @@ func TestIterateGroupMembers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var members []GroupMember
-	err = client.IterateGroupMembers(t.Context(), groupID, func(u GroupMember) bool {
+	var members []models.GroupMember
+	err = client.IterateGroupMembers(t.Context(), groupID, func(u models.GroupMember) bool {
 		members = append(members, u)
 		return true
 	})
@@ -545,14 +544,14 @@ func TestIterateGroupMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, members, 2)
 	{
-		require.IsType(t, &User{}, members[0])
-		user := members[0].(*User)
+		require.IsType(t, &models.User{}, members[0])
+		user := members[0].(*models.User)
 		require.Equal(t, "9f615773-8219-4a5e-9eb1-8e701324c683", *user.ID)
 		require.Equal(t, "alice@example.com", *user.Mail)
 	}
 	{
-		require.IsType(t, &Group{}, members[1])
-		group := members[1].(*Group)
+		require.IsType(t, &models.Group{}, members[1])
+		group := members[1].(*models.Group)
 		require.Equal(t, "7db727c5-924a-4f6d-b1f0-d44e6cafa87c", *group.ID)
 		require.Equal(t, "Test Group 1", *group.DisplayName)
 	}
@@ -607,18 +606,18 @@ func TestGetApplication(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4", *app.ID)
 
-	expectation := &Application{
+	expectation := &models.Application{
 		AppID: toPtr("d2a39a2a-1636-457f-82f9-c2d76527e20e"),
-		DirectoryObject: DirectoryObject{
+		DirectoryObject: models.DirectoryObject{
 			DisplayName: toPtr("test SAML App"),
 			ID:          toPtr("aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4"),
 		},
 		GroupMembershipClaims: toPtr("SecurityGroup"),
 		IdentifierURIs:        &[]string{"goteleport.com"},
-		OptionalClaims: &OptionalClaims{
-			AccessToken: []OptionalClaim{},
-			IDToken:     []OptionalClaim{},
-			SAML2Token: []OptionalClaim{
+		OptionalClaims: &models.OptionalClaims{
+			AccessToken: []models.OptionalClaim{},
+			IDToken:     []models.OptionalClaim{},
+			SAML2Token: []models.OptionalClaim{
 				{
 					AdditionalProperties: []string{"sam_account_name"},
 					Essential:            toPtr(false),
@@ -733,7 +732,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run(types.EntraIDSecurityGroups, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDSecurityGroups, func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDSecurityGroups, func(group *models.Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -750,7 +749,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run(types.EntraIDAllGroups, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDAllGroups, func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDAllGroups, func(group *models.Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -765,7 +764,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run(types.EntraIDDirectoryRoles, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDDirectoryRoles, func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDDirectoryRoles, func(group *models.Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -780,7 +779,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run("unsupported-group-type", func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, "unsupported-group-type", func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, "unsupported-group-type", func(group *models.Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -844,8 +843,8 @@ func TestIterateGroupOwners(t *testing.T) {
 	require.NoError(t, err)
 
 	// owners are of User type.
-	var owners []*User
-	err = client.IterateGroupOwners(t.Context(), groupID, func(o *User) bool {
+	var owners []*models.User
+	err = client.IterateGroupOwners(t.Context(), groupID, func(o *models.User) bool {
 		owners = append(owners, o)
 		return true
 	})

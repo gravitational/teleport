@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
@@ -692,6 +691,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 
 	t.Run("collects multiple discovery configs", func(t *testing.T) {
 		syncTime := time.Now()
+		kubeAppDiscoveryDisabled := false
 		dcForEC2 := &discoveryconfig.DiscoveryConfig{
 			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
 				Name: uuid.NewString(),
@@ -774,8 +774,9 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig: dcForEKS.GetName(),
-				LastSync:        &syncTime,
+				DiscoveryConfig:  dcForEKS.GetName(),
+				LastSync:         &syncTime,
+				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
 			},
 			{
 				ResourceType: "eks",
@@ -783,7 +784,8 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig: dcForEKSWithoutStatus.GetName(),
+				DiscoveryConfig:  dcForEKSWithoutStatus.GetName(),
+				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
 			},
 			{
 				ResourceType: "rds",
@@ -965,9 +967,8 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 // The test cases in this test are performed sequentially and each test case
 // depends on the previous state.
 func TestGitHubIntegration(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
-	wPack := newWebPack(t, 1 /* proxies */)
+	t.Parallel()
+	wPack := newWebPack(t, 1 /* proxies */, withModules(modulestest.EnterpriseModules()))
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
 	ctx := context.Background()

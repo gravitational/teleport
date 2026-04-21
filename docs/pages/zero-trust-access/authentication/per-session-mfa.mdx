@@ -12,8 +12,9 @@ Teleport supports requiring additional multi-factor authentication checks
 when starting new:
 
 - SSH connections (a single `tsh ssh` call, Web UI SSH session or Teleport Connect SSH session)
-- Kubernetes sessions (a single `kubectl` call)
-- Database sessions (a single `tsh db connect` call)
+- Kubernetes sessions (a single `kubectl` call or a single `tsh proxy kube` run)
+- Database sessions (a single `tsh db connect` call, a single `tsh db exec`
+  call, or a single `tsh proxy db --tunnel` run)
 - Application sessions
 - Desktop sessions
 
@@ -171,7 +172,9 @@ $ tsh ssh jerry@prod3.example.com
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
-<Admonition title="Per-session MFA for Database Access" type="tip">
+{/* vale messaging.protocol-products = NO */}
+## Per-session MFA for Database Access
+{/* vale messaging.protocol-products = YES */}
 
 The Teleport Database Service supports per-connection MFA. When Jerry connects
 to the database `prod-mysql-instance` (with label `env: prod`), he gets prompted
@@ -194,6 +197,40 @@ $ tsh db connect prod-mysql-instance
 # Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 #
 # mysql>
+```
+
+If Jerry wants to avoid frequent MFA ceremonies, he can launch a local proxy
+tunnel using `tsh proxy db --tunnel` command. He will then only be required to
+perform MFA when establishing the tunnel.
+
+```code
+$ tsh proxy db --tunnel prod-postgres-instance --db-user=my-prod-user --db-name=my-prod-db
+Started authenticated tunnel for the PostgreSQL database "prod-postgres-instance" in cluster "example.com" on 127.0.0.1:65282.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
+  $ psql postgres://postgres@localhost:65282/my-prod-db
+MFA is required to access Database "prod-postgres-instance"
+Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
+
+Tap any security key <tap>
+Detected security key tap
+```
+
+Notice that `tsh proxy db` prints the command that can now be used to connect
+to the database. Jerry can now connect to the database without using MFA on
+every connection:
+
+```code
+$ psql postgres://postgres@localhost:65282/my-prod-db
+psql (17.5)
+Type "help" for help.
+
+my-prod-db=#
 ```
 
 Jerry can also execute a query against multiple databases with a single MFA check
@@ -222,7 +259,69 @@ Summary is saved at "logs/summary.json".
 Note that each MFA check remains valid for up to 5 minutes. After the 5-minutes
 window, a new MFA check will be requested for new connections.
 
-</Admonition>
+{/* vale messaging.protocol-products = NO */}
+## Per-session MFA for Kubernetes Access
+{/* vale messaging.protocol-products = YES */}
+
+When per-session MFA is required, each `kubectl` command Jerry will execute
+will require confirmation using an MFA device.
+
+```code
+$ tsh kube login prod-kube-cluster
+Logged into Kubernetes cluster "prod-kube-cluster". Try 'kubectl version' to test the connection.
+
+$ kubectl version
+MFA is required to access Kubernetes cluster "prod-kube-cluster"
+Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
+
+Tap any security key <tap>
+Detected security key tap
+Client Version: v1.34.1
+Kustomize Version: v5.7.1
+Server Version: v1.35.0
+```
+
+If confirming every single command becomes tedious, Jerry can start a local
+proxy. That eliminates the need to confirm every single command; instead, MFA
+confirmation is required by the proxy itself.
+
+```code
+$ tsh proxy kube --exec
+Preparing the following Teleport Kubernetes clusters from the default kubeconfig:
+Teleport Cluster Name Kube Cluster Name Context Name
+--------------------- ----------------- -----------------------------
+example.com           prod-kube-cluster example.com-prod-kube-cluster
+
+MFA is required to access Kubernetes cluster "prod-kube-cluster"
+Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
+
+Tap any security key <tap>
+Detected security key tap
+Started local proxy for Kubernetes Access in the background.
+
+Warning! Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
+the local proxy will be closed, and future access through this headless session won't be possible.
+
+
+Try issuing a command, for example "kubectl version".
+```
+
+The `tsh proxy kube --exec` command performs the MFA ceremony and opens up a
+shell configured to access the given cluster using `kubectl`. Jerry can now
+execute this command without additional MFA:
+
+```code
+$ kubectl version
+Client Version: v1.34.1
+Kustomize Version: v5.7.1
+Server Version: v1.35.0
+```
+
+The `kubectl` call uses an already authenticated connection offered by the
+local proxy.
 
 ## Limitations
 

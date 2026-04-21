@@ -19,6 +19,7 @@
 package gcp
 
 import (
+	"cmp"
 	"context"
 	"testing"
 	"time"
@@ -54,12 +55,15 @@ func TestHandler_getToken(t *testing.T) {
 		}
 	}
 
+	testContext, testContextCancel := context.WithCancel(t.Context())
+
 	tests := []struct {
 		name string
 
 		initState func() any
 
-		config func(state any) HandlerConfig
+		getTokenContext context.Context
+		config          func(state any) HandlerConfig
 
 		wantToken  *credentialspb.GenerateAccessTokenResponse
 		checkErr   require.ErrorAssertionFunc
@@ -112,7 +116,6 @@ func TestHandler_getToken(t *testing.T) {
 				}
 			},
 			checkErr: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
 		},
@@ -130,6 +133,21 @@ func TestHandler_getToken(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err))
 			},
 		},
+		{
+			name:            "context cancel",
+			getTokenContext: testContext,
+			config: mkConstConfig(HandlerConfig{
+				cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
+					generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
+						testContextCancel()
+						return nil, trace.BadParameter("bad param foo")
+					},
+				}),
+			}),
+			checkErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorIs(t, err, context.Canceled)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -139,7 +157,7 @@ func TestHandler_getToken(t *testing.T) {
 				state = tt.initState()
 			}
 
-			ctx := context.Background()
+			ctx := cmp.Or(tt.getTokenContext, context.Background())
 
 			fwd, err := newGCPHandler(ctx, tt.config(state))
 			require.NoError(t, err)

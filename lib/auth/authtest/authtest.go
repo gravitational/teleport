@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -367,6 +368,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
+		Modules:                      cfg.Modules,
 		VersionStorage:               NewFakeTeleportVersion(),
 		Authority:                    authority,
 		Access:                       access,
@@ -602,11 +604,13 @@ func InitAuthCache(p AuthCacheParams) error {
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
+		Beams:                   p.AuthServer.Services.Beams,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
 		Databases:               p.AuthServer.Services.Databases,
+		DelegationSessions:      p.AuthServer.Services.DelegationSessions,
 		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
 		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
 		Events:                  p.AuthServer.Services.Events,
@@ -645,6 +649,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
+		Summarizer:              p.AuthServer.Services.Summarizer,
+		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -753,6 +759,8 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			Renewable:                identity.Renewable,
 			Usage:                    identity.AcceptedUsage,
 			Scope:                    identity.Scope,
+			BotInternal:              id.Identity.BotInternal,
+			DisallowReissue:          id.Identity.DisallowReissue,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1116,6 +1124,39 @@ func TestScopedUser(username string, scope string) TestIdentity {
 			Username: username,
 			Identity: tlsca.Identity{
 				Username: username,
+			},
+		},
+		Scope: scope,
+	}
+}
+
+// TestBot returns a TestIdentity for an unscoped bot user
+func TestBot(botName string, botInternal bool) TestIdentity {
+	userName := fmt.Sprintf("bot-%s", botName)
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: userName,
+			Identity: tlsca.Identity{
+				Username: userName,
+				// GenerateUserTestCertsWithContext will inject BotName and
+				// BotInstanceID.
+				BotInternal: botInternal,
+			},
+		},
+	}
+}
+
+// TestScopedBot returns a TestIdentity for a scoped bot user
+func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
+	userName := fmt.Sprintf("bot-%s", botName)
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: userName,
+			Identity: tlsca.Identity{
+				Username: userName,
+				// GenerateUserTestCertsWithContext will inject BotName and
+				// BotInstanceID.
+				BotInternal: botInternal,
 			},
 		},
 		Scope: scope,

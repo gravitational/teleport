@@ -75,6 +75,8 @@ type Application interface {
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
 	IsMCP() bool
+	// IsLLM returns true if this app represents an LLM inference endpoint.
+	IsLLM() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -108,6 +110,8 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// GetLLM fetches LLM specific configuration.
+	GetLLM() *LLM
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
 }
@@ -306,6 +310,11 @@ func (a *AppV3) IsMCP() bool {
 	return IsAppMCP(a.Spec.URI)
 }
 
+// IsLLM returns true if app is an LLM inference endpoint.
+func (a *AppV3) IsLLM() bool {
+	return strings.HasPrefix(a.Spec.URI, SchemeLLMEndpoint+"://")
+}
+
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
 }
@@ -322,6 +331,9 @@ func (a *AppV3) GetProtocol() string {
 	}
 	if a.IsMCP() {
 		return "MCP"
+	}
+	if a.IsLLM() {
+		return "LLM"
 	}
 	return "HTTP"
 }
@@ -435,6 +447,8 @@ func (a *AppV3) CheckAndSetDefaults() error {
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
 		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
 			a.Spec.URI = SchemeMCPStdio + "://"
+		case a.Spec.LLM != nil:
+			a.Spec.URI = SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
@@ -479,15 +493,19 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(a.Spec.TCPPorts) != 0 {
-		if err := a.checkTCPPorts(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if a.IsMCP() {
+	switch {
+	case a.IsMCP():
 		a.SetSubKind(SubKindMCP)
 		if err := a.checkMCP(); err != nil {
+			return trace.Wrap(err)
+		}
+	case a.IsLLM():
+		a.SetSubKind(SubKindLLM)
+		if err := a.checkLLM(); err != nil {
+			return trace.Wrap(err)
+		}
+	case len(a.Spec.TCPPorts) != 0:
+		if err := a.checkTCPPorts(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -510,16 +528,19 @@ func (a *AppV3) checkTCPPorts() error {
 		return trace.BadParameter("invalid app URI format: %v", err)
 	}
 
+	switch {
 	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
 	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
+	case uri.Scheme != "tcp":
 		return nil
-	}
-
-	if uri.Port() != "" {
+	case a.Spec.MCP != nil:
+		return trace.BadParameter("TCP app %q cannot specify 'mcp' configuration", a.GetName())
+	case a.Spec.LLM != nil:
+		return trace.BadParameter("TCP app %q cannot specify 'inference' configuration", a.GetName())
+	case uri.Port() != "":
 		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
 	}
 
@@ -533,6 +554,13 @@ func (a *AppV3) checkTCPPorts() error {
 }
 
 func (a *AppV3) checkMCP() error {
+	switch {
+	case a.Spec.LLM != nil:
+		return trace.BadParameter("MCP server %q cannot specify 'inference' configuration", a.GetName())
+	case len(a.Spec.TCPPorts) != 0:
+		return trace.BadParameter("MCP server %q cannot specify 'tcp_ports' configuration", a.GetName())
+	}
+
 	switch GetMCPServerTransportType(a.Spec.URI) {
 	case MCPTransportStdio:
 		return trace.Wrap(a.checkMCPStdio())
@@ -558,6 +586,59 @@ func (a *AppV3) checkMCPStdio() error {
 	if a.Spec.MCP.RunAsHostUser == "" {
 		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command", a.GetName())
 	}
+	return nil
+}
+
+// supportedFormatInferenceProviders determines which provider can serve an API
+// format.
+var supportedFormatInferenceProviders = map[LLMFormat][]LLMProvider{
+	LLMFormatAnthropic: {LLMProviderAnthropic, LLMProviderAWSBedrock},
+	LLMFormatOpenAI:    {LLMProviderOpenAI},
+}
+
+func (a *AppV3) checkLLM() error {
+	switch {
+	case a.Spec.URI != SchemeLLMEndpoint+"://":
+		return trace.BadParameter("Inference endpoint %q cannot specify 'uri' configuration", a.GetName())
+	case a.Spec.LLM == nil:
+		return trace.BadParameter("Inference endpoint %q must specify 'inference' configuration", a.GetName())
+	case a.Spec.Cloud != "":
+		return trace.BadParameter("Inference endpoint %q cannot specify 'cloud' configuration", a.GetName())
+	case a.Spec.MCP != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'mcp' configuration", a.GetName())
+	case len(a.Spec.TCPPorts) != 0:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'tcp_ports' configuration", a.GetName())
+	case a.Spec.Rewrite != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'rewrite' configuration", a.GetName())
+	case a.Spec.AWS != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'aws' configuration", a.GetName())
+	}
+
+	llm := a.Spec.LLM
+	// Ensure the combination between Format and Provider is supported.
+	// This also covers the requirement of supported format and provider values.
+	providers, ok := supportedFormatInferenceProviders[llm.Format]
+	if !ok {
+		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'. Supported formats are: %s", a.GetName(), llm.Format, strings.Join(SupportedLLMFormats, ", "))
+	}
+
+	if !slices.Contains(providers, llm.Provider) {
+		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, strings.Join(providers, ", "))
+	}
+
+	for _, model := range llm.Models {
+		if model == nil || model.Name == "" {
+			return trace.BadParameter("Inference endpoint %q 'models' elements must include the 'name' property", a.GetName())
+		}
+	}
+
+	// Ensure fallback model is present on the models list.
+	if llm.FallbackModel != "" {
+		if !slices.ContainsFunc(llm.Models, func(model *LLM_Model) bool { return model.Name == llm.FallbackModel }) {
+			return trace.BadParameter("Inference endpoint %q doesn't specify the model used in 'fallback_model'. Update the 'models' list to include the missing model or update the 'fallback_model' to one item of the list", a.GetName())
+		}
+	}
+
 	return nil
 }
 
@@ -589,6 +670,11 @@ func (a *AppV3) IsEqual(i Application) bool {
 // GetMCP returns MCP specific configuration.
 func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
+}
+
+// GetMCP returns LLM specific configuration.
+func (a *AppV3) GetLLM() *LLM {
+	return a.Spec.LLM
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
@@ -705,4 +791,41 @@ func GetMCPServerTransportType(uri string) string {
 	default:
 		return ""
 	}
+}
+
+// LLMFormat indicates the API format used by clients to use an inference
+// endpoint.
+type LLMFormat = string
+
+const (
+	// LLMFormatUnspecified represents an empty LLM API format.
+	LLMFormatUnspecified LLMProvider = ""
+	// LLMFormatOpenAI represents the OpenAI LLM API format.
+	LLMFormatOpenAI LLMFormat = "openai"
+	// LLMFormatAnthropic represents the Anthropic LLM API format.
+	LLMFormatAnthropic LLMFormat = "anthropic"
+)
+
+// SupportedLLMFormats is the list of supported LLM API formats.
+var SupportedLLMFormats = []LLMFormat{LLMFormatOpenAI, LLMFormatAnthropic}
+
+// LLMProvider determines which service serves the LLM inference endpoint.
+type LLMProvider = string
+
+const (
+	// LLMProviderUnspecified represents an empty inference provider.
+	LLMProviderUnspecified LLMProvider = ""
+	// LLMProviderOpenAI represents the OpenAI LLM inference provider.
+	LLMProviderOpenAI LLMProvider = "openai"
+	// LLMProviderAnthropic represents the Anthropic LLM inference provider.
+	LLMProviderAnthropic LLMProvider = "anthropic"
+	// LLMProviderAWSBedrock represents the AWS Bedrock LLM inference provider.
+	LLMProviderAWSBedrock LLMProvider = "bedrock"
+)
+
+// SupportedLLMProviders is the list of supported LLM inference providers.
+var SupportedLLMProviders = []LLMProvider{
+	LLMProviderOpenAI,
+	LLMProviderAnthropic,
+	LLMProviderAWSBedrock,
 }

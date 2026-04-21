@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -50,6 +49,10 @@ const (
 
 	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
 	SubKindMaterialized = "materialized"
+
+	// CreatorKindAccessList indicates that the creator is an access list, for
+	// scoped role assignments materialized from access list membership.
+	CreatorKindAccessList = "access_list"
 
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
@@ -238,6 +241,19 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that create_host_user_mode is a recognized value
+	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetMode(); mode != "" {
+		var hostUserMode types.CreateHostUserMode
+		if err := hostUserMode.UnmarshalText([]byte(mode)); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.host_user_creation.create_host_user_mode %q", role.GetMetadata().GetName(), mode)
+		}
+	}
+
+	// verify that max_sessions is non-negative
+	if ms := role.GetSpec().GetSsh().GetMaxSessions(); ms < 0 {
+		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
+	}
+
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -394,8 +410,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
-	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
+	if err := scopes.StrongValidateSegment(assignment.GetMetadata().GetName()); err != nil {
+		return trace.BadParameter("scoped role assignment name %q does not conform to segment naming rules: %v", assignment.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(assignment.GetScope()); err != nil {
@@ -408,6 +424,25 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if len(assignment.GetSpec().GetAssignments()) > MaxRolesPerAssignment {
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
+	}
+
+	// Assigning to Bot is mutually exclusive with assigning to User. When
+	// assigning to Bot, we also want to ensure Bot's scope is specified.
+	botSet := assignment.GetSpec().GetBotName() != ""
+	botScope := assignment.GetSpec().GetBotScope()
+	if botSet && assignment.GetSpec().GetUser() != "" {
+		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
+	}
+	if botSet && botScope == "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
+	}
+	if !botSet && botScope != "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
+	}
+	if botSet {
+		if err := scopes.StrongValidate(botScope); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		}
 	}
 
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
@@ -429,6 +464,22 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
 			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, subAssignment.GetScope(), assignment.GetScope())
+		}
+
+		// As per the MWI Scopes RFD, we enforce a special requirement for Bot
+		// assignments. Bot's can only be assigned privileges in scopes
+		// equivalent or descendent to their scope.
+		if botSet {
+			assignmentScope := subAssignment.GetScope()
+			if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope) {
+				return trace.BadParameter(
+					"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
+					assignment.GetMetadata().GetName(),
+					i,
+					subAssignment.GetScope(),
+					assignment.GetSpec().GetBotScope(),
+				)
+			}
 		}
 	}
 
@@ -460,8 +511,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
 	}
 
 	return nil
