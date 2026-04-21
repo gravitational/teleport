@@ -942,7 +942,7 @@ func TestReplicateValidatedMFAChallenge_NonRemoteProxyDenied(t *testing.T) {
 		Username:      "test-user",
 	})
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges"))
+	require.ErrorIs(t, err, trace.AccessDenied("only remote proxy identities from the same source cluster can replicate validated MFA challenges"))
 	require.Nil(t, resp)
 }
 
@@ -1002,15 +1002,6 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				return &req
 			}(),
 			expectedError: trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request"),
-		},
-		{
-			name: "missing SourceCluster",
-			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
-				req := *validReq
-				req.SourceCluster = ""
-				return &req
-			}(),
-			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster"),
 		},
 		{
 			name: "missing TargetCluster",

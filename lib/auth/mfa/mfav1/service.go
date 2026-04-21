@@ -457,8 +457,10 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if !isRemoteProxy(*authCtx) {
-		return nil, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges")
+	if !checkRemoteProxySourceCluster(*authCtx, req.GetSourceCluster()) {
+		return nil, trace.AccessDenied(
+			"only remote proxy identities from the same source cluster can replicate validated MFA challenges",
+		)
 	}
 
 	if err := checkReplicateValidatedMFAChallengeRequest(req); err != nil {
@@ -893,8 +895,13 @@ func isLocalProxy(authContext authz.Context) bool {
 	return true
 }
 
-func isRemoteProxy(authContext authz.Context) bool {
-	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
+func checkRemoteProxySourceCluster(authContext authz.Context, sourceCluster string) bool {
+	remoteRole, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	if !ok {
+		return false
+	}
+
+	if remoteRole.ClusterName != sourceCluster {
 		return false
 	}
 
