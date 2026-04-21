@@ -288,13 +288,7 @@ func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints, db t
 	}
 
 	if len(dimensionMatchers) == 0 {
-		// Usually unreachable: Validate() ensures at least one dimension is non-empty.
-		// If only one dimension is specified, though, and has a Wildcard value, we should
-		// return an always-true matcher here so callers treat this as == "no constraints".
 		return nil
-		//return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
-		//	return true, nil
-		//})
 	}
 	if len(dimensionMatchers) == 1 {
 		return dimensionMatchers[0]
@@ -317,4 +311,113 @@ type simpleDatabaseUserMatcher struct {
 func (m *simpleDatabaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	match, _ := MatchDatabaseUser(role.GetDatabaseUsers(condition), m.user, true, false)
 	return match, nil
+}
+
+// EnumerateDatabasePrincipalsByRole iterates each role in the checker's RoleSet
+// and enumerates the database principals (users, names, roles) that each
+// individual role grants for the given database. Roles that grant no principals
+// for this database are omitted from the result.
+func EnumerateDatabasePrincipalsByRole(
+	checker AccessChecker,
+	database types.Database,
+	localCluster string,
+) map[string]types.DatabaseRolePrincipals {
+	result := make(map[string]types.DatabaseRolePrincipals)
+
+	for _, role := range checker.Roles() {
+		singleInfo := &AccessInfo{
+			Username: checker.AccessInfo().Username,
+			Traits:   checker.Traits(),
+		}
+		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+
+		var users, names []string
+		var roles []string
+
+		if res, err := singleChecker.EnumerateDatabaseUsers(database); err == nil {
+			users, _ = res.ToEntities()
+		}
+		namesResult := singleChecker.EnumerateDatabaseNames(database)
+		names, _ = namesResult.ToEntities()
+		if r, err := singleChecker.CheckDatabaseRoles(database, nil); err == nil && len(r) > 0 {
+			roles = r
+		}
+
+		if len(users) == 0 && len(names) == 0 && len(roles) == 0 {
+			continue
+		}
+
+		result[role.GetName()] = types.DatabaseRolePrincipals{
+			Users: users,
+			Names: names,
+			Roles: roles,
+		}
+	}
+
+	return result
+}
+
+// ValidateDatabaseConstraintCoverage verifies that every principal requested in
+// the database constraints is reachable by at least one of the applicable roles.
+// Wildcard principals ("*") are always considered covered.
+func ValidateDatabaseConstraintCoverage(
+	constraints *types.DatabaseResourceConstraints,
+	applicableRoles []types.Role,
+	database types.Database,
+	username string,
+	traits map[string][]string,
+	localCluster string,
+) error {
+	if constraints == nil {
+		return nil
+	}
+
+	// Compute the union of principals granted across all applicable roles.
+	coveredUsers := set.New[string]()
+	coveredNames := set.New[string]()
+	coveredRoles := set.New[string]()
+
+	for _, role := range applicableRoles {
+		singleInfo := &AccessInfo{
+			Username: username,
+			Traits:   traits,
+		}
+		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+
+		if res, err := singleChecker.EnumerateDatabaseUsers(database); err == nil {
+			entities, _ := res.ToEntities()
+			for _, e := range entities {
+				coveredUsers.Add(e)
+			}
+		}
+		namesResult := singleChecker.EnumerateDatabaseNames(database)
+		entities, _ := namesResult.ToEntities()
+		for _, e := range entities {
+			coveredNames.Add(e)
+		}
+		if r, err := singleChecker.CheckDatabaseRoles(database, nil); err == nil {
+			for _, e := range r {
+				coveredRoles.Add(e)
+			}
+		}
+	}
+
+	// Check that every requested principal is covered.
+	for _, u := range constraints.Users {
+		if u != types.Wildcard && !coveredUsers.Contains(u) {
+			return trace.BadParameter("requested database user %q is not granted by any applicable role", u)
+		}
+	}
+	for _, n := range constraints.Names {
+		if n != types.Wildcard && !coveredNames.Contains(n) {
+			return trace.BadParameter("requested database name %q is not granted by any applicable role", n)
+		}
+	}
+	for _, r := range constraints.Roles {
+		if r != types.Wildcard && !coveredRoles.Contains(r) {
+			return trace.BadParameter("requested database role %q is not granted by any applicable role", r)
+		}
+	}
+
+	return nil
 }

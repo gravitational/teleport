@@ -34,12 +34,9 @@ type UnifiedResourcePrincipals struct {
 	Logins *webui.PrincipalSet
 	// AWSRoleARNs is populated for AWS Console apps.
 	AWSRoleARNs *webui.PrincipalSet
-	// DBUsers is populated for databases.
-	DBUsers *webui.PrincipalSet
-	// DBNames is populated for databases.
-	DBNames *webui.PrincipalSet
-	// DBRoles is populated for databases.
-	DBRoles *webui.PrincipalSet
+	// DBPrincipalsByRole maps Teleport role names to the per-role database
+	// principal groups (with requiresRequest metadata). Populated for databases.
+	DBPrincipalsByRole map[string]webui.DatabaseRolePrincipalGroup
 	// DBAutoUserEnabled indicates that auto-user provisioning is enabled for
 	// a database resource, considering both granted and requestable roles.
 	DBAutoUserEnabled bool
@@ -81,7 +78,7 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 		}
 		result.AWSRoleARNs = arns
 	case types.DatabaseServer:
-		result.DBUsers, result.DBNames, result.DBRoles = databasePrincipals(opts, r)
+		result.DBPrincipalsByRole = databasePrincipalsByRole(opts, r)
 		db := r.GetDatabase()
 		// Determine auto-user status considering both granted and requestable roles.
 		if mode, err := opts.AccessChecker.DatabaseAutoUserMode(db); err == nil {
@@ -92,7 +89,7 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 		// checker (CheckDatabaseRoles only returns non-empty when
 		// CreateDatabaseUserMode is enabled on some role in the checker's RoleSet).
 		if !result.DBAutoUserEnabled && (opts.IncludeRequestable || opts.UseSearchAsRoles) &&
-			db.IsAutoUsersEnabled() && len(opts.Resource.GetPrincipals(types.PrincipalKindDBRoles)) > 0 {
+			db.IsAutoUsersEnabled() && hasDBRolesInAnyEntry(opts.Resource.DatabasePrincipalsByRole) {
 			result.DBAutoUserEnabled = true
 		}
 	}
@@ -163,57 +160,45 @@ func appPrincipals(opts PrincipalsForUnifiedResourceOpts, appServer types.AppSer
 	return ps, nil
 }
 
-// databasePrincipals computes database user, name, and role principals for
-// a database server resource.
-//
-// All principals come from the enriched resource's Principals map (populated by
-// auth, potentially with search_as_roles). When IncludeRequestable is set,
-// granted principals are computed separately from the base access checker so
-// the frontend can distinguish granted vs. requestable.
-func databasePrincipals(opts PrincipalsForUnifiedResourceOpts, dbServer types.DatabaseServer) (users, names, roles *webui.PrincipalSet) {
-	db := dbServer.GetDatabase()
-
-	allUsers := opts.Resource.GetPrincipals(types.PrincipalKindDBUsers)
-	allNames := opts.Resource.GetPrincipals(types.PrincipalKindDBNames)
-	allRoles := opts.Resource.GetPrincipals(types.PrincipalKindDBRoles)
-
-	users = principalSetFromSlice(allUsers)
-	names = principalSetFromSlice(allNames)
-	roles = principalSetFromSlice(allRoles)
-
-	if !opts.IncludeRequestable {
-		return
-	}
-
-	// Compute granted from base access checker to distinguish requestable principals.
-	if users != nil {
-		if res, err := opts.AccessChecker.EnumerateDatabaseUsers(db); err == nil {
-			granted, _ := res.ToEntities()
-			users.Granted = set.New(granted...)
-		}
-	}
-	if names != nil {
-		namesResult := opts.AccessChecker.EnumerateDatabaseNames(db)
-		granted, _ := namesResult.ToEntities()
-		names.Granted = set.New(granted...)
-	}
-	if roles != nil {
-		if r, err := opts.AccessChecker.CheckDatabaseRoles(db, nil); err == nil {
-			roles.Granted = set.New(r...)
-		}
-	}
-
-	return
-}
-
-// principalSetFromSlice creates a PrincipalSet where All == Granted from a
-// string slice. Returns nil if the slice is empty.
-func principalSetFromSlice(principals []string) *webui.PrincipalSet {
-	if len(principals) == 0 {
+// databasePrincipalsByRole converts per-role database principal data from the
+// enriched resource into web UI types, marking each role's principals as
+// requiring a request if the role is not in the user's base (granted) role set.
+func databasePrincipalsByRole(opts PrincipalsForUnifiedResourceOpts, _ types.DatabaseServer) map[string]webui.DatabaseRolePrincipalGroup {
+	byRole := opts.Resource.DatabasePrincipalsByRole
+	if len(byRole) == 0 {
 		return nil
 	}
-	s := set.New(principals...)
-	return &webui.PrincipalSet{All: s, Granted: s.Clone()}
+
+	// Build a set of the user's base (granted) role names to determine
+	// which enriched roles are granted vs. requestable.
+	grantedRoles := set.New[string]()
+	if opts.IncludeRequestable {
+		for _, r := range opts.AccessChecker.Roles() {
+			grantedRoles.Add(r.GetName())
+		}
+	}
+
+	result := make(map[string]webui.DatabaseRolePrincipalGroup, len(byRole))
+	for roleName, p := range byRole {
+		requiresRequest := opts.IncludeRequestable && !grantedRoles.Contains(roleName)
+		result[roleName] = webui.DatabaseRolePrincipalGroup{
+			RequiresRequest: requiresRequest,
+			Users:           p.Users,
+			Names:           p.Names,
+			Roles:           p.Roles,
+		}
+	}
+	return result
+}
+
+// hasDBRolesInAnyEntry checks if any entry in the per-role map has non-empty Roles.
+func hasDBRolesInAnyEntry(byRole map[string]types.DatabaseRolePrincipals) bool {
+	for _, p := range byRole {
+		if len(p.Roles) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // filterByIdentityPrincipals returns the intersection of allowedLogins with

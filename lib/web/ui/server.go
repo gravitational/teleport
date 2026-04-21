@@ -19,6 +19,7 @@
 package ui
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -41,12 +42,17 @@ type SSHLogin struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
-// DatabasePrincipalDetail describes a database principal with request metadata.
-type DatabasePrincipalDetail struct {
-	// Value is the principal value.
-	Value string `json:"value"`
-	// RequiresRequest indicates whether this principal requires an access request to be used.
+// DatabaseRolePrincipalGroup describes the database principals that a single
+// Teleport role grants, along with whether the role requires an access request.
+type DatabaseRolePrincipalGroup struct {
+	// RequiresRequest indicates whether this role requires an access request.
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// Users is the list of database users this role grants.
+	Users []string `json:"users,omitempty"`
+	// Names is the list of database names this role grants.
+	Names []string `json:"names,omitempty"`
+	// Roles is the list of database roles this role grants (for auto-user provisioning).
+	Roles []string `json:"roles,omitempty"`
 }
 
 // Server describes a server for webapp
@@ -160,15 +166,6 @@ func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
 			Login:           login,
 			RequiresRequest: !logins.Granted.Contains(login),
 		}
-	})
-}
-
-func buildDatabaseDetailsFromSet(ps *PrincipalSet) []DatabasePrincipalDetail {
-	if ps == nil {
-		return nil
-	}
-	return sliceutils.Map(ps.All.Elements(), func(principal string) DatabasePrincipalDetail {
-		return DatabasePrincipalDetail{Value: principal, RequiresRequest: !ps.Granted.Contains(principal)}
 	})
 }
 
@@ -380,15 +377,10 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
 	DatabaseRoles []string `json:"database_roles,omitempty"`
-	// DatabaseUserDetails provides per-user metadata (e.g. whether a user requires an access request).
-	// Only populated when the handler has requestable principal info.
-	DatabaseUserDetails []DatabasePrincipalDetail `json:"databaseUserDetails,omitempty"`
-	// DatabaseNameDetails provides per-name metadata (e.g. whether a name requires an access request).
-	// Only populated when the handler has requestable principal info.
-	DatabaseNameDetails []DatabasePrincipalDetail `json:"databaseNameDetails,omitempty"`
-	// DatabaseRoleDetails provides per-role metadata (e.g. whether a role requires an access request).
-	// Only populated when the handler has requestable principal info.
-	DatabaseRoleDetails []DatabasePrincipalDetail `json:"databaseRoleDetails,omitempty"`
+	// DatabasePrincipalsByRole maps Teleport role names to the database principals
+	// each role grants, with requiresRequest metadata. Used by the frontend to
+	// show valid principal combinations and prevent selection of incompatible ones.
+	DatabasePrincipalsByRole map[string]DatabaseRolePrincipalGroup `json:"databasePrincipalsByRole,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -438,12 +430,9 @@ type DatabaseInteractiveChecker interface {
 // requestable (search_as_roles) access. When provided to MakeDatabase, it
 // takes precedence over computing principals from the base AccessChecker.
 type DatabasePrincipals struct {
-	// Users holds granted and requestable database user principals.
-	Users *PrincipalSet
-	// Names holds granted and requestable database name principals.
-	Names *PrincipalSet
-	// Roles holds granted and requestable database role principals.
-	Roles *PrincipalSet
+	// ByRole maps Teleport role names to the principals each role grants,
+	// with requiresRequest metadata.
+	ByRole map[string]DatabaseRolePrincipalGroup
 	// AutoUserEnabled indicates that auto-user provisioning is enabled,
 	// considering both granted and requestable roles.
 	AutoUserEnabled bool
@@ -463,9 +452,9 @@ type MakeDatabaseConfig struct {
 
 // MakeDatabase creates database objects.
 //
-// When Principals is provided, its fields are used for both the flat principal
-// lists and the per-principal detail objects. When nil, principals and
-// auto-user status are computed from AccessChecker.
+// When Principals is provided, its ByRole map is used for the role-grouped
+// field, and flat principal lists are derived by unioning across all entries.
+// When nil, principals and auto-user status are computed from AccessChecker.
 func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 	var (
 		autoUserEnabled bool
@@ -476,16 +465,18 @@ func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 
 	p := c.Principals
 	if p != nil {
-		// Use enriched principals from the unified resource listing.
-		if p.Users != nil {
-			dbUsers = p.Users.All.Elements()
+		// Derive flat principal lists by unioning across all role entries.
+		for _, entry := range p.ByRole {
+			dbUsers = append(dbUsers, entry.Users...)
+			dbNames = append(dbNames, entry.Names...)
+			dbRoles = append(dbRoles, entry.Roles...)
 		}
-		if p.Names != nil {
-			dbNames = p.Names.All.Elements()
-		}
-		if p.Roles != nil {
-			dbRoles = p.Roles.All.Elements()
-		}
+		dbUsers = slices.Compact(slices.Clone(dbUsers))
+		slices.Sort(dbUsers)
+		dbNames = slices.Compact(slices.Clone(dbNames))
+		slices.Sort(dbNames)
+		dbRoles = slices.Compact(slices.Clone(dbRoles))
+		slices.Sort(dbRoles)
 		autoUserEnabled = p.AutoUserEnabled
 	} else {
 		// Fall back to computing from the base AccessChecker. This is the path taken by
@@ -539,11 +530,9 @@ func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 		}
 	}
 
-	// Build per-principal detail objects from PrincipalSets.
-	if p != nil {
-		db.DatabaseUserDetails = buildDatabaseDetailsFromSet(p.Users)
-		db.DatabaseNameDetails = buildDatabaseDetailsFromSet(p.Names)
-		db.DatabaseRoleDetails = buildDatabaseDetailsFromSet(p.Roles)
+	// Set per-role principal grouping for the frontend constraint UI.
+	if p != nil && len(p.ByRole) > 0 {
+		db.DatabasePrincipalsByRole = p.ByRole
 	}
 
 	return db

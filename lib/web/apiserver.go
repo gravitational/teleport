@@ -3563,9 +3563,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			}
 			if principals != nil {
 				cfg.Principals = &ui.DatabasePrincipals{
-					Users:           principals.DBUsers,
-					Names:           principals.DBNames,
-					Roles:           principals.DBRoles,
+					ByRole:          principals.DBPrincipalsByRole,
 					AutoUserEnabled: principals.DBAutoUserEnabled,
 				}
 			}

@@ -980,9 +980,8 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 				},
 			}),
 			principals: &DatabasePrincipals{
-				Roles: &PrincipalSet{
-					All:     set.New("reader", "writer"),
-					Granted: set.New[string](),
+				ByRole: map[string]DatabaseRolePrincipalGroup{
+					"test-role": {Roles: []string{"reader", "writer"}},
 				},
 				AutoUserEnabled: true,
 			},

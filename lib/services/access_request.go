@@ -2560,6 +2560,24 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 					`resources: %s roles: %v unmatched resources: %v`,
 				resourcesStr, roles, kubeResourceMatcher.Unmatched())
 		}
+		// Validate per-principal reachability for database constraints.
+		if constraints != nil {
+			if dbConstraints := constraints.GetDatabase(); dbConstraints != nil {
+				if db, ok := resource.(types.Database); ok {
+					if err := ValidateDatabaseConstraintCoverage(
+						dbConstraints,
+						rolesForResource,
+						db,
+						m.userState.GetName(),
+						m.userState.GetTraits(),
+						localClusterName,
+					); err != nil {
+						return nil, trace.Wrap(err)
+					}
+				}
+			}
+		}
+
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
 			// allowed logins. All roles at this point have already matched the

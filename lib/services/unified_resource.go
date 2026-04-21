@@ -38,7 +38,6 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1236,12 +1235,12 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 	}
 
 	var logins []string
-	var principals map[string]*wrappers.StringValues
+	var dbPrincipalsByRole map[string]*proto.DatabaseRolePrincipals
 	resource := r
 	if enriched, ok := r.(*types.EnrichedResource); ok {
 		resource = enriched.ResourceWithLabels
 		logins = enriched.Logins
-		principals = mapPrincipalsToProto(enriched.Principals)
+		dbPrincipalsByRole = mapDatabasePrincipalsByRoleToProto(enriched.DatabasePrincipalsByRole)
 	}
 
 	switch resourceKind {
@@ -1364,21 +1363,26 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}
 
-	if len(principals) > 0 {
-		protoResource.Principals = principals
+	if len(dbPrincipalsByRole) > 0 {
+		protoResource.DatabasePrincipalsByRole = dbPrincipalsByRole
 	}
 
 	return protoResource, nil
 }
 
-// mapPrincipalsToProto converts a Go principals map to proto StringValues map.
-func mapPrincipalsToProto(principals map[types.PrincipalKind][]string) map[string]*wrappers.StringValues {
-	if len(principals) == 0 {
+// mapDatabasePrincipalsByRoleToProto converts the Go DatabasePrincipalsByRole
+// map to the corresponding proto map.
+func mapDatabasePrincipalsByRoleToProto(byRole map[string]types.DatabaseRolePrincipals) map[string]*proto.DatabaseRolePrincipals {
+	if len(byRole) == 0 {
 		return nil
 	}
-	out := make(map[string]*wrappers.StringValues, len(principals))
-	for k, v := range principals {
-		out[string(k)] = &wrappers.StringValues{Values: v}
+	out := make(map[string]*proto.DatabaseRolePrincipals, len(byRole))
+	for k, v := range byRole {
+		out[k] = &proto.DatabaseRolePrincipals{
+			Users: v.Users,
+			Names: v.Names,
+			Roles: v.Roles,
+		}
 	}
 	return out
 }
