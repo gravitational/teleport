@@ -591,14 +591,14 @@ referralLoop:
 			entries, err := func() ([]*ldap.Entry, error) {
 				newClient, closer, err := r.newSearcher(ctx, host)
 				if err != nil {
-					r.logger.InfoContext(ctx, "Failed to dial LDAPS server while chasing referral", "error", err, "hostname", host)
+					r.logger.ErrorContext(ctx, "Failed to dial LDAPS server while chasing referral", "error", err, "hostname", host)
 					return nil, err
 				}
 				defer closer()
 
 				entries, err := r.run(ctx, newClient, newRequestFromReferral(request, ref), depth+1)
 				if err != nil {
-					r.logger.InfoContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
+					r.logger.WarnContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
 					return nil, err
 				}
 				return entries, nil
