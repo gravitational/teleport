@@ -339,9 +339,9 @@ message RouteToWindowsDesktop {
 // RouteToLinuxDesktop combines parameters for Linux desktop routing information.
 message RouteToLinuxDesktop {
   // LinuxDesktop is the Linux Desktop server name to embed.
-  string LinuxDesktop = 1 [(gogoproto.jsontag) = "Linux_desktop"];
+  string linux_desktop = 1;
   // Login is the Linux desktop user login to embed.
-  string Login = 2 [(gogoproto.jsontag) = "login"];
+  string login = 2;
 }
 
 // RouteToApp contains parameters for application access certificate requests.
