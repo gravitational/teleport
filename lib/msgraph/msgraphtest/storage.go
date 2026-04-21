@@ -104,10 +104,10 @@ func NewDefaultStorage() *Storage {
 
 	app1 := &models.Application{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr(App1ID),
+			ID:          to.Ptr("ddca8610-0fa7-4acf-a80a-4d3b9c8346b9"),
 			DisplayName: to.Ptr("test SAML App"),
 		},
-		AppID: to.Ptr("app1"),
+		AppID: to.Ptr(App1ID),
 	}
 	storage.Applications[App1ID] = app1
 
