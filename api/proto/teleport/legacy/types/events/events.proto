@@ -4201,35 +4201,35 @@ message LinuxDesktopSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
   // DesktopAddr is the address of the desktop being accessed.
-  string DesktopAddr = 4 [(gogoproto.jsontag) = "desktop_addr"];
-  string LinuxUser = 5 [(gogoproto.jsontag) = "linux_user"];
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
+  string LinuxUser = 6 [(gogoproto.jsontag) = "linux_user"];
   // DesktopLabels are the labels on the desktop resource.
-  map<string, string> DesktopLabels = 6 [(gogoproto.jsontag) = "desktop_labels"];
+  map<string, string> DesktopLabels = 7 [(gogoproto.jsontag) = "desktop_labels"];
   // StartTime is the timestamp at which the session began.
-  google.protobuf.Timestamp StartTime = 7 [
+  google.protobuf.Timestamp StartTime = 8 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_start,omitempty" // JSON tag intentionally matches SessionEnd event
   ];
   // EndTime is the timestamp at which the session ended.
-  google.protobuf.Timestamp EndTime = 8 [
+  google.protobuf.Timestamp EndTime = 9 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_stop,omitempty"
   ];
   // DesktopName is the name of the desktop resource.
-  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
+  string DesktopName = 10 [(gogoproto.jsontag) = "desktop_name"];
   // Recorded is true if the session was recorded, false otherwise.
-  bool Recorded = 10 [(gogoproto.jsontag) = "recorded"];
+  bool Recorded = 11 [(gogoproto.jsontag) = "recorded"];
   // Participants is a list of participants in the session.
-  repeated string Participants = 11 [(gogoproto.jsontag) = "participants"];
-  // Connection holds information about the connection.
-  ConnectionMetadata Connection = 12 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
+  repeated string Participants = 12 [(gogoproto.jsontag) = "participants"];
 }
 
 // CertificateCreate is emitted when a certificate is issued.

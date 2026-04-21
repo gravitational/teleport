@@ -70,9 +70,20 @@ export interface ServerHello {
      */
     directoryRemoveSupported: boolean;
     /**
-     * @generated from protobuf field: repeated teleport.desktop.v1.SessionSelection sessions = 4;
+     * @generated from protobuf field: repeated teleport.desktop.v1.SessionIdentifier sessions = 4;
      */
-    sessions: SessionSelection[];
+    sessions: SessionIdentifier[];
+}
+/**
+ * Used to identify sessions available to and selected by users
+ *
+ * @generated from protobuf message teleport.desktop.v1.SessionIdentifier
+ */
+export interface SessionIdentifier {
+    /**
+     * @generated from protobuf field: string name = 1;
+     */
+    name: string;
 }
 /**
  * Sent by client to select one of available sessions
@@ -81,9 +92,9 @@ export interface ServerHello {
  */
 export interface SessionSelection {
     /**
-     * @generated from protobuf field: string name = 1;
+     * @generated from protobuf field: teleport.desktop.v1.SessionIdentifier session = 1;
      */
-    name: string;
+    session?: SessionIdentifier;
 }
 /**
  * Defines the boundaries that PNG frame will update.
@@ -1051,7 +1062,7 @@ class ServerHello$Type extends MessageType<ServerHello> {
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSelection }
+            { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
@@ -1077,8 +1088,8 @@ class ServerHello$Type extends MessageType<ServerHello> {
                 case /* bool directory_remove_supported */ 3:
                     message.directoryRemoveSupported = reader.bool();
                     break;
-                case /* repeated teleport.desktop.v1.SessionSelection sessions */ 4:
-                    message.sessions.push(SessionSelection.internalBinaryRead(reader, reader.uint32(), options));
+                case /* repeated teleport.desktop.v1.SessionIdentifier sessions */ 4:
+                    message.sessions.push(SessionIdentifier.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1101,9 +1112,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool directory_remove_supported = 3; */
         if (message.directoryRemoveSupported !== false)
             writer.tag(3, WireType.Varint).bool(message.directoryRemoveSupported);
-        /* repeated teleport.desktop.v1.SessionSelection sessions = 4; */
+        /* repeated teleport.desktop.v1.SessionIdentifier sessions = 4; */
         for (let i = 0; i < message.sessions.length; i++)
-            SessionSelection.internalBinaryWrite(message.sessions[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+            SessionIdentifier.internalBinaryWrite(message.sessions[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1115,20 +1126,20 @@ class ServerHello$Type extends MessageType<ServerHello> {
  */
 export const ServerHello = new ServerHello$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class SessionSelection$Type extends MessageType<SessionSelection> {
+class SessionIdentifier$Type extends MessageType<SessionIdentifier> {
     constructor() {
-        super("teleport.desktop.v1.SessionSelection", [
+        super("teleport.desktop.v1.SessionIdentifier", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<SessionSelection>): SessionSelection {
+    create(value?: PartialMessage<SessionIdentifier>): SessionIdentifier {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.name = "";
         if (value !== undefined)
-            reflectionMergePartial<SessionSelection>(this, message, value);
+            reflectionMergePartial<SessionIdentifier>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionSelection): SessionSelection {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionIdentifier): SessionIdentifier {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -1147,10 +1158,56 @@ class SessionSelection$Type extends MessageType<SessionSelection> {
         }
         return message;
     }
-    internalBinaryWrite(message: SessionSelection, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: SessionIdentifier, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string name = 1; */
         if (message.name !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SessionIdentifier
+ */
+export const SessionIdentifier = new SessionIdentifier$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionSelection$Type extends MessageType<SessionSelection> {
+    constructor() {
+        super("teleport.desktop.v1.SessionSelection", [
+            { no: 1, name: "session", kind: "message", T: () => SessionIdentifier }
+        ]);
+    }
+    create(value?: PartialMessage<SessionSelection>): SessionSelection {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SessionSelection>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionSelection): SessionSelection {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.SessionIdentifier session */ 1:
+                    message.session = SessionIdentifier.internalBinaryRead(reader, reader.uint32(), options, message.session);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionSelection, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.SessionIdentifier session = 1; */
+        if (message.session)
+            SessionIdentifier.internalBinaryWrite(message.session, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
