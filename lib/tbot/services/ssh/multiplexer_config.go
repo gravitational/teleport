@@ -106,7 +106,10 @@ func (o *MultiplexerConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node
 	return nil
 }
 
-func (s *MultiplexerConfig) CheckAndSetDefaults() error {
+func (s *MultiplexerConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", MultiplexerServiceType)
+	}
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}
