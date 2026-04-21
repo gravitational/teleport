@@ -23,7 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-func newNetworkStackConfig(ctx context.Context, tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
 	clock := clockwork.NewRealClock()
 	sshProvider, err := newSSHProvider(ctx, sshProviderConfig{
 		clt:   clt,
