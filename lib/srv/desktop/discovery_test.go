@@ -114,6 +114,7 @@ func TestDNToDomain(t *testing.T) {
 	}{
 		{"CN=Computers,DC=child,DC=root,DC=zac,DC=local", "child.root.zac.local"},
 		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,DC=domain,DC=ad,DC=example,DC=com", "domain.ad.example.com"},
+		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,dC=domain,Dc=ad,dc=example,DC=com", "domain.ad.example.com"},
 		{"", ""},
 		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup", ""},
 	} {
