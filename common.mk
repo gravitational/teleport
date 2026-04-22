@@ -64,4 +64,4 @@ GODA = "$$( GOWORK=off go -C $(TOOLS_DIR)/goda tool -n goda )"
 BENCHSTAT = "$$( GOWORK=off go -C $(TOOLS_DIR)/benchstat tool -n benchstat )"
 # TOOLING_DIR contains internal tooling
 TOOLING_DIR := $(abspath $(COMMON_MK_DIR)/build.assets/tooling)
-HELMJANITOR = "$$( GOWORK=off go -C $(TOOLING_DIR) tool -n helm-janitor )"
+HELMJANITOR = "$$( GOWORK=off CGO_ENABLED=0 go -C $(TOOLING_DIR) tool -n helm-janitor )"
