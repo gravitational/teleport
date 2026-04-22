@@ -35,10 +35,10 @@ type KubeAccessChecker struct {
 // CanAccessCluster checks whether read access to the specified kube server is possible without
 // regard to a specific MFA state. Used for listing/filtering.
 func (c *KubeAccessChecker) CanAccessCluster(target types.KubeCluster) error {
-	return c.checker.CheckAccess(target, AccessState{MFAVerified: true})
+	return c.checker.commonAccessChecker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
 // GetGroupsAndUsers returns the kube groups and users that are permitted for impersonation.
 func (c *KubeAccessChecker) GetGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
-	return c.checker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
+	return c.checker.commonAccessChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 }

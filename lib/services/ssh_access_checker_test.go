@@ -67,7 +67,7 @@ func newScopedCheckerWithRoleAndTraits(t *testing.T, spec *scopedaccessv1.Scoped
 	commonAccessChecker := newAccessChecker(accessInfo, "local", NewRoleSet(classicRole))
 	return &ScopedAccessChecker{
 		role:                scopedRole,
-		CommonAccessChecker: commonAccessChecker,
+		commonAccessChecker: commonAccessChecker,
 	}
 }
 

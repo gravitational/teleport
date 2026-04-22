@@ -121,7 +121,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		scopeOfOrigin:       key.scopeOfOrigin,
 		scopeOfEffect:       key.scopeOfEffect,
 		role:                rsp.Role,
-		CommonAccessChecker: checker,
+		commonAccessChecker: checker,
 	}, nil
 }
 
@@ -136,7 +136,7 @@ func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       scopes.Root,
 		scopeOfEffect:       scopes.Root,
-		CommonAccessChecker: commonChecker,
+		commonAccessChecker: commonChecker,
 		role: &scopedaccessv1.ScopedRole{
 			Metadata: &headerv1.Metadata{
 				Name: constants.DefaultImplicitRole,
@@ -176,7 +176,7 @@ type ScopedAccessChecker struct {
 	// Non-nil iff !isScoped().
 	unscopedChecker AccessChecker
 
-	// CommonAccessChecker provides a common implementation of some access
+	// commonAccessChecker provides a common implementation of some access
 	// checks for scoped and unscoped identities. It is always set to a valid
 	// access checker.
 	//
@@ -184,14 +184,14 @@ type ScopedAccessChecker struct {
 	//
 	// For scoped identities, it is constructed by converting a scoped role to
 	// an unscoped role with [scopedaccess.ScopedRoleToRole].
-	CommonAccessChecker
+	commonAccessChecker commonAccessChecker
 }
 
-// CommonAccessChecker is the subset of [AccessChecker] methods with a common
+// commonAccessChecker is the subset of [AccessChecker] methods with a common
 // implementation for scoped and unscoped roles. These are the methods that are
 // sementically correct when the access checker as been built from a scoped
 // role has been converted to an unscoped role with [scopedaccess.ScopedRoleToRole].
-type CommonAccessChecker interface {
+type commonAccessChecker interface {
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
 	AccessInfo() *AccessInfo
@@ -215,7 +215,7 @@ type CommonAccessChecker interface {
 func NewScopedAccessCheckerFromUnscoped(checker AccessChecker) *ScopedAccessChecker {
 	return &ScopedAccessChecker{
 		unscopedChecker:     checker,
-		CommonAccessChecker: checker,
+		commonAccessChecker: checker,
 	}
 }
 
@@ -236,9 +236,21 @@ func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
 	return &KubeAccessChecker{checker: c}
 }
 
+// AccessInfo returns the AccessInfo that this access checker is based on.
+func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
+	return c.commonAccessChecker.AccessInfo()
+}
+
+// Traits returns the set of user traits.
+func (c *ScopedAccessChecker) Traits() wrappers.Traits {
+	// there is no concept of scoped traits currently, and none is planned or would be feasible at least
+	// until we've fully migrated to PDP and deprecated certificate-based traits.
+	return c.commonAccessChecker.Traits()
+}
+
 // CheckAccessToRules verifies that *all* of a series of verbs are permitted for the specified resource.
 func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
-	return checkAccessToRulesImpl(c.CommonAccessChecker, ctx, resource, verbs...)
+	return checkAccessToRulesImpl(c.commonAccessChecker, ctx, resource, verbs...)
 }
 
 // CheckAccessToRemoteCluster checks access to a remote cluster.
@@ -254,10 +266,43 @@ func (c *ScopedAccessChecker) CheckAccessToRemoteCluster(cluster types.RemoteClu
 	return trace.AccessDenied("remote cluster access is not permitted for scoped identities")
 }
 
+// AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL for this role set.
+func (c *ScopedAccessChecker) AdjustSessionTTL(ttl time.Duration) time.Duration {
+	// the naive implementation of this method for scopes may have problematic interactions with
+	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
+	return c.commonAccessChecker.AdjustSessionTTL(ttl)
+}
+
+// PrivateKeyPolicy returns the enforced private key policy, or the provided default, whichever is stricter.
+func (c *ScopedAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
+	// the naive implementation of this method for scopes may have problematic interactions with
+	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
+	return c.commonAccessChecker.PrivateKeyPolicy(defaultPolicy)
+}
+
+// PinSourceIP returns whether source IP pinning is enforced.
+func (c *ScopedAccessChecker) PinSourceIP() bool {
+	// the naive implementation of this method for scopes may have problematic interactions with
+	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
+	return c.commonAccessChecker.PinSourceIP()
+}
+
+// LockingMode returns the locking mode to apply.
+func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	// the naive implementation of this method for scopes may have problematic interactions with
+	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
+	return c.commonAccessChecker.LockingMode(defaultMode)
+}
+
+// DelegationSessionID returns the ID of the current Delegation Session.
+func (c *ScopedAccessChecker) DelegationSessionID() string {
+	return c.commonAccessChecker.DelegationSessionID()
+}
+
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.
-func checkAccessToRulesImpl(checker CommonAccessChecker, ctx RuleContext, resource string, verbs ...string) error {
+func checkAccessToRulesImpl(checker commonAccessChecker, ctx RuleContext, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed rule check for %q, no verbs provided (this is a bug)", resource)
 	}

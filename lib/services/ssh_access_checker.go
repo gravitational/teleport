@@ -38,13 +38,13 @@ type SSHAccessChecker struct {
 
 // CheckAccessToSSHServer checks access to an SSH server for the given OS user.
 func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
-	return c.checker.CheckAccess(target, state, NewLoginMatcher(osUser))
+	return c.checker.commonAccessChecker.CheckAccess(target, state, NewLoginMatcher(osUser))
 }
 
 // CanAccessSSHServer checks whether read access to the specified SSH server is possible without
 // regard to a specific OS user or MFA state. Used for listing/filtering.
 func (c *SSHAccessChecker) CanAccessSSHServer(target types.Server) error {
-	return c.checker.CheckAccess(target, AccessState{MFAVerified: true})
+	return c.checker.commonAccessChecker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
 // AdjustClientIdleTimeout determines the SSH client idle timeout to apply. The supplied argument must be
@@ -75,22 +75,22 @@ func (c *SSHAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.
 
 // AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
 func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
-	return c.checker.AdjustDisconnectExpiredCert(disconnect)
+	return c.checker.commonAccessChecker.AdjustDisconnectExpiredCert(disconnect)
 }
 
 // SessionRecordingMode returns the session recording mode for SSH sessions.
 func (c *SSHAccessChecker) SessionRecordingMode() constants.SessionRecordingMode {
-	return c.checker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
+	return c.checker.commonAccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
 }
 
 // CanPortForward returns true if port forwarding is permitted.
 func (c *SSHAccessChecker) CanPortForward() bool {
-	return c.checker.CanPortForward()
+	return c.checker.commonAccessChecker.CanPortForward()
 }
 
 // CanForwardAgents returns true if SSH agent forwarding is permitted.
 func (c *SSHAccessChecker) CanForwardAgents() bool {
-	return c.checker.CanForwardAgents()
+	return c.checker.commonAccessChecker.CanForwardAgents()
 }
 
 // PermitX11Forwarding returns true if X11 forwarding is permitted.
@@ -141,7 +141,7 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
 func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
-	return c.checker.EnhancedRecordingSet()
+	return c.checker.commonAccessChecker.EnhancedRecordingSet()
 }
 
 // HostUsers returns host user creation information for the server, or nil if host user creation is disabled.
@@ -219,7 +219,7 @@ func (c *SSHAccessChecker) CheckAgentForward(login string) error {
 // MaxConnections returns the maximum number of concurrent SSH connections permitted.
 // A value of zero means unconstrained.
 func (c *SSHAccessChecker) MaxConnections() int64 {
-	return c.checker.MaxConnections()
+	return c.checker.commonAccessChecker.MaxConnections()
 }
 
 // MaxSessions returns the maximum number of concurrent SSH sessions per connection permitted.
