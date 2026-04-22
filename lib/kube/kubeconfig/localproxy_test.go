@@ -187,7 +187,7 @@ func TestLocalProxy(t *testing.T) {
 			ProxyURL:                 "http://localhost:12345",
 			Server:                   rootKubeClusterAddr,
 			CertificateAuthorityData: caData,
-			TLSServerName:            "6b75626531.root-cluster",
+			TLSServerName:            "km6thp5mvltcgm1abrrnbmi6osqnrseakqcfrrdtm879it3kbh5dg.root-cluster",
 			LocationOfOrigin:         kubeconfigPath,
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
