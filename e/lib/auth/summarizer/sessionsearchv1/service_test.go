@@ -520,6 +520,18 @@ func TestAuthorizeIsEnabled(t *testing.T) {
 			},
 		},
 		{
+			name: "admin builtin role allowed",
+			authCtx: &authz.Context{
+				User:             proxyUser,
+				Checker:          fakeChecker{roles: []string{string(types.RoleAdmin)}},
+				Identity:         authz.BuiltinRole{Role: types.RoleAdmin, Username: "admin"},
+				UnmappedIdentity: authz.BuiltinRole{Role: types.RoleAdmin, Username: "admin"},
+			},
+			assert: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
 			name: "non proxy service denied",
 			authCtx: &authz.Context{
 				User:             proxyUser,

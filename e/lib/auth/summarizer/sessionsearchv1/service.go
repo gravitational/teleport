@@ -171,7 +171,7 @@ func (s *Service) IsEnabled(
 	}, nil
 }
 
-// authorizeIsEnabled enforces that the caller is either a proxy or has access to
+// authorizeIsEnabled enforces that the caller is either a proxy or admin role, or has access to
 // list/read sessions. This is a coarse-grained check that doesn't consider the
 // caller's access to individual sessions, but it is sufficient to gate the
 // IsEnabled method since its purpose is just to short-circuit the session search
@@ -179,6 +179,11 @@ func (s *Service) IsEnabled(
 func authorizeIsEnabled(authCtx *authz.Context) error {
 	// Authorize proxy role.
 	if authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil
+	}
+
+	// Authorize admin role.
+	if authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil
 	}
 
