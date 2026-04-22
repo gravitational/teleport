@@ -556,10 +556,12 @@ func (c *ServerContext) ConfigureCommand(extraFiles ...*os.File) (*reexec.Comman
 		return nil, trace.Wrap(err)
 	}
 	executor, err := reexec.ConfigureCommand(c.CancelContext(), c.Logger, c.srv.ChildLogConfig().Writer, command, c.ExecType, extraFiles...)
-	if err == nil {
-		c.AddCloser(executor)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return executor, err
+
+	c.AddCloser(executor)
+	return executor, nil
 }
 
 // Parent grants access to the connection-level context of which this
