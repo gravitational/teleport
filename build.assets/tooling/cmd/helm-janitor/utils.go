@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,8 +35,9 @@ func run(ctx context.Context, command string, args ...string) ([]byte, []byte, e
 	cmd.Stderr = &stderr
 	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err, "command %s exited with status %d", command, exiterr.ExitCode())
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err, "command %s exited with status %d", command, exitErr.ExitCode())
 		}
 		return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err)
 	}
