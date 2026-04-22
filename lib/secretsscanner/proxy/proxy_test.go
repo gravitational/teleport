@@ -45,7 +45,7 @@ func TestProxy(t *testing.T) {
 	// Disable the TLS routing connection upgrade
 	t.Setenv(defaults.TLSRoutingConnUpgradeEnvVar, "false")
 
-	authClient := newFakefakeSecretsScannerSvc(t)
+	_, authClient := newFakefakeSecretsScannerSvc(t)
 
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestProxy_HandlesServerReturningErr(t *testing.T) {
 	// Disable the TLS routing connection upgrade
 	t.Setenv(defaults.TLSRoutingConnUpgradeEnvVar, "false")
 
-	authClient := newFakefakeSecretsScannerSvc(t)
+	_, authClient := newFakefakeSecretsScannerSvc(t)
 
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -136,12 +136,81 @@ func TestProxy_HandlesServerReturningErr(t *testing.T) {
 	require.ErrorContains(t, err, "missing device init")
 }
 
-func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
+// TestProxy_PropagatesUpstreamErrorAfterClientEOF asserts that a terminal
+// error produced by the upstream SecretsScannerService *after* the client has
+// half-closed (CloseSend) is still propagated through the proxy to the client.
+//
+// This exercises the handler path where forwardClientToServer returns first
+// (normal CloseSend) and forwardServerToClient is the one that ends up carrying
+// Auth's terminal status. A handler that treats forwardClientToServer as
+// authoritative will finish and the client will see io.EOF instead of the real
+// error, masking real upstream failures.
+func TestProxy_PropagatesUpstreamErrorAfterClientEOF(t *testing.T) {
+	t.Setenv(defaults.TLSRoutingConnUpgradeEnvVar, "false")
+
+	service, authClient := newFakefakeSecretsScannerSvc(t)
+	service.postClientEOFErr = trace.AccessDenied("post-EOF validation failed")
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	newProxyService(t, lis, authClient)
+	ctx := t.Context()
+
+	client, err := secretscannerclient.NewSecretsScannerServiceClient(ctx, secretscannerclient.ClientConfig{
+		ProxyServer: lis.Addr().String(),
+		Insecure:    true,
+	})
+	require.NoError(t, err)
+
+	stream, err := client.ReportSecrets(ctx)
+	require.NoError(t, err)
+
+	// Full handshake so Auth reaches the final in.Recv() that ends in EOF.
+	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceRequest{
+				Payload: &devicepb.AssertDeviceRequest_Init{
+					Init: &devicepb.AssertDeviceInit{},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceRequest{
+				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
+					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	err = stream.CloseSend()
+	require.NoError(t, err)
+
+	// The client must see the upstream error, not a clean io.EOF.
+	_, recvErr := stream.Recv()
+	require.NotErrorIs(t, recvErr, io.EOF, "client saw clean EOF; upstream error was swallowed")
+	require.ErrorContains(t, recvErr, "post-EOF validation failed")
+}
+
+func newFakefakeSecretsScannerSvc(t *testing.T) (*fakeSecretsScannerSvc, *fakeSecretsClient) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	server := grpc.NewServer()
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, &fakeSecretsScannerSvc{})
+	service := &fakeSecretsScannerSvc{}
+	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, service)
 	go func() {
 		err := server.Serve(lis)
 		assert.NoError(t, err)
@@ -151,7 +220,7 @@ func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
 	client, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
-	return &fakeSecretsClient{
+	return service, &fakeSecretsClient{
 		SecretsScannerServiceClient: accessgraphsecretsv1pb.NewSecretsScannerServiceClient(client),
 	}
 
@@ -167,6 +236,11 @@ func (s *fakeSecretsClient) AccessGraphSecretsScannerClient() accessgraphsecrets
 
 type fakeSecretsScannerSvc struct {
 	accessgraphsecretsv1pb.UnimplementedSecretsScannerServiceServer
+
+	// postClientEOFErr, if non-nil, is returned by ReportSecrets after it
+	// receives EOF from the client, modeling Auth producing a terminal error
+	// during post-upload processing (after the client has already half-closed).
+	postClientEOFErr error
 }
 
 func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
@@ -215,6 +289,9 @@ func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsS
 
 	_, err = in.Recv()
 	if errors.Is(err, io.EOF) {
+		if f.postClientEOFErr != nil {
+			return f.postClientEOFErr
+		}
 		return nil
 	}
 	return trace.BadParameter("unexpected message")
