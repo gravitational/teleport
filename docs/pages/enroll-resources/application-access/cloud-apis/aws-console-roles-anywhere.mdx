@@ -58,20 +58,18 @@ For CLI and SDK-based access, use `tsh` to obtain AWS credentials.
 
 ## Step 1/4. Configure AWS IAM Roles Anywhere integration
 
-In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
-
-The recommended approach is to use the guided flow in the Teleport Web UI. If you prefer to
-configure AWS resources manually, for example because you manage them with infrastructure as
-code, see [Manually configure the integration](#manually-configure-the-integration) below.
+In this section, you will configure AWS IAM resources to allow Teleport to issue
+AWS credentials. You can use the guided flow in the Teleport Web UI, or configure
+the AWS resources and Teleport integration manually. Once either path is complete,
+verify the integration is syncing profiles before moving on.
 
 ### Use the guided flow (recommended)
 
 Navigate to the Teleport Web UI, click **Enroll New Resource** on the Resources listing page,
 and follow the guide after clicking the **AWS CLI/Console Access via AWS Roles Anywhere** tile.
 
-When the guide completes, Teleport will start syncing AWS IAM Roles Anywhere profiles as AWS
-applications every 5 minutes. Skip ahead to the "Verify integration sync" checkpoint below to
-confirm the sync is working.
+When the guide completes, Teleport starts syncing AWS IAM Roles Anywhere profiles as AWS
+applications every 5 minutes.
 
 ### Manually configure the integration
 
@@ -221,20 +219,19 @@ Now that the required AWS resources are created, create the Teleport integration
    $ tctl create -f roles-anywhere-integration.yaml
    ```
 
-Teleport will now start syncing AWS IAM Roles Anywhere profiles as AWS applications every 5 minutes.
+### Verify the integration is syncing profiles
 
-<Checkpoint
-  title="Verify integration sync"
-  description="Confirm that Teleport has successfully connected to AWS IAM Roles Anywhere and imported your profiles as AWS applications."
->
+After either the guided flow or the manual configuration completes, Teleport
+begins syncing AWS IAM Roles Anywhere profiles as AWS applications. Sync runs
+every 5 minutes, so allow a few minutes after creation before checking.
 
-1. Confirm the integration status:
+1. Check the integration status from the command line:
 
    ```code
    $ tctl get integration/<Var name="Integration Name" />
    ```
 
-   Look for `status: SUCCESS` and a non-zero `synced_profiles` count in the output:
+   Look for the `status.aws_ra.last_profile_sync` block in the output:
 
    ```yaml
    status:
@@ -245,12 +242,24 @@ Teleport will now start syncing AWS IAM Roles Anywhere profiles as AWS applicati
          error_message: ""
    ```
 
-2. In the Teleport Web UI, navigate to the Resources page and confirm that an AWS application
-   appears for each Roles Anywhere profile.
+   A healthy integration shows `status: SUCCESS`, a non-zero `synced_profiles`
+   count that matches the number of profiles in your AWS account (or the subset
+   matching your `profile_name_filters`), and an empty `error_message`.
 
-Here are some troubleshooting tips:
-- If profiles are not appearing in the Web UI, confirm that `profile_name_filters` is set
-  to `*` to import all profiles, or that your filter matches the profile names in AWS:
+2. Confirm the synced profiles appear in the Web UI. Navigate to the Resources
+   page. Each Roles Anywhere profile should appear as an AWS application named
+   after the profile.
+
+<Checkpoint
+  title="The Roles Anywhere integration is syncing profiles"
+  description="The integration status reports SUCCESS with a non-zero synced_profiles count, and each Roles Anywhere profile appears as an AWS application on the Resources page."
+>
+
+If the integration is not syncing, try the following:
+
+- If `synced_profiles` is `0` or profiles are missing from the Web UI, confirm
+  that `profile_name_filters` is set to `*` to import all profiles, or that
+  your filter matches the profile names in AWS:
 
   ```yaml
   profile_sync_config:
@@ -259,16 +268,19 @@ Here are some troubleshooting tips:
     - '*'
   ```
 
-- If `error_message` is non-empty, check that the `TeleportRolesAnywhereProfileSync` IAM role has
-  the inline policy attached and that the trust anchor ARN and profile ARN in the integration match
-  what was created in AWS.
-- If you see a `Bad Request` error when trying to assume the role via the app in Teleport, the most
-  likely cause is that the Roles Anywhere trust policy JSON was pasted into the **Session policies**
-  field on the profile creation page instead of into the **Custom trust policy** editor on the
-  **Select trusted entity** page when creating the IAM role. Delete the misconfigured resource,
-  return to [Create role](https://console.aws.amazon.com/iam/home?#/roles/create), select
-  **Custom trust policy** on the first page, and paste the JSON there. Leave **Session policies**
-  empty when creating the profile.
+- If `error_message` is non-empty, check that the
+  `TeleportRolesAnywhereProfileSync` IAM role has the inline policy attached
+  and that the trust anchor ARN and profile ARN in the integration match what
+  was created in AWS.
+
+- If you see a `Bad Request` error when trying to assume a role via the app in
+  Teleport, the most likely cause is that the Roles Anywhere trust policy JSON
+  was pasted into the **Session policies** field on the profile creation page
+  instead of into the **Custom trust policy** editor on the **Select trusted
+  entity** page when creating the IAM role. Delete the misconfigured resource,
+  return to [Create role](https://console.aws.amazon.com/iam/home?#/roles/create),
+  select **Custom trust policy** on the first page, and paste the JSON there.
+  Leave **Session policies** empty when creating the profile.
 
 </Checkpoint>
 
@@ -389,33 +401,36 @@ Assign this role to the users you want to grant access. You can also assign it t
 [Access List](../../../identity-governance/access-lists/guide.mdx) or use it with
 [Access Requests](../../../identity-governance/access-requests/access-requests.mdx).
 
+After assigning the role, re-authenticate to pick up the new permissions.
+`<Var name="example.teleport.sh:443" />` is your Teleport Proxy address and
+`<Var name="Username" />` is your Teleport username:
+
+```code
+$ tsh logout
+$ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=<Var name="Username" />
+```
+
+Confirm the role appears in your session:
+
+```code
+$ tsh status
+```
+
+The `example-read-only-access` role should appear in the roles list.
+
 <Checkpoint
-  title="Confirm your user can use the new role"
-  description="After assigning the role, verify that your user's session reflects the new permissions before moving on to AWS access."
+  title="The new role is active in your Teleport session"
+  description="After logging out and back in, tsh status lists example-read-only-access among your active roles."
 >
 
-1. Re-authenticate to pick up the new permissions.
-   `<Var name="example.teleport.sh:443" />` is your Teleport Proxy address and
-   `<Var name="Username" />` is your Teleport username:
+If the new role is not active, try the following:
 
-   ```code
-   $ tsh logout
-   $ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=<Var name="Username" />
-   ```
-
-2. Confirm the role appears in your session:
-
-   ```code
-   $ tsh status
-   ```
-
-   The `example-read-only-access` role should appear in the roles list.
-
-Here are some troubleshooting tips:
-- If the AWS profile does not appear in a later step when running `tsh apps login`, the most
-  common cause is needing to log in again. Run `tsh logout` and `tsh login` again before continuing.
-- If the role is not listed in `tsh status`, confirm it was assigned to your user or Access List
-  and that you have logged out and back in since the assignment.
+- If the role is not listed in `tsh status`, confirm it was assigned to your
+  user or Access List and that you have logged out and back in since the
+  assignment.
+- If the AWS profile does not appear in the next step when running
+  `tsh apps login`, the most common cause is needing to log in again. Run
+  `tsh logout` and `tsh login` again before continuing.
 
 </Checkpoint>
 
@@ -476,39 +491,38 @@ provider "aws" {
 
 Setting the `AWS_PROFILE` environment variable is also an option.
 
+#### Confirm credentials are working
+
+Run a basic AWS CLI command to confirm the credentials are valid:
+
+```code
+$ aws --profile example-read-only-access sts get-caller-identity
+```
+
+The output should show the `ExampleReadOnlyAccess` role ARN and your Teleport
+username as the assumed-role session name.
+
+Confirm access is limited to read-only operations as expected:
+
+```code
+$ aws --profile example-read-only-access s3 ls
+```
+
 <Checkpoint
-  title="Verify AWS CLI and SDK access"
-  description="After obtaining credentials with tsh apps login, confirm that your AWS CLI and SDK-based tools can successfully call AWS APIs under the assumed role."
+  title="The AWS CLI can call AWS APIs under the assumed role"
+  description="sts get-caller-identity returns the ExampleReadOnlyAccess role ARN with your Teleport username as the session name, and read-only AWS commands succeed."
 >
 
-1. Confirm `tsh apps login` succeeds and shows the expected role ARN:
+If AWS CLI commands fail, try the following:
 
-   ```code
-   $ tsh apps login --aws-role <Var name="Read Only Role ARN" /> example-read-only-access
-   ```
-
-2. Run a basic AWS CLI command to confirm credentials are working:
-
-   ```code
-   $ aws --profile example-read-only-access sts get-caller-identity
-   ```
-
-   The output should show the `ExampleReadOnlyAccess` role ARN and your Teleport username as the
-   assumed-role session name.
-
-3. Confirm access is limited to read-only operations as expected:
-
-   ```code
-   $ aws --profile example-read-only-access s3 ls
-   ```
-
-Here are some troubleshooting tips:
-- If `tsh apps login` does not list the expected profile, run `tsh logout` and `tsh login`
-  to refresh your session, then try again.
-- If `sts get-caller-identity` returns an error, confirm that the profile ARN in your Teleport
-  role's `app_labels` exactly matches the ARN of the profile created in Step 2/4.
-- If you see an `AccessDenied` error from the AWS CLI, verify that the IAM role has the
-  `ReadOnlyAccess` policy attached and that the Roles Anywhere profile includes that role.
+- If `tsh apps login` does not list the expected profile, run `tsh logout` and
+  `tsh login` to refresh your session, then try again.
+- If `sts get-caller-identity` returns an error, confirm that the profile ARN
+  in your Teleport role's `app_labels` exactly matches the ARN of the profile
+  created in Step 2/4.
+- If you see an `AccessDenied` error from the AWS CLI, verify that the IAM
+  role has the `ReadOnlyAccess` policy attached and that the Roles Anywhere
+  profile includes that role.
 
 </Checkpoint>
 
