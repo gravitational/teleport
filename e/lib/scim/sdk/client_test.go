@@ -3,10 +3,13 @@ package scimsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
@@ -111,6 +115,13 @@ func TestClientPatchGroupMembers(t *testing.T) {
 		"uid-aurora", "uid-beau", "uid-charlotte", "uid-david", "uid-emilia",
 		"uid-francis", "uid-gabrielle", "uid-harry", "uid-isobel"}
 
+	for _, uid := range append(makeMembers(15, "uid-addend-%02d"), defaultMemberList...) {
+		mockServer.store.CreateUser(t.Context(), &User{
+			ID:       uid,
+			UserName: uid,
+		})
+	}
+
 	mockServer.store.CreateGroup(t.Context(),
 		&Group{
 			ID: groupID,
@@ -120,14 +131,13 @@ func TestClientPatchGroupMembers(t *testing.T) {
 			},
 		})
 
-	client := mockServer.newClient()
-
 	testCases := []struct {
-		name           string
-		toAdd          []string
-		toRemove       []string
-		errorAssertion require.ErrorAssertionFunc
-		expected       []string
+		name            string
+		integrationType string
+		toAdd           []string
+		toRemove        []string
+		errorAssertion  require.ErrorAssertionFunc
+		expected        []string
 	}{
 		{
 			name:           "empty",
@@ -155,12 +165,30 @@ func TestClientPatchGroupMembers(t *testing.T) {
 				append([]string{"uid-beau"}, "uid-charlotte", "uid-emilia", "uid-francis"),
 				makeMembers(3, "uid-addend-%02d")...),
 		},
+		// Assert that a patch operation with more than the maximum page size
+		// is split over multiple PATCH requests.
 		{
 			name:           "oversize",
 			toAdd:          makeMembers(9, "uid-addend-%02d"),
 			toRemove:       defaultMemberList,
 			errorAssertion: require.NoError,
 			expected:       makeMembers(9, "uid-addend-%02d"),
+		},
+		// Assert that an invalid user in a patch does not abort a multi-request
+		// patch operation for an Identity Center SCIM server, but still reports
+		// the error
+		{
+			name:            "invalid user",
+			integrationType: types.PluginTypeAWSIdentityCenter,
+			toAdd:           append([]string{"uid-nonesuch"}, makeMembers(15, "uid-addend-%02d")...),
+			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				var ime *InvalidMemberError
+				require.ErrorAs(t, err, &ime)
+				require.ElementsMatch(t,
+					append([]string{"uid-nonesuch"}, makeMembers(6, "uid-addend-%02d")...),
+					ime.Candidates)
+			},
+			expected: append(defaultMemberList, makeMembers(15, "uid-addend-%02d")...),
 		},
 	}
 
@@ -169,6 +197,15 @@ func TestClientPatchGroupMembers(t *testing.T) {
 			mockServer.store.SetGroupMembers(t.Context(), groupID, asMemberList(defaultMemberList)...)
 			toAdd := asMemberList(testCase.toAdd)
 			toRemove := asMemberList(testCase.toRemove)
+
+			cfg := mockServer.clientConfig()
+			if testCase.integrationType != "" {
+				cfg.IntegrationType = testCase.integrationType
+			}
+
+			// Create the client manually to avoid the endpoint check when the
+			// IntegrationType is Identity Center
+			client := &client{Config: cfg}
 
 			err := client.PatchGroupMembers(t.Context(), groupID, toAdd, toRemove)
 			testCase.errorAssertion(t, err)
@@ -252,6 +289,7 @@ func (s *scimHTTPServer) clientConfig() *Config {
 		Token:       s.token,
 		HTTPClient:  s.server.Client(),
 		maxPageSize: s.maxPatchSize,
+		Log:         slog.Default().With(teleport.ComponentKey, "SCIM_SDK"),
 	}
 }
 
@@ -380,18 +418,31 @@ func (s *scimHTTPServer) updateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func writeResponse(w http.ResponseWriter, status int, format string, args ...any) {
+func writeErrorResponse(w http.ResponseWriter, status int, format string, args ...any) {
+	body, err := FormatErrorResponse(status, fmt.Sprintf(format, args...))
+	if err != nil {
+		body := []byte(err.Error())
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(body)
+		return
+	}
+
+	w.Header().Set(ContentTypeHeader, ContentType)
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(status)
-	fmt.Fprintf(w, format, args...)
+	w.Write(body)
 }
 
 func writeBadRequest(w http.ResponseWriter, format string, args ...any) {
-	writeResponse(w, http.StatusBadRequest, format, args...)
+	writeErrorResponse(w, http.StatusBadRequest, format, args...)
 }
+
+var errMemberNotFound = errors.New("member not found")
 
 func (s *scimHTTPServer) patchGroup(w http.ResponseWriter, r *http.Request) {
 	if err := s.authorize(r); err != nil {
-		writeResponse(w, http.StatusUnauthorized, "%s", err.Error())
+		writeErrorResponse(w, http.StatusUnauthorized, "%s", err.Error())
 		return
 	}
 
@@ -439,7 +490,24 @@ func (s *scimHTTPServer) patchGroup(w http.ResponseWriter, r *http.Request) {
 
 		switch op.Operation {
 		case OpAdd:
-			dst.applyFn = s.store.AddGroupMembers
+			dst.applyFn = func(ctx context.Context, groupID string, members ...*GroupMember) error {
+				// Filter out members that are not known users
+				s.store.Mu.Lock()
+				filteredMembers := slices.DeleteFunc(members, func(m *GroupMember) bool {
+					_, exists := s.store.Users[m.ExternalID]
+					return !exists
+				})
+				s.store.Mu.Unlock()
+
+				if err := s.store.AddGroupMembers(ctx, groupID, filteredMembers...); err != nil {
+					return err
+				}
+
+				if len(members) != len(filteredMembers) {
+					return trace.Wrap(errMemberNotFound)
+				}
+				return nil
+			}
 
 		case OpRemove:
 			dst.applyFn = s.store.DeleteGroupMembers
@@ -461,15 +529,28 @@ func (s *scimHTTPServer) patchGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	memberNotFound := false
+
 	for _, op := range validatedPatchOps {
 		if err := op.applyFn(r.Context(), groupID, op.members...); err != nil {
+			if errors.Is(err, errMemberNotFound) {
+				memberNotFound = true
+				continue
+			}
 			if trace.IsNotFound(err) {
-				writeResponse(w, http.StatusNotFound, "")
+				writeErrorResponse(w, http.StatusNotFound, "")
 				return
 			}
-			writeResponse(w, http.StatusInternalServerError, "%s", err.Error())
+			writeErrorResponse(w, http.StatusInternalServerError, "%s", err.Error())
 			return
 		}
+	}
+
+	// Emulate the behavior of the AWS Identity Center SCIM service by returning
+	// a 404 when a proposed group member is not a recognized user
+	if memberNotFound {
+		writeErrorResponse(w, http.StatusNotFound, awsicGroupMemberNotFound)
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)

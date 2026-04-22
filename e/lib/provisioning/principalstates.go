@@ -46,7 +46,7 @@ func GetIDForUserName(name string) services.ProvisioningStateID {
 	return services.ProvisioningStateID("u-" + name)
 }
 
-func getIDForAccessList(acl *accesslist.AccessList) services.ProvisioningStateID {
+func GetIDForAccessList(acl *accesslist.AccessList) services.ProvisioningStateID {
 	return getIDForAccessListName(acl.GetName())
 }
 
@@ -100,7 +100,7 @@ func recordExternalID(
 }
 
 // markStateInError records a provisioning failure in the Principal's state
-// record.
+// record, leaving the state as STALE so it will be retried.
 func markStateInError(
 	ctx context.Context,
 	statesSvc services.DownstreamProvisioningStates,
@@ -108,8 +108,10 @@ func markStateInError(
 	provisioningError error,
 	log *slog.Logger,
 ) (*provisioningv1.PrincipalState, error) {
+	errText := provisioningError.Error()
+
 	recordError := func(s *provisioningv1.PrincipalState) error {
-		s.Status.Error = provisioningError.Error()
+		s.Status.Error = errText
 		return nil
 	}
 	updatedState, err := updateProvisioningState(ctx, statesSvc, state, recordError)

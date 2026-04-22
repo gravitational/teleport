@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
@@ -17,6 +18,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+)
+
+const (
+	// awsicGroupMemberNotFound is the detail string returned by the AWS Identity
+	// Center SCIM service when a client attempts to add a non-existent user
+	// to a Group (see Issue #8384).
+	awsicGroupMemberNotFound = "USER does not exist."
 )
 
 // Client is the interface for the SCIM SDK client
@@ -449,6 +458,10 @@ func (c *client) PatchGroupMembers(ctx context.Context, groupID string, toAdd, t
 		return trace.Wrap(err)
 	}
 
+	// keep track of all members that might be causing a User Not Found error
+	// in the downstream SCIM server (only used for AWS Identity Center)
+	var invalidUserCandidates []*GroupMember
+
 	for len(toAdd) > 0 || len(toRemove) > 0 {
 		batchSlotsLeft := c.maxPageSize
 		patch := PatchOperations{
@@ -476,7 +489,35 @@ func (c *client) PatchGroupMembers(ctx context.Context, groupID string, toAdd, t
 		}
 
 		if err := c.sendPatch(ctx, url, patch); err != nil {
+			// The AWS Identity Center SCIM Implementation will return a 404 for a
+			// patch attempting to add a non-existent or obsolete user ID as a
+			// group member. We can distinguish this from a missing group by the
+			// presence of "USER does not exist." in the detail string returned
+			// by the SCIM server.
+			//
+			// In this case, Identity Center has still applied the group member
+			// patch operations (minus the non-existent user), so we don't need
+			// to retry the "failed" add/remove operations.
+			if c.Config.IntegrationType == types.PluginTypeAWSIdentityCenter &&
+				trace.IsNotFound(err) &&
+				strings.Contains(err.Error(), awsicGroupMemberNotFound) {
+
+				// Record the candidate users that could be causing the error so
+				// we can report them at the end of the patch. We don't know which
+				// particular user caused it, so we have to put the whole `toAdd` page in.
+				invalidUserCandidates = append(invalidUserCandidates, pageToAdd...)
+
+				continue
+			}
 			return trace.Wrap(err)
+		}
+	}
+
+	// If we detected any potential invalid users use the custom InvalidMemberError
+	// to report the candidate
+	if len(invalidUserCandidates) > 0 {
+		return &InvalidMemberError{
+			Candidates: sliceutils.Map(invalidUserCandidates, (*GroupMember).GetExternalID),
 		}
 	}
 

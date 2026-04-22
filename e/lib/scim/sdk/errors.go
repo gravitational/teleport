@@ -3,8 +3,11 @@ package scimsdk
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -54,6 +57,9 @@ func decodeError(resp *http.Response) error {
 	case http.StatusConflict:
 		return trace.AlreadyExists("%s", cmp.Or(errResp.Detail, "Already exists"))
 	case http.StatusNotFound:
+		// Including the response detail is important for detecting when a 404
+		// returned by the AWS Identity Center SCIM service refers to a group
+		// member, rather than the group itself.
 		return trace.NotFound("%s", cmp.Or(errResp.Detail, "Resource not found"))
 	}
 
@@ -61,4 +67,42 @@ func decodeError(resp *http.Response) error {
 		return trace.BadParameter("unexpected status code: %v", resp.StatusCode)
 	}
 	return trace.BadParameter("unexpected status code: %v, detail: %v", resp.StatusCode, errResp.Detail)
+}
+
+// AsInvalidMemberError attempts to extract an [*InvalidMemberError] from the
+// supplied [error]'s error chain.
+func AsInvalidMemberError(err error) (*InvalidMemberError, bool) {
+	if err == nil {
+		return nil, false
+	}
+
+	var ive *InvalidMemberError
+	if errors.As(err, &ive) {
+		return ive, true
+	}
+	return nil, false
+}
+
+// InvalidMemberError is an error that indicates a failed [Client.PatchGroupMembers]
+// call caused by a member ID not recognized by the downstream SCIM service. The
+// group patch will still have been applied
+type InvalidMemberError struct {
+	// Candidates lists the IDs of users that potentially caused the underlying
+	// failure.
+	Candidates []string
+}
+
+// Error implements the builtin [error] interface for [*InvalidMemberError].
+func (err *InvalidMemberError) Error() string {
+	var errorText strings.Builder
+	errorText.WriteString("Attempted to add an invalid or obsolete user to a group.")
+
+	if len(err.Candidates) > 0 {
+		errorText.WriteString("\nCandidate invalid AWS User IDs:\n")
+		for _, uid := range err.Candidates {
+			fmt.Fprintf(&errorText, "\t[%s]\n", uid)
+		}
+	}
+
+	return errorText.String()
 }

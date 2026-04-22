@@ -301,6 +301,12 @@ func hasSCIMExternalID(expected string) scimProvisioningStateAssertion {
 	}
 }
 
+func hasSCIMErrorMatching(pattern string) scimProvisioningStateAssertion {
+	return func(t assert.TestingT, ps *provisioningv1.PrincipalState) bool {
+		return assert.Regexp(t, pattern, ps.GetStatus().GetError(), "Error must match regex")
+	}
+}
+
 func assertSCIMProvisioningState(ctx context.Context, t assert.TestingT, getter services.ProvisioningStates, id services.ProvisioningStateID, assertions ...scimProvisioningStateAssertion) bool {
 	state, err := getter.GetProvisioningState(ctx, identitycenter.IdentityCenterDownstreamID, id)
 	if !assert.NoError(t, err) {

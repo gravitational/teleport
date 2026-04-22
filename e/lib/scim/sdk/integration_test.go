@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const (
@@ -32,10 +33,28 @@ func TestSCIMSDKClient(t *testing.T) {
 	cli, err := New(cfg)
 	require.NoError(t, err)
 
-	testSCIMIntegration(t, ctx, cli)
+	testSCIMIntegration(t, ctx, cli,
+		withIntegrationType(types.PluginTypeAWSIdentityCenter))
 }
 
-func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
+type integrationTestOptions struct {
+	integrationType string
+}
+
+type integrationTestOption func(*integrationTestOptions)
+
+func withIntegrationType(t string) integrationTestOption {
+	return func(opts *integrationTestOptions) {
+		opts.integrationType = t
+	}
+}
+
+func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client, options ...integrationTestOption) {
+	var testOptions integrationTestOptions
+	for _, applyOption := range options {
+		applyOption(&testOptions)
+	}
+
 	require.NoError(t, cli.Ping(ctx))
 	usersToCreate := []*User{
 		{
@@ -122,7 +141,11 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 		nil)
 	require.NoError(t, err)
 
-	var members []*GroupMember
+	members := []*GroupMember{
+		// Include a non-existent user to assert that the patch works even when
+		// confronted with bad input
+		&GroupMember{ExternalID: "b6561282-1de8-40a7-b611-a9688a7e969e"},
+	}
 
 	for _, v := range createdUsers {
 		members = append(members, &GroupMember{ExternalID: v.ID})
@@ -132,7 +155,19 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 		{ExternalID: aliceUser.ID},
 		{ExternalID: richardUser.ID},
 	})
-	require.NoError(t, err)
+	switch testOptions.integrationType {
+	case types.PluginTypeAWSIdentityCenter:
+		var ime *InvalidMemberError
+		require.ErrorAs(t, err, &ime)
+		// we expect the first add page to be 98 members, given the 100-member-
+		// per-request maximum and the 2 members in the `toDelete` page that will
+		// be sent first.
+		require.ElementsMatch(t,
+			sliceutils.Map(members[:98], (*GroupMember).GetExternalID),
+			ime.Candidates)
+	default:
+		require.NoError(t, err)
+	}
 
 	g, err := cli.GetGroup(ctx, testGroup.ID)
 	require.NoError(t, err)
@@ -145,7 +180,6 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 	u, err = cli.GetUser(ctx, richardUser.ID)
 	require.NoError(t, err)
 	require.Equal(t, richardUser.ID, u.ID)
-
 }
 
 func mkUserGenerator() func() *User {

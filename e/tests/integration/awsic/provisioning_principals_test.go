@@ -12,14 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestGroupMemberProvisioning(t *testing.T) {
@@ -98,6 +101,86 @@ func TestGroupMemberProvisioning(t *testing.T) {
 		requireICGroup(ctx, t, unifiedClient.ViaAPI(), simpleACL.Spec.Title,
 			withMembers("alice", "claire", "dave", "fred"))
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+type patchFailingSCIMClient struct {
+	scimsdk.Client
+}
+
+// PatchGroupMembers is rigged to fail on every [failRate]'th request request
+func (pfsc *patchFailingSCIMClient) PatchGroupMembers(ctx context.Context, groupID string, toAdd, toRemove []*scimsdk.GroupMember) error {
+	return &scimsdk.InvalidMemberError{
+		Candidates: sliceutils.Map(toAdd, (*scimsdk.GroupMember).GetExternalID),
+	}
+}
+
+// TestGroupMemberProvisioningRecordsFailedPatch asserts that failed patch
+func TestGroupMemberProvisioningRecordsFailedPatch(t *testing.T) {
+	ctx := t.Context()
+
+	// GIVEN a SCIM client configured to fail when patching a member list
+	unifiedClient := ictest.NewUnifiedMockClient(icsdk.NewMockedAWSState())
+	scimClient := &patchFailingSCIMClient{
+		Client: unifiedClient.ViaSCIM(),
+	}
+	setupMockAWSICEnvironment(t, unifiedClient.ViaAPI(), scimClient)
+
+	// GIVEN a Teleport cluster with the Identity Center integration running in
+	// full hand-off mode.
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "admin", "editor"),
+		common.WithRole(t, "aws-access-all-areas",
+			common.WithAccountAssignment(types.Allow, "*", "*")),
+	)
+
+	// GIVEN some Teleport Users
+	allUsers := []string{"alice", "bob", "claire", "dave", "erica", "fred"}
+	for _, userName := range allUsers {
+		common.MustCreateUser(t, sut, userName, "requester")
+	}
+
+	// GIVEN an Identity Center integration running in full-handoff mode
+	mustSetupAWSIdentityCenterIntegration(t,
+		sut.GetClusterClientForUser(t, "admin").AuthClient)
+
+	// EXPECT the IC service to start up and provision alice and the Group1
+	// access list before we proceed with the deletion test
+	auth := sut.Teleport.Process.GetAuthServer()
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// All users must be provisioned into AWS Identity Center
+			for _, n := range allUsers {
+				assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(n),
+					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				)
+			}
+		},
+		10*time.Second, 100*time.Millisecond,
+		"Initial provisioning must complete")
+
+	// WHEN I create an Access List containing all users above
+	simpleACL := common.CreateAccessList(t, sut,
+		common.WithName("simple-access-list"),
+		common.WithTitle("Simple Access List"),
+		common.WithOwners("admin"),
+		common.WithGrants(accesslist.Grants{Roles: []string{"aws-access-all-areas"}}),
+		common.WithMembers(allUsers...))
+
+	// EXPECT that
+	//  - a corresponding group is created in Identity Center,
+	//  - the member list patch has failed due to the rigged SCIM client
+	//  - the error is recorded in the Access List's provisioning state
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			requireICGroup(ctx, t, unifiedClient.ViaAPI(), simpleACL.Spec.Title)
+			requireSCIMProvisioningState(ctx, t, auth, provisioning.GetIDForAccessList(simpleACL),
+				hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE),
+				hasSCIMErrorMatching("Attempted to add an invalid or obsolete user to a group."))
+		},
+		10*time.Second, 100*time.Millisecond,
+		"AccessList provisioning error must be recorded")
 }
 
 // failFirstNDeletesSCIMClient is a [scimsdk.Client] that wraps an underlying

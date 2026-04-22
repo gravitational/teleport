@@ -357,7 +357,7 @@ func (svc *Service) refreshAccessList(ctx context.Context, acl *accesslist.Acces
 		return nil
 	}
 
-	key := getIDForAccessList(acl)
+	key := GetIDForAccessList(acl)
 	log := svc.log.With(
 		"provisioning_state_id", key,
 		"principal_type", "access_list",
