@@ -197,6 +197,14 @@ spec:
           - readnosecrets
           - update
           - delete
+      - resources:
+          - scoped_role_assignment
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
 
   deny: {}
 version: v7

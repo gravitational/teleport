@@ -1,0 +1,44 @@
+---
+title: TeleportScopedRoleAssignmentV1
+description: Provides a comprehensive list of fields in the TeleportScopedRoleAssignmentV1 resource available through the Teleport Kubernetes operator
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+{/* Disable the outdated name check since custom resource fields occasionally
+need to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
+
+This guide is a comprehensive reference to the fields in the `TeleportScopedRoleAssignmentV1`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|scope|string|Scope is the scope of the role assignment resource.|
+|spec|[object](#spec)|ScopedRoleAssignment resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|assignments|[][object](#specassignments-items)|Assignments is a list of individual role @ scope assignments.|
+|bot_name|string|Name of the Bot to whom all contained assignments apply. Mutually exclusive with `user`.|
+|bot_scope|string|Scope of the Bot to whom all contained assignments apply. Required if `bot_name` is set. If specified, assignment scopes must be equal or descendent of this scope.|
+|user|string|User is the user to whom all contained assignments apply. Mutually exclusive with `bot_name`.|
+
+### spec.assignments items
+
+|Field|Type|Description|
+|---|---|---|
+|role|string|Roles is the name of the role that is assigned by this assignment.|
+|scope|string|Scope is the scope to which the role is assigned. This must be a member/child of the scope of the [ScopedRoleAssignment] in which this assignment is contained.|
+
