@@ -718,6 +718,12 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
+			Credentials: &types.SAMLConnectorCredentials{
+				Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-id",
+					ClientSecret: "test-secret",
+				},
+			},
 		},
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
@@ -738,6 +744,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
+	oauthNoSecrets.ClientSecret = ""
+	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
 	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
@@ -1248,15 +1257,12 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteAllTunnelConnections()
+	out, err = s.TrustS.GetAllTunnelConnections()
 	require.NoError(t, err)
-
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = s.TrustS.DeleteAllTunnelConnections()
-	require.NoError(t, err)
+	for _, tc := range out {
+		err = s.TrustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		require.NoError(t, err)
+	}
 
 	// test delete individual connection
 	err = s.TrustS.UpsertTunnelConnection(conn)
@@ -2246,7 +2252,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.TrustS.GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = s.TrustS.DeleteAllTunnelConnections()
+				err = s.TrustS.DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]

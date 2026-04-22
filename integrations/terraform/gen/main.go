@@ -823,7 +823,7 @@ var (
 		UpsertMethodArity:     2,
 		UpdateMethod:          "VnetConfigClient().UpsertVnetConfig",
 		DeleteMethod:          "VnetConfigClient().ResetVnetConfig",
-		ID:                    `"vnet_config"`,
+		ID:                    "apitypes.MetaNameVnetConfig",
 		Kind:                  "vnet_config",
 		HasStaticID:           false,
 		ProtoPackage:          "vnet",

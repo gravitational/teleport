@@ -1597,15 +1597,13 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteAllTunnelConnections()
+	// Delete all to reset test environment
+	out, err = clt.GetAllTunnelConnections()
 	require.NoError(t, err)
-
-	out, err = clt.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = clt.DeleteAllTunnelConnections()
-	require.NoError(t, err)
+	for _, tc := range out {
+		err := testSrv.Auth().DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		require.NoError(t, err)
+	}
 
 	// test delete individual connection
 	err = clt.UpsertTunnelConnection(conn)
@@ -4809,7 +4807,7 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteAllTunnelConnections()
+				err = testSrv.Auth().DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]

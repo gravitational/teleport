@@ -739,9 +739,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetLinuxDesktop(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetLinuxDesktop(); r != nil {
-		out.Resource = types.ProtoResource153ToLegacy(r)
-		return &out, nil
 	} else if r := in.GetWorkloadCluster(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil

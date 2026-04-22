@@ -492,6 +492,7 @@ sensitive_fields:
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EntityDescriptor"
+    - "SAMLConnectorV2.Spec.credentials.oauth.client_secret"
     - "GithubConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.GoogleServiceAccount"

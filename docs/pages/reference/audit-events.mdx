@@ -4881,6 +4881,101 @@ Example:
 }
 ```
 
+## retrieval_model.create
+
+Retrieval Model Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF011I",
+  "ei": 0,
+  "event": "retrieval_model.create",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T15:58:21.869Z",
+  "uid": "ab973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "retrieval-model"
+    },
+    "spec": {
+      "inference_model_name": "gpt-4"
+    }
+  }
+}
+```
+
+## retrieval_model.delete
+
+Retrieval Model Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF013I",
+  "ei": 0,
+  "event": "retrieval_model.delete",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T16:00:00.869Z",
+  "uid": "ad973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## retrieval_model.update
+
+Retrieval Model Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF012I",
+  "ei": 0,
+  "event": "retrieval_model.update",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T15:59:21.869Z",
+  "uid": "ac973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "retrieval-model"
+    },
+    "spec": {
+      "inference_model_name": "gpt-4",
+      "embedding_dimension": 1536
+    }
+  }
+}
+```
+
 ## role.created
 
 User Role Created
@@ -5906,10 +6001,27 @@ Example:
 
 ```json
 {
+  "cluster_name": "teleport.dev",
   "code": "INF010E",
+  "ei": 0,
   "event": "session.summarized",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "session_type": "desktop",
+  "model_name": "gpt-4",
+  "success": false,
+  "time": "2025-03-04T16:15:21.869Z",
+  "uid": "ad973df2-4bee-4a67-9925-575c1d38cc80",
+  "short_description": "User accessed domain controller and modified AD policies",
+  "inference_started_at": "2025-03-04T16:15:10.000Z",
+  "inference_finished_at": "2025-03-04T16:15:21.869Z",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "desktop_addr": "100.104.52.89:3389",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator",
+  "desktop_labels": {
+    "env": "prod",
+    "role": "domain-controller"
+  }
 }
 ```
 

@@ -623,6 +623,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.InferencePolicyUpdate{}
 	case InferencePolicyDeleteEvent:
 		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
 
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}

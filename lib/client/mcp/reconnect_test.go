@@ -230,7 +230,7 @@ func TestProxyStdioConn_autoReconnectDisabled(t *testing.T) {
 
 	// New request should fail and no retry is performed.
 	_, err := mcptest.CallServerTool(t.Context(), stdioClient)
-	require.ErrorContains(t, err, "on closed pipe")
+	require.ErrorContains(t, err, "transport closed")
 	require.Equal(t, uint32(1), mcpServerConnCount.Load())
 }
 

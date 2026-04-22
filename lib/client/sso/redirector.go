@@ -78,6 +78,10 @@ const (
 	// but the user has no matching roles in Teleport.
 	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
 
+	// LoginFailedEntraIDGroupsOverageRedirectURL is a redirect URL for when an Entra SAML authentication
+	// is unable to process groups overage.
+	LoginFailedEntraIDGroupsOverageRedirectURL = "/web/msg/error/login/entra_groups_overage"
+
 	// LoginClose is a redirect URL that will close the tab performing the SSO
 	// login. It's used when a second tab will be opened due to the first
 	// failing (such as an unmet hardware key policy) and the first should be
