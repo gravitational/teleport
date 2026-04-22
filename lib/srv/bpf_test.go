@@ -1067,8 +1067,8 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	var wg sync.WaitGroup
 	cmdDone := make(chan error, 1)
 
-	execReq, ok := scx.execRequest.(*localExec)
-	require.True(t, ok)
+	require.IsType(t, (*localExec)(nil), scx.execRequest)
+	execReq := scx.execRequest.(*localExec)
 
 	wg.Go(func() {
 		cmdDone <- execReq.Cmd.Wait()
