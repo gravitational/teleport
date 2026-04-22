@@ -24,8 +24,6 @@ import {
 
 import { SettingsTab as AwsSettingsTab } from './Aws/SettingsTab';
 
-export const SETTINGS_PANEL_WIDTH = 500;
-
 export function SettingsTab({
   stats,
   activeInfoGuideTab,

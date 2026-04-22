@@ -2197,6 +2197,24 @@ func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 				Success:             e.Success,
 				ResourceName:        a.AnonymizeString(e.ResourceName),
 				IsCloudDefaultModel: e.IsCloudDefaultModel,
+				HasStoredEmbeddings: e.HasStoredEmbeddings,
+			},
+		},
+	}
+}
+
+// SessionSummarySearchEvent is emitted when a user runs a session summary search.
+type SessionSummarySearchEvent prehogv1a.SessionSummarySearchEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummarySearchEvent{
+			SessionSummarySearchEvent: &prehogv1a.SessionSummarySearchEvent{
+				UserName:   a.AnonymizeString(e.UserName),
+				UserKind:   e.UserKind,
+				QueryCount: e.QueryCount,
+				HasFilters: e.HasFilters,
 			},
 		},
 	}

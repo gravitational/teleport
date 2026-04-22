@@ -1821,6 +1821,11 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 			keyPair.PrivateKey = ""
 			conn.SetSigningKeyPair(keyPair)
 		}
+		oauthCreds := conn.GetOAuthClientCredentials()
+		if oauthCreds != nil {
+			oauthCreds.ClientSecret = ""
+			conn.SetOAuthClientCredentials(oauthCreds)
+		}
 	}
 	return conn, nil
 }
@@ -1866,6 +1871,11 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			if keyPair != nil {
 				keyPair.PrivateKey = ""
 				conn.SetSigningKeyPair(keyPair)
+			}
+			oauthCreds := conn.GetOAuthClientCredentials()
+			if oauthCreds != nil {
+				oauthCreds.ClientSecret = ""
+				conn.SetOAuthClientCredentials(oauthCreds)
 			}
 		}
 

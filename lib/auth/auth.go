@@ -940,6 +940,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
+		Cloud:       cfg.Modules.Features().Cloud,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5327,6 +5328,8 @@ type HostCertsParams struct {
 	AgentScope string
 	// The ImmutableLabelHash that should be encoded into the resulting certificates.
 	ImmutableLabelHash string
+	// JoinToken is the name of the join token that was used to join this host.
+	JoinToken string
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -5491,6 +5494,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		SystemRoles:        systemRoles,
 		AgentScope:         params.AgentScope,
 		ImmutableLabelHash: params.ImmutableLabelHash,
+		JoinToken:          params.JoinToken,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
