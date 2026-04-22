@@ -93,19 +93,22 @@ test('exec into a pod', async ({ app }) => {
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
   const podName = `shell-demo-${crypto.randomUUID().split('-').at(0)}`;
-
+  // Use `tsh kubectl` because `kubectl` is not available in CI.
+  const kubectlCommand = `"$E2E_CONNECT_TSH_BIN" kubectl`;
   await openKubeTerminal(resources, terminal);
 
   const kubectlRunOutput = await terminal.execAndWait(
-    `kubectl run ${podName} --image=busybox:latest --command -- sh -c 'sleep 3600'`
+    `${kubectlCommand} run ${podName} --image=busybox:latest --command -- sh -c 'sleep 3600'`
   );
   expect(kubectlRunOutput).toContain(`pod/${podName} created`);
 
   await terminal.execAndWait(
-    `kubectl wait --for=condition=Ready pod/${podName} --timeout=20s`,
+    `${kubectlCommand} wait --for=condition=Ready pod/${podName} --timeout=20s`,
     { timeout: 20_000 }
   );
-  await terminal.exec(`kubectl exec --stdin --tty ${podName} -- /bin/sh`);
+  await terminal.exec(
+    `${kubectlCommand} exec --stdin --tty ${podName} -- /bin/sh`
+  );
   await terminal.waitForText('/ #');
   // Check if the shell works.
   const whoamiOutput = await terminal.execAndWait('whoami');
