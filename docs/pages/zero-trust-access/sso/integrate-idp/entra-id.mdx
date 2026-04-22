@@ -138,15 +138,34 @@ Entra ID and issue certificates to users.
 
 ### Assign a role mapping
 
-(!docs/pages/includes/sso/role-mapping.mdx fieldType="attribute"!)
+When a user authenticates to Teleport, the Teleport Auth Service issues SSH and
+TLS certificates to the user that contain the user's Teleport roles.
 
-You can choose your own variables for the `mapping_1` and `mapping_2` entries.
-Make sure that, in your role mapping, each attribute begins with the following
+For SSO authentication connectors, the Auth Service determines which roles to
+encode in the certificate by reading the authentication connector's **role
+mapping**. The role mapping indicates which Teleport roles to assign based on
+data that your identity provider stores about the user.
+
+For this guide you will configure a mapping that, given an Entra ID security
+group (identified by its object ID), assigns one or more Teleport roles to any
+user who is a member of that group. Make sure that, in your role mapping, each attribute begins with the following
 namespace prefix:
 
 ```
 http://schemas.microsoft.com/ws/2008/06/identity/claims/
 ```
+
+You will use two separate mappings so that different groups can receive
+different levels of Teleport access:
+
+- A more permissive mapping — for example, a `teleport-admins` group that
+  receives the `auditor` and `editor` roles.
+- A more restrictive mapping — for example, a `teleport-developers` group
+  that receives only the `access` role.
+
+Before continuing, gather the object IDs of the two Entra ID groups you want
+to map, and decide which Teleport roles each group should receive. Both values
+go into the `tctl` command in the next section.
 
 ### Configure a SAML connector
 
