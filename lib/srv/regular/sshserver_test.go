@@ -2757,9 +2757,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 			wantErrInRegularMode: false,
 		},
 		{
-			name:                 teleport.GetHomeDirSubsystem,
+			name:                 "gethomedir",
 			wantErrInProxyMode:   true,
-			wantErrInRegularMode: false,
+			wantErrInRegularMode: true,
 		},
 		{
 			name:                 "proxysites",

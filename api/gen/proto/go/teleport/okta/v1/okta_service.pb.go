@@ -38,6 +38,187 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ConditionalUpdateOktaAssignmentRequest is a request for updating an Okta assignment resource, protected by optimistic locking.
+type ConditionalUpdateOktaAssignmentRequest struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConditionalUpdateOktaAssignmentRequest) Reset() {
+	*x = ConditionalUpdateOktaAssignmentRequest{}
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConditionalUpdateOktaAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConditionalUpdateOktaAssignmentRequest) ProtoMessage() {}
+
+func (x *ConditionalUpdateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConditionalUpdateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
+func (*ConditionalUpdateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ConditionalUpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+// ConditionalUpdateOktaAssignmentResponse is a response for updating an Okta assignment resource, protected by optimistic locking.
+type ConditionalUpdateOktaAssignmentResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConditionalUpdateOktaAssignmentResponse) Reset() {
+	*x = ConditionalUpdateOktaAssignmentResponse{}
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConditionalUpdateOktaAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConditionalUpdateOktaAssignmentResponse) ProtoMessage() {}
+
+func (x *ConditionalUpdateOktaAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConditionalUpdateOktaAssignmentResponse.ProtoReflect.Descriptor instead.
+func (*ConditionalUpdateOktaAssignmentResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ConditionalUpdateOktaAssignmentResponse) GetAssignment() *types.OktaAssignmentV1 {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+// UpsertOktaAssignmentRequest is a request for upserting an Okta assignment resource.
+type UpsertOktaAssignmentResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertOktaAssignmentResponse) Reset() {
+	*x = UpsertOktaAssignmentResponse{}
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertOktaAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertOktaAssignmentResponse) ProtoMessage() {}
+
+func (x *UpsertOktaAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertOktaAssignmentResponse.ProtoReflect.Descriptor instead.
+func (*UpsertOktaAssignmentResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *UpsertOktaAssignmentResponse) GetAssignment() *types.OktaAssignmentV1 {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+// UpsertOktaAssignmentRequest is a request for upserting an Okta assignment resource.
+type UpsertOktaAssignmentRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// assignment is the Okta assignment to upsert.
+	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertOktaAssignmentRequest) Reset() {
+	*x = UpsertOktaAssignmentRequest{}
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertOktaAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertOktaAssignmentRequest) ProtoMessage() {}
+
+func (x *UpsertOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertOktaAssignmentRequest.ProtoReflect.Descriptor instead.
+func (*UpsertOktaAssignmentRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *UpsertOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
 // GetAppsRequest is the request message for filtering apps.
 type GetAppsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -53,7 +234,7 @@ type GetAppsRequest struct {
 
 func (x *GetAppsRequest) Reset() {
 	*x = GetAppsRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[0]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65,7 +246,7 @@ func (x *GetAppsRequest) String() string {
 func (*GetAppsRequest) ProtoMessage() {}
 
 func (x *GetAppsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[0]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -78,7 +259,7 @@ func (x *GetAppsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAppsRequest.ProtoReflect.Descriptor instead.
 func (*GetAppsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{0}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetAppsRequest) GetOktaOrganizationUrl() string {
@@ -113,7 +294,7 @@ type GetAppsResponse struct {
 
 func (x *GetAppsResponse) Reset() {
 	*x = GetAppsResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[1]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -125,7 +306,7 @@ func (x *GetAppsResponse) String() string {
 func (*GetAppsResponse) ProtoMessage() {}
 
 func (x *GetAppsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[1]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -138,7 +319,7 @@ func (x *GetAppsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAppsResponse.ProtoReflect.Descriptor instead.
 func (*GetAppsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetAppsResponse) GetApps() []*GetAppsResponse_App {
@@ -163,7 +344,7 @@ type GetGroupsRequest struct {
 
 func (x *GetGroupsRequest) Reset() {
 	*x = GetGroupsRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[2]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -175,7 +356,7 @@ func (x *GetGroupsRequest) String() string {
 func (*GetGroupsRequest) ProtoMessage() {}
 
 func (x *GetGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[2]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -188,7 +369,7 @@ func (x *GetGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsRequest.ProtoReflect.Descriptor instead.
 func (*GetGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetGroupsRequest) GetOktaOrganizationUrl() string {
@@ -223,7 +404,7 @@ type GetGroupsResponse struct {
 
 func (x *GetGroupsResponse) Reset() {
 	*x = GetGroupsResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[3]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -235,7 +416,7 @@ func (x *GetGroupsResponse) String() string {
 func (*GetGroupsResponse) ProtoMessage() {}
 
 func (x *GetGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[3]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -248,7 +429,7 @@ func (x *GetGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsResponse.ProtoReflect.Descriptor instead.
 func (*GetGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetGroupsResponse) GetGroups() []*GetGroupsResponse_Group {
@@ -298,7 +479,7 @@ type CreateIntegrationRequest struct {
 
 func (x *CreateIntegrationRequest) Reset() {
 	*x = CreateIntegrationRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[4]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -310,7 +491,7 @@ func (x *CreateIntegrationRequest) String() string {
 func (*CreateIntegrationRequest) ProtoMessage() {}
 
 func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[4]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -323,7 +504,7 @@ func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateIntegrationRequest.ProtoReflect.Descriptor instead.
 func (*CreateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateIntegrationRequest) GetOktaOrganizationUrl() string {
@@ -451,7 +632,7 @@ type UpdateIntegrationRequest struct {
 
 func (x *UpdateIntegrationRequest) Reset() {
 	*x = UpdateIntegrationRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[5]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -463,7 +644,7 @@ func (x *UpdateIntegrationRequest) String() string {
 func (*UpdateIntegrationRequest) ProtoMessage() {}
 
 func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[5]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -476,7 +657,7 @@ func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateIntegrationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateIntegrationRequest) GetApiCredentials() *OktaAPICredentials {
@@ -564,7 +745,7 @@ type AccessListSettings struct {
 
 func (x *AccessListSettings) Reset() {
 	*x = AccessListSettings{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[6]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +757,7 @@ func (x *AccessListSettings) String() string {
 func (*AccessListSettings) ProtoMessage() {}
 
 func (x *AccessListSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[6]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +770,7 @@ func (x *AccessListSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessListSettings.ProtoReflect.Descriptor instead.
 func (*AccessListSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AccessListSettings) GetGroupFilters() []string {
@@ -627,7 +808,7 @@ type OktaAPICredentials struct {
 
 func (x *OktaAPICredentials) Reset() {
 	*x = OktaAPICredentials{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[7]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -639,7 +820,7 @@ func (x *OktaAPICredentials) String() string {
 func (*OktaAPICredentials) ProtoMessage() {}
 
 func (x *OktaAPICredentials) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[7]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +833,7 @@ func (x *OktaAPICredentials) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAPICredentials.ProtoReflect.Descriptor instead.
 func (*OktaAPICredentials) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{7}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OktaAPICredentials) GetAuth() isOktaAPICredentials_Auth {
@@ -711,7 +892,7 @@ type CreateIntegrationResponse struct {
 
 func (x *CreateIntegrationResponse) Reset() {
 	*x = CreateIntegrationResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[8]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +904,7 @@ func (x *CreateIntegrationResponse) String() string {
 func (*CreateIntegrationResponse) ProtoMessage() {}
 
 func (x *CreateIntegrationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[8]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +917,7 @@ func (x *CreateIntegrationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateIntegrationResponse.ProtoReflect.Descriptor instead.
 func (*CreateIntegrationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{8}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CreateIntegrationResponse) GetPlugin() *types.PluginV1 {
@@ -766,7 +947,7 @@ type UpdateIntegrationResponse struct {
 
 func (x *UpdateIntegrationResponse) Reset() {
 	*x = UpdateIntegrationResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[9]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -778,7 +959,7 @@ func (x *UpdateIntegrationResponse) String() string {
 func (*UpdateIntegrationResponse) ProtoMessage() {}
 
 func (x *UpdateIntegrationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[9]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -791,7 +972,7 @@ func (x *UpdateIntegrationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateIntegrationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateIntegrationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{9}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UpdateIntegrationResponse) GetPlugin() *types.PluginV1 {
@@ -825,7 +1006,7 @@ type ConnectorInfo struct {
 
 func (x *ConnectorInfo) Reset() {
 	*x = ConnectorInfo{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[10]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -837,7 +1018,7 @@ func (x *ConnectorInfo) String() string {
 func (*ConnectorInfo) ProtoMessage() {}
 
 func (x *ConnectorInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[10]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -850,7 +1031,7 @@ func (x *ConnectorInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorInfo.ProtoReflect.Descriptor instead.
 func (*ConnectorInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{10}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ConnectorInfo) GetOktaAppId() string {
@@ -894,7 +1075,7 @@ type ValidateClientCredentialsRequest struct {
 
 func (x *ValidateClientCredentialsRequest) Reset() {
 	*x = ValidateClientCredentialsRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[11]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -906,7 +1087,7 @@ func (x *ValidateClientCredentialsRequest) String() string {
 func (*ValidateClientCredentialsRequest) ProtoMessage() {}
 
 func (x *ValidateClientCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[11]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -919,7 +1100,7 @@ func (x *ValidateClientCredentialsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateClientCredentialsRequest.ProtoReflect.Descriptor instead.
 func (*ValidateClientCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{11}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ValidateClientCredentialsRequest) GetOktaOrganizationUrl() string {
@@ -945,7 +1126,7 @@ type ValidateClientCredentialsResponse struct {
 
 func (x *ValidateClientCredentialsResponse) Reset() {
 	*x = ValidateClientCredentialsResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[12]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -957,7 +1138,7 @@ func (x *ValidateClientCredentialsResponse) String() string {
 func (*ValidateClientCredentialsResponse) ProtoMessage() {}
 
 func (x *ValidateClientCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[12]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +1151,7 @@ func (x *ValidateClientCredentialsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ValidateClientCredentialsResponse.ProtoReflect.Descriptor instead.
 func (*ValidateClientCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{12}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{16}
 }
 
 // ListOktaImportRulesRequest is the request for listing paginated Okta import rules.
@@ -986,7 +1167,7 @@ type ListOktaImportRulesRequest struct {
 
 func (x *ListOktaImportRulesRequest) Reset() {
 	*x = ListOktaImportRulesRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[13]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -998,7 +1179,7 @@ func (x *ListOktaImportRulesRequest) String() string {
 func (*ListOktaImportRulesRequest) ProtoMessage() {}
 
 func (x *ListOktaImportRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[13]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1011,7 +1192,7 @@ func (x *ListOktaImportRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOktaImportRulesRequest.ProtoReflect.Descriptor instead.
 func (*ListOktaImportRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{13}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListOktaImportRulesRequest) GetPageSize() int32 {
@@ -1041,7 +1222,7 @@ type ListOktaImportRulesResponse struct {
 
 func (x *ListOktaImportRulesResponse) Reset() {
 	*x = ListOktaImportRulesResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[14]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1053,7 +1234,7 @@ func (x *ListOktaImportRulesResponse) String() string {
 func (*ListOktaImportRulesResponse) ProtoMessage() {}
 
 func (x *ListOktaImportRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[14]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1066,7 +1247,7 @@ func (x *ListOktaImportRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOktaImportRulesResponse.ProtoReflect.Descriptor instead.
 func (*ListOktaImportRulesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{14}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListOktaImportRulesResponse) GetImportRules() []*types.OktaImportRuleV1 {
@@ -1094,7 +1275,7 @@ type GetOktaImportRuleRequest struct {
 
 func (x *GetOktaImportRuleRequest) Reset() {
 	*x = GetOktaImportRuleRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[15]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1106,7 +1287,7 @@ func (x *GetOktaImportRuleRequest) String() string {
 func (*GetOktaImportRuleRequest) ProtoMessage() {}
 
 func (x *GetOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[15]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1119,7 +1300,7 @@ func (x *GetOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOktaImportRuleRequest.ProtoReflect.Descriptor instead.
 func (*GetOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{15}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetOktaImportRuleRequest) GetName() string {
@@ -1140,7 +1321,7 @@ type CreateOktaImportRuleRequest struct {
 
 func (x *CreateOktaImportRuleRequest) Reset() {
 	*x = CreateOktaImportRuleRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[16]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1152,7 +1333,7 @@ func (x *CreateOktaImportRuleRequest) String() string {
 func (*CreateOktaImportRuleRequest) ProtoMessage() {}
 
 func (x *CreateOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[16]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1165,7 +1346,7 @@ func (x *CreateOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOktaImportRuleRequest.ProtoReflect.Descriptor instead.
 func (*CreateOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{16}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CreateOktaImportRuleRequest) GetImportRule() *types.OktaImportRuleV1 {
@@ -1186,7 +1367,7 @@ type UpdateOktaImportRuleRequest struct {
 
 func (x *UpdateOktaImportRuleRequest) Reset() {
 	*x = UpdateOktaImportRuleRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[17]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1198,7 +1379,7 @@ func (x *UpdateOktaImportRuleRequest) String() string {
 func (*UpdateOktaImportRuleRequest) ProtoMessage() {}
 
 func (x *UpdateOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[17]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1211,7 +1392,7 @@ func (x *UpdateOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOktaImportRuleRequest.ProtoReflect.Descriptor instead.
 func (*UpdateOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{17}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UpdateOktaImportRuleRequest) GetImportRule() *types.OktaImportRuleV1 {
@@ -1232,7 +1413,7 @@ type DeleteOktaImportRuleRequest struct {
 
 func (x *DeleteOktaImportRuleRequest) Reset() {
 	*x = DeleteOktaImportRuleRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[18]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1244,7 +1425,7 @@ func (x *DeleteOktaImportRuleRequest) String() string {
 func (*DeleteOktaImportRuleRequest) ProtoMessage() {}
 
 func (x *DeleteOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[18]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1257,7 +1438,7 @@ func (x *DeleteOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOktaImportRuleRequest.ProtoReflect.Descriptor instead.
 func (*DeleteOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{18}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DeleteOktaImportRuleRequest) GetName() string {
@@ -1276,7 +1457,7 @@ type DeleteAllOktaImportRulesRequest struct {
 
 func (x *DeleteAllOktaImportRulesRequest) Reset() {
 	*x = DeleteAllOktaImportRulesRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[19]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1288,7 +1469,7 @@ func (x *DeleteAllOktaImportRulesRequest) String() string {
 func (*DeleteAllOktaImportRulesRequest) ProtoMessage() {}
 
 func (x *DeleteAllOktaImportRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[19]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1301,7 +1482,7 @@ func (x *DeleteAllOktaImportRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllOktaImportRulesRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllOktaImportRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{19}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{23}
 }
 
 // ListOktaAssignmentsRequest is the request for listing paginated Okta assignments.
@@ -1317,7 +1498,7 @@ type ListOktaAssignmentsRequest struct {
 
 func (x *ListOktaAssignmentsRequest) Reset() {
 	*x = ListOktaAssignmentsRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[20]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1329,7 +1510,7 @@ func (x *ListOktaAssignmentsRequest) String() string {
 func (*ListOktaAssignmentsRequest) ProtoMessage() {}
 
 func (x *ListOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[20]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1342,7 +1523,7 @@ func (x *ListOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOktaAssignmentsRequest.ProtoReflect.Descriptor instead.
 func (*ListOktaAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{20}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListOktaAssignmentsRequest) GetPageSize() int32 {
@@ -1372,7 +1553,7 @@ type ListOktaAssignmentsResponse struct {
 
 func (x *ListOktaAssignmentsResponse) Reset() {
 	*x = ListOktaAssignmentsResponse{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[21]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1384,7 +1565,7 @@ func (x *ListOktaAssignmentsResponse) String() string {
 func (*ListOktaAssignmentsResponse) ProtoMessage() {}
 
 func (x *ListOktaAssignmentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[21]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1397,7 +1578,7 @@ func (x *ListOktaAssignmentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOktaAssignmentsResponse.ProtoReflect.Descriptor instead.
 func (*ListOktaAssignmentsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{21}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ListOktaAssignmentsResponse) GetAssignments() []*types.OktaAssignmentV1 {
@@ -1425,7 +1606,7 @@ type GetOktaAssignmentRequest struct {
 
 func (x *GetOktaAssignmentRequest) Reset() {
 	*x = GetOktaAssignmentRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[22]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1437,7 +1618,7 @@ func (x *GetOktaAssignmentRequest) String() string {
 func (*GetOktaAssignmentRequest) ProtoMessage() {}
 
 func (x *GetOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[22]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1450,7 +1631,7 @@ func (x *GetOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOktaAssignmentRequest.ProtoReflect.Descriptor instead.
 func (*GetOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{22}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetOktaAssignmentRequest) GetName() string {
@@ -1471,7 +1652,7 @@ type CreateOktaAssignmentRequest struct {
 
 func (x *CreateOktaAssignmentRequest) Reset() {
 	*x = CreateOktaAssignmentRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[23]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1483,7 +1664,7 @@ func (x *CreateOktaAssignmentRequest) String() string {
 func (*CreateOktaAssignmentRequest) ProtoMessage() {}
 
 func (x *CreateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[23]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1496,7 +1677,7 @@ func (x *CreateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
 func (*CreateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{23}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *CreateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
@@ -1517,7 +1698,7 @@ type UpdateOktaAssignmentRequest struct {
 
 func (x *UpdateOktaAssignmentRequest) Reset() {
 	*x = UpdateOktaAssignmentRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[24]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1529,7 +1710,7 @@ func (x *UpdateOktaAssignmentRequest) String() string {
 func (*UpdateOktaAssignmentRequest) ProtoMessage() {}
 
 func (x *UpdateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[24]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1542,7 +1723,7 @@ func (x *UpdateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
 func (*UpdateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{24}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *UpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
@@ -1568,7 +1749,7 @@ type UpdateOktaAssignmentStatusRequest struct {
 
 func (x *UpdateOktaAssignmentStatusRequest) Reset() {
 	*x = UpdateOktaAssignmentStatusRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[25]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1580,7 +1761,7 @@ func (x *UpdateOktaAssignmentStatusRequest) String() string {
 func (*UpdateOktaAssignmentStatusRequest) ProtoMessage() {}
 
 func (x *UpdateOktaAssignmentStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[25]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1593,7 +1774,7 @@ func (x *UpdateOktaAssignmentStatusRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use UpdateOktaAssignmentStatusRequest.ProtoReflect.Descriptor instead.
 func (*UpdateOktaAssignmentStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{25}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *UpdateOktaAssignmentStatusRequest) GetName() string {
@@ -1628,7 +1809,7 @@ type DeleteOktaAssignmentRequest struct {
 
 func (x *DeleteOktaAssignmentRequest) Reset() {
 	*x = DeleteOktaAssignmentRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[26]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1640,7 +1821,7 @@ func (x *DeleteOktaAssignmentRequest) String() string {
 func (*DeleteOktaAssignmentRequest) ProtoMessage() {}
 
 func (x *DeleteOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[26]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1653,7 +1834,7 @@ func (x *DeleteOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOktaAssignmentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{26}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DeleteOktaAssignmentRequest) GetName() string {
@@ -1672,7 +1853,7 @@ type DeleteAllOktaAssignmentsRequest struct {
 
 func (x *DeleteAllOktaAssignmentsRequest) Reset() {
 	*x = DeleteAllOktaAssignmentsRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[27]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1684,7 +1865,7 @@ func (x *DeleteAllOktaAssignmentsRequest) String() string {
 func (*DeleteAllOktaAssignmentsRequest) ProtoMessage() {}
 
 func (x *DeleteAllOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[27]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1697,7 +1878,7 @@ func (x *DeleteAllOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllOktaAssignmentsRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllOktaAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{27}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{31}
 }
 
 // App contains details of an individual Okta app.
@@ -1713,7 +1894,7 @@ type GetAppsResponse_App struct {
 
 func (x *GetAppsResponse_App) Reset() {
 	*x = GetAppsResponse_App{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[28]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1725,7 +1906,7 @@ func (x *GetAppsResponse_App) String() string {
 func (*GetAppsResponse_App) ProtoMessage() {}
 
 func (x *GetAppsResponse_App) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[28]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1738,7 +1919,7 @@ func (x *GetAppsResponse_App) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAppsResponse_App.ProtoReflect.Descriptor instead.
 func (*GetAppsResponse_App) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{1, 0}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{5, 0}
 }
 
 func (x *GetAppsResponse_App) GetName() string {
@@ -1768,7 +1949,7 @@ type GetGroupsResponse_Group struct {
 
 func (x *GetGroupsResponse_Group) Reset() {
 	*x = GetGroupsResponse_Group{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1780,7 +1961,7 @@ func (x *GetGroupsResponse_Group) String() string {
 func (*GetGroupsResponse_Group) ProtoMessage() {}
 
 func (x *GetGroupsResponse_Group) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1793,7 +1974,7 @@ func (x *GetGroupsResponse_Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsResponse_Group.ProtoReflect.Descriptor instead.
 func (*GetGroupsResponse_Group) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{3, 0}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *GetGroupsResponse_Group) GetName() string {
@@ -1814,7 +1995,23 @@ var File_teleport_okta_v1_okta_service_proto protoreflect.FileDescriptor
 
 const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\n" +
-	"#teleport/okta/v1/okta_service.proto\x12\x10teleport.okta.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"\xad\x01\n" +
+	"#teleport/okta/v1/okta_service.proto\x12\x10teleport.okta.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"a\n" +
+	"&ConditionalUpdateOktaAssignmentRequest\x127\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
+	"assignment\"b\n" +
+	"'ConditionalUpdateOktaAssignmentResponse\x127\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
+	"assignment\"W\n" +
+	"\x1cUpsertOktaAssignmentResponse\x127\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
+	"assignment\"V\n" +
+	"\x1bUpsertOktaAssignmentRequest\x127\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
+	"assignment\"\xad\x01\n" +
 	"\x0eGetAppsRequest\x122\n" +
 	"\x15okta_organization_url\x18\x01 \x01(\tR\x13oktaOrganizationUrl\x12M\n" +
 	"\x0fapi_credentials\x18\x02 \x01(\v2$.teleport.okta.v1.OktaAPICredentialsR\x0eapiCredentials\x12\x18\n" +
@@ -1928,7 +2125,7 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x0ftime_has_passed\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rtimeHasPassed\"1\n" +
 	"\x1bDeleteOktaAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"!\n" +
-	"\x1fDeleteAllOktaAssignmentsRequest2\xa9\x0e\n" +
+	"\x1fDeleteAllOktaAssignmentsRequest2\xb9\x10\n" +
 	"\vOktaService\x12r\n" +
 	"\x13ListOktaImportRules\x12,.teleport.okta.v1.ListOktaImportRulesRequest\x1a-.teleport.okta.v1.ListOktaImportRulesResponse\x12X\n" +
 	"\x11GetOktaImportRule\x12*.teleport.okta.v1.GetOktaImportRuleRequest\x1a\x17.types.OktaImportRuleV1\x12^\n" +
@@ -1942,7 +2139,9 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x14UpdateOktaAssignment\x12-.teleport.okta.v1.UpdateOktaAssignmentRequest\x1a\x17.types.OktaAssignmentV1\x12i\n" +
 	"\x1aUpdateOktaAssignmentStatus\x123.teleport.okta.v1.UpdateOktaAssignmentStatusRequest\x1a\x16.google.protobuf.Empty\x12]\n" +
 	"\x14DeleteOktaAssignment\x12-.teleport.okta.v1.DeleteOktaAssignmentRequest\x1a\x16.google.protobuf.Empty\x12e\n" +
-	"\x18DeleteAllOktaAssignments\x121.teleport.okta.v1.DeleteAllOktaAssignmentsRequest\x1a\x16.google.protobuf.Empty\x12\x84\x01\n" +
+	"\x18DeleteAllOktaAssignments\x121.teleport.okta.v1.DeleteAllOktaAssignmentsRequest\x1a\x16.google.protobuf.Empty\x12\x96\x01\n" +
+	"\x1fConditionalUpdateOktaAssignment\x128.teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest\x1a9.teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse\x12u\n" +
+	"\x14UpsertOktaAssignment\x12-.teleport.okta.v1.UpsertOktaAssignmentRequest\x1a..teleport.okta.v1.UpsertOktaAssignmentResponse\x12\x84\x01\n" +
 	"\x19ValidateClientCredentials\x122.teleport.okta.v1.ValidateClientCredentialsRequest\x1a3.teleport.okta.v1.ValidateClientCredentialsResponse\x12l\n" +
 	"\x11CreateIntegration\x12*.teleport.okta.v1.CreateIntegrationRequest\x1a+.teleport.okta.v1.CreateIntegrationResponse\x12l\n" +
 	"\x11UpdateIntegration\x12*.teleport.okta.v1.UpdateIntegrationRequest\x1a+.teleport.okta.v1.UpdateIntegrationResponse\x12N\n" +
@@ -1961,110 +2160,122 @@ func file_teleport_okta_v1_okta_service_proto_rawDescGZIP() []byte {
 	return file_teleport_okta_v1_okta_service_proto_rawDescData
 }
 
-var file_teleport_okta_v1_okta_service_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_teleport_okta_v1_okta_service_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_teleport_okta_v1_okta_service_proto_goTypes = []any{
-	(*GetAppsRequest)(nil),                               // 0: teleport.okta.v1.GetAppsRequest
-	(*GetAppsResponse)(nil),                              // 1: teleport.okta.v1.GetAppsResponse
-	(*GetGroupsRequest)(nil),                             // 2: teleport.okta.v1.GetGroupsRequest
-	(*GetGroupsResponse)(nil),                            // 3: teleport.okta.v1.GetGroupsResponse
-	(*CreateIntegrationRequest)(nil),                     // 4: teleport.okta.v1.CreateIntegrationRequest
-	(*UpdateIntegrationRequest)(nil),                     // 5: teleport.okta.v1.UpdateIntegrationRequest
-	(*AccessListSettings)(nil),                           // 6: teleport.okta.v1.AccessListSettings
-	(*OktaAPICredentials)(nil),                           // 7: teleport.okta.v1.OktaAPICredentials
-	(*CreateIntegrationResponse)(nil),                    // 8: teleport.okta.v1.CreateIntegrationResponse
-	(*UpdateIntegrationResponse)(nil),                    // 9: teleport.okta.v1.UpdateIntegrationResponse
-	(*ConnectorInfo)(nil),                                // 10: teleport.okta.v1.ConnectorInfo
-	(*ValidateClientCredentialsRequest)(nil),             // 11: teleport.okta.v1.ValidateClientCredentialsRequest
-	(*ValidateClientCredentialsResponse)(nil),            // 12: teleport.okta.v1.ValidateClientCredentialsResponse
-	(*ListOktaImportRulesRequest)(nil),                   // 13: teleport.okta.v1.ListOktaImportRulesRequest
-	(*ListOktaImportRulesResponse)(nil),                  // 14: teleport.okta.v1.ListOktaImportRulesResponse
-	(*GetOktaImportRuleRequest)(nil),                     // 15: teleport.okta.v1.GetOktaImportRuleRequest
-	(*CreateOktaImportRuleRequest)(nil),                  // 16: teleport.okta.v1.CreateOktaImportRuleRequest
-	(*UpdateOktaImportRuleRequest)(nil),                  // 17: teleport.okta.v1.UpdateOktaImportRuleRequest
-	(*DeleteOktaImportRuleRequest)(nil),                  // 18: teleport.okta.v1.DeleteOktaImportRuleRequest
-	(*DeleteAllOktaImportRulesRequest)(nil),              // 19: teleport.okta.v1.DeleteAllOktaImportRulesRequest
-	(*ListOktaAssignmentsRequest)(nil),                   // 20: teleport.okta.v1.ListOktaAssignmentsRequest
-	(*ListOktaAssignmentsResponse)(nil),                  // 21: teleport.okta.v1.ListOktaAssignmentsResponse
-	(*GetOktaAssignmentRequest)(nil),                     // 22: teleport.okta.v1.GetOktaAssignmentRequest
-	(*CreateOktaAssignmentRequest)(nil),                  // 23: teleport.okta.v1.CreateOktaAssignmentRequest
-	(*UpdateOktaAssignmentRequest)(nil),                  // 24: teleport.okta.v1.UpdateOktaAssignmentRequest
-	(*UpdateOktaAssignmentStatusRequest)(nil),            // 25: teleport.okta.v1.UpdateOktaAssignmentStatusRequest
-	(*DeleteOktaAssignmentRequest)(nil),                  // 26: teleport.okta.v1.DeleteOktaAssignmentRequest
-	(*DeleteAllOktaAssignmentsRequest)(nil),              // 27: teleport.okta.v1.DeleteAllOktaAssignmentsRequest
-	(*GetAppsResponse_App)(nil),                          // 28: teleport.okta.v1.GetAppsResponse.App
-	(*GetGroupsResponse_Group)(nil),                      // 29: teleport.okta.v1.GetGroupsResponse.Group
-	(*durationpb.Duration)(nil),                          // 30: google.protobuf.Duration
-	(*types.PluginV1)(nil),                               // 31: types.PluginV1
-	(*types.OktaImportRuleV1)(nil),                       // 32: types.OktaImportRuleV1
-	(*types.OktaAssignmentV1)(nil),                       // 33: types.OktaAssignmentV1
-	(types.OktaAssignmentSpecV1_OktaAssignmentStatus)(0), // 34: types.OktaAssignmentSpecV1.OktaAssignmentStatus
-	(*emptypb.Empty)(nil),                                // 35: google.protobuf.Empty
+	(*ConditionalUpdateOktaAssignmentRequest)(nil),       // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
+	(*ConditionalUpdateOktaAssignmentResponse)(nil),      // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
+	(*UpsertOktaAssignmentResponse)(nil),                 // 2: teleport.okta.v1.UpsertOktaAssignmentResponse
+	(*UpsertOktaAssignmentRequest)(nil),                  // 3: teleport.okta.v1.UpsertOktaAssignmentRequest
+	(*GetAppsRequest)(nil),                               // 4: teleport.okta.v1.GetAppsRequest
+	(*GetAppsResponse)(nil),                              // 5: teleport.okta.v1.GetAppsResponse
+	(*GetGroupsRequest)(nil),                             // 6: teleport.okta.v1.GetGroupsRequest
+	(*GetGroupsResponse)(nil),                            // 7: teleport.okta.v1.GetGroupsResponse
+	(*CreateIntegrationRequest)(nil),                     // 8: teleport.okta.v1.CreateIntegrationRequest
+	(*UpdateIntegrationRequest)(nil),                     // 9: teleport.okta.v1.UpdateIntegrationRequest
+	(*AccessListSettings)(nil),                           // 10: teleport.okta.v1.AccessListSettings
+	(*OktaAPICredentials)(nil),                           // 11: teleport.okta.v1.OktaAPICredentials
+	(*CreateIntegrationResponse)(nil),                    // 12: teleport.okta.v1.CreateIntegrationResponse
+	(*UpdateIntegrationResponse)(nil),                    // 13: teleport.okta.v1.UpdateIntegrationResponse
+	(*ConnectorInfo)(nil),                                // 14: teleport.okta.v1.ConnectorInfo
+	(*ValidateClientCredentialsRequest)(nil),             // 15: teleport.okta.v1.ValidateClientCredentialsRequest
+	(*ValidateClientCredentialsResponse)(nil),            // 16: teleport.okta.v1.ValidateClientCredentialsResponse
+	(*ListOktaImportRulesRequest)(nil),                   // 17: teleport.okta.v1.ListOktaImportRulesRequest
+	(*ListOktaImportRulesResponse)(nil),                  // 18: teleport.okta.v1.ListOktaImportRulesResponse
+	(*GetOktaImportRuleRequest)(nil),                     // 19: teleport.okta.v1.GetOktaImportRuleRequest
+	(*CreateOktaImportRuleRequest)(nil),                  // 20: teleport.okta.v1.CreateOktaImportRuleRequest
+	(*UpdateOktaImportRuleRequest)(nil),                  // 21: teleport.okta.v1.UpdateOktaImportRuleRequest
+	(*DeleteOktaImportRuleRequest)(nil),                  // 22: teleport.okta.v1.DeleteOktaImportRuleRequest
+	(*DeleteAllOktaImportRulesRequest)(nil),              // 23: teleport.okta.v1.DeleteAllOktaImportRulesRequest
+	(*ListOktaAssignmentsRequest)(nil),                   // 24: teleport.okta.v1.ListOktaAssignmentsRequest
+	(*ListOktaAssignmentsResponse)(nil),                  // 25: teleport.okta.v1.ListOktaAssignmentsResponse
+	(*GetOktaAssignmentRequest)(nil),                     // 26: teleport.okta.v1.GetOktaAssignmentRequest
+	(*CreateOktaAssignmentRequest)(nil),                  // 27: teleport.okta.v1.CreateOktaAssignmentRequest
+	(*UpdateOktaAssignmentRequest)(nil),                  // 28: teleport.okta.v1.UpdateOktaAssignmentRequest
+	(*UpdateOktaAssignmentStatusRequest)(nil),            // 29: teleport.okta.v1.UpdateOktaAssignmentStatusRequest
+	(*DeleteOktaAssignmentRequest)(nil),                  // 30: teleport.okta.v1.DeleteOktaAssignmentRequest
+	(*DeleteAllOktaAssignmentsRequest)(nil),              // 31: teleport.okta.v1.DeleteAllOktaAssignmentsRequest
+	(*GetAppsResponse_App)(nil),                          // 32: teleport.okta.v1.GetAppsResponse.App
+	(*GetGroupsResponse_Group)(nil),                      // 33: teleport.okta.v1.GetGroupsResponse.Group
+	(*types.OktaAssignmentV1)(nil),                       // 34: types.OktaAssignmentV1
+	(*durationpb.Duration)(nil),                          // 35: google.protobuf.Duration
+	(*types.PluginV1)(nil),                               // 36: types.PluginV1
+	(*types.OktaImportRuleV1)(nil),                       // 37: types.OktaImportRuleV1
+	(types.OktaAssignmentSpecV1_OktaAssignmentStatus)(0), // 38: types.OktaAssignmentSpecV1.OktaAssignmentStatus
+	(*emptypb.Empty)(nil),                                // 39: google.protobuf.Empty
 }
 var file_teleport_okta_v1_okta_service_proto_depIdxs = []int32{
-	7,  // 0: teleport.okta.v1.GetAppsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	28, // 1: teleport.okta.v1.GetAppsResponse.apps:type_name -> teleport.okta.v1.GetAppsResponse.App
-	7,  // 2: teleport.okta.v1.GetGroupsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	29, // 3: teleport.okta.v1.GetGroupsResponse.groups:type_name -> teleport.okta.v1.GetGroupsResponse.Group
-	7,  // 4: teleport.okta.v1.CreateIntegrationRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	6,  // 5: teleport.okta.v1.CreateIntegrationRequest.access_list_settings:type_name -> teleport.okta.v1.AccessListSettings
-	30, // 6: teleport.okta.v1.CreateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
-	7,  // 7: teleport.okta.v1.UpdateIntegrationRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	6,  // 8: teleport.okta.v1.UpdateIntegrationRequest.access_list_settings:type_name -> teleport.okta.v1.AccessListSettings
-	30, // 9: teleport.okta.v1.UpdateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
-	31, // 10: teleport.okta.v1.CreateIntegrationResponse.plugin:type_name -> types.PluginV1
-	10, // 11: teleport.okta.v1.CreateIntegrationResponse.connector_info:type_name -> teleport.okta.v1.ConnectorInfo
-	31, // 12: teleport.okta.v1.UpdateIntegrationResponse.plugin:type_name -> types.PluginV1
-	10, // 13: teleport.okta.v1.UpdateIntegrationResponse.connector_info:type_name -> teleport.okta.v1.ConnectorInfo
-	7,  // 14: teleport.okta.v1.ValidateClientCredentialsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	32, // 15: teleport.okta.v1.ListOktaImportRulesResponse.import_rules:type_name -> types.OktaImportRuleV1
-	32, // 16: teleport.okta.v1.CreateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
-	32, // 17: teleport.okta.v1.UpdateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
-	33, // 18: teleport.okta.v1.ListOktaAssignmentsResponse.assignments:type_name -> types.OktaAssignmentV1
-	33, // 19: teleport.okta.v1.CreateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
-	33, // 20: teleport.okta.v1.UpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
-	34, // 21: teleport.okta.v1.UpdateOktaAssignmentStatusRequest.status:type_name -> types.OktaAssignmentSpecV1.OktaAssignmentStatus
-	30, // 22: teleport.okta.v1.UpdateOktaAssignmentStatusRequest.time_has_passed:type_name -> google.protobuf.Duration
-	13, // 23: teleport.okta.v1.OktaService.ListOktaImportRules:input_type -> teleport.okta.v1.ListOktaImportRulesRequest
-	15, // 24: teleport.okta.v1.OktaService.GetOktaImportRule:input_type -> teleport.okta.v1.GetOktaImportRuleRequest
-	16, // 25: teleport.okta.v1.OktaService.CreateOktaImportRule:input_type -> teleport.okta.v1.CreateOktaImportRuleRequest
-	17, // 26: teleport.okta.v1.OktaService.UpdateOktaImportRule:input_type -> teleport.okta.v1.UpdateOktaImportRuleRequest
-	18, // 27: teleport.okta.v1.OktaService.DeleteOktaImportRule:input_type -> teleport.okta.v1.DeleteOktaImportRuleRequest
-	19, // 28: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:input_type -> teleport.okta.v1.DeleteAllOktaImportRulesRequest
-	20, // 29: teleport.okta.v1.OktaService.ListOktaAssignments:input_type -> teleport.okta.v1.ListOktaAssignmentsRequest
-	22, // 30: teleport.okta.v1.OktaService.GetOktaAssignment:input_type -> teleport.okta.v1.GetOktaAssignmentRequest
-	23, // 31: teleport.okta.v1.OktaService.CreateOktaAssignment:input_type -> teleport.okta.v1.CreateOktaAssignmentRequest
-	24, // 32: teleport.okta.v1.OktaService.UpdateOktaAssignment:input_type -> teleport.okta.v1.UpdateOktaAssignmentRequest
-	25, // 33: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:input_type -> teleport.okta.v1.UpdateOktaAssignmentStatusRequest
-	26, // 34: teleport.okta.v1.OktaService.DeleteOktaAssignment:input_type -> teleport.okta.v1.DeleteOktaAssignmentRequest
-	27, // 35: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:input_type -> teleport.okta.v1.DeleteAllOktaAssignmentsRequest
-	11, // 36: teleport.okta.v1.OktaService.ValidateClientCredentials:input_type -> teleport.okta.v1.ValidateClientCredentialsRequest
-	4,  // 37: teleport.okta.v1.OktaService.CreateIntegration:input_type -> teleport.okta.v1.CreateIntegrationRequest
-	5,  // 38: teleport.okta.v1.OktaService.UpdateIntegration:input_type -> teleport.okta.v1.UpdateIntegrationRequest
-	0,  // 39: teleport.okta.v1.OktaService.GetApps:input_type -> teleport.okta.v1.GetAppsRequest
-	2,  // 40: teleport.okta.v1.OktaService.GetGroups:input_type -> teleport.okta.v1.GetGroupsRequest
-	14, // 41: teleport.okta.v1.OktaService.ListOktaImportRules:output_type -> teleport.okta.v1.ListOktaImportRulesResponse
-	32, // 42: teleport.okta.v1.OktaService.GetOktaImportRule:output_type -> types.OktaImportRuleV1
-	32, // 43: teleport.okta.v1.OktaService.CreateOktaImportRule:output_type -> types.OktaImportRuleV1
-	32, // 44: teleport.okta.v1.OktaService.UpdateOktaImportRule:output_type -> types.OktaImportRuleV1
-	35, // 45: teleport.okta.v1.OktaService.DeleteOktaImportRule:output_type -> google.protobuf.Empty
-	35, // 46: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:output_type -> google.protobuf.Empty
-	21, // 47: teleport.okta.v1.OktaService.ListOktaAssignments:output_type -> teleport.okta.v1.ListOktaAssignmentsResponse
-	33, // 48: teleport.okta.v1.OktaService.GetOktaAssignment:output_type -> types.OktaAssignmentV1
-	33, // 49: teleport.okta.v1.OktaService.CreateOktaAssignment:output_type -> types.OktaAssignmentV1
-	33, // 50: teleport.okta.v1.OktaService.UpdateOktaAssignment:output_type -> types.OktaAssignmentV1
-	35, // 51: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:output_type -> google.protobuf.Empty
-	35, // 52: teleport.okta.v1.OktaService.DeleteOktaAssignment:output_type -> google.protobuf.Empty
-	35, // 53: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:output_type -> google.protobuf.Empty
-	12, // 54: teleport.okta.v1.OktaService.ValidateClientCredentials:output_type -> teleport.okta.v1.ValidateClientCredentialsResponse
-	8,  // 55: teleport.okta.v1.OktaService.CreateIntegration:output_type -> teleport.okta.v1.CreateIntegrationResponse
-	9,  // 56: teleport.okta.v1.OktaService.UpdateIntegration:output_type -> teleport.okta.v1.UpdateIntegrationResponse
-	1,  // 57: teleport.okta.v1.OktaService.GetApps:output_type -> teleport.okta.v1.GetAppsResponse
-	3,  // 58: teleport.okta.v1.OktaService.GetGroups:output_type -> teleport.okta.v1.GetGroupsResponse
-	41, // [41:59] is the sub-list for method output_type
-	23, // [23:41] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	34, // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	34, // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
+	34, // 2: teleport.okta.v1.UpsertOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
+	34, // 3: teleport.okta.v1.UpsertOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	11, // 4: teleport.okta.v1.GetAppsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
+	32, // 5: teleport.okta.v1.GetAppsResponse.apps:type_name -> teleport.okta.v1.GetAppsResponse.App
+	11, // 6: teleport.okta.v1.GetGroupsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
+	33, // 7: teleport.okta.v1.GetGroupsResponse.groups:type_name -> teleport.okta.v1.GetGroupsResponse.Group
+	11, // 8: teleport.okta.v1.CreateIntegrationRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
+	10, // 9: teleport.okta.v1.CreateIntegrationRequest.access_list_settings:type_name -> teleport.okta.v1.AccessListSettings
+	35, // 10: teleport.okta.v1.CreateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
+	11, // 11: teleport.okta.v1.UpdateIntegrationRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
+	10, // 12: teleport.okta.v1.UpdateIntegrationRequest.access_list_settings:type_name -> teleport.okta.v1.AccessListSettings
+	35, // 13: teleport.okta.v1.UpdateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
+	36, // 14: teleport.okta.v1.CreateIntegrationResponse.plugin:type_name -> types.PluginV1
+	14, // 15: teleport.okta.v1.CreateIntegrationResponse.connector_info:type_name -> teleport.okta.v1.ConnectorInfo
+	36, // 16: teleport.okta.v1.UpdateIntegrationResponse.plugin:type_name -> types.PluginV1
+	14, // 17: teleport.okta.v1.UpdateIntegrationResponse.connector_info:type_name -> teleport.okta.v1.ConnectorInfo
+	11, // 18: teleport.okta.v1.ValidateClientCredentialsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
+	37, // 19: teleport.okta.v1.ListOktaImportRulesResponse.import_rules:type_name -> types.OktaImportRuleV1
+	37, // 20: teleport.okta.v1.CreateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
+	37, // 21: teleport.okta.v1.UpdateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
+	34, // 22: teleport.okta.v1.ListOktaAssignmentsResponse.assignments:type_name -> types.OktaAssignmentV1
+	34, // 23: teleport.okta.v1.CreateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	34, // 24: teleport.okta.v1.UpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	38, // 25: teleport.okta.v1.UpdateOktaAssignmentStatusRequest.status:type_name -> types.OktaAssignmentSpecV1.OktaAssignmentStatus
+	35, // 26: teleport.okta.v1.UpdateOktaAssignmentStatusRequest.time_has_passed:type_name -> google.protobuf.Duration
+	17, // 27: teleport.okta.v1.OktaService.ListOktaImportRules:input_type -> teleport.okta.v1.ListOktaImportRulesRequest
+	19, // 28: teleport.okta.v1.OktaService.GetOktaImportRule:input_type -> teleport.okta.v1.GetOktaImportRuleRequest
+	20, // 29: teleport.okta.v1.OktaService.CreateOktaImportRule:input_type -> teleport.okta.v1.CreateOktaImportRuleRequest
+	21, // 30: teleport.okta.v1.OktaService.UpdateOktaImportRule:input_type -> teleport.okta.v1.UpdateOktaImportRuleRequest
+	22, // 31: teleport.okta.v1.OktaService.DeleteOktaImportRule:input_type -> teleport.okta.v1.DeleteOktaImportRuleRequest
+	23, // 32: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:input_type -> teleport.okta.v1.DeleteAllOktaImportRulesRequest
+	24, // 33: teleport.okta.v1.OktaService.ListOktaAssignments:input_type -> teleport.okta.v1.ListOktaAssignmentsRequest
+	26, // 34: teleport.okta.v1.OktaService.GetOktaAssignment:input_type -> teleport.okta.v1.GetOktaAssignmentRequest
+	27, // 35: teleport.okta.v1.OktaService.CreateOktaAssignment:input_type -> teleport.okta.v1.CreateOktaAssignmentRequest
+	28, // 36: teleport.okta.v1.OktaService.UpdateOktaAssignment:input_type -> teleport.okta.v1.UpdateOktaAssignmentRequest
+	29, // 37: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:input_type -> teleport.okta.v1.UpdateOktaAssignmentStatusRequest
+	30, // 38: teleport.okta.v1.OktaService.DeleteOktaAssignment:input_type -> teleport.okta.v1.DeleteOktaAssignmentRequest
+	31, // 39: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:input_type -> teleport.okta.v1.DeleteAllOktaAssignmentsRequest
+	0,  // 40: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:input_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
+	3,  // 41: teleport.okta.v1.OktaService.UpsertOktaAssignment:input_type -> teleport.okta.v1.UpsertOktaAssignmentRequest
+	15, // 42: teleport.okta.v1.OktaService.ValidateClientCredentials:input_type -> teleport.okta.v1.ValidateClientCredentialsRequest
+	8,  // 43: teleport.okta.v1.OktaService.CreateIntegration:input_type -> teleport.okta.v1.CreateIntegrationRequest
+	9,  // 44: teleport.okta.v1.OktaService.UpdateIntegration:input_type -> teleport.okta.v1.UpdateIntegrationRequest
+	4,  // 45: teleport.okta.v1.OktaService.GetApps:input_type -> teleport.okta.v1.GetAppsRequest
+	6,  // 46: teleport.okta.v1.OktaService.GetGroups:input_type -> teleport.okta.v1.GetGroupsRequest
+	18, // 47: teleport.okta.v1.OktaService.ListOktaImportRules:output_type -> teleport.okta.v1.ListOktaImportRulesResponse
+	37, // 48: teleport.okta.v1.OktaService.GetOktaImportRule:output_type -> types.OktaImportRuleV1
+	37, // 49: teleport.okta.v1.OktaService.CreateOktaImportRule:output_type -> types.OktaImportRuleV1
+	37, // 50: teleport.okta.v1.OktaService.UpdateOktaImportRule:output_type -> types.OktaImportRuleV1
+	39, // 51: teleport.okta.v1.OktaService.DeleteOktaImportRule:output_type -> google.protobuf.Empty
+	39, // 52: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:output_type -> google.protobuf.Empty
+	25, // 53: teleport.okta.v1.OktaService.ListOktaAssignments:output_type -> teleport.okta.v1.ListOktaAssignmentsResponse
+	34, // 54: teleport.okta.v1.OktaService.GetOktaAssignment:output_type -> types.OktaAssignmentV1
+	34, // 55: teleport.okta.v1.OktaService.CreateOktaAssignment:output_type -> types.OktaAssignmentV1
+	34, // 56: teleport.okta.v1.OktaService.UpdateOktaAssignment:output_type -> types.OktaAssignmentV1
+	39, // 57: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:output_type -> google.protobuf.Empty
+	39, // 58: teleport.okta.v1.OktaService.DeleteOktaAssignment:output_type -> google.protobuf.Empty
+	39, // 59: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:output_type -> google.protobuf.Empty
+	1,  // 60: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:output_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
+	2,  // 61: teleport.okta.v1.OktaService.UpsertOktaAssignment:output_type -> teleport.okta.v1.UpsertOktaAssignmentResponse
+	16, // 62: teleport.okta.v1.OktaService.ValidateClientCredentials:output_type -> teleport.okta.v1.ValidateClientCredentialsResponse
+	12, // 63: teleport.okta.v1.OktaService.CreateIntegration:output_type -> teleport.okta.v1.CreateIntegrationResponse
+	13, // 64: teleport.okta.v1.OktaService.UpdateIntegration:output_type -> teleport.okta.v1.UpdateIntegrationResponse
+	5,  // 65: teleport.okta.v1.OktaService.GetApps:output_type -> teleport.okta.v1.GetAppsResponse
+	7,  // 66: teleport.okta.v1.OktaService.GetGroups:output_type -> teleport.okta.v1.GetGroupsResponse
+	47, // [47:67] is the sub-list for method output_type
+	27, // [27:47] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_teleport_okta_v1_okta_service_proto_init() }
@@ -2072,7 +2283,7 @@ func file_teleport_okta_v1_okta_service_proto_init() {
 	if File_teleport_okta_v1_okta_service_proto != nil {
 		return
 	}
-	file_teleport_okta_v1_okta_service_proto_msgTypes[7].OneofWrappers = []any{
+	file_teleport_okta_v1_okta_service_proto_msgTypes[11].OneofWrappers = []any{
 		(*OktaAPICredentials_OauthId)(nil),
 		(*OktaAPICredentials_SswsBearerToken)(nil),
 	}
@@ -2082,7 +2293,7 @@ func file_teleport_okta_v1_okta_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_okta_v1_okta_service_proto_rawDesc), len(file_teleport_okta_v1_okta_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

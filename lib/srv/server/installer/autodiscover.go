@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -32,12 +33,14 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -49,8 +52,27 @@ import (
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
+	teleportsystemd "github.com/gravitational/teleport/lib/systemd"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
+)
+
+const (
+	// JoinFailureTimeout is the maximum amount of time the installer waits for a
+	// node to become ready before returning the join-failure exit code.
+	JoinFailureTimeout = 2 * time.Minute
+
+	// joinFailureDiagnosticsTimeout bounds the time spent collecting systemd state
+	// and journal output after the readyz poll has already timed out.
+	joinFailureDiagnosticsTimeout = 5 * time.Second
+
+	// defaultReadyzPollInterval is how often to poll the Teleport readyz endpoint
+	// while waiting for the agent to join the cluster.
+	defaultReadyzPollInterval = 5 * time.Second
+
+	// defaultInstallLockGracePeriod is additional time beyond readyz polling to
+	// wait for the install lock before returning a lock contention error.
+	defaultInstallLockGracePeriod = 10 * time.Second
 )
 
 const (
@@ -113,6 +135,35 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// imdsProviders contains the Cloud Instance Metadata providers.
 	// Used for testing.
 	imdsProviders []func(ctx context.Context) (imds.Client, error)
+
+	// readyzPollInterval is how often to poll the Teleport readyz endpoint while
+	// waiting for the agent to join the cluster. Defaults to
+	// defaultReadyzPollInterval (5s).
+	readyzPollInterval time.Duration
+
+	// readyzPollTimeout is the total amount of time to poll the Teleport readyz
+	// endpoint before returning a join-failure error. Defaults to JoinFailureTimeout.
+	readyzPollTimeout time.Duration
+
+	// installLockWaitTimeoutOverride, when set, overrides the default install lock
+	// timeout used by installAndConfigure. Used for testing.
+	installLockWaitTimeoutOverride time.Duration
+
+	// readyzChecker performs readyz checks against the Teleport debug socket.
+	// When nil, a default checker is created in NewAutoDiscoverNodeInstaller.
+	readyzChecker *readyzChecker
+
+	// diagnostics retrieves server diagnostics.
+	// If nil, it defaults to a systemd-backed service state reader.
+	diagnostics func(ctx context.Context, serviceName string) string
+
+	// journal captures recent journal output.
+	// If nil, it defaults to systemd-backed journalctl capture.
+	journal func(ctx context.Context, serviceName string) (string, error)
+
+	// newSystemdConn creates a systemd connection for diagnostics collection.
+	// Used for testing.
+	newSystemdConn teleportsystemd.NewConnFunc
 }
 
 func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
@@ -161,6 +212,14 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 
 	c.binariesLocation.CheckAndSetDefaults()
 
+	if c.readyzPollInterval == 0 {
+		c.readyzPollInterval = defaultReadyzPollInterval
+	}
+
+	if c.readyzPollTimeout == 0 {
+		c.readyzPollTimeout = JoinFailureTimeout
+	}
+
 	if len(c.imdsProviders) == 0 {
 		c.imdsProviders = []func(ctx context.Context) (imds.Client, error){
 			func(ctx context.Context) (imds.Client, error) {
@@ -204,6 +263,37 @@ func NewAutoDiscoverNodeInstaller(cfg *AutoDiscoverNodeInstallerConfig) (*AutoDi
 		AutoDiscoverNodeInstallerConfig: cfg,
 	}
 
+	if ti.readyzChecker == nil {
+		ti.readyzChecker = &readyzChecker{
+			logger:  cfg.Logger,
+			dataDir: ti.buildTeleportDataDirPath(),
+		}
+	}
+	systemdClient := teleportsystemd.NewClient(teleportsystemd.Config{
+		Logger:         cfg.Logger,
+		JournalctlPath: ti.binariesLocation.Journalctl,
+		NewConn:        cfg.newSystemdConn,
+	})
+
+	if ti.diagnostics == nil {
+		ti.diagnostics = func(ctx context.Context, serviceName string) string {
+			state, err := systemdClient.ReadServiceState(ctx, serviceName)
+			if err != nil {
+				return defaultServiceDiagnosticsUnavailable
+			}
+			return state.String()
+		}
+	}
+
+	if ti.journal == nil {
+		ti.journal = func(ctx context.Context, serviceName string) (string, error) {
+			return systemdClient.CaptureJournal(ctx, serviceName, teleportsystemd.JournalOptions{
+				Lines:                   maxJournalLines,
+				FilterCurrentInvocation: true,
+			})
+		}
+	}
+
 	return ti, nil
 }
 
@@ -238,11 +328,22 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 		)
 	}
 
+	// Install, configure, and health-check all run under the install lock.
+	return trace.Wrap(ani.installAndConfigure(ctx))
+}
+
+// installAndConfigure acquires the install lock and performs the install, configuration,
+// and health-check steps. The health check runs under the lock to prevent a concurrent
+// installer from restarting Teleport while we're waiting for the readyz result.
+func (ani *AutoDiscoverNodeInstaller) installAndConfigure(ctx context.Context) error {
 	// Ensure only one installer is running by locking the same file as the script installers.
 	lockFile := ani.buildAbsoluteFilePath(exclusiveInstallFileLock)
-	unlockFn, err := utils.FSTryWriteLock(lockFile)
+	unlockFn, err := utils.FSTryWriteLockTimeout(ctx, lockFile, ani.getInstallLockWaitTimeout())
 	if err != nil {
-		return trace.BadParameter("Could not get lock %s. Either remove it or wait for the other installer to finish.", lockFile)
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			return trace.BadParameter("could not acquire lock file %s; either remove it or wait for the other installer to finish", lockFile)
+		}
+		return trace.Wrap(err, "acquiring install lock file %s", lockFile)
 	}
 	defer func() {
 		if err := unlockFn(); err != nil {
@@ -279,9 +380,9 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 				"configuration_file", ani.buildTeleportConfigurationPath(),
 				"systemd_service", ani.buildTeleportSystemdUnitName(),
 			)
-			// Restarting teleport is not required because the target teleport.yaml
-			// is up to date with the existing one.
-			return nil
+			// Config unchanged, so skip restart but still run a health check. This preserves visibility into
+			// lingering join/service failures on subsequent polls.
+			return trace.Wrap(ani.checkJoinHealth(ctx))
 		}
 
 		return trace.Wrap(err)
@@ -297,29 +398,149 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	// Health check runs while the install lock is still held, so another installer flow that
+	// uses this lock can't restart Teleport while we're waiting for the readyz result.
+	return trace.Wrap(ani.checkJoinHealth(ctx))
 }
 
-// enableAndRestartTeleportService will enable and (re)start the teleport.service.
-// This function must be idempotent because we can call it in either one of the following scenarios:
-// - teleport was just installed and teleport.service is inactive
-// - teleport was already installed but the service is failing
-func (ani *AutoDiscoverNodeInstaller) enableAndRestartTeleportService(ctx context.Context) error {
-	serviceName := ani.buildTeleportSystemdUnitName()
-
-	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", serviceName)
-	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
-	if err != nil {
-		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
+func (a *AutoDiscoverNodeInstaller) getInstallLockWaitTimeout() time.Duration {
+	if a.installLockWaitTimeoutOverride > 0 {
+		return a.installLockWaitTimeoutOverride
 	}
 
-	systemctlRestartCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "restart", serviceName)
-	systemctlRestartCMDOutput, err := systemctlRestartCMD.CombinedOutput()
+	return a.readyzPollTimeout + defaultInstallLockGracePeriod
+}
+
+// checkJoinHealth polls Teleport's readyz endpoint until the node becomes ready,
+// or until the readyz poll timeout elapses. On timeout, it returns an error enriched
+// with systemd service diagnostics and recent journal logs.
+func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
+	serviceName := a.buildTeleportSystemdUnitName()
+	pollRetry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewConstantDriver(a.readyzPollInterval),
+		Max:    a.readyzPollInterval,
+	})
 	if err != nil {
-		return trace.Wrap(err, string(systemctlRestartCMDOutput))
+		return trace.Wrap(err)
+	}
+	pollCtx, cancelPoll := context.WithTimeout(ctx, a.readyzPollTimeout)
+	defer cancelPoll()
+
+	// Run the first check immediately. Unexpected (non-transient) errors from check
+	// are saved but do not abort the loop; they are surfaced in the timeout diagnostics.
+	var lastUnexpectedErr error
+	ready, err := a.readyzChecker.check(pollCtx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return trace.Wrap(ctx.Err())
+		}
+		if pollCtx.Err() == nil {
+			lastUnexpectedErr = err
+		}
+	}
+	if ready {
+		return nil
 	}
 
-	return nil
+pollLoop:
+	for {
+		select {
+		case <-pollRetry.After():
+			pollRetry.Inc()
+			ready, err = a.readyzChecker.check(pollCtx)
+			if err != nil {
+				if ctx.Err() != nil {
+					return trace.Wrap(ctx.Err())
+				}
+				if pollCtx.Err() == nil {
+					lastUnexpectedErr = err
+				}
+				continue
+			}
+			if ready {
+				return nil
+			}
+		case <-pollCtx.Done():
+			if ctx.Err() != nil {
+				return trace.Wrap(ctx.Err())
+			}
+			break pollLoop
+		}
+	}
+
+	joinErr := &JoinFailureError{
+		Message: fmt.Sprintf(
+			"node did not become ready (join cluster) within %s",
+			a.readyzPollTimeout),
+	}
+	if lastUnexpectedErr != nil {
+		joinErr.LastError = lastUnexpectedErr.Error()
+	}
+
+	diagCtx, diagCancel := context.WithTimeout(ctx, joinFailureDiagnosticsTimeout)
+	defer diagCancel()
+
+	type journalResult struct {
+		output string
+		err    error
+	}
+
+	var (
+		serviceDiagnostics = defaultServiceDiagnosticsUnavailable
+		journalOutput      string
+		journalErr         error
+	)
+	serviceDiagnosticsC := make(chan string, 1)
+	journalResultC := make(chan journalResult, 1)
+	go func() {
+		serviceDiagnosticsC <- a.diagnostics(diagCtx, serviceName)
+	}()
+	go func() {
+		output, err := a.journal(diagCtx, serviceName)
+		journalResultC <- journalResult{output: output, err: err}
+	}()
+	// Both goroutines receive diagCtx (joinFailureDiagnosticsTimeout = 5s), but we stop
+	// waiting once the context is done so stuck implementations can't block join failure reporting.
+	servicePending := true
+	journalPending := true
+	for servicePending || journalPending {
+		select {
+		case serviceDiagnostics = <-serviceDiagnosticsC:
+			servicePending = false
+		case result := <-journalResultC:
+			journalOutput = result.output
+			journalErr = result.err
+			journalPending = false
+		case <-diagCtx.Done():
+			if journalPending && journalErr == nil {
+				journalErr = diagCtx.Err()
+			}
+			servicePending = false
+			journalPending = false
+		}
+	}
+
+	joinErr.ServiceDiagnostics = serviceDiagnostics
+
+	if journalErr != nil {
+		a.Logger.WarnContext(ctx,
+			"Failed to capture journal for join-failure diagnostics",
+			"service", serviceName,
+			"error", journalErr,
+		)
+		switch {
+		case errors.Is(journalErr, context.DeadlineExceeded):
+			joinErr.JournalOutput = fmt.Sprintf("(journal output unavailable: diagnostics timed out after %s)", joinFailureDiagnosticsTimeout)
+		case errors.Is(journalErr, context.Canceled):
+			joinErr.JournalOutput = "(journal output unavailable: diagnostics were canceled)"
+		default:
+			joinErr.JournalOutput = fmt.Sprintf("(journal capture failed: %v)", journalErr)
+		}
+	} else if journalOutput != "" {
+		joinErr.JournalOutput = journalOutput
+	}
+
+	return trace.Wrap(joinErr)
 }
 
 func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client) error {
@@ -363,7 +584,11 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 			fmt.Sprintf(`--azure-client-id=%s`, shsprintf.EscapeDefaultContext(ani.AzureClientID)))
 	}
 
-	ani.Logger.InfoContext(ctx, "Generating teleport configuration", "teleport", ani.binariesLocation.Teleport, "args", teleportNodeConfigureArgs)
+	ani.Logger.InfoContext(ctx,
+		"Generating teleport configuration",
+		"teleport", ani.binariesLocation.Teleport,
+		"args", teleportNodeConfigureArgs,
+	)
 	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.Teleport, teleportNodeConfigureArgs...)
 	teleportNodeConfigureCmdOutput, err := teleportNodeConfigureCmd.CombinedOutput()
 	if err != nil {
@@ -477,10 +702,10 @@ func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 	packagesToInstall = append(packagesToInstall, packagemanager.PackageVersion{Name: ani.TeleportPackage, Version: targetVersion})
 
 	if err := packageManager.AddTeleportRepository(ctx, linuxInfo, ani.RepositoryChannel); err != nil {
-		return trace.BadParameter("failed to add teleport repository to system: %v", err)
+		return trace.Wrap(err, "failed to add teleport repository to system")
 	}
 	if err := packageManager.InstallPackages(ctx, packagesToInstall); err != nil {
-		return trace.BadParameter("failed to install teleport: %v", err)
+		return trace.Wrap(err, "failed to install teleport")
 	}
 
 	return nil
@@ -631,10 +856,10 @@ func (ani *AutoDiscoverNodeInstaller) buildTeleportDataDirPath() string {
 
 func (ani *AutoDiscoverNodeInstaller) buildTeleportSystemdUnitName() string {
 	if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
-		return "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix
+		return "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix + ".service"
 	}
 
-	return "teleport"
+	return "teleport.service"
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.

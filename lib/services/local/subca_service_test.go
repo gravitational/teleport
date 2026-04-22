@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -367,5 +368,56 @@ func TestSubCAService_GetDeleteNotFoundError(t *testing.T) {
 		t.Parallel()
 		err := service.DeleteCertAuthorityOverride(t.Context(), id)
 		assert.ErrorContains(t, err, wantErr)
+	})
+}
+
+func TestCreateResource_CertAuthorityOverride(t *testing.T) {
+	t.Parallel()
+
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		SkipExternalRoot: true,
+	})
+	be := env.Backend
+	service := env.SubCA
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+
+		// An empty resource is not valid.
+		r := types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{})
+
+		assert.ErrorAs(t,
+			local.CreateResources(t.Context(), be, r),
+			new(*trace.BadParameterError),
+			"CreateResources error mismatch")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+
+		want := &subcav1.CertAuthorityOverride{
+			Kind:    types.KindCertAuthorityOverride,
+			SubKind: string(types.DatabaseClientCA),
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: env.ClusterName,
+			},
+			Spec: &subcav1.CertAuthorityOverrideSpec{},
+		}
+
+		// CreateResources.
+		r := types.Resource153ToLegacy(want)
+		require.NoError(t,
+			local.CreateResources(t.Context(), be, r),
+			"CreateResources errored")
+
+		// Verify resource via service read.
+		got, err := service.GetCertAuthorityOverride(
+			t.Context(), local.CertAuthorityOverrideIDFromResource(want))
+		require.NoError(t, err)
+		want.Metadata.Revision = got.Metadata.Revision
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("CertAuthorityOverride mismatch (-want +got)\n%s", diff)
+		}
 	})
 }

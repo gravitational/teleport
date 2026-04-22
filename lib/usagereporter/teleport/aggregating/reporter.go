@@ -204,6 +204,7 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.TagExecuteQueryEvent,
 			*usagereporter.SessionSummaryCreateEvent,
 			*usagereporter.SessionSummaryAccessEvent,
+			*usagereporter.SessionSummarySearchEvent,
 			*usagereporter.IdentitySecurityGraphSizeEvent,
 			*usagereporter.IdentitySecurityAuditLogsIngestedEvent:
 			filtered = append(filtered, event)
@@ -589,6 +590,12 @@ Ingest:
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsGrants++
 		case *usagereporter.SessionSummaryAccessEvent:
 			incrementUserSessionSummariesAccessed(userRecord(te.UserName, te.UserKind), te.SessionType, te.ResourceName)
+		case *usagereporter.SessionSummarySearchEvent:
+			record := userRecord(te.UserName, te.UserKind)
+			record.SessionSummarySearchQueries++
+			if te.HasFilters {
+				record.SessionSummarySearchQueriesWithFilters++
+			}
 		case *usagereporter.SessionSummaryCreateEvent:
 			// Only track successful session summary creation
 			if te.Success {

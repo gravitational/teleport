@@ -70,6 +70,9 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     host: addresses.tsh,
     channelCredentials: credentials.tshd,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
   const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);

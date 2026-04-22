@@ -668,7 +668,7 @@ func emitBoundKeypairRotationEvent(
 	}
 }
 
-func tryLockBotInvalidJoinState(
+func tryLockTokenInvalidJoinState(
 	ctx context.Context,
 	params *JoinParams,
 	token provision.Token,
@@ -694,17 +694,28 @@ func tryLockBotInvalidJoinState(
 		log.WarnContext(ctx, "Failed to emit failed join state verification event", "error", auditErr)
 	}
 
+	var message string
+	if token.GetRoles().Include(types.RoleBot) {
+		message = fmt.Sprintf(
+			"The join token %q has been locked by bot %q after a client "+
+				"failed to verify its join state, possibly indicating a "+
+				"stolen keypair.",
+			token.GetName(), token.GetBotName(),
+		)
+	} else {
+		message = fmt.Sprintf(
+			"The join token %q has been locked after a client failed to "+
+				"verify its join state, possibly indicating a stolen keypair.",
+			token.GetName(),
+		)
+	}
+
 	// Create a lock against this token.
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
 		Target: types.LockTarget{
 			JoinToken: token.GetName(),
 		},
-		Message: fmt.Sprintf(
-			"The join token %q has been locked by bot %q after a client "+
-				"failed to verify its join state, possibly indicating a "+
-				"stolen keypair.",
-			token.GetName(), token.GetBotName(),
-		),
+		Message:   message,
 		CreatedAt: params.Clock.Now(),
 	})
 	if err != nil {
@@ -773,7 +784,7 @@ func verifyBoundKeypairJoinState(
 	)
 	if err != nil {
 		params.Logger.ErrorContext(ctx, "bound keypair join state verification failed", "error", err)
-		tryLockBotInvalidJoinState(ctx, params, token, err)
+		tryLockTokenInvalidJoinState(ctx, params, token, err)
 
 		return "", "", trace.AccessDenied("join state verification failed")
 	}
@@ -906,7 +917,7 @@ type ScopedTokenService interface {
 func HandleBoundKeypairJoin(
 	ctx context.Context,
 	params *JoinParams,
-) (*messages.BotResult, error) {
+) (messages.Response, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1296,11 +1307,26 @@ func HandleBoundKeypairJoin(
 		return nil, trace.Wrap(err, "issuing join state document")
 	}
 
-	return &messages.BotResult{
-		Certificates: *certs,
-		BoundKeypairResult: &messages.BoundKeypairResult{
-			JoinState: []byte(newJoinState),
-			PublicKey: []byte(boundPublicKey),
-		},
-	}, nil
+	switch systemRole {
+	case types.RoleInstance:
+		return &messages.HostResult{
+			Certificates:    *certs,
+			HostID:          generatedHostID,
+			ImmutableLabels: finalToken.GetImmutableLabels(),
+			BoundKeypairResult: &messages.BoundKeypairResult{
+				JoinState: []byte(newJoinState),
+				PublicKey: []byte(boundPublicKey),
+			},
+		}, nil
+	case types.RoleBot:
+		return &messages.BotResult{
+			Certificates: *certs,
+			BoundKeypairResult: &messages.BoundKeypairResult{
+				JoinState: []byte(newJoinState),
+				PublicKey: []byte(boundPublicKey),
+			},
+		}, nil
+	default:
+		return nil, trace.NotImplemented("bound keypair joining only supports Instance and Bot system roles, client requested %s", systemRole)
+	}
 }

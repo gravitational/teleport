@@ -706,6 +706,41 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 	}
 }
 
+// WithIgnoreOktaUserManagedFields configures EqualAccessLists to ignore the
+// Spec fields that users are permitted to override on an Okta-originated
+// Access List, in addition to all ephemeral fields (see WithIgnoreEphemeralFields).
+//
+// On Access Lists with Origin=Okta, the Okta plugin is the source of truth for
+// most of the Spec, but the following fields remain user-editable and are
+// therefore ignored here:
+//   - Spec.Owners: owners are assigned in Teleport, not mirrored from Okta.
+//   - Spec.MembershipRequires: membership role/trait requirements are a
+//     Teleport-side policy.
+//   - Spec.OwnershipRequires: ownership role/trait requirements are a
+//     Teleport-side policy.
+//   - Spec.Audit: review cadence and notifications are configured in Teleport.
+//
+// Use this option to check whether a proposed update to an Okta-originated
+// Access List only touches user-editable fields; if EqualAccessLists returns
+// true under this option, the modification is within the allowed set.
+//
+// Note: This option causes the input access lists to be cloned (unless WithSkipClone
+// is also used) to avoid modifying the originals.
+func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.resetFieldsFn = func(a *AccessList) {
+			if a == nil {
+				return
+			}
+			resetEphemeralFieldsAccessList(a)
+			a.Spec.Owners = nil
+			a.Spec.MembershipRequires = Requires{}
+			a.Spec.OwnershipRequires = Requires{}
+			a.Spec.Audit = Audit{}
+		}
+	}
+}
+
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()

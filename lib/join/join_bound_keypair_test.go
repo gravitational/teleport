@@ -75,7 +75,7 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 	return &doc
 }
 
-func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
+func newTestTLSServer(t *testing.T, clock clockwork.Clock, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
@@ -83,7 +83,7 @@ func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	srv, err := as.NewTestTLSServer()
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := srv.Close()
@@ -1664,6 +1664,158 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "a client failed to verify its join state")
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestJoinBoundKeypair_JoinStateFailure_Instance tests that join state
+// verification will trigger a lock if the original client and a secondary
+// client both attempt to recover in sequence.
+func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
+	ctx := t.Context()
+	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
+
+	srv := newTestTLSServer(t, clockwork.NewRealClock())
+	defer srv.Close()
+	authServer := srv.Auth()
+
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpecAndStatus(
+		"bound-keypair-test",
+		time.Now().Add(2*time.Hour),
+		types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodBoundKeypair,
+			Roles:      []types.SystemRole{types.RoleInstance, types.RoleApp},
+			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
+				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+					InitialPublicKey: correctPublicKey,
+				},
+				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+					Limit: 3,
+				},
+			},
+		},
+		&types.ProvisionTokenStatusV2{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
+
+	// Make an unauthenticated auth client that will be used for joining.
+	nopClient, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer nopClient.Close()
+
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
+	originalJoinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	// Perform a recovery, this time with a join state.
+	recoverResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient: nopClient,
+		// Note: the client state manages prev join state internally in
+		// UpdateFromRegisterResult().
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	recoveredClient, err := clientFromJoinResult(srv, recoverResult)
+	require.NoError(t, err)
+	defer recoveredClient.Close()
+
+	// Try an API call with these certs.
+	_, err = recoveredClient.Ping(ctx)
+	require.NoError(t, err)
+
+	// Subscribe to events from the LockWatcher
+	lockSub, err := srv.AuthServer.LockWatcher.Subscribe(ctx, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	defer lockSub.Close()
+
+	// Try to recover again, but with the original join state.
+	outdatedClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: outdatedClientState,
+	})
+	require.Error(t, err)
+
+	// The token should now be locked - but only once.
+	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
+
+	// Wait for the LockWatcher to notify us about the new lock. Since this
+	// otherwise happens async, we need to wait explicitly, otherwise the lock
+	// may exist in the backend without being enforced.
+	select {
+	case event := <-lockSub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+	case <-lockSub.Done():
+		t.Fatal("lock subscription closed unexpectedly")
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for lock event")
+	}
+
+	// The previously working client should be locked.
+	_, err = recoveredClient.Ping(ctx)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "access denied")
+
+	// Try joining again with the same parameters to try to generate another
+	// lock - they should not be duplicated.
+	tempClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: tempClientState,
+	})
+	require.ErrorContains(t, err, "a client failed to verify its join state")
+
+	// Check the lock count again - only one lock should be created.
+	locks, err = srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 }
 
 // createScopedBot creates a scoped bot with necessary role assignments for testing.

@@ -16,69 +16,25 @@
 
 package msgraph
 
-import (
-	"encoding/json"
-	"slices"
+import "github.com/gravitational/teleport/lib/msgraph/models"
 
-	"github.com/gravitational/trace"
+// TODO(sshah): Delete type alias below once teleport.e is updated
+// to import new models package.
 
-	"github.com/gravitational/teleport/lib/utils"
-)
-
-type GroupMember interface {
-	GetID() *string
-	isGroupMember()
-}
-
-type DirectoryObject struct {
-	ID          *string `json:"id,omitempty"`
-	DisplayName *string `json:"displayName,omitempty"`
-}
-
-type Group struct {
-	DirectoryObject
-	// GroupTypes is a list of group type strings.
-	GroupTypes []string `json:"groupTypes,omitempty"`
-	// OnPremisesDomainName is the on-premises domain name of the group.
-	OnPremisesDomainName *string `json:"onPremisesDomainName,omitempty"`
-	// OnPremisesNetBiosName is the on-premises NetBIOS name of the group.
-	OnPremisesNetBiosName *string `json:"onPremisesNetBiosName,omitempty"`
-	// OnPremisesSamAccountName is the on-premises SAM account name of the group.
-	OnPremisesSamAccountName *string `json:"onPremisesSamAccountName,omitempty"`
-	// Owners is a list of users who are the owners of this group.
-	Owners []*User `json:"owners,omitempty"`
-}
-
-func (g *Group) IsOffice365Group() bool {
-	const office365Group = "Unified"
-	return slices.Contains(g.GroupTypes, office365Group)
-}
-
-func (g *Group) isGroupMember() {}
-func (g *Group) GetID() *string { return g.ID }
-
-type User struct {
-	DirectoryObject
-
-	Mail                     *string `json:"mail,omitempty"`
-	OnPremisesSAMAccountName *string `json:"onPremisesSamAccountName,omitempty"`
-	UserPrincipalName        *string `json:"userPrincipalName,omitempty"`
-	Surname                  *string `json:"surname,omitempty"`
-	GivenName                *string `json:"givenName,omitempty"`
-}
-
-func (g *User) isGroupMember() {}
-func (u *User) GetID() *string { return u.ID }
-
-type Application struct {
-	DirectoryObject
-
-	AppID                 *string         `json:"appId,omitempty"`
-	IdentifierURIs        *[]string       `json:"identifierUris,omitempty"`
-	Web                   *WebApplication `json:"web,omitempty"`
-	GroupMembershipClaims *string         `json:"groupMembershipClaims,omitempty"`
-	OptionalClaims        *OptionalClaims `json:"optionalClaims,omitempty"`
-}
+type GroupMember = models.GroupMember
+type DirectoryObject = models.DirectoryObject
+type Group = models.Group
+type User = models.User
+type Application = models.Application
+type ServicePrincipal = models.ServicePrincipal
+type ApplicationServicePrincipal = models.ApplicationServicePrincipal
+type FederatedIdentityCredential = models.FederatedIdentityCredential
+type SelfSignedCertificate = models.SelfSignedCertificate
+type AppRole = models.AppRole
+type AppRoleAssignment = models.AppRoleAssignment
+type OptionalClaim = models.OptionalClaim
+type OptionalClaims = models.OptionalClaims
+type WebApplication = models.WebApplication
 
 const (
 	// OPTIONAL_CLAIM_GROUP_NAME is the group claim.
@@ -97,95 +53,3 @@ const (
 	// OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_CLOUD_DISPLAYNAME is the cloud_displayname claim.
 	OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_CLOUD_DISPLAYNAME = "cloud_displayname"
 )
-
-// OptionalClaim represents an optional claim in a token.
-// https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims?tabs=appui
-type OptionalClaim struct {
-	// AdditionalProperties is a list of additional properties.
-	// Possible values:
-	// - sam_account_name: sAMAccountName
-	// - dns_domain_and_sam_account_name: dnsDomainName\sAMAccountName
-	// - netbios_domain_and_sam_account_name: netbiosDomainName\sAMAccountName
-	// - emit_as_roles
-	// - cloud_displayname
-	AdditionalProperties []string `json:"additionalProperties,omitempty"`
-	Essential            *bool    `json:"essential,omitempty"`
-	Name                 *string  `json:"name,omitempty"`
-	Source               *string  `json:"source,omitempty"`
-}
-
-// OptionalClaims represents optional claims in a token.
-type OptionalClaims struct {
-	IDToken     []OptionalClaim `json:"idToken,omitempty"`
-	AccessToken []OptionalClaim `json:"accessToken,omitempty"`
-	SAML2Token  []OptionalClaim `json:"saml2Token,omitempty"`
-}
-
-type WebApplication struct {
-	RedirectURIs *[]string `json:"redirectUris,omitempty"`
-}
-
-type ServicePrincipal struct {
-	DirectoryObject
-	AppRoleAssignmentRequired          *bool      `json:"appRoleAssignmentRequired,omitempty"`
-	PreferredSingleSignOnMode          *string    `json:"preferredSingleSignOnMode,omitempty"`
-	PreferredTokenSigningKeyThumbprint *string    `json:"preferredTokenSigningKeyThumbprint,omitempty"`
-	AppRoles                           []*AppRole `json:"appRoles,omitempty"`
-}
-
-type ApplicationServicePrincipal struct {
-	Application      *Application      `json:"application,omitempty"`
-	ServicePrincipal *ServicePrincipal `json:"servicePrincipal,omitempty"`
-}
-
-type FederatedIdentityCredential struct {
-	Audiences *[]string `json:"audiences,omitempty"`
-	Issuer    *string   `json:"issuer,omitempty"`
-	Name      *string   `json:"name,omitempty"`
-	Subject   *string   `json:"subject,omitempty"`
-}
-
-type SelfSignedCertificate struct {
-	Thumbprint *string `json:"thumbprint,omitempty"`
-}
-
-type AppRole struct {
-	ID    *string `json:"id,omitempty"`
-	Value *string `json:"value,omitempty"`
-}
-
-type AppRoleAssignment struct {
-	ID          *string `json:"id,omitempty"`
-	AppRoleID   *string `json:"appRoleId,omitempty"`
-	PrincipalID *string `json:"principalId,omitempty"`
-	ResourceID  *string `json:"resourceId,omitempty"`
-}
-
-func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
-	var temp struct {
-		Type string `json:"@odata.type"`
-	}
-
-	if err := utils.FastUnmarshal(msg, &temp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var err error
-	var member GroupMember
-	switch temp.Type {
-	case "#microsoft.graph.user":
-		var u *User
-		err = utils.FastUnmarshal(msg, &u)
-		member = u
-	case "#microsoft.graph.group":
-		var g *Group
-		err = utils.FastUnmarshal(msg, &g)
-		member = g
-	default:
-		// Return an error if we encounter a type we do not support.
-		// The caller ignores the error and continues processing the next entry.
-		err = &unsupportedGroupMember{Type: temp.Type}
-	}
-
-	return member, trace.Wrap(err)
-}

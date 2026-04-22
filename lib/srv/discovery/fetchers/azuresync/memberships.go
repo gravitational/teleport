@@ -26,6 +26,7 @@ import (
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 const parallelism = 10 //nolint:unused // invoked in a dependent PR
@@ -47,7 +48,7 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 		}
 		group := principal
 		eg.Go(func() error {
-			err := cli.IterateGroupMembers(ctx, group.Id, func(member msgraph.GroupMember) bool {
+			err := cli.IterateGroupMembers(ctx, group.Id, func(member models.GroupMember) bool {
 				if memberPrincipal, ok := principalsMap[*member.GetID()]; ok {
 					memberPrincipal.MemberOf = append(memberPrincipal.MemberOf, group.Id)
 				}

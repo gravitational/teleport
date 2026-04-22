@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -669,6 +668,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		Req:                req,
 		AgentScope:         identity.AgentScope,
 		ImmutableLabelHash: identity.ImmutableLabelHash,
+		JoinToken:          identity.JoinToken,
 	})
 }
 
@@ -2218,6 +2218,7 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindDatabaseServer,
 		types.KindDatabaseService,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindWindowsDesktopService,
 		types.KindNode,
 		types.KindKubeServer,
@@ -2576,14 +2577,6 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 	}
 
 	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
-}
-
-// DeleteAllProxies deletes all proxies
-func (a *ServerWithRoles) DeleteAllProxies() error {
-	if err := a.authorizeAction(types.KindProxy, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllProxies()
 }
 
 // DeleteProxy deletes proxy by name
@@ -5285,18 +5278,6 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// GetAuthPreference gets cluster auth preference.
-func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cfg.Clone(), nil
-}
-
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	if err := a.authorizeAction(types.KindUIConfig, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -5373,123 +5354,6 @@ func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))
-}
-
-// SetAuthPreference sets cluster auth preference.
-// Deprecated: Use Update/UpsertAuthPreference where appropriate.
-func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authorizeActionWithOrigin(types.KindClusterAuthPreference, storedAuthPref.Origin()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Support reused MFA for bulk tctl create requests.
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := services.ValidateAuthPreference(newAuthPref); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// check that the given RequireMFAType is supported in this build.
-	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if a.authServer.modules.BuildType() != modules.BuildEnterprise {
-			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-		}
-	}
-
-	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-		FIPS:          a.authServer.fips,
-		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
-		Cloud:         a.authServer.modules.Features().Cloud,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), a.authServer.modules); err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = a.authServer.UpsertAuthPreference(ctx, newAuthPref)
-
-	var msg string
-	if err != nil {
-		msg = err.Error()
-	}
-
-	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.AuthPreferenceUpdateEvent,
-			Code: events.AuthPreferenceUpdateCode,
-		},
-		UserMetadata:       a.context.GetUserMetadata(),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		Status: apievents.Status{
-			Success:     err == nil,
-			Error:       msg,
-			UserMessage: msg,
-		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
-	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
-	}
-
-	return trace.Wrap(err)
-}
-
-// ResetAuthPreference resets cluster auth preference to defaults.
-func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if storedAuthPref.Origin() == types.OriginConfigFile {
-		return trace.BadParameter("config-file configuration cannot be reset")
-	}
-
-	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	defaultAuthPref := types.DefaultAuthPreference()
-	defaultAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-		FIPS:          a.authServer.fips,
-		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
-	})
-	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
-
-	var msg string
-	if err != nil {
-		msg = err.Error()
-	}
-
-	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.AuthPreferenceUpdateEvent,
-			Code: events.AuthPreferenceUpdateCode,
-		},
-		UserMetadata:       a.context.GetUserMetadata(),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		Status: apievents.Status{
-			Success:     err == nil,
-			Error:       msg,
-			UserMessage: msg,
-		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
-	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
-	}
-
-	return trace.Wrap(err)
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
@@ -5860,20 +5724,6 @@ func (a *ServerWithRoles) DeleteTunnelConnection(clusterName string, connName st
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteTunnelConnection(clusterName, connName)
-}
-
-func (a *ServerWithRoles) DeleteTunnelConnections(clusterName string) error {
-	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteTunnelConnections(clusterName)
-}
-
-func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
-	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllTunnelConnections()
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.

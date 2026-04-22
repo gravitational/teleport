@@ -2557,8 +2557,10 @@ type HostResult struct {
 	HostId string `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
 	// The immutable labels assigned to the host by their join token.
 	ImmutableLabels *v1.ImmutableLabels `protobuf:"bytes,3,opt,name=immutable_labels,json=immutableLabels,proto3" json:"immutable_labels,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult `protobuf:"bytes,4,opt,name=bound_keypair_result,json=boundKeypairResult,proto3,oneof" json:"bound_keypair_result,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *HostResult) Reset() {
@@ -2608,6 +2610,13 @@ func (x *HostResult) GetHostId() string {
 func (x *HostResult) GetImmutableLabels() *v1.ImmutableLabels {
 	if x != nil {
 		return x.ImmutableLabels
+	}
+	return nil
+}
+
+func (x *HostResult) GetBoundKeypairResult() *BoundKeypairResult {
+	if x != nil {
+		return x.BoundKeypairResult
 	}
 	return nil
 }
@@ -3002,12 +3011,14 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\ftls_ca_certs\x18\x02 \x03(\fR\n" +
 	"tlsCaCerts\x12\x19\n" +
 	"\bssh_cert\x18\x03 \x01(\fR\asshCert\x12\x1e\n" +
-	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"\xc1\x01\n" +
+	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"\xb7\x02\n" +
 	"\n" +
 	"HostResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12V\n" +
-	"\x10immutable_labels\x18\x03 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\"\xc5\x01\n" +
+	"\x10immutable_labels\x18\x03 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\x12[\n" +
+	"\x14bound_keypair_result\x18\x04 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
+	"\x15_bound_keypair_result\"\xc5\x01\n" +
 	"\tBotResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12[\n" +
 	"\x14bound_keypair_result\x18\x02 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
@@ -3119,18 +3130,19 @@ var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
 	35, // 39: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
 	33, // 40: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
 	39, // 41: teleport.join.v1.HostResult.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
-	33, // 42: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
-	13, // 43: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
-	30, // 44: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	31, // 45: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	32, // 46: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	29, // 47: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	36, // 48: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	48, // [48:49] is the sub-list for method output_type
-	47, // [47:48] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	13, // 42: teleport.join.v1.HostResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	33, // 43: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	13, // 44: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	30, // 45: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	31, // 46: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	32, // 47: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	29, // 48: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	36, // 49: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	49, // [49:50] is the sub-list for method output_type
+	48, // [48:49] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -3181,6 +3193,7 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*Result_HostResult)(nil),
 		(*Result_BotResult)(nil),
 	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[33].OneofWrappers = []any{}
 	file_teleport_join_v1_joinservice_proto_msgTypes[34].OneofWrappers = []any{}
 	file_teleport_join_v1_joinservice_proto_msgTypes[35].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),

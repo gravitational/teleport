@@ -636,6 +636,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		WebToken:                p.AuthServer.Services.IdentityInternal,
 		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
 		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
+		LinuxDesktops:           p.AuthServer.Services.LinuxDesktops,
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
@@ -650,6 +651,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 		Summarizer:              p.AuthServer.Services.Summarizer,
+		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)

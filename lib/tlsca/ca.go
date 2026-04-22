@@ -206,7 +206,8 @@ type Identity struct {
 	// consumption by users or user-facing bot services.
 	BotInternal bool
 	// JoinToken contains the name of the join token used when a Machine ID bot
-	// joins. It is empty for other identity types.
+	// or agent joins. Note that agents using the `token` join method will
+	// include a censored token name.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
@@ -630,7 +631,8 @@ var (
 	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
 
 	// JoinTokenOID is an extension OID that contains the name of the join token
-	// used when a bot joins.
+	// used when a bot or agent joins. It is censored for agents joining with
+	// the `token` join method.
 	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
 
 	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin

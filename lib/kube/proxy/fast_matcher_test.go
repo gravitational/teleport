@@ -302,7 +302,7 @@ func TestNamespaceKindFallback(t *testing.T) {
 			expected, err := matchKubernetesResource(tt.input, true, tt.allowed, tt.denied)
 			require.NoError(t, err)
 
-			got, err := m.match(tt.input.Name, tt.input.Namespace)
+			got, err := m.Match(tt.input.Name, tt.input.Namespace)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
 		})
@@ -662,11 +662,11 @@ func TestMatcherEquivalence(t *testing.T) {
 					expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, tc.allowed, tc.denied)
 					require.NoError(t, err)
 
-					fastResult, err := fm.match(tt.resource.Name, tt.resource.Namespace)
+					fastResult, err := fm.Match(tt.resource.Name, tt.resource.Namespace)
 					require.NoError(t, err)
 					require.Equal(t, expected, fastResult, "fastMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
 
-					defaultResult, err := dm.match(tt.resource.Name, tt.resource.Namespace)
+					defaultResult, err := dm.Match(tt.resource.Name, tt.resource.Namespace)
 					require.NoError(t, err)
 					require.Equal(t, expected, defaultResult, "defaultMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
 				})
@@ -726,7 +726,7 @@ func TestMatcherEquivalenceMatrix(t *testing.T) {
 								continue
 							}
 
-							fastResult, err := fm.match(inputName, inputNS)
+							fastResult, err := fm.Match(inputName, inputNS)
 							if err != nil {
 								continue
 							}
@@ -735,7 +735,7 @@ func TestMatcherEquivalenceMatrix(t *testing.T) {
 								kind: kind, verb: verb, apiGroup: inputAG,
 								allowedResources: allowed,
 							}
-							defaultResult, err := dm.match(inputName, inputNS)
+							defaultResult, err := dm.Match(inputName, inputNS)
 							if err != nil {
 								continue
 							}
@@ -826,7 +826,7 @@ func BenchmarkFilterObj(b *testing.B) {
 
 	newFilterer := func(b *testing.B, items []map[string]any, allowed, denied []types.KubernetesResource, useFastMatcher bool) (*resourceFilterer, *unstructured.Unstructured) {
 		b.Helper()
-		wrapper := newResourceFilterer(mr, &globalKubeCodecs, allowed, denied, log)
+		wrapper := newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowed, denied, log), log)
 		filter, err := wrapper(responsewriters.DefaultContentType, 200)
 		require.NoError(b, err)
 		rf := filter.(*resourceFilterer)
@@ -846,12 +846,7 @@ func BenchmarkFilterObj(b *testing.B) {
 		return rf, obj
 	}
 
-	// 150 rules is a realistic upper bound for most deployments.
-	// The theoretical maximum is ~4000 kubernetes_resources entries per role
-	// (limited by the backend object size), but that case is excluded because
-	// the default_matcher sub-benchmark takes ~125s per iteration at 4000 rules
-	// and causes CI timeouts.
-	for _, ruleCount := range []int{4, 50, 150} {
+	for _, ruleCount := range []int{4, 50, 150, 4000} {
 		allowed, denied := buildRules(ruleCount)
 
 		for _, itemCount := range []int{500, 5000} {

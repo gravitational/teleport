@@ -1,3 +1,5 @@
+//go:build !sessionhelper_embed
+
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
 //
@@ -14,13 +16,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package srv
+package reexec
 
-import (
-	"github.com/gravitational/teleport/session/reexec"
-)
+import "os/exec"
 
-//go:fix inline
-func IsReexec() bool {
-	return reexec.IsReexec()
+func setLinuxReexecPath(cmd *exec.Cmd) {
+	cmd.Path = "/proc/self/exe"
 }
