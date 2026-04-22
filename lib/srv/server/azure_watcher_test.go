@@ -580,6 +580,47 @@ func TestMakeRunEvent(t *testing.T) {
 				ExecutionState: "Failed",
 			},
 		},
+		{
+			name: "nil instance",
+			result: AzureInstallResult{
+				Instance: nil,
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+		{
+			name: "instance without properties",
+			result: AzureInstallResult{
+				Instance: &armcompute.VirtualMachine{
+					ID:   to.Ptr(resourceID),
+					Name: to.Ptr(vmName),
+				},
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMName: vmName,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
 	}
 
 	for _, tc := range tests {
