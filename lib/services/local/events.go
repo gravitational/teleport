@@ -279,6 +279,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppAuthConfigParser()
 		case types.KindBeam:
 			parser = newBeamParser()
+		case types.KindClusterBeamConfig:
+			parser = newClusterBeamConfigParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue

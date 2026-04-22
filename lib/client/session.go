@@ -204,6 +204,49 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 	return trace.Wrap(sessionCallback(session))
 }
 
+// runSubsystem requests an SSH subsystem (e.g. "sftp") on the remote node,
+// piping the session's stdin/stdout/stderr through the terminal.
+func (ns *NodeSession) runSubsystem(ctx context.Context, sessionParams *tracessh.SessionParams, subsystem string) error {
+	log.DebugContext(ctx, "Requesting SSH subsystem", "subsystem", subsystem)
+
+	session, err := ns.createServerSession(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// RequestSubsystem does not start the session's internal I/O goroutines,
+	// so we must use explicit pipes and copy data ourselves.
+	pw, err := session.StdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pr, err := session.StdoutPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := session.RequestSubsystem(ctx, subsystem); err != nil {
+		return trace.Wrap(err)
+	}
+	log.DebugContext(ctx, "Subsystem started", "subsystem", subsystem)
+
+	done := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(ns.terminal.Stdout(), pr)
+		done <- err
+	}()
+	go func() {
+		_, err := io.Copy(pw, ns.terminal.Stdin())
+		pw.Close()
+		done <- err
+	}()
+
+	// Wait for either copy to finish (typically stdout EOF when remote closes).
+	err = <-done
+	log.DebugContext(ctx, "Subsystem finished", "subsystem", subsystem, "error", err)
+	return trace.Wrap(err)
+}
+
 type interactiveCallback func(serverSession *tracessh.Session, shell io.ReadWriteCloser) error
 
 func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *tracessh.SessionParams) (*tracessh.Session, error) {

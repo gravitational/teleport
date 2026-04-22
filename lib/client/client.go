@@ -630,6 +630,30 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 	return trace.Wrap(err)
 }
 
+// RunSubsystem requests the given SSH subsystem (e.g. "sftp") on the remote
+// node, piping stdin/stdout/stderr through the session.
+func (c *NodeClient) RunSubsystem(ctx context.Context, subsystem string) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/RunSubsystem",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("subsystem", subsystem)),
+	)
+	defer span.End()
+
+	sessionParams := &tracessh.SessionParams{
+		WebProxyAddr: c.WebProxyAddr(),
+	}
+
+	nodeSession, err := newSession(ctx, c, sessionParams, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer nodeSession.Close()
+
+	return nodeSession.runSubsystem(ctx, sessionParams, subsystem)
+}
+
 func getExitStatus(err error) int {
 	if err == nil {
 		return 0

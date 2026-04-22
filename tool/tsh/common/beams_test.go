@@ -26,6 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/lib/client/beamsmount"
 )
 
 func TestParseBeamCopySpec(t *testing.T) {
@@ -163,4 +167,40 @@ func TestBeamSpinner(t *testing.T) {
 	stopConnecting := startBeamSpinner(os.Stdout, "connecting...")
 	time.Sleep(2 * time.Second)
 	stopConnecting("↳ ready")
+}
+
+func TestRenderBeamsTableWithMounts(t *testing.T) {
+	t.Parallel()
+
+	mountsByBeam := map[string][]beamsmount.MountEntry{
+		"aaa": {
+			{MountPoint: "/mnt/a"},
+		},
+		"bbb": {
+			{MountPoint: "/mnt/b1"},
+			{MountPoint: "/mnt/b2"},
+		},
+	}
+
+	beams := []*beamsv1.Beam{
+		{
+			Metadata: &headerv1.Metadata{Name: "aaa"},
+			Status:   &beamsv1.BeamStatus{Alias: "alpha"},
+		},
+		{
+			Metadata: &headerv1.Metadata{Name: "bbb"},
+			Status:   &beamsv1.BeamStatus{Alias: "beta"},
+		},
+		{
+			Metadata: &headerv1.Metadata{Name: "ccc"},
+			Status:   &beamsv1.BeamStatus{Alias: "gamma"},
+		},
+	}
+
+	output := renderBeamsTable(beams, "proxy.example.com", mountsByBeam)
+	require.Contains(t, output, "Mount")
+	require.Contains(t, output, "/mnt/a")
+	require.Contains(t, output, "/mnt/b1, /mnt/b2")
+	// gamma has no mounts — should just have empty mount column.
+	require.Contains(t, output, "gamma")
 }

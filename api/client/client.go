@@ -890,6 +890,11 @@ func (c *Client) BeamsServiceClient() beamsv1.BeamsServiceClient {
 	return beamsv1.NewBeamsServiceClient(c.conn)
 }
 
+// ClusterBeamConfigServiceClient returns an unadorned client for the cluster beam config service.
+func (c *Client) ClusterBeamConfigServiceClient() beamsv1.ClusterBeamConfigServiceClient {
+	return beamsv1.NewClusterBeamConfigServiceClient(c.conn)
+}
+
 func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationServiceClient {
 	return machineidv1pb.NewSPIFFEFederationServiceClient(c.conn)
 }

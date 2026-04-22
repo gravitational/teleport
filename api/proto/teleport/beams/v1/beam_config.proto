@@ -1,0 +1,60 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// ClusterBeamConfig is the cluster-wide configuration for beams.
+message ClusterBeamConfig {
+  // The kind of resource represented. This is always `cluster_beam_config`.
+  string kind = 1;
+
+  // Differentiates variations of the same kind. All resources should contain
+  // one, even if it is never populated.
+  string sub_kind = 2;
+
+  // The version of the resource being represented.
+  string version = 3;
+
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Spec is the cluster-wide beam configuration set by the user.
+  ClusterBeamConfigSpec spec = 5;
+}
+
+// ClusterBeamConfigSpec contains the cluster-wide beam configuration.
+message ClusterBeamConfigSpec {
+  // LLM contains settings for LLM API proxies.
+  ClusterBeamConfigLLM llm = 1;
+}
+
+// ClusterBeamConfigLLM contains settings for LLM API proxies used by beams.
+message ClusterBeamConfigLLM {
+  // OpenAI provider configuration.
+  ClusterBeamConfigLLMProvider openai = 1;
+  // Anthropic provider configuration.
+  ClusterBeamConfigLLMProvider anthropic = 2;
+}
+
+// ClusterBeamConfigLLMProvider contains configuration for a single LLM provider.
+message ClusterBeamConfigLLMProvider {
+  // App is the Teleport app name for this provider's API proxy.
+  string app = 1;
+}

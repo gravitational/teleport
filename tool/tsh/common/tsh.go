@@ -274,18 +274,14 @@ type CLIConf struct {
 	AppName string
 	// BeamID identifies a beam resource.
 	BeamID string
-	// BeamDomain is the domain passed to "tsh beams allow --domain".
-	BeamDomain string
+	// BeamID identifies a list of beam resources.
+	BeamIDs []string
 	// BeamConsole controls whether `tsh beams add` connects to the beam after creation.
 	BeamConsole bool
 	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
 	BeamTCP bool
 	// BeamCopySpec stores `tsh beams cp` source and destination paths.
 	BeamCopySpec []string
-	// BeamLocalPath is the local filesystem path used by `tsh beams push/pull`.
-	BeamLocalPath string
-	// BeamRemotePath is the remote filesystem path used by `tsh beams push/pull`.
-	BeamRemotePath string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -480,6 +476,9 @@ type CLIConf struct {
 	LocalProxyPortMapping string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
+	// DatabaseVNet specifies whether to connect through VNet instead of
+	// starting a local proxy.
+	DatabaseVNet bool
 	// TargetPort is a port used for routing connections to multi-port TCP apps.
 	TargetPort uint16
 
@@ -999,6 +998,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// * "-T Disable pseudo-terminal allocation."
 	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
 	ssh.Flag(uuid.New().String(), "").Short('V').Hidden().BoolVar(&cf.ShowVersion)
+	// The following flags are OpenSSH compatibility no-ops, used by tools like
+	// sshfs that invoke ssh with hardcoded OpenSSH flags.
+	var sshCompatNoOp bool
+	ssh.Flag(uuid.New().String(), "").Short('x').Hidden().BoolVar(&sshCompatNoOp)
+	ssh.Flag(uuid.New().String(), "").Short('a').Hidden().BoolVar(&sshCompatNoOp)
+	ssh.Flag(uuid.New().String(), "").Short('2').Hidden().BoolVar(&sshCompatNoOp)
 
 	resolve := app.Command("resolve", "Resolves an SSH host.")
 	resolve.Arg("host", "Remote hostname to resolve.").Required().StringVar(&cf.UserHost)
@@ -1054,41 +1059,28 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Beams.
-	beams := app.Command("beams", "Create and connect to beam environments.")
+	beams := app.Command("beams", "View, manage and run beams. Beams are convenient, sandboxed environments for AI agents.").Alias("beam").Alias(beamsHelp)
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
-	beamsAdd.Flag("console", "Connect to the beam after creation.").Default("true").BoolVar(&cf.BeamConsole)
-	beamsConsole := beams.Command("console", "Connect to an existing beam over SSH.")
-	beamsConsole.Arg("beam-id", "Beam ID to connect to.").Required().StringVar(&cf.BeamID)
-	beamsExec := beams.Command("exec", "Execute a command on an existing beam over SSH.").Interspersed(false)
-	beamsExec.Arg("beam-id", "Beam ID to execute on.").Required().StringVar(&cf.BeamID)
-	beamsExec.Arg("command", "Command to execute on the beam.").Required().StringsVar(&cf.RemoteCommand)
-	beamsLS := beams.Command("ls", "List your beams.")
-	beamsRM := beams.Command("rm", "Delete an existing beam.")
-	beamsRM.Arg("beam-id", "Beam ID to delete.").Required().StringVar(&cf.BeamID)
-	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
-	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
-	beamsAllow.Flag("domain", "FQDN to allow for the beam (for example, api.example.com).").Required().StringVar(&cf.BeamDomain)
+	beamsAdd := beams.Command("add", "Start a new beam, and optionally connect to it via SSH.")
+	beamsAdd.Flag("console", "Connect to the beam via SSH after creation.").Default("true").BoolVar(&cf.BeamConsole)
+	beamsAdd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	beamsSSH := beams.Command("ssh", "Start an interactive shell in a beam, via SSH.").Alias("console")
+	beamsSSH.Arg("beam-id", "ID or Alias of the beam to connect to.").Required().StringVar(&cf.BeamID)
+	beamsExec := beams.Command("exec", "Run a command in a beam, via SSH.").Interspersed(false)
+	beamsExec.Arg("beam-id", "ID or Alias of the beam to run the command in.").Required().StringVar(&cf.BeamID)
+	beamsExec.Arg("command", "Command to execute in the beam.").Required().StringsVar(&cf.RemoteCommand)
+	beamsLS := beams.Command("ls", "List beams. By default, filters to show only beams belonging to the current user.")
+	beamsLS.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	beamsRM := beams.Command("rm", "Delete a beam.")
+	beamsRM.Arg("beam-id", "ID or Alias of the beam to delete.").Required().StringsVar(&cf.BeamIDs)
 	beamsPublish := beams.Command("publish", "Publish a beam application.")
-	beamsPublish.Arg("beam-id", "Beam ID to publish.").Required().StringVar(&cf.BeamID)
-	beamsPublish.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
+	beamsPublish.Arg("beam-id", "ID or Alias of the beam to publish").Required().StringVar(&cf.BeamID)
+	beamsPublish.Flag("tcp", "Publish as a plain TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
 	beamsPublish.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsCP := beams.Command("cp", "Copy files between the local filesystem and a running beam environment.")
-	beamsCP.Arg("src, dest", "Source and destination to copy; exactly one must use the form BEAM_ID:PATH.").Required().StringsVar(&cf.BeamCopySpec)
-	beamsCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
-	beamsCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsPush := beams.Command("push", "Copy a local file to a running beam environment.")
-	beamsPush.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
-	beamsPush.Flag("local", "Local file to copy.").Required().StringVar(&cf.BeamLocalPath)
-	beamsPush.Flag("remote", "Remote copy location.").Required().StringVar(&cf.BeamRemotePath)
-	beamsPush.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
-	beamsPush.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsPull := beams.Command("pull", "Copy a file from a running beam environment to the local filesystem.")
-	beamsPull.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
-	beamsPull.Flag("remote", "Remote file to copy.").Required().StringVar(&cf.BeamRemotePath)
-	beamsPull.Flag("local", "Local copy location.").Required().StringVar(&cf.BeamLocalPath)
-	beamsPull.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
-	beamsPull.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
+	beamsSCP := beams.Command("scp", "Copy files between the local filesystem and a running beam environment.").Alias("cp")
+	beamsSCP.Arg("src, dest", "Source and destination to copy; at least one must use the form BEAM_ID_OR_ALIAS:PATH.").Required().StringsVar(&cf.BeamCopySpec)
+	beamsSCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
+	beamsSCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1222,6 +1214,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").Hidden().BoolVar(&cf.LocalProxyTunnel)
+	dbConnect.Flag("vnet", "Connect through VNet.").Envar("TELEPORT_DB_VNET").Hidden().BoolVar(&cf.DatabaseVNet)
 	dbExec := db.Command("exec", "Execute database commands on target database services.")
 	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
 	dbExec.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
@@ -1848,24 +1841,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onApps(&cf)
 	case beamsAdd.FullCommand():
 		err = onBeamsAdd(&cf)
-	case beamsConsole.FullCommand():
-		err = onBeamsConsole(&cf)
+	case beamsSSH.FullCommand():
+		err = onBeamsSSH(&cf)
 	case beamsExec.FullCommand():
 		err = onBeamsExec(&cf)
 	case beamsLS.FullCommand():
 		err = onBeamsList(&cf)
 	case beamsRM.FullCommand():
 		err = onBeamsDelete(&cf)
-	case beamsAllow.FullCommand():
-		err = onBeamsAllow(&cf)
 	case beamsPublish.FullCommand():
 		err = onBeamsPublish(&cf)
-	case beamsCP.FullCommand():
-		err = onBeamsCopy(&cf)
-	case beamsPush.FullCommand():
-		err = onBeamsPush(&cf)
-	case beamsPull.FullCommand():
-		err = onBeamsPull(&cf)
+	case beamsSCP.FullCommand():
+		err = onBeamsSCP(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
@@ -4508,10 +4495,23 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 		cf.RemoteCommand = cf.RemoteCommand[1:]
 	}
 
+	// Handle OpenSSH -s flag for subsystem requests (e.g. "-s sftp" from sshfs).
+	// With Interspersed(false), flags after the positional host argument end up
+	// in RemoteCommand, so we detect and extract the subsystem here.
+	var sshSubsystem string
+	if len(cf.RemoteCommand) >= 2 && cf.RemoteCommand[0] == "-s" {
+		sshSubsystem = cf.RemoteCommand[1]
+		cf.RemoteCommand = cf.RemoteCommand[2:]
+	}
+	logger.DebugContext(cf.Context, "SSH args", "remote_command", cf.RemoteCommand, "subsystem", sshSubsystem, "user_host", cf.UserHost)
+
 	tc.Stdin = cf.Stdin()
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
+			if sshSubsystem != "" {
+				opts = append(opts, client.WithSubsystem(sshSubsystem))
+			}
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}

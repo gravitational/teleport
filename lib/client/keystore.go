@@ -66,6 +66,11 @@ const (
 	// tshBin is the name of the directory containing the
 	// updated binaries of client tools.
 	tshBin = "bin"
+
+	// tshBeamsDirName is the name of the directory containing beams mount
+	// state and default mount points. It is preserved on logout so that
+	// active mounts survive credential rotation.
+	tshBeamsDirName = "beams"
 )
 
 // KeyStore is a storage interface for client session keys and certificates.
@@ -488,8 +493,10 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	for _, file := range files {
 		if file.IsDir() {
 			switch file.Name() {
-			case tshConfigDirName, tshAzureDirName, tshBin:
-				// Don't delete 'config', 'azure' and 'bin' directories.
+			case tshConfigDirName, tshAzureDirName, tshBin, tshBeamsDirName:
+				// Don't delete 'config', 'azure', 'bin', or 'beams' directories.
+				// 'beams' holds mount state and default mount points that must
+				// survive logout so active mounts remain manageable.
 				// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
 				continue
 			}

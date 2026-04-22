@@ -218,6 +218,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
 		{Kind: types.KindBeam},
+		{Kind: types.KindClusterBeamConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -794,6 +795,8 @@ type Config struct {
 	AppAuthConfig services.AppAuthConfigReader
 	// Beams is the beam service.
 	Beams services.BeamReader
+	// ClusterBeamConfig is the cluster beam config service.
+	ClusterBeamConfig services.ClusterBeamConfigReader
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

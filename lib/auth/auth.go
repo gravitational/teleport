@@ -574,6 +574,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating Beams service")
 		}
 	}
+	if cfg.ClusterBeamConfig == nil {
+		cfg.ClusterBeamConfig, err = local.NewClusterBeamConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating ClusterBeamConfig service")
+		}
+	}
 	if cfg.BackendInfo == nil {
 		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
 		if err != nil {
@@ -712,6 +718,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		Beams:                           cfg.Beams,
+		ClusterBeamConfig:               cfg.ClusterBeamConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,

@@ -19,6 +19,7 @@
 import {
   createElement,
   PropsWithChildren,
+  useId,
   useMemo,
   useState,
   type ReactNode,
@@ -26,8 +27,10 @@ import {
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import { ChevronCircleDown, ChevronCircleUp } from 'design/Icon';
+import { ChevronDown, ChevronRight } from 'design/Icon';
 import { P2 } from 'design/Text';
+
+import { CopyButton } from '../CopyButton/CopyButton';
 
 export interface MarkdownOptions {
   /**
@@ -59,15 +62,6 @@ const StyledLink = styled.a`
   background: none;
   text-decoration: underline;
   text-transform: none;
-`;
-
-const StyledPre = styled.pre`
-  background: ${p => p.theme.colors.spotBackground[1]};
-  border-radius: ${p => p.theme.radii[2]}px;
-  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
-  overflow-x: auto;
-  white-space: pre;
-  margin: ${p => p.theme.space[2]}px 0;
 `;
 
 const parsers: MarkdownParser[] = [
@@ -148,6 +142,7 @@ const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 const fencedCodeRegex = /^```(\w*)\s*$/;
 
 const MAX_ITERATIONS = 10000;
+const MAX_DEPTH = 16;
 
 /**
  * Turns a Markdown string into a list of React nodes. CAUTION: this function
@@ -248,35 +243,73 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
         i += 1;
       }
 
-      items.push(
-        // TODO Add a copy button
-        <StyledPre key={`code-${i}`}>
-          <code>{codeLines.join('\n')}</code>
-        </StyledPre>
-      );
+      items.push(<CodeBlock key={`code-${i}`} code={codeLines.join('\n')} />);
 
       continue;
     }
 
-    if (line.trim().startsWith('^^^')) {
+    if (line.trim().startsWith('<details')) {
+      const expanded = /\bopen\b/.test(line);
+      let summary = '';
       const content: string[] = [];
-      i += 1; // skip the opening fence
+      const startI = i;
+      i += 1; // skip the opening tag
 
-      while (i < lines.length && !lines[i].trim().startsWith('^^^')) {
-        content.push(lines[i]);
+      const nextLine = lines.at(i);
+      if (nextLine === undefined) {
+        continue;
+      }
+
+      if (nextLine.trim().startsWith('<summary>')) {
+        summary = nextLine.replaceAll(/<\/?summary>/g, '').trim();
         i += 1;
       }
 
-      // Skip the closing fence if we found one.
-      if (i < lines.length) {
+      // Support nested sections by counting opening tags and ignoring that
+      // many closing tags.
+      let nested = 0;
+      while (true) {
+        const nextLine = lines.at(i);
+        if (nextLine === undefined) {
+          break;
+        }
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
+
+        if (nextLine.trim().startsWith('<details')) {
+          nested += 1;
+        }
+
+        const filter = nested >= MAX_DEPTH;
+
+        if (nextLine.trim() === '</details>') {
+          // If we're nested, then treat this line like any other content.
+          if (nested < 1) {
+            i += 1;
+            break;
+          }
+          nested -= 1;
+        }
+
+        if (!filter) {
+          content.push(nextLine);
+        }
         i += 1;
       }
 
       items.push(
-        <Section title={line.trim().split('^^^')[1] ?? 'Expand'}>
-          <Markdown text={content.join('\n')} />
+        <Section
+          key={`section-${startI}`}
+          title={summary || 'Expand'}
+          expanded={expanded}
+        >
+          <Markdown text={content.join('\n')} {...options} />
         </Section>
       );
+
+      continue;
     }
 
     const paragraphLines: string[] = [];
@@ -286,9 +319,10 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       const currentLine = lines[i];
 
       if (
-        headerRegex.test(currentLine) ||
+        headerRegex.test(currentLine.trim()) ||
         currentLine.trim().startsWith('- ') ||
-        fencedCodeRegex.test(currentLine.trim())
+        fencedCodeRegex.test(currentLine.trim()) ||
+        currentLine.trim().startsWith('<details')
       ) {
         break;
       }
@@ -328,25 +362,81 @@ export function Markdown({ text, ...options }: MarkdownProps) {
   );
 }
 
-function Section(props: { title: string } & PropsWithChildren) {
-  const { children, title } = props;
-  const [expanded, setExpanded] = useState(false);
+function CodeBlock(props: { code: string }) {
+  const { code } = props;
+  return (
+    <CodeBlockContainer>
+      <StyledPre>
+        <code>{code}</code>
+      </StyledPre>
+      <StyledCopyButton value={code} />
+    </CodeBlockContainer>
+  );
+}
+
+const CodeBlockContainer = styled.div`
+  position: relative;
+  background: ${p => p.theme.colors.interactive.tonal.neutral[1]};
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin: ${p => p.theme.space[2]}px 0;
+`;
+
+const StyledPre = styled.pre`
+  overflow-x: auto;
+  white-space: pre;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  padding-right: ${p => p.theme.space[6]}px;
+  margin: 0;
+`;
+
+const StyledCopyButton = styled(CopyButton)`
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: ${({ theme }) => theme.space[2]}px;
+`;
+
+function Section(
+  props: { title: string; expanded: boolean } & PropsWithChildren
+) {
+  const { children, title, expanded: preExpanded } = props;
+  const [expanded, setExpanded] = useState(preExpanded);
+  const accessibilityId = useId();
+
   return (
     <SectionContainer>
-      <SectionHeadingContainer onClick={() => setExpanded(prev => !prev)}>
+      <SectionHeadingContainer
+        onClick={() => setExpanded(prev => !prev)}
+        role="button"
+        aria-expanded={expanded}
+        aria-controls={accessibilityId}
+        tabIndex={0}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(prev => !prev);
+          }
+        }}
+      >
+        {expanded ? (
+          <ChevronDown size="medium" />
+        ) : (
+          <ChevronRight size="medium" />
+        )}
         <P2>
           <strong>{title}</strong>
         </P2>
-        {expanded ? <ChevronCircleUp /> : <ChevronCircleDown />}
       </SectionHeadingContainer>
-      {expanded ? (
-        <SectionContentContainer>{children}</SectionContentContainer>
-      ) : undefined}
+      <SectionContentContainer id={accessibilityId} hidden={!expanded}>
+        {children}
+      </SectionContentContainer>
     </SectionContainer>
   );
 }
 
-const SectionContainer = styled.div``;
+const SectionContainer = styled.div`
+  padding: ${({ theme }) => theme.space[2]}px 0;
+`;
 
 const SectionHeadingContainer = styled(Flex)`
   cursor: pointer;
@@ -355,6 +445,6 @@ const SectionHeadingContainer = styled(Flex)`
 
 const SectionContentContainer = styled.div`
   padding-left: ${({ theme }) => theme.space[3]}px;
-  border-left: 4px solid
-    ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
+  border-left: ${({ theme }) => theme.borders[3]}
+    ${({ theme }) => theme.colors.interactive.tonal.neutral[1]};
 `;

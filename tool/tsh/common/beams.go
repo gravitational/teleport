@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -39,6 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	filesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func onBeamsAdd(cf *CLIConf) error {
@@ -46,10 +50,27 @@ func onBeamsAdd(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	tc.AllowHeadless = true
 
-	stopCreating := startBeamSpinner(cf.Stdout(), "creating...")
+	// Only show the spinner and SSH into the beam if there's a real terminal
+	// connected (i.e. not piping the output somewhere else) and the user hasn't
+	// requested JSON or YAML.
+	interactive := utils.IsTerminal(cf.Stdout())
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		interactive = false
+	}
+
+	stopSpinner := func(message string) {
+		if message != "" {
+			fmt.Fprintln(cf.Stdout(), message)
+		}
+	}
+	if interactive {
+		stopSpinner = startBeamSpinner(cf.Stdout(), "creating...")
+	}
+
 	var beam *beamsv1.Beam
 	createErr := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -65,11 +86,22 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	})
 	if createErr != nil {
-		stopCreating("")
+		stopSpinner("")
 		return trace.Wrap(createErr)
 	}
-	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+
+	switch format {
+	case teleport.JSON:
+		if err := common.PrintJSONIndent(cf.Stdout(), serializeBeam(beam)); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case teleport.YAML:
+		if err := common.PrintYAML(cf.Stdout(), serializeBeam(beam)); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
 
 	// TODO(boxofrad): Remove this once all tenants have been updated to a
 	// version that supports beam aliases.
@@ -77,9 +109,11 @@ func onBeamsAdd(cf *CLIConf) error {
 	if alias := beam.GetStatus().GetAlias(); alias != "" {
 		name = alias
 	}
-	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(name)))
+	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+	stopSpinner(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(name)))
 
-	if !cf.BeamConsole {
+	if !cf.BeamConsole || !interactive {
 		return nil
 	}
 
@@ -89,11 +123,11 @@ func onBeamsAdd(cf *CLIConf) error {
 
 	reconnectStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	fmt.Fprintf(cf.Stdout(), "\nTo reconnect to this beam, run:\n    %s\n",
-		reconnectStyle.Render("tsh beams console "+name))
+		reconnectStyle.Render("tsh beams ssh "+name))
 	return nil
 }
 
-func onBeamsConsole(cf *CLIConf) error {
+func onBeamsSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -152,8 +186,58 @@ func onBeamsList(cf *CLIConf) error {
 		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
 	})
 
-	fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.JSON:
+		_, proxyAddr, err := fetchProxyVersion(cf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := common.PrintJSONIndent(cf.Stdout(), serializeBeams(beams, proxyAddr)); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.YAML:
+		_, proxyAddr, err := fetchProxyVersion(cf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := common.PrintYAML(cf.Stdout(), serializeBeams(beams, proxyAddr)); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
+	}
 	return nil
+}
+
+type serializedBeam struct {
+	ID             string    `json:"id"`
+	Alias          string    `json:"alias"`
+	Owner          string    `json:"owner"`
+	Expires        time.Time `json:"expires"`
+	PublishAddress string    `json:"publish_address,omitempty"`
+}
+
+func serializeBeam(beam *beamsv1.Beam) serializedBeam {
+	return serializedBeam{
+		ID:      beam.GetMetadata().GetName(),
+		Alias:   beam.GetStatus().GetAlias(),
+		Owner:   beam.GetStatus().GetUser(),
+		Expires: beam.GetMetadata().Expires.AsTime(),
+	}
+}
+
+func serializeBeams(
+	beams []*beamsv1.Beam,
+	proxyAddr string,
+) []serializedBeam {
+	return sliceutils.Map(beams, func(beam *beamsv1.Beam) serializedBeam {
+		e := serializeBeam(beam)
+		if appName := beam.GetStatus().GetAppName(); appName != "" {
+			e.PublishAddress = utils.DefaultAppPublicAddr(appName, proxyAddr)
+		}
+		return e
+	})
 }
 
 func onBeamsDelete(cf *CLIConf) error {
@@ -163,60 +247,38 @@ func onBeamsDelete(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
-	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+	idMap := make(map[string]string, len(cf.BeamIDs))
+	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer clusterClient.Close()
 
-		_, err = clusterClient.AuthClient.BeamsServiceClient().DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
-			BeamId: beamID,
-		})
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", cf.BeamID)
-	return nil
-}
-
-func onBeamsAllow(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tc.AllowHeadless = true
-	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
+		beamSvc := clusterClient.AuthClient.BeamsServiceClient()
+		for _, input := range cf.BeamIDs {
+			beam, err := beamSvc.GetBeam(cf.Context, getBeamRequest(input))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if beam.GetMetadata().GetName() == "" {
+				return trace.NotFound("beam %q has no ID", input)
+			}
+			idMap[input] = beam.GetMetadata().GetName()
 		}
-		defer clusterClient.Close()
 
-		_, err = clusterClient.AuthClient.BeamsServiceClient().AllowDomain(cf.Context, &beamsv1.AllowDomainRequest{
-			BeamId: beamID,
-			Fqdns:  []string{cf.BeamDomain},
-		})
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(cf.Stdout(), "Allowed domain %q for beam %q\n", cf.BeamDomain, cf.BeamID)
-	return nil
+		for _, input := range cf.BeamIDs {
+			_, err = beamSvc.DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
+				BeamId: idMap[input],
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", input)
+		}
+		return nil
+	}))
 }
 
 func onBeamsPublish(cf *CLIConf) error {
@@ -292,38 +354,12 @@ type beamCopyTarget struct {
 	IsBeam bool
 }
 
-func onBeamsCopy(cf *CLIConf) error {
+func onBeamsSCP(cf *CLIConf) error {
 	spec, err := parseBeamCopySpec(cf.BeamCopySpec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(runBeamCopy(cf, spec))
-}
-
-func onBeamsPush(cf *CLIConf) error {
-	return trace.Wrap(runBeamCopy(cf, beamCopySpec{
-		Source: beamCopyTarget{
-			Path: cf.BeamLocalPath,
-		},
-		Destination: beamCopyTarget{
-			Path:   cf.BeamRemotePath,
-			BeamID: cf.BeamID,
-			IsBeam: true,
-		},
-	}))
-}
-
-func onBeamsPull(cf *CLIConf) error {
-	return trace.Wrap(runBeamCopy(cf, beamCopySpec{
-		Source: beamCopyTarget{
-			Path:   cf.BeamRemotePath,
-			BeamID: cf.BeamID,
-			IsBeam: true,
-		},
-		Destination: beamCopyTarget{
-			Path: cf.BeamLocalPath,
-		},
-	}))
 }
 
 func runBeamCopy(cf *CLIConf, spec beamCopySpec) error {
@@ -502,7 +538,13 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 			return nil
 		}
 		logger.DebugContext(cf.Context, "Connect to beam with retry", "attempt", i+1, "error", lastErr)
-		if !trace.IsNotFound(lastErr) {
+
+		switch {
+		case trace.IsNotFound(lastErr):
+			// Cache may not have caught up with the node write.
+		case trace.IsConnectionProblem(lastErr):
+			// Beam network may not be ready yet, even if sshd is.
+		default:
 			return trace.Wrap(lastErr)
 		}
 
@@ -518,11 +560,12 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 }
 
 func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
-	table := asciitable.MakeTable([]string{"Alias", "Name", "Expires"})
+	table := asciitable.MakeTable([]string{"Alias", "ID", "Expires"})
 	for _, beam := range beams {
+		beamID := beam.GetMetadata().GetName()
 		table.AddRow([]string{
 			beam.GetStatus().GetAlias(),
-			beam.GetMetadata().GetName(),
+			beamID,
 			beamExpiry(beam),
 		})
 	}

@@ -42,6 +42,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -394,6 +396,9 @@ type InitConfig struct {
 	// Beams manages beam resources.
 	Beams services.Beams
 
+	// ClusterBeamConfig manages the cluster-wide beam configuration.
+	ClusterBeamConfig services.ClusterBeamConfig
+
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
 
@@ -600,6 +605,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
 		defer span.End()
 		return trace.Wrap(initializeVnetConfig(ctx, asrv))
+	})
+
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeClusterBeamConfig")
+		defer span.End()
+		return trace.Wrap(initializeClusterBeamConfig(ctx, asrv))
 	})
 
 	g.Go(func() error {
@@ -1281,6 +1292,43 @@ func initializeVnetConfig(ctx context.Context, asrv *Server) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+func initializeClusterBeamConfig(ctx context.Context, asrv *Server) error {
+	if asrv.Services.ClusterBeamConfig == nil {
+		return nil
+	}
+	stored, err := asrv.Services.GetClusterBeamConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	defaultConfig := newDefaultClusterBeamConfig()
+	asrv.logger.InfoContext(ctx, "Creating default cluster beam config")
+	_, err = asrv.Services.CreateClusterBeamConfig(ctx, defaultConfig)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
+func newDefaultClusterBeamConfig() *beamsv1.ClusterBeamConfig {
+	return &beamsv1.ClusterBeamConfig{
+		Kind:    types.KindClusterBeamConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameClusterBeamConfig,
+		},
+		Spec: &beamsv1.ClusterBeamConfigSpec{
+			Llm: &beamsv1.ClusterBeamConfigLLM{
+				Openai:    &beamsv1.ClusterBeamConfigLLMProvider{App: "openai"},
+				Anthropic: &beamsv1.ClusterBeamConfigLLMProvider{App: "anthropic"},
+			},
+		},
+	}
 }
 
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
