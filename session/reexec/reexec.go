@@ -1709,6 +1709,9 @@ func (e *CommandExecutor) Close() error {
 		}
 	}
 	for _, closer := range e.childFiles {
+		if closer == nil {
+			continue
+		}
 		if err := closer.Close(); err != nil {
 			errs = append(errs, err)
 		}
