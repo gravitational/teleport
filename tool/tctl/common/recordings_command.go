@@ -256,9 +256,6 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	}
 
 	searchClient := tc.SessionSearchServiceClient()
-	if err := checkSessionSearchEnabled(ctx, searchClient); err != nil {
-		return trace.Wrap(err)
-	}
 
 	var labels map[string]string
 	if c.searchLabel != "" {
@@ -335,29 +332,6 @@ func showSessionSummaries(sessions []*sessionsearchv1pb.SessionSummary, nextToke
 			return nil
 		}
 		return recordingstui.RunSearchTUI(sessions, nextToken, summaryGetter, fetcher)
-	}
-}
-
-// checkSessionSearchEnabled returns an error if session search is not active on this cluster.
-func checkSessionSearchEnabled(ctx context.Context, sc sessionsearchv1pb.SessionSearchServiceClient) error {
-	resp, err := sc.IsEnabled(ctx, &sessionsearchv1pb.IsEnabledRequest{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	switch resp.GetAvailability() {
-	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_AVAILABLE,
-		sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED:
-		// UNSPECIFIED is the proto zero-value; older servers that predate this field
-		// return it. Treat it as available for forward-compatibility.
-		return nil
-	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_NOT_IMPLEMENTED:
-		return trace.NotImplemented("session search requires Access Graph to be enabled with session recording support")
-	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_PG_TRGM_UNAVAILABLE:
-		return trace.NotImplemented("session search requires the pg_trgm PostgreSQL extension to be installed")
-	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE:
-		return trace.NotImplemented("session search requires the pgvector PostgreSQL extension to be installed")
-	default:
-		return nil
 	}
 }
 
