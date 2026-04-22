@@ -372,6 +372,14 @@ enum NeedsReviewReason {
   NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED = 2;
 }
 
+// RiskScoreReason represents a reason that contributed to the overall risk score of a session.
+message RiskScoreReason {
+  // Reason is a concise sentence explaining this risk factor.
+  string reason = 1;
+  // ScoreImpact is a numerical value representing how much this reason contributed to the overall risk score of the session.
+  int32 score_impact = 2;
+}
+
 // EnhancedSummary represents an enhanced summary of a session recording,
 // with structured data extracted from the session.
 message EnhancedSummary {
@@ -391,6 +399,12 @@ message EnhancedSummary {
   repeated CommandAnalysis commands = 7;
   // NeedsFurtherReview indicates the reason why the session needs further review.
   optional NeedsReviewReason needs_further_review = 8;
+  // RiskScore is a numerical score representing the overall risk associated with the session.
+  int32 risk_score = 9;
+  // ShortTitle is a brief title for the session summary, suitable for display in a list of sessions.
+  string short_title = 10;
+  // RiskScoreReasons contains a list of reasons that contributed to the overall risk score of the session.
+  repeated RiskScoreReason risk_score_reasons = 11;
 }
 
 // RetrievalModel resource specifies the model configuration used to
