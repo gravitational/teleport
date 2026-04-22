@@ -219,8 +219,29 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		slog.DebugContext(req.Context(), "Received unsuccessful find response", "code", resp.StatusCode)
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err, "could not read find response body; check the network connection")
+		}
+
+		if contentType := resp.Header.Get("Content-Type"); contentType != "application/json" {
+			return nil, trace.Errorf("failed to reach Teleport Proxy: %s", string(bodyBytes))
+		}
+
+		errResp := &PingErrorResponse{}
+		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
+			slog.DebugContext(req.Context(), "Could not parse find response body", "body", string(bodyBytes))
+			return nil, trace.Wrap(err, "cannot parse find response; is proxy reachable?")
+		}
+
+		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful find response; Teleport cluster auth may be misconfigured")
+	}
+
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err)
@@ -282,6 +303,10 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
+		}
+
+		if contentType := resp.Header.Get("Content-Type"); contentType != "application/json" {
+			return nil, trace.Errorf("failed to reach Teleport Proxy: %s", string(bodyBytes))
 		}
 
 		errResp := &PingErrorResponse{}
