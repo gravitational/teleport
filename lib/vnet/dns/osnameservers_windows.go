@@ -1,3 +1,5 @@
+//go:build windows
+
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
 //
@@ -27,32 +29,36 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
-// platformLoadUpstreamNameservers attempts to find the default DNS nameservers
+var platformUpstreamNameserverSource = WindowsUpstreamNameserverSource
+
+// WindowsUpstreamNameserverSource attempts to find the default DNS nameservers
 // that VNet should forward unmatched queries to. To do this, it finds the
 // nameservers configured for each interface and sorts by the interface metric.
-func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
-	interfaces, err := winipcfg.GetIPInterfaceTable(windows.AF_INET)
-	if err != nil {
-		return nil, trace.Wrap(err, "looking up local network interfaces")
-	}
-	sort.Slice(interfaces, func(i, j int) bool {
-		return interfaces[i].Metric < interfaces[j].Metric
-	})
-	var nameservers []string
-	for _, iface := range interfaces {
-		ifaceNameservers, err := iface.InterfaceLUID.DNS()
+func WindowsUpstreamNameserverSource(slog *slog.Logger) UpstreamNameserverSource {
+	return upstreamNameserverSourceFn(func(ctx context.Context) ([]string, error) {
+		interfaces, err := winipcfg.GetIPInterfaceTable(windows.AF_INET)
 		if err != nil {
-			return nil, trace.Wrap(err, "looking up DNS nameservers for interface")
+			return nil, trace.Wrap(err, "looking up local network interfaces")
 		}
-		for _, ifaceNameserver := range ifaceNameservers {
-			if ignoreUpstreamNameserver(ifaceNameserver) {
-				continue
+		sort.Slice(interfaces, func(i, j int) bool {
+			return interfaces[i].Metric < interfaces[j].Metric
+		})
+		var nameservers []string
+		for _, iface := range interfaces {
+			ifaceNameservers, err := iface.InterfaceLUID.DNS()
+			if err != nil {
+				return nil, trace.Wrap(err, "looking up DNS nameservers for interface")
 			}
-			nameservers = append(nameservers, AddrWithDNSPort(ifaceNameserver))
+			for _, ifaceNameserver := range ifaceNameservers {
+				if ignoreUpstreamNameserver(ifaceNameserver) {
+					continue
+				}
+				nameservers = append(nameservers, AddrWithDNSPort(ifaceNameserver))
+			}
 		}
-	}
-	slog.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)
-	return nameservers, nil
+		slog.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)
+		return nameservers, nil
+	})
 }
 
 var (
