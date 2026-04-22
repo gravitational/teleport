@@ -1,9 +1,6 @@
 ---
 title: Health Monitoring
-description: Monitoring health and readiness.
-tags:
- - conceptual
- - platform-wide
+description: How to monitor the health and readiness of a Teleport process.
 ---
 
 Teleport provides health checking mechanisms in order to verify that it
@@ -12,7 +9,47 @@ Kubernetes probes to monitor the health of a Teleport process.
 
 ## Enable health monitoring
 
-(!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
+Teleport's diagnostic HTTP endpoints are disabled by default. You can enable
+them via:
+
+<Tabs>
+<TabItem label="Command line">
+
+Start a `teleport` instance with the `--diag-addr` flag set to the local
+address where the diagnostic endpoint will listen:
+
+```code
+$ sudo teleport start  --diag-addr=127.0.0.1:3000
+```
+
+</TabItem>
+<TabItem label="Config file">
+
+Edit a `teleport` instance's configuration file (`/etc/teleport.yaml` by
+default) to include the following:
+
+```yaml
+teleport:
+    diag_addr: 127.0.0.1:3000
+```
+
+To enable debug logs:
+
+```yaml
+log:
+    severity: DEBUG
+```
+
+</TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Ensure you can connect to the diagnostic endpoint">
+Verify that Teleport is now serving the diagnostics endpoint:
+
+```code
+$ curl http://127.0.0.1:3000/healthz
+```
+</Admonition>
 
 Now you can collect monitoring information from several endpoints.
 
@@ -34,6 +71,46 @@ The response body is a JSON object of the form:
 ```
 { "status": "a status message here"}
 ```
+
+### Agent lifecycle states
+
+`/readyz` reports one of the following lifecycle states. Each state corresponds
+to a specific HTTP status code, response body, and value of the `process_state`
+metric, which makes the state machine the basis for both probe-style and
+metric-based monitoring.
+
+| State | HTTP code | `/readyz` body status | `process_state` value | When it applies |
+|-------|-----------|------------------------|------------------------|------------------|
+| Starting / not yet joined | 400 | `teleport is starting and hasn't joined the cluster yet` | starting | The process has launched but has not yet completed an initial heartbeat with the Auth Service. New agents sit in this state until they have successfully joined. |
+| Degraded | 503 | indicates the failing component | degraded | A component has failed its heartbeat. The most common cause is loss of connectivity to the Auth Service. |
+| Recovering | 400 | indicates the recovering component | recovering | A previously degraded component completed one successful heartbeat. A second consecutive successful heartbeat returns the component to OK. |
+| OK | 200 | `ok` | ok | All heartbeats are succeeding. |
+
+Heartbeats run approximately every 60 seconds when healthy and are retried
+approximately every 5 seconds after a failure. Depending on heartbeat timing,
+it can take 60-70 seconds after connectivity is restored for `/readyz` to
+report OK again. Note that custom intervals may apply if `health_check_config` is defined in the configuration file.
+
+<Admonition type="warning" title="Known limitations of /readyz">
+`/readyz` reports the result of the agent's most recent heartbeat with the
+Auth Service. It does not currently reflect:
+
+- **Per-service health.** If an agent is configured to run multiple services
+  (for example, `app_service` and `ssh_service`), `/readyz` can return 200 OK
+  even when one of those services has failed to start. See
+  [#43440](https://github.com/gravitational/teleport/issues/43440).
+- **Auth backend connectivity.** The Auth Service can transition out of a
+  degraded state quickly enough that `/readyz` returns 200 OK between
+  heartbeat failures, even when the backend remains unreachable. See
+  [#52273](https://github.com/gravitational/teleport/issues/52273).
+- **Bidirectional cluster communication.** `/readyz` reflects what the agent
+  knows about its own outbound heartbeats, not whether the cluster can reach
+  back to the agent. See
+  [#2276](https://github.com/gravitational/teleport/issues/2276).
+
+For higher-confidence monitoring, combine `/readyz` with the cluster-side
+checks described in [Monitoring agent join from the control plane](#monitoring-agent-join-from-the-control-plane).
+</Admonition>
 
 ### `/readyz` and heartbeats
 
@@ -63,3 +140,92 @@ The status code of the response can be one of:
 
 The same state information is also available via the `process_state` metric
 under the `/metrics` endpoint.
+
+### Querying `/readyz` from inside a running agent
+
+If exposing the diagnostic endpoint on a network address is not practical (for
+example, on agents running in containers without an exposed port), use
+`teleport debug readyz` to query the local `/readyz` endpoint over a Unix
+socket served by the [Debug Service](./troubleshooting.mdx). This requires
+`exec` access to the agent's host or pod but no additional network
+configuration:
+
+```code
+$ teleport debug readyz
+{"status":"ok"}
+```
+
+## Monitoring agent join from the control plane
+
+`/readyz` answers "is this agent process healthy from its own perspective."
+The complementary question — "does the Teleport cluster see this agent as
+joined" — is answered by the `tctl inventory` family of commands, which
+report on what the Auth Service knows about each connected instance.
+
+Use these commands when you need to monitor a fleet of agents from a central
+location, audit which agents are reachable from the cluster, or troubleshoot
+a join that appears successful on the agent side but doesn't surface as a
+resource in the Web UI.
+
+### List the cluster's instance inventory
+
+`tctl inventory ls` lists every agent currently connected to the Auth
+Service, along with the services each agent is running, its version, and its
+upgrader configuration:
+
+```code
+$ tctl inventory ls
+Server ID                            Hostname                   Services Agent Version Upgrader Upgrader Version Update Group
+------------------------------------ -------------------------- -------- ------------- -------- ---------------- ------------
+671f3c6b-f9ef-4821-a895-1ce7193be3aa maries-MacBook-Pro-2.local Node     v18.7.3       none     none
+dac31781-af88-46a0-9f18-01f3c2af7152 macos-node                 Node     v18.6.4       none     none
+```
+
+Inventory is heartbeat-based and updates periodically. In large fleets, an
+agent that has just joined or just disconnected may take several minutes to
+reflect in the output.
+
+### Show only currently connected agents
+
+`tctl inventory status --connected` shows agents with an active connection to
+the Auth Service right now, along with the services they are running and the
+services that have heartbeated successfully:
+
+```code
+$ tctl inventory status --connected
+```
+
+### Ping a specific agent
+
+`tctl inventory ping <server-id>` sends a request through the agent's existing
+connection to the Auth Service and reports the round-trip latency. This
+verifies bidirectional reachability — something that `/readyz` does not check:
+
+```code
+$ tctl inventory ping <server-id>
+```
+
+If the ping fails or times out, the agent's outbound connection is up
+(otherwise it would not appear in `inventory ls` as connected) but the cluster
+cannot complete a round-trip to it.
+
+## Recommended monitoring approach
+
+No single signal answers every question about agent health. We recommend
+combining the following:
+
+| Question | Use |
+|----------|-----|
+| Is the agent process running? | `/healthz` (or a host-level check such as `systemctl status teleport`) |
+| Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes liveness/readiness probe) |
+| Is the cluster aware of this agent right now? | `tctl inventory status --connected` |
+| Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
+| Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.login`, `instance.join`, `instance.token.create`, `cert.create` |
+
+For Kubernetes deployments, configure `/readyz` as both the liveness and
+readiness probe on agent pods, and pair it with a periodic check from your
+monitoring system that runs `tctl inventory status --connected` against the
+control plane and alerts on agents that disappear from the connected list.
+This catches both local-process failures (caught by the probe) and
+cluster-side disconnects (caught by the inventory check) that `/readyz` alone
+would miss.
