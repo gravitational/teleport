@@ -348,6 +348,18 @@ $ tsh db connect --db-user=alloydb-user@<Var name="project-id"/>.iam --db-name=p
 ```
 
 <Admonition type="tip">
+To connect to the database using a tool of your choice, like a graphical
+database client, you can create a local tunnel and point it to your software:
+
+```code
+$ tsh proxy db alloydb --tunnel --db-user=alloydb-user@<Var name="project-id"/>.iam --db-name=postgres
+```
+
+See [Database GUI Clients](../../../../connect-your-client/third-party/gui-clients.mdx)
+guide for more information on specific tools.
+</Admonition>
+
+<Admonition type="tip">
 From version `17.1`, you can also 
 [connect via the Web UI](../../../../connect-your-client/teleport-clients/web-ui.mdx#starting-a-database-session).
 </Admonition>

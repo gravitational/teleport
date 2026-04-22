@@ -959,9 +959,9 @@ func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
 		)
 	}
 	for _, allowRule := range a.Allow {
-		if allowRule.Subscription == "" {
+		if allowRule.Subscription == "" && allowRule.Tenant == "" {
 			return trace.BadParameter(
-				"the %q join method requires azure allow rules with non-empty subscription",
+				"the %q join method requires azure allow rules with non-empty subscription or tenant",
 				JoinMethodAzure,
 			)
 		}

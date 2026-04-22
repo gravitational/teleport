@@ -176,7 +176,12 @@ func TestWebauthnLogin_web(t *testing.T) {
 }
 
 func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
-	env := newWebPack(t, 1)
+	t.Parallel()
+	testModules := modulestest.OSSModules()
+	testModules.MockAttestationData = &keys.AttestationData{
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+	}
+	env := newWebPack(t, 1, withModules(testModules))
 	proxy := env.proxies[0]
 	ctx := context.Background()
 
@@ -202,12 +207,6 @@ func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 	authServer := env.server.Auth()
 	_, err = authServer.UpsertAuthPreference(ctx, cap)
 	require.NoError(t, err)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		MockAttestationData: &keys.AttestationData{
-			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		},
-	})
 
 	httpResp, body, err := rawLoginWebMFA(ctx, loginWebMFAParams{
 		webClient:     proxy.newClient(t),

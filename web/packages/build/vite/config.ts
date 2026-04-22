@@ -25,6 +25,7 @@ import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
+import { guardWasmPlugin } from './guard-wasm';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
 
@@ -66,6 +67,11 @@ export function createViteConfig(
       },
       resolve: {
         tsconfigPaths: true,
+      },
+      optimizeDeps: {
+        // Exclude from pre-bundling so the guard-wasm-globals plugin can transform the
+        // module during dev.
+        exclude: ['@xterm/addon-image'],
       },
       build: {
         outDir: outputDirectory,
@@ -118,6 +124,7 @@ export function createViteConfig(
         },
       },
       plugins: [
+        guardWasmPlugin(),
         reactPlugin(mode),
         transformPlugin(),
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
