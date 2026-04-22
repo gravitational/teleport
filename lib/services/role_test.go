@@ -820,10 +820,10 @@ func TestValidateRole(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		spec           types.RoleSpecV6
-		expectError    error
-		expectWarnings []string
+		name                string
+		spec                types.RoleSpecV6
+		expectError         error
+		expectErrorContains []string
 	}{
 		{
 			name: "valid syntax",
@@ -840,7 +840,7 @@ func TestValidateRole(t *testing.T) {
 					Logins: []string{"{{foo"},
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
 				"parsing allow.logins expression",
 				`"{{foo" is using template brackets '{{' or '}}', however expression does not parse`,
 			},
@@ -859,7 +859,7 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
 				"parsing allow rule",
 				"could not parse 'where' rule",
 				"unsupported function: containz",
@@ -878,7 +878,7 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
 				"parsing allow rule",
 				"could not parse 'where' rule",
 				"unsupported function: can_view",
@@ -899,24 +899,167 @@ func TestValidateRole(t *testing.T) {
 			},
 		},
 		{
-			name: "unsupported function in where",
+			name: "valid impersonate.where",
 			spec: types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
+					Impersonate: &types.ImpersonateConditions{
+						Users: []string{"user"},
+						Roles: []string{"role"},
+						Where: `contains(user.spec.traits["groups"], "prod") && ` +
+							`equals(impersonate_user.metadata.name, "alice") && ` +
+							`equals(impersonate_role.metadata.name, "auditor")`,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid impersonate.where",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Impersonate: &types.ImpersonateConditions{
+						Users: []string{"user"},
+						Roles: []string{"role"},
+						Where: `containz(user.spec.traits["groups"], "prod")`,
+					},
+				},
+			},
+			expectErrorContains: []string{
+				"allow.impersonate.where: invalid expression",
+				"unsupported function: containz",
+			},
+		},
+		{
+			name: "valid rules.actions",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
 					Rules: []types.Rule{
 						{
 							Resources: []string{"role"},
 							Verbs:     []string{"read", "list"},
-							Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
-							Actions:   []string{"zzz(\"info\", \"log entry\")"},
+							Actions:   []string{`log("info", "log entry")`},
 						},
 					},
 				},
 			},
-			expectWarnings: []string{
+		},
+		{
+			name: "invalid rules.actions",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						{
+							Resources: []string{"role"},
+							Verbs:     []string{"read", "list"},
+							Actions:   []string{`zzz("info", "log entry")`},
+						},
+					},
+				},
+			},
+			expectErrorContains: []string{
 				"parsing allow rule",
 				"could not parse action",
 				"unsupported function: zzz",
+			},
+		},
+		{
+			name: "valid require_session_join.filter",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Name: "test",
+						Filter: `contains(user.roles, "admin") && ` +
+							`contains(user.spec.roles, "lead") && ` +
+							`equals(user.name, "alice") && ` +
+							`equals(user.spec.name, "alice")`,
+						Kinds: []string{string(types.SSHSessionKind)},
+						Modes: []string{string(types.SessionModeratorMode)},
+						Count: 1,
+					}},
+				},
+			},
+		},
+		{
+			name: "invalid require_session_join.filter",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Name:   "test",
+						Filter: `badfunc(user.spec.traits["groups"], "prod")`,
+						Kinds:  []string{string(types.SSHSessionKind)},
+						Modes:  []string{string(types.SessionModeratorMode)},
+						Count:  1,
+					}},
+				},
+			},
+			expectErrorContains: []string{
+				"require_session_join[0]: invalid filter",
+				"unsupported function: badfunc",
+			},
+		},
+		{
+			name: "nil require_session_join entry is skipped",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					RequireSessionJoin: []*types.SessionRequirePolicy{nil},
+				},
+			},
+		},
+		{
+			name: "nil cert_extensions entry is skipped",
+			spec: types.RoleSpecV6{
+				Options: types.RoleOptions{
+					CertExtensions: []*types.CertExtension{nil},
+				},
+			},
+		},
+		{
+			name: "valid review_requests.where",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					ReviewRequests: &types.AccessReviewConditions{
+						Where: `contains(reviewer.roles, "approver")`,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid review_requests.where",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					ReviewRequests: &types.AccessReviewConditions{
+						Where: `contains(user.spec.traits["groups"], "prod")`,
+					},
+				},
+			},
+			expectErrorContains: []string{
+				"invalid review predicate",
+			},
+		},
+		{
+			name: "valid request.thresholds.filter",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						Thresholds: []types.AccessReviewThreshold{
+							{Filter: `contains(reviewer.roles, "lead")`},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid request.thresholds.filter",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						Thresholds: []types.AccessReviewThreshold{
+							{Filter: `contains(user.spec.traits["groups"], "prod")`},
+						},
+					},
+				},
+			},
+			expectErrorContains: []string{
+				"invalid threshold predicate",
 			},
 		},
 		{
@@ -954,6 +1097,9 @@ func TestValidateRole(t *testing.T) {
 					BeamLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
+					WorkloadIdentityLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
 				},
 				Deny: types.RoleConditions{
 					Logins: []string{"test"},
@@ -980,7 +1126,7 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
 				"parsing allow.node_labels template expression",
 				"parsing allow.app_labels template expression",
 				"parsing allow.kubernetes_labels template expression",
@@ -988,6 +1134,7 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.windows_desktop_labels template expression",
 				"parsing allow.cluster_labels template expression",
 				"parsing allow.beam_labels template expression",
+				"parsing allow.workload_identity_labels template expression",
 				"parsing deny.node_labels template expression",
 				"parsing deny.app_labels template expression",
 				"parsing deny.kubernetes_labels template expression",
@@ -1024,7 +1171,7 @@ func TestValidateRole(t *testing.T) {
 					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
 				"parsing allow.node_labels_expression",
 				"parsing allow.app_labels_expression",
 				"parsing allow.kubernetes_labels_expression",
@@ -1045,6 +1192,14 @@ func TestValidateRole(t *testing.T) {
 		{
 			name: "unsupported function in slice fields",
 			spec: types.RoleSpecV6{
+				Options: types.RoleOptions{
+					CertExtensions: []*types.CertExtension{
+						{
+							Name:  "name",
+							Value: "{{email.localz(external.email)}}",
+						},
+					},
+				},
 				Allow: types.RoleConditions{
 					Logins:               []string{"{{email.localz(external.email)}}"},
 					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
@@ -1055,12 +1210,19 @@ func TestValidateRole(t *testing.T) {
 					KubeUsers:            []string{"{{email.localz(external.email)}}"},
 					DatabaseNames:        []string{"{{email.localz(external.email)}}"},
 					DatabaseUsers:        []string{"{{email.localz(external.email)}}"},
+					DatabaseRoles:        []string{"{{email.localz(external.email)}}"},
 					HostGroups:           []string{"{{email.localz(external.email)}}"},
 					HostSudoers:          []string{"{{email.localz(external.email)}}"},
 					DesktopGroups:        []string{"{{email.localz(external.email)}}"},
 					Impersonate: &types.ImpersonateConditions{
 						Users: []string{"{{email.localz(external.email)}}"},
 						Roles: []string{"{{email.localz(external.email)}}"},
+					},
+					GitHubPermissions: []types.GitHubPermission{
+						{Organizations: []string{"{{email.localz(external.email)}}"}},
+					},
+					MCP: &types.MCPPermissions{
+						Tools: []string{"{{email.localz(external.email)}}"},
 					},
 				},
 				Deny: types.RoleConditions{
@@ -1073,6 +1235,7 @@ func TestValidateRole(t *testing.T) {
 					KubeUsers:            []string{"{{email.localz(external.email)}}"},
 					DatabaseNames:        []string{"{{email.localz(external.email)}}"},
 					DatabaseUsers:        []string{"{{email.localz(external.email)}}"},
+					DatabaseRoles:        []string{"{{email.localz(external.email)}}"},
 					HostGroups:           []string{"{{email.localz(external.email)}}"},
 					HostSudoers:          []string{"{{email.localz(external.email)}}"},
 					DesktopGroups:        []string{"{{email.localz(external.email)}}"},
@@ -1082,7 +1245,8 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
+				"parsing options.cert_extensions.value expression",
 				"parsing allow.logins expression",
 				"parsing allow.windows_desktop_logins expression",
 				"parsing allow.aws_role_arns expression",
@@ -1092,11 +1256,14 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.kubernetes_users expression",
 				"parsing allow.db_names expression",
 				"parsing allow.db_users expression",
+				"parsing allow.db_roles expression",
 				"parsing allow.host_groups expression",
 				"parsing allow.host_sudoers expression",
 				"parsing allow.desktop_groups expression",
 				"parsing allow.impersonate.users expression",
 				"parsing allow.impersonate.roles expression",
+				"parsing allow.github_permissions.organizations expression",
+				"parsing allow.mcp.tools expression",
 				"parsing deny.logins expression",
 				"parsing deny.windows_desktop_logins expression",
 				"parsing deny.aws_role_arns expression",
@@ -1106,6 +1273,7 @@ func TestValidateRole(t *testing.T) {
 				"parsing deny.kubernetes_users expression",
 				"parsing deny.db_names expression",
 				"parsing deny.db_users expression",
+				"parsing deny.db_roles expression",
 				"parsing deny.host_groups expression",
 				"parsing deny.host_sudoers expression",
 				"parsing deny.desktop_groups expression",
@@ -1141,7 +1309,7 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			expectWarnings: []string{
+			expectErrorContains: []string{
 				"parsing allow.kubernetes_resources.namespace expression",
 				"parsing allow.kubernetes_resources.name expression",
 				"parsing allow.kubernetes_resources.verbs expression",
@@ -1155,7 +1323,6 @@ func TestValidateRole(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var warning error
 			err := ValidateRole(&types.RoleV6{
 				Metadata: types.Metadata{
 					Name:      "name1",
@@ -1163,21 +1330,19 @@ func TestValidateRole(t *testing.T) {
 				},
 				Version: types.V8,
 				Spec:    tc.spec,
-			}, withWarningReporter(func(err error) {
-				warning = err
-			}))
+			})
 			if tc.expectError != nil {
 				require.ErrorIs(t, err, tc.expectError)
 				return
 			}
+			if len(tc.expectErrorContains) > 0 {
+				require.Error(t, err)
+				for _, msg := range tc.expectErrorContains {
+					require.ErrorContains(t, err, msg)
+				}
+				return
+			}
 			require.NoError(t, err, trace.DebugReport(err))
-
-			if len(tc.expectWarnings) == 0 {
-				require.NoError(t, warning)
-			}
-			for _, msg := range tc.expectWarnings {
-				require.ErrorContains(t, warning, msg)
-			}
 		})
 	}
 }

@@ -5223,10 +5223,7 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	// access predicate syntax is not checked as part of normal role validation in order
-	// to allow the available namespaces to be extended without breaking compatibility with
-	// older nodes/proxies (which do not need to ever evaluate said predicates).
-	if err := services.ValidateAccessPredicates(role); err != nil {
+	if err := services.ValidateRole(role); err != nil {
 		return trace.Wrap(err)
 	}
 

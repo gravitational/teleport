@@ -129,10 +129,6 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 		return trace.Wrap(err)
 	}
 
-	if err := services.ValidateAccessPredicates(role); err != nil {
-		// check for syntax errors in predicates
-		return trace.Wrap(err)
-	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
 		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
@@ -161,11 +157,6 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 func updateRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
 	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := services.ValidateAccessPredicates(role); err != nil {
-		// check for syntax errors in predicates
 		return trace.Wrap(err)
 	}
 
