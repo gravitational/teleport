@@ -144,9 +144,12 @@ func validateRequest(req *pb.SearchSessionSummariesRequest) error {
 // IsEnabled implements [pb.SessionSearchServiceServer].
 //
 // It returns the cached availability state of session search, refreshing from
-// the access graph when the TTL has elapsed. Only the proxy role may call this
-// RPC; end-user clients call the equivalent method on the proxy, which
-// forwards the check.
+// the access graph when the TTL has elapsed. Only the proxy role or clients with
+// audit log access should call this method, and it is used to short-circuit the
+// session search flow with a fast error when the access graph does not support
+// session search. The CLI calls this method before starting the session search
+// flow and embedding generation, and the UI calls this method before showing
+// the session search page.
 func (s *Service) IsEnabled(
 	ctx context.Context, _ *pb.IsEnabledRequest,
 ) (*pb.IsEnabledResponse, error) {
@@ -154,8 +157,8 @@ func (s *Service) IsEnabled(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
-		return nil, trace.AccessDenied("access denied")
+	if err := authorizeIsEnabled(authCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	availability, err := s.availabilityCache.Get(ctx)
@@ -166,6 +169,29 @@ func (s *Service) IsEnabled(
 	return &pb.IsEnabledResponse{
 		Availability: convertAvailability(availability),
 	}, nil
+}
+
+// authorizeIsEnabled enforces that the caller is either a proxy or has access to
+// list/read sessions. This is a coarse-grained check that doesn't consider the
+// caller's access to individual sessions, but it is sufficient to gate the
+// IsEnabled method since its purpose is just to short-circuit the session search
+// flow for unauthorized callers and when session search is unavailable.
+func authorizeIsEnabled(authCtx *authz.Context) error {
+	// Authorize proxy role.
+	if authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil
+	}
+
+	// If not a proxy but still a service, return access denied.
+	if authz.IsLocalOrRemoteService(*authCtx) {
+		return trace.AccessDenied("access denied")
+	}
+
+	// Authorize access to sessions for users.
+	err := authCtx.MaybeAccessToKind(
+		types.KindSession, types.VerbList, types.VerbRead,
+	)
+	return trace.Wrap(err)
 }
 
 // convertAvailability maps the access graph's SessionSearchAvailability enum

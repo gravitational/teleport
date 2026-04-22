@@ -48,14 +48,34 @@ func (a *fakeAuthorizer) Authorize(context.Context) (*authz.Context, error) {
 type fakeChecker struct {
 	services.AccessChecker
 
+	// roles controls HasRole responses for builtin-role authorization checks.
+	roles []string
 	// guessErr is returned by GuessIfAccessIsPossible (used in MaybeAccessToKind).
 	guessErr error
+	// guessFn allows tests to make GuessIfAccessIsPossible resource-aware.
+	guessFn func(ctx services.RuleContext, namespace, resource, verb string) error
 	// checkFn is called by CheckAccessToRule for per-session RBAC decisions.
 	// If nil, all checks are allowed.
 	checkFn func(ruleCtx services.RuleContext, namespace, resource, verb string) error
 }
 
-func (c fakeChecker) GuessIfAccessIsPossible(_ services.RuleContext, _, _, _ string) error {
+func (c fakeChecker) HasRole(role string) bool {
+	for _, r := range c.roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+func (c fakeChecker) RoleNames() []string {
+	return append([]string(nil), c.roles...)
+}
+
+func (c fakeChecker) GuessIfAccessIsPossible(ctx services.RuleContext, namespace, resource, verb string) error {
+	if c.guessFn != nil {
+		return c.guessFn(ctx, namespace, resource, verb)
+	}
 	return c.guessErr
 }
 
@@ -78,6 +98,31 @@ func denySessionRule() fakeChecker {
 				return trace.AccessDenied("session access denied")
 			}
 			return nil
+		},
+	}
+}
+
+// allowSessionAccessOnly returns a checker that only grants coarse-grained
+// session list/read access, plus per-session checks.
+func allowSessionAccessOnly() fakeChecker {
+	return fakeChecker{
+		guessFn: func(_ services.RuleContext, _, resource, verb string) error {
+			if resource == types.KindSession && (verb == types.VerbList || verb == types.VerbRead) {
+				return nil
+			}
+			return trace.AccessDenied("%s %s denied", resource, verb)
+		},
+	}
+}
+
+// denySessionAccessOnly returns a checker that allows session list but not read.
+func denySessionAccessOnly() fakeChecker {
+	return fakeChecker{
+		guessFn: func(_ services.RuleContext, _, resource, verb string) error {
+			if resource == types.KindSession && verb == types.VerbList {
+				return nil
+			}
+			return trace.AccessDenied("%s %s denied", resource, verb)
 		},
 	}
 }
@@ -447,6 +492,67 @@ func TestValidateRequest(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestAuthorizeIsEnabled(t *testing.T) {
+	t.Parallel()
+
+	proxyUser, err := types.NewUser("proxy")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		authCtx *authz.Context
+		assert  func(*testing.T, error)
+	}{
+		{
+			name: "proxy builtin role allowed",
+			authCtx: &authz.Context{
+				User:             proxyUser,
+				Checker:          fakeChecker{roles: []string{string(types.RoleProxy)}},
+				Identity:         authz.BuiltinRole{Role: types.RoleProxy, Username: "proxy"},
+				UnmappedIdentity: authz.BuiltinRole{Role: types.RoleProxy, Username: "proxy"},
+			},
+			assert: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "non proxy service denied",
+			authCtx: &authz.Context{
+				User:             proxyUser,
+				Checker:          fakeChecker{roles: []string{string(types.RoleNode)}},
+				Identity:         authz.BuiltinRole{Role: types.RoleNode, Username: "node"},
+				UnmappedIdentity: authz.BuiltinRole{Role: types.RoleNode, Username: "node"},
+			},
+			assert: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:    "user with session access allowed",
+			authCtx: makeAuthCtx(t, allowSessionAccessOnly()),
+			assert: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:    "user without session access denied",
+			authCtx: makeAuthCtx(t, denySessionAccessOnly()),
+			assert: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.assert(t, authorizeIsEnabled(tc.authCtx))
 		})
 	}
 }
