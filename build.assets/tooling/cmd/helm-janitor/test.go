@@ -33,7 +33,7 @@ func testHelm(ctx context.Context, chart Chart, updateSnapshots bool) error {
 		args = append(args, "-u")
 	}
 	// We log the test command so it's easier for a developer to copy it and re-run to target a failing test.
-	fmt.Printf("▶️ %s %s\n", helmBinName, strings.Join(args, " "))
+	fmt.Printf(" ▶️ %s %s\n", helmBinName, strings.Join(args, " "))
 	stdout, stderr, err := run(ctx, helmBinName, args...)
 	if err != nil {
 		fmt.Printf(" ❌ Helm unit tests failed for chart %q", chart.Path)
