@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/e/tests/common/tctl"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	tshcommon "github.com/gravitational/teleport/tool/tsh/common"
 )
 
@@ -22,6 +23,8 @@ const (
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+
 	if runTctl, isTctl := tctl.IsReExec(); isTctl {
 		runTctl()
 		return

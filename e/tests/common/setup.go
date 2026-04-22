@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,6 +48,7 @@ func InitSUT(t *testing.T, opts ...Option) *SUT {
 		license: "../../fixtures/license-eub.pem",
 		clock:   clockwork.NewRealClock(),
 		modules: modulestest.OSSModules(),
+		logger:  slog.Default(),
 	}
 
 	for _, opt := range opts {
