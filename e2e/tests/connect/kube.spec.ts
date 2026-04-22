@@ -98,7 +98,7 @@ test('exec into a pod', async ({ app }) => {
   await openKubeTerminal(resources, terminal);
 
   const kubectlRunOutput = await terminal.execAndWait(
-    `${kubectlCommand} run ${podName} --image=busybox:latest --command -- sh -c 'sleep 3600'`
+    `${kubectlCommand} run ${podName} --image=busybox:1.37.0 --command -- sh -c 'sleep 3600'`
   );
   expect(kubectlRunOutput).toContain(`pod/${podName} created`);
 
