@@ -34,6 +34,7 @@ type PluginGetter interface {
 	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
 	ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error)
 	HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error)
+	GetEntraIDPluginByConnector(ctx context.Context, connectorName string, withSecrets bool) (types.Plugin, error)
 }
 
 // Plugins is the plugin service

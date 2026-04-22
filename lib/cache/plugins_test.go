@@ -191,3 +191,102 @@ func TestPlugin_HasPluginType(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, has)
 }
+
+func TestPlugin_GetEntraIDPluginByConnector(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	// No plugins
+	plugin, err := p.cache.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+
+	// No EntraID plugins
+	slackPlugin := newPlugin("slack")
+	slackPlugin.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{
+		SlackAccessPlugin: &types.PluginSlackAccessSettings{
+			FallbackChannel: "#foo",
+		},
+	}
+	scimPlugin := newPlugin("scim")
+	scimPlugin.Spec.Settings = &types.PluginSpecV1_Scim{
+		Scim: &types.PluginSCIMSettings{
+			SamlConnectorName: "example-saml-connector",
+		},
+	}
+
+	err = p.plugin.CreatePlugin(ctx, slackPlugin)
+	require.NoError(t, err)
+
+	err = p.plugin.CreatePlugin(ctx, scimPlugin)
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		plugins, _, err := p.cache.ListPlugins(ctx, 0, "", false)
+		require.NoError(t, err)
+		require.Len(t, plugins, 2)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	plugin, err = p.cache.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+
+	// No matching plugins
+	entraPlugin := newPlugin("entraid")
+	entraPlugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: &types.PluginEntraIDSyncSettings{
+				DefaultOwners:  []string{"owner_id"},
+				SsoConnectorId: "entraid",
+			},
+		},
+	}
+
+	err = p.plugin.CreatePlugin(ctx, entraPlugin)
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		plugins, _, err := p.cache.ListPlugins(ctx, 0, "", false)
+		require.NoError(t, err)
+		require.Len(t, plugins, 3)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	plugin, err = p.cache.GetEntraIDPluginByConnector(ctx, "non-existent", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+
+	// Matching plugin
+	plugin, err = p.cache.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.NotNil(t, plugin)
+	require.NoError(t, err)
+
+	// Multiple matching plugins
+	entraPlugin2 := newPlugin("entraid-2")
+	entraPlugin2.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: &types.PluginEntraIDSyncSettings{
+				DefaultOwners:  []string{"owner_id"},
+				SsoConnectorId: "entraid",
+			},
+		},
+	}
+
+	err = p.plugin.CreatePlugin(ctx, entraPlugin2)
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		plugins, _, err := p.cache.ListPlugins(ctx, 0, "", false)
+		require.NoError(t, err)
+		require.Len(t, plugins, 4)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	plugin, err = p.cache.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+}

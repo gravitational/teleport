@@ -190,6 +190,51 @@ func (c *Cache) HasPluginType(ctx context.Context, pluginType types.PluginType) 
 	return false, nil
 }
 
+func (c *Cache) GetEntraIDPluginByConnector(ctx context.Context, connectorName string, withSecrets bool) (types.Plugin, error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetEntraIDPluginByConnector")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.plugins)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		ok, err := c.Config.Plugin.GetEntraIDPluginByConnector(ctx, connectorName, withSecrets)
+		return ok, trace.Wrap(err)
+	}
+
+	var match *types.PluginV1
+	for plugin := range rg.store.resources(pluginNameIndex, "", "") {
+		pluginV1, ok := plugin.(*types.PluginV1)
+		if !ok || pluginV1.GetType() != types.PluginTypeEntraID {
+			continue
+		}
+
+		entraSettings := pluginV1.Spec.GetEntraId()
+		if entraSettings == nil || entraSettings.SyncSettings == nil {
+			continue
+		}
+
+		if entraSettings.SyncSettings.SsoConnectorId != connectorName {
+			continue
+		}
+
+		if match != nil {
+			return nil, trace.BadParameter("multiple Entra plugins match connector")
+		}
+
+		match = pluginV1
+	}
+
+	if match == nil {
+		return nil, trace.NotFound("no Entra plugin matching connector found")
+	}
+
+	return stripAndClonePluginSecrets(match, withSecrets), nil
+}
+
 // stripPluginSecrets returns a cloned plugin, optionally removing secrets.
 // This allows conditional filtering based on the `withSecrets` flag.
 func stripAndClonePluginSecrets(in types.Plugin, withSecrets bool) types.Plugin {
