@@ -107,6 +107,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -956,6 +957,12 @@ func (c *Client) JoinV1Client() joinv1.JoinServiceClient {
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
 	return summarizerv1.NewSummarizerServiceClient(c.conn)
+}
+
+// SessionSearchServiceClient returns a client for the session search
+// service.
+func (c *Client) SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient {
+	return sessionsearchv1pb.NewSessionSearchServiceClient(c.conn)
 }
 
 // SummarizerClient returns a client for the session summarizer service that
