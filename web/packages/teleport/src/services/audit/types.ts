@@ -386,6 +386,10 @@ export const eventCodes = {
   RETRIEVAL_MODEL_CREATE: 'INF011I',
   RETRIEVAL_MODEL_UPDATE: 'INF012I',
   RETRIEVAL_MODEL_DELETE: 'INF013I',
+  CERT_AUTH_OVERRIDE_CREATE: 'TCO01I',
+  CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
+  CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
+  CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
 } as const;
 
 /**
@@ -2294,6 +2298,18 @@ export type RawEvents = {
       short_description?: string;
     }
   >;
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_CREATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPDATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPSERT
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
+  >;
 };
 
 /**
@@ -2528,6 +2544,33 @@ type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
     external_id: string;
     integration: string;
     display: string;
+  }
+>;
+
+type RawCertAuthOverrideEvent<T extends EventCode> = RawEvent<
+  T,
+  HasName & {
+    ca_override?: {
+      ca_type?: string;
+      cluster_name?: string;
+      certificate_overrides?: {
+        certificate?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        };
+        chain?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        }[];
+        disabled?: boolean;
+      }[];
+    };
+    success?: boolean;
+    user?: string;
   }
 >;
 
