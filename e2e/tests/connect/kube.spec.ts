@@ -92,7 +92,7 @@ test('exec into a pod', async ({ app }) => {
   const { page } = app;
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
-  const podName = 'shell-demo';
+  const podName = `shell-demo-${crypto.randomUUID().split('-').at(0)}`;
 
   await openKubeTerminal(resources, terminal);
 
