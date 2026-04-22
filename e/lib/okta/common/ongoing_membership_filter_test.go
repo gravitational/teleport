@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,10 @@ import (
 )
 
 func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
+	const (
+		finalized    = true
+		notFinalized = false
+	)
 	tests := []struct {
 		name                    string
 		oktaMembers             map[string]*accesslist.AccessListMember
@@ -50,18 +55,6 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 			expectedTeleportPresent: true,
 		},
 		{
-			name: "ignores non-access-request assignment",
-			oktaMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": newMember("groupA", "alice"),
-			},
-			teleportMembers: map[string]*accesslist.AccessListMember{},
-			assignments: []types.OktaAssignment{
-				newAssignment("alice", "groupA", "manual-sync", types.OktaAssignmentSpecV1_SUCCESSFUL),
-			},
-			expectedOktaPresent:     true,
-			expectedTeleportPresent: false,
-		},
-		{
 			name: "ignores unrelated assignment status",
 			oktaMembers: map[string]*accesslist.AccessListMember{
 				"groupA/alice": newMember("groupA", "alice"),
@@ -94,6 +87,124 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 			assignments: []types.OktaAssignment{
 				newAssignment("alice", "groupA", "assignment-processor", types.OktaAssignmentSpecV1_PENDING),
 			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "cleanup assignment filters from both maps for non-finalized successful",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_SUCCESSFUL, notFinalized),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "cleanup assignment filters from both maps for non-finalized processing",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_PROCESSING, notFinalized),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "finalized cleanup assignment does not filter",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_SUCCESSFUL, finalized),
+			},
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: true,
+		},
+		{
+			name: "assignment without cleanup time does not trigger cleanup filter",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "manual-sync", types.OktaAssignmentSpecV1_SUCCESSFUL),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "assignment without cleanup time does not trigger cleanup filter",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "manual-sync", types.OktaAssignmentSpecV1_SUCCESSFUL),
+			},
+			// The staleOktaMemberFilter removes the Okta entry because the
+			// assignment is successful+non-finalized and the member is not in Teleport.
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "stale okta member filter: successful assignment, member in okta but not teleport",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "user-assignment-creator", types.OktaAssignmentSpecV1_SUCCESSFUL),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "stale okta member filter: preserves member present in both okta and teleport",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "user-assignment-creator", types.OktaAssignmentSpecV1_SUCCESSFUL),
+			},
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: true,
+		},
+		{
+			name: "stale okta member filter: ignores finalized assignments",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_SUCCESSFUL, finalized),
+			},
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "stale okta member filter: ignores access-request assignments",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "access-request/abc", types.OktaAssignmentSpecV1_SUCCESSFUL),
+			},
+			// access-request filter handles these, not the stale member filter.
+			// The access-request filter also removes from inOkta when not in inTeleport.
 			expectedOktaPresent:     false,
 			expectedTeleportPresent: false,
 		},
@@ -140,6 +251,23 @@ func newAssignment(user, group, source string, status types.OktaAssignmentSpecV1
 			User:    user,
 			Status:  status,
 			Targets: []*types.OktaAssignmentTargetV1{{Id: group, Type: types.OktaAssignmentTargetV1_GROUP}},
+		},
+	}
+}
+
+func newCleanupAssignment(user, group string, status types.OktaAssignmentSpecV1_OktaAssignmentStatus, finalized bool) types.OktaAssignment {
+	return &types.OktaAssignmentV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: uuid.NewString(),
+			},
+		},
+		Spec: types.OktaAssignmentSpecV1{
+			User:        user,
+			Status:      status,
+			Finalized:   finalized,
+			CleanupTime: time.Now(),
+			Targets:     []*types.OktaAssignmentTargetV1{{Id: group, Type: types.OktaAssignmentTargetV1_GROUP}},
 		},
 	}
 }

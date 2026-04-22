@@ -57,6 +57,11 @@ type fakeOktaServer struct {
 	appUserAssignments map[string]map[string]struct{}
 	// Represents        appId -> groupId -> assignment
 	appGroupAssignments map[string]map[string]*okta.ApplicationGroupAssignment
+	// removeUserFromGroupOverwrite, if set, is called instead of the default
+	// RemoveUserFromGroup behavior when the DELETE /groups/{groupID}/users/{userID}
+	// route is hit. If it returns a non-nil error, the error is mapped to an HTTP
+	// status code via trace.ErrorToCode and returned to the caller.
+	removeUserFromGroupOverwrite func(groupID, userID string) error
 }
 
 func withAppCount(n int) func(options *fakeOktaServerOptions) {
@@ -172,6 +177,12 @@ func (f *fakeOktaServer) routes() http.Handler {
 
 	mux.HandleFunc(http.MethodDelete+" /api/v1/groups/{groupID}/users/{userID}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
+		if fn := f.getRemoveUserFromGroupOverwrite(); fn != nil {
+			if err := fn(r.PathValue("groupID"), r.PathValue("userID")); err != nil {
+				f.error(w, r, err.Error(), trace.ErrorToCode(err))
+				return
+			}
+		}
 		f.RemoveUserFromGroup(r.PathValue("groupID"), r.PathValue("userID"))
 	})
 
@@ -341,6 +352,18 @@ func (f *fakeOktaServer) SetScopes(scopes []string) {
 	defer f.mu.Unlock()
 
 	f.scopes = scopes
+}
+
+func (f *fakeOktaServer) setRemoveUserFromGroupOverwrite(fn func(string, string) error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.removeUserFromGroupOverwrite = fn
+}
+
+func (f *fakeOktaServer) getRemoveUserFromGroupOverwrite() func(string, string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.removeUserFromGroupOverwrite
 }
 
 func (f *fakeOktaServer) CreateSAMLApp(name string) *okta.SamlApplication {

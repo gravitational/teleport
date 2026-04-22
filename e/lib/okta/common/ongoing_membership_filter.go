@@ -63,21 +63,21 @@ type OngoingAssignmentsMembershipFilter struct {
 	AssignmentsService OktaAssignmentService
 }
 
-// Filter filters out Okta members that are part of an ongoing access request assignment.
-// These members are added as a result of a just-in-time short-term access request to an Okta resource.
-// Since the assignment to the Okta group was temporary and initiated by an access request,
-// When Okta integration is enabled:
-// - Access Requests can grant short-term access to resources via Access Lists.
-// - Approving a request creates an `okta_assignment`, temporarily assigning the user to a group/app.
-// - This assignment is processed by the Okta Assignment Processor.
+// Filter excludes members from the access list sync whose Okta assignments are
+// still being processed or are in a transitional state. It applies the following
+// filter stages:
 //
-// Issue:
-// - Okta Access List Sync periodically fetches group memberships from Okta.
-// - These fetched temporary assignments appear as external changes.
-// - Teleport then incorrectly treats them as permanent and updates the Access List accordingly.
-//
-// To prevent this, we filter out these temporary assignments from the Okta members list.
-// See: https://github.com/gravitational/teleport-private/issues/1944 For more details.
+//  1. ongoingAccessRequestAssignments – removes members added via JIT access
+//     requests so that temporary Okta group memberships are not imported as
+//     permanent access list members.
+//     See: https://github.com/gravitational/teleport-private/issues/1944
+//  2. pendingAssignmentFilter – removes members whose assignments are pending
+//     (not yet provisioned to Okta) to avoid the sync from prematurely deleting
+//     a membership that the assignment processor is about to create.
+//  3. cleanupAssignmentFilter – removes members whose assignments are scheduled
+//     for cleanup (cleanup_time set, not yet finalized) to prevent stale Okta
+//     group data from causing re-addition of a member that is being removed.
+//     See: https://github.com/gravitational/teleport.e/issues/6558
 //
 // Note: This function modifies the input parameters in place. Both inOktaMembers and inTeleportMembers
 // maps are filtered on the fly, removing entries that match filter.
@@ -85,6 +85,8 @@ func (a *OngoingAssignmentsMembershipFilter) Filter(ctx context.Context, inOktaM
 	filter := []assignmentFilterStage{
 		&ongoingAccessRequestAssignments{},
 		&pendingAssignmentFilter{},
+		&cleanupAssignmentFilter{},
+		&staleOktaMemberFilter{},
 	}
 	if err := a.collectAssignments(ctx, filter); err != nil {
 		return trace.Wrap(err)
@@ -199,5 +201,103 @@ func (c *pendingAssignmentFilter) applyFilter(inOkta, inTeleport map[string]*acc
 	for k := range assignmentMapKeys(c.assignments) {
 		delete(inOkta, k)
 		delete(inTeleport, k)
+	}
+}
+
+// cleanupAssignmentFilter is a filter prevents the access list sync from
+// re-adding members whose Okta assignments are scheduled for cleanup -  removal from Okta upstream.
+//
+// When a user is removed from an access list, the user monitor sets cleanup_time on the
+// corresponding OktaAssignment. The assignment processor then picks up this assignment and
+// removes the user from the Okta group or app . Once successfully processed, the assignment is
+// marked as finalized and eventually deleted.
+//
+// Problem (see https://github.com/gravitational/teleport.e/issues/6558):
+// A race condition occurs between the assignment processor and the access list sync:
+//  1. User is removed from an access list in Teleport
+//  2. OktaAssignment cleanup_time is set (cleanup is pending)
+//  3. The assignment processor may be delayed in executing the cleanup
+//     (e.g., due to Okta rate limiting)
+//  4. Access list sync fetches group memberships from Okta and sees the user
+//     still in the group (stale data from before the cleanup was executed)
+//  5. Sync incorrectly re-adds the user to the access list in Teleport
+//
+// This filter collects all non-finalized assignments with cleanup_time set and removes
+// their corresponding members from both the Okta and Teleport member maps. By excluding
+// these members from the sync, we prevent the stale Okta data from causing re-additions
+// while the assignment processor completes the removal.
+type cleanupAssignmentFilter struct {
+	assignments []types.OktaAssignment
+}
+
+// collect gathers Okta assignments that are scheduled for cleanup but not yet finalized.
+// These represent users being removed from Okta groups where the removal hasn't completed yet.
+//
+// Note: This also matches JIT access request assignments with a future cleanup time
+// (i.e. ones that will expire later). That overlap is harmless because the
+// ongoingAccessRequestAssignments filter already excludes those members from
+// being imported as persistent access list members. Both filters deleting the
+// same map key is a no-op.
+func (c *cleanupAssignmentFilter) collect(in types.OktaAssignment) {
+	if !in.GetCleanupTime().IsZero() && !in.IsFinalized() {
+		c.assignments = append(c.assignments, in)
+	}
+}
+
+// applyFilter removes members with in-progress cleanup assignments from both input maps.
+// This prevents the access list sync from processing these members while the assignment
+// processor is still removing them from Okta, avoiding the race where stale Okta membership
+// data causes a removed user to be spuriously re-added.
+func (c *cleanupAssignmentFilter) applyFilter(inOkta, inTeleport map[string]*accesslist.AccessListMember) {
+	for k := range assignmentMapKeys(c.assignments) {
+		delete(inOkta, k)
+		delete(inTeleport, k)
+	}
+}
+
+// staleOktaMemberFilter prevents the access list sync from re-adding a member
+// that was deleted from Teleport but whose OktaAssignment hasn't had cleanup_time
+// set yet by the UserMonitor.
+//
+// Background:
+// When a user is removed from an access list, the backend emits a delete event.
+// The UserMonitor picks up this event asynchronously and sets cleanup_time on the
+// corresponding OktaAssignment. However, there is a race window between the member
+// deletion and the cleanup_time update:
+//
+//  1. Access list member is deleted from Teleport
+//  2. UserMonitor has not yet processed the delete event
+//  3. Access list sync runs and reads assignments from the backend
+//  4. The cleanupAssignmentFilter sees cleanup_time=zero, so it does not filter
+//  5. Sync sees the user in Okta but not in Teleport and re-adds them
+//
+// This filter closes that gap by collecting all successful, non-finalized, non-access-request
+// assignments (i.e. assignments created by the user-assignment-creator). In applyFilter,
+// for each such assignment key present in inOkta but absent from inTeleport, the entry is
+// removed from inOkta. This prevents the sync from re-importing a member that Teleport
+// has already removed, even before the UserMonitor sets cleanup_time.
+type staleOktaMemberFilter struct {
+	assignments []types.OktaAssignment
+}
+
+func (c *staleOktaMemberFilter) collect(in types.OktaAssignment) {
+	if isAccessRequestAssignment(in) {
+		return
+	}
+	if in.IsFinalized() {
+		return
+	}
+	switch in.GetStatus() {
+	case constants.OktaAssignmentStatusPending, constants.OktaAssignmentStatusProcessing, constants.OktaAssignmentStatusSuccessful:
+		// These statuses indicate the assignment is active or being processed.
+		c.assignments = append(c.assignments, in)
+	}
+}
+
+func (c *staleOktaMemberFilter) applyFilter(inOkta, inTeleport map[string]*accesslist.AccessListMember) {
+	for k := range assignmentMapKeys(c.assignments) {
+		if _, ok := inTeleport[k]; !ok {
+			delete(inOkta, k)
+		}
 	}
 }
