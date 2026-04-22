@@ -41,6 +41,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").|
+|session_recording|[object](#specdefaultssession_recording)|SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode.|
+
+### spec.defaults.session_recording
+
+|Field|Type|Description|
+|---|---|---|
+|mode|string|Mode sets the session recording mode. Allowed values: strict | best_effort.|
 
 ### spec.kube
 
@@ -70,6 +77,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
+|enhanced_recording|[object](#specsshenhanced_recording)|EnhancedRecording is the set of BPF events to record for enhanced session recording.|
 |file_copy|boolean|FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.|
 |forward_agent|boolean|ForwardAgent enables SSH agent forwarding.|
 |host_sudoers|[]string|Sudoers is a list of entries to include in a users sudoer file|
@@ -79,6 +87,15 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |max_sessions|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.|
 |port_forwarding|[object](#specsshport_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
+|session_recording|[object](#specsshsession_recording)|SessionRecording configures the session recording strategy for SSH sessions.|
+
+### spec.ssh.enhanced_recording
+
+|Field|Type|Description|
+|---|---|---|
+|command|boolean|Command enables session.command in audit logs|
+|disk|boolean|Disk enables session.disk in audit logs|
+|network|boolean|Network enables session.network in audit logs|
 
 ### spec.ssh.host_user_creation
 
@@ -113,4 +130,10 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |enabled|boolean||
+
+### spec.ssh.session_recording
+
+|Field|Type|Description|
+|---|---|---|
+|mode|string|Mode sets the session recording mode. Allowed values: strict | best_effort.|
 
