@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
@@ -281,6 +282,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
+		case *beams.VNetServiceConfig:
+			services = append(services, beams.VNetServiceBuilder(
+				svcCfg,
+				beams.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+			))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}

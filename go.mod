@@ -46,7 +46,7 @@ require (
 	github.com/ClickHouse/ch-go v0.69.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.37.2
 	github.com/DanielTitkov/go-adaptive-cards v0.2.2
-	github.com/DataDog/datadog-agent/pkg/template v0.77.2
+	github.com/DataDog/datadog-agent/pkg/template v0.78.1
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -226,6 +226,7 @@ require (
 	github.com/tidwall/pretty v1.2.1
 	github.com/tidwall/sjson v1.2.5
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
+	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/vulcand/predicate v1.2.0
 	github.com/yusufpapurcu/wmi v1.2.4
 	github.com/zclconf/go-cty v1.16.3
@@ -569,6 +570,8 @@ require (
 	github.com/transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/vbatts/tar-split v0.12.2 // indirect
+	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
+	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
