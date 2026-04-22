@@ -1834,7 +1834,11 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	// See the below for details.
 	//
 	//   https://man7.org/linux/man-pages/man7/pipe.7.html
-	go copyCommand(ctx, cmd, command)
+	buffer := &bytes.Buffer{}
+	if err := json.NewEncoder(buffer).Encode(command); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go copyCommand(ctx, cmd, buffer)
 
 	// Find the Teleport executable and its directory on disk.
 	executable, err := os.Executable()
@@ -1891,10 +1895,10 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 
 // copyCommand will copy the provided command to the child process over the
 // pipe attached to the context.
-func copyCommand(ctx context.Context, cmdw *os.File, cmdmsg *ExecCommand) {
+func copyCommand(ctx context.Context, cmdw *os.File, buffer *bytes.Buffer) {
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
-	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
+	if _, err := io.Copy(cmdw, buffer); err != nil {
 		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
 	}
 
