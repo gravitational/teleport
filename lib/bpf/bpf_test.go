@@ -39,12 +39,12 @@ func TestConvertArgs(t *testing.T) {
 		{
 			name:     "only null byte",
 			rawArgs:  []byte("\x00"),
-			expected: []string{},
+			expected: []string{""},
 		},
 		{
 			name:     "only null bytes",
 			rawArgs:  []byte("\x00\x00\x00"),
-			expected: []string{},
+			expected: []string{"", "", ""},
 		},
 		{
 			name:     "1 arg",
@@ -60,18 +60,18 @@ func TestConvertArgs(t *testing.T) {
 			name:      "truncated",
 			rawArgs:   []byte("foo\x00"),
 			truncated: true,
-			expected:  []string{"foo", "..."},
+			expected:  []string{"foo", TruncatedArg},
 		},
 		{
 			name:     "consecutive null bytes",
 			rawArgs:  []byte("foo\x00\x00bar\x00\x00baz\x00"),
-			expected: []string{"foo", "bar", "baz"},
+			expected: []string{"foo", "", "bar", "", "baz"},
 		},
 		{
 			name:      "consecutive null bytes truncated",
 			rawArgs:   []byte("foo\x00\x00bar\x00\x00baz\x00"),
 			truncated: true,
-			expected:  []string{"foo", "bar", "baz", "..."},
+			expected:  []string{"foo", "", "bar", "", "baz", TruncatedArg},
 		},
 		{
 			name:     "no tailing null byte",
@@ -82,23 +82,29 @@ func TestConvertArgs(t *testing.T) {
 			name:      "no tailing null byte truncated",
 			rawArgs:   []byte("foo\x00bar\x00baz"),
 			truncated: true,
-			expected:  []string{"foo", "bar", "baz", "..."},
+			expected:  []string{"foo", "bar", "baz", TruncatedArg},
 		},
 		{
 			name:     "leading null byte",
 			rawArgs:  []byte("\x00foo\x00bar\x00"),
-			expected: []string{"foo", "bar"},
+			expected: []string{"", "foo", "bar"},
 		},
 		{
 			name:      "leading null byte truncated",
 			rawArgs:   []byte("\x00foo\x00bar\x00"),
-			expected:  []string{"foo", "bar", "..."},
+			expected:  []string{"", "foo", "bar", TruncatedArg},
 			truncated: true,
 		},
 		{
 			name:     "utf-8 args",
 			rawArgs:  []byte("résumé\x00日本語\x00"),
 			expected: []string{"résumé", "日本語"},
+		},
+		{
+			name:      "utf-8 args truncated",
+			rawArgs:   []byte("résumé\x00日本語\x00"),
+			expected:  []string{"résumé", "日本語", TruncatedArg},
+			truncated: true,
 		},
 		{
 			name:     "full command",

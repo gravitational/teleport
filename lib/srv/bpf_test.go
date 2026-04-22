@@ -500,6 +500,19 @@ eval $(echo %s | base64 --decode)`,
 			},
 		},
 		{
+			name:    "empty args",
+			command: echoPath + " empty '' args",
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program:           "echo",
+						alternateFirstArg: echoPath,
+						args:              []string{"empty", "", "args"},
+					},
+				},
+			},
+		},
+		{
 			name:    "long arg",
 			command: "cat " + longArg,
 			eventInfos: []expectedEvents{
@@ -520,7 +533,7 @@ eval $(echo %s | base64 --decode)`,
 				{
 					cmdInfo: commandInfo{
 						program: "cat",
-						args:    []string{overMaxArg[:maxArgsTotalLength], "..."},
+						args:    []string{overMaxArg[:maxArgsTotalLength], bpf.TruncatedArg},
 						// the argument isn't an existing file on disk
 						expectedFail: true,
 					},
@@ -737,7 +750,7 @@ func testBPFFailedCommandMaxArgs(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 						[]string{path},
 						slices.Repeat([]string{overMaxArg[:maxArgLength-1]}, maxArgCount-1)...,
 					)
-					expectedArgs = append(expectedArgs, "...")
+					expectedArgs = append(expectedArgs, bpf.TruncatedArg)
 
 					require.Equal(t, expectedArgs, e.Argv)
 					found = true

@@ -47,6 +47,9 @@ import (
 const (
 	// CommandArgsBufferSize is the size of a command event args buffer.
 	CommandArgsBufferSize = len(commandDataT{}.Args)
+	// TruncatedArg is the string used to indicate that the arguments
+	// were truncated.
+	TruncatedArg = "[truncated]"
 
 	// eventSendTimeout is the maximum time to wait for an event to be sent
 	// to be emitted to the Audit log.
@@ -425,8 +428,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 }
 
-// convertArgs converts a large buffer of null-terminated strings into
-// a slice of strings.
+// convertArgs converts a large buffer of null-terminated strings from
+// command event arguments into a slice of strings.
 func convertArgs(rawArgs []byte, truncated bool) []string {
 	if len(rawArgs) == 0 {
 		return nil
@@ -436,15 +439,17 @@ func convertArgs(rawArgs []byte, truncated bool) []string {
 	args := make([]string, 0, argc)
 
 	parts := bytes.Split(rawArgs, []byte{0x0})
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
+	for i, part := range parts {
+		// Don't treat the final null byte as an empty argument
+		if i == len(parts)-1 && len(part) == 0 {
+			break
 		}
+
 		args = append(args, string(part))
 	}
 
 	if truncated {
-		args = append(args, "...")
+		args = append(args, TruncatedArg)
 	}
 
 	return args
