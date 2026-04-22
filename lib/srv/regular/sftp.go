@@ -119,8 +119,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err := serverCtx.SetSSHRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
-
-	s.sftpCmd, err = serverCtx.ConfigureCommand(chReadPipeOut, chWritePipeIn, auditPipeIn)
+	s.sftpCmd, err = serverCtx.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.StdinFile:  chReadPipeOut,
+		sessionreexec.StdoutFile: chWritePipeIn,
+		sessionreexec.StderrFile: auditPipeIn,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

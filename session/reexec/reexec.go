@@ -1777,7 +1777,7 @@ func (e *CommandExecutor) Kill() error {
 // Context passed to this function is used only for logging and waiting for
 // the ready signal from child, the returned command will not be terminated
 // when it's done
-func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles ...*os.File) (_ *CommandExecutor, err error) {
+func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles map[FileFD]*os.File) (_ *CommandExecutor, err error) {
 	executor := &CommandExecutor{
 		ctx:    ctx,
 		logger: logger,
@@ -1875,17 +1875,22 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 		}
 	}
 
+	for fd, file := range extraFiles {
+		childFiles, err = addFile(childFiles, file, fd)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Build the "teleport exec" command.
 	executor.Cmd = &exec.Cmd{
+		Stdin:      childFiles[0],
+		Stdout:     childFiles[1],
+		Stderr:     childFiles[2],
 		Path:       executable,
 		Args:       args,
 		Env:        *env,
-		ExtraFiles: childFiles[3:], // first 3 file descriptors are for stdin, stdout and stderr and we handle that separately
-	}
-
-	// Add extra files if applicable.
-	if len(extraFiles) > 0 {
-		executor.ExtraFiles = append(executor.ExtraFiles, extraFiles...)
+		ExtraFiles: childFiles[3:],
 	}
 
 	// Perform OS-specific tweaks to the command.

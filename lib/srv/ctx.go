@@ -550,12 +550,12 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	return child, nil
 }
 
-func (c *ServerContext) ConfigureCommand(extraFiles ...*os.File) (*reexec.CommandExecutor, error) {
+func (c *ServerContext) ConfigureCommand(extraFiles map[reexec.FileFD]*os.File) (*reexec.CommandExecutor, error) {
 	command, err := c.ExecCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	executor, err := reexec.ConfigureCommand(c.CancelContext(), c.Logger, c.srv.ChildLogConfig().Writer, command, c.ExecType, extraFiles...)
+	executor, err := reexec.ConfigureCommand(c.CancelContext(), c.Logger, c.srv.ChildLogConfig().Writer, command, c.ExecType, extraFiles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -165,7 +165,7 @@ func TestConfigureCommand(t *testing.T) {
 	// environment values in the server context should not be forwarded
 	scx.SetEnv(unexpectedKey, unexpectedValue)
 
-	cmd, err := scx.ConfigureCommand()
+	cmd, err := scx.ConfigureCommand(nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -194,7 +194,11 @@ func TestContinue(t *testing.T) {
 	defer w.Close()
 
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := scx.ConfigureCommand(r, w, w)
+	cmd, err := scx.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.StdinFile:  r,
+		reexec.StdoutFile: w,
+		reexec.StderrFile: w,
+	})
 	require.NoError(t, err)
 
 	// Create a channel that will be used to signal that execution is complete.

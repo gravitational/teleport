@@ -183,7 +183,11 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 	e.Ctx.AddCloser(shellStderrR)
 
 	// Create the command that will actually execute.
-	e.Cmd, err = e.Ctx.ConfigureCommand(shellStdinR, shellStdoutW, shellStderrW)
+	e.Cmd, err = e.Ctx.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.StdinFile:  shellStdinR,
+		sessionreexec.StdoutFile: shellStdoutW,
+		sessionreexec.StderrFile: shellStderrW,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -219,7 +219,9 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 
 	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = t.serverContext.ConfigureCommand(tty)
+	t.cmd, err = t.serverContext.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.TTYFile: tty,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
