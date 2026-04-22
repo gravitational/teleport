@@ -290,7 +290,11 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 		for _, inst := range allInstances {
 			kubeConfigPath := ""
-			if fixtures.Kube.Enabled {
+			// TODO(gzdunek): Currently only Connect tests kube access, so skip setting up kube clusters
+			// for Web UI and slowing down the tests.
+			// Replace this with project/browser-scoped fixture discovery so each instance gets only the fixtures
+			// required by its test set.
+			if fixtures.Kube.Enabled && inst.browser == "connect" {
 				name := "teleport-e2e-kube-" + inst.browser
 				kubeConfigPath = filepath.Join(e2eDir, "kube", inst.browser+"-kubeconfig")
 
