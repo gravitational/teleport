@@ -28,21 +28,46 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
 
 // newScopedCheckerWithRole is a test helper that builds a minimal ScopedAccessChecker
 // with a role whose Spec is set to the provided value.
-func newScopedCheckerWithRole(spec *scopedaccessv1.ScopedRoleSpec) *ScopedAccessChecker {
+func newScopedCheckerWithRole(t *testing.T, spec *scopedaccessv1.ScopedRoleSpec) *ScopedAccessChecker {
+	return newScopedCheckerWithRoleAndTraits(t, spec, nil)
+}
+
+func newScopedCheckerWithRoleAndTraits(t *testing.T, spec *scopedaccessv1.ScopedRoleSpec, traits wrappers.Traits) *ScopedAccessChecker {
+	t.Helper()
+	scopedRole := &scopedaccessv1.ScopedRole{
+		Metadata: &headerv1.Metadata{Name: "test-role"},
+		Scope:    "/test",
+		Spec:     spec,
+		Version:  types.V1,
+	}
+	classicRole, err := scopedaccess.ScopedRoleToRole(scopedRole, "/test")
+	require.NoError(t, err)
+	scopePin := &scopesv1.Pin{
+		Scope: "/test",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/test": {
+				"/test": []string{"test-role"},
+			},
+		}),
+	}
+	accessInfo := &AccessInfo{
+		ScopePin: scopePin,
+		Traits:   traits,
+		Username: "tester",
+	}
+	commonAccessChecker := newAccessChecker(accessInfo, "local", NewRoleSet(classicRole))
 	return &ScopedAccessChecker{
-		role: &scopedaccessv1.ScopedRole{
-			Metadata: &headerv1.Metadata{Name: "test-role"},
-			Scope:    "/test",
-			Spec:     spec,
-			Version:  types.V1,
-		},
-		// scopedCompatChecker is nil; tests that don't exercise delegation paths don't need it.
+		role:                scopedRole,
+		CommonAccessChecker: commonAccessChecker,
 	}
 }
 
@@ -180,7 +205,7 @@ func TestSSHAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			got, err := checker.AdjustClientIdleTimeout(tt.globalTimeout)
 			if tt.expectErr {
 				require.Error(t, err)
@@ -232,7 +257,7 @@ func TestSSHAccessCheckerPermitX11Forwarding(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			require.Equal(t, tt.expect, checker.PermitX11Forwarding())
 		})
 	}
@@ -276,7 +301,7 @@ func TestSSHAccessCheckerCheckAgentForward(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			err := checker.CheckAgentForward("testuser")
 			if tt.expectErr {
 				require.Error(t, err)
@@ -327,7 +352,7 @@ func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			require.Equal(t, tt.expect, checker.CanCopyFiles())
 		})
 	}
@@ -415,7 +440,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			require.Equal(t, tt.expect, checker.SSHPortForwardMode())
 		})
 	}
@@ -459,7 +484,7 @@ func TestSSHAccessCheckerMaxSessions(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			require.Equal(t, tt.expect, checker.MaxSessions())
 		})
 	}
@@ -498,7 +523,7 @@ func TestSSHAccessCheckerHostSudoers(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker := newScopedCheckerWithRole(t, tt.spec).SSH()
 			sudoers, err := checker.HostSudoers(srv)
 			require.NoError(t, err)
 			require.Equal(t, tt.expect, sudoers)
@@ -619,10 +644,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checker := newScopedCheckerWithRole(tt.spec).SSH()
-			checker.checker.scopedCompatChecker = newAccessChecker(&AccessInfo{
-				Traits: tt.traits,
-			}, "local", NewRoleSet())
+			checker := newScopedCheckerWithRoleAndTraits(t, tt.spec, tt.traits).SSH()
 
 			decision, err := checker.HostUsers(srv)
 			if tt.expectErr {

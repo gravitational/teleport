@@ -38,19 +38,13 @@ type SSHAccessChecker struct {
 
 // CheckAccessToSSHServer checks access to an SSH server for the given OS user.
 func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CheckAccess(target, state, NewLoginMatcher(osUser))
-	}
-	return c.checker.scopedCompatChecker.CheckAccess(target, state, NewLoginMatcher(osUser))
+	return c.checker.CheckAccess(target, state, NewLoginMatcher(osUser))
 }
 
 // CanAccessSSHServer checks whether read access to the specified SSH server is possible without
 // regard to a specific OS user or MFA state. Used for listing/filtering.
 func (c *SSHAccessChecker) CanAccessSSHServer(target types.Server) error {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CheckAccess(target, AccessState{MFAVerified: true})
-	}
-	return c.checker.scopedCompatChecker.CheckAccess(target, AccessState{MFAVerified: true})
+	return c.checker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
 // AdjustClientIdleTimeout determines the SSH client idle timeout to apply. The supplied argument must be
@@ -81,34 +75,22 @@ func (c *SSHAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.
 
 // AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
 func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
-	}
-	return c.checker.scopedCompatChecker.AdjustDisconnectExpiredCert(disconnect)
+	return c.checker.AdjustDisconnectExpiredCert(disconnect)
 }
 
 // SessionRecordingMode returns the session recording mode for SSH sessions.
 func (c *SSHAccessChecker) SessionRecordingMode() constants.SessionRecordingMode {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
-	}
-	return c.checker.scopedCompatChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
+	return c.checker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
 }
 
 // CanPortForward returns true if port forwarding is permitted.
 func (c *SSHAccessChecker) CanPortForward() bool {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CanPortForward()
-	}
-	return c.checker.scopedCompatChecker.CanPortForward()
+	return c.checker.CanPortForward()
 }
 
 // CanForwardAgents returns true if SSH agent forwarding is permitted.
 func (c *SSHAccessChecker) CanForwardAgents() bool {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CanForwardAgents()
-	}
-	return c.checker.scopedCompatChecker.CanForwardAgents()
+	return c.checker.CanForwardAgents()
 }
 
 // PermitX11Forwarding returns true if X11 forwarding is permitted.
@@ -159,10 +141,7 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
 func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.EnhancedRecordingSet()
-	}
-	return c.checker.scopedCompatChecker.EnhancedRecordingSet()
+	return c.checker.EnhancedRecordingSet()
 }
 
 // HostUsers returns host user creation information for the server, or nil if host user creation is disabled.
@@ -240,10 +219,7 @@ func (c *SSHAccessChecker) CheckAgentForward(login string) error {
 // MaxConnections returns the maximum number of concurrent SSH connections permitted.
 // A value of zero means unconstrained.
 func (c *SSHAccessChecker) MaxConnections() int64 {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.MaxConnections()
-	}
-	return c.checker.scopedCompatChecker.MaxConnections()
+	return c.checker.MaxConnections()
 }
 
 // MaxSessions returns the maximum number of concurrent SSH sessions per connection permitted.

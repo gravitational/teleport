@@ -121,7 +121,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		scopeOfOrigin:       key.scopeOfOrigin,
 		scopeOfEffect:       key.scopeOfEffect,
 		role:                rsp.Role,
-		scopedCompatChecker: checker,
+		CommonAccessChecker: checker,
 	}, nil
 }
 
@@ -132,10 +132,11 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 // functionality of scoped roles further diverges from unscoped roles, we may need to revisit this approach in favor of defining our
 // own default implicit scoped role instead.
 func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context) *ScopedAccessChecker {
+	commonChecker := newAccessChecker(b.info, b.localCluster, NewRoleSet()) // default implicit role definition is auto-populated by NewRoleSet()
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       scopes.Root,
 		scopeOfEffect:       scopes.Root,
-		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, NewRoleSet()), // default implicit role definition is auto-populated by NewRoleSet()
+		CommonAccessChecker: commonChecker,
 		role: &scopedaccessv1.ScopedRole{
 			Metadata: &headerv1.Metadata{
 				Name: constants.DefaultImplicitRole,
@@ -171,19 +172,51 @@ type ScopedAccessChecker struct {
 	// role is the scoped role being evaluated, or nil for unscoped identities.
 	role *scopedaccessv1.ScopedRole
 
-	// scopedCompatChecker is a classic AccessChecker built from the scoped role via ScopedRoleToRole.
-	// Non-nil iff isScoped(). Used for checks that fall back to compat classic-role logic.
-	scopedCompatChecker AccessChecker
-
 	// unscopedChecker is the underlying unscoped AccessChecker.
 	// Non-nil iff !isScoped().
 	unscopedChecker AccessChecker
+
+	// CommonAccessChecker provides a common implementation of some access
+	// checks for scoped and unscoped identities. It is always set to a valid
+	// access checker.
+	//
+	// For unscoped identities, it is identical to unscopedChecker.
+	//
+	// For scoped identities, it is constructed by converting a scoped role to
+	// an unscoped role with [scopedaccess.ScopedRoleToRole].
+	CommonAccessChecker
+}
+
+// CommonAccessChecker is the subset of [AccessChecker] methods with a common
+// implementation for scoped and unscoped roles. These are the methods that are
+// sementically correct when the access checker as been built from a scoped
+// role has been converted to an unscoped role with [scopedaccess.ScopedRoleToRole].
+type CommonAccessChecker interface {
+	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
+	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
+	AccessInfo() *AccessInfo
+	Traits() wrappers.Traits
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
+	AdjustSessionTTL(ttl time.Duration) time.Duration
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error)
+	PinSourceIP() bool
+	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
+	DelegationSessionID() string
+	AdjustDisconnectExpiredCert(disconnect bool) bool
+	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
+	CanPortForward() bool
+	CanForwardAgents() bool
+	EnhancedRecordingSet() map[string]bool
+	MaxConnections() int64
 }
 
 // NewScopedAccessCheckerFromUnscoped creates a ScopedAccessChecker wrapping an unscoped AccessChecker.
 // This is used in code paths that accept *ScopedAccessChecker but operate on an unscoped identity.
 func NewScopedAccessCheckerFromUnscoped(checker AccessChecker) *ScopedAccessChecker {
-	return &ScopedAccessChecker{unscopedChecker: checker}
+	return &ScopedAccessChecker{
+		unscopedChecker:     checker,
+		CommonAccessChecker: checker,
+	}
 }
 
 // isScoped reports whether this checker operates on a scoped identity.
@@ -203,30 +236,9 @@ func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
 	return &KubeAccessChecker{checker: c}
 }
 
-// AccessInfo returns the AccessInfo that this access checker is based on.
-func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
-	if !c.isScoped() {
-		return c.unscopedChecker.AccessInfo()
-	}
-	return c.scopedCompatChecker.AccessInfo()
-}
-
-// Traits returns the set of user traits.
-func (c *ScopedAccessChecker) Traits() wrappers.Traits {
-	// there is no concept of scoped traits currently, and none is planned or would be feasible at least
-	// until we've fully migrated to PDP and deprecated certificate-based traits.
-	if !c.isScoped() {
-		return c.unscopedChecker.Traits()
-	}
-	return c.scopedCompatChecker.Traits()
-}
-
 // CheckAccessToRules verifies that *all* of a series of verbs are permitted for the specified resource.
 func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
-	if !c.isScoped() {
-		return checkAccessToRulesImpl(c.unscopedChecker, ctx, resource, verbs...)
-	}
-	return checkAccessToRulesImpl(c.scopedCompatChecker, ctx, resource, verbs...)
+	return checkAccessToRulesImpl(c.CommonAccessChecker, ctx, resource, verbs...)
 }
 
 // CheckAccessToRemoteCluster checks access to a remote cluster.
@@ -242,58 +254,10 @@ func (c *ScopedAccessChecker) CheckAccessToRemoteCluster(cluster types.RemoteClu
 	return trace.AccessDenied("remote cluster access is not permitted for scoped identities")
 }
 
-// AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL for this role set.
-func (c *ScopedAccessChecker) AdjustSessionTTL(ttl time.Duration) time.Duration {
-	// the naive implementation of this method for scopes may have problematic interactions with
-	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
-	if !c.isScoped() {
-		return c.unscopedChecker.AdjustSessionTTL(ttl)
-	}
-	return c.scopedCompatChecker.AdjustSessionTTL(ttl)
-}
-
-// PrivateKeyPolicy returns the enforced private key policy, or the provided default, whichever is stricter.
-func (c *ScopedAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
-	// the naive implementation of this method for scopes may have problematic interactions with
-	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
-	if !c.isScoped() {
-		return c.unscopedChecker.PrivateKeyPolicy(defaultPolicy)
-	}
-	return c.scopedCompatChecker.PrivateKeyPolicy(defaultPolicy)
-}
-
-// PinSourceIP returns whether source IP pinning is enforced.
-func (c *ScopedAccessChecker) PinSourceIP() bool {
-	// the naive implementation of this method for scopes may have problematic interactions with
-	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
-	if !c.isScoped() {
-		return c.unscopedChecker.PinSourceIP()
-	}
-	return c.scopedCompatChecker.PinSourceIP()
-}
-
-// LockingMode returns the locking mode to apply.
-func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
-	// the naive implementation of this method for scopes may have problematic interactions with
-	// cert parameter generation. see ../scopes/access/compat.go for more detailed discussion.
-	if !c.isScoped() {
-		return c.unscopedChecker.LockingMode(defaultMode)
-	}
-	return c.scopedCompatChecker.LockingMode(defaultMode)
-}
-
-// DelegationSessionID returns the ID of the current Delegation Session.
-func (c *ScopedAccessChecker) DelegationSessionID() string {
-	if !c.isScoped() {
-		return c.unscopedChecker.DelegationSessionID()
-	}
-	return c.scopedCompatChecker.DelegationSessionID()
-}
-
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.
-func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
+func checkAccessToRulesImpl(checker CommonAccessChecker, ctx RuleContext, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed rule check for %q, no verbs provided (this is a bug)", resource)
 	}
