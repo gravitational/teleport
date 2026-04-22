@@ -210,57 +210,75 @@ func (c *createOverrideCSRCommand) Run(
 		return trace.BadParameter("no CSRs created")
 	}
 
-	// Write CSRs to files.
-	writeToStdout := c.out == "-"
-	out := fmt.Sprintf("%s%s-", c.out, c.caType)
-
-	seenHashes := make(map[string]struct{})
-	writeCSR := func(csr *subcav1.CertificateSigningRequest) error {
-		if writeToStdout {
+	// If writing to stdout there's no need to parse the PEMs or form filenames.
+	if writeToStdout := c.out == "-"; writeToStdout {
+		for _, csr := range resp.Csrs {
 			fmt.Fprintln(s.Stdout, csr.Pem)
-			return nil
 		}
+		return nil
+	}
 
-		// Extract public key hash from CSR.
+	// Parse CSRs and calculate public key hashes.
+	publicKeyHashes := make([]string, len(resp.Csrs))
+	for i, csr := range resp.Csrs {
 		block, _ := pem.Decode([]byte(csr.Pem))
 		if block == nil {
-			return trace.BadParameter("CSR is not a valid PEM")
+			return trace.BadParameter("csrs[%d]: CSR is not a valid PEM", i)
 		}
 		parsedCSR, err := x509.ParseCertificateRequest(block.Bytes)
 		if err != nil {
-			return trace.Wrap(err, "parse CSR")
+			return trace.Wrap(err, "csrs[%d]: parse CSR", i)
 		}
-		pubKeyHash := subca.HashPublicKey(parsedCSR.RawSubjectPublicKeyInfo)
+		publicKeyHashes[i] = subca.HashPublicKey(parsedCSR.RawSubjectPublicKeyInfo)
+	}
 
-		// Attempt to find a smaller hash, so the filename isn't always 73+
-		// characters.
-		// In practice this should resolve immediately the vast majority of the
-		// time.
-		const minLen = 8
-		for l := minLen; l < len(pubKeyHash); l++ {
-			pkh := pubKeyHash[:l]
-			if _, ok := seenHashes[pkh]; ok {
-				continue // Try a larger hash.
-			}
-			pubKeyHash = pkh
-			seenHashes[pubKeyHash] = struct{}{}
-			break
-		}
+	// Find smaller hashes so the filenames aren't always 73+ characters.
+	minHashes := findMinHashes(publicKeyHashes)
 
-		name := out + pubKeyHash + "-csr.pem"
+	// Write output files.
+	for i, csr := range resp.Csrs {
+		name := c.out + c.caType + "-" + minHashes[i] + "-csr.pem"
 		if err := os.WriteFile(name, []byte(csr.Pem), 0644); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(s.Stdout, "Wrote %s\n", name)
+	}
+	return nil
+}
+
+// findMinHashes finds a smaller, non-conflicting prefix of hashes.
+// Returns a slice containing the prefix hashes, all with the same length.
+func findMinHashes(hashes []string) []string {
+	if len(hashes) == 0 {
 		return nil
 	}
 
-	for _, csr := range resp.Csrs {
-		if err := writeCSR(csr); err != nil {
-			return trace.Wrap(err)
+	minHashes := make([]string, len(hashes))
+	seenHashes := make(map[string]struct{})
+
+	const startLen = 8
+	minLen := startLen
+
+Outer:
+	for minLen < len(hashes[0]) {
+		// Trim all entries to minLen...
+		for i, h := range hashes {
+			minHashes[i] = h[:minLen]
 		}
+
+		// ...then look for a repeated hash. If there is none, return.
+		for _, mh := range minHashes {
+			if _, seen := seenHashes[mh]; seen {
+				minLen++
+				continue Outer
+			}
+			seenHashes[mh] = struct{}{}
+		}
+
+		return minHashes
 	}
-	return nil
+
+	return hashes
 }
 
 type pubKeyHashCommand struct {
