@@ -46,11 +46,14 @@ func (k *kubeCluster) start() error {
 	)
 	k.log.Info("starting kube cluster", "name", k.name)
 
+	if err := k.provider.Delete(k.name, k.kubeconfigPath); err != nil {
+		return fmt.Errorf("failed to delete stale kube cluster %s: %w", k.name, err)
+	}
 	if err := k.provider.Create(
 		k.name,
 		kindcluster.CreateWithKubeconfigPath(k.kubeconfigPath),
 	); err != nil {
-		return fmt.Errorf("creating kind cluster %q: %w", k.name, err)
+		return fmt.Errorf("creating kube cluster %q: %w", k.name, err)
 	}
 
 	k.log.Info("kube cluster is ready", "name", k.name, "kubeconfig", k.kubeconfigPath)
