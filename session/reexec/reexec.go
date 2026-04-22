@@ -1692,7 +1692,7 @@ func addFile(slice []*os.File, file *os.File, fd FileFD) ([]*os.File, error) {
 	idx := int(fd)
 	if idx >= len(slice) {
 		slice = slices.Grow(slice, idx+1-len(slice))
-		clear(slice[len(slice):idx+1])
+		clear(slice[len(slice) : idx+1])
 		slice = slice[:idx+1]
 	}
 	if slice[idx] != nil {
@@ -1777,8 +1777,8 @@ func (e *CommandExecutor) Kill() error {
 // Context passed to this function is used only for logging and waiting for
 // the ready signal from child, the returned command will not be terminated
 // when it's done
-func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles ...*os.File) (executor *CommandExecutor, err error) {
-	executor = &CommandExecutor{
+func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles ...*os.File) (_ *CommandExecutor, err error) {
+	executor := &CommandExecutor{
 		ctx:    ctx,
 		logger: logger,
 	}
