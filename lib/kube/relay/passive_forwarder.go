@@ -32,6 +32,7 @@ import (
 	apiconstants "github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/healthcheck"
+	"github.com/gravitational/teleport/lib/kube/labelhash"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -55,6 +56,22 @@ const SNIPrefixForKubeCluster = "cluster-"
 // to 253 characters, but that's not relevant for us since Kube agents can only
 // have one wildcard label in front of [SNISuffix]), so mind the total length of
 // the data you need to encode.
+
+// SNILabelForKubeCluster returns the domain label used in front of [SNISuffix]
+// to identify a Kubernetes cluster as the target for a passively routed Relay
+// connection. It consists of [SNIPrefixForKubeCluster] ("cluster-") followed by
+// the base32hex encoding of the SHA256 hash of Teleport cluster name and
+// Kubernetes cluster name, for a total of 60 ASCII lowercase characters.
+func SNILabelForKubeCluster(teleportClusterName, kubeClusterName string) string {
+	return SNIPrefixForKubeCluster + labelhash.Encode(teleportClusterName, kubeClusterName)
+}
+
+// FullSNIForKubeCluster returns the full server name used to identify a
+// Kubernetes cluster as the target for a passively routed Relay connection,
+// i.e. the same value as [SNILabelForKubeCluster] followed by [SNISuffix].
+func FullSNIForKubeCluster(teleportClusterName, kubeClusterName string) string {
+	return SNILabelForKubeCluster(teleportClusterName, kubeClusterName) + SNISuffix
+}
 
 type RelayTunnelDialFunc = func(ctx context.Context, hostID string, tunnelType apitypes.TunnelType, src, dst net.Addr) (net.Conn, error)
 type RelayPeerDialFunc = func(ctx context.Context, hostID string, tunnelType apitypes.TunnelType, relayIDs []string, src, dst net.Addr) (net.Conn, error)
@@ -103,7 +120,7 @@ func NewPassiveForwarder(cfg PassiveForwarderConfig) (*PassiveForwarder, error) 
 		return nil, trace.BadParameter("missing PeerDial")
 	}
 
-	resolvedNames, err := lru.New[[hashLen]byte, string](64)
+	resolvedNames, err := lru.New[[labelhash.HashSize]byte, string](64)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,11 +161,11 @@ type PassiveForwarder struct {
 	peerDial  RelayPeerDialFunc
 
 	// resolvedNames contains (hash, name) pairs for which
-	// hash == hashForTarget(clusterName, name); pairs are only _added_ to the
+	// hash == labelhash.Hash(clusterName, name); pairs are only _added_ to the
 	// LRU if v is a kube cluster served by an agent connected to this relay
 	// group, but that doesn't guarantee that the cluster is still being served
 	// if the pair is looked up at a later time.
-	resolvedNames *lru.Cache[[hashLen]byte, string]
+	resolvedNames *lru.Cache[[labelhash.HashSize]byte, string]
 
 	// ctx is used to signal that long running operations should unblock and
 	// return, especially operations that have added to wg because Close should
@@ -228,15 +245,15 @@ func (p *PassiveForwarder) forward(sniPrefix string, transcript *bytes.Buffer, c
 
 	sniPrefix = strings.ToLower(sniPrefix)
 	encodedHash, ok := strings.CutPrefix(sniPrefix, SNIPrefixForKubeCluster)
-	if !ok || len(encodedHash) != encodedHashLen {
+	if !ok || len(encodedHash) != labelhash.EncodedSize {
 		log.DebugContext(ctx,
 			"Received unsupported SNI for kube relay forwarding",
 			"sni_prefix", sniPrefix,
 		)
 		return
 	}
-	var desiredHash [hashLen]byte
-	if _, err := base32hex.Decode(desiredHash[:], []byte(encodedHash)); err != nil {
+	desiredHash, err := labelhash.Decode(encodedHash)
+	if err != nil {
 		log.DebugContext(ctx,
 			"Received malformed hash in SNI for kube cluster relay forwarding",
 			"encoded_hash", encodedHash,
@@ -256,7 +273,7 @@ func (p *PassiveForwarder) forward(sniPrefix string, transcript *bytes.Buffer, c
 				return ks.GetCluster().GetName() == kubeClusterName
 			}
 
-			if desiredHash == hashForTarget(p.clusterName, ks.GetCluster().GetName()) {
+			if desiredHash == labelhash.Hash(p.clusterName, ks.GetCluster().GetName()) {
 				kubeClusterName = ks.GetCluster().GetName()
 				if !cached {
 					p.resolvedNames.Add(desiredHash, kubeClusterName)
