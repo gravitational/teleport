@@ -713,7 +713,11 @@ func generateAzureTokenName(rules []*types.ProvisionTokenSpecV2Azure_Rule) (stri
 
 	h := fnv.New32a()
 	for _, r := range orderedRules {
-		_, err := h.Write([]byte(r.Subscription))
+		hashInput := r.Subscription
+		if r.Tenant != "" {
+			hashInput += "tenant:" + r.Tenant
+		}
+		_, err := h.Write([]byte(hashInput))
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -736,9 +740,12 @@ func sortRules(rules []*types.TokenRule) {
 	})
 }
 
-// sortAzureRules sorts a slice of Azure rules based on their subscription.
+// sortAzureRules sorts a slice of Azure rules based on their subscription and tenant.
 func sortAzureRules(rules []*types.ProvisionTokenSpecV2Azure_Rule) {
 	sort.Slice(rules, func(i, j int) bool {
+		if rules[i].Tenant != rules[j].Tenant {
+			return rules[i].Tenant < rules[j].Tenant
+		}
 		return rules[i].Subscription < rules[j].Subscription
 	})
 }
