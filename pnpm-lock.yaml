@@ -30,6 +30,9 @@ importers:
       '@floating-ui/react':
         specifier: ^0.27.19
         version: 0.27.19(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@floating-ui/react-dom':
+        specifier: 2.1.8
+        version: 2.1.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@grpc/grpc-js':
         specifier: 1.14.3
         version: 1.14.3

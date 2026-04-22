@@ -42,7 +42,7 @@ import {
 import { shouldForwardTypographyProp } from 'design/system/typography';
 import { fontWeights } from 'design/theme/typography';
 
-interface FontWeightProps {
+export interface FontWeightProps {
   fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
 }
 

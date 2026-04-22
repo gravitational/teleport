@@ -71,6 +71,7 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/view": "^6.40.0",
     "@floating-ui/react": "^0.27.19",
+    "@floating-ui/react-dom": "2.1.8",
     "@grpc/grpc-js": "1.14.3",
     "@hookform/resolvers": "^5.2.2",
     "@lezer/highlight": "^1.2.3",
