@@ -1593,6 +1593,11 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := handler.fetch(ctx, cacheOK)
+
+			if os.Getenv("CACHE_FETCH_DEBUG") != "" {
+				return trace.BadParameter("CACHE_FETCH_DEBUG set, cache fetch debug failure for collection %q", kind)
+			}
+
 			if c.boom.Load() {
 				return trace.BadParameter("cache boom set fetching collection")
 			}
