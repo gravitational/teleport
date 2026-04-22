@@ -324,3 +324,122 @@ func TestPlugins_validate_okta(t *testing.T) {
 		})
 	}
 }
+
+func TestPlugins_GetEntraIDPluginByConnector(t *testing.T) {
+
+	// plugin := types.NewPluginV1(
+	// 	types.Metadata{Name: fmt.Sprintf("p%02d", i+1)},
+	// 	types.PluginSpecV1{
+	// 		Settings: &types.PluginSpecV1_SlackAccessPlugin{
+	// 			SlackAccessPlugin: &types.PluginSlackAccessSettings{
+	// 				FallbackChannel: fmt.Sprintf("#foo-%02d", i+1),
+	// 			},
+	// 		},
+	// 	},
+	// 	nil)
+	// err := service.CreatePlugin(ctx, plugin)
+
+	t.Parallel()
+	ctx := t.Context()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { mem.Close() })
+
+	service := NewPluginsService(mem)
+
+	// No plugins
+	plugin, err := service.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+
+	// No EntraID plugins
+	slackPlugin := types.NewPluginV1(
+		types.Metadata{Name: "slack"},
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_SlackAccessPlugin{
+				SlackAccessPlugin: &types.PluginSlackAccessSettings{
+					FallbackChannel: "#foo",
+				},
+			},
+		},
+		nil,
+	)
+
+	scimPlugin := types.NewPluginV1(
+		types.Metadata{Name: "scim"},
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Scim{
+				Scim: &types.PluginSCIMSettings{
+					SamlConnectorName: "example-saml-connector",
+				},
+			},
+		},
+		nil,
+	)
+
+	err = service.CreatePlugin(ctx, slackPlugin)
+	require.NoError(t, err)
+
+	err = service.CreatePlugin(ctx, scimPlugin)
+	require.NoError(t, err)
+
+	plugin, err = service.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+
+	// No matching plugins
+	entraPlugin := types.NewPluginV1(
+		types.Metadata{Name: "entra"},
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_EntraId{
+				EntraId: &types.PluginEntraIDSettings{
+
+					SyncSettings: &types.PluginEntraIDSyncSettings{
+						DefaultOwners:  []string{"owner_id"},
+						SsoConnectorId: "entraid",
+					},
+				},
+			},
+		},
+		nil,
+	)
+
+	err = service.CreatePlugin(ctx, entraPlugin)
+	require.NoError(t, err)
+
+	plugin, err = service.GetEntraIDPluginByConnector(ctx, "non-existent", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+
+	// Matching plugin
+	plugin, err = service.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.NotNil(t, plugin)
+	require.NoError(t, err)
+
+	entraPlugin2 := types.NewPluginV1(
+		types.Metadata{Name: "entra-2"},
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_EntraId{
+				EntraId: &types.PluginEntraIDSettings{
+
+					SyncSettings: &types.PluginEntraIDSyncSettings{
+						DefaultOwners:  []string{"owner_id"},
+						SsoConnectorId: "entraid",
+					},
+				},
+			},
+		},
+		nil,
+	)
+
+	err = service.CreatePlugin(ctx, entraPlugin2)
+	require.NoError(t, err)
+
+	plugin, err = service.GetEntraIDPluginByConnector(ctx, "entraid", true)
+	require.Nil(t, plugin)
+	require.Error(t, err)
+}

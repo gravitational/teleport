@@ -212,6 +212,46 @@ func (s *PluginsService) HasPluginType(ctx context.Context, pluginType types.Plu
 	return false, nil
 }
 
+func (s *PluginsService) GetEntraIDPluginByConnector(ctx context.Context, connectorName string, withSecrets bool) (types.Plugin, error) {
+	var match *types.PluginV1
+	plugins, err := s.GetPlugins(ctx, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, plugin := range plugins {
+		pluginV1, ok := plugin.(*types.PluginV1)
+		if !ok {
+			continue
+		}
+
+		if pluginV1.GetType() != types.PluginTypeEntraID {
+			continue
+		}
+
+		entraSettings := pluginV1.Spec.GetEntraId()
+		if entraSettings == nil || entraSettings.SyncSettings == nil {
+			continue
+		}
+
+		if entraSettings.SyncSettings.SsoConnectorId != connectorName {
+			continue
+		}
+
+		if match != nil {
+			return nil, trace.BadParameter("multiple Entra plugins match connector")
+		}
+
+		match = pluginV1
+	}
+
+	if match == nil {
+		return nil, trace.NotFound("no Entra plugin matching connector found")
+	}
+
+	return match, nil
+}
+
 // SetPluginCredentials implements services.Plugins
 func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	return s.updateAndSwap(ctx, name, func(p types.Plugin) error {
