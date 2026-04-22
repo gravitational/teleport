@@ -19,19 +19,21 @@
 import React from 'react';
 import styled from 'styled-components';
 
+import { Flex, Indicator } from 'design';
 import { ButtonWarningBorder } from 'design/Button/Button';
 import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
 import * as Icon from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
 export interface AuthDeviceListProps {
   header: React.ReactNode;
-  deviceTypeColumnName: string;
   devices: MfaDevice[];
   onRemove?: (device: MfaDevice) => void;
+  attempt: Attempt;
 }
 
 /**
@@ -40,20 +42,42 @@ export interface AuthDeviceListProps {
  */
 export function AuthDeviceList({
   devices,
+  attempt,
   header,
-  deviceTypeColumnName,
   onRemove,
 }: AuthDeviceListProps) {
   return (
     <MultiRowBox>
       <Row>{header}</Row>
+      {attempt.status == 'processing' && (
+        <Row data-testid="device-list-loading">
+          <Flex justifyContent="center">
+            <Indicator size={40} delay="none" />
+          </Flex>
+        </Row>
+      )}
       {devices.length > 0 && (
         <Row>
           <StyledTable
             columns={[
               {
+                key: 'usage',
+                headerText: 'Device Usage',
+                isSortable: true,
+                render: device => {
+                  switch (device.usage) {
+                    case 'mfa':
+                      return <Cell>MFA</Cell>;
+                    case 'passwordless':
+                      return <Cell>Passkey</Cell>;
+                    default:
+                      return device.usage;
+                  }
+                },
+              },
+              {
                 key: 'description',
-                headerText: deviceTypeColumnName,
+                headerText: 'Device Type',
                 isSortable: true,
               },
               { key: 'name', headerText: 'Nickname', isSortable: true },

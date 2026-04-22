@@ -43,8 +43,8 @@ export function EmptyList() {
           }
         />
       }
-      deviceTypeColumnName="Passkey Type"
       devices={[]}
+      attempt={{ status: 'success' }}
     />
   );
 }
@@ -65,8 +65,8 @@ export function ListWithDevices() {
           }
         />
       }
-      deviceTypeColumnName="Passkey Type"
       devices={devices}
+      attempt={{ status: 'success' }}
     />
   );
 }

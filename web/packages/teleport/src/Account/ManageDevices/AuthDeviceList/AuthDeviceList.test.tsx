@@ -41,7 +41,7 @@ const devices: MfaDevice[] = [
     registeredDate: new Date(1623722252000),
     lastUsedDate: new Date(1623981452000),
     type: 'webauthn',
-    usage: 'passwordless',
+    usage: 'mfa',
   },
 ];
 
@@ -75,16 +75,23 @@ test('renders devices', () => {
   render(
     <AuthDeviceList
       header="Header"
-      deviceTypeColumnName="Passkey Type"
       devices={devices}
+      attempt={{ status: 'success' }}
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(getTableCellContents()).toEqual({
-    header: ['Passkey Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
+    header: [
+      'Device Usage',
+      'Device Type',
+      'Nickname',
+      'Added',
+      'Last Used',
+      'Actions',
+    ],
     rows: [
-      ['Hardware Key', 'touch_id', '2021-08-12', '2021-08-12', ''],
-      ['Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
+      ['Passkey', 'Hardware Key', 'touch_id', '2021-08-12', '2021-08-12', ''],
+      ['MFA', 'Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
     ],
   });
 
@@ -100,14 +107,21 @@ test('delete button is disabled for sso devices', () => {
   render(
     <AuthDeviceList
       header="Header"
-      deviceTypeColumnName="Passkey Type"
       devices={ssoDevice}
+      attempt={{ status: 'success' }}
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(getTableCellContents()).toEqual({
-    header: ['Passkey Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
-    rows: [['SSO Provider', 'okta', '2021-08-12', '2021-08-12', '']],
+    header: [
+      'Device Usage',
+      'Device Type',
+      'Nickname',
+      'Added',
+      'Last Used',
+      'Actions',
+    ],
+    rows: [['MFA', 'SSO Provider', 'okta', '2021-08-12', '2021-08-12', '']],
   });
 
   const button = screen.getByTitle('SSO device cannot be deleted');
@@ -118,9 +132,9 @@ test('delete button is disabled for sso devices', () => {
 test('renders no devices', () => {
   render(
     <AuthDeviceList
-      deviceTypeColumnName="Passkey Type"
       header="Header"
       devices={[]}
+      attempt={{ status: 'success' }}
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
