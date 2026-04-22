@@ -1692,6 +1692,7 @@ func addFile(slice []*os.File, file *os.File, fd FileFD) ([]*os.File, error) {
 	idx := int(fd)
 	if idx >= len(slice) {
 		slice = slices.Grow(slice, idx+1-len(slice))
+		clear(slice[len(slice):idx+1])
 		slice = slice[:idx+1]
 	}
 	if slice[idx] != nil {
