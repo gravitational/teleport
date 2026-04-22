@@ -221,4 +221,92 @@ Similarly to test 64 concurrent sessions against a single agent using a unique l
 tsh bench web sessions --max=64 --duration=2m user@UNIQUE=example ls
 ```
 
+## Teleport Kubernetes Service resource utilization
+
+The Kubernetes Service resource utilization can vary significantly based on workload, RBAC configuration, and cluster topology. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Kubernetes Service.
+
+There are three primary factors that influence resource utilization by the Kubernetes Service:
+1. Number of API requests per second.
+1. Number of concurrent long-lived sessions (`exec`, `port-forward`).
+1. Number of registered Kubernetes clusters served by the agent.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### API request rate
+
+API request rate is the primary driver of CPU usage. List operations through Teleport's RBAC filtering scale linearly with rate.
+
+| requests per second | CPU peak (millicores) |
+| ------------------- | --------------------- |
+| 1                   | 5                     |
+| 2                   | 10                    |
+| 4                   | 15                    |
+| 8                   | 30                    |
+| 16                  | 55                    |
+| 32                  | 100                   |
+| 64                  | 190                   |
+| 128                 | 410                   |
+| 256                 | 835                   |
+
+The number of users sending requests does not affect the agent independently, only the total request rate matters. The number of Kubernetes resources in the cluster and the number of RBAC rules in the user's role have minimal impact at typical request rates.
+
+### Concurrent long-lived sessions
+
+Concurrent `exec` and `port-forward` sessions add modest RAM overhead per session.
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 220             |
+| 2                   | 225             |
+| 4                   | 225             |
+| 8                   | 230             |
+| 16                  | 240             |
+| 32                  | 245             |
+| 64                  | 260             |
+| 128                 | 290             |
+| 256                 | 365             |
+
+These figures are for idle sessions. Sessions actively transferring data (interactive shells, log streams) consume more memory per session.
+
+### Registered Kubernetes clusters
+
+A single Kubernetes Service can serve multiple Kubernetes clusters via static `kubeconfig_file` configuration or dynamic discovery. Each registered cluster adds idle background overhead from heartbeats, schema refresh, and health checks.
+
+| registered clusters | idle CPU (millicores) | idle RAM (MiB) |
+| ------------------- | --------------------- | -------------- |
+| 1                   | 100                   | 135            |
+| 10                  | 240                   | 150            |
+| 50                  | 630                   | 170            |
+| 100                 | 1000                  | 200            |
+
+Both CPU and RAM grow approximately linearly with the number of registered clusters. To serve more clusters, deploy multiple Kubernetes Service instances.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the Kubernetes Service:
+1. Determine the maximum number of API requests per second across all users.
+1. Determine the maximum number of concurrent long-lived sessions.
+1. Determine the number of Kubernetes clusters served by each Kubernetes Service instance.
+
+Using `tsh bench`, simulate request activity to measure resource usage under expected conditions.
+Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
+For example to send 32 list requests per second for 2 minutes against a Kubernetes cluster:
+```sh
+tsh bench kube ls eks-cluster --namespace default --rate=32 --duration=2m
+```
+
+To test 64 concurrent `exec` sessions against a single pod, run a parallel loop in a shell:
+```sh
+for i in $(seq 1 64); do
+  kubectl exec -n default my-pod -- sleep 300 &
+done
+wait
+```
+
 The payload can be customized to represent a typical use case.
