@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Info } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
@@ -62,7 +62,7 @@ const vmConfigFromRules = (rules?: IntegrationDiscoveryRule[]): VmConfig => {
 
   const subscriptions = [
     ...new Set((rules || []).flatMap(r => r.subscriptions || [])),
-  ].filter(s => s !== '*');
+  ];
 
   const resourceGroups = [
     ...new Set((rules || []).flatMap(r => r.resourceGroups || [])),
@@ -142,6 +142,14 @@ export function SettingsTab({
     return <Danger>Failed to load the integration settings.</Danger>;
   }
 
+  const hasWildcardSubscription =
+    vmRules?.rules?.some(r => r.subscriptions?.includes('*')) ?? false;
+
+  // relax uuid validation if wildcard subscription returned in rules
+  const allowWildcardSubscriptions = updatedVmConfig
+    ? false
+    : hasWildcardSubscription;
+
   const vmConfig = updatedVmConfig ?? vmConfigFromRules(vmRules?.rules);
   const managedIdentity =
     updatedManagedIdentity ?? managedIdentityFromIntegration(integration);
@@ -158,6 +166,13 @@ export function SettingsTab({
       {({ validator }) => (
         <Flex>
           <Box flex="1">
+            {hasWildcardSubscription && (
+              <Info mb={3}>
+                This integration was configured with a wildcard subscription
+                matcher in Terraform, which is currently unsupported by this
+                form. Please update your Terraform configuration directly.
+              </Info>
+            )}
             <Card p={4} mb={3}>
               <Box mb={4}>
                 <IntegrationSection
@@ -175,7 +190,11 @@ export function SettingsTab({
                 />
               </Box>
               <Divider />
-              <ResourcesSection vmConfig={vmConfig} onVmChange={setVmConfig} />
+              <ResourcesSection
+                vmConfig={vmConfig}
+                onVmChange={setVmConfig}
+                allowWildcardSubscriptions={allowWildcardSubscriptions}
+              />
               <Divider />
               <ApplyTerraformSection
                 handleCopy={() => {

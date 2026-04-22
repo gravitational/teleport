@@ -40,17 +40,19 @@ import { RegionSelect } from '../Shared/RegionSelect';
 import { azureRegionOptions } from './regions';
 import { AzureTag, VmConfig } from './types';
 
-const subscriptionRule = (values: string[]) => () => {
-  if (values.length === 0) {
-    return {
-      valid: false,
-      results: [
-        { valid: false, message: 'At least one subscription is required' },
-      ],
-    };
-  }
-  return arrayOf(requiredAzureSubscriptionId)(values)();
-};
+const subscriptionRule =
+  (allowWildcard: boolean) => (values: string[]) => () => {
+    if (values.length === 0) {
+      return {
+        valid: false,
+        results: [
+          { valid: false, message: 'At least one subscription is required' },
+        ],
+      };
+    }
+    const matchValues = allowWildcard ? values.filter(v => v !== '*') : values;
+    return arrayOf(requiredAzureSubscriptionId)(matchValues)();
+  };
 
 const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
   const results = labels.map(label => ({
@@ -66,11 +68,13 @@ const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
 type ResourcesSectionProps = {
   vmConfig: VmConfig;
   onVmChange: (config: VmConfig) => void;
+  allowWildcardSubscriptions?: boolean;
 };
 
 export function ResourcesSection({
   vmConfig,
   onVmChange,
+  allowWildcardSubscriptions = false,
 }: ResourcesSectionProps) {
   return (
     <>
@@ -86,6 +90,7 @@ export function ResourcesSection({
         label="Virtual Machines"
         config={vmConfig}
         onUpdate={patch => onVmChange({ ...vmConfig, ...patch })}
+        allowWildcardSubscriptions={allowWildcardSubscriptions}
       />
     </>
   );
@@ -95,10 +100,12 @@ function AzureService({
   label,
   config,
   onUpdate,
+  allowWildcardSubscriptions,
 }: {
   label: string;
   config: VmConfig;
   onUpdate: (patch: Partial<VmConfig>) => void;
+  allowWildcardSubscriptions: boolean;
 }) {
   const isWildcardRegion = config.regions.some(r => r === '*');
 
@@ -124,7 +131,7 @@ function AzureService({
               value={config.subscriptions}
               placeholder="11111111-2222-3333-4444-555555555555"
               onChange={subscriptions => onUpdate({ subscriptions })}
-              rule={subscriptionRule}
+              rule={subscriptionRule(allowWildcardSubscriptions)}
             />
           </Box>
           <Box width={400} mb={3}>
