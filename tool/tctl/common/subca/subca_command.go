@@ -41,8 +41,8 @@ type SubCAClientSource interface {
 	SubCAClient() subcav1.SubCAServiceClient
 }
 
-// InitFunc "downgrades" *authclient.Client to SubCAClientSource in order to
-// enable easy testing.
+// InitFunc mimics commonclient.InitFunc, but types the client to the narrower
+// SubCAClientSource interface for testing.
 type InitFunc func(ctx context.Context) (_ SubCAClientSource, closeFn func(context.Context), _ error)
 
 // Command is the subset of "tctl auth" commands that deal with Sub CAs.
