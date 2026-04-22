@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,7 @@ func TestProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	newProxyService(t, lis, authClient)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, err := secretscannerclient.NewSecretsScannerServiceClient(ctx, secretscannerclient.ClientConfig{
 		ProxyServer: lis.Addr().String(),
@@ -102,7 +103,37 @@ func TestProxy(t *testing.T) {
 	// Receive the termination message
 	_, err = stream.Recv()
 	require.ErrorIs(t, err, io.EOF)
+}
 
+func TestProxy_HandlesServerReturningErr(t *testing.T) {
+	// Disable the TLS routing connection upgrade
+	t.Setenv(defaults.TLSRoutingConnUpgradeEnvVar, "false")
+
+	authClient := newFakefakeSecretsScannerSvc(t)
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	newProxyService(t, lis, authClient)
+	// Add a short timeout so if the proxy hangs (as it did before introducing this regression test),
+	// the test doesn't wait for a whole minute to fail.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	client, err := secretscannerclient.NewSecretsScannerServiceClient(ctx, secretscannerclient.ClientConfig{
+		ProxyServer: lis.Addr().String(),
+		Insecure:    true,
+	})
+	require.NoError(t, err)
+
+	stream, err := client.ReportSecrets(ctx)
+	require.NoError(t, err)
+
+	// Send incomplete message which should cause the server to return an error.
+	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	require.ErrorContains(t, err, "missing device init")
 }
 
 func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
