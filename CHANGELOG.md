@@ -2,16 +2,12 @@
 
 ## 18.7.5 (04/21/26)
 
-This is a private security release. Changelog will be publicly announced in a later version.
-
-In addition to the previous release it includes the following bug fixes:
-
-* Fixed a possible panic during TTY session processing/playback/summarization from crashing Teleport.
-* Fixed a bug causing spurious failures to upload encrypted session recordings when 4MB or larger.
-* Fixed joining for agents and proxies connecting directly to an Auth service when they specify a CA pin and any lock in the cluster is in force.
-* Fixed a bug where generated JWT tokens were leaked into audit event.
-* Fixed an issue that prevents Azure Server discovery to try to enroll all the VMs that are found when one of them returns an error.
-* Fixed an issue with desktop directory sharing in Teleport Connect that caused file modification times not to be displayed.
+* Prevented a possible panic during TTY session processing/playback/summarization from crashing Teleport.
+* Fixed an upload failure for encrypted recordings near the 4MB limit caused by metadata exceeding the maximum message size.
+* Fixed joining for agents and Proxy Server instances connecting directly to an Auth Service when they specify a CA pin and any lock in the cluster is in force.
+* Fixed a bug where generated JWT tokens were leaked into audit events.
+* Fixed a bug that caused Azure Server Discovery to stop prematurely if an error was encountered on a single VM.
+* Fixed an issue with Directory Sharing in Teleport Connect that caused file modification times not to be displayed.
 
 ## 18.7.4 (04/03/26)
 
