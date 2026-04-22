@@ -19,34 +19,28 @@
 package common
 
 import (
-	"encoding/hex"
-	"fmt"
 	"strings"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/kube/labelhash"
 )
 
 // KubeLocalProxySNI generates the SNI used for Kube local proxy.
+//
+// The kube cluster is encoded as a fixed-length hash prefixed with "k" to
+// keep the first DNS label within RFC 1035's 63-byte limit for any input.
+// Earlier versions hex-encoded the kube cluster name, which could exceed the
+// limit and break strict TLS clients (e.g. the official Python kubernetes
+// client). See issue #61439.
 func KubeLocalProxySNI(teleportCluster, kubeCluster string) string {
-	// Hex encode to hide "." in kube cluster name so wildcard cert can be used:
-	// <hex-encoded-kube-cluster>.<teleport-cluster>
-	return fmt.Sprintf("%s.%s", hex.EncodeToString([]byte(kubeCluster)), teleportCluster)
+	// "k" prefix keeps the label from starting with a digit
+	// (compatibility with the historical convention in api/utils.EncodeClusterName).
+	return "k" + labelhash.Encode(teleportCluster, kubeCluster) + "." + teleportCluster
 }
 
 // TeleportClusterFromKubeLocalProxySNI returns Teleport cluster name from SNI.
 func TeleportClusterFromKubeLocalProxySNI(serverName string) string {
 	_, teleportCluster, _ := strings.Cut(serverName, ".")
 	return teleportCluster
-}
-
-// KubeClusterFromKubeLocalProxySNI returns Kubernetes cluster name from SNI.
-func KubeClusterFromKubeLocalProxySNI(serverName string) (string, error) {
-	kubeCluster, _, _ := strings.Cut(serverName, ".")
-	str, err := hex.DecodeString(kubeCluster)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(str), nil
 }
 
 // KubeLocalProxyWildcardDomain returns the wildcard domain used to generate

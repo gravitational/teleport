@@ -563,17 +563,26 @@ func TestKubeMiddleware(t *testing.T) {
 		name            string
 		reqClusterName  string
 		startCerts      KubeClientCerts
+		clearCerts      bool
 		clock           clockwork.Clock
 		overwrittenCert tls.Certificate
 		wantErr         string
 	}{
 		{
-			name:            "reissue cert when not found",
-			reqClusterName:  "kube3",
+			name:            "reissue cert after ClearCerts",
+			reqClusterName:  "kube1",
 			startCerts:      getStartCerts(),
+			clearCerts:      true,
 			clock:           clockwork.NewFakeClockAt(now),
 			overwrittenCert: newCert,
 			wantErr:         "",
+		},
+		{
+			name:           "unknown cluster SNI cannot be reissued",
+			reqClusterName: "kube3",
+			startCerts:     getStartCerts(),
+			clock:          clockwork.NewFakeClockAt(now),
+			wantErr:        "no client cert found",
 		},
 		{
 			name:            "expired cert is reissued",
@@ -615,6 +624,9 @@ func TestKubeMiddleware(t *testing.T) {
 				Clock:        tt.clock,
 				CloseContext: context.Background(),
 			})
+			if tt.clearCerts {
+				km.(*KubeMiddleware).ClearCerts()
+			}
 
 			// HandleRequest will reissue certificate if needed
 			km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
