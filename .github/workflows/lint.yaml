@@ -290,7 +290,7 @@ jobs:
         # terraform-docs version must match the version in integrations/terraform-modules/.terraform-docs.yml
         run: |
           git config --global --add safe.directory $(realpath .)
-          go install github.com/terraform-docs/terraform-docs@v0.21.0
+          go install github.com/terraform-docs/terraform-docs@v0.22.0
           make terraform-module-docs-up-to-date
 
       - name: Check if the Access Monitoring reference is up to date

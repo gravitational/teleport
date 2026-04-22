@@ -91,7 +91,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | terraform | >= 1.5.7 |
 | aws | >= 5.0 |
 | http | >= 3.0 |
@@ -101,7 +101,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | aws | >= 5.0 |
 | http | >= 3.0 |
 | teleport | >= 18.7.4 |
@@ -114,7 +114,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_iam_openid_connect_provider.teleport](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_openid_connect_provider) | resource |
 | [aws_iam_policy.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
 | [aws_iam_role.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
@@ -132,7 +132,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | apply\_aws\_tags | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
 | apply\_teleport\_resource\_labels | Additional Teleport resource labels to apply to all created Teleport resources. | `map(string)` | `{}` | no |
 | aws\_iam\_policy\_document | Override the AWS IAM policy document attached to the AWS IAM role for resource discovery. | `string` | `""` | no |
@@ -159,7 +159,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | aws\_oidc\_provider\_arn | AWS resource name (ARN) of the AWS OpenID Connect (OIDC) provider that allows Teleport Discovery Service to assume an AWS IAM role using OIDC. |
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |
 | teleport\_discovery\_service\_iam\_policy\_arn | AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for Teleport to discover resources in AWS. |
