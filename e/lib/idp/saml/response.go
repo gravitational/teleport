@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"html/template"
 	"net/http"
 	"net/url"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
