@@ -715,10 +715,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		// Unset XAUTHORITY for the networking command as the SSH session
 		// process given to the user will not have it set which can cause
 		// issues with the X11 forwarding.
-		xauthorityPrefix := x11.XAuthFileEnvVar + "="
-		*env = slices.DeleteFunc(*env, func(s string) bool {
-			return strings.HasPrefix(s, xauthorityPrefix)
-		})
+		env.Remove(x11.XAuthFileEnvVar)
 	default:
 		subCommand = reexecconstants.ExecSubCommand
 	}
