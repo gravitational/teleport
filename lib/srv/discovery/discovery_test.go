@@ -30,6 +30,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -107,6 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -3142,10 +3144,12 @@ func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV
 	return database
 }
 
+const azureApiErrorPrefix = "bad-api"
+const azureInstallErrorPrefix = "bad-install"
+
 type mockAzureRunCommandClient struct {
 	mu           sync.Mutex
 	attemptedVMs map[string]struct{}
-	runErr       error
 }
 
 func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
@@ -3157,14 +3161,32 @@ func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandR
 	}
 	m.attemptedVMs[req.VMName] = struct{}{}
 
-	if m.runErr != nil {
-		return nil, m.runErr
+	if strings.HasPrefix(req.VMName, azureApiErrorPrefix) {
+		const statusCode = 403
+		const errorCode = "AuthorizationFailed"
+		const message = "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"
+
+		resp := &http.Response{
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(message)),
+			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
+		}
+		return nil, azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
+	}
+
+	if strings.HasPrefix(req.VMName, azureInstallErrorPrefix) {
+		return &azure.RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateFailed),
+			StdErr:         "This is failure stderr",
+			StdOut:         "This is failure stdout",
+			ExitCode:       int32(installstatus.InsufficientDiskSpace),
+		}, nil
 	}
 
 	return &azure.RunCommandResult{
 		ExecutionState: string(armcompute.ExecutionStateSucceeded),
-		StdErr:         "Mock stderr",
-		StdOut:         "Mock stdout",
+		StdErr:         "This is success stderr",
+		StdOut:         "This is success stdout",
 		ExitCode:       0,
 	}, nil
 }
@@ -3200,6 +3222,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 	const noIntegration = ""
 	const dummyIntegration = "dummy"
 
+	const noIntegrationLabel = "teleport"
+	const integrationLabel = "teleport-integration"
+
 	vmMatcherFn := func() Matchers {
 		return Matchers{
 			Azure: []types.AzureMatcher{
@@ -3208,7 +3233,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Subscriptions:  []string{"testsub"},
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
-					ResourceTags:   types.Labels{"teleport": {"yes"}},
+					ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
 					Params:         &types.InstallerParams{},
 					Integration:    noIntegration,
 				},
@@ -3217,7 +3242,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Subscriptions:  []string{"testsub"},
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
-					ResourceTags:   types.Labels{"teleport-integration": {"yes"}},
+					ResourceTags:   types.Labels{integrationLabel: {"yes"}},
 					Params:         &types.InstallerParams{},
 					Integration:    dummyIntegration,
 				},
@@ -3243,38 +3268,47 @@ func TestAzureVMDiscovery(t *testing.T) {
 		return cfg.Clone()
 	}
 
+	makeVM := func(name string, integration bool) *armcompute.VirtualMachine {
+		label := noIntegrationLabel
+		if integration {
+			label = integrationLabel
+		}
+		return &armcompute.VirtualMachine{
+			ID: aws.String((&arm.ResourceID{
+				SubscriptionID:    "testsub",
+				ResourceGroupName: "rg",
+				Name:              name,
+			}).String()),
+			Name:     aws.String(name),
+			Location: aws.String("westcentralus"),
+			Tags: map[string]*string{
+				label: aws.String("yes"),
+			},
+			Properties: &armcompute.VirtualMachineProperties{
+				VMID: aws.String(name + "-vmid"),
+			},
+		}
+	}
+
+	const testVMName = "testvm"
+	const testVMNameIntegration = "testvm-integration"
+
+	makeFaultyVM := func(apiError bool, count int) []*armcompute.VirtualMachine {
+		var out []*armcompute.VirtualMachine
+		for index := range count {
+			if apiError {
+				out = append(out, makeVM(azureApiErrorPrefix+strconv.Itoa(index), true))
+			} else {
+				out = append(out, makeVM(azureInstallErrorPrefix+strconv.Itoa(index), true))
+			}
+		}
+		return out
+	}
+
 	foundAzureVMs := func() []*armcompute.VirtualMachine {
 		return []*armcompute.VirtualMachine{
-			{
-				ID: aws.String((&arm.ResourceID{
-					SubscriptionID:    "testsub",
-					ResourceGroupName: "rg",
-					Name:              "testvm",
-				}).String()),
-				Name:     aws.String("testvm"),
-				Location: aws.String("westcentralus"),
-				Tags: map[string]*string{
-					"teleport": aws.String("yes"),
-				},
-				Properties: &armcompute.VirtualMachineProperties{
-					VMID: aws.String("test-vmid"),
-				},
-			},
-			{
-				ID: aws.String((&arm.ResourceID{
-					SubscriptionID:    "testsub",
-					ResourceGroupName: "rg",
-					Name:              "testvm-integration",
-				}).String()),
-				Name:     aws.String("testvm-integration"),
-				Location: aws.String("westcentralus"),
-				Tags: map[string]*string{
-					"teleport-integration": aws.String("yes"),
-				},
-				Properties: &armcompute.VirtualMachineProperties{
-					VMID: aws.String("test-vmid-integration"),
-				},
-			},
+			makeVM(testVMName, false),
+			makeVM(testVMNameIntegration, true),
 		}
 	}
 
@@ -3284,7 +3318,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			Name: "name",
 			Labels: map[string]string{
 				"teleport.internal/subscription-id": "testsub",
-				"teleport.internal/vm-id":           "test-vmid",
+				"teleport.internal/vm-id":           "testvm-vmid",
 			},
 			Namespace: defaults.Namespace,
 		},
@@ -3293,57 +3327,73 @@ func TestAzureVMDiscovery(t *testing.T) {
 	presentNodeAlt := presentNode.DeepCopy().(*types.ServerV2)
 	presentNodeAlt.Metadata.Labels["teleport.internal/vm-id"] = "alternate-vmid"
 
-	azureError := func(statusCode int, errorCode, message string) error {
-		resp := &http.Response{
-			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader(message)),
-			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
-		}
-		return azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
-	}
-
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
+		foundVMS                 []*armcompute.VirtualMachine
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
 		wantInstances            []string
+		wantResources            int
 		expectedIntegrationNames []string
-		runError                 error
 		userTasksCheck           func(*testing.T, UserTaskLister)
 	}{
 		{
 			name:           "no nodes present, 1 found",
 			presentVMs:     []types.Server{},
 			staticMatchers: vmMatcherFn(),
-			wantInstances:  []string{"testvm", "testvm-integration"},
+			foundVMS:       foundAzureVMs(),
+			wantInstances:  []string{testVMName, testVMNameIntegration},
+			wantResources:  1,
 		},
 		{
 			name:           "nodes present, instance filtered",
 			presentVMs:     []types.Server{presentNode},
 			staticMatchers: vmMatcherFn(),
-			wantInstances:  []string{"testvm-integration"},
+			foundVMS:       foundAzureVMs(),
+			wantInstances:  []string{testVMNameIntegration},
+			wantResources:  1,
 		},
 		{
 			name:           "nodes present, instance not filtered",
 			presentVMs:     []types.Server{presentNodeAlt},
 			staticMatchers: vmMatcherFn(),
-			wantInstances:  []string{"testvm", "testvm-integration"},
+			foundVMS:       foundAzureVMs(),
+			wantInstances:  []string{testVMName, testVMNameIntegration},
+			wantResources:  1,
 		},
 		{
 			name:            "no nodes present, 1 found using dynamic matchers",
 			presentVMs:      []types.Server{},
 			discoveryConfig: defaultDiscoveryConfig(),
 			staticMatchers:  Matchers{},
-			wantInstances:   []string{"testvm", "testvm-integration"},
+			foundVMS:        foundAzureVMs(),
+			wantInstances:   []string{testVMName, testVMNameIntegration},
+			wantResources:   1,
+		},
+		{
+			name:            "multiple failures",
+			presentVMs:      []types.Server{},
+			foundVMS:        makeFaultyVM(false, 20),
+			discoveryConfig: defaultDiscoveryConfig(),
+			staticMatchers:  Matchers{},
+			wantInstances: func() []string {
+				var out []string
+				for ix := range 20 {
+					out = append(out, fmt.Sprintf("%s%d", azureInstallErrorPrefix, ix))
+				}
+				return out
+			}(),
+			wantResources: 0,
 		},
 		{
 			name:            "installation failure creates user task",
 			presentVMs:      []types.Server{},
 			discoveryConfig: defaultDiscoveryConfig(),
 			staticMatchers:  Matchers{},
-			wantInstances:   []string{"testvm", "testvm-integration"},
-			runError:        azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			wantInstances:   []string{"bad-api0"},
+			wantResources:   0,
+			foundVMS:        makeFaultyVM(true, 1),
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				var tasks []*usertasksv1.UserTask
 				var err error
@@ -3364,9 +3414,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 						State:       usertasks.TaskStateOpen,
 						DiscoverAzureVm: &usertasksv1.DiscoverAzureVM{
 							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-								"test-vmid-integration": {
-									VmId:            "test-vmid-integration",
-									Name:            "testvm-integration",
+								"bad-api0-vmid": {
+									VmId:            "bad-api0-vmid",
+									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
 								},
@@ -3390,8 +3440,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 			name:           "static matcher failure does not create user task",
 			presentVMs:     []types.Server{},
 			staticMatchers: vmMatcherFn(),
-			wantInstances:  []string{"testvm", "testvm-integration"},
-			runError:       azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			wantInstances:  []string{"bad-api0"},
+			wantResources:  0,
+			foundVMS:       makeFaultyVM(true, 1),
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
@@ -3406,13 +3457,12 @@ func TestAzureVMDiscovery(t *testing.T) {
 
 			runClient := &mockAzureRunCommandClient{
 				attemptedVMs: make(map[string]struct{}),
-				runErr:       tc.runError,
 			}
 
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
-						vms: foundAzureVMs(),
+						vms: tc.foundVMS,
 					},
 					AzureRunCommand: runClient,
 				}, nil
@@ -3482,29 +3532,28 @@ func TestAzureVMDiscovery(t *testing.T) {
 
 				synctest.Wait()
 
-				// verify installation for matched VMs have been attempted
-				require.Equal(t, tc.wantInstances, runClient.getAttempted())
-
 				// verify expected amount of "resource created" events
-				expectedEvents := 1
-				if tc.runError != nil {
-					expectedEvents = 0
-				}
-				require.Equal(t, expectedEvents, reporter.ResourceCreateEventCount())
+				require.Equal(t, tc.wantResources, reporter.ResourceCreateEventCount())
 
-				// Verify coverage, not count.
+				// verify installation for matched VMs have been attempted
+				require.ElementsMatch(t, tc.wantInstances, runClient.getAttempted())
+
+				// verify proper events are emitted.
+				// we verify expected events are there, but there may be duplicates, which we ignore.
 				// Watcher.Run()'s initial fetch races the dynamic-config trigger, so startup
 				// emits 1 or 2 cycles non-deterministically. Likely affects the real service
 				// on startup too. Proper fix requires re-evaluating the Run() inner loop or
 				// deduplicating installation attempts within a short window.
-				wantCode := libevents.AzureRunSuccessCode
-				if tc.runError != nil {
-					wantCode = libevents.AzureRunFailCode
-				}
 				seenVMs := map[string]struct{}{}
 				for _, ae := range emitter.emittedEventsOfType(libevents.AzureRunEvent) {
+					event := ae.(*events.AzureRun)
+					seenVMs[event.VMName] = struct{}{}
+
+					wantCode := libevents.AzureRunSuccessCode
+					if strings.HasPrefix(event.VMName, azureInstallErrorPrefix) || strings.HasPrefix(event.VMName, azureApiErrorPrefix) {
+						wantCode = libevents.AzureRunFailCode
+					}
 					require.Equal(t, wantCode, ae.GetCode())
-					seenVMs[ae.(*events.AzureRun).VMName] = struct{}{}
 				}
 				require.ElementsMatch(t, tc.wantInstances, slices.Collect(maps.Keys(seenVMs)))
 

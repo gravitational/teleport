@@ -1430,6 +1430,86 @@ func (s *Server) startAWSServerDiscovery() {
 	go s.watchCARotation(s.ctx)
 }
 
+func (s *Server) emitAzureInstallEvents(log *slog.Logger, instances *server.AzureInstances, result server.AzureInstallResult) {
+	// emit run event.
+	runEvent := instances.MakeRunEvent(result)
+	err := s.Emitter.EmitAuditEvent(s.ctx, runEvent)
+	if err != nil {
+		log.WarnContext(s.ctx, "Failed to emit audit event", "error", err)
+	}
+
+	if result.Failure() {
+		return
+	}
+
+	// on success, emit usage event.
+	vmKey, usageEvent := instances.MakeUsageEvent(result.Instance)
+	err = s.emitUsageEvent(vmKey, usageEvent)
+	if err != nil {
+		log.WarnContext(s.ctx, "Failed to emit usage event", "error", err)
+	}
+}
+
+type limitedErrorReporter struct {
+	mu sync.Mutex
+
+	reportLimit int
+	failures    int
+
+	logger *slog.Logger
+}
+
+func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureInstallResult) {
+	if !result.Failure() {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.failures++
+	if e.failures > e.reportLimit {
+		return
+	}
+
+	instance := result.Instance
+	commandResult := result.CommandResult
+
+	var vmID string
+	if instance.Properties != nil {
+		vmID = azure.StringVal(instance.Properties.VMID)
+	}
+
+	if commandResult != nil {
+		e.logger.WarnContext(ctx, "Teleport installation script failed",
+			"vm_id", vmID,
+			"resource_id", azure.StringVal(instance.ID),
+			"state", commandResult.ExecutionState,
+			"exit_code", commandResult.ExitCode,
+			"stdout", commandResult.StdOut,
+			"stderr", commandResult.StdErr,
+		)
+	} else {
+		e.logger.WarnContext(ctx, "Failed to execute Teleport installation script",
+			"vm_id", vmID,
+			"resource_id", azure.StringVal(instance.ID),
+			"api_error", result.APIError,
+		)
+	}
+}
+
+func (e *limitedErrorReporter) summary(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.failures > e.reportLimit {
+		e.logger.WarnContext(ctx, "Too many install failures; suppressed some log entries",
+			"reported", e.reportLimit,
+			"failures", e.failures,
+			"suppressed", e.reportLimit-e.failures)
+	}
+}
+
 func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallResult, error) {
 	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
 	if err != nil {
@@ -1442,75 +1522,31 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 	}
 
 	const maxReportedErrors = 10
-	reported := 0
+	reporter := &limitedErrorReporter{
+		logger:      log,
+		reportLimit: maxReportedErrors,
+	}
 
 	var mu sync.Mutex
 	var failedInstances []server.AzureInstallResult
 
-	// this callback will fire as soon as installation results on a particular machine are known.
-	callback := func(result server.AzureInstallResult) {
-		var err error
-
-		// 1. emit run event.
-		runEvent := instances.MakeRunEvent(result)
-		err = s.Emitter.EmitAuditEvent(s.ctx, runEvent)
-		if err != nil {
-			log.WarnContext(s.ctx, "Failed to emit audit event", "error", err)
-		}
-
-		if result.Failure() {
-			// 2. collect failed instance.
-			mu.Lock()
-			defer mu.Unlock()
-
-			failedInstances = append(failedInstances, result)
-
-			// 3. log failure, up to the reporting limit.
-			reported++
-			if reported <= maxReportedErrors {
-				instance := result.Instance
-				commandResult := result.CommandResult
-
-				var vmID string
-				if instance.Properties != nil {
-					vmID = azure.StringVal(instance.Properties.VMID)
-				}
-
-				if commandResult != nil {
-					log.WarnContext(s.ctx, "Teleport installation script failed",
-						"vm_id", vmID,
-						"resource_id", azure.StringVal(instance.ID),
-						"state", commandResult.ExecutionState,
-						"exit_code", commandResult.ExitCode,
-						"stdout", commandResult.StdOut,
-						"stderr", commandResult.StdErr,
-					)
-				} else {
-					log.WarnContext(s.ctx, "Failed to execute Teleport installation script",
-						"vm_id", vmID,
-						"resource_id", azure.StringVal(instance.ID),
-						"api_error", result.APIError,
-					)
-				}
-			}
-
-		} else {
-			// 3. emit usage event on success.
-			vmKey, usageEvent := instances.MakeUsageEvent(result.Instance)
-			err = s.emitUsageEvent(vmKey, usageEvent)
-			if err != nil {
-				log.WarnContext(s.ctx, "Failed to emit usage event", "error", err)
-			}
-		}
-	}
-
 	req := server.AzureInstallRequest{
-		Instances:            instances.Instances,
-		Region:               instances.Region,
-		ResourceGroup:        instances.ResourceGroup,
-		InstallerParams:      instances.InstallerParams,
-		ProxyAddrGetter:      s.publicProxyAddress,
-		OnRunCommandFinished: callback,
+		Instances:       instances.Instances,
+		Region:          instances.Region,
+		ResourceGroup:   instances.ResourceGroup,
+		InstallerParams: instances.InstallerParams,
+		ProxyAddrGetter: s.publicProxyAddress,
+		OnRunCommandFinished: func(result server.AzureInstallResult) {
+			s.emitAzureInstallEvents(log, instances, result)
+			if result.Failure() {
+				reporter.report(s.ctx, result)
+
+				// collect the failed instance
+				mu.Lock()
+				failedInstances = append(failedInstances, result)
+				mu.Unlock()
+			}
+		},
 	}
 
 	err = req.Run(s.ctx, runClient)
@@ -1518,13 +1554,10 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		return nil, trace.Wrap(err)
 	}
 
-	log.InfoContext(s.ctx, "Finished installation batch.", "size", len(instances.Instances))
-	if reported >= maxReportedErrors {
-		log.WarnContext(s.ctx, "Too many install failures; suppressed some log entries",
-			"reported", maxReportedErrors,
-			"failures", len(failedInstances),
-			"suppressed", len(failedInstances)-maxReportedErrors)
-	}
+	log.InfoContext(s.ctx, "Finished installation batch",
+		"total_instances", len(instances.Instances),
+		"failures", len(failedInstances))
+	reporter.summary(s.ctx)
 
 	return failedInstances, nil
 }

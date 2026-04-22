@@ -100,13 +100,23 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 			Code: eventCode,
 		},
 
-		SubscriptionID: instances.SubscriptionID,
-		ResourceGroup:  instances.ResourceGroup,
-		Region:         instances.Region,
+		AzureMetadata: apievents.AzureMetadata{
+			SubscriptionID: instances.SubscriptionID,
+			ResourceGroup:  instances.ResourceGroup,
+			ResourceID:     resourceID,
+			Region:         instances.Region,
+		},
+		AzureVMMetadata: apievents.AzureVMMetadata{
+			VMID:   vmID,
+			VMName: vmName,
+		},
 
-		VMID:       vmID,
-		VMName:     vmName,
-		ResourceID: resourceID,
+		ExitCode:       0,
+		ExecutionState: "",
+		StandardOutput: "",
+		StandardError:  "",
+		APIError:       "",
+		Status:         "",
 	}
 
 	if result.APIError != nil {
