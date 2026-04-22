@@ -281,6 +281,13 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withAdditionalRootFields([]string{"scope"}),
 			},
 		},
+		{
+			name: "ScopedRoleAssignment",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withAdditionalRootFields([]string{"scope"}),
+			},
+		},
 	}
 
 	for _, resource := range resources {

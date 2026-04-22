@@ -1,0 +1,10 @@
+apiVersion: resources.teleport.dev/v1
+kind: TeleportScopedRoleAssignmentV1
+scope: /foo
+sub_kind: dynamic
+spec:
+  user: "test"
+  assignments:
+    - role: some-role
+      scope: /foo/bar
+version: v1
