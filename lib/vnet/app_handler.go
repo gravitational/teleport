@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -182,6 +183,17 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnprox
 
 func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
+}
+
+// IsVNetApp returns true if the app type is supported by VNet.
+func IsVNetApp(app types.Application) bool {
+	return app.IsTCP() || app.GetProtocol() == "HTTP" || isMCPStreamableHTTPApp(app)
+}
+
+// isMCPStreamableHTTPApp returns true if the app is an MCP server using the
+// streamable HTTP transport, which is supported by VNet.
+func isMCPStreamableHTTPApp(app types.Application) bool {
+	return types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
 }
 
 // RouteToApp returns a *proto.RouteToApp populated from appInfo and targetPort.
