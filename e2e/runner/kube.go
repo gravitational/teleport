@@ -21,9 +21,13 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 
+	"k8s.io/client-go/tools/clientcmd"
+	kindv1alpha4 "sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
 	kindcluster "sigs.k8s.io/kind/pkg/cluster"
 	kindlog "sigs.k8s.io/kind/pkg/log"
 )
@@ -32,7 +36,11 @@ type kubeCluster struct {
 	log            *slog.Logger
 	name           string
 	kubeconfigPath string
-	provider       *kindcluster.Provider
+	// dockerEndpointHost is the hostname from a remote DOCKER_HOST (for example
+	// "docker" from tcp://docker:2375). Enables the kube cluster to be
+	// reachable outside the container.
+	dockerEndpointHost string
+	provider           *kindcluster.Provider
 }
 
 func (k *kubeCluster) start() error {
@@ -49,15 +57,60 @@ func (k *kubeCluster) start() error {
 	if err := k.provider.Delete(k.name, k.kubeconfigPath); err != nil {
 		return fmt.Errorf("failed to delete stale kube cluster %s: %w", k.name, err)
 	}
+
+	cfg := &kindv1alpha4.Cluster{}
+	if k.dockerEndpointHost != "" {
+		cfg.Networking.APIServerAddress = "0.0.0.0"
+	}
 	if err := k.provider.Create(
 		k.name,
+		kindcluster.CreateWithV1Alpha4Config(cfg),
 		kindcluster.CreateWithKubeconfigPath(k.kubeconfigPath),
 	); err != nil {
 		return fmt.Errorf("creating kube cluster %q: %w", k.name, err)
 	}
 
+	if k.dockerEndpointHost != "" {
+		if err := rewriteKubeconfigServerHost(k.kubeconfigPath, k.dockerEndpointHost); err != nil {
+			return fmt.Errorf("rewriting kubeconfig server host: %w", err)
+		}
+	}
+
 	k.log.Info("kube cluster is ready", "name", k.name, "kubeconfig", k.kubeconfigPath)
 	return nil
+}
+
+func rewriteKubeconfigServerHost(kubeconfigPath, targetHost string) error {
+	config, err := clientcmd.LoadFromFile(kubeconfigPath)
+	if err != nil {
+		return fmt.Errorf("loading kubeconfig %q: %w", kubeconfigPath, err)
+	}
+
+	for name, cluster := range config.Clusters {
+		serverURL, err := url.Parse(cluster.Server)
+		if err != nil {
+			return fmt.Errorf("parsing kubeconfig server URL for cluster %q: %w", name, err)
+		}
+
+		// Rewrite wildcard bind addresses.
+		if serverURL.Hostname() != "0.0.0.0" {
+			continue
+		}
+
+		port := serverURL.Port()
+		if port == "" {
+			serverURL.Host = targetHost
+		} else {
+			serverURL.Host = net.JoinHostPort(targetHost, port)
+		}
+		// Replace the address with the Docker endpoint host so the API server is reachable from the Teleport container.
+		cluster.Server = serverURL.String()
+		// kind's API server cert includes "localhost" in SANs, but not the Docker host name.
+		// Pinning TLSServerName to localhost avoids x509 hostname mismatch failures.
+		cluster.TLSServerName = "localhost"
+	}
+
+	return clientcmd.WriteToFile(*config, kubeconfigPath)
 }
 
 func (k *kubeCluster) stop() {

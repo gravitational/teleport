@@ -196,6 +196,30 @@ func resolveDockerHost() (string, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
+// resolveDockerEndpointHost returns the hostname portion of a remote Docker
+// endpoint (for example "docker" from DOCKER_HOST=tcp://docker:2375).
+// Returns empty string when Docker is local (unix/npipe/default).
+func resolveDockerEndpointHost() (string, error) {
+	dockerHost := os.Getenv("DOCKER_HOST")
+	if dockerHost == "" {
+		return "", nil
+	}
+
+	u, err := url.Parse(dockerHost)
+	if err != nil {
+		return "", fmt.Errorf("parsing DOCKER_HOST: %w", err)
+	}
+	if u.Scheme != "tcp" {
+		return "", nil
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("tcp DOCKER_HOST has empty hostname: %q", dockerHost)
+	}
+	return host, nil
+}
+
 type StateConfig struct {
 	PasswordHashBase64  string
 	CredentialIDBase64  string

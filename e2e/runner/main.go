@@ -298,10 +298,16 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				name := "teleport-e2e-kube-" + inst.browser
 				kubeConfigPath = filepath.Join(e2eDir, "kube", inst.browser+"-kubeconfig")
 
+				dockerEndpointHost, err := resolveDockerEndpointHost()
+				if err != nil {
+					return fmt.Errorf("resolving docker endpoint host: %w", err)
+				}
+
 				inst.kube = &kubeCluster{
-					log:            inst.log,
-					name:           name,
-					kubeconfigPath: kubeConfigPath,
+					log:                inst.log,
+					name:               name,
+					dockerEndpointHost: dockerEndpointHost,
+					kubeconfigPath:     kubeConfigPath,
 				}
 			}
 

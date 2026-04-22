@@ -13,6 +13,7 @@ require (
 	golang.org/x/crypto v0.50.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
+	k8s.io/client-go v0.35.1
 	sigs.k8s.io/kind v0.31.0
 )
 
@@ -286,7 +287,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.35.1 // indirect
 	k8s.io/apimachinery v0.35.1 // indirect
-	k8s.io/client-go v0.35.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
