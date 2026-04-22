@@ -20,6 +20,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
@@ -62,6 +63,12 @@ type ProviderModel struct {
 	JoinToken types.String `tfsdk:"join_token"`
 	// Insecure indicates whether to skip TLS verification for the proxy server.
 	Insecure types.Bool `tfsdk:"insecure"`
+	// SkipInitialConnection puts the provider into a "lazy" initialization mode
+	// where we avoid making connections to the Teleport cluster until the first
+	// resource or data source is actually used. This can be useful in scenarios
+	// where multiple providers are at play and the user wishes to selectively
+	// use the Teleport provider.
+	SkipInitialConnection types.Bool `tfsdk:"skip_initial_connection"`
 }
 
 func (p *Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -92,6 +99,10 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 			},
 			"insecure": schema.BoolAttribute{
 				MarkdownDescription: "When enabled, the certificates of the Proxy will not be verified. This is not recommended for production use.",
+				Optional:            true,
+			},
+			"skip_initial_connection": schema.BoolAttribute{
+				MarkdownDescription: "When enabled, puts the provider into a lazy initialization mode where we avoid making connections to the Teleport cluster until the first resource or data source is actually used.\n\nThis can be useful in scenarios where multiple providers are at play and the user wishes to selectively use the Teleport provider.",
 				Optional:            true,
 			},
 		},
@@ -125,6 +136,36 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 			},
 			InternalStorage: botInternalStore,
 			Logger:          slog.Default(),
+		}
+	}
+
+	skipInitialConnection := data.SkipInitialConnection.ValueBool()
+	if !skipInitialConnection {
+		botCfg := newBotConfig()
+		if err := botCfg.CheckAndSetDefaults(); err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting defaults for bot config",
+				"Failed to set defaults for bot config: "+err.Error(),
+			)
+			return
+		}
+
+		bot, err := bot.New(botCfg)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating tbot",
+				"Failed to create tbot: "+err.Error(),
+			)
+			return
+		}
+
+		// Run bot just to validate that the configuration is correct.
+		if err := bot.OneShot(ctx); err != nil {
+			resp.Diagnostics.AddError(
+				"Error running tbot in provider",
+				"Failed to run tbot\n"+trace.DebugReport(err),
+			)
+			return
 		}
 	}
 
