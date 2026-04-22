@@ -20,9 +20,9 @@ type commandDataT struct {
 	Command        [16]uint8
 	Filename       [512]uint8
 	Args           [20480]uint8
-	ArgsLen        uint64
+	ArgsLen        uint32
 	ArgsTruncated  bool
-	_              [7]byte
+	_              [3]byte
 	Cgroup         uint64
 	AuditSessionId uint32
 	ReturnCode     int32

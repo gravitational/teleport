@@ -380,7 +380,12 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		return
 	}
 
-	args := convertArgs(event.Args[:event.ArgsLen], event.ArgsTruncated)
+	argLen := event.ArgsLen
+	if event.ArgsLen > uint32(len(event.Args)) {
+		logger.WarnContext(s.closeContext, "Command event argument length is larger than the buffer size, truncating", "args_len", event.ArgsLen)
+		argLen = uint32(len(event.Args))
+	}
+	args := convertArgs(event.Args[:argLen], event.ArgsTruncated)
 
 	// Emit "command" event.
 	sessionCommandEvent := &apievents.SessionCommand{

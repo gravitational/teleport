@@ -24,7 +24,7 @@ struct data_t {
     // Args is the list of arguments to the program.
     u8 args[ARGBUFSIZE];
     // ArgsLen is the length of the args.
-    u64 args_len;
+    u32 args_len;
     // ArgsTruncated is true if the args were truncated.
     bool args_truncated;
     // CgroupID is the internal cgroupv2 ID of the event.
@@ -134,7 +134,7 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
     info = bpf_task_storage_get(&inflight_exec, task, NULL, 0);
     if (ret != 0) {
         if (info && info->valid) {
-            // If  bprm_execve is called but the return code is non-zero,
+            // If bprm_execve is called but the return code is non-zero,
             // the argv in task->mm won't be populated, but we can still
             // get the filename. In this case we pass the filename to
             // exit_execve and let it emit the event with the best-effort
@@ -156,17 +156,19 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
 
     void *arg_start = (void *)BPF_CORE_READ(task, mm, arg_start);
     void *arg_end = (void *)BPF_CORE_READ(task, mm, arg_end);
-    data->args_len = arg_end - arg_start;
+    // Use a local uint64 here to apease the verifier.
+    u64 args_len = arg_end - arg_start;
 
     data->args_truncated = false;
-    if (data->args_len > ARGBUFSIZE) {
-        data->args_len = ARGBUFSIZE;
+    if (args_len > ARGBUFSIZE) {
+        args_len = ARGBUFSIZE;
         data->args_truncated = true;
     }
-    int read_ret = bpf_probe_read_user(&data->args, data->args_len, arg_start);
+    int read_ret = bpf_probe_read_user(&data->args, args_len, arg_start);
     if (read_ret < 0) {
-        data->args_len = 0;
+        args_len = 0;
     }
+    data->args_len = args_len;
 
     bpf_probe_read_kernel_str(&data->filename, sizeof(data->filename), BPF_CORE_READ(bprm, filename));
     data->return_code = ret;
