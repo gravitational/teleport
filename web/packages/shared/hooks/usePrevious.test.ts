@@ -18,13 +18,12 @@
 
 import { renderHook } from '@testing-library/react';
 
-import { usePreviousValue } from './usePreviousValue';
+import { usePrevious } from './usePrevious';
 
-test('usePreviousValue', () => {
-  const { result, rerender } = renderHook(
-    props => usePreviousValue(props.value),
-    { initialProps: { value: 'first-value' } }
-  );
+test('usePrevious', () => {
+  const { result, rerender } = renderHook(props => usePrevious(props.value), {
+    initialProps: { value: 'first-value' },
+  });
 
   // Initial value should be undefined.
   expect(result.current).toBeUndefined();

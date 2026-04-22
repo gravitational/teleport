@@ -24,7 +24,7 @@ import { useState } from 'react';
  * regeneration, where we want to keep showing the previous configuration until
  * the new one is ready to be shown.
  */
-export function usePreviousValue<T>(value: T) {
+export function usePrevious<T>(value: T) {
   const [current, setCurrent] = useState<T>(value);
   const [previous, setPrevious] = useState<T | undefined>(undefined);
 
