@@ -1742,6 +1742,9 @@ func (e *CommandExecutor) Start() error {
 const childReadyWaitTimeout = 3 * time.Minute
 
 func (e *CommandExecutor) WaitForChild() error {
+	if e.ready == nil {
+		return nil
+	}
 	var waitErr error
 	if e.bpfEnabled {
 		if waitErr = WaitForSignal(e.ctx, e.ready, childReadyWaitTimeout); waitErr != nil {
@@ -1759,6 +1762,9 @@ func (e *CommandExecutor) WaitForChild() error {
 // pre-processing routine if Enhanced Session Recording is enabled.
 // Otherwise, this method is a no-op.
 func (e *CommandExecutor) Continue() error {
+	if e.cont == nil {
+		return nil
+	}
 	err := e.cont.Close()
 	e.cont = nil
 	return trace.Wrap(err)
@@ -1766,6 +1772,9 @@ func (e *CommandExecutor) Continue() error {
 
 // Kill will send signal to the child process that it should terminate the command
 func (e *CommandExecutor) Kill() error {
+	if e.killShell == nil {
+		return nil
+	}
 	err := e.killShell.Close()
 	e.killShell = nil
 	return trace.Wrap(err)
