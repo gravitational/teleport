@@ -41,7 +41,8 @@ func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
 		accessClient := s.client.ScopedAccessServiceClient()
 
 		_, err := accessClient.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
-			Name: "test-scoped-role-assignment",
+			Name:    "test-scoped-role-assignment",
+			SubKind: access.SubKindDynamic,
 		})
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
@@ -119,7 +120,8 @@ func (s *TerraformSuiteOSS) TestImportScopedRoleAssignment() {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := accessClient.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
-			Name: id,
+			Name:    id,
+			SubKind: access.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
