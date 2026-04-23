@@ -165,7 +165,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: "vnet_config"}
+	plan.Attrs["id"] = types.String{Value: apitypes.MetaNameVnetConfig}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -184,6 +184,10 @@ func (r resourceTeleportVnetConfig) Read(ctx context.Context, req tfsdk.ReadReso
 	}
 
 	vnetConfigI, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))
 		return

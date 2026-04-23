@@ -2908,6 +2908,18 @@ func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *RetrievalModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
@@ -2917,6 +2929,16 @@ func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		return fieldTrimmers{
 			newStrTrimmer(m.Status.Error, &out.Status.Error),
 			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
+		}
+	})
+}
+
+func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
 		}
 	})
 }

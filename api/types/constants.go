@@ -184,10 +184,18 @@ const (
 	// SubKindMCP represents an MCP server as a subkind of app.
 	SubKindMCP = KindMCP
 
+	// SubKindLLM represents an LLM inference endpoint as a subkind of app.
+	SubKindLLM = KindLLM
+
 	// KindMCP is an MCP server resource.
 	// Currently, MCP servers are accessed through apps.
 	// In the future, they may become a standalone resource kind.
 	KindMCP = "mcp"
+
+	// KindLLM is an LLM inference endpoint server resource.
+	// Currently, inference endpoints are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindLLM = "llm"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -468,6 +476,9 @@ const (
 
 	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
 	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
+
+	// KindLinuxDesktop is a Linux desktop host.
+	KindLinuxDesktop = "linux_desktop"
 
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
@@ -897,6 +908,12 @@ const (
 	// to identify Azure VMs by resource group during auto-discovery.
 	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
+	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
+	// the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityRegionLabel = TeleportNamespace + "/azure-managed-identity-region"
+	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
+	// group for the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -998,7 +1015,9 @@ const (
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
 	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
-	DiscoveryIACToolLabel = TeleportNamespace + "/iac-tool"
+	IACToolLabel = TeleportNamespace + "/iac-tool"
+	// IACToolTerraform identifies that a IAC tool is Terraform.
+	IACToolTerraform = "terraform"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1034,6 +1053,9 @@ const (
 	SchemeMCPHTTPS = "mcp+https"
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
+
+	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
+	SchemeLLMEndpoint = "llm"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1328,6 +1350,17 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
+
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
+	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
+
+	// BeamOwnerLabel is the label used to track which user's Beam a resource
+	// belongs to.
+	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
+
+	// BeamAliasLabel is the label used to track the alias of the Beam a
+	// resource belongs to.
+	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
 )
 
 const (

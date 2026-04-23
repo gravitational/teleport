@@ -25,14 +25,13 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // UpsertTrustedCluster upserts a Trusted Cluster.
 func (s *Service) UpsertTrustedCluster(ctx context.Context, req *trustpb.UpsertTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
+	if s.modules.Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 
@@ -64,7 +63,7 @@ func (s *Service) UpsertTrustedCluster(ctx context.Context, req *trustpb.UpsertT
 // CreateTrustedCluster creates a Trusted Cluster.
 func (s *Service) CreateTrustedCluster(ctx context.Context, req *trustpb.CreateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
+	if s.modules.Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 
@@ -96,7 +95,7 @@ func (s *Service) CreateTrustedCluster(ctx context.Context, req *trustpb.CreateT
 // UpdateTrustedCluster updates a Trusted Cluster.
 func (s *Service) UpdateTrustedCluster(ctx context.Context, req *trustpb.UpdateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
+	if s.modules.Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 

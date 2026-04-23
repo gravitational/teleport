@@ -28,7 +28,6 @@ import {
   ViewModeSwitchContainer,
 } from 'shared/components/Controls/ViewModeSwitch';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import { useValidation } from 'shared/components/Validation';
 
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
@@ -37,28 +36,22 @@ import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import LiveTextEditor from './LiveTextEditor';
 
-export const PANEL_WIDTH = 500;
+const responsivePanelWidth =
+  'clamp(500px, calc(100vw - var(--sidenav-width, 84px) - 800px), 700px)';
 
 export type InfoGuideTab = 'info' | 'terraform' | null;
 
 export const ContentWithSidePanel = styled(Box)<{
   isPanelOpen: boolean;
-  panelWidth: number;
-  contentMinWidth?: number;
 }>`
-  min-width: ${props =>
-    props.contentMinWidth ? `${props.contentMinWidth}px` : '650px'};
-
-  ${props =>
-    marginTransitionCss({
-      sidePanelOpened: props.isPanelOpen,
-      panelWidth: props.panelWidth,
-    })}
+  min-width: 650px;
+  margin-right: ${p => (p.isPanelOpen ? responsivePanelWidth : '0')};
+  transition: ${p => (p.isPanelOpen ? 'margin 150ms' : 'margin 300ms')};
 `;
 
 export function useTerraformInfoGuide(defaultOpen = true) {
   const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
-    defaultOpen ? 'terraform' : null
+    defaultOpen ? 'info' : null
   );
 
   const isPanelOpen = activeInfoGuideTab !== null;
@@ -91,13 +84,7 @@ export function TerraformInfoGuide({
   const validator = useValidation();
 
   return (
-    <Flex
-      ml={-3}
-      width={`${PANEL_WIDTH - 2}px`}
-      flexDirection="column"
-      height="600px"
-      position="sticky"
-    >
+    <Flex mx={-3} flexDirection="column" height="600px" position="sticky">
       <LiveTextEditor
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />
@@ -207,7 +194,6 @@ export const InfoGuideSwitch = ({
 };
 
 type TerraformInfoGuideSidePanelProps = {
-  panelWidth: number;
   activeTab: InfoGuideTab;
   onTabChange: (tab: InfoGuideTab) => void;
   InfoGuideContent: ReactNode;
@@ -215,7 +201,6 @@ type TerraformInfoGuideSidePanelProps = {
 };
 
 export function TerraformInfoGuideSidePanel({
-  panelWidth,
   activeTab,
   onTabChange,
   InfoGuideContent,
@@ -223,9 +208,14 @@ export function TerraformInfoGuideSidePanel({
 }: TerraformInfoGuideSidePanelProps) {
   return (
     <SlidingSidePanel
+      css={`
+        && {
+          width: ${responsivePanelWidth};
+        }
+      `}
       isVisible={activeTab !== null}
       skipAnimation={false}
-      panelWidth={panelWidth}
+      panelWidth={0}
       zIndex={zIndexMap.infoGuideSidePanel}
       slideFrom="right"
     >

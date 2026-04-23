@@ -26,10 +26,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if IsReexec() {
-		RunAndExit(os.Args[1])
-		return
-	}
+	MaybeReexec()
 
 	if !flag.Parsed() {
 		flag.Parse()

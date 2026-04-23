@@ -1167,6 +1167,8 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
   // MCP contains MCP server related configurations.
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+  // LLM contains LLM inference endpoint related configurations.
+  LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
@@ -1212,6 +1214,28 @@ message PortRange {
   // be greater than Port when describing a port range. When omitted or set to zero, it signifies
   // that the port range defines a single port.
   uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
+}
+
+// LLM contains LLM inference endpoint related configurations.
+message LLM {
+  // Model is a provider model definition.
+  message Model {
+    // Name defines the model name. This is the requested value.
+    string name = 1;
+    // Represents the model name in the configured provider.
+    string provider_name = 2;
+  }
+
+  // Defines the LLM inference API format.
+  string format = 1;
+  // Defines which inference provider will be used to serve the requests.
+  string provider = 2;
+  // Defines the list of supported models, and optionally their name on the
+  // inference provider.
+  repeated Model models = 3;
+  // Defines a model that will be used if the model requested is not on the list.
+  // The fallback model must be in the "models" list.
+  string fallback_model = 4;
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -1933,6 +1957,8 @@ message ProvisionTokenSpecV2Azure {
     // ResourceGroups is a list of Azure resource groups the node is allowed
     // to join from.
     repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
+    // Tenant is the Azure Tenant ID.
+    string tenant = 3 [(gogoproto.jsontag) = "tenant,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -5510,8 +5536,11 @@ message OIDCConnectorSpecV3 {
 }
 
 // EntraIDGroupsProvider configures out-of-band user groups provider.
-// It works by following through the groups claim source, which is sent for
+// For OIDC, it works by following through the groups claim source, which is sent for
 // "groups" claim when the user's group membership exceeds 200 max item limit.
+// For SAML, it works by following through the "groups.link" SAML attribute,
+// which is sent instead of the "groups" SAML attribute, when the user's group
+// membership exceeds 150 max item limit.
 message EntraIDGroupsProvider {
   // Disabled specifies that the groups provider should be disabled
   // even when Entra ID responds with a groups claim source.
@@ -5763,6 +5792,30 @@ message SAMLConnectorSpecV2 {
   // authentication request. Defaults to false.
   // Note: Some IdPs will reject requests that contain a Subject.
   bool IncludeSubject = 21 [(gogoproto.jsontag) = "include_subject,omitempty"];
+  // EntraIDGroupsProvider configures out-of-band user groups provider.
+  // It works by following through the "groups.link" SAML assertion attribute,
+  // which is sent instead of the "groups" attribute, when the user's group membership
+  // exceeds 150 max item limit.
+  EntraIDGroupsProvider entra_id_groups_provider = 22;
+  // SAMLConnectorCredentials configures authentication for the connector to authenticate
+  // against the identity provider for performing ancillary operations,
+  // e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.
+  SAMLConnectorCredentials credentials = 23;
+}
+
+// SAMLConnectorCredentials holds credentials for a SAML connector to authenticate against
+// the identity provider. Only one type of credential should be specified at a time.
+message SAMLConnectorCredentials {
+  // OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.
+  OAuthClientCredentials oauth = 1;
+}
+
+// OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.
+message OAuthClientCredentials {
+  // ClientID is the client ID to use for OAuth client credentials grant.
+  string client_id = 1;
+  // ClientSecret is the client secret to use for OAuth client credentials grant.
+  string client_secret = 2;
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.

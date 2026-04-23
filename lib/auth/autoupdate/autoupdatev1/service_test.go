@@ -714,6 +714,7 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 		Backend:    storage,
 		Cache:      storage,
 		Emitter:    emitter,
+		Modules:    modulestest.OSSModules(),
 	})
 	require.NoError(t, err)
 	return service
@@ -914,6 +915,7 @@ func generateGroups(n int, days []string) []*autoupdatev1pb.AgentAutoUpdateGroup
 }
 
 func TestValidateServerSideAgentConfig(t *testing.T) {
+	t.Parallel()
 	cloudModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -1084,10 +1086,9 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 					Agents: tt.config,
 				})
 			require.NoError(t, err)
-			modulestest.SetTestModules(t, tt.modules)
 
 			// Test execution.
-			tt.expectErr(t, validateServerSideAgentConfig(config))
+			tt.expectErr(t, validateServerSideAgentConfig(config, tt.modules.Features()))
 		})
 	}
 }

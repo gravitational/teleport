@@ -21,12 +21,14 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -34,6 +36,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -94,6 +97,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_DatabaseObject{
 			DatabaseObject: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*beamsv1.Beam]:
+		out.Resource = &proto.Event_Beam{
+			Beam: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 		out.Resource = &proto.Event_BotInstance{
 			BotInstance: r.UnwrapT(),
@@ -137,6 +144,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]:
 		out.Resource = &proto.Event_AutoUpdateBotInstanceReport{
 			AutoUpdateBotInstanceReport: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		out.Resource = &proto.Event_LinuxDesktop{
+			LinuxDesktop: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
@@ -201,6 +212,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 		out.Resource = &proto.Event_RetrievalModel{
 			RetrievalModel: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
+		out.Resource = &proto.Event_CertAuthorityOverride{
+			CertAuthorityOverride: r.UnwrapT(),
 		}
 	case validatedMFAChallengeUnwrapper:
 		out.Resource = &proto.Event_ValidatedMFAChallenge{
@@ -646,6 +661,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetDatabaseObject(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetBeam(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
@@ -718,6 +736,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetAppAuthConfig(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetLinuxDesktop(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetWorkloadCluster(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
@@ -732,6 +753,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetRetrievalModel(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetCertAuthorityOverride(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetValidatedMFAChallenge(); r != nil {
 		out.Resource = &validatedMFAChallengeResourceWrapper{

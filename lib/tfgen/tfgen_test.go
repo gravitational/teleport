@@ -307,6 +307,24 @@ func TestGenerate_ResourceComment(t *testing.T) {
 	)
 }
 
+func TestSanitizeResourceName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "Alpaca123@goteleport.com", want: "Alpaca123_goteleport_com"},
+		{input: "simple", want: "simple"},
+		{input: "with spaces", want: "with_spaces"},
+		{input: "`", want: "_"},
+		{input: `\|{}[]<>,.?/~!@#$%^&*()_+='`, want: "___________________________"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			require.Equal(t, tt.want, tfgen.SanitizeResourceName(tt.input))
+		})
+	}
+}
+
 func goldenTest(t *testing.T, resource tfgen.Resource, opts ...tfgen.GenerateOpt) {
 	t.Helper()
 

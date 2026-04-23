@@ -169,6 +169,7 @@ func (a *Server) newWebSession(
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username:                 userState.GetName(),
 		Roles:                    req.Roles,
 		Traits:                   req.Traits,
 		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,

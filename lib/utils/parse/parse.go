@@ -72,7 +72,8 @@ type TraitsTemplateExpression struct {
 	expr traitsTemplateExpression
 }
 
-// NewTraitsTemplateExpression parses expressions like {{external.foo}} or {{internal.bar}},
+// NewTraitsTemplateExpression parses expressions like {{external.foo}}, {{internal.bar}},
+// or {{user.metadata.name}},
 // or a literal value like "prod". Call Interpolate on the returned Expression
 // to get the final value based on user traits.
 func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
@@ -109,7 +110,14 @@ func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error
 // and this variable is not found on any trait, nil in case of success,
 // and BadParameter otherwise.
 func (e *TraitsTemplateExpression) Interpolate(varValidation func(namespace, name string) error, traits map[string][]string) ([]string, error) {
+	return e.InterpolateWithUser(varValidation, "", traits)
+}
+
+// InterpolateWithUser interpolates the variable adding prefix and suffix if
+// present, with optional Teleport username.
+func (e *TraitsTemplateExpression) InterpolateWithUser(varValidation func(namespace, name string) error, username string, traits map[string][]string) ([]string, error) {
 	result, err := e.expr.Evaluate(traitsTemplateEnv{
+		username:       username,
 		traits:         traits,
 		traitValidator: varValidation,
 	})
@@ -128,6 +136,7 @@ func (e *TraitsTemplateExpression) Interpolate(varValidation func(namespace, nam
 }
 
 type traitsTemplateEnv struct {
+	username       string
 	traits         map[string][]string
 	traitValidator func(namespace, name string) error
 }
@@ -167,6 +176,12 @@ func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []strin
 		Variables: map[string]typical.Variable{
 			"external": traitsVariable("external"),
 			"internal": traitsVariable("internal"),
+			"user.metadata.name": typical.DynamicVariable(func(e traitsTemplateEnv) ([]string, error) {
+				if e.username == "" {
+					return nil, trace.NotFound("user.metadata.name is not available in this context")
+				}
+				return []string{e.username}, nil
+			}),
 		},
 		Functions: map[string]typical.Function{
 			EmailLocalFnName:    typical.UnaryFunction[traitsTemplateEnv](EmailLocal),

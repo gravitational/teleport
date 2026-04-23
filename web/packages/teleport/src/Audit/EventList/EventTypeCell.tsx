@@ -366,8 +366,15 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.INFERENCE_POLICY_CREATE]: Icons.Info,
   [eventCodes.INFERENCE_POLICY_UPDATE]: Icons.Info,
   [eventCodes.INFERENCE_POLICY_DELETE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

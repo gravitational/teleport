@@ -103,6 +103,7 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		allow := make([]*joiningv1.Azure_Rule, len(base.Azure.Allow))
 		for i, rule := range base.Azure.Allow {
 			allow[i] = &joiningv1.Azure_Rule{
+				Tenant:         rule.Tenant,
 				Subscription:   rule.Subscription,
 				ResourceGroups: rule.ResourceGroups,
 			}

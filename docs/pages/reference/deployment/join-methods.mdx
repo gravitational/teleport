@@ -272,7 +272,7 @@ New Bot deployments should consider upgrading to the
 </Admonition>
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with a Secure Token](../../enroll-resources/agents/join-token.mdx).
+- How to [Join Services with a Secure Token](../../installation/agents/join-token.mdx).
 - [Deploying Machine & Workload Identity on Linux](../../machine-workload-identity/deployment/linux.mdx)
 </Admonition>
 
@@ -313,7 +313,7 @@ This is the recommended method to join workload running on AWS.
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via AWS IAM Role](../../enroll-resources/agents/aws-iam.mdx).
+- [Joining Services via AWS IAM Role](../../installation/agents/aws-iam.mdx).
 - [Deploying Machine & Workload Identity on AWS](../../machine-workload-identity/deployment/aws.mdx)
 </Admonition>
 
@@ -329,8 +329,8 @@ joining the cluster.
 
 <Admonition type="warning">
 
-The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
-Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
+The EC2 join method is not available in Teleport Enterprise Cloud.
+Teleport Enterprise Cloud customers can use the [IAM join
 method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 </Admonition>
@@ -338,7 +338,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-[Joining Services via AWS EC2 Identity Document](../../enroll-resources/agents/aws-ec2.mdx).
+[Joining Services via AWS EC2 Identity Document](../../installation/agents/aws-ec2.mdx).
 </Admonition>
 
 ### Azure managed identity: `azure`
@@ -349,7 +349,7 @@ Azure Virtual Machine.
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Azure Managed Identity](../../enroll-resources/agents/azure.mdx).
+- [Joining Services via Azure Managed Identity](../../installation/agents/azure.mdx).
 - [Deploying Machine & Workload Identity on Azure](../../machine-workload-identity/deployment/azure.mdx)
 </Admonition>
 
@@ -397,7 +397,7 @@ on the Teleport process joining the cluster.
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with GCP](../../enroll-resources/agents/gcp.mdx).
+- How to [Join Services with GCP](../../installation/agents/gcp.mdx).
 - [Deploying Machine & Workload Identity on GCP](../../machine-workload-identity/deployment/gcp.mdx)
 </Admonition>
 
@@ -479,7 +479,7 @@ the pod enters the `Terminated` state.
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Kubernetes ServiceAccount Token](../../enroll-resources/agents/kubernetes.mdx)
+- [Joining Services via Kubernetes ServiceAccount Token](../../installation/agents/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes JWKS
@@ -591,7 +591,7 @@ Cloud Compute instance.
 (!docs/pages/includes/provision-token/oracle-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with Oracle Cloud](../../enroll-resources/agents/oracle.mdx).
+- How to [Join Services with Oracle Cloud](../../installation/agents/oracle.mdx).
 </Admonition>
 
 [discovery]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery

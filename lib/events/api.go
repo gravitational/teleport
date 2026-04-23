@@ -423,6 +423,13 @@ const (
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
 
+	// AppSessionLLMRequestSuccessEvent is emitted when an LLM inference request
+	// is sent and succeeds.
+	AppSessionLLMRequestSuccessEvent = "app.session.llm.request.success"
+	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
+	// is sent and fails.
+	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.
@@ -1016,6 +1023,13 @@ const (
 	InferencePolicyUpdateEvent = "inference_policy.update"
 	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
 	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
+	RetrievalModelCreateEvent = "retrieval_model.create"
+	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
+	RetrievalModelUpdateEvent = "retrieval_model.update"
+	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
+	RetrievalModelDeleteEvent = "retrieval_model.delete"
 
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
