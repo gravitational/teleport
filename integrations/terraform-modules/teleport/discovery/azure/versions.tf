@@ -12,9 +12,14 @@ terraform {
       version = ">= 3.0"
     }
 
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = ">= 18.5.1"
+      version = ">= 18.7.6"
     }
   }
 }
