@@ -96,19 +96,17 @@ func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerServ
 func (s *Service) forwardClientToServer(ctx context.Context, cancel context.CancelFunc,
 	client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer,
 	server accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) (err error) {
-	context.AfterFunc(ctx, func() {
+	defer func() {
 		// CloseSend always returns nil error.
 		_ = server.CloseSend()
-	})
+	}()
 	for {
 		req, err := client.Recv()
 		if errors.Is(err, io.EOF) {
-			// The client closed the send direction of its stream and won't send more messages.
-			// Close the send direction of the server stream and _do not_ cancel the context so that the
-			// client can receive any messages that the server sends after getting io.EOF from the client.
-			//
-			// CloseSend always returns nil error.
-			_ = server.CloseSend()
+			// The client closed the send direction and won't send more messages.
+			// Close the send direction of the server stream by returning and _do not_
+			// cancel the context so that the client can receive any messages that the
+			// server sends after getting io.EOF from the client.
 			return nil
 		}
 		if err != nil {
