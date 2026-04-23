@@ -134,6 +134,13 @@ variable "azure_managed_identity_name" {
   nullable    = false
 }
 
+variable "azure_managed_identity_use_name_prefix" {
+  description = "Whether `azure_managed_identity_name` is used as a name prefix (true) or as the exact name (false)."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "azure_role_assignment_scopes" {
   default     = []
   description = "The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`."
@@ -145,6 +152,13 @@ variable "azure_role_definition_name" {
   description = "Name for the Azure custom role definition created for Teleport Discovery."
   type        = string
   default     = "teleport-discovery"
+  nullable    = false
+}
+
+variable "azure_role_definition_use_name_prefix" {
+  description = "Whether `azure_role_definition_name` is used as a name prefix (true) or as the exact name (false)."
+  type        = bool
+  default     = true
   nullable    = false
 }
 

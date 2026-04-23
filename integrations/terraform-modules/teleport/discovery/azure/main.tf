@@ -18,7 +18,11 @@ locals {
   teleport_cluster_name         = local.teleport_ping.cluster_name
   teleport_ping                 = jsondecode(data.http.teleport_ping.response_body)
   teleport_proxy_public_url     = "https://${var.teleport_proxy_public_addr}"
-  teleport_resource_name_suffix = try("azure-${local.azure_subscription_id}", "")
+  teleport_resource_name_suffix = random_id.suffix.hex
+}
+
+resource "random_id" "suffix" {
+  byte_length = 4
 }
 
 data "azurerm_client_config" "this" {
