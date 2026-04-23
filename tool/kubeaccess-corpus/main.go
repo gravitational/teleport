@@ -321,6 +321,242 @@ func organicCases() ([]testCase, error) {
 }
 
 // ----------------------------------------------------------------------
+// Synthetic corpus — combinatorial coverage via parameterized role +
+// cluster templates. Go's CheckAccess computes the expected decision.
+// ----------------------------------------------------------------------
+
+// mkRole builds a V6 role with explicit allow/deny conditions and
+// runs CheckAndSetDefaults so serialized state matches post-normalization.
+func mkRole(name string, allow, deny types.RoleConditions) *types.RoleV6 {
+	r := &types.RoleV6{
+		Metadata: types.Metadata{Name: name, Namespace: apidefaults.Namespace},
+		Spec:     types.RoleSpecV6{Allow: allow, Deny: deny},
+	}
+	if err := r.CheckAndSetDefaults(); err != nil {
+		panic(err)
+	}
+	return r
+}
+
+// Role template builders. Each takes a unique name suffix so multiple
+// instances can coexist in a single role set.
+func emptyCondRole(name string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}},
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}})
+}
+
+func wildcardAllowRole(name string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}})
+}
+
+func singleLabelAllowRole(name, key, value string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{key: apiutils.Strings{value}},
+		},
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}})
+}
+
+func multiLabelAllowRole(name string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{
+			Namespaces: []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{
+				"env":  apiutils.Strings{"prod"},
+				"team": apiutils.Strings{"sre"},
+			},
+		},
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}})
+}
+
+func multiValueAllowRole(name, key string, values ...string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{key: apiutils.Strings(values)},
+		},
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}})
+}
+
+func globValueAllowRole(name, key, pattern string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{key: apiutils.Strings{pattern}},
+		},
+		types.RoleConditions{Namespaces: []string{apidefaults.Namespace}})
+}
+
+func denyOnLabelRole(name, key, value string) *types.RoleV6 {
+	return mkRole(name,
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{key: apiutils.Strings{value}},
+		})
+}
+
+// mkCluster builds a cluster with just static labels.
+func mkCluster(name string, staticLabels map[string]string) *types.KubernetesCluster {
+	return &types.KubernetesCluster{Name: name, StaticLabels: staticLabels}
+}
+
+func syntheticCases() ([]testCase, error) {
+	// Cluster pool.
+	clusters := []*types.KubernetesCluster{
+		mkCluster("c-empty", nil),
+		mkCluster("c-env-prod", map[string]string{"env": "prod"}),
+		mkCluster("c-env-staging", map[string]string{"env": "staging"}),
+		mkCluster("c-env-production-literal", map[string]string{"env": "production"}),
+		mkCluster("c-env-prod-team-sre", map[string]string{"env": "prod", "team": "sre"}),
+		mkCluster("c-team-sre", map[string]string{"team": "sre"}),
+	}
+
+	// Single-role scenarios. Each one-role set is exercised against every cluster.
+	type singleRole struct {
+		name    string
+		builder func() *types.RoleV6
+	}
+	singles := []singleRole{
+		{"empty", func() *types.RoleV6 { return emptyCondRole("r-empty") }},
+		{"wildcard", func() *types.RoleV6 { return wildcardAllowRole("r-wildcard") }},
+		{"env-prod-allow", func() *types.RoleV6 { return singleLabelAllowRole("r-env-prod", "env", "prod") }},
+		{"multi-label-allow", func() *types.RoleV6 { return multiLabelAllowRole("r-multi") }},
+		{"env-multi-value-allow", func() *types.RoleV6 { return multiValueAllowRole("r-multi-val", "env", "prod", "staging") }},
+		{"env-glob-allow", func() *types.RoleV6 { return globValueAllowRole("r-glob", "env", "prod*") }},
+		{"deny-env-prod", func() *types.RoleV6 { return denyOnLabelRole("r-deny", "env", "prod") }},
+	}
+
+	// Two-role scenarios — deliberately chosen to exercise interaction:
+	// wildcard+deny, two allows, mismatch+match, etc.
+	type pairRole struct {
+		name    string
+		builder func() []*types.RoleV6
+	}
+	pairs := []pairRole{
+		{"wildcard-plus-deny-env-prod", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				wildcardAllowRole("r-w"),
+				denyOnLabelRole("r-d", "env", "prod"),
+			}
+		}},
+		{"env-prod-allow-plus-env-staging-allow", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				singleLabelAllowRole("r-p", "env", "prod"),
+				singleLabelAllowRole("r-s", "env", "staging"),
+			}
+		}},
+		{"mismatch-plus-wildcard", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				singleLabelAllowRole("r-m", "nosuch", "value"),
+				wildcardAllowRole("r-w"),
+			}
+		}},
+		{"two-empty-roles", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				emptyCondRole("r-e1"),
+				emptyCondRole("r-e2"),
+			}
+		}},
+		{"wildcard-plus-wildcard", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				wildcardAllowRole("r-w1"),
+				wildcardAllowRole("r-w2"),
+			}
+		}},
+		{"env-prod-with-deny-team-sre", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				singleLabelAllowRole("r-p", "env", "prod"),
+				denyOnLabelRole("r-d", "team", "sre"),
+			}
+		}},
+	}
+
+	// Three-role scenarios — variety with ordering.
+	triples := []pairRole{
+		{"three-disjoint-allows", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				singleLabelAllowRole("r-a", "env", "prod"),
+				singleLabelAllowRole("r-b", "team", "sre"),
+				singleLabelAllowRole("r-c", "env", "staging"),
+			}
+		}},
+		{"wildcard-with-two-denies", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				wildcardAllowRole("r-w"),
+				denyOnLabelRole("r-d1", "env", "prod"),
+				denyOnLabelRole("r-d2", "team", "sre"),
+			}
+		}},
+		{"deny-first-then-allows", func() []*types.RoleV6 {
+			return []*types.RoleV6{
+				denyOnLabelRole("r-d", "env", "staging"),
+				singleLabelAllowRole("r-a", "env", "prod"),
+				wildcardAllowRole("r-w"),
+			}
+		}},
+	}
+
+	out := make([]testCase, 0, 200)
+
+	emit := func(name string, roles []*types.RoleV6, cluster *types.KubernetesCluster) error {
+		expected, err := runCheckAccess(roles, cluster)
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		jroles := make([]roleJSON, 0, len(roles))
+		for _, r := range roles {
+			jroles = append(jroles, roleToJSON(r))
+		}
+		out = append(out, testCase{
+			Name:     "synthetic/" + name,
+			Source:   "synthetic",
+			Roles:    jroles,
+			Cluster:  clusterToJSON(cluster.Name, cluster.StaticLabels, cluster.DynamicLabels),
+			Request:  nil,
+			Expected: expected,
+		})
+		return nil
+	}
+
+	for _, s := range singles {
+		for _, c := range clusters {
+			if err := emit(s.name+"_on_"+c.Name, []*types.RoleV6{s.builder()}, c); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, p := range pairs {
+		for _, c := range clusters {
+			if err := emit(p.name+"_on_"+c.Name, p.builder(), c); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, t := range triples {
+		for _, c := range clusters {
+			if err := emit(t.name+"_on_"+c.Name, t.builder(), c); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Deterministic sort by case name.
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// ----------------------------------------------------------------------
 // Entry point
 // ----------------------------------------------------------------------
 
@@ -329,7 +565,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	c := corpus{Cases: organic}
+	synthetic, err := syntheticCases()
+	if err != nil {
+		return err
+	}
+	all := append(organic, synthetic...)
+	c := corpus{Cases: all}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(c)
