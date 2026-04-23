@@ -420,9 +420,8 @@ func (ws *WebSessionV2) GetEarliestExpiry() time.Time {
 	if ws.Spec.Usage == WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
 		return ws.Spec.Expires
 	}
-	// Reimplement the "min, treating zero as infinity" semantics from
-	// lib/backend.EarliestExpiry; the api/ module deliberately does not
-	// depend on lib/backend.
+	// Return the earlier of the two expiries, treating a zero time as "no
+	// expiry" rather than the epoch.
 	bearer, sess := ws.Spec.BearerTokenExpires, ws.Spec.Expires
 	switch {
 	case bearer.IsZero():
