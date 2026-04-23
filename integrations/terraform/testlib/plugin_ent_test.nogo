@@ -1,0 +1,18 @@
+package testlib
+
+import (
+	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/plugin"
+)
+
+func init() {
+	NewPlugin = func(mod modules.Modules) (plugin.Plugin, error) {
+		return eauth.NewPlugin(
+			eauth.Config{
+				License: eauth.ValidLicense{},
+				Modules: mod,
+			},
+		)
+	}
+}
