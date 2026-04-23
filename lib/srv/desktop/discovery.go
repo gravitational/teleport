@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -414,6 +415,22 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 		// Only create the watcher when dynamic registration is enabled.
 		var dynamicDesktopUpdates chan []types.DynamicWindowsDesktop
 		if len(s.cfg.ResourceMatchers) > 0 {
+			// Pre-populate dynamic desktops. This covers the case where
+			// the LDAP discovery happens before dynamic desktops are
+			// received from the watcher and ensures that dynamically
+			// registered hosts don't get deleted.
+			for dynamicDesktop, err := range clientutils.Resources(
+				ctx,
+				s.cfg.AccessPoint.ListDynamicWindowsDesktops,
+			) {
+				if err != nil {
+					continue
+				}
+				if d, err := s.toWindowsDesktop(dynamicDesktop); err == nil {
+					dynamicDesktops[d.GetName()] = d
+				}
+			}
+
 			dynamicWatcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
 				DynamicWindowsDesktopGetter: s.cfg.AccessPoint,
 				ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -432,20 +449,24 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 		// If we got here, the reconciler is running.
 		errCh <- nil
 
-		// Do periodic reconciliations, using the discovery interval if LDAP discovery
-		// is enabled, otherwise using the default interval.
 		var ldapDiscoveryTimer <-chan time.Time
 		if len(s.cfg.Discovery) > 0 {
-			timer := s.cfg.Clock.NewTicker(s.cfg.DiscoveryInterval)
-			defer timer.Stop()
-			ldapDiscoveryTimer = timer.Chan()
+			int := interval.New(interval.Config{
+				// Use a short FirstDuration so we don't have to wait a full
+				// discovery interval before hosts show up.
+				FirstDuration: retryutils.SeventhJitter(2 * time.Second),
+				Duration:      s.cfg.DiscoveryInterval,
+				Jitter:        retryutils.SeventhJitter,
+				Clock:         s.cfg.Clock,
+			})
+			defer int.Stop()
 
-			// perform one LDAP discovery right away so that we don't have to wait
-			// for a full discovery interval for hosts to show up
+			ldapDiscoveryTimer = int.Next()
+
+			// Pre-populate LDAP desktops but don't reconcile yet.
+			// This covers the case when the dynamic watcher triggers
+			// before LDAP discovery and makes sure LDAP hosts don't get deleted.
 			ldapDesktops = s.getDesktopsFromLDAP()
-			if err := reconciler.Reconcile(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				s.cfg.Logger.ErrorContext(s.closeCtx, "Initial LDAP reconciliation failed", "error", err)
-			}
 		}
 
 		interval := retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)
@@ -459,7 +480,7 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 
 			// Changes to dynamic desktops were detected.
 			case desktops := <-dynamicDesktopUpdates:
-				s.cfg.Logger.DebugContext(ctx, "Reconciling due to dynamic desktop change")
+				s.cfg.Logger.DebugContext(ctx, "Reconciling due to dynamic desktop change", "count", len(desktops))
 				clear(dynamicDesktops)
 				for _, dynamicDesktop := range desktops {
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)

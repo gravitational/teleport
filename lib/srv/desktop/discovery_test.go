@@ -169,9 +169,90 @@ func TestDNSErrors(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err := s.lookupDesktop(context.Background(), "$invalid hostname")
+	_, err := s.lookupDesktop(t.Context(), "")
 	require.Less(t, time.Since(start), dnsQueryTimeout-1*time.Second)
 	require.Error(t, err)
+}
+
+func TestFirstReconcile(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "test",
+			Dir:         t.TempDir(),
+			AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+		tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+		client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+		logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+		if testing.Verbose() {
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		}
+
+		s := &WindowsService{
+			cfg: WindowsServiceConfig{
+				Heartbeat: HeartbeatConfig{
+					HostUUID: "1234",
+				},
+				Logger:      logger,
+				Clock:       clockwork.NewRealClock(),
+				AuthClient:  client,
+				AccessPoint: client,
+
+				DiscoveryInterval: 5 * time.Minute,
+				Discovery: []servicecfg.LDAPDiscoveryConfig{
+					{BaseDN: "*"},
+				},
+				ResourceMatchers: []services.ResourceMatcher{{
+					Labels: types.Labels{"foo": {"bar"}},
+				}},
+			},
+
+			// pre-cache a TLS config so we don't ask auth to issue a real cert
+			// (there isn't a real LDAP server here to connect to)
+			ldapTLSConfig:          new(tls.Config),
+			ldapTLSConfigExpiresAt: time.Now().Add(24 * time.Hour),
+		}
+
+		// simulate a dynamically-registered desktop already existing
+		// in the backend while the service is starting up
+		dynamicDesktop, err := types.NewDynamicWindowsDesktopV1(
+			"test-desktop",
+			map[string]string{"foo": "bar"},
+			types.DynamicWindowsDesktopSpecV1{
+				NonAD: true,
+				Addr:  "192.168.1.103:3389",
+			},
+		)
+		require.NoError(t, err)
+		_, err = client.DynamicDesktopClient().UpsertDynamicWindowsDesktop(t.Context(), dynamicDesktop)
+		require.NoError(t, err)
+
+		desktop, err := s.toWindowsDesktop(dynamicDesktop)
+		require.NoError(t, err)
+		require.NoError(t, client.UpsertWindowsDesktop(t.Context(), desktop))
+
+		require.NoError(t, s.startReconciler(t.Context()))
+		synctest.Wait()
+
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+
+		// Make sure the dynamic desktop wasn't deleted
+		desktops, err := client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{})
+		require.NoError(t, err)
+		require.Len(t, desktops, 1)
+	})
 }
 
 func TestDynamicWindowsDiscovery(t *testing.T) {
