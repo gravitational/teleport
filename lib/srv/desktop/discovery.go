@@ -414,6 +414,9 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 
 		// Only create the watcher when dynamic registration is enabled.
 		var dynamicDesktopUpdates chan []types.DynamicWindowsDesktop
+		var periodicUpdate <-chan time.Time
+		reset := func(time.Duration) {}
+		periodicInterval := retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)
 		if len(s.cfg.ResourceMatchers) > 0 {
 			// Pre-populate dynamic desktops. This covers the case where
 			// the LDAP discovery happens before dynamic desktops are
@@ -424,7 +427,7 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 				s.cfg.AccessPoint.ListDynamicWindowsDesktops,
 			) {
 				if err != nil {
-					continue
+					break
 				}
 				if d, err := s.toWindowsDesktop(dynamicDesktop); err == nil {
 					dynamicDesktops[d.GetName()] = d
@@ -444,6 +447,11 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 			}
 			defer dynamicWatcher.Close()
 			dynamicDesktopUpdates = dynamicWatcher.ResourcesC
+
+			periodicReconcile := s.cfg.Clock.NewTicker(periodicInterval)
+			defer periodicReconcile.Stop()
+			periodicUpdate = periodicReconcile.Chan()
+			reset = periodicReconcile.Reset
 		}
 
 		// If we got here, the reconciler is running.
@@ -468,10 +476,6 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 			// before LDAP discovery and makes sure LDAP hosts don't get deleted.
 			ldapDesktops = s.getDesktopsFromLDAP()
 		}
-
-		interval := retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)
-		periodicReconcile := s.cfg.Clock.NewTicker(interval)
-		defer periodicReconcile.Stop()
 
 		for {
 			select {
@@ -498,7 +502,7 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 					continue
 				}
 
-				periodicReconcile.Reset(interval)
+				reset(periodicInterval)
 
 			case <-ldapDiscoveryTimer:
 				s.cfg.Logger.DebugContext(ctx, "Performing LDAP discovery")
@@ -509,7 +513,7 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 
 			// Periodic reconcile, which serves to  push out the expiry of dynamic hosts if
 			// no other changes have triggered the watcher.
-			case <-periodicReconcile.Chan():
+			case <-periodicUpdate:
 				s.cfg.Logger.DebugContext(ctx, "Performing periodic reconciliation")
 				for _, desktop := range dynamicDesktops {
 					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
