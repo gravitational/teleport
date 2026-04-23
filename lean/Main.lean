@@ -1,14 +1,26 @@
 import Lean.Data.Json
 import Teleport
 
-open Lean (Json)
+open Teleport
 
-/-- Placeholder differential-test driver. Reads the corpus path from
-argv, parses the top-level `{cases: [...]}` structure, and reports the
-case count. The actual `checkAccess`-vs-expected comparison is wired
-in by the `differential-loop` task; this skeleton just proves the
-pipeline compiles and can be invoked from `scripts/diff.sh` on an
-empty corpus. -/
+private def decisionStr : Decision → String
+  | .allow => "allow"
+  | .deny => "deny"
+
+/-- A placeholder request used for cluster-level cases where the corpus
+sets `request: null`. The v0 matchers ignore the request, so this is
+purely a syntactic stand-in. -/
+private def clusterWideRequest : Request :=
+  { resource := none, verb := .get, isClusterWide := true }
+
+private def runCase (tc : Teleport.TestCase) : Option String :=
+  let req := tc.request.getD clusterWideRequest
+  let actual := checkAccess tc.roles tc.cluster req
+  if actual != tc.expected then
+    some s!"{tc.name} | expected={decisionStr tc.expected} actual={decisionStr actual}"
+  else
+    none
+
 def main (args : List String) : IO UInt32 := do
   match args with
   | [] =>
@@ -16,15 +28,13 @@ def main (args : List String) : IO UInt32 := do
     return 1
   | path :: _ =>
     let content ← IO.FS.readFile path
-    match Json.parse content with
+    match decodeCorpus content with
     | .error e =>
-      IO.eprintln s!"parse error: {e}"
+      IO.eprintln s!"decode error: {e}"
       return 1
-    | .ok j =>
-      match j.getObjVal? "cases" >>= Json.getArr? with
-      | .error e =>
-        IO.eprintln s!"invalid schema (expected top-level `cases` array): {e}"
-        return 1
-      | .ok cases =>
-        IO.println s!"cases={cases.size} mismatches=0"
-        return 0
+    | .ok cases =>
+      let mismatches := cases.filterMap runCase
+      for m in mismatches do
+        IO.println m
+      IO.println s!"cases={cases.length} mismatches={mismatches.length}"
+      return if mismatches.isEmpty then 0 else 1
