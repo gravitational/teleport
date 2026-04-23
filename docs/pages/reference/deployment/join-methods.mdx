@@ -289,9 +289,11 @@ This join method is recommended for on-prem environments
 without a specialized [delegated join method](#delegated-join-methods).
 
 The `bound_keypair` was designed for and works best with Machine & Workload ID
-bots, but can also be used to join standard Teleport agents as of Teleport
-v18.8. Note that it offers limited benefits for traditional Teleport Agents as
-they are still ultimately issued long-lived certificates.
+bots where certificates are refreshed frequently, but can also be used to join
+standard Teleport agents (as of Teleport v18.8) which are issued long-lived
+certificates. Note that Bound Keypair for agents is subject to
+[certain limitations](../machine-workload-identity/bound-keypair/admin-guide.mdx#limitations-of-bound-keypair-joining-for-teleport-agents)
+that should be acknowledged before use.
 
 (!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
 
