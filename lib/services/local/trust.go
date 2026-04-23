@@ -929,7 +929,7 @@ func (s *CA) ListTunnelConnections(
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			slog.WarnContext(ctx, "Skipping item during ListTunnelConnections because conversion from backend item failed", "key", item.Key, "error", err)
+			s.logger.WarnContext(ctx, "Skipping item during ListTunnelConnections because conversion from backend item failed", "key", item.Key, "error", err)
 			continue
 		}
 		conns = append(conns, conn)
