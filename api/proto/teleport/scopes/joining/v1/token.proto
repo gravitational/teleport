@@ -249,6 +249,8 @@ message Azure {
     string subscription = 1;
     // A list of Azure resource groups the node is allowed to join from.
     repeated string resource_groups = 2;
+    // Tenant is the Azure Tenant ID.
+    string tenant = 3;
   }
   // A list of Rules for allowing use of this token. A node must match at least one
   // allow rule in order to use this token.

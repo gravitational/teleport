@@ -570,6 +570,14 @@ func (a *Server) GenerateHostCertsForJoin(
 			},
 			AgentScope:         token.GetAssignedScope(),
 			ImmutableLabelHash: joining.HashImmutableLabels(token.GetImmutableLabels()),
+
+			// Include the join token name for bound keypair locking.
+			// `GetSafeName()` produces a censored name for `token` joining,
+			// which isn't ideal, but that's better than embedding the token in
+			// plaintext and we don't automatically target locks at `token`-type
+			// tokens. Other join methods (especially bound_keypair) return the
+			// full token name.
+			JoinToken: token.GetSafeName(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
