@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -73,9 +74,9 @@ func TestRotateKey(t *testing.T) {
 				Logger:                    logtest.NewLogger(),
 				Uploader:                  fakeUploader{},
 				KeyRotater:                rotater,
-				SessionStreamer:           &fakeSessionStreamer{},
 				RecordingMetadataProvider: recordingmetadata.NewProvider(),
 				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+				OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -120,9 +121,9 @@ func TestCompleteRotation(t *testing.T) {
 				Logger:                    logtest.NewLogger(),
 				Uploader:                  fakeUploader{},
 				KeyRotater:                rotater,
-				SessionStreamer:           &fakeSessionStreamer{},
 				RecordingMetadataProvider: recordingmetadata.NewProvider(),
 				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+				OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -170,9 +171,9 @@ func TestRollbackRotation(t *testing.T) {
 				Logger:                    logtest.NewLogger(),
 				Uploader:                  fakeUploader{},
 				KeyRotater:                rotater,
-				SessionStreamer:           &fakeSessionStreamer{},
 				RecordingMetadataProvider: recordingmetadata.NewProvider(),
 				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+				OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -219,9 +220,9 @@ func TestGetRotationState(t *testing.T) {
 				Logger:                    logtest.NewLogger(),
 				Uploader:                  fakeUploader{},
 				KeyRotater:                rotater,
-				SessionStreamer:           &fakeSessionStreamer{},
 				RecordingMetadataProvider: recordingmetadata.NewProvider(),
 				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+				OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -325,22 +326,6 @@ func (f *fakeKeyRotater) GetRotationState(ctx context.Context) ([]*recordingencr
 	return f.keys, nil
 }
 
-type fakeSessionStreamer struct{}
-
-func (f *fakeSessionStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	returnChan := make(chan apievents.AuditEvent, 1)
-	errChan := make(chan error, 1)
-	close(errChan)
-	events := eventstest.GenerateTestSession(eventstest.SessionParams{
-		UserName:  "alice",
-		SessionID: string(sessionID),
-		ServerID:  "testcluster",
-		PrintData: []string{"net", "stat"},
-	})
-	returnChan <- events[len(events)-1]
-	return returnChan, nil
-}
-
 func TestSessionCompleter(t *testing.T) {
 	sessionID := session.ID(uuid.NewString())
 
@@ -361,9 +346,16 @@ func TestSessionCompleter(t *testing.T) {
 		Logger:                    logtest.NewLogger(),
 		Uploader:                  fakeUploader{},
 		KeyRotater:                newFakeKeyRotater(),
-		SessionStreamer:           &fakeSessionStreamer{},
 		RecordingMetadataProvider: metadataProvider,
 		SessionSummarizerProvider: summarizerProvider,
+		OnUploadComplete: func(_ context.Context, sid session.ID) (apievents.AuditEvent, error) {
+			now := time.Now()
+			return &apievents.SessionEnd{
+				SessionMetadata: apievents.SessionMetadata{SessionID: string(sid)},
+				StartTime:       now.Add(-time.Minute),
+				EndTime:         now,
+			}, nil
+		},
 	}
 
 	service, err := recordingencryptionv1.NewService(cfg)
@@ -409,6 +401,76 @@ func (f *fakeSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 func (f *fakeSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := f.Called(ctx, sessionID)
 	return args.Error(0)
+}
+
+// TestCompleteUploadRecoversMissingSessionEnd verifies that when an encrypted
+// session recording has no session end event (e.g. due to a connection drop),
+// CompleteUpload uses the OnUploadComplete callback to recover and emit one.
+func TestCompleteUploadRecoversMissingSessionEnd(t *testing.T) {
+	sessionID := session.ID(uuid.NewString())
+	const clusterName = "test-cluster"
+
+	userMeta := apievents.UserMetadata{User: "alice", Login: "root"}
+	sessionMeta := apievents.SessionMetadata{SessionID: string(sessionID)}
+
+	// Session events without a session end — simulates a dropped connection.
+	sessionEvents := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata:        apievents.Metadata{Type: events.SessionStartEvent, ClusterName: clusterName},
+			UserMetadata:    userMeta,
+			SessionMetadata: sessionMeta,
+			TerminalSize:    "80:25",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{Type: events.SessionPrintEvent},
+		},
+	}
+
+	auditLog := &eventstest.MockRecorderEmitter{}
+	streamer := eventstest.NewFakeStreamer(sessionEvents, 0)
+
+	slog := logtest.NewLogger()
+
+	cfg := recordingencryptionv1.ServiceConfig{
+		Authorizer:                &fakeAuthorizer{},
+		Logger:                    slog,
+		Uploader:                  fakeUploader{},
+		KeyRotater:                newFakeKeyRotater(),
+		RecordingMetadataProvider: recordingmetadata.NewProvider(),
+		SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+		OnUploadComplete: func(ctx context.Context, sid session.ID) (apievents.AuditEvent, error) {
+			return events.FindOrRecoverSessionEnd(ctx, events.FindOrRecoverSessionEndConfig{
+				ClusterName: clusterName,
+				Streamer:    streamer,
+				SessionID:   sid,
+				AuditLog:    auditLog,
+				Log:         slog,
+				Clock:       clockwork.NewRealClock(),
+			})
+		},
+	}
+
+	service, err := recordingencryptionv1.NewService(cfg)
+	require.NoError(t, err)
+
+	ctx := withAuthCtx(t.Context(), newServiceAuthCtx())
+	_, err = service.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
+		Upload: &recordingencryptionv1pb.Upload{
+			SessionId:   string(sessionID),
+			InitiatedAt: timestamppb.Now(),
+			UploadId:    uuid.NewString(),
+		},
+	})
+	require.NoError(t, err)
+
+	// The recovered session end event must have been emitted to the audit log.
+	emitted := auditLog.Events()
+	require.Len(t, emitted, 1)
+	sessionEnd, ok := emitted[0].(*apievents.SessionEnd)
+	require.True(t, ok, "expected *apievents.SessionEnd, got %T", emitted[0])
+	require.Equal(t, string(sessionID), sessionEnd.GetSessionID())
+	require.Equal(t, userMeta, sessionEnd.UserMetadata)
+	require.True(t, sessionEnd.Interactive)
 }
 
 func newServiceAuthCtx() authz.Context {
