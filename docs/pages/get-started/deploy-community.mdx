@@ -300,7 +300,8 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 
 1. Visit the provided URL in order to create your Teleport user.
 
-   The signup flow creates a local Teleport user with the following preset roles:
+   The `tctl` command you ran earlier created a local Teleport user with the
+   following preset roles:
    
    |Role|Permissions|
    |---|---|
@@ -362,7 +363,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin
   Cluster:            teleport.example.com
-  Roles:              access, editor
+  Roles:              access, auditor, editor
   Logins:             root, ubuntu, ec2-user
   Kubernetes:         enabled
   Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]

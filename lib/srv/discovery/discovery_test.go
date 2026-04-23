@@ -4134,17 +4134,38 @@ type fakeAccessPoint struct {
 	app                 types.Application
 	upsertedServerInfos chan types.ServerInfo
 	reports             map[string][]discoveryconfig.Status
+	discoveryConfigsMu  sync.RWMutex
+	discoveryConfigs    map[string]*discoveryconfig.DiscoveryConfig
+
+	mtx sync.Mutex
 }
 
 func (f *fakeAccessPoint) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	f.reports[name] = append(f.reports[name], status)
-	return nil, nil
+
+	f.discoveryConfigsMu.Lock()
+	defer f.discoveryConfigsMu.Unlock()
+	if _, ok := f.discoveryConfigs[name]; !ok {
+		f.discoveryConfigs[name] = &discoveryconfig.DiscoveryConfig{}
+	}
+	f.discoveryConfigs[name].Status = status
+	return f.discoveryConfigs[name], nil
+}
+
+func (f *fakeAccessPoint) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	f.discoveryConfigsMu.RLock()
+	defer f.discoveryConfigsMu.RUnlock()
+	if config, ok := f.discoveryConfigs[name]; ok {
+		return config, nil
+	}
+	return nil, trace.NotFound("not found")
 }
 
 func newFakeAccessPoint() *fakeAccessPoint {
 	return &fakeAccessPoint{
 		upsertedServerInfos: make(chan types.ServerInfo),
 		reports:             make(map[string][]discoveryconfig.Status),
+		discoveryConfigs:    make(map[string]*discoveryconfig.DiscoveryConfig),
 	}
 }
 
@@ -4215,6 +4236,18 @@ func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		return f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
 	}
 	return newFakeWatcher(), nil
+}
+
+func (m *fakeAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	if !m.mtx.TryLock() {
+		return nil, trace.LimitExceeded("semaphore is already locked")
+	}
+	return &types.SemaphoreLease{Expires: params.Expires}, nil
+}
+
+func (m *fakeAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	m.mtx.Unlock()
+	return nil
 }
 
 type fakeWatcher struct{}

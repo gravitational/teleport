@@ -121,7 +121,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 
 	// Servers and presence heartbeat
-	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.WithAuth(srv.keepAliveNode))
 	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
@@ -153,6 +152,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/proxies", httpMigratedHandler)
 	srv.GET("/:version/users/:user/web/sessions/:sid", httpMigratedHandler)
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", httpMigratedHandler)
+	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", httpMigratedHandler)
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -288,18 +288,6 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 		}
 	default:
 		return nil, trace.BadParameter("unknown server role %q", role)
-	}
-	return message("ok"), nil
-}
-
-// keepAliveNode updates node TTL in the backend
-func (s *APIServer) keepAliveNode(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	var handle types.KeepAlive
-	if err := httplib.ReadJSON(r, &handle); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
