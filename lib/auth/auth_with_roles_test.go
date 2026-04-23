@@ -3113,10 +3113,24 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		},
 	})
 
+	scopedCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "scoped-cluster",
+			Labels: map[string]string{
+				types.CloudLabel: types.CloudAWS,
+			},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	scopedCluster.SetOrigin(types.OriginCloud)
+	scopedCluster.Scope = "/test"
+
 	t.Run("Create", func(t *testing.T) {
 		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
+		require.True(t, trace.IsBadParameter(discoveryClt.CreateKubernetesCluster(ctx, scopedCluster)))
 	})
 	t.Run("Read", func(t *testing.T) {
 		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
@@ -3138,6 +3152,12 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
+
+		// try to add a scope to the cluster that was successfully created
+		scopedEKSCluster, ok := eksCluster.Copy().(*types.KubernetesClusterV3)
+		require.True(t, ok, "expected eksCluster copy to be a *types.KubernetesClusterV3")
+		scopedEKSCluster.Scope = "/test"
+		require.True(t, trace.IsBadParameter(discoveryClt.UpdateKubernetesCluster(ctx, scopedEKSCluster)))
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
