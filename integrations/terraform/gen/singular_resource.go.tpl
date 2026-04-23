@@ -23,6 +23,9 @@ import (
 {{- if .WithNonce}}
 	 "math"
 {{- end}}
+{{- if .DefaultSubKind }}
+	"strings"
+{{- end }}
 {{- range $i, $a := .ExtraImports }}
 	{{$a}}
 {{- end }}
@@ -543,11 +546,17 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+{{- if .DefaultSubKind}}
+	subKind := {{.DefaultSubKind}}
+	if before, _, ok := strings.Cut(req.ID, "/"); ok {
+		subKind = before
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
 		{{- if .DefaultSubKind}}
-		SubKind: {{.DefaultSubKind}},
+		SubKind: subKind,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},

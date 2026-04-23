@@ -20,6 +20,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 	apitypes "github.com/gravitational/teleport/lib/scopes/access"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -362,9 +363,15 @@ func (r resourceTeleportScopedRoleAssignment) Delete(ctx context.Context, req tf
 
 // ImportState imports ScopedRoleAssignment state
 func (r resourceTeleportScopedRoleAssignment) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+	subKind := "dynamic"
+	name := req.ID
+	if before, after, ok := strings.Cut(req.ID, "/"); ok {
+		subKind = before
+		name = after
+	}
 	scopedRoleAssignmentGetResp, err := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
-		Name: req.ID,
-		SubKind: "dynamic",
+		Name: name,
+		SubKind: subKind,
 	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
