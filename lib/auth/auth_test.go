@@ -1385,8 +1385,13 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
-	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
-	s := newAuthSuite(t)
+	t.Parallel()
+	s, err := newTestPack(t.Context(), testPackOptions{
+		DataDir: t.TempDir(),
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.a.Close()) })
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)

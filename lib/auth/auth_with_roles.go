@@ -2218,6 +2218,7 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindDatabaseServer,
 		types.KindDatabaseService,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindWindowsDesktopService,
 		types.KindNode,
 		types.KindKubeServer,
@@ -2576,14 +2577,6 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 	}
 
 	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
-}
-
-// DeleteAllProxies deletes all proxies
-func (a *ServerWithRoles) DeleteAllProxies() error {
-	if err := a.authorizeAction(types.KindProxy, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllProxies()
 }
 
 // DeleteProxy deletes proxy by name

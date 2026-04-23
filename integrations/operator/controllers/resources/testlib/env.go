@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -80,7 +81,7 @@ func ValidRandomResourceName(prefix string) string {
 }
 
 func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.TeleInstance, string) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -88,16 +89,18 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.Tel
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
 		Logger:      slog.Default(),
+		Modules:     testModules,
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.Modules = testModules
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
@@ -138,6 +141,8 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.Tel
 				types.NewRule(types.KindAccessMonitoringRule, unrestricted),
 				types.NewRule(types.KindSAMLIdPServiceProvider, unrestricted),
 				types.NewRule(types.KindScopedToken, unrestricted),
+				types.NewRule(access.KindScopedRole, unrestricted),
+				types.NewRule(access.KindScopedRoleAssignment, unrestricted),
 			},
 		},
 	})

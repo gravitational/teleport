@@ -46,6 +46,7 @@ require (
 	github.com/ClickHouse/ch-go v0.69.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.37.2
 	github.com/DanielTitkov/go-adaptive-cards v0.2.2
+	github.com/DataDog/datadog-agent/pkg/template v0.77.2
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -624,7 +625,7 @@ require (
 // when changing the replace directives make sure to also apply the same changes
 // to modules that require github.com/gravitational/teleport
 replace (
-	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
+	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20260417152838-9efcbe7e5d61
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.3
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4

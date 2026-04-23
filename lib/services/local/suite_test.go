@@ -2227,8 +2227,9 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.PresenceS.GetProxies()
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteAllProxies()
-				require.NoError(t, err)
+				for _, p := range out {
+					require.NoError(t, s.PresenceS.DeleteProxy(ctx, p.GetName()))
+				}
 
 				return out[0]
 			},

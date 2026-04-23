@@ -422,15 +422,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllProxies deletes all proxies
-func (c *HTTPClient) DeleteAllProxies() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // DeleteProxy deletes proxy by name
 func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
 	if name == "" {

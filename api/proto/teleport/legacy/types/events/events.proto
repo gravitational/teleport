@@ -5070,6 +5070,7 @@ message OneOf {
     events.RetrievalModelCreate RetrievalModelCreate = 250;
     events.RetrievalModelUpdate RetrievalModelUpdate = 251;
     events.RetrievalModelDelete RetrievalModelDelete = 252;
+    events.AzureRun AzureRun = 253;
   }
 }
 
@@ -6324,6 +6325,74 @@ message SSMRun {
 
   // PlatformVersion is the version of the operating system running on the EC2 instance.
   string PlatformVersion = 13 [(gogoproto.jsontag) = "platform_version"];
+}
+
+// AzureMetadata contains common Azure resource identity and location fields
+// shared across Azure event types.
+message AzureMetadata {
+  // SubscriptionID is the Azure subscription ID.
+  string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id"];
+
+  // ResourceGroup is the Azure resource group.
+  string ResourceGroup = 2 [(gogoproto.jsontag) = "resource_group"];
+
+  // ResourceID is the full Azure resource ID.
+  string ResourceID = 3 [(gogoproto.jsontag) = "resource_id"];
+
+  // Region is the Azure region of the resource.
+  string Region = 4 [(gogoproto.jsontag) = "region"];
+}
+
+// AzureVMMetadata contains Azure virtual machine specific fields.
+message AzureVMMetadata {
+  // VMID is the Azure VM ID.
+  string VMID = 1 [(gogoproto.jsontag) = "vm_id"];
+
+  // VMName is the name of the Azure virtual machine.
+  string VMName = 2 [(gogoproto.jsontag) = "vm_name"];
+}
+
+// AzureRun is emitted after an Azure Run Command completes execution,
+// which is commonly done to install Teleport on discovered Azure VMs.
+message AzureRun {
+  // Metadata is the common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AzureMetadata is the Azure resource metadata.
+  AzureMetadata AzureMetadata = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AzureVMMetadata is the Azure virtual machine metadata.
+  AzureVMMetadata AzureVMMetadata = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ExitCode is the exit code resulting from the execution.
+  int32 ExitCode = 4 [(gogoproto.jsontag) = "exit_code"];
+
+  // ExecutionState is the final execution state of the command.
+  string ExecutionState = 5 [(gogoproto.jsontag) = "execution_state"];
+
+  // StandardOutput is the stdout of the executed command.
+  string StandardOutput = 6 [(gogoproto.jsontag) = "stdout"];
+
+  // StandardError is the stderr of the executed command.
+  string StandardError = 7 [(gogoproto.jsontag) = "stderr"];
+
+  // APIError is the error message returned if the Azure Run Command API call fails.
+  string APIError = 8 [(gogoproto.jsontag) = "api_error,omitempty"];
+
+  // Status is the resulting status of command derived from other fields.
+  string Status = 9 [(gogoproto.jsontag) = "status,omitempty"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends

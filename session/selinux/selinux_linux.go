@@ -28,8 +28,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
 )

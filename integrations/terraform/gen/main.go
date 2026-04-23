@@ -23,7 +23,8 @@ import (
 	"os"
 	"path"
 	"strings"
-	"text/template"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
