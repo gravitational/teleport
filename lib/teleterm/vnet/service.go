@@ -273,6 +273,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
 	}
 
+	var ipv4CIDRRanges []string
 	nsa := &diagv1.NetworkStackAttempt{}
 	if ns, err := s.getNetworkStack(ctx); err != nil {
 		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR
@@ -280,9 +281,10 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	} else {
 		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK
 		nsa.NetworkStack = ns
+		ipv4CIDRRanges = ns.Ipv4CidrRanges
 	}
 
-	diagChecks, err := s.platformDiagChecks(ctx)
+	diagChecks, err := s.platformDiagChecks(ctx, ipv4CIDRRanges)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
