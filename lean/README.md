@@ -52,11 +52,11 @@ All in `Teleport/Theorems.lean`, no `sorry`.
 - **T3** prepending a matching-deny role forces deny
 - **T4** allow is preserved when new role has no matching deny
 - **T5** removing a no-deny role cannot grant access
+- **T6** wildcard allow grants access when no role matches a deny
 - **T7** empty allow labels never grant
 - **T8** under the production matcher path, empty deny labels deny all clusters
 - **T9** `checkAccess = .allow` is decidable
 - **T10** duplicate roles are idempotent
-- **T6** (wildcard grants) — deferred
 
 ## Run
 

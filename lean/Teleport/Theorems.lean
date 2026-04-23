@@ -103,6 +103,27 @@ theorem production_empty_deny_denies_all
   simp [denyMatchesProduction, effectiveDenyLabelsProduction, hLabels,
         hNs, labelMatch]
 
+/-- **T6** — A role with wildcard allow labels and matching allow
+namespaces grants access to any cluster, provided no other role in
+the set contributes a matching deny. -/
+theorem wildcard_allow_grants
+    (rs : RoleSet) (role : Role) (c : Cluster) (r : Request)
+    (hMem : role ∈ rs)
+    (hWildcard : role.allow.kubernetesLabels = [("*", ["*"])])
+    (hNs : namespaceMatch role.allow.namespaces c.teleportNs = true)
+    (hNoDeny : ∀ r' ∈ rs, denyMatches r' c r = false) :
+    checkAccess rs c r = .allow := by
+  rw [checkAccess_eq_allow_iff]
+  refine ⟨?_, ?_⟩
+  · -- no role in rs has a matching deny
+    rw [List.any_eq_false]
+    intro r' hMem'
+    simp [hNoDeny r' hMem']
+  · -- role has a matching allow
+    rw [List.any_eq_true]
+    refine ⟨role, hMem, ?_⟩
+    simp [allowMatches, hWildcard, hNs, labelMatch]
+
 /-- **T10** — Duplicate roles in the set do not change the decision.
 Follows from the fact that `any` is idempotent on duplicates. -/
 theorem duplicate_roles_idempotent (role : Role) (rs : RoleSet)
