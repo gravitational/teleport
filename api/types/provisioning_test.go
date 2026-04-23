@@ -1428,6 +1428,64 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "azure success with subscription",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Subscription: "00000000-0000-0000-0000-000000000001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure success with tenant only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Tenant: "00000000-0000-0000-0000-000000000002",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure missing subscription and tenant",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			desc: "azure devops success",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{

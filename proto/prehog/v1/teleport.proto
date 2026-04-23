@@ -148,6 +148,11 @@ message UserActivityRecord {
   repeated SessionSummariesAccessedRecord session_summaries_accessed = 25;
   // counter of access graph queries by this user.
   uint64 access_graph_queries = 26;
+  // counter of free-text session summary search queries submitted by this user.
+  uint64 session_summary_search_queries = 27;
+  // counter of free-text session summary search queries submitted by this user
+  // where the request included filters.
+  uint64 session_summary_search_queries_with_filters = 28;
 }
 
 // UserOrigin is the origin of a user account.

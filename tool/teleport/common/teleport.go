@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -52,6 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -780,7 +783,13 @@ Examples:
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
-		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
+		// Join failures use a specific exit code so that SSM can classify the failure for the user task.
+		// The normal utils.FatalError path always exits with code 1, so we handle this case separately.
+		var joinErr *installer.JoinFailureError
+		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.As(err, &joinErr) {
+			writeInstallJoinFailureError(os.Stderr, joinErr)
+			os.Exit(int(installstatus.JoinFailure))
+		}
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
@@ -888,6 +897,23 @@ Examples:
 	}
 
 	return app, command, conf
+}
+
+// writeInstallJoinFailureError writes a user-facing join-failure error
+// message to w, with each diagnostic section on its own line for
+// readability.
+func writeInstallJoinFailureError(w io.Writer, joinErr *installer.JoinFailureError) {
+	fmt.Fprintln(w, "ERROR: agent failed to join the cluster")
+	fmt.Fprintf(w, "%s\n", joinErr.Message)
+	if joinErr.ServiceDiagnostics != "" {
+		fmt.Fprintf(w, "%s\n", joinErr.ServiceDiagnostics)
+	}
+	if joinErr.LastError != "" {
+		fmt.Fprintf(w, "Last readyz error: %s\n", joinErr.LastError)
+	}
+	if joinErr.JournalOutput != "" {
+		fmt.Fprintf(w, "Journal output:\n%s\n", joinErr.JournalOutput)
+	}
 }
 
 // OnStart is the handler for "start" CLI command

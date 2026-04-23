@@ -455,6 +455,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Log:               cfg.Logger,
 		InstanceListeners: *cfg.Listeners,
 		Fds:               cfg.Fds,
+		Modules:           cfg.Modules,
 	}
 
 	secrets := InstanceSecrets{

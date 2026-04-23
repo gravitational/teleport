@@ -20,7 +20,7 @@ Columns:
 |SQL Name|Type|Description|
 |---|---|---|
 {{- range .Columns }}
-|{{ .NameSQL }}|{{ .Type }}|{{ PrepareDescription . }}|
+|{{ NameSQL . }}|{{ .Type }}|{{ PrepareDescription . }}|
 {{- end }}
 
 {{ end }}

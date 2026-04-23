@@ -673,20 +673,6 @@ func (r *OIDCAuthRequest) Check() error {
 	return nil
 }
 
-func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
-	if e.GroupType != "" {
-		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
-			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
-		}
-	}
-
-	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // GetEntraIDGroupsProvider returns Entra ID groups provider.
 func (o *OIDCConnectorV3) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
 	return o.Spec.EntraIdGroupsProvider

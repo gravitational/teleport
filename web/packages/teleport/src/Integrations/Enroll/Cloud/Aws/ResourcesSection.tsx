@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonText, Flex, Text } from 'design';
+import { Box, ButtonText, Flex, Text, Toggle } from 'design';
 import * as Icons from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { Option } from 'shared/components/Select';
+import { useRule } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import {
@@ -29,9 +32,25 @@ import {
   type Label,
   type LabelsRule,
 } from 'teleport/components/LabelsInput/LabelsInput';
+import { Regions as AwsRegion } from 'teleport/services/integrations';
 
 import { CircleNumber } from '../Shared';
-import { AwsLabel, Ec2Config } from './types';
+import { RegionSelect } from '../Shared/RegionSelect';
+import { awsRegionOptionGroups, awsRegionOptions } from './regions';
+import { AwsLabel, ServiceConfig, ServiceConfigs, ServiceType } from './types';
+
+const requiredResourceType = (configs: ServiceConfigs) => () => {
+  const hasEnabledService = Object.values(configs).some(c => c.enabled);
+
+  if (hasEnabledService) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    message: 'Select at least one resource type',
+  };
+};
 
 const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
   const results = labels.map(label => ({
@@ -44,66 +63,118 @@ const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
   };
 };
 
+const requiredRegions =
+  (allowAll: boolean) => (options: readonly Option<AwsRegion>[]) => () => {
+    if (allowAll || (options && options.length > 0)) {
+      return { valid: true };
+    }
+    return {
+      valid: false,
+      message: 'At least one region must be selected',
+    };
+  };
+
+const fieldWidth = 400;
+// tags needs additional room for the close X on the right.
+const tagsWidth = fieldWidth + 32;
+
 type ResourcesSectionProps = {
-  ec2Config: Ec2Config;
-  onEc2Change: (config: Ec2Config) => void;
+  configs: ServiceConfigs;
+  onConfigChange: (type: ServiceType, patch: Partial<ServiceConfig>) => void;
 };
 
 export function ResourcesSection({
-  ec2Config,
-  onEc2Change,
+  configs,
+  onConfigChange,
 }: ResourcesSectionProps) {
+  const { valid, message } = useRule(requiredResourceType(configs));
+  const hasError = !valid;
+
   return (
     <>
       <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
-        <CircleNumber>3</CircleNumber>
+        <CircleNumber>2</CircleNumber>
         Resource Types
       </Flex>
       <Text ml={4} mb={3}>
-        Select which AWS resource types to automatically discover and enroll.
+        Select which AWS resource types to automatically discover and enroll in
+        your Teleport cluster.
       </Text>
+      {hasError && (
+        <Text
+          ml={4}
+          mb={3}
+          typography="body3"
+          color="interactive.solid.danger.default"
+        >
+          {message}
+        </Text>
+      )}
+
       <AwsService
         label="EC2 Instances"
-        helperText={
-          <Text>
-            Discover EC2 instances and establish SSH access through the Teleport
-            proxy.
-            <br />
-            Note: If no tags are specified, all EC2 instances in the selected
-            regions will be enrolled.
-          </Text>
-        }
-        tooltipText="Filter for EC2 instances by their tags. If no tags are added, Teleport will enroll all EC2 instances."
-        config={ec2Config}
-        onChange={onEc2Change}
+        config={configs.ec2}
+        onUpdate={patch => onConfigChange('ec2', patch)}
+        allowAllRegions={true}
+        tagTooltip="Match EC2 instances by their tags. If no tags are added, Teleport will match and enroll all EC2 instances."
       />
+
+      <Box mt={3}>
+        <AwsService
+          label="EKS Clusters"
+          config={configs.eks}
+          onUpdate={patch => onConfigChange('eks', patch)}
+          allowAllRegions={false}
+          tagTooltip="Match EKS clusters by their tags. If no tags are added, Teleport will match and enroll all EKS clusters."
+        >
+          <Box mt={2}>
+            <Toggle
+              isToggled={configs.eks.kubeAppDiscovery}
+              onToggle={() =>
+                onConfigChange('eks', {
+                  kubeAppDiscovery: !configs.eks.kubeAppDiscovery,
+                })
+              }
+            >
+              <Box ml={2} mr={1}>
+                Enable Kubernetes App Discovery
+              </Box>
+              <IconTooltip kind="info">
+                <Text>
+                  Teleport's Kubernetes App Discovery will automatically
+                  identify and enroll HTTP applications running inside
+                  discovered Kubernetes clusters.
+                </Text>
+              </IconTooltip>
+            </Toggle>
+          </Box>
+        </AwsService>
+      </Box>
     </>
   );
 }
 
-type ServiceConfig = Ec2Config;
-
-type AwsServiceProps = {
-  label: string;
-  helperText: React.ReactNode;
-  tooltipText: string;
-  config: ServiceConfig;
-  onChange: (config: ServiceConfig) => void;
-};
-
 function AwsService({
   label,
-  helperText,
-  tooltipText,
   config,
-  onChange,
-}: AwsServiceProps) {
-  const toggle = () => {
-    onChange({
-      ...config,
-      enabled: !config.enabled,
-    });
-  };
+  onUpdate,
+  allowAllRegions,
+  tagTooltip,
+  children,
+}: {
+  label: string;
+  config: ServiceConfig;
+  onUpdate: (update: Partial<ServiceConfig>) => void;
+  allowAllRegions: boolean;
+  tagTooltip: string;
+  children?: React.ReactNode;
+}) {
+  const [tagsExpanded, setTagsExpanded] = useState(config.tags.length > 0);
+
+  const selectedOptions: Option<AwsRegion>[] = useMemo(
+    () => awsRegionOptions.filter(opt => config.regions.includes(opt.value)),
+    [config.regions]
+  );
 
   return (
     <>
@@ -111,48 +182,66 @@ function AwsService({
         mb={2}
         size="small"
         label={label}
-        helperText={helperText}
         checked={config.enabled}
-        onChange={toggle}
+        onChange={() => onUpdate({ enabled: !config.enabled })}
       />
-      <Text fontSize="small" ml={4}>
-        Note
-      </Text>
-      <Box ml={4}>
-        <FilterButton onClick={toggle}>
-          <Flex alignItems="center" gap={1} mb={2}>
-            <FilterChevron size="small" expanded={config.enabled} />
-            Filter by tag
-            <IconTooltip kind="info">
-              <Text>{tooltipText}</Text>
-            </IconTooltip>
-          </Flex>
-        </FilterButton>
-        {config.enabled && (
-          <Box mb={2}>
-            <Box width={400}>
-              <LabelsInput
-                adjective="tag"
-                labels={config.tags as Label[]}
-                labelKey={{ fieldName: 'Key', placeholder: 'Environment' }}
-                labelVal={{ fieldName: 'Value', placeholder: 'production' }}
-                setLabels={(tags: Label[]) =>
-                  onChange({
-                    ...config,
-                    tags: tags as AwsLabel[],
-                  })
-                }
-                rule={nonEmptyTags}
-              />
-            </Box>
+      {config.enabled && (
+        <Box ml={4}>
+          <Box mb={3} width={fieldWidth}>
+            <RegionSelect
+              isMulti={true}
+              options={awsRegionOptionGroups}
+              value={selectedOptions}
+              onChange={options =>
+                onUpdate({
+                  regions: options.map(opt => opt.value),
+                })
+              }
+              isDisabled={false}
+              required={!allowAllRegions}
+              rule={requiredRegions(allowAllRegions)}
+              placeholder={
+                allowAllRegions ? 'All regions' : 'Select regions...'
+              }
+            />
           </Box>
-        )}
-      </Box>
+          <TagsButton onClick={() => setTagsExpanded(prev => !prev)}>
+            <Flex alignItems="center" gap={1} mb={2}>
+              <TagsChevron size="small" expanded={tagsExpanded} />
+              Match by tag
+              <IconTooltip kind="info">
+                <Text>{tagTooltip}</Text>
+              </IconTooltip>
+            </Flex>
+          </TagsButton>
+          {tagsExpanded && (
+            <Box mb={2}>
+              <Box width={tagsWidth}>
+                <LabelsInput
+                  adjective="tag"
+                  labels={config.tags as Label[]}
+                  labelKey={{
+                    fieldName: 'Key',
+                    placeholder: 'Environment',
+                  }}
+                  labelVal={{
+                    fieldName: 'Value',
+                    placeholder: 'production',
+                  }}
+                  setLabels={t => onUpdate({ tags: t as AwsLabel[] })}
+                  rule={nonEmptyTags}
+                />
+              </Box>
+            </Box>
+          )}
+          {children}
+        </Box>
+      )}
     </>
   );
 }
 
-const FilterButton = styled(ButtonText)`
+const TagsButton = styled(ButtonText)`
   background: transparent;
   border: none;
   padding: 0;
@@ -172,7 +261,9 @@ const FilterButton = styled(ButtonText)`
   }
 `;
 
-const FilterChevron = styled(Icons.ChevronRight)<{ expanded: boolean }>`
+const TagsChevron = styled(Icons.ChevronRight)<{
+  expanded: boolean;
+}>`
   transition: transform 0.2s ease-in-out;
   transform: ${props => (props.expanded ? 'rotate(90deg)' : 'none')};
 `;

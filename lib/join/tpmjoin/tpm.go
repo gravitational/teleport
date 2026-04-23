@@ -55,8 +55,8 @@ type CheckTPMRequestParams struct {
 }
 
 // CheckTPMRequest checks a TPM method join request.
-func CheckTPMRequest(ctx context.Context, params CheckTPMRequestParams) (*tpm.ValidatedTPM, error) {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func CheckTPMRequest(ctx context.Context, m modules.Modules, params CheckTPMRequestParams) (*tpm.ValidatedTPM, error) {
+	if m.BuildType() != modules.BuildEnterprise {
 		return nil, trace.Wrap(
 			services.ErrRequiresEnterprise,
 			"tpm joining",

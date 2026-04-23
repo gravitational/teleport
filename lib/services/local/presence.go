@@ -480,12 +480,6 @@ func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pa
 	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
-// DeleteAllProxies deletes all proxies
-func (s *PresenceService) DeleteAllProxies() error {
-	startKey := backend.ExactKey(proxiesPrefix)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-}
-
 // DeleteProxy deletes proxy
 func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.NewKey(proxiesPrefix, name)

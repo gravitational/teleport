@@ -74,6 +74,7 @@ import (
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -122,6 +123,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
+	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -3959,49 +3961,6 @@ func (g *GRPCServer) ResetSessionRecordingConfig(ctx context.Context, _ *emptypb
 	return &emptypb.Empty{}, nil
 }
 
-// GetAuthPreference gets cluster auth preference.
-func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*types.AuthPreferenceV2, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authPref, err := auth.ServerWithRoles.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", authPref))
-	}
-	return authPrefV2, nil
-}
-
-// SetAuthPreference sets cluster auth preference.
-// Deprecated: Use Update/UpsertAuthPreference where appropriate.
-func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authPref.SetOrigin(types.OriginDynamic)
-	if err = auth.ServerWithRoles.SetAuthPreference(ctx, authPref); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
-// ResetAuthPreference resets cluster auth preference to defaults.
-func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = auth.ServerWithRoles.ResetAuthPreference(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
@@ -6401,12 +6360,24 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
 
+	linuxDesktop, err := linuxdesktopv1.NewService(linuxdesktopv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	linuxdesktopv1pb.RegisterLinuxDesktopServiceServer(server, linuxDesktop)
+
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer:       cfg.Authorizer,
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Cache:            cfg.AuthServer.Cache,
 		Backend:          cfg.AuthServer.Services,
 		AuthServer:       cfg.AuthServer,
+		Modules:          cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6423,6 +6394,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			FIPS:               cfg.AuthServer.fips,
 			ScopedTokenService: cfg.AuthServer.Services,
 			OracleHTTPClient:   cfg.OracleHTTPClient,
+			Modules:            cfg.AuthServer.modules,
 		}))
 	}
 
@@ -6433,6 +6405,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
 		Emitter:         cfg.Emitter,
+		Modules:         cfg.AuthServer.modules,
 		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
 	})
 	if err != nil {
@@ -6447,6 +6420,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
+		Modules:               cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6624,6 +6598,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:    cfg.Emitter,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
+		Modules:    cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -186,6 +186,8 @@ message JoinAttrsAzure {
   string subscription = 1;
   // The resource group of the Azure account that the joining entity is a part of.
   string resource_group = 2;
+  // The tenant ID of the Azure account that the joining entity is a part of.
+  string tenant = 3;
 }
 
 // Attributes that are specific to the CircleCI (`circleci`) join method.
