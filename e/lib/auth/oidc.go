@@ -32,6 +32,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/e/lib/auth/entraid"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -1039,14 +1040,14 @@ func (oas *OIDCAuthService) retrieveIDTokenClaims(ctx context.Context, connector
 		if err = addGoogleWorkspaceClaims(ctx, connector, idToken); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case isEntraIDConnector(connector):
-		provider := entraIDGroupsProvider{
-			connector:  connector,
-			idToken:    idToken,
-			logger:     logger,
-			httpClient: oas.client,
+	case entraid.IsEntraIDConnector(connector):
+		provider := entraid.OIDCEntraIDGroupsProvider{
+			Connector:  connector,
+			IDToken:    idToken,
+			Logger:     logger,
+			HTTPClient: oas.client,
 		}
-		if err := provider.maybeFetchEntraIDGroups(ctx, nil /* graph client for test */); err != nil {
+		if err := provider.MaybeFetchEntraIDGroups(ctx, nil /* graph client for test */); err != nil {
 			// swallowing error here to let the program continue
 			// with other claims that may be vaid enough for the
 			// SSO to succeed.

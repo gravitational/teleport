@@ -1,4 +1,4 @@
-package auth
+package entraid
 
 import (
 	"context"
@@ -183,13 +183,13 @@ func TestMaybeFetchEntraIDGroups(t *testing.T) {
 				HTTPClient:    test.httpClient,
 			})
 			require.NoError(t, err)
-			provider := entraIDGroupsProvider{
-				connector:  connector,
-				idToken:    idToken,
-				logger:     slog.Default().With("test", test.name),
-				httpClient: test.httpClient,
+			provider := OIDCEntraIDGroupsProvider{
+				Connector:  connector,
+				IDToken:    idToken,
+				Logger:     slog.Default().With("test", test.name),
+				HTTPClient: test.httpClient,
 			}
-			err = provider.maybeFetchEntraIDGroups(t.Context(), graphClient)
+			err = provider.MaybeFetchEntraIDGroups(t.Context(), graphClient)
 			test.errAssertion(t, err)
 			require.ElementsMatch(t, test.expectedGroups, claims.Claims["groups"])
 		})

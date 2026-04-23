@@ -1,4 +1,4 @@
-package auth
+package entraid
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 const (
@@ -41,7 +40,7 @@ type oidcDistributedClaimSource struct {
 	Endpoint string `json:"endpoint"`
 }
 
-func isEntraIDConnector(connector types.OIDCConnector) bool {
+func IsEntraIDConnector(connector types.OIDCConnector) bool {
 	issuer, err := url.Parse(connector.GetIssuerURL())
 	if err != nil {
 		// Error swallowed as Entra ID issuer url is expected
@@ -53,14 +52,14 @@ func isEntraIDConnector(connector types.OIDCConnector) bool {
 	return issuer.Host == entraIDIssuerHost
 }
 
-type entraIDGroupsProvider struct {
-	connector  types.OIDCConnector
-	idToken    *oidc.Tokens[*oidc.IDTokenClaims]
-	logger     *slog.Logger
-	httpClient *http.Client
+type OIDCEntraIDGroupsProvider struct {
+	Connector  types.OIDCConnector
+	IDToken    *oidc.Tokens[*oidc.IDTokenClaims]
+	Logger     *slog.Logger
+	HTTPClient *http.Client
 }
 
-// maybeFetchEntraIDGroups lists group from Microsoft
+// MaybeFetchEntraIDGroups lists group from Microsoft
 // Graph API if a groups claim source is found in the OIDC
 // claim and Entra ID groups provider is not disabled in the
 // OIDC connector spec.
@@ -68,30 +67,30 @@ type entraIDGroupsProvider struct {
 // group membership count exceeds 200 item limit of
 // the Entra ID OIDC groups claim.
 // https://learn.microsoft.com/en-us/entra/identity/hybrid/connect/how-to-connect-fed-group-claims
-func (p entraIDGroupsProvider) maybeFetchEntraIDGroups(ctx context.Context, graphClient *msgraph.Client) error {
-	if p.connector.IsEntraIDGroupsProviderDisabled() {
+func (p OIDCEntraIDGroupsProvider) MaybeFetchEntraIDGroups(ctx context.Context, graphClient *msgraph.Client) error {
+	if p.Connector.IsEntraIDGroupsProviderDisabled() {
 		return nil
 	}
 
 	// Per Microsoft docs, we only need to find group claim sources if
 	// "groups" claim is not found.
 	// https://learn.microsoft.com/en-us/security/zero-trust/develop/configure-tokens-group-claims-app-roles#group-overages
-	_, ok := p.idToken.IDTokenClaims.Claims[entraIDGroupsClaim]
+	_, ok := p.IDToken.IDTokenClaims.Claims[entraIDGroupsClaim]
 	if ok {
 		return nil
 	}
 
-	userID, ok := p.idToken.IDTokenClaims.Claims["oid"].(string)
+	userID, ok := p.IDToken.IDTokenClaims.Claims["oid"].(string)
 	if !ok {
 		return trace.NotFound("oid claim not found")
 	}
 
-	claimName, err := entraGroupClaimName(p.idToken.IDTokenClaims.Claims)
+	claimName, err := entraGroupsClaimName(p.IDToken.IDTokenClaims.Claims)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// Its possible for a user to have zero group membership,
 			// resulting in an empty groups claim and empty claim sources.
-			logger.DebugContext(ctx, "Missing both groups claim and groups source claim", "oid", userID, "error", err)
+			p.Logger.DebugContext(ctx, "Missing both groups claim and groups source claim", "oid", userID, "error", err)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -102,40 +101,42 @@ func (p entraIDGroupsProvider) maybeFetchEntraIDGroups(ctx context.Context, grap
 	// Azure AD Graph endpoint (graph.windows.net) and we will always build a
 	// new endpoint that points to newer Microsoft Graph API national cloud
 	// deployment endpoint.
-	if _, err := entraClaimSourceEndpoint(p.idToken.IDTokenClaims.Claims, claimName); err != nil {
+	if _, err := entraGroupsClaimSourceEndpoint(p.IDToken.IDTokenClaims.Claims, claimName); err != nil {
 		return trace.Wrap(err)
 	}
 
+	tenantID, ok := p.IDToken.IDTokenClaims.Claims["tid"].(string)
+	if !ok {
+		return trace.NotFound("tid claim not found")
+	}
+
+	tokenProvider, err := azidentity.NewClientSecretCredential(tenantID, p.Connector.GetClientID(), p.Connector.GetClientSecret(), nil /* ClientSecretCredentialOptions */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	groupsProvider := p.Connector.GetEntraIDGroupsProvider()
+
 	if graphClient == nil {
-		graphClient, err = newGraphClient(p.connector, p.idToken.IDTokenClaims.Claims, p.httpClient)
+		graphClient, err = newGraphClient(tokenProvider, getGraphEndpoint(groupsProvider), p.HTTPClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	var groups []string
-	groupType := getGroupType(p.connector)
-	if err = graphClient.IterateUsersTransitiveMemberOf(ctx, userID, groupType, func(group *models.Group) bool {
-		if group == nil {
-			return false
-		}
-		if group.ID == nil {
-			return false
-		}
-		groups = append(groups, *group.ID)
-		return true
-	}); err != nil {
+	groups, err := getEntraGroups(ctx, graphClient, getEntraGroupType(groupsProvider), userID)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(groups) > 0 {
-		p.idToken.IDTokenClaims.Claims[entraIDGroupsClaim] = groups
+		p.IDToken.IDTokenClaims.Claims[entraIDGroupsClaim] = groups
 	}
 
 	return nil
 }
 
-// getGroupsClaimName returns "groups" source name from OIDC _claim_names claim.
+// entraGroupsClaimName returns "groups" source name from OIDC _claim_names claim.
 // https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims
 // Sample:
 //
@@ -144,7 +145,7 @@ func (p entraIDGroupsProvider) maybeFetchEntraIDGroups(ctx context.Context, grap
 //	    "groups": "src1"
 //	  }
 //	}
-func entraGroupClaimName(claims map[string]any) (string, error) {
+func entraGroupsClaimName(claims map[string]any) (string, error) {
 	rawClaimNames, ok := claims[oidcClaimName]
 	if !ok {
 		return "", trace.NotFound("%q not found", oidcClaimName)
@@ -166,7 +167,7 @@ func entraGroupClaimName(claims map[string]any) (string, error) {
 	return groupsClaimName, nil
 }
 
-// getGroupsClaimSourceEndpoint returns "groups" source from OIDC _claim_sources claim.
+// entraGroupsClaimSourceEndpoint returns "groups" source from OIDC _claim_sources claim.
 // Group source object lookup is based on source name defined in the _claim_names claim.
 // https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims
 // Sample:
@@ -178,7 +179,7 @@ func entraGroupClaimName(claims map[string]any) (string, error) {
 //	    }
 //	  }
 //	}
-func entraClaimSourceEndpoint(claims map[string]any, name string) (string, error) {
+func entraGroupsClaimSourceEndpoint(claims map[string]any, name string) (string, error) {
 	rawClaimSources, ok := claims[oidcClaimSource]
 	if !ok {
 		return "", trace.BadParameter("claim sources not found")
@@ -203,55 +204,4 @@ func entraClaimSourceEndpoint(claims map[string]any, name string) (string, error
 	}
 
 	return groupsClaimSource.Endpoint, nil
-}
-
-func newGraphClient(
-	connector types.OIDCConnector,
-	claims map[string]any,
-	httpClient *http.Client,
-) (*msgraph.Client, error) {
-	tenantID, ok := claims["tid"].(string)
-	if !ok {
-		return nil, trace.NotFound("tid claim not found")
-	}
-
-	tokenProvider, err := azidentity.NewClientSecretCredential(tenantID, connector.GetClientID(), connector.GetClientSecret(), nil /* ClientSecretCredentialOptions */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client, err := msgraph.NewClient(msgraph.Config{
-		TokenProvider: tokenProvider,
-		GraphEndpoint: getGraphEndpoint(connector),
-		HTTPClient:    httpClient,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return client, nil
-}
-
-func getGraphEndpoint(connector types.OIDCConnector) string {
-	graphEndpoint := types.MSGraphDefaultEndpoint
-	entra := connector.GetEntraIDGroupsProvider()
-	if entra == nil {
-		return graphEndpoint
-	}
-	if entra.GraphEndpoint != "" {
-		graphEndpoint = entra.GraphEndpoint
-	}
-	return graphEndpoint
-}
-
-func getGroupType(connector types.OIDCConnector) string {
-	groupType := types.EntraIDSecurityGroups
-	entra := connector.GetEntraIDGroupsProvider()
-	if entra == nil {
-		return groupType
-	}
-	if entra.GroupType != "" {
-		groupType = entra.GroupType
-	}
-	return groupType
 }
