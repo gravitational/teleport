@@ -21,6 +21,13 @@ docs: $(README_FILES)
 %/README.md: force
 	terraform-docs markdown table --config .terraform-docs.yml $*
 
+.PHONY: test
+test:
+	@for dir in $(PUBLISHED_TF_MODULES); do \
+		terraform -chdir=$$dir init -upgrade && \
+		terraform -chdir=$$dir test || exit 1; \
+	done
+
 .PHONY: check
 check: clean
 	git ls-files -- . \
