@@ -93,7 +93,7 @@ be added to the resource to contain them. These fields will be ignored by IaC to
 
 The `CheckAndSetDefaults()` pattern is not compatible with the above property because the
 function edits the `spec`, and might run client-side. Adding logic in `CheckAndSetDefaults()`
-for existing resources should be avoided as much as possible.
+for existing resources MUST be avoided.
 
 ```protobuf
 import "teleport/header/v1/metadata.proto";
