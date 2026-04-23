@@ -1,0 +1,232 @@
+---
+title: Run Teleport as a launchd Service on macOS
+description: Configure Teleport to run as a persistent launchd service on macOS.
+sidebar_label: macOS launchd Service
+---
+
+This guide explains how to configure Teleport to run as a persistent
+`launchd` service on macOS. It is intended for administrators who are
+running a macOS machine as a Teleport node and want the Teleport daemon
+to start automatically at boot and remain continuously connected to the
+cluster.
+
+This page focuses specifically on macOS service management and assumes
+that node enrollment is complete and a valid `/etc/teleport.yaml`
+configuration file is already in place. See the
+[configuration reference page](../../reference/deployment/config.mdx)
+for more information.
+
+## How it works
+
+A `launchd` service ensures that the Teleport daemon starts
+automatically when your Mac boots and restarts if it ever exits
+unexpectedly. This keeps the node continuously connected to your
+Teleport cluster without requiring manual intervention.
+
+After the first successful join, Teleport stores its host identity in
+the configured `data_dir` (by default `/var/lib/teleport`). On
+subsequent starts, including automatic restarts by `launchd`, Teleport
+uses this stored identity to reconnect to the cluster without requiring
+a join token.
+
+## Prerequisites
+
+- The `teleport` binary is installed on your Mac. See
+  [Installing Teleport on macOS](../../installation/macos.mdx) for
+  instructions.
+- A valid `/etc/teleport.yaml` configuration file is in place and the
+  node has successfully joined the cluster.
+- You have confirmed that Teleport runs successfully with:
+
+```code
+$ sudo teleport start --config=/etc/teleport.yaml
+```
+
+After confirming Teleport starts correctly, you can configure it to run
+automatically at system startup using `launchd`. This ensures that
+Teleport starts at boot, restarts automatically if it exits, and the
+node remains continuously connected to the cluster.
+
+## Step 1/4. Confirm the Teleport binary path
+
+Confirm the location of the `teleport` binary installed using an
+official Teleport distribution (for example, the macOS `.pkg` installer
+or official tarball):
+
+```code
+$ which teleport
+# /usr/local/bin/teleport
+```
+
+<Admonition type="warning" title="Important">
+Use the exact path returned by `which teleport` in the LaunchDaemon
+configuration below. An incorrect path will prevent the service from
+loading.
+</Admonition>
+
+## Step 2/4. Create a LaunchDaemon
+
+Teleport must run as root. Configure it as a **LaunchDaemon**, not a
+LaunchAgent. LaunchAgents run in the user session and do not have the
+permissions required by Teleport services.
+
+Create the file
+`/Library/LaunchDaemons/com.teleport.node.plist` with the following
+content. Replace the binary path if your installation differs:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.goteleport.node</string>
+
+    <key>UserName</key>
+    <string>root</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/local/bin/teleport</string>
+      <string>start</string>
+      <string>--config=/etc/teleport.yaml</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/teleport.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/teleport.err.log</string>
+  </dict>
+</plist>
+```
+
+The `StandardOutPath` and `StandardErrorPath` keys direct Teleport
+output to log files on disk. This is important because Teleport logs to
+`stderr` by default, and without these keys the log output would be
+inaccessible when the service runs in the background under `launchd`.
+
+<Admonition type="important">
+If the `teleport` binary path changes after reinstalling from an
+official distribution, update the `ProgramArguments` path in the plist
+and reload the service.
+</Admonition>
+
+## Step 3/4. Set required permissions
+
+LaunchDaemons must be owned by `root:wheel` with mode `644`. Set the
+permissions and validate the plist:
+
+```code
+$ sudo chown root:wheel /Library/LaunchDaemons/com.teleport.node.plist
+$ sudo chmod 644 /Library/LaunchDaemons/com.teleport.node.plist
+$ sudo plutil -lint /Library/LaunchDaemons/com.teleport.node.plist
+```
+
+## Step 4/4. Load the service
+
+On macOS 12 (Monterey) and later, use `bootstrap` to load the service:
+
+```code
+$ sudo launchctl bootstrap system /Library/LaunchDaemons/com.teleport.node.plist
+$ sudo launchctl enable system/com.teleport.node
+$ sudo launchctl kickstart -k system/com.teleport.node
+```
+
+macOS displays a “Background Items Added” notification when the LaunchDaemon is first registered. No action is required.
+You can manage this behavior at any time in System Settings -> General -> Login Items if you prefer to disable it at startup.
+
+To reload after changes to the plist:
+
+```code
+$ sudo launchctl bootout system /Library/LaunchDaemons/com.teleport.node.plist
+$ sudo launchctl bootstrap system /Library/LaunchDaemons/com.teleport.node.plist
+```
+
+<Checkpoint
+  title="Verify the service is running"
+  description="Confirm that Teleport is running as a launchd service and the node is connected to the cluster."
+>
+
+1. Check the `launchd` status:
+```code
+$ sudo launchctl print system/com.teleport.node
+```
+Look for `state = running` in the output.
+
+2. Confirm the Teleport process is running:
+```code
+$ pgrep -fl 'teleport start'
+```
+
+3. Confirm the node is connected to the cluster:
+```code
+$ tsh ls
+```
+
+Here are some troubleshooting tips:
+- If the state is not `running`, check `/var/log/teleport.err.log` for errors.
+- If `launchd` reports a load failure, verify the plist ownership and permissions with `ls -la /Library/LaunchDaemons/com.teleport.node.plist`.
+- If the Teleport process starts but immediately exits, run `sudo teleport start --config=/etc/teleport.yaml` manually to see the error output.
+</Checkpoint>
+
+## Configure logging
+
+Teleport logs to `stderr` by default. The plist configuration above
+captures this output in `/var/log/teleport.err.log` via the
+`StandardErrorPath` key.
+
+To consolidate all Teleport logs into a single file instead of relying
+on plist redirection, add the following to `/etc/teleport.yaml`:
+
+```yaml
+teleport:
+  log:
+    output: /var/log/teleport.log
+    severity: INFO
+```
+
+Restart the service after making changes:
+
+```code
+$ sudo launchctl kickstart -k system/com.teleport.node
+```
+
+<Admonition type="note">
+If you configure `log.output` in `teleport.yaml`, Teleport writes
+directly to that file. The plist `StandardErrorPath` file will still
+exist but will only capture output that bypasses Teleport's logger, such
+as early startup errors.
+</Admonition>
+
+## Troubleshooting
+
+<Checkpoint
+  title="Service fails to load"
+  description="Verify the launchd service is loading correctly."
+>
+
+1. Check `launchd` logs for errors:
+```code
+$ sudo log show --last 5m --predicate 'process == "launchd"' --info
+```
+
+2. If Teleport starts but fails shortly after, tail the error log:
+```code
+$ sudo tail -f /var/log/teleport.err.log
+```
+
+Here are some troubleshooting tips:
+- Verify the binary path in the plist matches the output of `which teleport`.
+- Ensure `/etc/teleport.yaml` exists and is valid by running `sudo teleport configure --test /etc/teleport.yaml`.
+- If you see `service already loaded`, run `sudo launchctl bootout system/com.teleport.node` before bootstrapping again.
+</Checkpoint>
+
+
