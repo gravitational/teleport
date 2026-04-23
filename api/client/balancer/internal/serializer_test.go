@@ -17,6 +17,7 @@ package internal
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -64,4 +65,23 @@ func TestCallbackSerializerOrder(t *testing.T) {
 	for i, val := range s {
 		require.Equal(t, i, val)
 	}
+}
+
+func TestSerializerDrainClose(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cs := NewCallbackSerializer()
+		block := make(chan struct{})
+		want := 1000
+		got := 0
+		for range want {
+			cs.Put(func() {
+				<-block
+				got++
+			})
+		}
+		cs.Close()
+		close(block)
+		synctest.Wait()
+		require.Equal(t, want, got)
+	})
 }
