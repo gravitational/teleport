@@ -30,8 +30,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -446,4 +450,246 @@ func makeAzureVMID(subscription, resourceGroup, name string) string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s",
 		subscription, resourceGroup, name,
 	)
+}
+
+func TestMakeRunEvent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		subscriptionID = "sub-1"
+		resourceGroup  = "rg1"
+		region         = "eastus"
+		vmID           = "vm-id-1"
+		vmName         = "vm1"
+		resourceID     = "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"
+	)
+
+	vm := &armcompute.VirtualMachine{
+		ID:   to.Ptr(resourceID),
+		Name: to.Ptr(vmName),
+		Properties: &armcompute.VirtualMachineProperties{
+			VMID: to.Ptr(vmID),
+		},
+	}
+
+	tests := []struct {
+		name   string
+		result AzureInstallResult
+		want   *apievents.AzureRun
+	}{
+		{
+			name: "success",
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Succeeded",
+					ExitCode:       0,
+					StdOut:         "ok",
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunSuccessCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:         "Installation completed successfully.",
+				ExecutionState: "Succeeded",
+				StandardOutput: "ok",
+			},
+		},
+		{
+			name: "command failure",
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Failed",
+					ExitCode:       1,
+					StdErr:         "something broke",
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:         "Installation failed with exit code 1. Please check stdout and stderr and try again.",
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardError:  "something broke",
+			},
+		},
+		{
+			name: "API error",
+			result: AzureInstallResult{
+				Instance: vm,
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+		{
+			name: "known exit code",
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Failed",
+					ExitCode:       102,
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:         "curl is not installed in the instance. Please install all required tools (bash, sudo, curl) and try again.",
+				ExitCode:       102,
+				ExecutionState: "Failed",
+			},
+		},
+		{
+			name: "nil instance",
+			result: AzureInstallResult{
+				Instance: nil,
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+		{
+			name: "instance without properties",
+			result: AzureInstallResult{
+				Instance: &armcompute.VirtualMachine{
+					ID:   to.Ptr(resourceID),
+					Name: to.Ptr(vmName),
+				},
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMName: vmName,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			instances := &AzureInstances{
+				SubscriptionID: subscriptionID,
+				ResourceGroup:  resourceGroup,
+				Region:         region,
+			}
+			evt := instances.MakeRunEvent(tc.result)
+			require.Equal(t, tc.want, evt)
+		})
+	}
+}
+
+func TestMakeUsageEvent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfig = "my-config"
+		resourceID      = "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"
+	)
+
+	vm := &armcompute.VirtualMachine{
+		ID: to.Ptr(resourceID),
+	}
+
+	tests := []struct {
+		name      string
+		instances *AzureInstances
+		wantKey   string
+		want      *usageeventsv1.ResourceCreateEvent
+	}{
+		{
+			name: "node",
+			instances: &AzureInstances{
+				DiscoveryConfigName: discoveryConfig,
+			},
+			wantKey: azureEventPrefix + resourceID,
+			want: &usageeventsv1.ResourceCreateEvent{
+				ResourceType:        types.DiscoveredResourceNode,
+				ResourceOrigin:      types.OriginCloud,
+				CloudProvider:       types.CloudAzure,
+				DiscoveryConfigName: discoveryConfig,
+			},
+		},
+		{
+			name: "agentless node",
+			instances: &AzureInstances{
+				DiscoveryConfigName: discoveryConfig,
+				InstallerParams: &types.InstallerParams{
+					ScriptName: installers.InstallerScriptNameAgentless,
+				},
+			},
+			wantKey: azureEventPrefix + resourceID,
+			want: &usageeventsv1.ResourceCreateEvent{
+				ResourceType:        types.DiscoveredResourceAgentlessNode,
+				ResourceOrigin:      types.OriginCloud,
+				CloudProvider:       types.CloudAzure,
+				DiscoveryConfigName: discoveryConfig,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key, evt := tc.instances.MakeUsageEvent(vm)
+			require.Equal(t, tc.wantKey, key)
+			require.Equal(t, tc.want, evt)
+		})
+	}
 }

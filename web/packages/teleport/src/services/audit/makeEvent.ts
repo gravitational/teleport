@@ -1471,6 +1471,20 @@ export const formatters: Formatters = {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
     },
   },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
