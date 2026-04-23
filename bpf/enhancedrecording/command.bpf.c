@@ -111,6 +111,9 @@ int tracepoint__syscalls__sys_enter_execve(struct syscall_trace_enter *tp)
 SEC("tp/syscalls/sys_enter_execveat")
 int tracepoint__syscalls__sys_enter_execveat(struct syscall_trace_enter *tp)
 {
+    // execveat has a directory file descriptor as the zeroth argument,
+    // and all other arguments from execve follow it, so we need to
+    // start from the first argument.
     const char *filename = (const char *)tp->args[1];
     const char *const *argv = (const char *const *)tp->args[2];
 
@@ -151,8 +154,6 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
         bpf_printk("execve_events ring buffer full");
         return 0;
     }
-
-    info = bpf_task_storage_get(&inflight_exec, task, NULL, 0);
 
     void *arg_start = (void *)BPF_CORE_READ(task, mm, arg_start);
     void *arg_end = (void *)BPF_CORE_READ(task, mm, arg_end);

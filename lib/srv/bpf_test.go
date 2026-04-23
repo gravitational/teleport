@@ -546,7 +546,6 @@ eval $(echo %s | base64 --decode)`,
 		t.Run(tt.name, func(t *testing.T) {
 			runBPFTestCase(t, srv, bpfSrv, tt, false)
 
-			// TODO: lost events not working?
 			le := bpfSrv.LostEvents()
 			newlyLost := le.Delta(lostEvents)
 			if newlyLost.CommandEvents() > 0 {

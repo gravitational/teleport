@@ -74,12 +74,12 @@ func TestConvertArgs(t *testing.T) {
 			expected:  []string{"foo", "", "bar", "", "baz", TruncatedArg},
 		},
 		{
-			name:     "no tailing null byte",
+			name:     "no trailing null byte",
 			rawArgs:  []byte("foo\x00bar\x00baz"),
 			expected: []string{"foo", "bar", "baz"},
 		},
 		{
-			name:      "no tailing null byte truncated",
+			name:      "no trailing null byte truncated",
 			rawArgs:   []byte("foo\x00bar\x00baz"),
 			truncated: true,
 			expected:  []string{"foo", "bar", "baz", TruncatedArg},
