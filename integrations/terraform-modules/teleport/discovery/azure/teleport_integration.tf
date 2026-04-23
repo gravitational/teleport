@@ -7,7 +7,7 @@ locals {
 
   teleport_integration_name = (
     var.teleport_integration_use_name_prefix
-    ? "${var.teleport_integration_name}-${local.teleport_resource_name_suffix}"
+    ? join("-", compact([var.teleport_integration_name, local.teleport_resource_name_suffix]))
     : var.teleport_integration_name
   )
 }
@@ -32,7 +32,7 @@ resource "teleport_integration" "azure_oidc" {
 
   lifecycle {
     precondition {
-      condition     = local.create_azure_managed_identity
+      condition     = var.create_azure_managed_identity
       error_message = "create_teleport_integration requires create_azure_managed_identity to be true."
     }
   }
