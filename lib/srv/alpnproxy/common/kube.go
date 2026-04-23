@@ -19,38 +19,72 @@
 package common
 
 import (
-	"encoding/hex"
-	"fmt"
+	"encoding/base64"
 	"strings"
 
 	"github.com/gravitational/trace"
 )
 
-// KubeLocalProxySNI generates the SNI used for Kube local proxy.
-func KubeLocalProxySNI(teleportCluster, kubeCluster string) string {
-	// Hex encode to hide "." in kube cluster name so wildcard cert can be used:
-	// <hex-encoded-kube-cluster>.<teleport-cluster>
-	return fmt.Sprintf("%s.%s", hex.EncodeToString([]byte(kubeCluster)), teleportCluster)
+// kubeLocalProxySNIPrefix is the fixed first DNS label of the SNI that kube
+// clients present when connecting to the local proxy. It exists only to match
+// the wildcard cert (*.<teleport-cluster>); the actual cluster identity for
+// request routing is carried in the URL path (see KubeLocalProxyPathPrefix).
+const kubeLocalProxySNIPrefix = "kube."
+
+// KubeLocalProxySNI returns the SNI that kube clients should present when
+// connecting to the local proxy for the given Teleport cluster. The first
+// label is a fixed literal so that it cannot exceed RFC 1035's 63-byte DNS
+// label limit; the suffix identifies the Teleport cluster for listener
+// routing.
+func KubeLocalProxySNI(teleportCluster string) string {
+	return kubeLocalProxySNIPrefix + teleportCluster
 }
 
-// TeleportClusterFromKubeLocalProxySNI returns Teleport cluster name from SNI.
+// TeleportClusterFromKubeLocalProxySNI returns the Teleport cluster name
+// encoded in the suffix of a local-proxy SNI produced by [KubeLocalProxySNI].
 func TeleportClusterFromKubeLocalProxySNI(serverName string) string {
 	_, teleportCluster, _ := strings.Cut(serverName, ".")
 	return teleportCluster
 }
 
-// KubeClusterFromKubeLocalProxySNI returns Kubernetes cluster name from SNI.
-func KubeClusterFromKubeLocalProxySNI(serverName string) (string, error) {
-	kubeCluster, _, _ := strings.Cut(serverName, ".")
-	str, err := hex.DecodeString(kubeCluster)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(str), nil
-}
-
 // KubeLocalProxyWildcardDomain returns the wildcard domain used to generate
-// local self-signed CA for provided Teleport cluster.
+// the local self-signed CA for the provided Teleport cluster.
 func KubeLocalProxyWildcardDomain(teleportCluster string) string {
 	return "*." + teleportCluster
+}
+
+// KubeLocalProxyPathPrefix returns the kubeconfig `server:` URL suffix that
+// encodes the (teleport cluster, kube cluster) pair for URL-based routing.
+// Format: /v1/teleport/<base64url(teleport)>/<base64url(kube)>. Mirrors the
+// path consumed by the Teleport proxy's single-cert kube handler and the
+// format emitted by tbot v2 (lib/tbot/services/k8s/output_v2.go).
+func KubeLocalProxyPathPrefix(teleportCluster, kubeCluster string) string {
+	return "/v1/teleport/" +
+		base64.RawURLEncoding.EncodeToString([]byte(teleportCluster)) + "/" +
+		base64.RawURLEncoding.EncodeToString([]byte(kubeCluster))
+}
+
+// ClustersFromKubeLocalProxyPath parses the leading
+// /v1/teleport/<b64>/<b64> prefix of a request URL path and returns the
+// decoded (teleport cluster, kube cluster) pair along with the rest of the
+// path after the prefix (including the leading slash, e.g. "/api/v1/pods").
+func ClustersFromKubeLocalProxyPath(path string) (teleportCluster, kubeCluster, rest string, err error) {
+	trimmed := strings.TrimPrefix(path, "/")
+	parts := strings.SplitN(trimmed, "/", 5)
+	if len(parts) < 4 || parts[0] != "v1" || parts[1] != "teleport" {
+		return "", "", "", trace.BadParameter("invalid kube local proxy path %q", path)
+	}
+	tcBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return "", "", "", trace.Wrap(err, "decoding teleport cluster name from path")
+	}
+	kcBytes, err := base64.RawURLEncoding.DecodeString(parts[3])
+	if err != nil {
+		return "", "", "", trace.Wrap(err, "decoding kube cluster name from path")
+	}
+	rest = "/"
+	if len(parts) == 5 {
+		rest = "/" + parts[4]
+	}
+	return string(tcBytes), string(kcBytes), rest, nil
 }

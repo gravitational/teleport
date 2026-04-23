@@ -679,13 +679,13 @@ func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportC
 	fp := mustStartKubeForwardProxy(t, lp.GetAddr())
 
 	k8Client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:  "https://" + teleportCluster,
+		Host:  "https://" + teleportCluster + alpncommon.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
 		TLSClientConfig: rest.TLSClientConfig{
 			CAData:     localCACert,
 			CertData:   localCACert, // Client uses same cert as local proxy server.
 			KeyData:    localCAKey,
-			ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+			ServerName: alpncommon.KubeLocalProxySNI(teleportCluster),
 		},
 	})
 	require.NoError(t, err)

@@ -185,9 +185,9 @@ func TestLocalProxy(t *testing.T) {
 		// Check for root-cluster-kube1.
 		wantConfig.Clusters["root-cluster-kube1"] = &clientcmdapi.Cluster{
 			ProxyURL:                 "http://localhost:12345",
-			Server:                   rootKubeClusterAddr,
+			Server:                   rootKubeClusterAddr + "/v1/teleport/cm9vdC1jbHVzdGVy/a3ViZTE",
 			CertificateAuthorityData: caData,
-			TLSServerName:            "6b75626531.root-cluster",
+			TLSServerName:            "kube.root-cluster",
 			LocationOfOrigin:         kubeconfigPath,
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
