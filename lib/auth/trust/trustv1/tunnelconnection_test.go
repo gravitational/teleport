@@ -116,7 +116,7 @@ func TestUpsertTunnelConnection(t *testing.T) {
 			require.NotEmpty(t, resp.GetTunnelConnection().GetRevision(), "response should carry the backend-assigned revision")
 			require.Equal(t, req.GetTunnelConnection(), resp.GetTunnelConnection())
 
-			stored, err := trust.GetTunnelConnections(req.GetTunnelConnection().GetClusterName())
+			stored, err := trust.GetTunnelConnections(ctx, req.GetTunnelConnection().GetClusterName())
 			require.NoError(t, err)
 			require.Len(t, stored, 1)
 			require.Equal(t, req.GetTunnelConnection().GetName(), stored[0].GetName())
@@ -203,7 +203,7 @@ func TestDeleteTunnelConnection(t *testing.T) {
 			_, err = service.DeleteTunnelConnection(ctx, test.req)
 			test.assertErr(t, err)
 
-			remaining, listErr := trust.GetTunnelConnections(clusterName)
+			remaining, listErr := trust.GetTunnelConnections(ctx, clusterName)
 			require.NoError(t, listErr)
 			if test.wantGone {
 				require.Empty(t, remaining)
