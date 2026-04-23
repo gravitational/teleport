@@ -121,7 +121,7 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 			ProxyURL:                 localProxyValues.LocalProxyURL,
 			Server:                   localProxyValues.TeleportKubeClusterAddr + common.KubeLocalProxyPathPrefix(cluster.TeleportCluster, cluster.KubeCluster),
 			CertificateAuthorityData: localProxyValues.LocalProxyCAs[cluster.TeleportCluster],
-			TLSServerName:            common.KubeLocalProxySNI(cluster.TeleportCluster),
+			TLSServerName:            cluster.TeleportCluster,
 		}
 		setStringExtensionInCluster(config.Clusters[contextName], extProfileName, localProxyValues.TeleportProfileName)
 		setStringExtensionInCluster(config.Clusters[contextName], extTeleClusterName, cluster.TeleportCluster)

@@ -201,7 +201,7 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: common.KubeLocalProxySNI(teleportCluster),
+		ServerName: teleportCluster,
 	}
 	restConfig := &rest.Config{
 		Host:            "https://" + teleportCluster + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),

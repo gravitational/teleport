@@ -656,7 +656,7 @@ func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportC
 	// Generate a self-signed CA for kube local proxy.
 	localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
-	}, []string{alpncommon.KubeLocalProxyWildcardDomain(teleportCluster)}, defaults.CATTL)
+	}, []string{teleportCluster}, defaults.CATTL)
 	require.NoError(t, err)
 
 	// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -685,7 +685,7 @@ func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportC
 			CAData:     localCACert,
 			CertData:   localCACert, // Client uses same cert as local proxy server.
 			KeyData:    localCAKey,
-			ServerName: alpncommon.KubeLocalProxySNI(teleportCluster),
+			ServerName: teleportCluster,
 		},
 	})
 	require.NoError(t, err)

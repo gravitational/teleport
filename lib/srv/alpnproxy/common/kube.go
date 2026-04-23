@@ -25,34 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// kubeLocalProxySNIPrefix is the fixed first DNS label of the SNI that kube
-// clients present when connecting to the local proxy. It exists only to match
-// the wildcard cert (*.<teleport-cluster>); the actual cluster identity for
-// request routing is carried in the URL path (see KubeLocalProxyPathPrefix).
-const kubeLocalProxySNIPrefix = "kube."
-
-// KubeLocalProxySNI returns the SNI that kube clients should present when
-// connecting to the local proxy for the given Teleport cluster. The first
-// label is a fixed literal so that it cannot exceed RFC 1035's 63-byte DNS
-// label limit; the suffix identifies the Teleport cluster for listener
-// routing.
-func KubeLocalProxySNI(teleportCluster string) string {
-	return kubeLocalProxySNIPrefix + teleportCluster
-}
-
-// TeleportClusterFromKubeLocalProxySNI returns the Teleport cluster name
-// encoded in the suffix of a local-proxy SNI produced by [KubeLocalProxySNI].
-func TeleportClusterFromKubeLocalProxySNI(serverName string) string {
-	_, teleportCluster, _ := strings.Cut(serverName, ".")
-	return teleportCluster
-}
-
-// KubeLocalProxyWildcardDomain returns the wildcard domain used to generate
-// the local self-signed CA for the provided Teleport cluster.
-func KubeLocalProxyWildcardDomain(teleportCluster string) string {
-	return "*." + teleportCluster
-}
-
 // KubeLocalProxyPathPrefix returns the kubeconfig `server:` URL suffix that
 // encodes the (teleport cluster, kube cluster) pair for URL-based routing.
 // Format: /v1/teleport/<base64url(teleport)>/<base64url(kube)>. Mirrors the

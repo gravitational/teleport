@@ -391,7 +391,7 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 	}
 	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
 		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-			config, ok := configs[common.TeleportClusterFromKubeLocalProxySNI(hello.ServerName)]
+			config, ok := configs[hello.ServerName]
 			if !ok {
 				return nil, trace.BadParameter("unknown Teleport cluster or invalid TLS server name %v", hello.ServerName)
 			}
@@ -461,7 +461,7 @@ func NewKubeForwardProxy(config KubeForwardProxyConfig) (*ForwardProxy, error) {
 func CreateKubeLocalCAs(key *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
 	cas := make(map[string]tls.Certificate)
 	for _, teleportCluster := range teleportClusters {
-		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), common.KubeLocalProxyWildcardDomain(teleportCluster))
+		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), teleportCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

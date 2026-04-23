@@ -157,7 +157,7 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 		CAData:     kubeCAPEM,
 		CertData:   clientCertPEM,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: common.KubeLocalProxySNI(teleportCluster),
+		ServerName: teleportCluster,
 	}
 	client, err := kubernetes.NewForConfig(&rest.Config{
 		Host:            "https://" + teleportCluster + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
