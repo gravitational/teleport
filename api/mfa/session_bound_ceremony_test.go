@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -105,8 +106,8 @@ func TestNewSessionBoundCeremonyErrors(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ceremony, err := mfa.NewSessionBoundCeremony(test.buildConfig())
-			require.ErrorIs(t, err, test.wantErr)
-			require.Empty(t, ceremony)
+			assert.ErrorIs(t, err, test.wantErr)
+			assert.Empty(t, ceremony)
 		})
 	}
 }
