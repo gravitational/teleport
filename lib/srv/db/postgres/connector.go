@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgproto3"
 
 	"github.com/gravitational/teleport/api/types"
 	libcloud "github.com/gravitational/teleport/lib/cloud"

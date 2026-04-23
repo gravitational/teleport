@@ -548,8 +548,9 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return common.ConvertConnectError(err, sessionCtx)
 	}
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(tlsConn), tlsConn)
-	if err = frontend.Send(e.cancelReq); err != nil {
+	frontend := pgproto3.NewFrontend(tlsConn, tlsConn)
+	frontend.Send(e.cancelReq)
+	if err = frontend.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	response := make([]byte, 1)
@@ -563,8 +564,9 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 // startPGWireTLS is a helper func that upgrades upstream connection to TLS.
 // copied from github.com/jackc/pgconn.startTLS.
 func startPGWireTLS(conn net.Conn, tlsConfig *tls.Config) (net.Conn, error) {
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-	if err := frontend.Send(&pgproto3.SSLRequest{}); err != nil {
+	frontend := pgproto3.NewFrontend(conn, conn)
+	frontend.Send(&pgproto3.SSLRequest{})
+	if err := frontend.Flush(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response := make([]byte, 1)
