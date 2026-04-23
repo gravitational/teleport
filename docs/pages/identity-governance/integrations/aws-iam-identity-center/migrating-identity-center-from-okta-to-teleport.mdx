@@ -195,6 +195,11 @@ system-level AWS credentials with `--use-system-credentials`.
 
 Using system-level credential is also the recommended way to provide AWS credential when
 configuring integration in the Teleport Enterprise self-hosted deployment.
+
+Teleport Cloud clusters cannot use `--use-system-credentials`, though. If you
+are on Teleport Cloud, please set up the
+[AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx)
+and use that instead.
 </Admonition>
 
 You can change the AWS account, group and user filters later by following the
