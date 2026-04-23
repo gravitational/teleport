@@ -31,7 +31,9 @@ app_service:
   # Matchers for application resources created with "tctl create" command.
   resources:
   - labels:
-      "*": "*"
+      # Limit discovered apps to those with the environment:production
+      # label
+      "environment": "production" 
   # This section contains definitions of all applications proxied by this
   # service. It can contain multiple items.
   apps:

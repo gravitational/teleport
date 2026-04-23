@@ -219,7 +219,8 @@ spec:
           no_proxy: my-local-domain
       # GCP resource label filters used to match resources.
       labels:
-        "*": "*"
+        # Matches resources with the label "environment:production"
+        "environment": "production"
 
 ```
 
