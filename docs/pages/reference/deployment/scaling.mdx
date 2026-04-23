@@ -223,7 +223,7 @@ tsh bench web sessions --max=64 --duration=2m user@UNIQUE=example ls
 
 ## Teleport Kubernetes Service resource utilization
 
-The Kubernetes Service resource utilization can vary significantly based on workload, RBAC configuration, and cluster topology. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Kubernetes Service.
+Kubernetes Service resource utilization can vary significantly based on workload, RBAC configuration, and cluster topology. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Kubernetes Service instance.
 
 There are three primary factors that influence resource utilization by the Kubernetes Service:
 1. Number of API requests per second.
