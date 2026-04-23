@@ -183,7 +183,7 @@ func (b *Balancer) newManager() *internal.BalancerManager {
 				b.updateHandlerSerial(bm)
 			})
 			if !ok {
-				b.log.Warn("received subconn event after close")
+				b.log.WarnContext(b.ctx, "received subconn event after close")
 			}
 
 		},
@@ -192,7 +192,7 @@ func (b *Balancer) newManager() *internal.BalancerManager {
 	bm = internal.NewBalancerManager(b.ctx, innerBalancer, func() {
 		ok := b.serializer.Put(func() { b.updateHandlerSerial(bm) })
 		if !ok {
-			b.log.Warn("received balancer event after close")
+			b.log.WarnContext(b.ctx, "received balancer event after close")
 		}
 	}, b.log)
 	return bm
@@ -202,7 +202,7 @@ func (b *Balancer) newManager() *internal.BalancerManager {
 // the serializer.
 func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 	state := bm.State()
-	b.log.Debug("receive state update for balancer",
+	b.log.DebugContext(b.ctx, "receive state update for balancer",
 		"balancer", b.balancer(bm),
 		"state", state.Conn.String(),
 		"health", state.Health.String(),
@@ -232,7 +232,7 @@ func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 			bm := b.backup
 			state := bm.State()
 			b.backup = nil
-			b.log.Debug("closing previous backup balancer",
+			b.log.DebugContext(b.ctx, "closing previous backup balancer",
 				"balancer", b.balancer(bm),
 				"state", state.Conn.String(),
 				"health", state.Health.String(),
@@ -257,7 +257,7 @@ func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 		bm := b.active
 		b.active = b.backup
 		b.backup = nil
-		b.log.Debug("closing previous active balancer",
+		b.log.DebugContext(b.ctx, "closing previous active balancer",
 			"balancer", b.balancer(bm),
 			"state", active.Conn.String(),
 			"health", active.Health.String(),
@@ -329,7 +329,7 @@ func (b *Balancer) reconnectSerial() {
 		}
 		bm := b.backup
 		b.backup = nil
-		b.log.Debug("closing previous backup balancer",
+		b.log.DebugContext(b.ctx, "closing previous backup balancer",
 			"balancer", b.balancer(bm),
 			"state", state.Conn.String(),
 			"health", state.Health.String(),

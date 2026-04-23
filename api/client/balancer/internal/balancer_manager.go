@@ -122,7 +122,7 @@ func (m *BalancerManager) initLocked() {
 		resp := &grpcv1.GetServiceConfigResponse{}
 		configErr := cc.Invoke(ctx, grpcv1.ServiceConfigDiscoveryService_GetServiceConfig_FullMethodName, &grpcv1.GetServiceConfigRequest{}, resp)
 		if configErr != nil {
-			slog.DebugContext(ctx, "Failed to fetch service config", "error", configErr)
+			m.log.DebugContext(ctx, "Failed to fetch service config", "error", configErr)
 		}
 
 		m.mu.Lock()
