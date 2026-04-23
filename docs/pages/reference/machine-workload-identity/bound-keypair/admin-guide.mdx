@@ -150,11 +150,11 @@ Other lock targets can also be used, but are not preferred:
 
 Similar to bots, agents have a unique ID. Find the unique ID by running:
 ```code
-$ tctl nodes ls
+$ tctl inventory ls
 ```
 
-Find the node name, and copy its ID from the "UUID" column. Then, create a lock
-for that ID:
+Find the desired host in the list and copy its ID from the "Server ID" column.
+Then, create a lock for that ID:
 ```code
 $ tctl lock --server-id=1234abcd-1234-5678-abcd-1234abcd5678
 ```
