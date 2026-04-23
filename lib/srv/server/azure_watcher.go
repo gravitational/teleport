@@ -99,7 +99,6 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 			Type: libevents.AzureRunEvent,
 			Code: eventCode,
 		},
-
 		AzureMetadata: apievents.AzureMetadata{
 			SubscriptionID: instances.SubscriptionID,
 			ResourceGroup:  instances.ResourceGroup,
@@ -110,13 +109,6 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 			VMID:   vmID,
 			VMName: vmName,
 		},
-
-		ExitCode:       0,
-		ExecutionState: "",
-		StandardOutput: "",
-		StandardError:  "",
-		APIError:       "",
-		Status:         "",
 	}
 
 	if result.APIError != nil {
