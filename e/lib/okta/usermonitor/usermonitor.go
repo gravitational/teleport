@@ -137,17 +137,21 @@ func (u *UserMonitor) Start(ctx context.Context) {
 	go u.run(ctx)
 }
 func (u *UserMonitor) run(ctx context.Context) {
+	// The interval is half of the TTL capped to 1m.
+	lockInterval := min(u.lockTTL/2, time.Minute)
+
 	runWhileLockedConfig := backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
 			Backend:            u.backend,
 			LockNameComponents: []string{"auth", "user-monitor"},
 			TTL:                u.lockTTL,
-			RetryInterval:      time.Minute,
+			RetryInterval:      lockInterval,
 		},
-		RefreshLockInterval: time.Minute,
+		RefreshLockInterval: lockInterval,
 	}
 
-	waitWithJitter := retryutils.SeventhJitter(time.Minute)
+	waitWithJitter := retryutils.SeventhJitter(lockInterval)
+
 	for {
 		err := backend.RunWhileLocked(ctx, runWhileLockedConfig, func(ctx context.Context) error {
 			var wg sync.WaitGroup
