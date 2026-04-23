@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev.alexh.22"
+const Version = "19.0.0-dev.alexh.23"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.alexh.22"
+const VersionPreRelease = "dev.alexh.23"
 const VersionMetadata = ""

@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.alexh.22"
+.version: &version "19.0.0-dev.alexh.23"
 
 apiVersion: v2
 name: teleport-plugin-datadog
