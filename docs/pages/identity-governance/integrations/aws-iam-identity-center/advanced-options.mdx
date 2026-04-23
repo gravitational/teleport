@@ -30,6 +30,11 @@ integration via `tctl`.
 
 Role Sync Mode `NONE` is only available during installation. The Roles Sync Mode
 can be changed to `ALL` later, but you can't go back the other way.
+
+Teleport Cloud clusters cannot use `--use-system-credentials` for this
+installer path. If you are on Teleport Cloud, use the
+[AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx)
+instead.
 </Admonition>
 
 ```console
