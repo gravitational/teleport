@@ -62,7 +62,9 @@ func (d *DurationStringForJamfSpecV1) UnmarshalJSON(data []byte) error {
 
 // UnmarshalJSONPB intercepts gogo's jsonpb unmarshal before it strips quotes
 // from the string value of int64 fields, delegating to [Duration.UnmarshalJSON]
-// which correctly parses the properly quoted JSON string.
+// which correctly parses the properly quoted JSON string. We only need this
+// special handling during the unmarshaling, because marshaling will consistently
+// use [json.Marshaler.MarshalJSON] if available.
 func (d *DurationStringForJamfSpecV1) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, data []byte) error {
-	return (*Duration)(d).UnmarshalJSON(data)
+	return d.UnmarshalJSON(data)
 }
