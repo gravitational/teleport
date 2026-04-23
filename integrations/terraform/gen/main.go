@@ -137,6 +137,10 @@ type payload struct {
 	// operations following the RFD 153 resource guidelines.
 	// This must only be set for resources whose client use envelope structs.
 	RequestWrapper *RequestWrapper
+	// DefaultSubKind is the Teleport sub_kind that is used when the user does
+	// not specify one in the resource config. The user-provided sub_kind (on
+	// the resource or in state) takes precedence; this is only a fallback.
+	DefaultSubKind string
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -165,8 +169,7 @@ type statePoll struct {
 }
 
 // RequestWrapper will wrap the resource types defined in RFD 153 suggested conventions for the client.
-// RFD 153 specifies suggests using request/response wrappers and
-// consistent naming conventions for those types:
+// RFD 153 specifies suggests using request/response wrappers and consistent naming conventions for those types.
 //   - Request types:  {MethodName}Request  ex) CreateFooRequest, GetFooRequest, UpsertFooRequest, DeleteFooRequest
 //   - Response types: {MethodName}Response ex) CreateFooResponse, GetFooResponse, UpsertFooResponse, DeleteFooResponse
 //   - Resource field: The inner resource type itself that the request/response types wrap.
@@ -1013,35 +1016,6 @@ var (
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
 
-	scopedRole = payload{
-		Name:                  "ScopedRole",
-		TypeName:              "ScopedRole",
-		VarName:               "scopedRole",
-		GetMethod:             "ScopedAccessServiceClient().GetScopedRole",
-		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRole",
-		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRole",
-		UpsertMethodArity:     2,
-		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRole",
-		ID:                    "scopedRole.Metadata.Name",
-		Kind:                  "scoped_role",
-		HasStaticID:           false,
-		ProtoPackage:          "accessv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1",
-		TerraformResourceType: "teleport_scoped_role",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
-		ForceSetKind:          "apitypes.KindScopedRole",
-		RequestWrapper: &RequestWrapper{
-			RequestResourceField: "Role",
-			GetRequest:           "GetScopedRoleRequest",
-			CreateRequest:        "CreateScopedRoleRequest",
-			UpdateRequest:        "UpsertScopedRoleRequest",
-			DeleteRequest:        "DeleteScopedRoleRequest",
-		},
-	}
-
 	scopedToken = payload{
 		Name:                  "ScopedToken",
 		TypeName:              "ScopedToken",
@@ -1215,8 +1189,6 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
-	generateResource(scopedRole, pluralResource)
-	generateDataSource(scopedRole, pluralDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)

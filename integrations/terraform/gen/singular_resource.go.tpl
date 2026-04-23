@@ -34,6 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+{{- if .DefaultSubKind }}
+	"github.com/hashicorp/terraform-plugin-framework/path"
+{{- end }}
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -92,6 +95,11 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 {{- end}}
+{{- if .DefaultSubKind}}
+	if {{.VarName}}.SubKind == "" {
+		{{.VarName}}.SubKind = {{.DefaultSubKind}}
+	}
+{{- end}}
 
 	{{if .DefaultVersion -}}
 	if {{.VarName}}.Version == "" {
@@ -112,8 +120,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 
 	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}.SubKind,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -187,8 +195,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 			Name: {{.DefaultName}},
-			{{- if .SubKind}}
-			SubKind: {{.SubKind}},
+			{{- if .DefaultSubKind}}
+			SubKind: {{.VarName}}.SubKind,
 			{{- end}}
 			{{- if ne .WithSecrets ""}}
 			WithSecrets: {{.WithSecrets}},
@@ -277,12 +285,23 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -354,6 +373,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 {{- end}}
+{{- if .DefaultSubKind}}
+	if {{.VarName}}.SubKind == "" {
+		{{.VarName}}.SubKind = {{.DefaultSubKind}}
+	}
+{{- end}}
 
 	{{- if .DefaultName }}
 	if {{.VarName}}.GetMetadata() == nil {
@@ -368,8 +392,8 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}.SubKind,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -431,8 +455,8 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 			Name: {{.DefaultName}},
-			{{- if .SubKind}}
-			SubKind: {{.SubKind}},
+			{{- if .DefaultSubKind}}
+			SubKind: {{.VarName}}.SubKind,
 			{{- end}}
 			{{- if ne .WithSecrets ""}}
 			WithSecrets: {{.WithSecrets}},
@@ -489,11 +513,21 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 // Delete deletes Teleport {{.Name}}
 func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 	_, err := r.p.Client.{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
 		Name: {{.DefaultName}},
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
 		{{- end}}
 	})
 {{- else}}
@@ -512,8 +546,8 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: {{.DefaultSubKind}},
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
