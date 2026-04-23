@@ -89,7 +89,8 @@ func makeEnhancedSummary(es *summarizerv1.EnhancedSummary) *EnhancedSummary {
 		CompromiseIndicators:  es.GetCompromiseIndicators(),
 		NotableCommandIndexes: es.GetNotableCommandIndexes(),
 		Commands:              makeCommandAnalyses(es.GetCommands()),
-		NeedsFurtherReview:    makeNeedsFurtherReview(es.GetNeedsFurtherReview()),
+		//nolint:staticcheck // deprecated field kept for backwards compatibility
+		NeedsFurtherReview: makeNeedsFurtherReview(es.GetNeedsFurtherReview()),
 	}
 }
 

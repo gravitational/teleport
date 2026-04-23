@@ -9,6 +9,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // getGraphEndpoint returns the Graph API endpoint from the given provider, or
@@ -41,7 +42,7 @@ func getEntraGroupType(provider *types.EntraIDGroupsProvider) string {
 // getEntraGroups returns the Entra ID groups the provided user is a direct or nested member of.
 func getEntraGroups(ctx context.Context, graphClient *msgraph.Client, groupType string, userID string) ([]string, error) {
 	var groups []string
-	if err := graphClient.IterateUsersTransitiveMemberOf(ctx, userID, groupType, func(group *msgraph.Group) bool {
+	if err := graphClient.IterateUsersTransitiveMemberOf(ctx, userID, groupType, func(group *models.Group) bool {
 		if group == nil {
 			return false
 		}

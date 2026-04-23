@@ -158,11 +158,14 @@ func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalys
 
 	if analysis.TooLarge {
 		tooLarge := summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
+		//nolint:staticcheck // deprecated field kept for backwards compatibility
 		es.NeedsFurtherReview = &tooLarge
 	}
 
+	//nolint:staticcheck // deprecated field kept for backwards compatibility
 	if analysis.CommandAnalysisFailed && es.NeedsFurtherReview == nil {
 		failed := summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED
+		//nolint:staticcheck // deprecated field kept for backwards compatibility
 		es.NeedsFurtherReview = &failed
 	}
 

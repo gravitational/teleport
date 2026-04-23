@@ -1091,7 +1091,9 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 			require.Equal(t, providerName+"-model", summary.ModelName)
 			require.Empty(t, summary.ErrorMessage)
 			require.NotNil(t, summary.EnhancedSummary)
+			//nolint:staticcheck // deprecated field kept for backwards compatibility
 			require.NotNil(t, summary.EnhancedSummary.NeedsFurtherReview)
+			//nolint:staticcheck // deprecated field kept for backwards compatibility
 			require.Equal(t, summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED, *summary.EnhancedSummary.NeedsFurtherReview)
 		})
 	}
