@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -123,6 +124,7 @@ type ServerConfig struct {
 	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
 	Logger             *slog.Logger
+	Modules            modules.Modules
 }
 
 // Server implements cluster joining for nodes and bots.

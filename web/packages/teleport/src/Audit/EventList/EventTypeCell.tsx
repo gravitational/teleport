@@ -371,6 +371,10 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

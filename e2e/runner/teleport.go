@@ -31,8 +31,9 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 // clusterName is the name of the Teleport cluster used for E2E testing.
