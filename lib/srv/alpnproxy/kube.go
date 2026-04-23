@@ -58,31 +58,31 @@ const certReissueClientWait = time.Second * 3
 // we give them longer time to perform the headless login flow.
 const certReissueClientWaitHeadless = defaults.HeadlessLoginTimeout
 
-// ClusterKey identifies a (Teleport cluster, kube cluster) pair.
-type ClusterKey struct {
-	TeleportCluster string
-	KubeCluster     string
+// kubeClusterKey identifies a (Teleport cluster, kube cluster) pair.
+type kubeClusterKey struct {
+	teleportCluster string
+	kubeCluster     string
 }
 
-// kubeClusterKeyContextKey keys the ClusterKey that HandleRequest stashes on
+// kubeClusterKeyContextKey keys the kubeClusterKey that HandleRequest stashes on
 // the request context after parsing the /v1/teleport/<b64>/<b64> prefix, so
 // downstream middleware hooks (GetServerName, GetClientCerts) can read the
 // routing pair without re-parsing a path that has already been stripped.
 type kubeClusterKeyContextKey struct{}
 
-func clusterKeyFromContext(ctx context.Context) (ClusterKey, bool) {
-	key, ok := ctx.Value(kubeClusterKeyContextKey{}).(ClusterKey)
+func clusterKeyFromContext(ctx context.Context) (kubeClusterKey, bool) {
+	key, ok := ctx.Value(kubeClusterKeyContextKey{}).(kubeClusterKey)
 	return key, ok
 }
 
 // KubeClientCerts holds Kubernetes client certs keyed by the (Teleport cluster,
 // kube cluster) pair. The key is derived from the incoming request URL path,
 // which carries both identifiers in the /v1/teleport/<b64>/<b64>/... prefix.
-type KubeClientCerts map[ClusterKey]tls.Certificate
+type KubeClientCerts map[kubeClusterKey]tls.Certificate
 
 // Add adds a tls.Certificate for a kube cluster.
 func (c KubeClientCerts) Add(teleportCluster, kubeCluster string, cert tls.Certificate) {
-	c[ClusterKey{TeleportCluster: teleportCluster, KubeCluster: kubeCluster}] = cert
+	c[kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}] = cert
 }
 
 // KubeCertReissuer reissues a client certificate for a Kubernetes cluster.
@@ -206,7 +206,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	// stash instead.
 	var teleportCluster, kubeCluster string
 	if key, ok := clusterKeyFromContext(req.Context()); ok {
-		teleportCluster, kubeCluster = key.TeleportCluster, key.KubeCluster
+		teleportCluster, kubeCluster = key.teleportCluster, key.kubeCluster
 	} else {
 		tc, kc, rest, err := common.ClustersFromKubeLocalProxyPath(req.URL.Path)
 		if err != nil {
@@ -215,7 +215,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 			return true
 		}
 		teleportCluster, kubeCluster = tc, kc
-		key := ClusterKey{TeleportCluster: tc, KubeCluster: kc}
+		key := kubeClusterKey{teleportCluster: tc, kubeCluster: kc}
 		*req = *req.WithContext(context.WithValue(req.Context(), kubeClusterKeyContextKey{}, key))
 		req.URL.Path = rest
 		req.URL.RawPath = ""
@@ -272,14 +272,14 @@ func (m *KubeMiddleware) GetServerName(req *http.Request) (string, bool, error) 
 	if !ok {
 		return "", false, trace.BadParameter("missing cluster key on request context")
 	}
-	return kuberelay.FullSNIForKubeCluster(key.TeleportCluster, key.KubeCluster), true, nil
+	return kuberelay.FullSNIForKubeCluster(key.teleportCluster, key.kubeCluster), true, nil
 }
 
 // getCert looks up the per-cluster client cert to use for an outbound kube
 // API request. Clusters are identified by the (teleport, kube) pair parsed
 // from the request URL path.
 func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (tls.Certificate, error) {
-	key := ClusterKey{TeleportCluster: teleportCluster, KubeCluster: kubeCluster}
+	key := kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}
 
 	m.certsMu.RLock()
 	cert, ok := m.certs[key]
@@ -295,7 +295,7 @@ func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, 
 	if !ok {
 		return tls.Certificate{}, trace.BadParameter("missing cluster key on request context")
 	}
-	return m.getCert(key.TeleportCluster, key.KubeCluster)
+	return m.getCert(key.teleportCluster, key.kubeCluster)
 }
 
 // GetClientCerts implements [LocalProxyHTTPMiddleware].
