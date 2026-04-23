@@ -354,7 +354,7 @@ func TestProxyPubSub(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, watcher.WaitInitialization())
 
-				pb := newDiscoPub(ctx, watcher, logtest.NewLogger())
+				pb := newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger())
 				pb.compact = tt.compact
 				t.Cleanup(pb.Close)
 

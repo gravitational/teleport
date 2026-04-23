@@ -755,15 +755,15 @@ func (s *localCluster) addConn(nodeID, scope string, connType types.TunnelType, 
 	defer s.remoteConnsMtx.Unlock()
 
 	rconn, err := newRemoteConn(&connConfig{
-		conn:             conn,
-		sconn:            sconn,
-		tunnelType:       string(connType),
-		proxyName:        s.srv.ID,
-		clusterName:      s.domainName,
-		nodeID:           nodeID,
-		scope:            scope,
-		offlineThreshold: s.offlineThreshold,
-		discoSub:         s.srv.discoPub.Subscribe(),
+		conn:                     conn,
+		sconn:                    sconn,
+		tunnelType:               string(connType),
+		proxyName:                s.srv.ID,
+		clusterName:              s.domainName,
+		nodeID:                   nodeID,
+		scope:                    scope,
+		offlineThreshold:         s.offlineThreshold,
+		proxyDiscoverySubscriber: s.srv.proxyDiscoveryPublisher.Subscribe(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -817,15 +817,15 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			req.Proxies = rconn.discoSub.GetAll()
+			req.Proxies = rconn.proxyDiscoverySubscriber.GetAll()
 			if err := rconn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				rconn.markInvalid(err)
 				return
 			}
-		case <-rconn.discoSub.Wait():
+		case <-rconn.proxyDiscoverySubscriber.Wait():
 			var req discoveryRequest
-			req.Proxies = rconn.discoSub.Get()
+			req.Proxies = rconn.proxyDiscoverySubscriber.Get()
 			if len(req.Proxies) == 0 {
 				continue
 			}

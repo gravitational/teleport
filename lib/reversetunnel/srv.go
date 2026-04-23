@@ -127,8 +127,8 @@ type server struct {
 	// gitKeyManager manages keys for git proxies.
 	gitKeyManager *git.KeyManager
 
-	// discoPub pushes proxy discovery events to subscribers.
-	discoPub *proxyDiscoveryPublisher
+	// proxyDiscoveryPublisher publishes proxy discovery events to subscribers.
+	proxyDiscoveryPublisher *proxyDiscoveryPublisher
 }
 
 // EICESigner is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
@@ -365,18 +365,18 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 	}
 
 	srv := &server{
-		Config:               cfg,
-		localAuthClient:      cfg.LocalAuthClient,
-		localAccessPoint:     cfg.LocalAccessPoint,
-		limiter:              cfg.Limiter,
-		ctx:                  ctx,
-		cancel:               cancel,
-		expectedLeafClusters: make(map[string]*expectedLeafClusters),
-		logger:               cfg.Logger,
-		offlineThreshold:     offlineThreshold,
-		proxySigner:          cfg.PROXYSigner,
-		gitKeyManager:        gitKeyManager,
-		discoPub:             newDiscoPub(ctx, proxyWatcher, cfg.Logger),
+		Config:                  cfg,
+		localAuthClient:         cfg.LocalAuthClient,
+		localAccessPoint:        cfg.LocalAccessPoint,
+		limiter:                 cfg.Limiter,
+		ctx:                     ctx,
+		cancel:                  cancel,
+		expectedLeafClusters:    make(map[string]*expectedLeafClusters),
+		logger:                  cfg.Logger,
+		offlineThreshold:        offlineThreshold,
+		proxySigner:             cfg.PROXYSigner,
+		gitKeyManager:           gitKeyManager,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, proxyWatcher, cfg.Logger),
 	}
 
 	srv.localCluster, err = newLocalCluster(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
@@ -663,7 +663,7 @@ func (s *server) Start() error {
 
 func (s *server) Close() error {
 	s.cancel()
-	s.discoPub.Close()
+	s.proxyDiscoveryPublisher.Close()
 	return s.srv.Close()
 }
 
@@ -689,7 +689,7 @@ func (s *server) DrainConnections(ctx context.Context) error {
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
 
-	s.discoPub.Close()
+	s.proxyDiscoveryPublisher.Close()
 	s.cancel()
 
 	return trace.Wrap(err)

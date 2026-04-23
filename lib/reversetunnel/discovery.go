@@ -138,17 +138,17 @@ type proxyDiscoveryPublisher struct {
 	log     *slog.Logger
 
 	// state points to the current immutable discovery snapshot.
-	// writers must publish a fully rebuilt discoState and never mutate it.
-	state atomic.Pointer[discoState]
+	// writers must publish a fully rebuilt discoveryState and never mutate it.
+	state atomic.Pointer[discoveryState]
 	// alwaysClosed is a channel sent to subscribers when they are first created
 	// to notify them immediately to fetch the latest state. it is always closed
 	// and never replaced.
 	alwaysClosed chan struct{}
 }
 
-// discoState is a single published discovery snapshot.
+// discoveryState is a single published discovery snapshot.
 // its fields are read without locking and must be treated as immutable.
-type discoState struct {
+type discoveryState struct {
 	// proxies is the lastest set of servers received from the watcher.
 	proxies []types.Server
 	// proxy version associates a proxy by name with the version at which its
@@ -166,8 +166,8 @@ type proxyversion struct {
 	updated time.Time
 }
 
-// newDiscoPub constructs a [discoPub] using the given [services.GenericWatcher].
-func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Server, readonly.Server], logger *slog.Logger) *proxyDiscoveryPublisher {
+// newProxyDiscoveryPublisher constructs a [proxyDiscoveryPublisher] using the given [services.GenericWatcher].
+func newProxyDiscoveryPublisher(ctx context.Context, watcher *services.GenericWatcher[types.Server, readonly.Server], logger *slog.Logger) *proxyDiscoveryPublisher {
 	ctx, cancel := context.WithCancel(ctx)
 	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_COMPACT_DISCOVERY")
 	compact, _ := strconv.ParseBool(v)
@@ -176,13 +176,13 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 		ctx:          ctx,
 		cancel:       cancel,
 		watcher:      watcher,
-		state:        atomic.Pointer[discoState]{},
+		state:        atomic.Pointer[discoveryState]{},
 		alwaysClosed: make(chan struct{}),
 		compact:      compact,
 		log:          logger,
 	}
 	close(dp.alwaysClosed)
-	dp.state.Store(&discoState{
+	dp.state.Store(&discoveryState{
 		versions: map[string]proxyversion{},
 		notify:   make(chan struct{}),
 	})
@@ -225,7 +225,7 @@ func (dp *proxyDiscoveryPublisher) run() {
 			now := dp.watcher.Clock.Now()
 
 			prev := dp.state.Load()
-			next := &discoState{
+			next := &discoveryState{
 				proxies:  servers,
 				versions: make(map[string]proxyversion, len(servers)),
 				version:  prev.version + 1,
@@ -252,7 +252,7 @@ func (dp *proxyDiscoveryPublisher) run() {
 	}
 }
 
-// Subscribe returns a new [discoSub] for receiving proxy event updates.
+// Subscribe returns a new [proxyDiscoverySubscriber] for receiving proxy event updates.
 func (dp *proxyDiscoveryPublisher) Subscribe() *proxyDiscoverySubscriber {
 	s := &proxyDiscoverySubscriber{
 		pb:     dp,
@@ -265,13 +265,13 @@ func (dp *proxyDiscoveryPublisher) Subscribe() *proxyDiscoverySubscriber {
 	return s
 }
 
-// Close cleans up resources allocated by a [discoPub].
+// Close cleans up resources allocated by a [proxyDiscoveryPublisher].
 func (dp *proxyDiscoveryPublisher) Close() {
 	dp.cancel()
 	dp.watcher.Close()
 }
 
-// discoGetParams contains parameters for [discoPub.get].
+// discoGetParams contains parameters for [proxyDiscoveryPublisher.get].
 type discoGetParams struct {
 	// sinceLastVersion indicates that only proxies that have been fetched since
 	// the last get by the subscriber will be returned.

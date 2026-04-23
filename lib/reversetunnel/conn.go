@@ -64,8 +64,8 @@ type remoteConn struct {
 	// discoveryCh is the SSH channel over which discovery requests are sent.
 	discoveryCh ssh.Channel
 
-	// discoSub receives proxy updates.
-	discoSub *proxyDiscoverySubscriber
+	// proxyDiscoverySubscriber receives proxy updates.
+	proxyDiscoverySubscriber *proxyDiscoverySubscriber
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
@@ -113,19 +113,19 @@ type connConfig struct {
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
 
-	// discoSub receives proxy discovery events.
-	discoSub *proxyDiscoverySubscriber
+	// proxyDiscoverySubscriber receives proxy discovery events.
+	proxyDiscoverySubscriber *proxyDiscoverySubscriber
 }
 
 func newRemoteConn(cfg *connConfig) (*remoteConn, error) {
-	if cfg.discoSub == nil {
+	if cfg.proxyDiscoverySubscriber == nil {
 		return nil, trace.BadParameter("missing proxy discovery subscription")
 	}
 	c := &remoteConn{
-		logger:     slog.With(teleport.ComponentKey, "discovery"),
-		connConfig: cfg,
-		clock:      clockwork.NewRealClock(),
-		discoSub:   cfg.discoSub,
+		logger:                   slog.With(teleport.ComponentKey, "discovery"),
+		connConfig:               cfg,
+		clock:                    clockwork.NewRealClock(),
+		proxyDiscoverySubscriber: cfg.proxyDiscoverySubscriber,
 	}
 	return c, nil
 }

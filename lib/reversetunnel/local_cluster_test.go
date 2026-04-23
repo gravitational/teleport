@@ -75,12 +75,12 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// set up the cluster
 	srv := &server{
-		ctx:              ctx,
-		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalClusterClient{},
-		logger:           logtest.NewLogger(),
-		offlineThreshold: time.Second,
-		discoPub:         newDiscoPub(ctx, watcher, logtest.NewLogger()),
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         &mockLocalClusterClient{},
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        time.Second,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -163,10 +163,10 @@ func TestLocalClusterOverlap(t *testing.T) {
 	require.NoError(t, err)
 
 	srv := &server{
-		Config:          Config{Clock: clockwork.NewFakeClock()},
-		ctx:             context.Background(),
-		localAuthClient: &mockLocalClusterClient{},
-		discoPub:        newDiscoPub(ctx, watcher, logtest.NewLogger()),
+		Config:                  Config{Clock: clockwork.NewFakeClock()},
+		ctx:                     context.Background(),
+		localAuthClient:         &mockLocalClusterClient{},
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -285,12 +285,12 @@ func TestProxyResync(t *testing.T) {
 
 	// set up the cluster
 	srv := &server{
-		ctx:              ctx,
-		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalClusterClient{},
-		logger:           logtest.NewLogger(),
-		offlineThreshold: 24 * time.Hour,
-		discoPub:         newDiscoPub(ctx, watcher, logtest.NewLogger()),
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         &mockLocalClusterClient{},
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        24 * time.Hour,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
