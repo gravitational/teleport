@@ -109,7 +109,7 @@ a cluster rollback; refer to the
 information.
 
 <Admonition type="warning" title="Agent note">
-Note that non-bot agents manage their certificates different than bots: they
+Note that non-bot agents manage their certificates differently from bots: they
 generally do not reauthenticate to Teleport on a regular basis and only do so
 under certain conditions, like if role changes are requested (adding a new
 service role). Rotation can only happen during the bound keypair challenge
@@ -126,7 +126,7 @@ $ tctl lock --join-token=token-name
 ```
 
 As a bound keypair token is linked to a single client, this will effectively
-it. It will not be able to reauthenticate, recover, interact with the
+lock it. It will not be able to reauthenticate, recover, interact with the
 Teleport API, or otherwise use its credentials until the lock is removed.
 
 ### Bot-specific locking notes
@@ -212,7 +212,7 @@ spec:
 version: v2
 ```
 
-Note the different locks and lock targets shown above. For bots can be targeted
+Note the different locks and lock targets shown above. Bots can be targeted
 by any of these lock types:
 - their Teleport user name (`bot-example`)
 - the bot instance ID (a UUID)
@@ -324,8 +324,8 @@ lost or deleted.
 ## Manually rotating static keys
 
 Static keys prevent automatic key rotation as clients cannot update keys in an
-arbitrary - and potentially remote - keystore. However, it may still possible to
-automate rotation if your environment or secret store allows you to update
+arbitrary - and potentially remote - keystore. However, it may still be possible
+to automate rotation if your environment or secret store allows you to update
 secrets through an API.
 
 The specific steps needed to automate these will vary based on your environment,
@@ -376,26 +376,32 @@ Frequently rotating static keys can help to mitigate the security tradeoffs of
 `insecure` recovery. See the [concepts page](concepts.mdx#static-keys) for more
 information about static keys.
 
-## Using bound keypair for standard Teleport agents
+## Limitations of Bound Keypair joining for Teleport Agents
 
 As of Teleport v18.8, the `bound_keypair` join method supports standard agent
 types as well as Machine & Workload ID bots.
 
-Note that the benefits of bound keypair joining for agents are more limited, so
+Note that the benefits of Bound Keypair joining for agents are more limited, so
 most users will still probably prefer to use the traditional `token` join
 method:
 - Agents are ultimately still issued long-lived certificates and do not
   generally renew these identities outside of limited circumstances.
+- As most Agents only join a single time, Bound Keypair's
+  [Join State Verification](./concepts.mdx#join-state-verification) is
+  effectively unused.
+- As [keypair rotation](#requesting-a-keypair-rotation) can only take place at
+  join time, agents will only honor a keypair rotation request under certain
+  conditions, like a role change.
 - Agent identities don't have access privileges for other Teleport resources, so
-  they don't benefit from the additional protections provided by bound keypair
-  joining.
-- The bound keypair join method is more complex than `token` joining, and does
+  they don't benefit from or take advantage of the additional protections
+  provided by Bound Keypair joining.
+- The Bound Keypair join method is more complex than `token` joining, and does
   introduce potential new failure modes.
-- Agents can only join via registration secrets (bound keypair's default mode)
+- Agents can only join via registration secrets (Bound Keypair's default mode)
   or static key files. Non-static preregistered keys are not currently
   supported.
 
-That said, you might consider bound keypair for Agents in certain circumstances:
+That said, you might consider Bound Keypair for Agents in certain circumstances:
 - You want an alternative to standard `token`-type tokens that is strictly
   single-use.
 
@@ -409,112 +415,10 @@ That said, you might consider bound keypair for Agents in certain circumstances:
   system, and no secrets or private key material would ever have to leave the
   host.
 
-### Configuring an agent with a registration secret
-
-First, create `token-bk-agent.yaml`:
-```yaml
-kind: token
-version: v2
-metadata:
-  name: bk-agent
-spec:
-  roles: [Node]
-  join_method: bound_keypair
-  bound_keypair:
-    recovery:
-      mode: standard
-      limit: 1
-```
-
-Adjust `roles` as needed for your node (e.g. `App`, `Kube`, `Db` etc).
-
-Create the token, then fetch it to retrieve the generated registration secret:
-```code
-$ tctl create -f token-bk-agent.yaml
-$ tctl get token/bk-agent --with-secrets
-```
-
-Note the `status.bound_keypair.registration_secret` value. Next, prepare your
-agent's `teleport.yaml`:
-```yaml
-version: v3
-teleport:
-  data_dir: /var/lib/teleport
-  join_params:
-    token_name: bk-agent
-    method: bound_keypair
-    bound_keypair:
-      registration_secret_value: <secret>
-
-      # Alternatively, write the secret to a file and provide a path:
-      # registration_secret_path: /path/to/secret
-
-# ... additional service configuration blocks omitted ...
-```
-
-Note the following fields:
-- `teleport.join_params.token_name`: should match the name of the bound keypair
-  token you created earlier
-- `teleport.join_params.method`: should be `bound_keypair`
-- `teleport.join_params.bound_keypair.registration_secret_value`: contains the
-  secret value you copied from the token earlier.
-- (optional) `teleport.join_params.bound_keypair.registration_secret_path`: a
-  path to a file containing the registration secret if you'd prefer not to write
-  it in `teleport.yaml` directly; cannot be used with
-  `registration_secret_value`.
-
-Ensure the registration secret has been specified (either directly in
-`teleport.yaml` or via the path option), and start `teleport` as usual. The
-agent should join using the bound keypair token. As with bots, it will generate
-a keypair internally and exchange the public key with your Teleport Auth Service
-automatically.
-
-### Configuring an agent with a static key
-
-First, on the node, generate a keypair. This requires the `tbot` binary:
-```yaml
-$ tbot keypair create \
-  --proxy-server example.teleport.sh:443 \
-  --static \
-  --static-key-path /path/to/keypair
-```
-
-This command will write a private key to the specified path, and will print the
-public key, like `ssh-ed25519 <data>`.
-
-Next, on your local machine, create `token-bk-agent-static.yaml`:
-```yaml
-kind: token
-version: v2
-metadata:
-  name: bk-agent-static
-spec:
-  roles: [Node]
-  join_method: bound_keypair
-  bound_keypair:
-    onboarding:
-      initial_public_key: <public key>
-    recovery:
-      mode: insecure
-      limit: 1
-```
-
-Back on the node, configure `teleport.yaml` as follows:
-```yaml
-version: v3
-teleport:
-  data_dir: /var/lib/teleport
-  join_params:
-    token_name: bk-agent-static
-    method: bound_keypair
-    bound_keypair:
-      static_key_path: /path/to/keypair
-
-# ... additional service configuration blocks omitted ...
-```
-
-Start the agent as usual (`teleport start -c teleport.yaml` or via your service
-manager of choice) and it should join the cluster.
+If you'd like to join an agent using Bound Keypair joining, refer to these
+guides:
+- [Joining an agent using Bound Keypair](../../../enroll-resources/agents/bound-keypair.mdx)
+- [Joining an agent using Bound Keypair Static Keys](../../../enroll-resources/agents/bound-keypair-static-keys.mdx)
 
 [rbac]: ../../access-controls/roles.mdx
 [ephemeral]: ../../architecture/machine-id-architecture.mdx#ephemeral-token

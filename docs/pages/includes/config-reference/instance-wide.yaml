@@ -60,9 +60,9 @@ teleport:
       # the initial agent join.
       registration_secret_value: "1234567890"
 
-      # Sets the path to a file containing the registration secret, useful if
-      # you don't want to specify it in this file directly. If this is set,
-      # `registration_secret_value` cannot be specified.
+      # Sets the path to a file containing the registration secret. This is
+      # useful if you don't want to specify it in this file directly. If this is
+      # set, `registration_secret_value` cannot be specified.
       registration_secret_path: /path/to/secret
 
       # If using bound keypair static keys, this contains the path to the
