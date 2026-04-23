@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -199,6 +200,77 @@ func TestBalancerClose(t *testing.T) {
 	})
 }
 
+func TestConnectTimeout(t *testing.T) {
+	ctx := t.Context()
+	server1 := newTestServer(t, grpcv1.Mode_MODE_RECONNECT, true)
+	server2 := newTestServer(t, grpcv1.Mode_MODE_RECONNECT, true)
+	resolver := newTestResolver(t)
+	resolver.UpdateAddresses(server1.Addr(), server2.Addr())
+
+	balancerCh := make(chan *Balancer, 1)
+	withBuildHook(t, func(b *Balancer) {
+		b.connectTimeout = 100 * time.Millisecond
+		balancerCh <- b
+	})
+	conn := newTestClient(t, resolver)
+	conn.Connect()
+
+	b := <-balancerCh
+	activeState := func() internal.State {
+		var state internal.State
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+		b.serializer.Put(func() {
+			state = b.active.State()
+			wg.Done()
+		})
+		wg.Wait()
+		return state
+	}
+
+	var prev, next *testServer
+	require.Eventually(t, func() bool {
+		name, err := pingServer(ctx, conn)
+		if err != nil {
+			return false
+		}
+		if name == server1.Name() {
+			prev = server1
+			next = server2
+			return true
+		}
+		if name == server2.Name() {
+			prev = server2
+			next = server1
+			return true
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		state := activeState()
+		return state.Ready()
+	}, 5*time.Second, 10*time.Millisecond)
+
+	next.config.blockResponse.Store(true)
+	prev.Stop()
+
+	require.Eventually(t, func() bool {
+		_, err := pingServer(ctx, conn)
+		return err == nil
+	}, 5*time.Second, 50*time.Millisecond)
+	require.Eventually(t, func() bool {
+		state := activeState()
+		return state.Connecting()
+	}, 5*time.Second, 10*time.Millisecond)
+
+	next.config.blockResponse.Store(false)
+	require.Eventually(t, func() bool {
+		state := activeState()
+		return state.Ready()
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
 // buildHookMu should only be used within [withBuildHook]
 var buildHookMu sync.Mutex
 
@@ -236,9 +308,15 @@ type configService struct {
 	grpcv1.UnimplementedServiceConfigDiscoveryServiceServer
 	mode           grpcv1.Mode
 	healthChecking bool
+	blockResponse  atomic.Bool
 }
 
-func (s *configService) GetServiceConfig(context.Context, *grpcv1.GetServiceConfigRequest) (*grpcv1.GetServiceConfigResponse, error) {
+func (s *configService) GetServiceConfig(ctx context.Context, _ *grpcv1.GetServiceConfigRequest) (*grpcv1.GetServiceConfigResponse, error) {
+	if s.blockResponse.Load() {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
 	resp := &grpcv1.GetServiceConfigResponse{
 		Config: &grpcv1.ServiceConfig{
 			LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{{

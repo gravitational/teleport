@@ -39,6 +39,7 @@ const (
 	// reconnect deafults.
 	reconnectBaseBackoff = 1 * time.Second
 	reconnectMaxBackoff  = 16 * time.Second
+	connectTimeout       = 30 * time.Second
 )
 
 var (
@@ -55,15 +56,16 @@ func (balancerBuilder) Name() string {
 func (balancerBuilder) Build(cc balancer.ClientConn, opts balancer.BuildOptions) balancer.Balancer {
 	ctx, cancel := context.WithCancel(context.Background())
 	b := &Balancer{
-		cc:          cc,
-		opts:        opts,
-		log:         slog.Default(),
-		ctx:         ctx,
-		cancel:      cancel,
-		serializer:  internal.NewCallbackSerializer(),
-		backoff:     reconnectBaseBackoff,
-		baseBackoff: reconnectBaseBackoff,
-		maxBackoff:  reconnectMaxBackoff,
+		cc:             cc,
+		opts:           opts,
+		log:            slog.Default(),
+		ctx:            ctx,
+		cancel:         cancel,
+		serializer:     internal.NewCallbackSerializer(),
+		backoff:        reconnectBaseBackoff,
+		baseBackoff:    reconnectBaseBackoff,
+		maxBackoff:     reconnectMaxBackoff,
+		connectTimeout: connectTimeout,
 	}
 	b.active = b.newManager()
 	if testBuildHook != nil {
@@ -111,6 +113,12 @@ type Balancer struct {
 	backoff     time.Duration
 	baseBackoff time.Duration
 	maxBackoff  time.Duration
+
+	// connect is the timer returned from the [time.AfterFunc] used to fire off
+	// a reconnect after the connect timeout is hit. If a connect and reconnect
+	// are scheduled concurrently, whichever fires first will cancel the other.
+	connect        *time.Timer
+	connectTimeout time.Duration
 }
 
 // UpdateClientConnState receives [balancer.ClientConnState] updates from a
@@ -245,7 +253,13 @@ func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 	}
 
 	if active.Connecting() {
-		return
+		// If we are stuck connecting too long this could indicate a failure
+		// where the underlying transport is up but something is wedged at the
+		// application level. In this case schedule a reconnect.
+		b.scheduleConnectSerial()
+		if b.backup == nil {
+			return
+		}
 	}
 	if b.backup == nil {
 		b.scheduleReconnectSerial()
@@ -283,12 +297,37 @@ func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 }
 
 func (b *Balancer) resetReconnectSerial() {
-	if b.reconnect == nil {
+	b.backoff = b.baseBackoff
+	b.stopReconnectSerial()
+}
+
+func (b *Balancer) stopReconnectSerial() {
+	if b.reconnect != nil {
+		b.reconnect.Stop()
+		b.reconnect = nil
+	}
+	if b.connect != nil {
+		b.connect.Stop()
+		b.connect = nil
+	}
+}
+
+func (b *Balancer) scheduleConnectSerial() {
+	if b.connect != nil || b.reconnect != nil {
 		return
 	}
-	b.reconnect.Stop()
-	b.reconnect = nil
-	b.backoff = b.baseBackoff
+	delay := b.connectTimeout + time.Duration(float32(b.connectTimeout/10)*rand.Float32())
+	var connect *time.Timer
+	connect = time.AfterFunc(delay, func() {
+		b.serializer.Put(func() {
+			if b.connect != connect {
+				return
+			}
+			b.reconnectSerial()
+			b.stopReconnectSerial()
+		})
+	})
+	b.connect = connect
 }
 
 // scheduleReconnectSerial kicks off a reconnect at some point in the future.
@@ -310,7 +349,7 @@ func (b *Balancer) scheduleReconnectSerial() {
 				return
 			}
 			b.reconnectSerial()
-			b.reconnect = nil
+			b.stopReconnectSerial()
 		})
 	})
 	b.reconnect = reconnect
