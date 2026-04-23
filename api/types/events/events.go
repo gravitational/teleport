@@ -753,6 +753,10 @@ func (m *AppSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *AppSessionExpire) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *AppSessionChunk) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

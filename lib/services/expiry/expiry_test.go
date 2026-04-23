@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -36,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestExpiryBasic(t *testing.T) {
+func TestAccessListExpiryBasic(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
@@ -69,7 +70,7 @@ func TestExpiryBasic(t *testing.T) {
 	})
 }
 
-func TestExpiryInterval(t *testing.T) {
+func TestAccessListExpiryInterval(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
@@ -77,12 +78,13 @@ func TestExpiryInterval(t *testing.T) {
 		const testInterval = time.Hour
 
 		expiry, authServer, emitter := setupExpiryService(t)
+		expiry.expiryTasks[0].intervalCfg = interval.Config{
+			Duration:      testInterval,
+			FirstDuration: testInterval,
+		}
 		go func() {
 			// Run with rigid intervals.
-			err := expiry.run(ctx, interval.Config{
-				Duration:      testInterval,
-				FirstDuration: testInterval,
-			})
+			err := expiry.run(ctx, expiry.expiryTasks[0])
 			require.NoError(t, err)
 		}()
 
@@ -135,7 +137,7 @@ func TestExpiryInterval(t *testing.T) {
 	})
 }
 
-func TestExpiryPendingGracePeriod(t *testing.T) {
+func TestAccessListExpiryPendingGracePeriod(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
@@ -143,12 +145,13 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 		const testInterval = time.Hour
 
 		expiryService, authServer, emitter := setupExpiryService(t)
+		expiryService.expiryTasks[0].intervalCfg = interval.Config{
+			Duration:      testInterval,
+			FirstDuration: testInterval,
+		}
 		go func() {
 			// Run with rigid intervals.
-			err := expiryService.run(ctx, interval.Config{
-				Duration:      testInterval,
-				FirstDuration: testInterval,
-			})
+			err := expiryService.run(ctx, expiryService.expiryTasks[0])
 			require.NoError(t, err)
 		}()
 
@@ -186,6 +189,157 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 		require.Greater(t, testInterval, pendingRequestGracePeriod)
 		require.Empty(t, mustListAccessRequests(t, authServer))
 		require.Len(t, emitter.Events(), 2)
+	})
+}
+
+func TestAppSessionExpiry(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		expiry, authServer, emitter := setupExpiryService(t)
+		go func() {
+			err := expiry.Run(ctx)
+			require.NoError(t, err)
+		}()
+
+		const expiry1 = 5 * scanInterval
+		const expiry2 = 10 * scanInterval
+
+		createAppSession(t, authServer, "alice", time.Now().Add(expiry1))
+		createAppSession(t, authServer, "bob", time.Now().Add(expiry2))
+
+		synctest.Wait()
+		require.Len(t, mustListAppSessions(t, authServer), 2)
+		require.Empty(t, emitter.Events())
+
+		time.Sleep(expiry1 + scanInterval*2)
+		synctest.Wait()
+
+		sessions := mustListAppSessions(t, authServer)
+		require.Len(t, sessions, 1)
+		require.Equal(t, "bob", sessions[0].GetUser())
+
+		require.Len(t, emitter.Events(), 1)
+
+		time.Sleep(expiry2)
+		synctest.Wait()
+
+		require.Empty(t, mustListAppSessions(t, authServer))
+		require.Len(t, emitter.Events(), 2)
+	})
+}
+
+func TestAppSessionExpiryInvalidTLSCert(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		const testInterval = time.Hour
+
+		expiry, authServer, emitter := setupExpiryService(t)
+		expiry.expiryTasks[1].intervalCfg = interval.Config{
+			Duration:      testInterval,
+			FirstDuration: testInterval,
+		}
+		go func() {
+			err := expiry.run(ctx, expiry.expiryTasks[1])
+			require.NoError(t, err)
+		}()
+
+		// Create a session and update it with an invalid TLS cert
+		session := createAppSession(t, authServer, "alice", time.Now().Add(1))
+		session, err := authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: session.GetName()})
+		require.NoError(t, err)
+		sessionV2, ok := session.(*types.WebSessionV2)
+		require.True(t, ok)
+		sessionV2.Spec.TLSCert = []byte("not-a-cert")
+		err = authServer.UpdateAppSession(ctx, session)
+		require.NoError(t, err)
+
+		time.Sleep(testInterval)
+		synctest.Wait()
+
+		// Session should still be expired and emitted, but without some app details
+		require.Empty(t, mustListAppSessions(t, authServer))
+		require.Len(t, emitter.Events(), 1)
+		expireEvent, ok := emitter.Events()[0].(*apievents.AppSessionExpire)
+		require.True(t, ok)
+		require.Equal(t, session.GetName(), expireEvent.SessionID)
+		require.Equal(t, "alice", expireEvent.User)
+		require.Empty(t, expireEvent.AppPublicAddr)
+		require.Empty(t, expireEvent.AppName)
+		require.Zero(t, expireEvent.AppTargetPort)
+	})
+}
+
+func TestAppSessionExpiryInterval(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		const testInterval = time.Hour
+
+		expiry, authServer, emitter := setupExpiryService(t)
+		expiry.expiryTasks[1].intervalCfg = interval.Config{
+			Duration:      testInterval,
+			FirstDuration: testInterval,
+		}
+		go func() {
+			// Run with rigid intervals.
+			err := expiry.run(ctx, expiry.expiryTasks[1])
+			require.NoError(t, err)
+		}()
+
+		createAppSession(t, authServer, "alice", time.Now().Add(1))
+		createAppSession(t, authServer, "bob", time.Now().Add(testInterval+time.Nanosecond))
+		createAppSession(t, authServer, "charlie", time.Now().Add(2*testInterval+time.Nanosecond))
+
+		// Stop just before the first sweep.
+		time.Sleep(testInterval - time.Nanosecond)
+		synctest.Wait()
+		sessions := mustListAppSessions(t, authServer)
+		require.Len(t, sessions, 3)
+		require.ElementsMatch(t, []string{"alice", "bob", "charlie"}, getAppSessionNames(t, sessions))
+		require.Empty(t, emitter.Events())
+
+		// First sweep.
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		sessions = mustListAppSessions(t, authServer)
+		require.Len(t, sessions, 2)
+		require.ElementsMatch(t, []string{"bob", "charlie"}, getAppSessionNames(t, sessions))
+		require.Len(t, emitter.Events(), 1)
+
+		// Stop just before the second sweep.
+		time.Sleep(testInterval - time.Nanosecond)
+		synctest.Wait()
+		sessions = mustListAppSessions(t, authServer)
+		require.Len(t, sessions, 2)
+		require.ElementsMatch(t, []string{"bob", "charlie"}, getAppSessionNames(t, sessions))
+		require.Len(t, emitter.Events(), 1)
+
+		// Second sweep.
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		sessions = mustListAppSessions(t, authServer)
+		require.Len(t, sessions, 1)
+		require.Equal(t, "charlie", sessions[0].GetUser())
+		require.Len(t, emitter.Events(), 2)
+
+		// Stop just before the third sweep.
+		time.Sleep(testInterval - time.Nanosecond)
+		synctest.Wait()
+		sessions = mustListAppSessions(t, authServer)
+		require.Len(t, sessions, 1)
+		require.Equal(t, "charlie", sessions[0].GetUser())
+		require.Len(t, emitter.Events(), 2)
+
+		// Third sweep.
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		require.Empty(t, mustListAppSessions(t, authServer))
+		require.Len(t, emitter.Events(), 3)
 	})
 }
 
@@ -232,6 +386,33 @@ func createAccessRequest(t *testing.T, auth *auth.Server, state types.RequestSta
 	return req
 }
 
+func createAppSession(t *testing.T, authServer *auth.Server, user string, expiry time.Time) types.WebSession {
+	t.Helper()
+	ctx := t.Context()
+
+	createdUser, _, err := authtest.CreateUserAndRole(authServer, user, []string{user}, nil)
+	require.NoError(t, err)
+
+	clusterName, err := authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+
+	session, err := authServer.CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
+		NewWebSessionRequest: auth.NewWebSessionRequest{
+			User:       user,
+			Roles:      createdUser.GetRoles(),
+			Traits:     createdUser.GetTraits(),
+			SessionTTL: time.Until(expiry),
+		},
+		AppName:     "test-app.example.com",
+		AppURI:      "https://test-app.example.com",
+		PublicAddr:  "test-app.example.com",
+		ClusterName: clusterName.GetClusterName(),
+	})
+	require.NoError(t, err)
+
+	return session
+}
+
 func mustListAccessRequests(t *testing.T, auth *auth.Server) []*types.AccessRequestV3 {
 	t.Helper()
 	ctx := t.Context()
@@ -241,4 +422,24 @@ func mustListAccessRequests(t *testing.T, auth *auth.Server) []*types.AccessRequ
 	require.Empty(t, resp.NextKey)
 
 	return resp.AccessRequests
+}
+
+func mustListAppSessions(t *testing.T, auth *auth.Server) []types.WebSession {
+	t.Helper()
+	ctx := t.Context()
+
+	resp, _, err := auth.Services.ListAppSessions(ctx, 100, "", "")
+	require.NoError(t, err)
+
+	return resp
+}
+
+// Helper to extract session names from slice of WebSessions
+func getAppSessionNames(t *testing.T, sessions []types.WebSession) []string {
+	t.Helper()
+	names := make([]string, 0, len(sessions))
+	for _, s := range sessions {
+		names = append(names, s.GetUser())
+	}
+	return names
 }

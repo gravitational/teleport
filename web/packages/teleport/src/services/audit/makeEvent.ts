@@ -629,6 +629,14 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_EXPIRE]: {
+    type: 'app.session.expire',
+    desc: 'App Session Expired',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] app session expired for [${app_name}]`;
+    },
+  },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',

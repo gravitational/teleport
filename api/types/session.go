@@ -184,12 +184,17 @@ func (ws *WebSessionV2) SetName(name string) {
 
 // Expiry returns resource Expiry
 func (ws *WebSessionV2) Expiry() time.Time {
+	// Fallback on existing expiry in metadata if not set in spec.
+	if ws.Spec.ResourceExpiry != nil {
+		return *ws.Spec.ResourceExpiry
+	}
 	return ws.Metadata.Expiry()
 }
 
 // SetExpiry Sets resource Expiry
 func (ws *WebSessionV2) SetExpiry(expiry time.Time) {
-	ws.Metadata.SetExpiry(expiry)
+	t := expiry.UTC()
+	ws.Spec.ResourceExpiry = &t
 }
 
 // GetMetadata gets resource Metadata
