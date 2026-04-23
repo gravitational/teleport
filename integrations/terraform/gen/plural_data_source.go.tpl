@@ -74,12 +74,23 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: id.Value,
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},

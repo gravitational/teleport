@@ -144,6 +144,11 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 {{- end}}
+{{- if .DefaultSubKind}}
+	if {{.VarName}}Resource.SubKind == "" {
+		{{.VarName}}Resource.SubKind = {{.DefaultSubKind}}
+	}
+{{- end}}
 
 	{{ if .IDPrefix -}}
 	idPrefix := {{.VarName}}Resource.{{ join (slice (split .IDPrefix ".") 1) "." }}
@@ -153,8 +158,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 
 	_, err = r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: id,
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}Resource.SubKind,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -218,8 +223,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 			Name: id,
-			{{- if .SubKind}}
-			SubKind: {{.SubKind}},
+			{{- if .DefaultSubKind}}
+			SubKind: {{.VarName}}Resource.SubKind,
 			{{- end}}
 			{{- if ne .WithSecrets ""}}
 			WithSecrets: {{.WithSecrets}},
@@ -309,8 +314,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		{{- if .RequestWrapper }}
 			{{ .VarName }}Resp, err := r.p.Client.{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
 				Name: id,
-				{{- if .SubKind }}
-				SubKind: {{ .SubKind }},
+				{{- if .DefaultSubKind }}
+				SubKind: {{ .VarName }}Resource.SubKind,
 				{{- end }}
 				{{- if ne .WithSecrets "" }}
 				WithSecrets: {{ .WithSecrets }},
@@ -388,12 +393,23 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: id.Value,
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -476,6 +492,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 	{{- end}}
+	{{- if .DefaultSubKind}}
+	if {{.VarName}}Resource.SubKind == "" {
+		{{.VarName}}Resource.SubKind = {{.DefaultSubKind}}
+	}
+	{{- end}}
 	{{ if .IDPrefix -}}
 	{{ $idPrefix := join (slice (split .IDPrefix ".") 1) "." -}}
 	idPrefix := {{.VarName}}Resource.{{$idPrefix}}
@@ -485,8 +506,8 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: name,
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}Resource.SubKind,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -549,8 +570,8 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 			Name: name,
-			{{- if .SubKind}}
-			SubKind: {{.SubKind}},
+			{{- if .DefaultSubKind}}
+			SubKind: {{.VarName}}Resource.SubKind,
 			{{- end}}
 			{{- if ne .WithSecrets ""}}
 			WithSecrets: {{.WithSecrets}},
@@ -623,8 +644,8 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		{{- if .RequestWrapper }}
 			{{ .VarName }}Resp, err := r.p.Client.{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
 				Name: name,
-				{{- if .SubKind }}
-				SubKind: {{ .SubKind }},
+				{{- if .DefaultSubKind }}
+				SubKind: {{ .VarName }}Resource.SubKind,
 				{{- end }}
 				{{- if ne .WithSecrets "" }}
 				WithSecrets: {{ .WithSecrets }},
@@ -695,12 +716,23 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 
 	_, err := r.p.Client.{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
 		Name: id.Value,
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
 		{{- end}}
 	})
 {{- else}}
@@ -721,8 +753,8 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: req.ID,
-		{{- if .SubKind}}
-		SubKind: {{.SubKind}},
+		{{- if .DefaultSubKind}}
+		SubKind: {{.DefaultSubKind}},
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},

@@ -137,8 +137,10 @@ type payload struct {
 	// operations following the RFD 153 resource guidelines.
 	// This must only be set for resources whose client use envelope structs.
 	RequestWrapper *RequestWrapper
-	// SubKind is Teleport sub_kind for resource
-	SubKind string
+	// DefaultSubKind is the Teleport sub_kind that is used when the user does
+	// not specify one in the resource config. The user-provided sub_kind (on
+	// the resource or in state) takes precedence; this is only a fallback.
+	DefaultSubKind string
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
