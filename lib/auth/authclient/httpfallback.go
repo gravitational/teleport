@@ -28,6 +28,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -162,25 +163,25 @@ func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName strin
 	if clusterName != "" {
 		filter = &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName}
 	}
-	var all []types.TunnelConnection
-	var pageToken string
-	for {
-		page, next, err := c.ListTunnelConnections(ctx, 0, pageToken, filter)
-		if err != nil {
-			if trace.IsNotImplemented(err) {
-				if clusterName != "" {
-					return c.HTTPClient.getTunnelConnectionsLegacy(ctx, clusterName)
-				}
-				return c.HTTPClient.getAllTunnelConnectionsLegacy(ctx)
+
+	items, err := clientutils.CollectWithFallback(
+		ctx,
+		func(
+			ctx context.Context, pageSize int, pageToken string,
+		) ([]types.TunnelConnection, string, error) {
+			return c.ListTunnelConnections(ctx, pageSize, pageToken, filter)
+		},
+		func(ctx context.Context) ([]types.TunnelConnection, error) {
+			if clusterName != "" {
+				return c.HTTPClient.getTunnelConnectionsLegacy(ctx, clusterName)
 			}
-			return nil, trace.Wrap(err)
-		}
-		all = append(all, page...)
-		if next == "" {
-			return all, nil
-		}
-		pageToken = next
+			return c.HTTPClient.getAllTunnelConnectionsLegacy(ctx)
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return items, nil
 }
 
 // GetAuthServers returns the list of auth servers registered in the cluster.
