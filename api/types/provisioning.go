@@ -331,6 +331,9 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if allowRule.AWSOrganizationID != "" {
 				return trace.BadParameter(`the %q join method does not support the "aws_organization_id" parameter`, JoinMethodEC2)
 			}
+			if tokenRuleHasAWSOrganizationalUnitMatchers(allowRule) {
+				return trace.BadParameter(`the %q join method does not support the "aws_organizational_units" parameter`, JoinMethodEC2)
+			}
 			if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
 				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_role"`, JoinMethodEC2)
 			}
@@ -351,7 +354,10 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
 			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" && allowRule.AWSOrganizationID == "" {
-				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization"`, JoinMethodIAM)
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization_id"`, JoinMethodIAM)
+			}
+			if err := validateIAMOrganizationRule(allowRule); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 	case JoinMethodGitHub:
@@ -818,6 +824,36 @@ func (p *ProvisionTokenV1) V2() *ProvisionTokenV2 {
 	}
 	t.CheckAndSetDefaults()
 	return t
+}
+
+func tokenRuleHasAWSOrganizationalUnitMatchers(tokenRule *TokenRule) bool {
+	return tokenRule.AWSOrganizationalUnits != nil &&
+		(len(tokenRule.AWSOrganizationalUnits.Include) > 0 || len(tokenRule.AWSOrganizationalUnits.Exclude) > 0)
+}
+
+func validateIAMOrganizationRule(tokenRule *TokenRule) error {
+	// In order to use Organizational Unit matchers, the token must specify the AWS Organization ID.
+	if tokenRule.AWSOrganizationID == "" && tokenRuleHasAWSOrganizationalUnitMatchers(tokenRule) {
+		return trace.BadParameter(`allow rule with "aws_organizational_units" matchers must also specify "aws_organization_id" when using the %q join method`, JoinMethodIAM)
+	}
+
+	// Return early if no OU matchers are specified.
+	if !tokenRuleHasAWSOrganizationalUnitMatchers(tokenRule) {
+		return nil
+	}
+
+	if len(tokenRule.AWSOrganizationalUnits.Include) == 0 {
+		return trace.BadParameter("at least one entry in aws_organizational_units.include must be specified")
+	}
+
+	if slices.Contains(tokenRule.AWSOrganizationalUnits.Include, Wildcard) && len(tokenRule.AWSOrganizationalUnits.Include) > 1 {
+		return trace.BadParameter("when using wildcard for AWS Organizational Units include, no other values are allowed")
+	}
+	if slices.Contains(tokenRule.AWSOrganizationalUnits.Exclude, Wildcard) {
+		return trace.BadParameter("using wildcard in AWS Organizational Units exclude is not allowed")
+	}
+
+	return nil
 }
 
 // String returns the human readable representation of a provisioning token.
