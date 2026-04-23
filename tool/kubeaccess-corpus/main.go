@@ -20,12 +20,12 @@
 // for differential testing against the Lean model in ../../lean/.
 //
 // Section A: organic cases transcribed from TestCheckAccessToKubernetes
-//            (lib/services/role_test.go:6828). Cases that use non-zero
-//            AccessState (MFA/device trust) or KubernetesLabelsExpression
-//            are skipped because they're out of v0 scope.
+// (lib/services/role_test.go:6828). Cases that use non-zero
+// AccessState (MFA/device trust) or KubernetesLabelsExpression
+// are skipped because they're out of v0 scope.
 //
 // Section B: synthetic combinatorial cases (added in exporter-synthetic
-//            task; not present in this initial commit).
+// task; not present in this initial commit).
 //
 // Each case is a fixed-shape {name, source, roles, cluster, request,
 // expected} record. The Go decision is the oracle — no manual labeling.
