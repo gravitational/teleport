@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
@@ -234,6 +236,110 @@ func TestListAppSessions(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestListExpiredAppSessions(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		backend, _ := memory.New(memory.Config{Context: ctx})
+		identity, _ := NewTestIdentityService(backend)
+
+		const totalExpired = 200
+		const totalValid = 10
+
+		// Create 210 sessions: 5 valid, 100 expired, 5 valid, 100 expired
+		for i := range totalValid / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i))
+			sess.SetExpiry(time.Now().Add(1 * time.Hour))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		for i := range totalExpired / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i))
+			sess.SetExpiry(time.Now().Add(-30 * time.Minute))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		for i := range totalValid / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i+5))
+			sess.SetExpiry(time.Now().Add(1 * time.Hour))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		for i := range totalExpired / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i+100))
+			sess.SetExpiry(time.Now().Add(-30 * time.Minute))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		// Use arbitrary page size to force pagination logic to be exercised
+		expired, err := stream.Collect(clientutils.ResourcesWithPageSize(
+			ctx,
+			identity.ListExpiredAppSessions,
+			67,
+		))
+		require.NoError(t, err)
+		assert.Len(t, expired, totalExpired)
+
+		// List single page
+		expired, nextToken, err := identity.ListExpiredAppSessions(ctx, 67, "")
+		require.NoError(t, err)
+		assert.Len(t, expired, 67)
+		assert.NotEmpty(t, nextToken)
+
+		time.Sleep(2 * time.Hour)
+
+		// All 210 sessions should be expired
+		allExpired, err := stream.Collect(clientutils.Resources(ctx, identity.ListExpiredAppSessions))
+		require.NoError(t, err)
+		assert.Len(t, allExpired, totalExpired+totalValid)
+	})
+}
+
+func TestUpdateAppSession_UnsetBackendExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(mem)
+	require.NoError(t, err)
+
+	session := newTestAppSession(t, "updated-session")
+	require.NoError(t, identity.UpsertAppSession(ctx, session))
+
+	item, err := mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
+	require.NoError(t, err)
+	require.True(t, item.Expires.IsZero(), "new app sessions should not have backend TTL")
+
+	session, err = identity.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: session.GetName()})
+	require.NoError(t, err)
+
+	testDBSCPublicKey := []byte("test-dbsc-key")
+	session.SetDBSCPublicKey(testDBSCPublicKey)
+	require.NoError(t, identity.UpdateAppSession(ctx, session))
+
+	item, err = mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
+	require.NoError(t, err)
+	require.True(t, item.Expires.IsZero(), "updated app sessions should not regain backend TTL")
+}
+
+// Helper for quick session generation
+func newTestAppSession(t *testing.T, name string) types.WebSession {
+	t.Helper()
+	s, err := types.NewWebSession(name, types.KindAppSession, types.WebSessionSpecV2{
+		User:    "alice",
+		Expires: time.Now().Add(12 * time.Hour),
+	})
+	require.NoError(t, err)
+	return s
 }
 
 func TestListSnowflakeSessions(t *testing.T) {
