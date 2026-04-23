@@ -55,6 +55,11 @@ func TestLabelExpressions(t *testing.T) {
 			expectMatch: false,
 		},
 		{
+			desc:        "username match",
+			expr:        `user.metadata.name == "alice"`,
+			expectMatch: true,
+		},
+		{
 			desc: "wrong type",
 			expr: `user.spec.traits["allow-env"] == "staging"`,
 			expectParseError: []string{
@@ -93,6 +98,22 @@ func TestLabelExpressions(t *testing.T) {
 				"parsing first argument to (contains)",
 				"expected type []string",
 			},
+		},
+		{
+			desc: "set contains match",
+			expr: `contains(set("dev", "staging"), labels["env"])`,
+			resourceLabels: map[string]string{
+				"env": "staging",
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "set misses match",
+			expr: `contains(set("dev", "staging"), labels["env"])`,
+			resourceLabels: map[string]string{
+				"env": "prod",
+			},
+			expectMatch: false,
 		},
 		{
 			desc: "boolean logic",
@@ -319,6 +340,7 @@ func TestLabelExpressions(t *testing.T) {
 
 			env := labelExpressionEnv{
 				resourceLabelGetter: mapLabelGetter(tc.resourceLabels),
+				username:            "alice",
 				userTraits:          tc.userTraits,
 			}
 

@@ -199,6 +199,9 @@ type InitConfig struct {
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
 
+	// DelegationSessions is a service that manages delegation sessions.
+	DelegationSessions services.DelegationSessions
+
 	// Status is a service that manages cluster status info.
 	Status services.Status
 
@@ -249,8 +252,11 @@ type InitConfig struct {
 	// WindowsDesktops is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
-	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
+	// DynamicWindowsDesktops is a service that manages dynamic Windows desktop resources.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+
+	// LinuxDesktops is a service that manages Linux desktop resources.
+	LinuxDesktops services.LinuxDesktops
 
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
@@ -445,6 +451,12 @@ type InitConfig struct {
 	// WorkloadClusterService is the service that manages WorkloadClusters.
 	WorkloadClusterService services.WorkloadClusterService
 
+	// Beams is the service for reading and writing beams.
+	Beams services.Beams
+
+	// SubCAService manages CertAuthorityOverride resources.
+	SubCAService services.SubCAService
+
 	// FakePasswordHash is the password hash given to all users without a password.
 	// This helps eliminate timing attacks by ensuring that all authentication attempts
 	// with a password do a bcrypt comparison.
@@ -545,7 +557,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.ApplyOnStartupResources) > 0 {
 		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
-		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features()); err != nil {
 			return trace.Wrap(err, "applying resources failed")
 		}
 	}
@@ -1773,7 +1785,7 @@ var ResourceApplyPriority = map[string]int{
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
 // This means consistency is checked. This function support applying resources
 // with dependencies (like a user referring to a role).
-func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
+func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
@@ -1808,7 +1820,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
 			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
-			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT(), features)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:

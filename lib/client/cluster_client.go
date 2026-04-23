@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -353,6 +354,7 @@ func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, targ
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
+			SSHLogin:       user,
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
@@ -453,6 +455,8 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	}
 
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+
 	return newUserKeys, &proto.UserCertsRequest{
 		SSHPublicKey:                     sshPub,
 		TLSPublicKey:                     tlsPub,
@@ -469,7 +473,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
 		RequesterName:                    params.RequesterName,
-		SSHLogin:                         c.tc.HostLogin,
+		SSHLogin:                         sshLogin,
 		SSHPublicKeyAttestationStatement: sshAttestationStatement.ToProto(),
 		TLSPublicKeyAttestationStatement: tlsAttestationStatement.ToProto(),
 		Purpose:                          purpose,
@@ -485,7 +489,8 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
-	mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+	mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -568,7 +573,8 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			}
 		}
 
-		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+		mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

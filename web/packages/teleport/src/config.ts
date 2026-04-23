@@ -161,6 +161,7 @@ export const ossRoutes = {
   loginErrorCallback: '/web/msg/error/login/callback',
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
+  loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
   samlSloFailed: '/web/msg/error/slo',
   userInvite: '/web/invite/:tokenId',
   userInviteContinue: '/web/invite/:tokenId/continue',

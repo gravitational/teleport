@@ -30,6 +30,7 @@ import {
   FeatureRecommendationEvent,
   FeatureRecommendationEventRequest,
   IntegrationEnrollEventRequest,
+  PageViewEventRequest,
   PreUserEvent,
   UserEvent,
 } from './types';
@@ -46,7 +47,8 @@ function captureEvent({
     | CtaEventRequest
     | FeatureRecommendationEventRequest
     | CreateNewRoleSaveClickEvent
-    | AccessListEventRequest;
+    | AccessListEventRequest
+    | PageViewEventRequest;
   path?: string;
 }) {
   // using api.fetch instead of api.fetchJSON
@@ -75,6 +77,10 @@ export const userEventService = {
   },
 
   captureIntegrationEnrollEvent(event: IntegrationEnrollEventRequest) {
+    captureEvent({ event });
+  },
+
+  capturePageViewEvent(event: PageViewEventRequest) {
     captureEvent({ event });
   },
 

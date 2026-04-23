@@ -170,9 +170,9 @@ type Client struct {
 	mouseX, mouseY uint32
 }
 
-// reads in handshake messages and optionally wraps the connection in a translation layer
+// PrepareConnecton reads in handshake messages and optionally wraps the connection in a translation layer
 // based on the client protocol.
-func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
+func PrepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
 	// Read Hello either from tdpb or tdp.
 	if clientProtocol == tdpb.ProtocolName {
 		hello, err := readClientHello(conn, logger)
@@ -184,7 +184,7 @@ func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger
 }
 
 // New creates and connects a new Client based on cfg.
-func New(conn *tdp.Conn, cfg Config) (*Client, error) {
+func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -193,13 +193,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	// read the client hello and wrap the connection with a translation layer (if needed)
-	wrappedConn, hello, err := prepareConnecton(cfg.ClientProtocol, conn, cfg.Logger)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.conn = wrappedConn
+	c.conn = conn
 	c.username = hello.Username
 	c.keyboardLayout = hello.KeyboardLayout
 
@@ -570,7 +564,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		// file transfer.
 		switch msg.(type) {
 		case *tdpb.KeyboardButton, *tdpb.MouseMove, *tdpb.MouseButton, *tdpb.MouseWheel,
-			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
+			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryRemove, *tdpb.SharedDirectoryResponse:
 
 			c.UpdateClientActivity()
 		}
@@ -718,6 +712,14 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				name:         driveName,
 			}); errCode != C.ErrCodeSuccess {
 				return trace.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
+			}
+		}
+	case *tdpb.SharedDirectoryRemove:
+		if c.cfg.AllowDirectorySharing {
+			if errCode := C.client_handle_tdp_sd_remove(C.uintptr_t(c.handle), C.CGOSharedDirectoryRemove{
+				directory_id: C.uint32_t(m.DirectoryId),
+			}); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("SharedDirectoryRemove: failed with %v", errCode)
 			}
 		}
 	case *tdpb.SharedDirectoryResponse:
@@ -1044,7 +1046,8 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
 		},
-		ClipboardEnabled: true,
+		ClipboardEnabled:         true,
+		DirectoryRemoveSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure

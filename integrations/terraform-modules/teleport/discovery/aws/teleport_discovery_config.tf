@@ -15,7 +15,7 @@ locals {
       regions              = var.match_aws_regions
       tags                 = var.match_aws_tags
       setup_access_for_arn = ""
-      kube_app_discovery   = false
+      kube_app_discovery   = null
     }
   ]
 
@@ -66,7 +66,7 @@ locals {
         setup_access_for_arn = matcher.setup_access_for_arn
       } : {},
       contains(matcher.types, "eks") ? {
-        kube_app_discovery = matcher.kube_app_discovery
+        kube_app_discovery = matcher.kube_app_discovery == false ? null : matcher.kube_app_discovery
       } : {}
     )
   ]

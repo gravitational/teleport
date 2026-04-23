@@ -8,7 +8,7 @@ To use it, you will need to know:
 - The address of your Teleport Proxy Service or Auth Service
 - The name of your Teleport cluster
 - The name of a join token configured for Machine ID and your Kubernetes cluster
-  (https://goteleport.com/docs/enroll-resources/machine-id/deployment/kubernetes/)
+  (https://goteleport.com/docs/machine-workload-identity/deployment/kubernetes/)
 
 By default, this chart is designed to use the `kubernetes` join method but it
 can be customised to use any delegated join method. We do not recommend that

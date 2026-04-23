@@ -420,7 +420,7 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(result.SSMRunEvent.Time),
+			SyncTime:        timestamppb.New(s.clock.Now()),
 			InstanceId:      result.SSMRunEvent.InstanceID,
 			Name:            result.InstanceName,
 		},

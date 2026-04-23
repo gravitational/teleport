@@ -1,12 +1,14 @@
-usage: test start <command> [<args> ...]
+usage: widget start <command> [<args> ...]
 
 Start.
 
 Flags:
+  -v, --[no-]verbose  Enable verbose output.
+  -c, --config="/etc/widget.yaml"  
+                      Path to config file. ($WIDGET_CONFIG)
+  -t, --tag=TAG ...   Tags to apply. Repeatable.
 
 Commands:
-  start legacy            (Default) Legacy.
-  start workload-identity Workload identity.
-
-Aliases:
+  legacy            (Default) Legacy.
+  workload-identity Workload identity.
 

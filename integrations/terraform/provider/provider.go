@@ -561,6 +561,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            resourceTeleportTrustedClusterType{},
+		"teleport_ui_config":                  resourceTeleportUIConfigType{},
 		"teleport_user":                       resourceTeleportUserType{},
 		"teleport_bot":                        resourceTeleportBotType{},
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
@@ -582,6 +583,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
 		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
+		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
 	}, nil
 }
 
@@ -606,6 +608,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   dataSourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            dataSourceTeleportTrustedClusterType{},
+		"teleport_ui_config":                  dataSourceTeleportUIConfigType{},
 		"teleport_user":                       dataSourceTeleportUserType{},
 		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
@@ -629,6 +632,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		// - Data sources use the same schema as resources, which means that fields
 		//   required on a resource also need to be set on the data source
 		//   definition.
+		"teleport_workload_cluster": dataSourceTeleportWorkloadClusterType{},
 	}, nil
 }
 

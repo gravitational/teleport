@@ -783,6 +783,9 @@ export type IntegrationDiscoveryRule = {
   // lastSync contains the time when this rule was used.
   // If empty, it indicates that the rule is not being used.
   lastSync: number;
+  // kubeAppDiscovery indicates whether Kubernetes App Discovery is enabled.
+  // Only set for EKS resource types.
+  kubeAppDiscovery?: boolean;
 };
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.

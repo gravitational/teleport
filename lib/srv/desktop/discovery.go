@@ -124,6 +124,9 @@ func (s *WindowsService) startDesktopDiscovery() error {
 			_, ok := d.GetLabel(types.DiscoveryLabelWindowsOS)
 			return ok
 		},
+		CompareResources: func(wd1, wd2 types.WindowsDesktop) int {
+			return services.EqualFromBool(wd1.IsEqual(wd2))
+		},
 		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(s.closeCtx) },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
@@ -444,6 +447,9 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
 			Matcher: func(desktop types.WindowsDesktop) bool {
 				return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
+			},
+			CompareResources: func(wd1, wd2 types.WindowsDesktop) int {
+				return services.EqualFromBool(wd1.IsEqual(wd2))
 			},
 			GetCurrentResources: func() map[string]types.WindowsDesktop { return currentResources },
 			GetNewResources:     func() map[string]types.WindowsDesktop { return newResources },

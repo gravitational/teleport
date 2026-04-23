@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -52,12 +53,13 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
-	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
 )
@@ -115,7 +117,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	exec := app.Command(reexecconstants.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	networking := app.Command(reexecconstants.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
 	checkHomeDir := app.Command(reexecconstants.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
-	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing, forever.").Hidden()
+	trueCmd := app.Command(reexecconstants.TrueSubCommand, "Used internally by Teleport to re-exec itself to do nothing, successfully.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -738,8 +741,6 @@ Examples:
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
-	case sftp.FullCommand():
-		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
@@ -747,14 +748,15 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
-	case exec.FullCommand():
-		reexec.RunAndExit(reexecconstants.ExecSubCommand)
-	case networking.FullCommand():
-		reexec.RunAndExit(reexecconstants.NetworkingSubCommand)
-	case checkHomeDir.FullCommand():
-		reexec.RunAndExit(reexecconstants.CheckHomeDirSubCommand)
-	case park.FullCommand():
-		reexec.RunAndExit(reexecconstants.ParkSubCommand)
+
+	case exec.FullCommand(),
+		networking.FullCommand(),
+		checkHomeDir.FullCommand(),
+		park.FullCommand(),
+		trueCmd.FullCommand(),
+		sftp.FullCommand():
+		err = trace.BadParameter("invalid command line format for internal reexecution command (this is a bug)")
+
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():
@@ -781,7 +783,13 @@ Examples:
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
-		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
+		// Join failures use a specific exit code so that SSM can classify the failure for the user task.
+		// The normal utils.FatalError path always exits with code 1, so we handle this case separately.
+		var joinErr *installer.JoinFailureError
+		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.As(err, &joinErr) {
+			writeInstallJoinFailureError(os.Stderr, joinErr)
+			os.Exit(int(installstatus.JoinFailure))
+		}
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
@@ -889,6 +897,23 @@ Examples:
 	}
 
 	return app, command, conf
+}
+
+// writeInstallJoinFailureError writes a user-facing join-failure error
+// message to w, with each diagnostic section on its own line for
+// readability.
+func writeInstallJoinFailureError(w io.Writer, joinErr *installer.JoinFailureError) {
+	fmt.Fprintln(w, "ERROR: agent failed to join the cluster")
+	fmt.Fprintf(w, "%s\n", joinErr.Message)
+	if joinErr.ServiceDiagnostics != "" {
+		fmt.Fprintf(w, "%s\n", joinErr.ServiceDiagnostics)
+	}
+	if joinErr.LastError != "" {
+		fmt.Fprintf(w, "Last readyz error: %s\n", joinErr.LastError)
+	}
+	if joinErr.JournalOutput != "" {
+		fmt.Fprintf(w, "Journal output:\n%s\n", joinErr.JournalOutput)
+	}
 }
 
 // OnStart is the handler for "start" CLI command

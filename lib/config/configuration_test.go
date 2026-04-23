@@ -455,6 +455,21 @@ func TestConfigReading(t *testing.T) {
 						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
 					},
 				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "bedrock",
+						Models: []LLMModel{
+							{
+								Name:         "claude-opus-4-6",
+								ProviderName: "arn:bedrock:inference-profile",
+							},
+						},
+						FallbackModel: "claude-opus-4-6",
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1684,6 +1699,21 @@ func makeConfigFixture() string {
 				RunAsHostUser: "docker",
 			},
 		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "bedrock",
+				Models: []LLMModel{
+					{
+						Name:         "claude-opus-4-6",
+						ProviderName: "arn:bedrock:inference-profile",
+					},
+				},
+				FallbackModel: "claude-opus-4-6",
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2659,6 +2689,19 @@ app_service:
 `,
 			name:   "TCP app with port bigger than 65535",
 			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: anthropic
+      inference:
+        format: anthropic
+        provider: anthropic
+`,
+			name:   "LLM inference endpoint",
+			outErr: require.NoError,
 		},
 	}
 
@@ -5562,6 +5605,7 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
+	t.Parallel()
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
@@ -5616,15 +5660,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
+			t.Parallel()
 			clf := &CommandLineFlags{
 				FIPS: tc.fips,
 			}
 			cfg := servicecfg.MakeDefaultConfig()
+			cfg.Modules = &modulestest.Modules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			}
 			if tc.fips {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}

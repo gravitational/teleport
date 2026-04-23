@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -490,7 +489,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 	}
 
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -516,7 +515,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -544,7 +543,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -669,6 +668,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		Req:                req,
 		AgentScope:         identity.AgentScope,
 		ImmutableLabelHash: identity.ImmutableLabelHash,
+		JoinToken:          identity.JoinToken,
 	})
 }
 
@@ -1391,6 +1391,7 @@ func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb strin
 var (
 	// supportedUnifiedResourceKinds is the set of kinds that
 	// may be requested via ListUnifiedResources.
+	// TODO(gabrielcorado): add LLM app subkind.
 	supportedUnifiedResourceKinds = map[string]struct{}{
 		types.KindApp:                    {},
 		types.KindDatabase:               {},
@@ -1407,6 +1408,7 @@ var (
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	// MCP are apps internally atm.
+	// TODO(gabrielcorado): add support for LLM subkind.
 	if kind == types.KindMCP {
 		kind = types.KindApp
 	}
@@ -2216,6 +2218,7 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindDatabaseServer,
 		types.KindDatabaseService,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindWindowsDesktopService,
 		types.KindNode,
 		types.KindKubeServer,
@@ -2574,14 +2577,6 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 	}
 
 	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
-}
-
-// DeleteAllProxies deletes all proxies
-func (a *ServerWithRoles) DeleteAllProxies() error {
-	if err := a.authorizeAction(types.KindProxy, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllProxies()
 }
 
 // DeleteProxy deletes proxy by name
@@ -3414,7 +3409,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
 			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 		}
-		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
+		return a.desiredAccessInfoForRoleRequest(req, user)
 	}
 	return a.desiredAccessInfoForUser(ctx, req, user)
 }
@@ -3423,13 +3418,14 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 // impersonation request.
 func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
+		Username: user.GetName(),
+		Roles:    user.GetRoles(),
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
 // desiredAccessInfoForRoleRequest returns the desired roles for a role request.
-func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
 	if len(req.RoleRequests) == 0 {
@@ -3445,8 +3441,9 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// Traits are copied across from the impersonating user so that role
 	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Roles:  req.RoleRequests,
-		Traits: traits,
+		Username: user.GetName(),
+		Roles:    req.RoleRequests,
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
@@ -3692,7 +3689,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
-			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+			roleSet, err := services.FetchRolesForUser(user, a)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3735,7 +3732,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
-	parsedRoles, err := services.FetchRoleList(accessInfo.Roles, a.authServer, accessInfo.Traits)
+	parsedRoles, err := services.FetchRoleListWithContext(accessInfo.Roles, a.authServer, services.RoleTemplateContext{
+		Username: accessInfo.Username,
+		Traits:   accessInfo.Traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3839,8 +3839,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-			NewWebSessionRequest: NewWebSessionRequest{
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
+			NewWebSessionRequest: sessionreq.NewWebSessionRequest{
 				User:           req.Username,
 				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
 				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
@@ -3864,7 +3864,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AzureIdentity:     req.RouteToApp.AzureIdentity,
 			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 			MFAVerified:       verifiedMFADeviceID,
-			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			DeviceExtensions:  a.context.Identity.GetIdentity().DeviceExtensions,
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
@@ -4004,6 +4004,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		!isRoleImpersonation(req) &&
 		!certReq.DisallowReissue {
 		certReq.Renewable = true
+
+		// We've established this is an internal cert renewal, so pass through
+		// the BotInternal flag if set.
+		if a.context.Identity.GetIdentity().BotInternal {
+			certReq.BotInternal = true
+		}
 	}
 
 	// If the cert is renewable, process any bot instance updates (generation
@@ -4020,9 +4026,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 		// Update the bot instance based on this authentication. This may create
 		// a new bot instance record if the identity is missing an instance ID.
+		//
+		// botScope is always empty - this code path is only invoked for `token`
+		// joining bots, and we do not support `token` join method for scoped
+		// bots.
+		botScope := ""
 		if err := a.authServer.updateBotInstance(
 			ctx, &certReq, user.GetName(), certReq.BotName,
 			certReq.BotInstanceID, nil, int32(currentIdentityGeneration),
+			botScope,
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5266,18 +5278,6 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// GetAuthPreference gets cluster auth preference.
-func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cfg.Clone(), nil
-}
-
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	if err := a.authorizeAction(types.KindUIConfig, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -5354,123 +5354,6 @@ func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))
-}
-
-// SetAuthPreference sets cluster auth preference.
-// Deprecated: Use Update/UpsertAuthPreference where appropriate.
-func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authorizeActionWithOrigin(types.KindClusterAuthPreference, storedAuthPref.Origin()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Support reused MFA for bulk tctl create requests.
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := services.ValidateAuthPreference(newAuthPref); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// check that the given RequireMFAType is supported in this build.
-	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if a.authServer.modules.BuildType() != modules.BuildEnterprise {
-			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-		}
-	}
-
-	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-		FIPS:          a.authServer.fips,
-		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
-		Cloud:         a.authServer.modules.Features().Cloud,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), a.authServer.modules); err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = a.authServer.UpsertAuthPreference(ctx, newAuthPref)
-
-	var msg string
-	if err != nil {
-		msg = err.Error()
-	}
-
-	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.AuthPreferenceUpdateEvent,
-			Code: events.AuthPreferenceUpdateCode,
-		},
-		UserMetadata:       a.context.GetUserMetadata(),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		Status: apievents.Status{
-			Success:     err == nil,
-			Error:       msg,
-			UserMessage: msg,
-		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
-	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
-	}
-
-	return trace.Wrap(err)
-}
-
-// ResetAuthPreference resets cluster auth preference to defaults.
-func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
-	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if storedAuthPref.Origin() == types.OriginConfigFile {
-		return trace.BadParameter("config-file configuration cannot be reset")
-	}
-
-	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	defaultAuthPref := types.DefaultAuthPreference()
-	defaultAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-		FIPS:          a.authServer.fips,
-		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
-	})
-	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
-
-	var msg string
-	if err != nil {
-		msg = err.Error()
-	}
-
-	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.AuthPreferenceUpdateEvent,
-			Code: events.AuthPreferenceUpdateCode,
-		},
-		UserMetadata:       a.context.GetUserMetadata(),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		Status: apievents.Status{
-			Success:     err == nil,
-			Error:       msg,
-			UserMessage: msg,
-		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
-	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
-	}
-
-	return trace.Wrap(err)
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
@@ -5841,20 +5724,6 @@ func (a *ServerWithRoles) DeleteTunnelConnection(clusterName string, connName st
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteTunnelConnection(clusterName, connName)
-}
-
-func (a *ServerWithRoles) DeleteTunnelConnections(clusterName string) error {
-	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteTunnelConnections(clusterName)
-}
-
-func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
-	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllTunnelConnections()
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.
