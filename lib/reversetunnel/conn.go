@@ -147,7 +147,6 @@ func (c *remoteConn) Close() error {
 		c.discoveryCh = nil
 	}
 
-	c.discoSub.Close()
 	// Close the SSH connection which will close the underlying net.Conn as well.
 	err := c.sconn.Close()
 	if err != nil {

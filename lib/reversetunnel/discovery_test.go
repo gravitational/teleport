@@ -359,10 +359,7 @@ func TestProxyPubSub(t *testing.T) {
 				t.Cleanup(pb.Close)
 
 				sub := pb.Subscribe()
-				t.Cleanup(sub.Close)
 
-				// Wait until discoPub is blocked before continuing
-				synctest.Wait()
 				select {
 				case <-sub.Wait():
 				case <-time.After(5 * time.Second):
@@ -375,10 +372,7 @@ func TestProxyPubSub(t *testing.T) {
 				for _, update := range tt.updates {
 					clock.Advance(update.expiryAdvance)
 					if len(update.update) > 0 {
-						// Wait until discoPub is blocked before continuing
-						synctest.Wait()
 						watcher.ResourcesC <- mkServers(update.update)
-
 						select {
 						case <-sub.Wait():
 						case <-time.After(5 * time.Second):

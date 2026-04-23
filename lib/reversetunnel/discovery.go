@@ -25,7 +25,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -111,7 +110,7 @@ func (r *discoveryRequest) String() string {
 type discoSub struct {
 	pb      *discoPub
 	notify  chan struct{}
-	version atomic.Uint64
+	version uint64
 }
 
 // Wait returns a channel which is notified when there is an event to fetch.
@@ -130,13 +129,6 @@ func (s *discoSub) GetAll() []discoveryProxy {
 	return s.pb.get(s, discoGetParams{sinceLastVersion: false})
 }
 
-// Close cleans up resources allocated for the subscriber.
-func (s *discoSub) Close() {
-	s.pb.unsubscribe(s)
-	// close the channel AFTER unsubscribing to ensure no sends after close.
-	close(s.notify)
-}
-
 // discoPub broadcasts proxy watch events to many subscribers.
 type discoPub struct {
 	ctx     context.Context
@@ -148,16 +140,15 @@ type discoPub struct {
 	// state points to the current immutable discovery snapshot.
 	// writers must publish a fully rebuilt discoState and never mutate it.
 	state atomic.Pointer[discoState]
-
-	// sm manages access to [discoPub.subs].
-	sm   sync.Mutex
-	subs map[*discoSub]struct{}
+	// alwaysClosed is a channel sent to subscribers when they are first created
+	// to notify them immediately to fetch the latest state. it is always closed
+	// and never replaced.
+	alwaysClosed chan struct{}
 }
 
 // discoState is a single published discovery snapshot.
 // its fields are read without locking and must be treated as immutable.
 type discoState struct {
-
 	// proxies is the lastest set of servers received from the watcher.
 	proxies []types.Server
 	// proxy version associates a proxy by name with the version at which its
@@ -165,6 +156,8 @@ type discoState struct {
 	versions map[string]proxyversion
 	// version is incremented each time a proxy watch event is receieved.
 	version uint64
+	// notify is closed when this state is replaced to notify subscribers.
+	notify chan struct{}
 }
 
 type proxyversion struct {
@@ -180,16 +173,18 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 	compact, _ := strconv.ParseBool(v)
 
 	dp := &discoPub{
-		ctx:     ctx,
-		cancel:  cancel,
-		watcher: watcher,
-		state:   atomic.Pointer[discoState]{},
-		subs:    make(map[*discoSub]struct{}),
-		compact: compact,
-		log:     logger,
+		ctx:          ctx,
+		cancel:       cancel,
+		watcher:      watcher,
+		state:        atomic.Pointer[discoState]{},
+		alwaysClosed: make(chan struct{}),
+		compact:      compact,
+		log:          logger,
 	}
+	close(dp.alwaysClosed)
 	dp.state.Store(&discoState{
 		versions: map[string]proxyversion{},
+		notify:   make(chan struct{}),
 	})
 	go dp.run()
 	return dp
@@ -234,6 +229,7 @@ func (dp *discoPub) run() {
 				proxies:  servers,
 				versions: make(map[string]proxyversion, len(servers)),
 				version:  prev.version + 1,
+				notify:   make(chan struct{}),
 			}
 			for _, server := range servers {
 				nextpv := proxyversion{
@@ -251,18 +247,7 @@ func (dp *discoPub) run() {
 				next.versions[server.GetName()] = nextpv
 			}
 			dp.state.Store(next)
-
-			func() {
-				dp.sm.Lock()
-				defer dp.sm.Unlock()
-
-				for s := range dp.subs {
-					select {
-					case s.notify <- struct{}{}:
-					default:
-					}
-				}
-			}()
+			close(prev.notify)
 		}
 	}
 }
@@ -271,21 +256,12 @@ func (dp *discoPub) run() {
 func (dp *discoPub) Subscribe() *discoSub {
 	s := &discoSub{
 		pb:     dp,
-		notify: make(chan struct{}, 1),
+		notify: dp.alwaysClosed,
 	}
-
-	dp.sm.Lock()
-	dp.subs[s] = struct{}{}
-	dp.sm.Unlock()
-
 	state := dp.state.Load()
-	if state.version > 0 {
-		select {
-		case s.notify <- struct{}{}:
-		default:
-		}
+	if state.version == 0 {
+		s.notify = state.notify
 	}
-
 	return s
 }
 
@@ -314,7 +290,9 @@ func (dp *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
 
 	now := dp.watcher.Clock.Now()
 	disco := make([]discoveryProxy, 0, len(state.proxies))
-	lastVersion := sub.version.Swap(state.version)
+	prevVersion := sub.version
+	sub.version = state.version
+	sub.notify = state.notify
 	for _, proxy := range state.proxies {
 		if compact {
 			pv, ok := state.versions[proxy.GetName()]
@@ -324,17 +302,11 @@ func (dp *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
 			if pv.updated.Add(defaults.ProxyAnnounceTTL()).Before(now) {
 				continue
 			}
-			if params.sinceLastVersion && lastVersion >= pv.version {
+			if params.sinceLastVersion && prevVersion >= pv.version {
 				continue
 			}
 		}
 		disco = append(disco, dp.discoFromServer(proxy, ttl))
 	}
 	return disco
-}
-
-func (dp *discoPub) unsubscribe(s *discoSub) {
-	dp.sm.Lock()
-	defer dp.sm.Unlock()
-	delete(dp.subs, s)
 }
