@@ -458,7 +458,7 @@ then point your tool at the resulting AWS profile.
 Log into the AWS app profile that was synced:
 
 ```code
-$ tsh apps login --aws-role arn:aws:iam::278576220453:role/ExampleReadOnlyAccess example-read-only-access
+$ tsh apps login --aws-role arn:aws:iam::123456789012:role/ExampleReadOnlyAccess example-read-only-access
 Logged into AWS app "example-read-only-access".
 
 # Your IAM role:
@@ -539,8 +539,10 @@ a SAML attribute or OIDC claim called `aws_role_arns`, then reference it in a Te
     - {{external.aws_role_arns}}
 ```
 
-See the [Access Controls Reference](../../../reference/access-controls/roles.mdx) for all
-variables and functions available in the `aws_role_arns` field.
+See "Template expressions for access to infrastructure resources" in the
+[Access Controls Reference](../../../reference/access-controls/roles.mdx) for
+the traits (like `{{internal.aws_role_arns}}` and `{{external.xyz}}`) and
+functions available in the `aws_role_arns` field.
 
 ### Create roles to grant access to specific profiles and IAM roles
 
