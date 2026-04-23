@@ -24,7 +24,7 @@ regex = "1.12.3"
 
 [dependencies]
 log = "0.4.29"
-rand = { version = "0.8.5", default-features = false, features = [
+rand = { version = "0.8.6", default-features = false, features = [
     "getrandom",
     "alloc",
 ] }
