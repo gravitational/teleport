@@ -1,0 +1,15 @@
+diff a/lib/service/service.go b/lib/service/service.go	(rejected hunks)
+@@ -2503,7 +2504,12 @@ func (process *TeleportProcess) initAuthService() error {
+ 		return trace.Wrap(err)
+ 	}
+ 	authServer.EncryptedIO = encryptedIO
+-
++	if streamer != nil {
++		streamer.SetOnUploadComplete(authServer.OnUploadComplete)
++	}
++	if localLog != nil {
++		localLog.SetOnUploadComplete(authServer.OnUploadComplete)
++	}
+ 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+ 		ResourceWatcherConfig: services.ResourceWatcherConfig{
+ 			Component: teleport.ComponentAuth,

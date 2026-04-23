@@ -230,6 +230,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
+					types.NewRule(types.KindRecordingEncryption, RW()),
 				},
 			},
 		},

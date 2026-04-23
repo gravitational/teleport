@@ -4179,7 +4179,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	}
 
 	// verify that we still reject unauthenticated clients
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4278,7 +4278,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4421,7 +4421,7 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch users and roles",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindUser},
 				{Kind: types.KindRole},
@@ -4429,12 +4429,12 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch cert authorities",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
 			name:     "nop role is not authorized to watch cluster config resources",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindClusterAuthPreference},
 				{Kind: types.KindClusterNetworkingConfig},
@@ -6008,6 +6008,7 @@ func withClock(clock clockwork.Clock) testTLSServerOption {
 		options.clock = clock
 	}
 }
+
 func withBufconnListener() testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.bufconnListener = true

@@ -887,7 +887,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// unauthenticated clients can never check for alerts. we don't normally explicitly
 	// check for this kind of thing, but since alerts use an unusual access-control
 	// pattern, explicitly rejecting the nop role makes things easier.
-	if a.hasBuiltinRole(types.RoleNop) {
+	if authz.HasUnauthenticatedRole(a.context, string(types.RoleNop)) {
 		return nil, trace.AccessDenied("alerts not available to unauthenticated clients")
 	}
 

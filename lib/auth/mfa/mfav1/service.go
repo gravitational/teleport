@@ -512,7 +512,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || (ok && !b.IsServer()) {
+	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || !b.IsServer() {
 		return nil, trace.AccessDenied("only server identities can verify validated MFA challenges")
 	}
 

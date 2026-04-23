@@ -5316,8 +5316,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleNop,
-						Username:    string(types.RoleNop),
+						Role:        types.RoleProxy,
+						Username:    string(types.RoleProxy),
 						ClusterName: "remote-cluster",
 					},
 				}
@@ -5330,8 +5330,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleNop,
-						Username:    string(types.RoleNop),
+						Role:        types.RoleProxy,
+						Username:    string(types.RoleProxy),
 						ClusterName: "remote-cluster",
 					},
 				}

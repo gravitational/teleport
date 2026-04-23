@@ -1,0 +1,24 @@
+diff a/lib/events/stream.go b/lib/events/stream.go	(rejected hunks)
+@@ -166,16 +170,18 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
+ 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
+ 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
+ 		// MaxProtoMessage size + length of the message record
+-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
++		slicePool:        utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
++		onUploadComplete: cfg.OnUploadComplete,
+ 	}, nil
+ }
+ 
+ // ProtoStreamer creates protobuf-based streams uploaded to the storage
+ // backends, for example S3 or GCS
+ type ProtoStreamer struct {
+-	cfg        ProtoStreamerConfig
+-	bufferPool *utils.BufferSyncPool
+-	slicePool  *utils.SliceSyncPool
++	cfg              ProtoStreamerConfig
++	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
++	bufferPool       *utils.BufferSyncPool
++	slicePool        *utils.SliceSyncPool
+ }
+ 
+ // CreateAuditStreamForUpload creates audit stream for existing upload,
