@@ -35,7 +35,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
 | random | >= 3.0 |
-| teleport | >= 18.7.6 |
+| teleport | >= 18.7.3 |
 
 ## Providers
 
@@ -44,7 +44,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
 | random | >= 3.0 |
-| teleport | >= 18.7.6 |
+| teleport | >= 18.7.3 |
 
 ## Modules
 
