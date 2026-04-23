@@ -393,10 +393,16 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 			Matcher: func(desktop types.WindowsDesktop) bool {
 				// Our matcher needs to match both dynamic desktops from the config's resources section
 				// and any LDAP-discovered hosts from this this service. To make sure we get any LDAP
-				// hosts, we add a matcher for one of the labels that we always use for LDAP discovery.
+				// hosts, we add a matcher for the labels that we always use for LDAP discovery.
 				matchers := slices.Clone(s.cfg.ResourceMatchers)
 				matchers = append(matchers, services.ResourceMatcher{
-					Labels: types.Labels{types.DiscoveryLabelWindowsOS: []string{"*"}},
+					Labels: types.Labels{
+						types.OriginLabel:                       []string{types.OriginDynamic},
+						types.DiscoveryLabelWindowsOS:           []string{"*"},
+						types.DiscoveryLabelWindowsOSVersion:    []string{"*"},
+						types.DiscoveryLabelWindowsDNSHostName:  []string{"*"},
+						types.DiscoveryLabelWindowsComputerName: []string{"*"},
+					},
 				})
 				return services.MatchResourceLabels(matchers, desktop.GetAllLabels())
 			},
