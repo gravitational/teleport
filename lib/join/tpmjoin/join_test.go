@@ -46,9 +46,11 @@ import (
 )
 
 func TestJoinTPM(t *testing.T) {
+	testModules := modulestest.OSSModules()
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:     t.TempDir(),
+			Modules: testModules,
 		},
 	})
 	require.NoError(t, err)
@@ -275,7 +277,9 @@ func TestJoinTPM(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			if !tc.oss {
-				modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+				testModules.TestBuildType = modules.BuildEnterprise
+			} else {
+				testModules.TestBuildType = modules.BuildOSS
 			}
 
 			token, err := types.NewProvisionTokenFromSpec("mytoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{

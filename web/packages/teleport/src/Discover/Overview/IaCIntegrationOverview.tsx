@@ -54,7 +54,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
-import { SETTINGS_PANEL_WIDTH, SettingsTab } from './SettingsTab';
+import { SettingsTab } from './SettingsTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -125,10 +125,7 @@ export function IaCIntegrationOverview() {
 
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
-      <ContentWithSidePanel
-        isPanelOpen={isPanelOpen}
-        panelWidth={SETTINGS_PANEL_WIDTH}
-      >
+      <ContentWithSidePanel isPanelOpen={isPanelOpen}>
         <Flex alignItems="center" justifyContent="space-between" mb={3}>
           <Flex alignItems="center">
             <HoverTooltip placement="bottom" tipContent="Back to Integrations">

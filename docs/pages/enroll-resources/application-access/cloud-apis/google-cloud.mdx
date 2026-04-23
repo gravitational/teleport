@@ -182,14 +182,16 @@ new one:
 <TabItem label="New Virtual Machine">
 
 Create a new virtual machine with the `teleport-google-cloud` service account
-attached:
+attached. In this example, we are using the latest machine image that supports
+Debian 12:
 
 ```code
+$ IMAGE=$(gcloud --format json compute images describe-from-family debian-12 --project debian-cloud | jq -r '.selfLink')
 $ gcloud compute instances create teleport-app-service \
    --service-account=teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
    --scopes=cloud-platform \
    --zone=<Var name="google-cloud-zone" /> \
-   --image=https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/debian-11-bullseye-v20231212
+   --image="$IMAGE"
 ```
 
 You must use the `service-account` and `scopes` flags as we list them here,

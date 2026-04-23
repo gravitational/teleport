@@ -95,7 +95,9 @@ PROTOS = \
 	teleport/autoupdate/v1/autoupdate.proto \
 	teleport/summarizer/v1/summarizer.proto \
 	teleport/accessmonitoringrules/v1/access_monitoring_rules.proto \
-	teleport/scopes/joining/v1/token.proto
+	teleport/scopes/joining/v1/token.proto \
+	teleport/scopes/access/v1/role.proto \
+	teleport/scopes/access/v1/assignment.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.

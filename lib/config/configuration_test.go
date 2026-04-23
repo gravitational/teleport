@@ -5605,6 +5605,7 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
+	t.Parallel()
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
@@ -5659,15 +5660,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
+			t.Parallel()
 			clf := &CommandLineFlags{
 				FIPS: tc.fips,
 			}
 			cfg := servicecfg.MakeDefaultConfig()
+			cfg.Modules = &modulestest.Modules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			}
 			if tc.fips {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}

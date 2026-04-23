@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -636,6 +637,19 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
+			name: "valid azure scoped token with tenant",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
+				tok.Spec.Azure = &joiningv1.Azure{
+					Allow: []*joiningv1.Azure_Rule{
+						{
+							Tenant: "tenant-id",
+						},
+					},
+				}
+			},
+		},
+		{
 			name: "valid azure_devops scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
@@ -826,6 +840,48 @@ func TestValidateScopedToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScopedTokenAzureRoundTrip tests provision token -> scoped token -> join token
+func TestScopedTokenAzureRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodAzure,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Azure: &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Tenant:         "tenant-id",
+					Subscription:   "subscription-id",
+					ResourceGroups: []string{"resource-group"},
+				},
+			},
+		},
+	}, &joiningv1.ScopedToken{
+		Scope: "/test",
+		Metadata: &headerv1.Metadata{
+			Name: "test-token",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := joining.NewToken(scopedToken)
+	require.NoError(t, err)
+
+	require.Equal(t, &types.ProvisionTokenSpecV2Azure{
+		Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+			{
+				Tenant:         "tenant-id",
+				Subscription:   "subscription-id",
+				ResourceGroups: []string{"resource-group"},
+			},
+		},
+	}, token.GetAzure())
 }
 
 func TestImmutableLabelHashing(t *testing.T) {

@@ -16,10 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box } from 'design';
+import styled from 'styled-components';
+
+import { Box, Flex, Link as ExternalLink, Text } from 'design';
+import { NewTab } from 'design/Icon';
 import {
   InfoParagraph,
   InfoTitle,
+  InfoUl,
   ReferenceLinks,
   type ReferenceLink,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -42,12 +46,6 @@ const referenceLinks: ReferenceLink[] = [
 export function InfoGuideContent() {
   return (
     <Box>
-      <InfoTitle>Overview</InfoTitle>
-      <InfoParagraph>
-        Connect your AWS account to Teleport to automatically discover and
-        enroll resources in your cluster.
-      </InfoParagraph>
-
       <InfoTitle>How It Works</InfoTitle>
       <Box pl={2}>
         <ol
@@ -56,28 +54,67 @@ export function InfoGuideContent() {
           `}
         >
           <li>
-            <strong>Deploy IAM role with discovery permissions.</strong>
-            <br /> Using Terraform, create an IAM role that grants Teleport
-            read-only access to your AWS resources.
+            <strong>Configure what to discover.</strong>
+            <br />
+            <Text as="span" color="text.slightlyMuted">
+              Specify resource types, regions, and tag filters to control which
+              resources are discovered.
+            </Text>
           </li>
           <li>
-            <strong>Configure what to discover.</strong> <br />
-            Specify regions, resource types (EC2, RDS, EKS), and tag filters to
-            control which resources are discovered.
+            <strong>Use the generated Terraform module.</strong>
+            <br />
+            <Text as="span" color="text.slightlyMuted">
+              The Terraform module will set up an OIDC connection in AWS and
+              configure Teleport discovery to scan for your resources.
+            </Text>
           </li>
           <li>
-            <strong>Automatic discovery begins.</strong> <br />
-            Teleport scans your AWS environment every 30 minutes to find
-            resources matching your configuration.
-          </li>
-          <li>
-            <strong>Resources appear in your cluster.</strong>
-            <br /> Discovered resources are automatically enrolled in Teleport
-            and ready for secure access.
+            <strong>
+              Your cloud resources automatically appear in your Teleport
+              cluster.
+            </strong>
+            <br />
+            <Text as="span" color="text.slightlyMuted">
+              Teleport scans every 30 minutes to find matching resources.
+              Resources are enrolled in Teleport and ready for secure access.
+            </Text>
           </li>
         </ol>
       </Box>
+
+      <InfoTitle>Prerequisites</InfoTitle>
+      <InfoParagraph>Before you begin, ensure you have:</InfoParagraph>
+      <InfoUl>
+        <InfoLinkLi>
+          <ExternalLink
+            href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-terraform#step-15-configure-aws-terraform-provider"
+            target="_blank"
+          >
+            <Flex>
+              AWS IAM permissions for discovery
+              <NewTab size="small" ml={1} />
+            </Flex>
+          </ExternalLink>
+        </InfoLinkLi>
+        <InfoLinkLi>
+          <ExternalLink
+            href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html"
+            target="_blank"
+          >
+            <Flex>
+              SSM agent running on EC2 instances
+              <NewTab size="small" ml={1} />
+            </Flex>
+          </ExternalLink>
+        </InfoLinkLi>
+      </InfoUl>
+
       <ReferenceLinks links={referenceLinks} />
     </Box>
   );
 }
+
+const InfoLinkLi = styled.li`
+  color: ${({ theme }) => theme.colors.interactive.solid.accent.default};
+`;

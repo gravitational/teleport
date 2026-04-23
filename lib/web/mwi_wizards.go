@@ -24,8 +24,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 

@@ -23,7 +23,8 @@ import (
 	"os"
 	"path"
 	"strings"
-	"text/template"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
@@ -823,7 +824,7 @@ var (
 		UpsertMethodArity:     2,
 		UpdateMethod:          "VnetConfigClient().UpsertVnetConfig",
 		DeleteMethod:          "VnetConfigClient().ResetVnetConfig",
-		ID:                    `"vnet_config"`,
+		ID:                    "apitypes.MetaNameVnetConfig",
 		Kind:                  "vnet_config",
 		HasStaticID:           false,
 		ProtoPackage:          "vnet",

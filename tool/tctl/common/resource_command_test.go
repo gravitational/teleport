@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
@@ -2436,22 +2437,22 @@ version: v1
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
-// behaves as expected for enterprise resources. These resources cannot
-// be tested in parallel because they alter the modules to enable features.
-// The tests are grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. The tests are
+// grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
+	t.Parallel()
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Modules = &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OIDC: {Enabled: true},
+					entitlements.SAML: {Enabled: true},
+				},
 			},
-		},
-	})
-
-	process, err := testenv.NewTeleportProcess(t.TempDir())
+		}
+	}))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

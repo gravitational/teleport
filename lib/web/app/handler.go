@@ -179,14 +179,13 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	if ws.GetUser() != identity.Username {
 		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: userMeta,
+			UserMetadata: userMetadata(identity, ws.GetUser()),
+			AppMetadata:  appMetadata(identity),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  clientConn.LocalAddr().String(),
 				RemoteAddr: clientConn.RemoteAddr().String(),
@@ -419,6 +418,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
@@ -430,18 +430,14 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		err := trace.AccessDenied("session owner %q does not match caller %q",
 			ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: userMeta,
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
+			UserMetadata:       userMetadata(identity, ws.GetUser()),
+			AppMetadata:        appMetadata(identity),
+			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
@@ -469,19 +465,15 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 		return nil, trace.Wrap(err)
 	}
 	if err := checkSubjectToken(subjectValue, ws); err != nil {
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  "unknown", // we don't have client's username, since this came from an http request with cookies.
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
+			// Do not use an identity in this event since token cannot be
+			// validated.
+			UserMetadata:       userMetadata(nil, ws.GetUser()),
+			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
@@ -567,6 +559,41 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 
 	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host(), launcherURLParams{})
 	return urlString, true
+}
+
+func (h *Handler) emitAuditEvent(event apievents.AuditEvent) {
+	if err := h.c.AuthClient.EmitAuditEvent(h.closeContext, event); err != nil {
+		h.logger.WarnContext(h.closeContext, "Failed to emit audit event", "error", err)
+	}
+}
+
+func connectionMetadataFromRequest(r *http.Request) apievents.ConnectionMetadata {
+	return apievents.ConnectionMetadata{
+		LocalAddr:  r.Host,
+		RemoteAddr: r.RemoteAddr,
+	}
+}
+
+func userMetadata(identity *tlsca.Identity, login string) apievents.UserMetadata {
+	if identity == nil {
+		return apievents.UserMetadata{
+			User:  "unknown",
+			Login: login,
+		}
+	}
+	m := identity.GetUserMetadata()
+	m.Login = login
+	return m
+}
+
+func appMetadata(identity *tlsca.Identity) apievents.AppMetadata {
+	if identity == nil {
+		return apievents.AppMetadata{}
+	}
+	return apievents.AppMetadata{
+		AppName:       identity.RouteToApp.Name,
+		AppPublicAddr: identity.RouteToApp.PublicAddr,
+	}
 }
 
 const (
