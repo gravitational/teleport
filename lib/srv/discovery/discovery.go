@@ -529,6 +529,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) newDiscoveryConfigStatusUpdaterFromServer() *discoveryConfigStatusUpdater {
+	return newDiscoveryConfigStatusUpdater(s.Config)
+}
+
 func (s *Server) runDynamicMatchersWatcher(ctx context.Context) error {
 	watcher, err := s.AccessPoint.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
