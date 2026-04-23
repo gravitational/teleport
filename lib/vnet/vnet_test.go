@@ -31,6 +31,7 @@ import (
 	"maps"
 	"math/big"
 	"net"
+	"net/netip"
 	"os"
 	"slices"
 	"strconv"
@@ -47,10 +48,6 @@ import (
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
@@ -84,12 +81,8 @@ func TestMain(m *testing.M) {
 
 type testPack struct {
 	vnetIPv6Prefix tcpip.Address
-	dnsIPv6        tcpip.Address
 	ns             *networkStack
-
-	testStack        *stack.Stack
-	testLinkEndpoint *channel.Endpoint
-	localAddress     tcpip.Address
+	hostNetwork    *FakeHostNetwork
 }
 
 type testPackConfig struct {
@@ -103,54 +96,25 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		cfg.homePath = t.TempDir()
 	}
 
-	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
-	tun1, tun2 := newSplitTUN()
-
-	// Create an isolated userspace networking stack that can be manipulated from test code. It will be
-	// connected to the VNet over the TUN interface. This emulates the host networking stack.
-	// This is a completely separate gvisor network stack than the one that will be created in
-	// NewNetworkStack - the two will be connected over a fake TUN interface. This exists so that the
-	// test can setup IP routes without affecting the host running the Test.
-	testStack, testLinkEndpoint, err := createStack()
+	hostNetwork, err := NewFakeHostNetwork()
 	require.NoError(t, err)
+	t.Cleanup(hostNetwork.Close)
 
 	errIsOK := func(err error) bool {
 		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
 	}
 
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
-		Name: "test network stack",
-		Task: func(ctx context.Context) error {
-			if err := forwardBetweenTunAndNetstack(ctx, tun1, testLinkEndpoint); !errIsOK(err) {
-				return trace.Wrap(err)
-			}
-			return nil
-		},
-		Terminate: func() error {
-			testLinkEndpoint.Close()
-			return trace.Wrap(tun1.Close())
-		},
-	})
-
-	// Assign a local IP address to the test stack.
-	localAddress, err := randomULAAddress()
-	require.NoError(t, err)
-	protocolAddr, err := protocolAddress(localAddress)
-	require.NoError(t, err)
-	tcpErr := testStack.AddProtocolAddress(nicID, protocolAddr, stack.AddressProperties{})
-	require.Nil(t, tcpErr)
-
-	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
 	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
-	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
-	require.NoError(t, err)
-	testStack.SetRouteTable([]tcpip.Route{{
-		Destination: subnet,
-		NIC:         nicID,
-	}})
-
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
+	vnetIPv6PrefixAddr, ok := netip.AddrFromSlice(vnetIPv6Prefix.AsSlice())
+	require.True(t, ok)
+	dnsIPv6Addr, ok := netip.AddrFromSlice(dnsIPv6.AsSlice())
+	require.True(t, ok)
+	require.NoError(t, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
+		CIDRRanges: []string{netip.PrefixFrom(vnetIPv6PrefixAddr, 64).String()},
+		DNSAddrs:   []string{dnsIPv6Addr.String()},
+	}))
 
 	// In reality the VNet networking stack runs in a separate process from the
 	// client application and communicates over gRPC. For the test, everything
@@ -174,7 +138,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	// Create the VNet and connect it to the other side of the TUN.
 	ns, err := newNetworkStack(&networkStackConfig{
-		tunDevice:                tun2,
+		tunDevice:                hostNetwork.TUNDevice(),
 		ipv6Prefix:               vnetIPv6Prefix,
 		dnsIPv6:                  dnsIPv6,
 		tcpHandlerResolver:       tcpHandlerResolver,
@@ -194,63 +158,33 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	return &testPack{
 		vnetIPv6Prefix:   vnetIPv6Prefix,
-		dnsIPv6:          dnsIPv6,
 		ns:               ns,
-		testStack:        testStack,
-		testLinkEndpoint: testLinkEndpoint,
-		localAddress:     localAddress,
+		hostNetwork:      hostNetwork,
 	}
 }
 
 // dialIPPort dials the VNet address [addr] from the test virtual netstack.
-func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint16) (*gonet.TCPConn, error) {
-	conn, err := gonet.DialTCPWithBind(
-		ctx,
-		p.testStack,
-		tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     p.localAddress,
-			LinkAddr: p.testLinkEndpoint.LinkAddress(),
-		},
-		tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     addr,
-			Port:     port,
-			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
-		},
-		ipv6.ProtocolNumber,
-	)
+
+func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint16) (net.Conn, error) {
+	netAddr, ok := netip.AddrFromSlice(addr.AsSlice())
+	if !ok {
+		return nil, trace.BadParameter("invalid IP address")
+	}
+	conn, err := p.hostNetwork.DialIP(ctx, "tcp", netip.AddrPortFrom(netAddr, port).String())
 	return conn, trace.Wrap(err)
 }
 
 func (p *testPack) dialUDP(ctx context.Context, addr tcpip.Address, port uint16) (net.Conn, error) {
-	conn, err := gonet.DialUDP(
-		p.testStack,
-		&tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     p.localAddress,
-			LinkAddr: p.testLinkEndpoint.LinkAddress(),
-		},
-		&tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     addr,
-			Port:     port,
-			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
-		},
-		ipv6.ProtocolNumber,
-	)
+	netAddr, ok := netip.AddrFromSlice(addr.AsSlice())
+	if !ok {
+		return nil, trace.BadParameter("invalid IP address")
+	}
+	conn, err := p.hostNetwork.DialIP(ctx, "udp", netip.AddrPortFrom(netAddr, port).String())
 	return conn, trace.Wrap(err)
 }
 
 func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error) {
-	resolver := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			conn, err := p.dialUDP(ctx, p.dnsIPv6, 53)
-			return conn, err
-		},
-	}
-	return resolver.LookupHost(ctx, host)
+	return p.hostNetwork.DNSResolver().LookupHost(ctx, host)
 }
 
 func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
@@ -1757,14 +1691,6 @@ func TestPriority(t *testing.T) {
 	})
 }
 
-func randomULAAddress() (tcpip.Address, error) {
-	var bytes [16]byte
-	bytes[0] = 0xfd
-	if _, err := rand.Read(bytes[1:16]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
-	}
-	return tcpip.AddrFrom16(bytes), nil
-}
 func newSelfSignedCA(t *testing.T) tls.Certificate {
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)

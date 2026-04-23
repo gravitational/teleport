@@ -35,12 +35,23 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
+var (
+	fakeHostNetworkIPv4 = netip.MustParseAddr("203.0.113.1")
+	fakeHostNetworkIPv6 = netip.MustParseAddr("fd00::1")
+)
+
 // NewFakeHostNetwork returns an in-memory emulation of a host network, intended
 // for use in tests, backed by the gVisor network stack. Users must call Close on
 // the network to clean up its resources.
 func NewFakeHostNetwork() (*FakeHostNetwork, error) {
 	stack, nic, err := createStack()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := addProtocolAddress(stack, nicID, fakeHostNetworkIPv4); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := addProtocolAddress(stack, nicID, fakeHostNetworkIPv6); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -178,34 +189,24 @@ func (f *FakeHostNetwork) Configure(ctx context.Context, cfg *EmbeddedVNetHostCo
 	f.dnsAddrs = cfg.DNSAddrs
 	f.dnsZones = cfg.DNSZones
 
-	// Assign the interface an IPv4 address.
-	if err := f.stack.AddProtocolAddress(
-		nicID,
-		tcpip.ProtocolAddress{
-			Protocol: netipv4.ProtocolNumber,
-			AddressWithPrefix: tcpip.AddressWithPrefix{
-				Address:   tcpip.AddrFromSlice(net.ParseIP(cfg.DeviceIPv4).To4()),
-				PrefixLen: 32,
-			},
-		},
-		stack.AddressProperties{},
-	); err != nil {
-		return trace.Errorf("failed to add IPv4 address: %s", err.String())
+	if cfg.DeviceIPv4 != "" {
+		addr, err := netip.ParseAddr(cfg.DeviceIPv4)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := addProtocolAddress(f.stack, nicID, addr); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	// Assign the interface an IPv6 address.
-	if err := f.stack.AddProtocolAddress(
-		nicID,
-		tcpip.ProtocolAddress{
-			Protocol: netipv6.ProtocolNumber,
-			AddressWithPrefix: tcpip.AddressWithPrefix{
-				Address:   tcpip.AddrFromSlice(net.ParseIP(cfg.DeviceIPv6)),
-				PrefixLen: 128,
-			},
-		},
-		stack.AddressProperties{},
-	); err != nil {
-		return trace.Errorf("failed to add IPv6 address: %s", err.String())
+	if cfg.DeviceIPv6 != "" {
+		addr, err := netip.ParseAddr(cfg.DeviceIPv6)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := addProtocolAddress(f.stack, nicID, addr); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Configure the route table.
@@ -263,6 +264,29 @@ func (f *FakeHostNetwork) HTTPTransport() *http.Transport {
 
 // Close the network to free its resources.
 func (f *FakeHostNetwork) Close() { f.cancel() }
+
+func addProtocolAddress(netStack *stack.Stack, nicID tcpip.NICID, addr netip.Addr) error {
+	protocolNumber := netipv4.ProtocolNumber
+	prefixLen := 32
+	if addr.Is6() {
+		protocolNumber = netipv6.ProtocolNumber
+		prefixLen = 128
+	}
+	if err := netStack.AddProtocolAddress(
+		nicID,
+		tcpip.ProtocolAddress{
+			Protocol: protocolNumber,
+			AddressWithPrefix: tcpip.AddressWithPrefix{
+				Address:   tcpip.AddrFromSlice(addr.AsSlice()),
+				PrefixLen: prefixLen,
+			},
+		},
+		stack.AddressProperties{},
+	); err != nil {
+		return trace.Errorf("failed to add %v address %v: %s", addr.BitLen(), addr, err.String())
+	}
+	return nil
+}
 
 // newSplitTUN returns two fake TUN devices that are tied together: writes to one can be read on the other,
 // and vice versa.
