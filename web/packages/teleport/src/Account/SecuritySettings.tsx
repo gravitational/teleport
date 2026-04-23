@@ -92,9 +92,13 @@ export function SecuritySettings({
     mfaPillState = canAddMfa && hasMfaDevices ? 'active' : 'inactive';
   }
 
-  let passkeysPillState = undefined;
+  let passkeysPillState: AuthMethodState | undefined = undefined;
   if (fetchDevicesAttempt.status !== 'processing') {
-    passkeysPillState = canAddPasskeys && hasPasskeys ? 'active' : 'inactive';
+    if (!canAddPasskeys) {
+      passkeysPillState = 'disabled';
+    } else {
+      passkeysPillState = hasPasskeys ? 'active' : 'inactive';
+    }
   }
 
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
@@ -186,6 +190,7 @@ export function SecuritySettings({
           devices={devices}
           onRemove={onRemoveDevice}
           attempt={fetchDevicesAttempt}
+          passkeysEnabled={canAddPasskeys}
         />
       </Box>
       {!isSso && (
@@ -239,7 +244,7 @@ function PasskeysHeader({
   onAddDevice,
 }: {
   empty: boolean;
-  state: AuthMethodState;
+  state: AuthMethodState | undefined;
   disableAddPasskey: boolean;
   onAddDevice: (usage: DeviceUsage) => void;
 }) {

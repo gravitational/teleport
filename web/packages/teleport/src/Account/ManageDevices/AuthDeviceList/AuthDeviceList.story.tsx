@@ -45,6 +45,7 @@ export function EmptyList() {
       }
       devices={[]}
       attempt={{ status: 'success' }}
+      passkeysEnabled
     />
   );
 }
@@ -67,6 +68,7 @@ export function ListWithDevices() {
       }
       devices={devices}
       attempt={{ status: 'success' }}
+      passkeysEnabled
     />
   );
 }

@@ -62,11 +62,11 @@ function getTableCellContents() {
   return {
     header: within(header)
       .getAllByRole('columnheader')
-      .map(cell => cell.textContent),
+      .map(cell => cell.textContent.trim()),
     rows: rows.map(row =>
       within(row)
         .getAllByRole('cell')
-        .map(cell => cell.textContent)
+        .map(cell => cell.textContent.trim())
     ),
   };
 }
@@ -77,6 +77,7 @@ test('renders devices', () => {
       header="Header"
       devices={devices}
       attempt={{ status: 'success' }}
+      passkeysEnabled
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
@@ -103,12 +104,28 @@ test('renders devices', () => {
   });
 });
 
+test('renders devices with passkeys disabled', () => {
+  render(
+    <AuthDeviceList
+      header="Header"
+      devices={devices}
+      attempt={{ status: 'success' }}
+      passkeysEnabled={false}
+    />
+  );
+  expect(getTableCellContents().rows).toEqual([
+    ['MFA', 'Hardware Key', 'touch_id', '2021-08-12', '2021-08-12', ''],
+    ['MFA', 'Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
+  ]);
+});
+
 test('delete button is disabled for sso devices', () => {
   render(
     <AuthDeviceList
       header="Header"
       devices={ssoDevice}
       attempt={{ status: 'success' }}
+      passkeysEnabled
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
@@ -135,6 +152,7 @@ test('renders no devices', () => {
       header="Header"
       devices={[]}
       attempt={{ status: 'success' }}
+      passkeysEnabled
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();

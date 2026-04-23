@@ -25,6 +25,7 @@ import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
 import * as Icon from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
+import { IconTooltip } from 'design/Tooltip';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { MfaDevice } from 'teleport/services/mfa';
@@ -34,6 +35,7 @@ export interface AuthDeviceListProps {
   devices: MfaDevice[];
   onRemove?: (device: MfaDevice) => void;
   attempt: Attempt;
+  passkeysEnabled: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function AuthDeviceList({
   attempt,
   header,
   onRemove,
+  passkeysEnabled,
 }: AuthDeviceListProps) {
   return (
     <MultiRowBox>
@@ -69,7 +72,21 @@ export function AuthDeviceList({
                     case 'mfa':
                       return <Cell>MFA</Cell>;
                     case 'passwordless':
-                      return <Cell>Passkey</Cell>;
+                      return (
+                        <Cell>
+                          {passkeysEnabled ? (
+                            'Passkey'
+                          ) : (
+                            <Flex alignItems="center" gap={1}>
+                              MFA{' '}
+                              <IconTooltip>
+                                This device can be a passkey, but passwordless
+                                authentication is disabled
+                              </IconTooltip>
+                            </Flex>
+                          )}
+                        </Cell>
+                      );
                     default:
                       return device.usage;
                   }

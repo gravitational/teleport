@@ -152,8 +152,8 @@ test.each`
   pwdless  | passkeys         | state
   ${true}  | ${[testPasskey]} | ${/^active$/}
   ${true}  | ${[]}            | ${/^inactive$/}
-  ${false} | ${[testPasskey]} | ${/^inactive$/}
-  ${false} | ${[]}            | ${/^inactive$/}
+  ${false} | ${[testPasskey]} | ${/^disabled/}
+  ${false} | ${[]}            | ${/^disabled/}
 `(
   "Passkey state pill: passwordless=$pwdless, $passkeys.length passkey(s) => state='$state'",
   async ({ pwdless, passkeys, state }) => {
