@@ -24,6 +24,9 @@ import (
     "encoding/hex"
 {{- end }}
 	"fmt"
+{{- if .DefaultSubKind }}
+	"strings"
+{{- end }}
 {{- if .StatePoll }}
 	"time"
 {{- end }}
@@ -750,11 +753,19 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 {{if not .WithoutImportState -}}
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+{{- if .DefaultSubKind}}
+	subKind := {{.DefaultSubKind}}
+	name := req.ID
+	if before, after, ok := strings.Cut(req.ID, "/"); ok {
+		subKind = before
+		name = after
+	}
+{{- end}}
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
-		Name: req.ID,
+		Name: {{if .DefaultSubKind}}name{{else}}req.ID{{end}},
 		{{- if .DefaultSubKind}}
-		SubKind: {{.DefaultSubKind}},
+		SubKind: subKind,
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
