@@ -2841,22 +2841,6 @@ func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req authclient.W
 	return a.authServer.ExtendWebSession(ctx, req, a.context.Identity.GetIdentity())
 }
 
-// GetWebSessionInfo returns the web session for the given user specified with sid.
-// The session is stripped of any authentication details.
-// Implements auth.WebUIService
-func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetWebSessionInfo(ctx, user, sessionID)
-}
-
-// GetWebSession returns the web session specified with req.
-// Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return a.WebSessions().Get(ctx, req)
-}
-
 // WebSessions returns the web session manager.
 // Implements services.WebSessionsGetter.
 func (a *ServerWithRoles) WebSessions() types.WebSessionInterface {
