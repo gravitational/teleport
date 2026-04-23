@@ -6505,7 +6505,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Logger:                    cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
 		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
-		SessionStreamer:           cfg.AuthServer,
+		OnUploadComplete:          cfg.AuthServer.OnUploadComplete,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

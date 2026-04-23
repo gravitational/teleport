@@ -21,7 +21,6 @@ package events
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -32,14 +31,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -76,6 +73,9 @@ type UploadCompleterConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// EnsureSessionEndEvent determines whether or not the UploadCompleter should
+	// detect missing session end events and attempt to emit them.
+	EnsureSessionEndEvent bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -315,19 +315,21 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
-		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-u.cfg.Clock.After(2 * time.Minute):
-				log.DebugContext(ctx, "checking for session end event")
-				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
-					log.WarnContext(ctx, "failed to ensure session end event", "error", err)
+		if u.cfg.EnsureSessionEndEvent {
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-u.cfg.Clock.After(2 * time.Minute):
+					log.DebugContext(ctx, "checking for session end event")
+					if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
+						log.WarnContext(ctx, "failed to ensure session end event", "error", err)
+					}
 				}
-			}
-		}()
-		session := &events.SessionUpload{
-			Metadata: events.Metadata{
+			}()
+		}
+		session := &apievents.SessionUpload{
+			Metadata: apievents.Metadata{
 				Type:        SessionUploadEvent,
 				Code:        SessionUploadCode,
 				Time:        u.cfg.Clock.Now().UTC(),
@@ -335,7 +337,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 				Index:       SessionUploadIndex,
 				ClusterName: u.cfg.ClusterName,
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
@@ -349,145 +351,46 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	// at this point, we don't know whether we'll need to emit a session.end or a
-	// windows.desktop.session.end, but as soon as we see the session start we'll
-	// be able to start filling in the details
-	var sshSessionEnd events.SessionEnd
-	var desktopSessionEnd events.WindowsDesktopSessionEnd
-
-	// We use the streaming events API to search through the session events, because it works
-	// for both Desktop and SSH sessions
-	var lastEvent events.AuditEvent
-	var startTime time.Time
-	var sessionType recordingmetadata.SessionType
-	var isPTYSession bool
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
-
-loop:
-	for {
-		select {
-		case evt, more := <-evts:
-			if !more {
-				break loop
-			}
-
-			lastEvent = evt
-
-			switch e := evt.(type) {
-			// Return if session end event already exists
-			case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
-				return nil
-
-			case *events.WindowsDesktopSessionStart:
-				startTime = e.Time
-				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
-				desktopSessionEnd.Code = DesktopSessionEndCode
-				desktopSessionEnd.ClusterName = e.ClusterName
-				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
-				desktopSessionEnd.Recorded = true
-				desktopSessionEnd.UserMetadata = e.UserMetadata
-				desktopSessionEnd.SessionMetadata = e.SessionMetadata
-				desktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
-				desktopSessionEnd.Domain = e.Domain
-				desktopSessionEnd.DesktopAddr = e.DesktopAddr
-				desktopSessionEnd.DesktopLabels = e.DesktopLabels
-				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
-
-			case *events.SessionStart:
-				sessionType = recordingmetadata.SessionTypeTTY
-				isPTYSession = true
-				startTime = e.Time
-				sshSessionEnd.Type = SessionEndEvent
-				sshSessionEnd.Code = SessionEndCode
-				sshSessionEnd.ClusterName = e.ClusterName
-				sshSessionEnd.StartTime = e.Time
-				sshSessionEnd.UserMetadata = e.UserMetadata
-				sshSessionEnd.SessionMetadata = e.SessionMetadata
-				sshSessionEnd.ServerMetadata = e.ServerMetadata
-				sshSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				sshSessionEnd.KubernetesClusterMetadata = e.KubernetesClusterMetadata
-				sshSessionEnd.KubernetesPodMetadata = e.KubernetesPodMetadata
-				sshSessionEnd.InitialCommand = e.InitialCommand
-				sshSessionEnd.SessionRecording = e.SessionRecording
-				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
-
-			case *events.DatabaseSessionStart:
-				startTime = e.Time
-
-			case *events.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
-			}
-
-		case err := <-errors:
-			return trace.Wrap(err)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	if lastEvent == nil {
-		return trace.Errorf("could not find any events for session %v", uploadData.SessionID)
-	}
-
-	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
-	sshSessionEnd.EndTime = lastEvent.GetTime()
-	desktopSessionEnd.EndTime = lastEvent.GetTime()
-
-	var sessionEndEvent events.AuditEvent
-	switch {
-	case sshSessionEnd.Code != "":
-		sessionEndEvent = &sshSessionEnd
-	case desktopSessionEnd.Code != "":
-		sessionEndEvent = &desktopSessionEnd
-	default:
-		return trace.BadParameter("invalid session, could not find session start")
-	}
-
-	u.log.InfoContext(ctx, "emitting event for completed session",
-		"event_type", sessionEndEvent.GetType(),
-		"event_code", sessionEndEvent.GetCode(),
-		"session_id", uploadData.SessionID,
+	sessionEndEvent, err := FindOrRecoverSessionEnd(
+		ctx,
+		FindOrRecoverSessionEndConfig{
+			ClusterName: u.cfg.ClusterName,
+			Streamer:    u.cfg.AuditLog,
+			SessionID:   uploadData.SessionID,
+			AuditLog:    u.cfg.AuditLog,
+			Log:         u.log,
+			Clock:       u.cfg.Clock,
+		},
 	)
-
-	sessionEndEvent.SetTime(lastEvent.GetTime())
-
-	// Check and set event fields
-	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
+	if err != nil {
 		return trace.Wrap(err)
-	}
-	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !isPTYSession {
-		return nil
 	}
 
 	// For PTY sessions, process recording metadata and summarization.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if !startTime.IsZero() && !sessionEndEvent.GetTime().IsZero() {
-		duration := sessionEndEvent.GetTime().Sub(startTime)
+	if duration, sessionType := isPTYSession(sessionEndEvent); duration > 0 {
 		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
-	} else {
+	} else if sessionType == recordingmetadata.SessionTypeTTY {
 		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
 	}
 
 	summarizer := u.cfg.SessionSummarizerProvider.SessionSummarizer()
-	if err := summarizer.SummarizeSSH(ctx, &sshSessionEnd); err != nil {
+	switch o := sessionEndEvent.(type) {
+	case *apievents.SessionEnd:
+		err = summarizer.SummarizeSSH(ctx, o)
+	case *apievents.DatabaseSessionEnd:
+		err = summarizer.SummarizeDatabase(ctx, o)
+	}
+	if err != nil {
 		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
-func transformedUsername(u events.UserMetadata, localCluster string) string {
+func transformedUsername(u apievents.UserMetadata, localCluster string) string {
 	return services.UsernameForCluster(
 		services.UsernameForClusterConfig{
 			User:              u.User,
@@ -495,4 +398,29 @@ func transformedUsername(u events.UserMetadata, localCluster string) string {
 			LocalClusterName:  localCluster,
 		},
 	)
+}
+
+// isPTYSession returns the session duration and true if the event is an
+// interactive (PTY) SSH session end. Returns (0, false) for non-SSH sessions.
+// Returns (-1, true) if the event is a PTY session but the start or end time
+// is missing.
+func isPTYSession(sessionEnd apievents.AuditEvent) (time.Duration, recordingmetadata.SessionType) {
+	switch evt := sessionEnd.(type) {
+	case *apievents.SessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return -1, recordingmetadata.SessionTypeTTY
+		}
+		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
+	case *apievents.DatabaseSessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return -1, recordingmetadata.SessionTypeUnspecified
+		}
+		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+	case *apievents.WindowsDesktopSessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return -1, recordingmetadata.SessionTypeUnspecified
+		}
+		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+	}
+	return 0, recordingmetadata.SessionTypeUnspecified
 }

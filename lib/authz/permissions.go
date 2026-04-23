@@ -914,8 +914,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
 				types.NewRule(types.KindSSHSession, services.RW()),
-				types.NewRule(types.KindSession, services.RO()),
-				types.NewRule(types.KindEvent, services.RW()),
+				types.NewRule(types.KindEvent, services.WO()),
 				types.NewRule(types.KindSAMLRequest, services.RW()),
 				types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
 				types.NewRule(types.KindSAML, services.ReadNoSecrets()),
@@ -1042,8 +1041,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
-						types.NewRule(types.KindSession, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1079,7 +1077,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1108,7 +1106,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1170,7 +1168,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
@@ -1241,7 +1239,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1266,7 +1264,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1290,7 +1288,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
@@ -1323,7 +1321,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindSemaphore, services.RW()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindAppServer, services.RW()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindUser, services.RW()),

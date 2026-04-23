@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
@@ -55,8 +56,9 @@ type ServiceConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
-	// SessionStreamer is a streamer for session events.
-	SessionStreamer events.SessionStreamer
+	// OnUploadComplete is called after an upload completes to find or recover the
+	// session end event.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -68,12 +70,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("uploader is required")
 	case cfg.KeyRotater == nil:
 		return nil, trace.BadParameter("key rotater is required")
-	case cfg.SessionStreamer == nil:
-		return nil, trace.BadParameter("session streamer is required")
 	case cfg.RecordingMetadataProvider == nil:
 		return nil, trace.BadParameter("recording metadata provider is required")
 	case cfg.SessionSummarizerProvider == nil:
 		return nil, trace.BadParameter("session summarizer provider is required")
+	case cfg.OnUploadComplete == nil:
+		return nil, trace.BadParameter("on upload complete callback is required")
 	}
 
 	if cfg.Logger == nil {
@@ -87,7 +89,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		rotater:                   cfg.KeyRotater,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 		recordingMetadataProvider: cfg.RecordingMetadataProvider,
-		streamer:                  cfg.SessionStreamer,
+		onUploadComplete:          cfg.OnUploadComplete,
 	}, nil
 }
 
@@ -99,13 +101,15 @@ type Service struct {
 	logger   *slog.Logger
 	uploader events.MultipartUploader
 	rotater  KeyRotater
-	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// sessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
-	// RecordingMetadataProvider is a provider of the recording metadata service.
+	// recordingMetadataProvider is a provider of the recording metadata service.
 	recordingMetadataProvider *recordingmetadata.Provider
-	streamer                  events.SessionStreamer
+	// onUploadComplete is called after an upload completes to find or recover the
+	// session end event for post-processing.
+	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
@@ -228,7 +232,11 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 		return nil, trace.Wrap(err)
 	}
 
-	sessionEnd, err := events.FindSessionEndEvent(ctx, s.streamer, upload.SessionID)
+	if s.onUploadComplete == nil {
+		return &recordingencryptionv1.CompleteUploadResponse{}, nil
+	}
+
+	sessionEnd, err := s.onUploadComplete(ctx, upload.SessionID)
 	if err != nil || sessionEnd == nil {
 		return &recordingencryptionv1.CompleteUploadResponse{}, nil
 	}
