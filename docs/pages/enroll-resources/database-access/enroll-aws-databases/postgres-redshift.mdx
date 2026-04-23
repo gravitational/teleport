@@ -198,6 +198,8 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
   Teleport does not currently use the auto-create option when generating
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="my-redshift" dbArgs="--db-user=alice --db-name=dev"!)
 </TabItem>
 
 <TabItem label="Authenticate as IAM roles">
@@ -205,6 +207,8 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
 ```code
 $ tsh db connect --db-user=role/example-iam-role --db-name=dev my-redshift
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="my-redshift" dbArgs="--db-user=role/example-iam-role --db-name=dev"!)
 </TabItem>
 </Tabs>
 
