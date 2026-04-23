@@ -23,6 +23,7 @@ import (
 	"iter"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -164,10 +165,16 @@ func (s *IdentityService) UpdateAppSession(ctx context.Context, session types.We
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// App sessions are expired manually so it can emit an
+	// app.session.expire audit event prior to expiry.
+	backendExpiry := session.GetExpiryTime()
+	if session.GetSubKind() == types.KindAppSession {
+		backendExpiry = time.Time{}
+	}
 	item := backend.Item{
 		Key:      backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()),
 		Value:    value,
-		Expires:  session.GetExpiryTime(),
+		Expires:  backendExpiry,
 		Revision: rev,
 	}
 	if _, err = s.ConditionalUpdate(ctx, item); err != nil {
@@ -188,10 +195,16 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// App sessions are expired manually so it can emit an
+	// app.session.expire audit event prior to expiry.
+	backendExpiry := session.GetExpiryTime()
+	if session.GetSubKind() == types.KindAppSession {
+		backendExpiry = time.Time{}
+	}
 	item := backend.Item{
 		Key:      backend.NewKey(append(keyPrefix, session.GetName())...),
 		Value:    value,
-		Expires:  session.GetExpiryTime(),
+		Expires:  backendExpiry,
 		Revision: rev,
 	}
 
@@ -199,6 +212,28 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ListExpiredAppSessions lists all application sessions that are expired. This is used by
+// the expiry service. Application session expiration handling is done outside the backend
+// because we need to emit audit events on the app session expiry.
+func (s *IdentityService) ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error) {
+	now := time.Now()
+
+	allSessions := s.rangeSessions(ctx, pageToken, "", "", appsPrefix, sessionsPrefix)
+
+	expiredSessions := stream.FilterMap(allSessions, func(session types.WebSession) (types.WebSession, bool) {
+		if now.After(session.Expiry()) {
+			return session, true
+		}
+		return nil, false
+	})
+
+	return generic.CollectPageAndCursor(
+		expiredSessions,
+		limit,
+		types.WebSession.GetName,
+	)
 }
 
 // DeleteAppSession removes an application web session.

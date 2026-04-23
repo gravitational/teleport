@@ -656,6 +656,14 @@ export const formatters: Formatters = {
     desc: 'App HTTP Response Body',
     format: () => 'HTTP response body chunk recorded',
   },
+  [eventCodes.APP_SESSION_EXPIRE]: {
+    type: 'app.session.expire',
+    desc: 'App Session Expired',
+    format: event => {
+      const { app_name, sid } = event;
+      return `App session for [${app_name}] expired [${sid}]`;
+    },
+  },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',
