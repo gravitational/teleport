@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -103,6 +105,7 @@ type KubeClusterConfig struct {
 
 // TestConfig defines the suite options.
 type TestConfig struct {
+	Modules              *modulestest.Modules
 	Clusters             []KubeClusterConfig
 	ResourceMatchers     []services.ResourceMatcher
 	OnReconcile          func(types.KubeClusters)
@@ -143,6 +146,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		Streamer:      streamer,
 		UploadHandler: testCtx.UploadHandler,
 		Dir:           t.TempDir(),
+		Modules:       cmp.Or(cfg.Modules, modulestest.OSSModules()),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })

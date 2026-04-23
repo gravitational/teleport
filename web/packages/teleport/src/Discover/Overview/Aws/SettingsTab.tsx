@@ -17,27 +17,25 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
-import { Info as InfoAlert } from 'design/Alert';
+import { Danger } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
 import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
-import {
-  ConfigurationScopeSection,
-  IntegrationSection,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
+import { IntegrationSection } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
 import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { RegionsSection } from 'teleport/Integrations/Enroll/Cloud/Aws/RegionsSection';
 import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
 import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
-import { Ec2Config } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
 import {
-  Divider,
-  RegionOrWildcard,
-} from 'teleport/Integrations/Enroll/Cloud/Shared';
+  buildMatchers,
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
+} from 'teleport/Integrations/Enroll/Cloud/Aws/types';
+import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
 import {
   InfoGuideTab,
   TerraformInfoGuide,
@@ -48,12 +46,29 @@ import {
   IntegrationDiscoveryRule,
   integrationService,
   IntegrationWithSummary,
-  Regions as AwsRegion,
+  Regions,
 } from 'teleport/services/integrations';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
-import { SETTINGS_PANEL_WIDTH } from '../SettingsTab';
+
+const configFromRules = (rules: IntegrationDiscoveryRule[]): ServiceConfig => {
+  const regions = rules.map(r => r.region);
+  const isWildcard = regions.includes('*') || regions.includes('aws-global');
+
+  return {
+    enabled: rules.length > 0,
+    regions: isWildcard || rules.length === 0 ? [] : (regions as Regions[]),
+    tags:
+      rules.length > 0
+        ? rules[0].labelMatcher.map(l => ({
+            name: l.name,
+            value: l.value,
+          }))
+        : [],
+    kubeAppDiscovery: rules[0]?.kubeAppDiscovery ?? false,
+  };
+};
 
 export function SettingsTab({
   stats,
@@ -67,64 +82,37 @@ export function SettingsTab({
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
 
-  const { data: ec2Rules, isLoading } = useQuery({
+  const {
+    data: ec2Rules,
+    isLoading: isLoadingEc2,
+    isError: isEc2Error,
+  } = useQuery({
     queryKey: ['integrationRules', stats.name, AwsResource.ec2],
     queryFn: () =>
       integrationService.fetchIntegrationRules(
         integrationName,
         AwsResource.ec2
       ),
-    enabled: true,
   });
 
-  const getRegionsFromRules = (
-    rules?: IntegrationDiscoveryRule[]
-  ): RegionOrWildcard<AwsRegion>[] => {
-    if (!rules || rules.length === 0) {
-      return ['*'];
-    }
-    const regions = rules.map(rule => rule.region);
-
-    if (regions.includes('*') || regions.includes('aws-global')) {
-      return ['*'];
-    }
-
-    return regions as RegionOrWildcard<AwsRegion>[];
-  };
-
-  const getEc2ConfigFromRules = (
-    rules?: IntegrationDiscoveryRule[]
-  ): Ec2Config => ({
-    enabled: rules !== undefined && rules.length > 0,
-    tags:
-      rules && rules.length > 0
-        ? rules[0].labelMatcher.map(l => ({
-            name: l.name,
-            value: l.value,
-          }))
-        : [],
-  });
-
-  const [updatedRegions, setRegions] = useState<
-    RegionOrWildcard<AwsRegion>[] | null
-  >(null);
-  const [updatedEc2Config, setEc2Config] = useState<Ec2Config | null>(null);
-
-  const regions = updatedRegions ?? getRegionsFromRules(ec2Rules?.rules);
-  const ec2Config = updatedEc2Config ?? getEc2ConfigFromRules(ec2Rules?.rules);
-
-  const terraformConfig = useMemo(
-    () =>
-      buildTerraformConfig({
+  const {
+    data: eksRules,
+    isLoading: isLoadingEks,
+    isError: isEksError,
+  } = useQuery({
+    queryKey: ['integrationRules', stats.name, AwsResource.eks],
+    queryFn: () =>
+      integrationService.fetchIntegrationRules(
         integrationName,
-        regions: regions,
-        ec2Config: ec2Config,
-        version: clusterVersion,
-      }),
-    [integrationName, regions, ec2Config, clusterVersion]
+        AwsResource.eks
+      ),
+  });
+
+  const [updatedConfigs, setUpdatedConfigs] = useState<Partial<ServiceConfigs>>(
+    {}
   );
 
-  if (isLoading) {
+  if (isLoadingEc2 || isLoadingEks) {
     return (
       <Flex justifyContent="center" mt={6}>
         <Indicator />
@@ -132,22 +120,34 @@ export function SettingsTab({
     );
   }
 
+  if (isEc2Error || isEksError) {
+    return <Danger>Failed to load the integration settings.</Danger>;
+  }
+
+  const configs: ServiceConfigs = {
+    ec2: updatedConfigs.ec2 ?? configFromRules(ec2Rules.rules),
+    eks: updatedConfigs.eks ?? configFromRules(eksRules.rules),
+  };
+
+  const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
+    setUpdatedConfigs(prev => ({
+      ...prev,
+      [type]: { ...configs[type], ...patch },
+    }));
+  };
+
+  const terraformConfig = buildTerraformConfig({
+    integrationName,
+    matchers: buildMatchers(configs),
+    version: clusterVersion,
+  });
+
   return (
     <Validation>
       {({ validator }) => (
         <Flex pt={3}>
           <Box flex="1">
             <Card p={4} mb={3}>
-              <InfoAlert
-                mb={3}
-                details="Review the prerequisites and setup requirements before configuring this integration."
-                primaryAction={{
-                  content: 'View Info Guide',
-                  onClick: () => onInfoGuideTabChange('info'),
-                }}
-              >
-                Before You Begin
-              </InfoAlert>
               <Box mb={4}>
                 <IntegrationSection
                   integrationName={integrationName}
@@ -156,16 +156,10 @@ export function SettingsTab({
                 />
               </Box>
               <Divider />
-              <Box>
-                <ConfigurationScopeSection />
-              </Box>
-              <Divider />
               <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+                configs={configs}
+                onConfigChange={updateConfig}
               />
-              <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}
@@ -183,7 +177,6 @@ export function SettingsTab({
           </Box>
 
           <TerraformInfoGuideSidePanel
-            panelWidth={SETTINGS_PANEL_WIDTH}
             activeTab={activeInfoGuideTab}
             onTabChange={onInfoGuideTabChange}
             InfoGuideContent={<InfoGuideContent />}

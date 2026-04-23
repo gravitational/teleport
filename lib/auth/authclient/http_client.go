@@ -389,21 +389,6 @@ func (c *HTTPClient) DeleteTunnelConnection(clusterName string, connName string)
 	return trace.Wrap(err)
 }
 
-// DeleteTunnelConnections deletes all tunnel connections for cluster
-func (c *HTTPClient) DeleteTunnelConnections(clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing parameter cluster name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName))
-	return trace.Wrap(err)
-}
-
-// DeleteAllTunnelConnections deletes all tunnel connections
-func (c *HTTPClient) DeleteAllTunnelConnections() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections"))
-	return trace.Wrap(err)
-}
-
 type upsertServerRawReq struct {
 	Server json.RawMessage `json:"server"`
 	TTL    time.Duration   `json:"ttl"`
@@ -435,15 +420,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	}
 	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
-}
-
-// DeleteAllProxies deletes all proxies
-func (c *HTTPClient) DeleteAllProxies() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // DeleteProxy deletes proxy by name

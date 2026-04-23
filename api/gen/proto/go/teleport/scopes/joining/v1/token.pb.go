@@ -1494,8 +1494,10 @@ type Azure_Rule struct {
 	Subscription string `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
 	// A list of Azure resource groups the node is allowed to join from.
 	ResourceGroups []string `protobuf:"bytes,2,rep,name=resource_groups,json=resourceGroups,proto3" json:"resource_groups,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Tenant is the Azure Tenant ID.
+	Tenant        string `protobuf:"bytes,3,opt,name=tenant,proto3" json:"tenant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Azure_Rule) Reset() {
@@ -1540,6 +1542,13 @@ func (x *Azure_Rule) GetResourceGroups() []string {
 		return x.ResourceGroups
 	}
 	return nil
+}
+
+func (x *Azure_Rule) GetTenant() string {
+	if x != nil {
+		return x.Tenant
+	}
+	return ""
 }
 
 // A rule that a joining node must match in order to use the associated token
@@ -2133,12 +2142,13 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\vproject_ids\x18\x01 \x03(\tR\n" +
 	"projectIds\x12\x1c\n" +
 	"\tlocations\x18\x02 \x03(\tR\tlocations\x12)\n" +
-	"\x10service_accounts\x18\x03 \x03(\tR\x0fserviceAccounts\"\x9a\x01\n" +
+	"\x10service_accounts\x18\x03 \x03(\tR\x0fserviceAccounts\"\xb2\x01\n" +
 	"\x05Azure\x12<\n" +
-	"\x05allow\x18\x01 \x03(\v2&.teleport.scopes.joining.v1.Azure.RuleR\x05allow\x1aS\n" +
+	"\x05allow\x18\x01 \x03(\v2&.teleport.scopes.joining.v1.Azure.RuleR\x05allow\x1ak\n" +
 	"\x04Rule\x12\"\n" +
 	"\fsubscription\x18\x01 \x01(\tR\fsubscription\x12'\n" +
-	"\x0fresource_groups\x18\x02 \x03(\tR\x0eresourceGroups\"\x9e\x03\n" +
+	"\x0fresource_groups\x18\x02 \x03(\tR\x0eresourceGroups\x12\x16\n" +
+	"\x06tenant\x18\x03 \x01(\tR\x06tenant\"\x9e\x03\n" +
 	"\vAzureDevops\x12B\n" +
 	"\x05allow\x18\x01 \x03(\v2,.teleport.scopes.joining.v1.AzureDevops.RuleR\x05allow\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x1a\xa1\x02\n" +

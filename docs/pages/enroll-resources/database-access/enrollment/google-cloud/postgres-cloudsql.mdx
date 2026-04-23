@@ -156,6 +156,18 @@ assigning <Var name="project-id" /> to your Google Cloud project ID:
 $ tsh db connect --db-user=cloudsql-user@<Var name="project-id"/>.iam --db-name=postgres cloudsql
 ```
 
+<Admonition type="tip">
+To connect to the database using a tool of your choice, like a graphical
+database client, you can create a local tunnel and point it to your software:
+
+```code
+$ tsh proxy db cloudsql --tunnel --db-user=cloudsql-user@<Var name="project-id"/>.iam --db-name=postgres
+```
+
+See [Database GUI Clients](../../../../connect-your-client/third-party/gui-clients.mdx)
+guide for more information on specific tools.
+</Admonition>
+
 (!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:

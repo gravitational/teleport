@@ -19,8 +19,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/coreos/go-semver/semver"
 )
 

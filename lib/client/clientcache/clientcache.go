@@ -186,25 +186,9 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 	return clt, nil
 }
 
-// ClearOption configures ClearForRoot behavior.
-type ClearOption func(*clearConfig)
-
-type clearConfig struct {
-	onlyClearClientsWithStaleCert bool
-}
-
-// WithClearingOnlyClientsWithStaleCert closes only clients that use outdated certs.
-func WithClearingOnlyClientsWithStaleCert() ClearOption {
-	return func(c *clearConfig) { c.onlyClearClientsWithStaleCert = true }
-}
-
-// ClearForRoot closes and removes clients from the cache for the root cluster and its leaf clusters.
-func (c *Cache) ClearForRoot(profileName string, opts ...ClearOption) error {
-	cfg := &clearConfig{}
-	for _, o := range opts {
-		o(cfg)
-	}
-
+// ClearStaleClientsForRoot closes and removes clients from the cache
+// for the root cluster and its leaf clusters, if their cert is outdated.
+func (c *Cache) ClearStaleClientsForRoot(profileName string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -217,16 +201,14 @@ func (c *Cache) ClearForRoot(profileName string, opts ...ClearOption) error {
 		if k.profile != profileName {
 			continue
 		}
-		if cfg.onlyClearClientsWithStaleCert {
-			stale, err := clt.isTLSCertStale()
-			// If an error occurs, close the client as well.
-			if err != nil {
-				errors = append(errors, err)
-			} else if !stale {
-				continue
-			}
+		stale, err := clt.isTLSCertStale()
+		// If an error occurs, close the client as well.
+		if err != nil {
+			errors = append(errors, err)
+		} else if !stale {
+			continue
 		}
-		if err := clt.client.Close(); err != nil {
+		if err = clt.client.Close(); err != nil {
 			errors = append(errors, err)
 		}
 		deleted = append(deleted, k.String())
@@ -275,7 +257,8 @@ func (c *Cache) getFromCache(k key) *clientWithMetadata {
 // NoCache is a client cache implementation that returns a new client
 // on each call to Get.
 //
-// ClearForRoot and Clear still work as expected.
+// Clear works as expected.
+// ClearStaleClientsForRoot always clears clients for the root cluster.
 type NoCache struct {
 	mu            sync.Mutex
 	newClientFunc NewClientFunc
@@ -314,7 +297,7 @@ func (c *NoCache) Get(ctx context.Context, profileName, leafClusterName string) 
 	return newClient, nil
 }
 
-func (c *NoCache) ClearForRoot(profileName string, _ ...ClearOption) error {
+func (c *NoCache) ClearStaleClientsForRoot(profileName string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

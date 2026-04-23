@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -71,6 +72,7 @@ type ServiceConfig struct {
 	Cache            services.AuthorityGetter
 	Backend          services.TrustInternal
 	AuthServer       authServer
+	Modules          modules.Modules
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -81,6 +83,7 @@ type Service struct {
 	cache            services.AuthorityGetter
 	backend          services.TrustInternal
 	authServer       authServer
+	modules          modules.Modules
 }
 
 // NewService returns a new trust gRPC service.
@@ -96,6 +99,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
+	case cfg.Modules == nil:
+		return nil, trace.BadParameter("modules is required")
 	}
 
 	return &Service{
@@ -104,6 +109,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		cache:            cfg.Cache,
 		backend:          cfg.Backend,
 		authServer:       cfg.AuthServer,
+		modules:          cfg.Modules,
 	}, nil
 }
 

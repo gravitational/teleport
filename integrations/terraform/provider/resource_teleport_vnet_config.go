@@ -165,7 +165,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: "vnet_config"}
+	plan.Attrs["id"] = types.String{Value: apitypes.MetaNameVnetConfig}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)

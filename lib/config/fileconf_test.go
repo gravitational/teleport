@@ -41,8 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -996,11 +994,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
-	// Device trust mode=required is an Enterprise feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
+	t.Parallel()
 	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
 	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
 	require.NoError(t, err)

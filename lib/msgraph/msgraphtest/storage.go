@@ -20,33 +20,33 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // Storage to be used by the Server
 type Storage struct {
-	Users        map[string]*msgraph.User
-	Groups       map[string]*msgraph.Group
-	GroupMembers map[string][]msgraph.GroupMember
-	GroupOwners  map[string][]*msgraph.User
-	Applications map[string]*msgraph.Application
+	Users        map[string]*models.User
+	Groups       map[string]*models.Group
+	GroupMembers map[string][]models.GroupMember
+	GroupOwners  map[string][]*models.User
+	Applications map[string]*models.Application
 }
 
 // NewStorage creates a new empty Storage.
 func NewStorage() *Storage {
 	return &Storage{
-		Users:        make(map[string]*msgraph.User),
-		Groups:       make(map[string]*msgraph.Group),
-		GroupMembers: make(map[string][]msgraph.GroupMember),
-		GroupOwners:  make(map[string][]*msgraph.User),
-		Applications: make(map[string]*msgraph.Application),
+		Users:        make(map[string]*models.User),
+		Groups:       make(map[string]*models.Group),
+		GroupMembers: make(map[string][]models.GroupMember),
+		GroupOwners:  make(map[string][]*models.User),
+		Applications: make(map[string]*models.Application),
 	}
 }
 
 // NewDefaultStorage creates a new Storage with hardcoded test data.
 func NewDefaultStorage() *Storage {
-	alice := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	alice := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("alice@example.com"),
 			DisplayName: to.Ptr("Alice Alison"),
 		},
@@ -55,8 +55,8 @@ func NewDefaultStorage() *Storage {
 		Mail:              to.Ptr("alice@example.com"),
 		UserPrincipalName: to.Ptr("alice@example.com"),
 	}
-	bob := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	bob := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("bob@example.com"),
 			DisplayName: to.Ptr("Bob Bobert"),
 		},
@@ -65,8 +65,8 @@ func NewDefaultStorage() *Storage {
 		Mail:              to.Ptr("bob@example.com"),
 		UserPrincipalName: to.Ptr("bob@example.com"),
 	}
-	carol := &msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
+	carol := &models.User{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("carol@example.com"),
 			DisplayName: to.Ptr("Carol C"),
 		},
@@ -76,30 +76,30 @@ func NewDefaultStorage() *Storage {
 		UserPrincipalName: to.Ptr("carol@example.com"),
 	}
 
-	group1 := &msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
+	group1 := &models.Group{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("group1"),
 			DisplayName: to.Ptr("group1"),
 		},
 		GroupTypes: []string{types.EntraIDSecurityGroups},
 	}
-	group2 := &msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
+	group2 := &models.Group{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("group2"),
 			DisplayName: to.Ptr("group2"),
 		},
 		GroupTypes: []string{types.EntraIDSecurityGroups},
 	}
-	group3 := &msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
+	group3 := &models.Group{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("group3"),
 			DisplayName: to.Ptr("group3"),
 		},
 		GroupTypes: []string{types.EntraIDSecurityGroups},
 	}
 
-	app1 := &msgraph.Application{
-		DirectoryObject: msgraph.DirectoryObject{
+	app1 := &models.Application{
+		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("app1"),
 			DisplayName: to.Ptr("test SAML App"),
 		},
@@ -116,12 +116,12 @@ func NewDefaultStorage() *Storage {
 	storage.Groups[*group2.ID] = group2
 	storage.Groups[*group3.ID] = group3
 
-	storage.GroupMembers["group1"] = []msgraph.GroupMember{alice, group2}
-	storage.GroupMembers["group2"] = []msgraph.GroupMember{alice, bob, carol}
-	storage.GroupMembers["group3"] = []msgraph.GroupMember{alice, bob, carol}
+	storage.GroupMembers["group1"] = []models.GroupMember{alice, group2}
+	storage.GroupMembers["group2"] = []models.GroupMember{alice, bob, carol}
+	storage.GroupMembers["group3"] = []models.GroupMember{alice, bob, carol}
 
-	storage.GroupOwners["group1"] = []*msgraph.User{alice, bob}
-	storage.GroupOwners["group3"] = []*msgraph.User{bob, carol}
+	storage.GroupOwners["group1"] = []*models.User{alice, bob}
+	storage.GroupOwners["group3"] = []*models.User{bob, carol}
 
 	storage.Applications[*app1.AppID] = app1
 
