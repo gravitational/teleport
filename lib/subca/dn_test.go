@@ -66,8 +66,9 @@ func TestRDNSequenceToDistinguishedNameProto(t *testing.T) {
 	})
 
 	t.Run("OID component is MaxInt32", func(t *testing.T) {
-		val := "llama"
+		t.Parallel()
 
+		val := "llama"
 		got, err := subca.RDNSequenceToDistinguishedNameProto(pkix.RDNSequence{
 			{{Type: asn1.ObjectIdentifier{99, 1, 2, math.MaxInt32}, Value: val}},
 		})
