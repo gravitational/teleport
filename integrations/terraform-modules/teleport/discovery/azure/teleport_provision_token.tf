@@ -7,7 +7,7 @@ locals {
 
   teleport_provision_token_name = (
     var.create_teleport_provision_token && var.teleport_provision_token_use_name_prefix
-    ? "${var.teleport_provision_token_name}-${local.teleport_resource_name_suffix}"
+    ? join("-", compact([var.teleport_provision_token_name, local.teleport_resource_name_suffix]))
     : var.teleport_provision_token_name
   )
 
@@ -18,10 +18,11 @@ locals {
 
   token_allow_rules_from_matchers = flatten([
     for matcher in var.azure_matchers : [
-      for sub in matcher.subscriptions : merge(
-        { subscription = sub },
-        contains(matcher.resource_groups, "*") ? {} : { resource_groups = matcher.resource_groups }
-      )
+      for sub in matcher.subscriptions : {
+        subscription    = sub
+        resource_groups = contains(matcher.resource_groups, "*") ? null : matcher.resource_groups
+        tenant          = null
+      }
     ]
   ])
 

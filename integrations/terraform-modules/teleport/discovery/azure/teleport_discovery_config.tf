@@ -5,7 +5,7 @@
 locals {
   teleport_discovery_config_name = (
     var.teleport_discovery_config_use_name_prefix
-    ? "${var.teleport_discovery_config_name}-${local.teleport_resource_name_suffix}"
+    ? join("-", compact([var.teleport_discovery_config_name, local.teleport_resource_name_suffix]))
     : var.teleport_discovery_config_name
   )
 

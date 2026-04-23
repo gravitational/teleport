@@ -4,6 +4,11 @@
 
 locals {
   create_azure_managed_identity = local.create && var.create_azure_managed_identity
+  azure_managed_identity_name = (
+    var.azure_managed_identity_use_name_prefix
+    ? join("-", compact([var.azure_managed_identity_name, local.teleport_resource_name_suffix]))
+    : var.azure_managed_identity_name
+  )
 }
 
 # User-assigned managed identity for discovery
@@ -11,7 +16,7 @@ resource "azurerm_user_assigned_identity" "teleport_discovery_service" {
   count = local.create_azure_managed_identity ? 1 : 0
 
   location            = var.azure_managed_identity_location
-  name                = var.azure_managed_identity_name
+  name                = local.azure_managed_identity_name
   resource_group_name = var.azure_resource_group_name
   tags                = local.apply_azure_tags
 
@@ -29,7 +34,7 @@ resource "azurerm_user_assigned_identity" "teleport_discovery_service" {
 
 # Federated identity credential for the managed identity (trust Teleport proxy issuer)
 resource "azurerm_federated_identity_credential" "teleport_discovery_service" {
-  count = local.create_teleport_integration ? 1 : 0
+  count = local.create_teleport_integration && local.create_azure_managed_identity ? 1 : 0
 
   audience = ["api://AzureADTokenExchange"]
   # Extract the host from proxy_addr (format: host:port) to construct the OIDC issuer URL

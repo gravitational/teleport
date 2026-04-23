@@ -48,7 +48,8 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | terraform | >= 1.5.7 |
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
-| teleport | >= 18.5.1 |
+| random | >= 3.0 |
+| teleport | >= 18.7.6 |
 
 ## Providers
 
@@ -56,7 +57,8 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 |------|---------|
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
-| teleport | >= 18.5.1 |
+| random | >= 3.0 |
+| teleport | >= 18.7.6 |
 
 ## Modules
 
@@ -70,6 +72,7 @@ No modules.
 | [azurerm_role_assignment.teleport_discovery](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment) | resource |
 | [azurerm_role_definition.teleport_discovery](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_definition) | resource |
 | [azurerm_user_assigned_identity.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/user_assigned_identity) | resource |
+| [random_id.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 | teleport_discovery_config.azure | resource |
 | teleport_integration.azure_oidc | resource |
 | teleport_provision_token.azure | resource |
@@ -85,10 +88,12 @@ No modules.
 | azure\_federated\_identity\_credential\_name | Name of the Azure federated identity credential created for workload identity federation. | `string` | `"teleport-federation"` | no |
 | azure\_managed\_identity\_location | Azure region (location) where the managed identity will be created (e.g., "eastus"). Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
 | azure\_managed\_identity\_name | Name of the Azure user-assigned managed identity created for Teleport Discovery. | `string` | `"discovery-identity"` | no |
+| azure\_managed\_identity\_use\_name\_prefix | Whether `azure_managed_identity_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
 | azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
 | azure\_role\_assignment\_scopes | The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`. | `list(string)` | `[]` | no |
 | azure\_role\_definition\_name | Name for the Azure custom role definition created for Teleport Discovery. | `string` | `"teleport-discovery"` | no |
+| azure\_role\_definition\_use\_name\_prefix | Whether `azure_role_definition_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_azure\_managed\_identity | Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `create_teleport_integration` is `true`. | `bool` | `true` | no |
 | create\_teleport\_integration | Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials. | `bool` | `true` | no |
