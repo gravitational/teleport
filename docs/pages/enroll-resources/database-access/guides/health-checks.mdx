@@ -34,9 +34,11 @@ will not be enabled for that database.
 When a Database Service instance executes a health check, the nature of the
 check depends on the protocol of the database when it was registered with
 Teleport. For MySQL databases, the Database Service attempts to connect to the
-database and perform a MySQL handshake. For other protocols, Database Service
-instances attempt to establish a TCP connection to the database's endpoint
-and report whether the connection succeeded.
+database and perform a MySQL authentication handshake, which does not need to
+succeed, to bypass the database server's restrictions against incoming
+connections. For other protocols, Database Service instances attempt to
+establish a TCP connection to the database's endpoint and report whether the
+connection succeeded.
 
 When a database is registered, it will initially have an "unknown" health status.
 If health checks are disabled, then the health status will remain "unknown".
@@ -207,13 +209,12 @@ Refer to the [Database Service troubleshooting guide](../troubleshooting.mdx) fo
 
 ### Why do MySQL health checks use the MySQL protocol?
 
-By default, health checks for MySQL databases send MySQL protocol messages
-instead of relying on establishing and closing a TCP connection.
-
-The reason is that MySQL tracks connection errors for each remote host that
-tries to connect to the database. Each TCP health check is counted as a
-connection error and eventually MySQL will block a host when 
-`sum_connect_errors >= max_connect_errors`. As a result, TCP health checks
+Health checks for MySQL databases begin with a MySQL authentication handshake,
+which does not need to complete for the health check to succeed. The reason is
+that MySQL tracks connection errors for each remote host that tries to connect
+to the database. Without an initial authentication handshake, each TCP health
+check is counted as a connection error and eventually MySQL will block a host
+when `sum_connect_errors >= max_connect_errors`. As a result, TCP health checks
 eventually cause MySQL databases to block Teleport.
 
 ### How to disable database health checks?
