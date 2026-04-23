@@ -1502,11 +1502,12 @@ func (e *limitedErrorReporter) summary(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.failures > e.reportLimit {
+	suppressed := e.failures - e.reportLimit
+	if suppressed > 0 {
 		e.logger.WarnContext(ctx, "Too many install failures; suppressed some log entries",
 			"reported", e.reportLimit,
 			"failures", e.failures,
-			"suppressed", e.reportLimit-e.failures)
+			"suppressed", suppressed)
 	}
 }
 
