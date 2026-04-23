@@ -3,6 +3,7 @@
 # and run the Lean differential check. Exit non-zero on any mismatch.
 set -eu
 cd "$(dirname "$0")/.."   # <teleport>/lean/
+mkdir -p corpus
 (cd .. && go run ./tool/kubeaccess-corpus) > corpus/kubernetes.json
 lake build
 lake exe teleport-lean-diff corpus/kubernetes.json
