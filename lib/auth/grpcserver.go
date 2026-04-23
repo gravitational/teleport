@@ -4156,7 +4156,6 @@ func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest
 		req.PageToken,
 		req.Filter,
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

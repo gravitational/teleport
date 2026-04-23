@@ -228,6 +228,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
+					types.NewRule(types.KindRecordingEncryption, RW()),
 				},
 			},
 		},
@@ -1329,12 +1330,12 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalGitHubOrgs},
 	}
 }
 
 func defaultMCPTools() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalMCPTools},
 	}
 }
