@@ -1,4 +1,4 @@
-package entraid
+package accessgraph
 
 import (
 	"google.golang.org/protobuf/proto"

@@ -14,6 +14,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/entraid"
+	"github.com/gravitational/teleport/e/lib/entraid/accessgraph"
+	"github.com/gravitational/teleport/e/lib/entraid/directory"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -98,14 +100,12 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 		}
 	}
 
-	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
+	directoryReconciler, err := directory.New(directory.Config{
 		Clock:                  process.Clock,
 		Logger:                 logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
 		MetricsRegistry:        reg.Wrap("directory"),
 		GraphClient:            graphClient,
-		UserSvc:                authServer,
-		AccessListSvc:          authServer,
-		SAMLSvc:                authServer,
+		AccessPoint:            authServer,
 		DefaultOwners:          owners,
 		TenantID:               tenantID,
 		EntraAppID:             appID,
@@ -118,14 +118,14 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 	}
 
 	// Construct Access Graph reconciler. This remains nil if access graph sync is not enabled.
-	var tagSynchronizer *entraid.AccessGraphSynchronizer
+	var tagSynchronizer *accessgraph.Synchronizer
 	if spec.AccessGraphSettings != nil && features.AccessGraph {
 		tagCfg := process.Config.AccessGraph
 		if !tagCfg.Enabled || tagCfg.Addr == "" {
 			return trace.BadParameter("Access graph synchronization requested, but access graph is not configured ")
 		}
 
-		tagSynchronizer, err = entraid.NewAccessGraphSynchronizer(entraid.AccessGraphConfig{
+		tagSynchronizer, err = accessgraph.NewSynchronizer(accessgraph.Config{
 			Logger:           logger,
 			ConnectionConfig: tagCfg,
 			Credentials:      conn.ClientGetCertificate,
@@ -140,7 +140,7 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 
 	// Construct the main Entra ID service
 
-	svc, err := entraid.NewService(entraid.ServiceConfig{
+	svc, err := entraid.New(entraid.Config{
 		Logger:                  logger,
 		PluginStatusSink:        statusSink,
 		DirectoryReconciler:     directoryReconciler,

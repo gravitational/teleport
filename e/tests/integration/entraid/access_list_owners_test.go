@@ -14,7 +14,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/e/lib/entraid"
+	"github.com/gravitational/teleport/e/lib/entraid/directory"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
@@ -82,7 +82,7 @@ func TestAccessListEntraIDGroupOwners(t *testing.T) {
 			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
 			require.NoError(t, err, "listing entra id access lists")
 
-			expectedGroup1Owners := entraid.ToAclOwner(ctx, defaultStorage.GroupOwners["group1"])
+			expectedGroup1Owners := directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group1"])
 			require.Empty(t,
 				cmp.Diff(expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners,
 					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
@@ -94,7 +94,7 @@ func TestAccessListEntraIDGroupOwners(t *testing.T) {
 					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
 				), "expected Entra ID group2 owners to match")
 
-			expectedGroup3Owners := entraid.ToAclOwner(ctx, defaultStorage.GroupOwners["group3"])
+			expectedGroup3Owners := directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group3"])
 			require.Empty(t,
 				cmp.Diff(expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners,
 					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
@@ -162,7 +162,7 @@ func TestAccessListUnsupportedEntraIDGroupOwners(t *testing.T) {
 			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
 			require.NoError(t, err, "listing entra id access lists")
 
-			expectedGroup1Owners := entraid.ToAclOwner(ctx, group1Owners)
+			expectedGroup1Owners := directory.ToAclOwner(ctx, group1Owners)
 			require.Len(t, expectedGroup1Owners, 2)
 			require.Empty(t,
 				cmp.Diff(expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners,
@@ -220,7 +220,7 @@ func TestAccessListMergePluginAndEntraIDGroupOwners(t *testing.T) {
 
 			defaultOwners := []accesslist.Owner{defaultOwner}
 			// Merge Entra ID group owners and plugin default owners.
-			expectedGroup1Owners := slices.Concat(entraid.ToAclOwner(ctx, defaultStorage.GroupOwners["group1"]), defaultOwners)
+			expectedGroup1Owners := slices.Concat(directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group1"]), defaultOwners)
 			require.Empty(t,
 				cmp.Diff(expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners,
 					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
@@ -233,7 +233,7 @@ func TestAccessListMergePluginAndEntraIDGroupOwners(t *testing.T) {
 				), "expected Entra ID group2 owners to match")
 
 			// Merge Entra ID group owners and plugin default owners.
-			expectedGroup3Owners := slices.Concat(entraid.ToAclOwner(ctx, defaultStorage.GroupOwners["group3"]), defaultOwners)
+			expectedGroup3Owners := slices.Concat(directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group3"]), defaultOwners)
 			require.Empty(t,
 				cmp.Diff(expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners,
 					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),

@@ -1,0 +1,457 @@
+package directory
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"path"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/accesslists"
+	"github.com/gravitational/teleport/lib/msgraph/models"
+)
+
+type entraGroups struct {
+	groupsMap       map[string]*models.Group
+	groupMembersMap map[string][]models.GroupMember
+}
+
+func (g entraGroups) toAccessListsWithMembers(
+	ctx context.Context,
+	tenantID string,
+	usersByEntraID map[entraUniqueID]types.User,
+	aclOwnersCfg aclOwnersConfig,
+) (map[string]*accessListWithMembers, errSkippedResources) {
+	var errSkippedResources errSkippedResources
+	aclsWithMembersMap := make(map[string]*accessListWithMembers)
+	accessListsById := make(map[entraUniqueID]*accesslist.AccessList)
+	var errGroups, errGroupMembers error
+
+	for _, group := range g.groupsMap {
+		entraUniqueID, al, err := convertGroup(ctx, group, tenantID, aclOwnersCfg)
+		if err != nil {
+			errGroups = errors.Join(errGroups, trace.Wrap(err))
+			continue
+		}
+		aclsWithMembersMap[al.GetName()] = &accessListWithMembers{AccessList: al}
+		accessListsById[entraUniqueID] = al
+	}
+
+	var notFoundMembers []string
+	for entraUniqueID, accessList := range accessListsById {
+		var members []*accesslist.AccessListMember
+		for _, member := range g.groupMembersMap[string(entraUniqueID)] {
+			m, err := convertGroupMember(member, accessList, usersByEntraID, accessListsById)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					notFoundMembers = append(notFoundMembers, strval(member.GetID()))
+				} else {
+					errGroupMembers = errors.Join(errGroupMembers, trace.Wrap(err))
+				}
+				continue
+			}
+			if m == nil {
+				slog.WarnContext(ctx, "unsupported group member, skipping")
+				continue
+			}
+			members = append(members, m)
+		}
+		aclsWithMembersMap[accessList.GetName()].Members = members
+	}
+
+	if errGroups != nil {
+		errSkippedResources.groups = append(errSkippedResources.groups, errGroups)
+	}
+	if errGroupMembers != nil {
+		errSkippedResources.groupMembers = append(errSkippedResources.groupMembers, errGroupMembers)
+	}
+	if len(notFoundMembers) > 0 {
+		members := utils.Deduplicate(notFoundMembers)
+		errSkippedResources.groupMembers = append(errSkippedResources.groupMembers,
+			trace.NotFound("member(s) not found and may have been filtered or skipped due to error. Member IDs: %s", strings.Join(members, ", ")))
+	}
+
+	return aclsWithMembersMap, errSkippedResources
+}
+
+func convertGroup(
+	ctx context.Context,
+	in *models.Group,
+	tenantID string,
+	aclOwnersCfg aclOwnersConfig,
+) (entraUniqueID, *accesslist.AccessList, error) {
+	if err := validateGroup(in); err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	displayName := *in.DisplayName
+	id := *in.ID
+
+	owners := aclOwnersCfg.setupOwners(ctx, id, in.Owners)
+
+	out, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: accessListName(displayName, id),
+		},
+		accesslist.Spec{
+			Title:  displayName,
+			Owners: owners,
+			Grants: accesslist.Grants{
+				Traits: trait.Traits{
+					eteleport.EntraMemberOfGroupTrait: {id},
+				},
+			},
+		},
+	)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	out.SetStaticLabels(map[string]string{
+		types.EntraTenantIDLabel:    tenantID,
+		types.EntraUniqueIDLabel:    id,
+		types.EntraDisplayNameLabel: displayName,
+	})
+	out.SetOrigin(types.OriginEntraID)
+	return entraUniqueID(id), out, nil
+}
+
+// convertGroupMember converts an Entra group member to an AccessListMember.
+// Error is returned on unexpected conditions, indicating programmer error (e.g. validation of AccessListMember fails).
+// On non fatal errors, e.g. an unsupported member type, a warning is logged and (nil, nil) is returned.
+func convertGroupMember(
+	in models.GroupMember,
+	al *accesslist.AccessList,
+	entraUsersByID map[entraUniqueID]types.User,
+	accesslistByEntraId map[entraUniqueID]*accesslist.AccessList,
+) (*accesslist.AccessListMember, error) {
+	if in.GetID() == nil {
+		return nil, trace.BadParameter("expected Entra ID group member to have a non-empty unique ID")
+	}
+	id := *in.GetID()
+
+	switch m := in.(type) {
+	case *models.User:
+		teleportUser, ok := entraUsersByID[entraUniqueID(id)]
+		if !ok {
+			return nil, trace.NotFound("group member account found for Entra unique ID %q", id)
+		}
+		alm, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: teleportUser.GetName(),
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList:     al.GetName(),
+				Name:           teleportUser.GetName(),
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+				// Users imported from Entra ID are always eligible since Entra ID access lists
+				// do not have membership expiration or eligibility requirements.
+				// Setting IneligibleStatus to ELIGIBLE allows the reconciler to skip
+				// unnecessary ineligibility updates, improving performance.
+				IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		alm.SetOrigin(types.OriginEntraID)
+		return alm, nil
+
+	case *models.Group:
+		accessList, ok := accesslistByEntraId[entraUniqueID(id)]
+		if !ok {
+			return nil, trace.NotFound("access list not found for Entra unique ID %q", id)
+		}
+		alm, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: accessList.GetName(),
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList:     al.GetName(),
+				Name:           accessList.GetName(),
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		alm.SetOrigin(types.OriginEntraID)
+		return alm, nil
+
+	default:
+		return nil, trace.BadParameter("entra group member(id=%s) expected to be of user or group type, got %T", id, m)
+	}
+}
+
+type accessListWithMembers struct {
+	*accesslist.AccessList
+	Members []*accesslist.AccessListMember
+}
+
+func (a *accessListWithMembers) isEqual(other *accessListWithMembers) bool {
+	// Skip cloning during comparison since reconciliation inputs are ephemeral and
+	// recreated on each run. This optimization avoids unnecessary allocations by
+	// allowing in-place mutations that would be discarded after reconciliation anyway.
+	if !accesslist.EqualAccessLists(a.AccessList, other.AccessList,
+		accesslist.WithSkipClone(),
+		accesslist.WithIgnoreEphemeralFields()) {
+		return false
+	}
+	if len(a.Members) != len(other.Members) {
+		return false
+	}
+	// Members are sorted before reconciliation, so we can compare them in order.
+	for i := range a.Members {
+		if a.Members[i].Spec.Name != other.Members[i].Spec.Name ||
+			a.Members[i].Spec.AccessList != other.Members[i].Spec.AccessList {
+			return false
+		}
+	}
+	return true
+}
+
+// GetKind returns a fake resource kind printed in the [services.Reconciler] logs.
+func (a *accessListWithMembers) GetKind() string {
+	return types.KindAccessList + "+" + types.KindAccessListMember
+}
+
+type aclOwnersConfig struct {
+	defaultOwners []accesslist.Owner
+	source        types.EntraIDAccessListOwnersSource
+}
+
+func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entraOwners []*models.User) []accesslist.Owner {
+	if cfg.source == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN {
+		return cfg.defaultOwners
+	}
+
+	out := ToAclOwner(ctx, entraOwners)
+	if len(out) == 0 {
+		slog.DebugContext(ctx, `Empty group owners found when Entra ID is configured as the source of the Access List owner, `+
+			`falling back to default owners`, "group", groupID)
+		return cfg.defaultOwners
+	}
+
+	switch cfg.source {
+	case types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID:
+		return out
+	case types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID:
+		return slices.Concat(out, cfg.defaultOwners)
+	default:
+		// Unknown source should fallback to default owners for backward compatibility.
+		return cfg.defaultOwners
+	}
+}
+
+// uuidNamespace is the namespace used for generating UUIDs for access lists.
+// It is a UUID derived from the string "entraid".
+var uuidNamespace = uuid.NewSHA1(uuid.Nil, []byte("entraid"))
+
+func accessListName(displayName string, id string) string {
+	p := path.Join(id, displayName)
+	// generate a UUID from the path to ensure uniqueness
+	// and to avoid collisions with other access lists.
+	// This is necessary because access list names are used as keys in the backend
+	// and must be unique and deterministic.
+	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
+}
+
+func unwindGroupMembership(groups map[string]*models.Group, groupMembers map[string][]models.GroupMember) map[string][]string {
+	// result map to hold the membership paths for each group.
+	result := make(map[string][]string)
+	// visited tracks groups in the current path to avoid cycles.
+	visited := make(map[string]bool)
+
+	var collectPaths func(groupID string) []string
+	collectPaths = func(groupID string) []string {
+		// if the path for this group is already computed, return it.
+		if path, exists := result[groupID]; exists {
+			return path
+		}
+
+		// if the group is already visited in the current path, it means there is a cycle.
+		if visited[groupID] {
+			return []string{groupID} // Break the cycle by not proceeding further in this branch
+		}
+
+		visited[groupID] = true
+
+		// path always starts with the current group.
+		path := []string{groupID}
+
+		// Traverse each member of the group.
+		for _, member := range groupMembers[groupID] {
+			if nestedGroup, ok := member.(*models.Group); ok {
+				// Skip Office 365 groups, we only care about security groups.
+				if nestedGroup.IsOffice365Group() {
+					continue
+				}
+				// recursively collect the path for nested groups.
+				nestedPath := collectPaths(*nestedGroup.ID)
+				path = append(path, nestedPath...)
+			}
+		}
+
+		// store the computed path in result to avoid redundant calculations
+		result[groupID] = path
+
+		// unmark this group as visited after recursion completes
+		visited[groupID] = false
+		return path
+	}
+
+	// Collect the membership paths for each group.
+	for groupID, group := range groups {
+		// Skip Office 365 groups, we only care about security groups.
+		if group.IsOffice365Group() {
+			continue
+		}
+		collectPaths(groupID)
+	}
+
+	// Convert the result to a map where each group ID maps to a list of group IDs
+	// that a user member of that group is automatically a member of.
+	groupToMembership := make(map[string][]string)
+	for childGroup, v := range result {
+		for _, parentGroup := range v {
+			groupToMembership[parentGroup] = append(groupToMembership[parentGroup], childGroup)
+		}
+	}
+	for k, v := range groupToMembership {
+		groupToMembership[k] = utils.Deduplicate(v)
+	}
+	return groupToMembership
+}
+
+func sortMembers(m map[string]*accessListWithMembers) {
+	for _, a := range m {
+		slices.SortFunc(a.Members, func(x, y *accesslist.AccessListMember) int {
+			return strings.Compare(x.GetName(), y.GetName())
+		})
+	}
+}
+
+type memberKey struct {
+	Name       string
+	AccessList string
+}
+
+func newMemberKey(m *accesslist.AccessListMember) memberKey {
+	return memberKey{
+		Name:       m.GetName(),
+		AccessList: m.Spec.AccessList,
+	}
+}
+
+func preserveFields(dst, src map[string]*accessListWithMembers) {
+	for k, dst := range dst {
+		if src, ok := src[k]; ok {
+			preserveAccessListFields(dst.AccessList, src.AccessList)
+		}
+	}
+
+	dstMembersMap := make(map[memberKey]*accesslist.AccessListMember)
+	for _, a := range dst {
+		for _, m := range a.Members {
+			dstMembersMap[newMemberKey(m)] = m
+		}
+	}
+	for _, a := range src {
+		for _, src := range a.Members {
+			if dst, ok := dstMembersMap[newMemberKey(src)]; ok {
+				preserveAccessListMemberFields(dst, src)
+			}
+		}
+	}
+}
+
+func preserveAccessListFields(dst, src *accesslist.AccessList) {
+	dst.Status = src.Status
+	dst.Metadata.Revision = src.Metadata.Revision
+	dst.Spec.Audit = src.Spec.Audit
+	dst.Spec.Description = src.Spec.Description
+
+	dst.Spec.Grants.Roles = src.Spec.Grants.Roles
+	for k, v := range src.Spec.Grants.Traits {
+		dstVal, ok := dst.Spec.Grants.Traits[k]
+		if !ok {
+			dst.Spec.Grants.Traits[k] = v
+			continue
+		}
+		dst.Spec.Grants.Traits[k] = utils.Deduplicate(append(dstVal, v...))
+	}
+}
+
+func preserveAccessListMemberFields(dst, src *accesslist.AccessListMember) {
+	dst.Spec.Joined = src.Spec.Joined
+}
+
+func strval(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+func toCollection(in map[string]*accessListWithMembers) (*accesslists.Collection, error) {
+	c := accesslists.Collection{}
+	for _, v := range in {
+		if err := c.AddAccessList(v.AccessList, v.Members); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &c, nil
+}
+
+func groupNameForLog(in *models.Group) string {
+	if in == nil {
+		return ""
+	}
+	if in.GetID() != nil {
+		return fmt.Sprintf("(id=%s)", *in.GetID())
+	}
+	if in.DisplayName != nil {
+		return fmt.Sprintf("(displayName=%s)", *in.DisplayName)
+	}
+	return ""
+}
+
+// ToAclOwner converts models.User to accesslist.Owner.
+func ToAclOwner(ctx context.Context, in []*models.User) []accesslist.Owner {
+	out := make([]accesslist.Owner, 0, len(in))
+	for _, u := range in {
+		username, _, err := processUsername(u)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to convert group owner, owner will be skipped", "error", err)
+			continue
+		}
+
+		out = append(out, accesslist.Owner{
+			Name:           username,
+			MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+			// Set IneligibleStatus to ELIGIBLE for user owners.
+			// This optimizes the reconciler by skipping ineligibility checks,
+			// since Entra ID access lists do not have owner eligibility requirements.
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+		})
+	}
+
+	return out
+}

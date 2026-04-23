@@ -1,0 +1,268 @@
+package directory
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+	"sync"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
+)
+
+// GraphClient is an interface for interacting with the Microsoft Graph API
+// using the lib/msgraph sdk.
+type GraphClient interface {
+	IterateUsers(ctx context.Context, f func(*models.User) bool, opts ...msgraph.IterateOpt) error
+	IterateGroups(ctx context.Context, f func(*models.Group) bool, opts ...msgraph.IterateOpt) error
+	IterateGroupMembers(ctx context.Context, groupID string, f func(models.GroupMember) bool, opts ...msgraph.IterateOpt) error
+	IterateGroupOwners(ctx context.Context, groupID string, f func(*models.User) bool, opts ...msgraph.IterateOpt) error
+	IterateApplications(ctx context.Context, f func(*models.Application) bool, opts ...msgraph.IterateOpt) error
+	GetApplication(ctx context.Context, appID string) (*models.Application, error)
+}
+
+// graphClient is the graph client used by the directory reconciler.
+type graphClient struct {
+	GraphClient
+	log *slog.Logger
+}
+
+func newGraphClient(client GraphClient, log *slog.Logger) *graphClient {
+	return &graphClient{
+		GraphClient: client,
+		log:         log,
+	}
+}
+
+type listEntraGroupsResponse struct {
+	groups map[string]*models.Group
+	// errSkippedGroups is an error collection of failed group validation.
+	// These errors should not stop the sync and instead should be reported
+	// via the plugin status.
+	errSkippedGroups []error
+}
+
+func (c *graphClient) listEntraGroups(
+	ctx context.Context,
+	filterMatches func(g *models.Group) bool,
+	accessListOwnersSource types.EntraIDAccessListOwnersSource,
+) (listEntraGroupsResponse, error) {
+	var errSkippedGroups []error
+
+	result := map[string]*models.Group{}
+	err := c.IterateGroups(ctx, func(g *models.Group) bool {
+		if err := validateGroup(g); err != nil {
+			errSkippedGroups = append(errSkippedGroups, trace.Wrap(err))
+			return true
+		}
+		if filterMatches(g) {
+			c.setEntraOwners(ctx, accessListOwnersSource, g)
+
+			result[*g.ID] = g
+		}
+
+		// defaults to true so the iteration continues.
+		return true
+	})
+
+	resp := listEntraGroupsResponse{
+		groups:           result,
+		errSkippedGroups: errSkippedGroups,
+	}
+	return resp, trace.Wrap(err)
+}
+
+func (c *graphClient) setEntraOwners(
+	ctx context.Context,
+	accessListOwnersSource types.EntraIDAccessListOwnersSource,
+	g *models.Group) {
+	if accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID ||
+		accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID {
+
+		entraOwners, err := c.listEntraGroupOwners(ctx, *g.GetID())
+		if err != nil {
+			// error swallowed to let the sync continue.
+			c.log.WarnContext(ctx, "error while fetching group owners", "group", g.GetID(), "error", err)
+			return
+		}
+		g.Owners = entraOwners
+	}
+}
+
+func (c *graphClient) listEntraGroupOwners(
+	ctx context.Context,
+	groupID string,
+) ([]*models.User, error) {
+	var owners []*models.User
+	if err := c.IterateGroupOwners(ctx, groupID, func(o *models.User) bool {
+		owners = append(owners, o)
+		return true
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return owners, nil
+}
+
+func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups map[string]*models.Group) (map[string][]models.GroupMember, error) {
+	// membersPageSize is the maximum number of members to fetch per page.
+	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
+	// We don't want to send 9 requests to fetch 900 members where 999 is max page size supported by API
+	const membersPageSize = 300
+
+	result := make(map[string][]models.GroupMember, len(groups))
+	var mu sync.Mutex
+
+	// TODO(smallinsky) move to static goroutine workers to not allocate space for each goroutine.
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(getParallelReqCount(len(groups)))
+	for id, group := range groups {
+		id, gid := id, *group.ID
+		g.Go(func() error {
+			var members []models.GroupMember
+			if err := c.IterateGroupMembers(ctx, gid, func(m models.GroupMember) bool {
+				members = append(members, m)
+				return true
+			}, msgraph.WithTop(membersPageSize)); err != nil {
+				return trace.Wrap(err)
+			}
+
+			mu.Lock()
+			result[id] = members
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result, nil
+}
+
+// getParallelReqCount returns the number of parallel requests to use based on the number of groups.
+// We want to balance and not run 80 parallel request for 90 groups.
+// But with large dataset like 10k we want to have enough parallelism to not take hours to fetch all members.
+func getParallelReqCount(numGroups int) int {
+	if numGroups < 1000 {
+		return 10
+	}
+	// With 30k groups and 100 members assigned per group it takes around 3-4 minutes to fetch all members with 70 parallel requests.
+	return 70
+}
+
+func validateGroup(in *models.Group) error {
+	if in == nil {
+		return trace.BadParameter("expected Entra ID group to be non-nil")
+	}
+	if in.DisplayName == nil {
+		return trace.BadParameter("expected Entra ID group%s to have a non-empty display name", groupNameForLog(in))
+	}
+	if in.ID == nil {
+		return trace.BadParameter("expected Entra ID group%s to have a non-empty ID", groupNameForLog(in))
+	}
+
+	return nil
+}
+
+type listEntraUsersResponse struct {
+	users map[string]types.User
+	// errSkippedUsers is an error collection of failed user validation.
+	// These errors should not stop the sync and instead should be reported
+	// via the plugin status.
+	errSkippedUsers []error
+}
+
+func (c *graphClient) listEntraUsers(
+	ctx context.Context,
+	usersMemberships groupMembershipMap,
+	tenantID, ssoConnectorID string,
+	emitAsRoles bool,
+) (listEntraUsersResponse, error) {
+	result := map[string]types.User{}
+	var errSkippedUsers []error
+	var unsupportedUsers []string
+	err := c.IterateUsers(ctx, func(u *models.User) bool {
+		user, err := convertUser(u, tenantID, ssoConnectorID, usersMemberships, emitAsRoles)
+		if err != nil {
+			if errors.Is(err, errUnsupportedUsername) {
+				unsupportedUsers = append(unsupportedUsers, unameForLog(u))
+			} else {
+				errSkippedUsers = append(errSkippedUsers, trace.Wrap(err))
+			}
+			return true
+		}
+		result[user.GetName()] = user
+		return true
+	})
+
+	if len(unsupportedUsers) > 0 {
+		names := utils.Deduplicate(unsupportedUsers)
+		errSkippedUsers = append(errSkippedUsers,
+			trace.BadParameter(`username contains unsupported character(s), it should only include alphanumerics, `+
+				`hyphens, dots, and plus sign. Unsupported usernames: %s`, strings.Join(names, ", ")))
+	}
+
+	resp := listEntraUsersResponse{
+		users:           result,
+		errSkippedUsers: errSkippedUsers,
+	}
+	return resp, trace.Wrap(err)
+}
+
+func processUsername(in *models.User) (string, bool, error) {
+	if in == nil {
+		return "", false, trace.BadParameter("expected Entra ID user to be non-nil")
+	}
+	upn := in.UserPrincipalName
+	if upn == nil {
+		return "", false, trace.BadParameter("expected Entra ID user to have a UPN")
+	}
+
+	username := in.Mail
+	if username == nil {
+		username = upn
+	}
+
+	isExternal := false
+	// Entra ID  users may have a suffix that indicates they are external users in B2B Guest scenarios.
+	// This suffix is removed when the user logins via the SAML assertion so we need to remove it here.
+	// more info: https://docs.microsoft.com/en-us/azure/active-directory/external-identities/what-is-b2b
+	// and https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works
+	// Example: "user_theirdomain#EXT#@domain -> "user@theirdomain"
+	const externalUserSuffix = "#EXT#"
+	if idx := strings.Index(*username, externalUserSuffix); idx != -1 {
+		// Reformat Entra ID external username [username_domain.com#EXT#@yourtenant.onmicrosoft.com]
+		// to a Teleport supported username format [username@domain.com].
+		user := (*username)[:idx] // remove #EXT#@domain
+		if idx := strings.LastIndex(user, "_"); idx != -1 {
+			*username = user[:idx] + "@" + user[idx+1:] // replace the last _ with @
+		}
+		isExternal = true
+	}
+
+	if err := isValidUsername(*username); err != nil {
+		return "", false, trace.Wrap(err)
+	}
+
+	return *username, isExternal, nil
+}
+
+func isValidUsername(in string) error {
+	// Username value is used as a backend key for the user resource.
+	// Entra ID user's username may contain an unsupported characters such
+	// as single quote ('), forward slash (/) etc and will cause the users
+	// reconciler to fail.
+	key := backend.NewKey(in)
+	if !backend.IsKeySafe(key) {
+		return errUnsupportedUsername
+	}
+
+	return nil
+}

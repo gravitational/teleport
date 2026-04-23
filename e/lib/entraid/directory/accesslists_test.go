@@ -1,4 +1,4 @@
-package entraid
+package directory
 
 import (
 	"fmt"

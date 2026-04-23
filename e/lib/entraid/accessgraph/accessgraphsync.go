@@ -1,4 +1,4 @@
-package entraid
+package accessgraph
 
 import (
 	"context"
@@ -18,7 +18,14 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-type AccessGraphConfig struct {
+const (
+	// syncInterval defines Access Graph sync interval.
+	syncInterval = 5 * time.Minute
+)
+
+// Config defines configuration parameters for the
+// Access Graph synchronizer.
+type Config struct {
 	Clock            clockwork.Clock
 	Logger           *slog.Logger
 	ConnectionConfig servicecfg.AccessGraphConfig
@@ -29,7 +36,8 @@ type AccessGraphConfig struct {
 	TenantID string
 }
 
-func (cfg *AccessGraphConfig) Validate() error {
+// Validate checks Access Graph config.
+func (cfg *Config) Validate() error {
 	if cfg.Logger == nil {
 		return trace.BadParameter("Logger must be specified")
 	}
@@ -43,14 +51,14 @@ func (cfg *AccessGraphConfig) Validate() error {
 }
 
 // SetDefaults sets the default values for the options.
-func (cfg *AccessGraphConfig) SetDefaults() {
+func (cfg *Config) SetDefaults() {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 }
 
-// AccessGraphSynchronizer synchronizes access graph specific information from Entra ID to TAG.
-type AccessGraphSynchronizer struct {
+// Synchronizer synchronizes access graph specific information from Entra ID to TAG.
+type Synchronizer struct {
 	clock clockwork.Clock
 	log   *slog.Logger
 
@@ -67,7 +75,8 @@ type AccessGraphSynchronizer struct {
 	tenantID string
 }
 
-func NewAccessGraphSynchronizer(cfg AccessGraphConfig) (*AccessGraphSynchronizer, error) {
+// NewSynchronizer creates a new [Synchronizer].
+func NewSynchronizer(cfg Config) (*Synchronizer, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +87,7 @@ func NewAccessGraphSynchronizer(cfg AccessGraphConfig) (*AccessGraphSynchronizer
 		ssoCache[entry.AppId] = entry
 	}
 
-	return &AccessGraphSynchronizer{
+	return &Synchronizer{
 		clock:            cfg.Clock,
 		log:              cfg.Logger,
 		connectionConfig: cfg.ConnectionConfig,
@@ -90,7 +99,8 @@ func NewAccessGraphSynchronizer(cfg AccessGraphConfig) (*AccessGraphSynchronizer
 	}, nil
 }
 
-func (s *AccessGraphSynchronizer) Run(ctx context.Context) error {
+// Run [Synchronizer] service
+func (s *Synchronizer) Run(ctx context.Context) error {
 	const retryDelay = 1 * time.Minute
 	for {
 		err := s.synchronize(ctx)
@@ -111,7 +121,7 @@ func (s *AccessGraphSynchronizer) Run(ctx context.Context) error {
 	}
 }
 
-func (s *AccessGraphSynchronizer) synchronize(ctx context.Context) error {
+func (s *Synchronizer) synchronize(ctx context.Context) error {
 	tagConn, err := newAccessGraphConnection(ctx, s.connectionConfig, s.credentials)
 	if err != nil {
 		return trace.Wrap(err)
@@ -158,7 +168,7 @@ func (s *AccessGraphSynchronizer) synchronize(ctx context.Context) error {
 }
 
 // Synchronize syncs objects from Entra to Access Graph once and returns the updated resource cache.
-func (s *AccessGraphSynchronizer) synchronizeOnce(ctx context.Context, currentTAGResources *resources, stream accessgraphv1alpha.AccessGraphService_EntraEventsStreamClient) (*resources, error) {
+func (s *Synchronizer) synchronizeOnce(ctx context.Context, currentTAGResources *resources, stream accessgraphv1alpha.AccessGraphService_EntraEventsStreamClient) (*resources, error) {
 	apps, err := s.fetchApps(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,7 +184,7 @@ func (s *AccessGraphSynchronizer) synchronizeOnce(ctx context.Context, currentTA
 	return newResources, trace.Wrap(err)
 }
 
-func (s *AccessGraphSynchronizer) fetchApps(ctx context.Context) ([]*accessgraphv1alpha.EntraApplication, error) {
+func (s *Synchronizer) fetchApps(ctx context.Context) ([]*accessgraphv1alpha.EntraApplication, error) {
 	var results []*accessgraphv1alpha.EntraApplication
 	err := s.graphClient.IterateApplications(ctx, func(graphApp *models.Application) bool {
 		appID := graphApp.AppID
@@ -200,7 +210,7 @@ func (s *AccessGraphSynchronizer) fetchApps(ctx context.Context) ([]*accessgraph
 	return results, trace.Wrap(err)
 }
 
-func (s *AccessGraphSynchronizer) convertApp(ctx context.Context, app *models.Application, ssoSettings *types.PluginEntraIDAppSSOSettings) (*accessgraphv1alpha.EntraApplication, error) {
+func (s *Synchronizer) convertApp(ctx context.Context, app *models.Application, ssoSettings *types.PluginEntraIDAppSSOSettings) (*accessgraphv1alpha.EntraApplication, error) {
 	appID := app.AppID
 	if appID == nil {
 		return nil, trace.BadParameter("expected app ID to be present")

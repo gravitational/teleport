@@ -1,4 +1,4 @@
-package entraid
+package accessgraph
 
 import (
 	"bytes"

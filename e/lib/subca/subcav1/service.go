@@ -171,17 +171,13 @@ func (s *Service) CreateCSR(
 	}
 
 	// Parse custom Subject.
-	var customSubject *pkix.Name
-	if req.CustomSubject != nil {
-		rdns, err := subca.DistinguishedNameProtoToRDNSequence(req.CustomSubject)
-		if err != nil {
-			return nil, trace.Wrap(err, "custom subject")
-		}
-
-		customSubject = &pkix.Name{}
-		customSubject.FillFromRDNSequence(&rdns) // fills in Names
-
-		// Assign ClusterName to custom Subject.
+	customSubject, err := convertDistinguishedNameProto(req.CustomSubject)
+	if err != nil {
+		return nil, trace.Wrap(err, "custom subject")
+	}
+	// Assign ClusterName to custom Subject.
+	if customSubject != nil {
+		var err error
 		customSubject.Names, err = assignClusterNameToATVs(customSubject.Names, cn.GetClusterName())
 		if err != nil {
 			return nil, trace.Wrap(err, "assign cluster name to custom subject")

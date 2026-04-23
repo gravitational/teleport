@@ -1,4 +1,4 @@
-package entraid
+package directory
 
 import (
 	"context"
@@ -109,7 +109,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamAID := uuid.NewString()
 	subgroupID := uuid.NewString()
 	connector := newSAMLConnector(t, "my-sso-connector", teamAID, subgroupID)
-	env := newDirectoryReconcilerEnv(t, graphClient, connector)
+	env := NewEnv(t, graphClient, connector)
 
 	aliceID := uuid.NewString()
 	bobID := uuid.NewString()
@@ -142,7 +142,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	graphClient.users = append(graphClient.users, aliceEntra)
 
 	// Team A does not exist in Teleport, but exists in entra. Alice is a member
-	teamAEntra := entraGroup(t, teamAID, "Team A")
+	teamAEntra := newEntraGroup(t, teamAID, "Team A")
 	graphClient.groups = append(graphClient.groups, teamAEntra)
 	graphClient.groupMembers[teamAID] = []models.GroupMember{aliceEntra}
 
@@ -154,12 +154,12 @@ func TestDirectoryReconciler(t *testing.T) {
 	require.NoError(t, err)
 	bobTeleport.SetRoles([]string{"access", "editor"})
 	sortTraits(bobTeleport)
-	bobTeleport, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+	bobTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, bobTeleport)
 	require.NoError(t, err)
 
 	// Team A contains an unconvertable member.
 	// It should be gracefully ignored.
-	subgroup := entraGroup(t, subgroupID, "foo")
+	subgroup := newEntraGroup(t, subgroupID, "foo")
 	graphClient.groups = append(graphClient.groups, subgroup)
 	graphClient.groupMembers[teamAID] = append(graphClient.groupMembers[teamAID], subgroup)
 	graphClient.groupMembers[subgroupID] = append(graphClient.groupMembers[subgroupID], bobEntra)
@@ -170,7 +170,7 @@ func TestDirectoryReconciler(t *testing.T) {
 
 	michaelTeleport, err := convertUser(michaelEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
-	michaelTeleport, err = env.cfg.UserSvc.CreateUser(ctx, michaelTeleport)
+	michaelTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, michaelTeleport)
 	require.NoError(t, err)
 	require.Equal(t, "michael@someothercompany.io", michaelTeleport.GetName())
 
@@ -180,11 +180,11 @@ func TestDirectoryReconciler(t *testing.T) {
 
 	carolTeleport, err := convertUser(carolEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
-	carolTeleport, err = env.cfg.UserSvc.CreateUser(ctx, carolTeleport)
+	carolTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, carolTeleport)
 	require.NoError(t, err)
 
 	// Team C exists in both, but members have changed in Entra (Carol was removed)
-	teamCEntra := entraGroup(t, uuid.NewString(), "Team C")
+	teamCEntra := newEntraGroup(t, uuid.NewString(), "Team C")
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
 	aclOwnersCfg := aclOwnersConfig{
@@ -205,7 +205,7 @@ func TestDirectoryReconciler(t *testing.T) {
 
 	daveTeleport, err := convertUser(daveEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
-	_, err = env.cfg.UserSvc.CreateUser(ctx, daveTeleport)
+	_, err = env.cfg.AccessPoint.CreateUser(ctx, daveTeleport)
 	require.NoError(t, err)
 
 	// Eve has a local account in Teleport, should not get overwritten by her imported Entra account
@@ -214,14 +214,14 @@ func TestDirectoryReconciler(t *testing.T) {
 
 	eveTeleport, err := types.NewUser(*eveEntra.UserPrincipalName)
 	require.NoError(t, err)
-	eveTeleport, err = env.cfg.UserSvc.CreateUser(ctx, eveTeleport)
+	eveTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, eveTeleport)
 	require.NoError(t, err)
 
 	// Frank has a local account in Teleport and no equivalent in Entra. Must not get modified or deleted.
 	frankUPN := "frank@example.com"
 	frankTeleport, err := types.NewUser(frankUPN)
 	require.NoError(t, err)
-	frankTeleport, err = env.cfg.UserSvc.CreateUser(ctx, frankTeleport)
+	frankTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, frankTeleport)
 	require.NoError(t, err)
 
 	// Team F is a manually created access list in Teleport. Must not get modified or deleted.
@@ -248,7 +248,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamFTeleport, err = env.aclSvc.GetAccessList(ctx, teamFTeleport.GetName())
 	require.NoError(t, err)
 
-	r, err := NewDirectoryReconciler(env.cfg)
+	r, err := New(env.cfg)
 	require.NoError(t, err)
 
 	err = r.Reconcile(ctx)
@@ -612,18 +612,18 @@ func TestUserSync(t *testing.T) {
 
 	t.Run("Create user succeeds", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
-		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+		env := NewEnv(t, graphClient, nil /* custom saml connector */)
 		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 		}
 		env.cfg.GraphClient = graphClient
 
-		r, err := NewDirectoryReconciler(env.cfg)
+		r, err := New(env.cfg)
 		require.NoError(t, err)
 		require.NoError(t, r.Reconcile(ctx))
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 
 		require.Len(t, users, 2)
@@ -631,15 +631,15 @@ func TestUserSync(t *testing.T) {
 
 	t.Run("User account skipped on sanitization error", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
-		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+		env := NewEnv(t, graphClient, nil /* custom saml connector */)
 		graphClient.users = []*models.User{
 			entraUser(t, "u1", "al'ice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 			entraUser(t, "u3", "carol@example.com"),
 		}
 
-		g1 := entraGroup(t, "g1", "apple")
-		g2 := entraGroup(t, "g2", "banana")
+		g1 := newEntraGroup(t, "g1", "apple")
+		g2 := newEntraGroup(t, "g2", "banana")
 		graphClient.groups = []*models.Group{g1, g2}
 
 		graphClient.groupMembers = map[string][]models.GroupMember{
@@ -656,12 +656,12 @@ func TestUserSync(t *testing.T) {
 		}
 		env.cfg.GraphClient = graphClient
 
-		r, err := NewDirectoryReconciler(env.cfg)
+		r, err := New(env.cfg)
 		require.NoError(t, err)
 		err = r.Reconcile(ctx)
 		require.ErrorContains(t, err, "al'ice@example.com")
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 		require.Len(t, users, 2)
 
@@ -678,12 +678,12 @@ func TestUserSync(t *testing.T) {
 
 	t.Run("Entra ID user conflicting with existing local user account is skipped", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
-		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+		env := NewEnv(t, graphClient, nil /* custom saml connector */)
 
 		// create bob as local user
 		bobTeleport, err := types.NewUser("bob@example.com")
 		require.NoError(t, err)
-		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+		_, err = env.cfg.AccessPoint.CreateUser(ctx, bobTeleport)
 		require.NoError(t, err)
 		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
@@ -691,8 +691,8 @@ func TestUserSync(t *testing.T) {
 			entraUser(t, "u3", "carol@example.com"),
 		}
 
-		g1 := entraGroup(t, "g1", "apple")
-		g2 := entraGroup(t, "g2", "banana")
+		g1 := newEntraGroup(t, "g1", "apple")
+		g2 := newEntraGroup(t, "g2", "banana")
 		graphClient.groups = []*models.Group{g1, g2}
 		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
@@ -707,12 +707,12 @@ func TestUserSync(t *testing.T) {
 		}
 		env.cfg.GraphClient = graphClient
 
-		r, err := NewDirectoryReconciler(env.cfg)
+		r, err := New(env.cfg)
 		require.NoError(t, err)
 		err = r.Reconcile(ctx)
 		require.ErrorContains(t, err, "bob@example.com")
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 		require.Len(t, users, 2)
 
@@ -730,7 +730,7 @@ func TestUserSync(t *testing.T) {
 
 	t.Run("SAML user skipped if its not created by the plugin or by the referenced connector", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
-		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+		env := NewEnv(t, graphClient, nil /* custom saml connector */)
 
 		// create bob with different connector
 		bobTeleport, err := types.NewUser("bob@example.com")
@@ -741,7 +741,7 @@ func TestUserSync(t *testing.T) {
 				ID:   "abc-ref",
 			},
 		})
-		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+		_, err = env.cfg.AccessPoint.CreateUser(ctx, bobTeleport)
 		require.NoError(t, err)
 		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
@@ -749,8 +749,8 @@ func TestUserSync(t *testing.T) {
 			entraUser(t, "u3", "carol@example.com"),
 		}
 
-		g1 := entraGroup(t, "g1", "apple")
-		g2 := entraGroup(t, "g2", "banana")
+		g1 := newEntraGroup(t, "g1", "apple")
+		g2 := newEntraGroup(t, "g2", "banana")
 		graphClient.groups = []*models.Group{g1, g2}
 		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
@@ -765,13 +765,13 @@ func TestUserSync(t *testing.T) {
 		}
 		env.cfg.GraphClient = graphClient
 
-		r, err := NewDirectoryReconciler(env.cfg)
+		r, err := New(env.cfg)
 		require.NoError(t, err)
 		err = r.Reconcile(ctx)
 		require.ErrorContains(t, err, "bob@example.com")
 		require.ErrorContains(t, err, "Member IDs: u2")
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 		require.Len(t, users, 2)
 
@@ -789,7 +789,7 @@ func TestUserSync(t *testing.T) {
 
 	t.Run("User account overwritten if it was created by the referenced connector", func(t *testing.T) {
 		graphClient := newFakeGraphClient()
-		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+		env := NewEnv(t, graphClient, nil /* custom saml connector */)
 		bobTeleport, err := types.NewUser("bob@example.com")
 		require.NoError(t, err)
 		bobTeleport.SetCreatedBy(types.CreatedBy{
@@ -798,14 +798,14 @@ func TestUserSync(t *testing.T) {
 				ID:   ssoConnectorID,
 			},
 		})
-		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+		_, err = env.cfg.AccessPoint.CreateUser(ctx, bobTeleport)
 		require.NoError(t, err)
 		graphClient.users = []*models.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
 		}
-		g1 := entraGroup(t, "g1", "apple")
-		g2 := entraGroup(t, "g2", "banana")
+		g1 := newEntraGroup(t, "g1", "apple")
+		g2 := newEntraGroup(t, "g2", "banana")
 		graphClient.groups = []*models.Group{g1, g2}
 		graphClient.groupMembers = map[string][]models.GroupMember{
 			"g1": {
@@ -819,11 +819,11 @@ func TestUserSync(t *testing.T) {
 		}
 		env.cfg.GraphClient = graphClient
 
-		r, err := NewDirectoryReconciler(env.cfg)
+		r, err := New(env.cfg)
 		require.NoError(t, err)
 		require.NoError(t, r.Reconcile(ctx))
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 
 		require.Len(t, users, 2)
@@ -843,7 +843,7 @@ func TestGroupFilters(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
-	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+	env := NewEnv(t, graphClient, nil /* custom saml connector */)
 
 	testCases := []struct {
 		name        string
@@ -854,35 +854,35 @@ func TestGroupFilters(t *testing.T) {
 		{
 			name: "Filter by ID",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "2"}},
 			},
-			expected: []*models.Group{entraGroup(t, "2", "banana")},
+			expected: []*models.Group{newEntraGroup(t, "2", "banana")},
 		},
 		{
 			name: "Filter by Name",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 			},
 			expected: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
 			},
 		},
 		{
 			name: "Exclude All",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "teleport.internal/exclude_all"}},
@@ -892,24 +892,24 @@ func TestGroupFilters(t *testing.T) {
 		{
 			name: "No Filters (matches all)",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
 			},
 			filters: nil,
 			expected: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
 			},
 		},
 		{
 			name: "Multiple Filters",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
-				entraGroup(t, "4", "carrot"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
+				newEntraGroup(t, "4", "carrot"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "2"}},
@@ -917,66 +917,66 @@ func TestGroupFilters(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "4"}},
 			},
 			expected: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "4", "carrot"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "4", "carrot"),
 			},
 		},
 		{
 			name: "Exclude by ID",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "2"}},
 			},
-			expected: []*models.Group{entraGroup(t, "1", "apple")},
+			expected: []*models.Group{newEntraGroup(t, "1", "apple")},
 		},
 		{
 			name: "Exclude by NameRegex",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
 			},
-			expected: []*models.Group{entraGroup(t, "3", "banana")},
+			expected: []*models.Group{newEntraGroup(t, "3", "banana")},
 		},
 		{
 			name: "Include and Exclude - exclude wins",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
-				entraGroup(t, "4", "carrot"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
+				newEntraGroup(t, "4", "carrot"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "*"}},
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "1"}},
 			},
 			expected: []*models.Group{
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
-				entraGroup(t, "4", "carrot"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
+				newEntraGroup(t, "4", "carrot"),
 			},
 		},
 		{
 			name: "Include and Exclude - matching include/exclude regexp",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "admin"),
-				entraGroup(t, "3", "banana"),
-				entraGroup(t, "4", "carrot"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "admin"),
+				newEntraGroup(t, "3", "banana"),
+				newEntraGroup(t, "4", "carrot"),
 			},
 			filters: filter.Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "b*"}},
 			},
-			expected: []*models.Group{entraGroup(t, "3", "banana")},
+			expected: []*models.Group{newEntraGroup(t, "3", "banana")},
 		},
 	}
 
@@ -986,7 +986,7 @@ func TestGroupFilters(t *testing.T) {
 			env.cfg.GroupsFilter = tc.filters
 			env.cfg.GraphClient = graphClient
 
-			r, err := NewDirectoryReconciler(env.cfg)
+			r, err := New(env.cfg)
 			require.NoError(t, err)
 
 			require.NoError(t, r.Reconcile(ctx))
@@ -1003,7 +1003,7 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
-	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+	env := NewEnv(t, graphClient, nil /* custom saml connector */)
 
 	testCases := []struct {
 		name           string
@@ -1013,48 +1013,48 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 		{
 			name: "Empty group",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
+				newEntraGroup(t, "1", "apple"),
 				// this invalid group should not prevent the group below to be synced.
 				{},
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "2", "banana"),
 			},
 			expectedGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "banana"),
 			},
 		},
 		{
 			name: "ID Missing",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
+				newEntraGroup(t, "1", "apple"),
 				// this invalid group should not prevent the group below to be synced.
 				{
 					DirectoryObject: models.DirectoryObject{
 						DisplayName: to.Ptr("carrot"),
 					},
 				},
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "2", "banana"),
 			},
 			expectedGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "banana"),
 			},
 		},
 		{
 			name: "DisplayName missing",
 			entraGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
+				newEntraGroup(t, "1", "apple"),
 				// this invalid group should not prevent the group below to be synced.
 				{
 					DirectoryObject: models.DirectoryObject{
 						ID: to.Ptr("3"),
 					},
 				},
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "2", "banana"),
 			},
 			expectedGroups: []*models.Group{
-				entraGroup(t, "1", "apple"),
-				entraGroup(t, "2", "banana"),
+				newEntraGroup(t, "1", "apple"),
+				newEntraGroup(t, "2", "banana"),
 			},
 		},
 	}
@@ -1064,7 +1064,7 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 			graphClient.groups = tc.entraGroups
 			env.cfg.GraphClient = graphClient
 
-			r, err := NewDirectoryReconciler(env.cfg)
+			r, err := New(env.cfg)
 			require.NoError(t, err)
 
 			err = r.Reconcile(ctx)
@@ -1085,7 +1085,7 @@ func TestUnknownFilter(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
-	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+	env := NewEnv(t, graphClient, nil /* custom saml connector */)
 
 	// Start with 2 users, 4 groups, 3 group members,
 	// and reconcile without any filters.
@@ -1093,10 +1093,10 @@ func TestUnknownFilter(t *testing.T) {
 		entraUser(t, "u1", "alice@example.com"),
 		entraUser(t, "u2", "bob@example.com"),
 	}
-	g1 := entraGroup(t, "g1", "apple")
-	g2 := entraGroup(t, "g2", "admin")
-	g3 := entraGroup(t, "g3", "banana")
-	g4 := entraGroup(t, "g4", "carrot")
+	g1 := newEntraGroup(t, "g1", "apple")
+	g2 := newEntraGroup(t, "g2", "admin")
+	g3 := newEntraGroup(t, "g3", "banana")
+	g4 := newEntraGroup(t, "g4", "carrot")
 	entraGroups := []*models.Group{g1, g2, g3, g4}
 	graphClient.groups = entraGroups
 	members := map[string][]models.GroupMember{
@@ -1108,7 +1108,7 @@ func TestUnknownFilter(t *testing.T) {
 	env.cfg.GraphClient = graphClient
 
 	// reconcile
-	r, err := NewDirectoryReconciler(env.cfg)
+	r, err := New(env.cfg)
 	require.NoError(t, err)
 	require.NoError(t, r.Reconcile(ctx))
 
@@ -1131,8 +1131,8 @@ func TestUnknownFilter(t *testing.T) {
 	// Of the 4 test groups we started with, mock that
 	// group g2 is deleted, but two new groups g5 and g6
 	// are added in Entra ID.
-	g5 := entraGroup(t, "g5", "drum")
-	g6 := entraGroup(t, "g6", "eagle")
+	g5 := newEntraGroup(t, "g5", "drum")
+	g6 := newEntraGroup(t, "g6", "eagle")
 	newGroup := []*models.Group{g1, g3, g4, g5, g6}
 	graphClient.groups = newGroup
 	// g1 group gets one additional member
@@ -1147,7 +1147,7 @@ func TestUnknownFilter(t *testing.T) {
 	}
 
 	// reconcile
-	r, err = NewDirectoryReconciler(env.cfg)
+	r, err = New(env.cfg)
 	require.NoError(t, err)
 	err = r.Reconcile(ctx)
 	require.NoError(t, err)
@@ -1172,16 +1172,16 @@ func TestNestedMembership(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
-	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+	env := NewEnv(t, graphClient, nil /* custom saml connector */)
 
 	graphClient.users = []*models.User{
 		entraUser(t, "u1", "alice@example.com"),
 		entraUser(t, "u2", "bob@example.com"),
 	}
-	g1 := entraGroup(t, "g1", "apple")
-	g2 := entraGroup(t, "g2", "admin")
-	g3 := entraGroup(t, "g3", "banana")
-	g4 := entraGroup(t, "g4", "carrot")
+	g1 := newEntraGroup(t, "g1", "apple")
+	g2 := newEntraGroup(t, "g2", "admin")
+	g3 := newEntraGroup(t, "g3", "banana")
+	g4 := newEntraGroup(t, "g4", "carrot")
 	entraGroups := []*models.Group{g1, g2, g3, g4}
 	graphClient.groups = entraGroups
 	graphClient.groupMembers = map[string][]models.GroupMember{
@@ -1191,7 +1191,7 @@ func TestNestedMembership(t *testing.T) {
 	}
 	env.cfg.GraphClient = graphClient
 
-	r, err := NewDirectoryReconciler(env.cfg)
+	r, err := New(env.cfg)
 	require.NoError(t, err)
 	require.NoError(t, r.Reconcile(ctx))
 
@@ -1220,14 +1220,14 @@ func TestNestedMembership(t *testing.T) {
 }
 
 type directoryReconcilerEnv struct {
-	cfg         DirectoryReconcilerConfig
+	cfg         Config
 	identitySvc *local.IdentityService
 	aclSvc      *local.AccessListService
 }
 
 const ssoConnectorID = "my-sso-connector"
 
-func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConnector) directoryReconcilerEnv {
+func NewEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConnector) directoryReconcilerEnv {
 	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	bk := backend.NewSanitizer(mem)
@@ -1270,16 +1270,24 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 		{Name: "reviewer", MembershipKind: accesslist.MembershipKindUser, IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()},
 	}
 
-	cfg := DirectoryReconcilerConfig{
-		Clock:          clockwork.NewRealClock(),
-		Logger:         logtest.NewLogger(),
-		GraphClient:    graphClient,
-		UserSvc:        identitySvc,
-		AccessListSvc:  alSvc,
+	type ap struct {
+		accessListAccessPoint
+		userAccessPoint
+		connectorAccessPoint
+	}
+
+	cfg := Config{
+		Clock:       clockwork.NewRealClock(),
+		Logger:      logtest.NewLogger(),
+		GraphClient: graphClient,
+		AccessPoint: ap{
+			accessListAccessPoint: alSvc,
+			userAccessPoint:       identitySvc,
+			connectorAccessPoint:  samlService,
+		},
 		DefaultOwners:  defaultOwners,
 		SSOConnectorID: connector.GetName(),
 		TenantID:       tenantID,
-		SAMLSvc:        samlService,
 		EntraAppID:     applicationID,
 	}
 	require.NoError(t, cfg.Validate())
@@ -1308,7 +1316,7 @@ func newSAMLConnector(t *testing.T, connectorID, group1, group2 string) types.SA
 	return connector
 }
 
-func entraGroup(t *testing.T, id, name string) *models.Group {
+func newEntraGroup(t *testing.T, id, name string) *models.Group {
 	t.Helper()
 	return &models.Group{
 		DirectoryObject: models.DirectoryObject{

@@ -11,6 +11,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/e/lib/entraid/accessgraph"
+	"github.com/gravitational/teleport/e/lib/entraid/directory"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -36,7 +38,8 @@ type accessGraphSynchronizer interface {
 	Run(ctx context.Context) error
 }
 
-type ServiceConfig struct {
+// Config is a Entra ID service config.
+type Config struct {
 	Clock            clockwork.Clock
 	PluginStatusSink common.StatusSink
 	SemaphoreSvc     types.Semaphores
@@ -45,12 +48,12 @@ type ServiceConfig struct {
 
 	// Sub-components
 
-	DirectoryReconciler     *DirectoryReconciler
-	AccessGraphSynchronizer *AccessGraphSynchronizer
+	DirectoryReconciler     *directory.Reconciler
+	AccessGraphSynchronizer *accessgraph.Synchronizer
 }
 
-// SetDefaults validates configuration options
-func (cfg *ServiceConfig) Validate() error {
+// Validate validates configuration options
+func (cfg *Config) Validate() error {
 	if cfg.PluginStatusSink == nil {
 		return trace.BadParameter("PluginStatusSink must be specified")
 	}
@@ -72,7 +75,7 @@ func (cfg *ServiceConfig) Validate() error {
 }
 
 // SetDefaults sets the default values for the options.
-func (cfg *ServiceConfig) SetDefaults() {
+func (cfg *Config) SetDefaults() {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -90,7 +93,8 @@ type Service struct {
 	accessGraphSynchronizer accessGraphSynchronizer
 }
 
-func NewService(cfg ServiceConfig) (*Service, error) {
+// New returns a new Entra ID service.
+func New(cfg Config) (*Service, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
