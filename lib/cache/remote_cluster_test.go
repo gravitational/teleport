@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -153,4 +154,79 @@ func TestTunnelConnections(t *testing.T) {
 	tunnels, err = p.cache.GetTunnelConnections(t.Context(), "other-cluster")
 	require.NoError(t, err)
 	require.Len(t, tunnels, 3)
+
+	// TODO(noah): In v20, we'll be able to strip out the GetTunnelConnections/
+	// GetAllTunnelConnections implementation, and we can roll testing of
+	// ListTunnelConnections into testResources instead. For now, this is here
+	// so that we're still covering Get/GetAll but also covering
+	// ListTunnelConnections.
+	t.Run("ListTunnelConnections", func(t *testing.T) {
+		ctx := t.Context()
+
+		// Unfiltered list should page through all 20 tunnel connections.
+		var all []types.TunnelConnection
+		var pageToken string
+		for {
+			page, next, err := p.cache.ListTunnelConnections(ctx, 0, pageToken, nil)
+			require.NoError(t, err)
+			all = append(all, page...)
+			if next == "" {
+				break
+			}
+			pageToken = next
+		}
+		require.Len(t, all, 20)
+
+		// Filter by cluster name should only return matching tunnel connections.
+		filtered, next, err := p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+			ClusterName: clusterName,
+		})
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, filtered, 17)
+		for _, tc := range filtered {
+			require.Equal(t, clusterName, tc.GetClusterName())
+		}
+
+		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+			ClusterName: "other-cluster",
+		})
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, filtered, 3)
+		for _, tc := range filtered {
+			require.Equal(t, "other-cluster", tc.GetClusterName())
+		}
+
+		// Filter for a cluster with no tunnel connections.
+		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+			ClusterName: "does-not-exist",
+		})
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, filtered)
+
+		// Paginate with a small page size and a cluster filter.
+		var paginated []types.TunnelConnection
+		pageToken = ""
+		pages := 0
+		for {
+			page, next, err := p.cache.ListTunnelConnections(ctx, 5, pageToken, &trustpb.ListTunnelConnectionsFilter{
+				ClusterName: clusterName,
+			})
+			require.NoError(t, err)
+			require.LessOrEqual(t, len(page), 5)
+			pages++
+			paginated = append(paginated, page...)
+			if next == "" {
+				break
+			}
+			pageToken = next
+		}
+		require.Len(t, paginated, 17)
+		require.Greater(t, pages, 1, "expected multiple pages with page size 5 and 17 items")
+		for _, tc := range paginated {
+			require.Equal(t, clusterName, tc.GetClusterName())
+		}
+	})
 }
