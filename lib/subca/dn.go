@@ -43,7 +43,7 @@ func RDNSequenceToDistinguishedNameProto(rdns pkix.RDNSequence) (*subcav1.Distin
 	for i, nameSet := range rdns {
 		for j, atv := range nameSet {
 			oid := make([]int32, len(atv.Type))
-			for i, x := range atv.Type {
+			for k, x := range atv.Type {
 				// OID components are guaranteed to fit in a 32 bit integer as checked
 				// by encoding/asn1.parseBase128Int.
 				// https://cs.opensource.google/go/go/+/refs/tags/go1.26.2:src/encoding/asn1/asn1.go;l=323
@@ -54,7 +54,7 @@ func RDNSequenceToDistinguishedNameProto(rdns pkix.RDNSequence) (*subcav1.Distin
 						x, math.MaxInt32,
 					)
 				}
-				oid[i] = int32(x)
+				oid[k] = int32(x)
 			}
 			val, ok := atv.Value.(string)
 			if !ok {
