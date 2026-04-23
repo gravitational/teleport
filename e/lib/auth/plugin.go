@@ -27,6 +27,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
+	subcapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	workloadclusterv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/limiter"
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
 	"github.com/gravitational/teleport/e/lib/sigstore"
+	"github.com/gravitational/teleport/e/lib/subca/subcav1"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -71,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/subca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -568,6 +571,10 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		p.authServer.AuthServer.SetSigstorePolicyEvaluator(eval)
 	}
 
+	if err := registerSubCAService(gRPCServer, p.authServer); err != nil {
+		return trace.Wrap(err, "register Sub CA service")
+	}
+
 	return nil
 }
 
@@ -927,6 +934,33 @@ func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer, cfg resou
 	}
 
 	resourceusagepb.RegisterResourceUsageServiceServer(grpcServer, service)
+	return nil
+}
+
+func registerSubCAService(
+	server grpc.ServiceRegistrar,
+	authGRPC *auth.GRPCServer,
+) error {
+	if !subca.Enabled() {
+		return nil
+	}
+
+	authServer := authGRPC.AuthServer
+	subCAService, err := subcav1.New(subcav1.ServiceParams{
+		Logger:                  logger,
+		CachedClusterNameGetter: authServer.Cache,
+		CachedSubCA:             authServer.Cache,
+		CachedTrust:             authServer.Cache,
+		SubCA:                   authServer.Services,
+		KeystoreManager:         authServer.GetKeyStore(),
+		Authorizer:              authGRPC.Authorizer,
+		Emitter:                 authGRPC.Emitter,
+	})
+	if err != nil {
+		return trace.Wrap(err, "create Sub CA RPC service")
+	}
+	subcapb.RegisterSubCAServiceServer(server, subCAService)
+
 	return nil
 }
 
