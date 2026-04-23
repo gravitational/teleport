@@ -110,7 +110,7 @@ export const DateCell = ({ data }: { data: Date }) => (
 
 const renderLabelCell = (labels: string[] = []) => {
   const $labels = labels.map((label, index) => (
-    <Label mr="1" key={`${label}${index}`} kind="secondary">
+    <Label mr="1" key={`${label}${index}`} kind="secondary" title={label}>
       {label}
     </Label>
   ));

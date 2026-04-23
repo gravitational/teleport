@@ -216,13 +216,15 @@ export type LabelProps = {
 const Label = styled.div<LabelProps>`
   box-sizing: border-box;
   border-radius: 999px;
-  display: inline-block;
+  display: -webkit-box;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
   overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
 
   ${kind}
   ${space}

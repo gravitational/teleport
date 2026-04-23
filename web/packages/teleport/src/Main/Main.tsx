@@ -255,13 +255,13 @@ export const useContentMinWidthContext = () =>
   useContext(ContentMinWidthContext);
 
 export const useNoMinWidth = () => {
-  const { setEnforceMinWidth } = useContext(ContentMinWidthContext);
+  const ctx = useContext(ContentMinWidthContext);
 
   useLayoutEffect(() => {
-    setEnforceMinWidth(false);
+    ctx?.setEnforceMinWidth(false);
 
     return () => {
-      setEnforceMinWidth(true);
+      ctx?.setEnforceMinWidth(true);
     };
   }, []);
 };
