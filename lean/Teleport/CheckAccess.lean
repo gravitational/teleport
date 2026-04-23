@@ -22,9 +22,40 @@ def allowMatches (role : Role) (c : Cluster) (_r : Request) : Bool :=
   labelMatch role.allow.kubernetesLabels c.labels
 
 /-- Kubernetes access decision: deny dominates, then any allow grants,
-else deny. Mirrors `RoleSet.checkAccess` in `lib/services/role.go:2681-2905`. -/
+else deny. Mirrors `RoleSet.checkAccess` in `lib/services/role.go:2681-2905`
+with no extra matchers — the core RBAC path exercised by
+`TestCheckAccessToKubernetes`. -/
 def checkAccess (rs : RoleSet) (c : Cluster) (r : Request) : Decision :=
   if rs.any (fun role => denyMatches role c r) then .deny
+  else if rs.any (fun role => allowMatches role c r) then .allow
+  else .deny
+
+/-! ## Production path
+
+Production Kubernetes access (`lib/kube/proxy/forwarder.go:1014`) layers
+`NewKubernetesClusterLabelMatcher` on top of `CheckAccess`. When deny
+labels are empty the matcher injects `{*:*}` via `getKubeLabelMatchers`
+(`lib/services/role.go:2665`), causing the deny to fire for any cluster.
+The injection is deny-only — allow labels behave as in the core path. -/
+
+/-- Effective deny-label selector under the production matcher path.
+Implements the `{*:*}` injection that fires when explicit deny labels
+are empty. -/
+def effectiveDenyLabelsProduction (cond : RoleCondition) : LabelSelector :=
+  if cond.kubernetesLabels.isEmpty then [("*", ["*"])]
+  else cond.kubernetesLabels
+
+/-- A deny condition matches in the production path iff namespaces match
+and the effective (post-injection) label selector matches. -/
+def denyMatchesProduction (role : Role) (c : Cluster) (_r : Request) : Bool :=
+  namespaceMatch role.deny.namespaces c.teleportNs &&
+  labelMatch (effectiveDenyLabelsProduction role.deny) c.labels
+
+/-- The production Kubernetes access decision: same shape as `checkAccess`
+but uses `denyMatchesProduction` instead of `denyMatches`. Allow branch
+is identical (the injection is deny-only). -/
+def checkAccessProduction (rs : RoleSet) (c : Cluster) (r : Request) : Decision :=
+  if rs.any (fun role => denyMatchesProduction role c r) then .deny
   else if rs.any (fun role => allowMatches role c r) then .allow
   else .deny
 

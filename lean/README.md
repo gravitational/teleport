@@ -27,12 +27,21 @@ Cluster-level `CheckAccess` as exercised by `TestCheckAccessToKubernetes`
 - Read-only namespace branch — `lib/utils/replace.go:199-228`
 - Role versions other than V6
 - Pod/resource-level requests (`request.resource != null`)
-- **Implicit-wildcard deny injection** in `NewKubernetesClusterLabelMatcher`
-  (`lib/services/role.go:2665`, wired via `lib/kube/proxy/forwarder.go:1014`).
-  This matcher is applied on top of `CheckAccess` in production but not
-  by the v0 oracle (`TestCheckAccessToKubernetes` calls `CheckAccess`
-  without matchers). Model the pure RBAC core; add the matcher layer
-  separately when extending scope.
+
+## Two decision paths
+
+The model captures both:
+
+- **Core (`checkAccess`)** — `CheckAccess` without extra matchers, as used
+  in `TestCheckAccessToKubernetes`. No implicit-wildcard deny injection.
+- **Production (`checkAccessProduction`)** — `CheckAccess` with
+  `NewKubernetesClusterLabelMatcher` layered on top, as used in
+  `lib/kube/proxy/forwarder.go:1014`. Empty deny labels are injected to
+  `{*:*}` (`lib/services/role.go:2665`), so a role with empty deny will
+  deny access to any cluster.
+
+Each corpus case carries a `source` tag; `source == "production"` uses
+`checkAccessProduction`, everything else uses `checkAccess`.
 
 ## Proved invariants
 
@@ -44,10 +53,10 @@ All in `Teleport/Theorems.lean`, no `sorry`.
 - **T4** allow is preserved when new role has no matching deny
 - **T5** removing a no-deny role cannot grant access
 - **T7** empty allow labels never grant
+- **T8** under the production matcher path, empty deny labels deny all clusters
 - **T9** `checkAccess = .allow` is decidable
 - **T10** duplicate roles are idempotent
 - **T6** (wildcard grants) — deferred
-- **T8** (implicit-wildcard deny injection) — removed; see below
 
 ## Run
 

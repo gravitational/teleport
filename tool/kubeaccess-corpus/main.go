@@ -214,6 +214,28 @@ func runCheckAccess(roles []*types.RoleV6, cluster *types.KubernetesCluster) (st
 	return "", trace.Wrap(err)
 }
 
+// runCheckAccessProduction mirrors the production Kubernetes access
+// path in lib/kube/proxy/forwarder.go:1014 by passing a
+// NewKubernetesClusterLabelMatcher to CheckAccess. This causes the
+// implicit-wildcard deny injection to fire for roles with empty
+// deny.kubernetes_labels.
+func runCheckAccessProduction(roles []*types.RoleV6, cluster *types.KubernetesCluster) (string, error) {
+	k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, cluster)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	checker := makeAccessChecker(roles)
+	matcher := services.NewKubernetesClusterLabelMatcher(k8sV3.GetAllLabels(), "alice", nil)
+	err = checker.CheckAccess(k8sV3, services.AccessState{}, matcher)
+	if err == nil {
+		return "allow", nil
+	}
+	if trace.IsAccessDenied(err) {
+		return "deny", nil
+	}
+	return "", trace.Wrap(err)
+}
+
 // ----------------------------------------------------------------------
 // Fixtures — transcribed from TestCheckAccessToKubernetes
 // (lib/services/role_test.go:6828). Inline in the test, so duplicated here.
@@ -618,6 +640,74 @@ func edgeCases() ([]testCase, error) {
 }
 
 // ----------------------------------------------------------------------
+// Production corpus — models the Kubernetes access path in
+// `lib/kube/proxy/forwarder.go:1014` (with `NewKubernetesClusterLabelMatcher`).
+// Key behavior: a role with empty deny.kubernetes_labels denies all
+// clusters via the `{*:*}` injection in `getKubeLabelMatchers`.
+// ----------------------------------------------------------------------
+
+func productionCases() ([]testCase, error) {
+	// Pool of roles and clusters sufficient to exercise:
+	// - empty deny → denies everything via injection
+	// - non-empty deny → denies only matching clusters
+	// - wildcard allow + empty deny (the production "no-op deny" case
+	//   that DOES deny in the production path, unlike the core path)
+	roles := []struct {
+		name  string
+		build func() *types.RoleV6
+	}{
+		{"wildcard-allow-empty-deny", func() *types.RoleV6 { return wildcardAllowRole("p-w") }},
+		{"env-prod-allow-empty-deny", func() *types.RoleV6 { return singleLabelAllowRole("p-envprod", "env", "prod") }},
+		{"wildcard-allow-envprod-deny", func() *types.RoleV6 { return denyOnLabelRole("p-envprod-deny", "env", "prod") }},
+		{"empty-allow-empty-deny", func() *types.RoleV6 { return emptyCondRole("p-empty") }},
+	}
+	clusters := []*types.KubernetesCluster{
+		mkCluster("c-empty", nil),
+		mkCluster("c-env-prod", map[string]string{"env": "prod"}),
+		mkCluster("c-env-staging", map[string]string{"env": "staging"}),
+	}
+
+	out := make([]testCase, 0, len(roles)*len(clusters))
+	for _, r := range roles {
+		for _, c := range clusters {
+			expected, err := runCheckAccessProduction([]*types.RoleV6{r.build()}, c)
+			if err != nil {
+				return nil, fmt.Errorf("production %s on %s: %w", r.name, c.Name, err)
+			}
+			out = append(out, testCase{
+				Name:     fmt.Sprintf("production/%s_on_%s", r.name, c.Name),
+				Source:   "production",
+				Roles:    []roleJSON{roleToJSON(r.build())},
+				Cluster:  clusterToJSON(c.Name, c.StaticLabels, c.DynamicLabels),
+				Request:  nil,
+				Expected: expected,
+			})
+		}
+	}
+	// Also test two-role sets: wildcard allow + empty deny companion role.
+	// In production the companion's empty deny denies everything regardless
+	// of which role comes first.
+	for _, c := range clusters {
+		pair := []*types.RoleV6{wildcardAllowRole("p-w"), emptyCondRole("p-companion")}
+		expected, err := runCheckAccessProduction(pair, c)
+		if err != nil {
+			return nil, fmt.Errorf("production pair on %s: %w", c.Name, err)
+		}
+		jroles := []roleJSON{roleToJSON(pair[0]), roleToJSON(pair[1])}
+		out = append(out, testCase{
+			Name:     fmt.Sprintf("production/wildcard-plus-empty-companion_on_%s", c.Name),
+			Source:   "production",
+			Roles:    jroles,
+			Cluster:  clusterToJSON(c.Name, c.StaticLabels, c.DynamicLabels),
+			Request:  nil,
+			Expected: expected,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// ----------------------------------------------------------------------
 // Randomized corpus — property-based-testing-lite. Seeded so output is
 // deterministic; re-running produces byte-identical JSON. Generates N
 // cases from a small vocabulary of label keys, values, and glob
@@ -764,12 +854,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	production, err := productionCases()
+	if err != nil {
+		return err
+	}
 	random, err := randomCases()
 	if err != nil {
 		return err
 	}
 	all := append(organic, synthetic...)
 	all = append(all, edge...)
+	all = append(all, production...)
 	all = append(all, random...)
 	c := corpus{Cases: all}
 	enc := json.NewEncoder(os.Stdout)

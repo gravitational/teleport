@@ -15,7 +15,14 @@ private def clusterWideRequest : Request :=
 
 private def runCase (tc : Teleport.TestCase) : Option String :=
   let req := tc.request.getD clusterWideRequest
-  let actual := checkAccess tc.roles tc.cluster req
+  -- Dispatch to the production decision function for cases that used the
+  -- NewKubernetesClusterLabelMatcher path in Go; everything else uses the
+  -- core RBAC decision.
+  let actual :=
+    if tc.source = "production" then
+      checkAccessProduction tc.roles tc.cluster req
+    else
+      checkAccess tc.roles tc.cluster req
   if actual != tc.expected then
     some s!"{tc.name} | expected={decisionStr tc.expected} actual={decisionStr actual}"
   else

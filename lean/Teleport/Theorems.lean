@@ -91,11 +91,17 @@ theorem empty_allow_labels_never_grants
     allowMatches role c r = false := by
   simp [allowMatches, h, labelMatch]
 
--- T8 (implicit-wildcard deny injection) removed: the `effectiveLabels`
--- function it described has been removed. The injection is part of
--- `KubernetesClusterLabelMatcher` (production) and is not exercised by
--- `TestCheckAccessToKubernetes` (the v0 oracle). Revisit if the model
--- is extended to the production matcher path.
+/-- **T8** — Under the production matcher path, a role whose deny labels
+are empty denies access to any cluster (provided the deny namespaces
+match). Captures the `getKubeLabelMatchers` injection that fires in
+`NewKubernetesClusterLabelMatcher.Match`. -/
+theorem production_empty_deny_denies_all
+    (role : Role) (c : Cluster) (r : Request)
+    (hLabels : role.deny.kubernetesLabels = [])
+    (hNs : namespaceMatch role.deny.namespaces c.teleportNs = true) :
+    denyMatchesProduction role c r = true := by
+  simp [denyMatchesProduction, effectiveDenyLabelsProduction, hLabels,
+        hNs, labelMatch]
 
 /-- **T10** — Duplicate roles in the set do not change the decision.
 Follows from the fact that `any` is idempotent on duplicates. -/
