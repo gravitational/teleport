@@ -22,6 +22,12 @@ locals {
     ["Microsoft.Resources/subscriptions/read"],
     local.uses_vm ? local.vm_actions : [],
   ))
+
+  azure_role_definition_name = (
+    var.azure_role_definition_use_name_prefix
+    ? join("-", compact([var.azure_role_definition_name, local.teleport_resource_name_suffix]))
+    : var.azure_role_definition_name
+  )
 }
 
 # Custom role for Teleport Discovery Service permissions.
@@ -30,7 +36,7 @@ resource "azurerm_role_definition" "teleport_discovery" {
 
   assignable_scopes = local.azure_role_assignment_scopes
   description       = "Azure role that allows a Teleport Discovery Service to discover VMs."
-  name              = var.azure_role_definition_name
+  name              = local.azure_role_definition_name
   scope             = local.azure_role_assignment_scopes[0]
 
   permissions {
