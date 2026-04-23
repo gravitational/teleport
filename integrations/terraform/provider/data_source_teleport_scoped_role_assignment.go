@@ -20,7 +20,7 @@ package provider
 import (
 	"context"
 
-	
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -58,12 +58,25 @@ func (r dataSourceTeleportScopedRoleAssignment) Read(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var subKind types.String
+	diags = req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = "dynamic"
+	}
 
-	scopedRoleAssignmentI, err := r.p.Client.GetScopedRoleAssignment(ctx, id.Value)
+	scopedRoleAssignmentGetResp, err := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+		Name: id.Value,
+		SubKind: subKind.Value,
+	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 		return
 	}
+	scopedRoleAssignmentI := scopedRoleAssignmentGetResp.GetAssignment()
 
 	var state types.Object
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)

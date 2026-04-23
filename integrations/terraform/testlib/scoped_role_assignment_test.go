@@ -30,8 +30,6 @@ import (
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes/access"
-
-	client "github.com/gravitational/teleport/integrations/terraform/provider/client"
 )
 
 func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
@@ -40,9 +38,11 @@ func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	checkDestroyed := func(state *terraform.State) error {
-		accessClient := client.NewAccessClient(s.client.ScopedAccessServiceClient())
+		accessClient := s.client.ScopedAccessServiceClient()
 
-		_, err := accessClient.GetScopedRoleAssignment(ctx, "test-scoped-role-assignment")
+		_, err := accessClient.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+			Name: "test-scoped-role-assignment",
+		})
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
 		}
@@ -87,7 +87,7 @@ func (s *TerraformSuiteOSS) TestImportScopedRoleAssignment() {
 	t := s.T()
 	ctx := t.Context()
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	accessClient := client.NewAccessClient(s.client.ScopedAccessServiceClient())
+	accessClient := s.client.ScopedAccessServiceClient()
 
 	r := "teleport_scoped_role_assignment"
 	id := "test-import-sra"
@@ -112,11 +112,15 @@ func (s *TerraformSuiteOSS) TestImportScopedRoleAssignment() {
 		},
 	}
 
-	_, err := accessClient.CreateScopedRoleAssignment(ctx, assignment)
+	_, err := accessClient.CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment,
+	})
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := accessClient.GetScopedRoleAssignment(ctx, id)
+		_, err := accessClient.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+			Name: id,
+		})
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
 

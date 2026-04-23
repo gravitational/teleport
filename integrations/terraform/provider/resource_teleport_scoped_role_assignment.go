@@ -79,10 +79,16 @@ func (r resourceTeleportScopedRoleAssignment) Create(ctx context.Context, req tf
 	scopedRoleAssignmentResource := scopedRoleAssignment
 
 	scopedRoleAssignmentResource.Kind = apitypes.KindScopedRoleAssignment
+	if scopedRoleAssignmentResource.SubKind == "" {
+		scopedRoleAssignmentResource.SubKind = "dynamic"
+	}
 
 	id := scopedRoleAssignmentResource.Metadata.Name
 
-	_, err = r.p.Client.GetScopedRoleAssignment(ctx, id)
+	_, err = r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+		Name: id,
+		SubKind: scopedRoleAssignmentResource.SubKind,
+	})
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("ScopedRoleAssignment exists in Teleport. Either remove it (tctl rm scoped_role_assignment/%v)"+
@@ -96,7 +102,9 @@ func (r resourceTeleportScopedRoleAssignment) Create(ctx context.Context, req tf
 		return
 	}
 
-	_, err = r.p.Client.CreateScopedRoleAssignment(ctx, scopedRoleAssignmentResource)
+	_, err = r.p.Client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: scopedRoleAssignmentResource,
+	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 		return
@@ -115,7 +123,14 @@ func (r resourceTeleportScopedRoleAssignment) Create(ctx context.Context, req tf
 	}
 	for {
 		tries = tries + 1
-		scopedRoleAssignmentI, err = r.p.Client.GetScopedRoleAssignment(ctx, id)
+		scopedRoleAssignmentGetResp, getErr := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+			Name: id,
+			SubKind: scopedRoleAssignmentResource.SubKind,
+		})
+		err = getErr
+		if err == nil {
+			scopedRoleAssignmentI = scopedRoleAssignmentGetResp.GetAssignment()
+		}
 		if trace.IsNotFound(err) {
 		    select {
 			case <-ctx.Done():
@@ -172,8 +187,20 @@ func (r resourceTeleportScopedRoleAssignment) Read(ctx context.Context, req tfsd
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = "dynamic"
+	}
 
-	scopedRoleAssignmentI, err := r.p.Client.GetScopedRoleAssignment(ctx, id.Value)
+	scopedRoleAssignmentGetResp, err := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+		Name: id.Value,
+		SubKind: subKind.Value,
+	})
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -183,6 +210,7 @@ func (r resourceTeleportScopedRoleAssignment) Read(ctx context.Context, req tfsd
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 		return
 	}
+	scopedRoleAssignmentI := scopedRoleAssignmentGetResp.GetAssignment()
 	scopedRoleAssignment := scopedRoleAssignmentI
 	diags = assignmentschemav1.CopyScopedRoleAssignmentToTerraform(ctx, scopedRoleAssignment, &state)
 	resp.Diagnostics.Append(diags...)
@@ -222,15 +250,24 @@ func (r resourceTeleportScopedRoleAssignment) Update(ctx context.Context, req tf
 	scopedRoleAssignmentResource.Kind = apitypes.KindScopedRoleAssignment
 
 	
+	if scopedRoleAssignmentResource.SubKind == "" {
+		scopedRoleAssignmentResource.SubKind = "dynamic"
+	}
 	name := scopedRoleAssignmentResource.Metadata.Name
 
-	scopedRoleAssignmentBefore, err := r.p.Client.GetScopedRoleAssignment(ctx, name)
+	scopedRoleAssignmentBeforeResp, err := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+		Name: name,
+		SubKind: scopedRoleAssignmentResource.SubKind,
+	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", err, "scoped_role_assignment"))
 		return
 	}
+	scopedRoleAssignmentBefore := scopedRoleAssignmentBeforeResp.GetAssignment()
 
-	_, err = r.p.Client.UpsertScopedRoleAssignment(ctx, scopedRoleAssignmentResource)
+	_, err = r.p.Client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &accessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: scopedRoleAssignmentResource,
+	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ScopedRoleAssignment", err, "scoped_role_assignment"))
 		return
@@ -249,7 +286,14 @@ func (r resourceTeleportScopedRoleAssignment) Update(ctx context.Context, req tf
 	}
 	for {
 		tries = tries + 1
-		scopedRoleAssignmentI, err = r.p.Client.GetScopedRoleAssignment(ctx, name)
+		scopedRoleAssignmentGetResp, getErr := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+			Name: name,
+			SubKind: scopedRoleAssignmentResource.SubKind,
+		})
+		err = getErr
+		if err == nil {
+			scopedRoleAssignmentI = scopedRoleAssignmentGetResp.GetAssignment()
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", err, "scoped_role_assignment"))
 			return
@@ -294,8 +338,20 @@ func (r resourceTeleportScopedRoleAssignment) Delete(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = "dynamic"
+	}
 
-	err := r.p.Client.DeleteScopedRoleAssignment(ctx, id.Value)
+	_, err := r.p.Client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+		Name: id.Value,
+		SubKind: subKind.Value,
+	})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 		return
@@ -306,7 +362,15 @@ func (r resourceTeleportScopedRoleAssignment) Delete(ctx context.Context, req tf
 
 // ImportState imports ScopedRoleAssignment state
 func (r resourceTeleportScopedRoleAssignment) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	scopedRoleAssignment, err := r.p.Client.GetScopedRoleAssignment(ctx, req.ID)
+	scopedRoleAssignmentGetResp, err := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+		Name: req.ID,
+		SubKind: "dynamic",
+	})
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
+		return
+	}
+	scopedRoleAssignment := scopedRoleAssignmentGetResp.GetAssignment()
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 		return
