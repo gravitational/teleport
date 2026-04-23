@@ -1,0 +1,5 @@
+name = "teleport-lean"
+defaultTargets = ["Teleport"]
+
+[[lean_lib]]
+name = "Teleport"
