@@ -106,31 +106,31 @@ func (r *discoveryRequest) String() string {
 	return b.String()
 }
 
-// discoSub is a subscriber to proxy discovery events.
-type discoSub struct {
-	pb      *discoPub
+// proxyDiscoverySubscriber is a subscriber to proxy discovery events.
+type proxyDiscoverySubscriber struct {
+	pb      *proxyDiscoveryPublisher
 	notify  chan struct{}
 	version uint64
 }
 
 // Wait returns a channel which is notified when there is an event to fetch.
-func (s *discoSub) Wait() <-chan struct{} {
+func (s *proxyDiscoverySubscriber) Wait() <-chan struct{} {
 	return s.notify
 }
 
 // Get returns each [discoveryProxy] fetches the latest set of proxies. If compaction
 // is enabled ony the changes since the last fetch is returned.
-func (s *discoSub) Get() []discoveryProxy {
+func (s *proxyDiscoverySubscriber) Get() []discoveryProxy {
 	return s.pb.get(s, discoGetParams{sinceLastVersion: true})
 }
 
 // GetAll returns all [discoveryProxy]s.
-func (s *discoSub) GetAll() []discoveryProxy {
+func (s *proxyDiscoverySubscriber) GetAll() []discoveryProxy {
 	return s.pb.get(s, discoGetParams{sinceLastVersion: false})
 }
 
-// discoPub broadcasts proxy watch events to many subscribers.
-type discoPub struct {
+// proxyDiscoveryPublisher broadcasts proxy watch events to many subscribers.
+type proxyDiscoveryPublisher struct {
 	ctx     context.Context
 	cancel  func()
 	watcher *services.GenericWatcher[types.Server, readonly.Server]
@@ -167,12 +167,12 @@ type proxyversion struct {
 }
 
 // newDiscoPub constructs a [discoPub] using the given [services.GenericWatcher].
-func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Server, readonly.Server], logger *slog.Logger) *discoPub {
+func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Server, readonly.Server], logger *slog.Logger) *proxyDiscoveryPublisher {
 	ctx, cancel := context.WithCancel(ctx)
 	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_COMPACT_DISCOVERY")
 	compact, _ := strconv.ParseBool(v)
 
-	dp := &discoPub{
+	dp := &proxyDiscoveryPublisher{
 		ctx:          ctx,
 		cancel:       cancel,
 		watcher:      watcher,
@@ -190,7 +190,7 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 	return dp
 }
 
-func (dp *discoPub) discoFromServer(s types.Server, ttl time.Duration) discoveryProxy {
+func (dp *proxyDiscoveryPublisher) discoFromServer(s types.Server, ttl time.Duration) discoveryProxy {
 	p := discoveryProxy{
 		Version: types.V2,
 	}
@@ -212,7 +212,7 @@ func (dp *discoPub) discoFromServer(s types.Server, ttl time.Duration) discovery
 	return p
 }
 
-func (dp *discoPub) run() {
+func (dp *proxyDiscoveryPublisher) run() {
 	for {
 		select {
 		case <-dp.ctx.Done():
@@ -253,8 +253,8 @@ func (dp *discoPub) run() {
 }
 
 // Subscribe returns a new [discoSub] for receiving proxy event updates.
-func (dp *discoPub) Subscribe() *discoSub {
-	s := &discoSub{
+func (dp *proxyDiscoveryPublisher) Subscribe() *proxyDiscoverySubscriber {
+	s := &proxyDiscoverySubscriber{
 		pb:     dp,
 		notify: dp.alwaysClosed,
 	}
@@ -266,7 +266,7 @@ func (dp *discoPub) Subscribe() *discoSub {
 }
 
 // Close cleans up resources allocated by a [discoPub].
-func (dp *discoPub) Close() {
+func (dp *proxyDiscoveryPublisher) Close() {
 	dp.cancel()
 	dp.watcher.Close()
 }
@@ -279,7 +279,7 @@ type discoGetParams struct {
 }
 
 // get fetches the latest set of [discoveryProxy]s.
-func (dp *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
+func (dp *proxyDiscoveryPublisher) get(sub *proxyDiscoverySubscriber, params discoGetParams) []discoveryProxy {
 	compact := dp.compact
 	state := dp.state.Load()
 

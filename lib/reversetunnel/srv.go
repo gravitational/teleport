@@ -128,7 +128,7 @@ type server struct {
 	gitKeyManager *git.KeyManager
 
 	// discoPub pushes proxy discovery events to subscribers.
-	discoPub *discoPub
+	discoPub *proxyDiscoveryPublisher
 }
 
 // EICESigner is a function that is used to obatin an [ssh.Signer] for an EICE instance. The

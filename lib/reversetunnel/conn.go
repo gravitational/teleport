@@ -65,7 +65,7 @@ type remoteConn struct {
 	discoveryCh ssh.Channel
 
 	// discoSub receives proxy updates.
-	discoSub *discoSub
+	discoSub *proxyDiscoverySubscriber
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
@@ -114,7 +114,7 @@ type connConfig struct {
 	offlineThreshold time.Duration
 
 	// discoSub receives proxy discovery events.
-	discoSub *discoSub
+	discoSub *proxyDiscoverySubscriber
 }
 
 func newRemoteConn(cfg *connConfig) (*remoteConn, error) {

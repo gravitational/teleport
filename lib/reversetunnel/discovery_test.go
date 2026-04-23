@@ -119,7 +119,7 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 
 	// create the request
 	var req discoveryRequest
-	dp := &discoPub{}
+	dp := &proxyDiscoveryPublisher{}
 	for _, proxy := range proxies {
 		req.Proxies = append(req.Proxies, dp.discoFromServer(proxy, 0))
 	}
