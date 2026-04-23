@@ -58,7 +58,6 @@ const certReissueClientWait = time.Second * 3
 // we give them longer time to perform the headless login flow.
 const certReissueClientWaitHeadless = defaults.HeadlessLoginTimeout
 
-// kubeClusterKey identifies a (Teleport cluster, kube cluster) pair.
 type kubeClusterKey struct {
 	teleportCluster string
 	kubeCluster     string
@@ -75,9 +74,7 @@ func clusterKeyFromContext(ctx context.Context) (kubeClusterKey, bool) {
 	return key, ok
 }
 
-// KubeClientCerts holds Kubernetes client certs keyed by the (Teleport cluster,
-// kube cluster) pair. The key is derived from the incoming request URL path,
-// which carries both identifiers in the /v1/teleport/<b64>/<b64>/... prefix.
+// KubeClientCerts is a map of Kubernetes client certs.
 type KubeClientCerts map[kubeClusterKey]tls.Certificate
 
 // Add adds a tls.Certificate for a kube cluster.
@@ -194,31 +191,36 @@ func (m *KubeMiddleware) ClearCerts() {
 	clear(m.certs)
 }
 
+// resolveClusterKey extracts the (teleport, kube) cluster pair for req.
+// On the first call it parses /v1/teleport/<b64>/<b64>/… out of the URL,
+// stashes the routing pair on the request context, and strips the prefix so
+// the request forwarded upstream looks like a regular /api/… kube request.
+// A second invocation on the same req (e.g. in a retry loop) reads the
+// context stash instead of re-parsing the already-stripped path.
+func (m *KubeMiddleware) resolveClusterKey(req *http.Request) (teleportCluster, kubeCluster string, err error) {
+	if key, ok := clusterKeyFromContext(req.Context()); ok {
+		return key.teleportCluster, key.kubeCluster, nil
+	}
+	tc, kc, rest, err := common.ClustersFromKubeLocalProxyPath(req.URL.Path)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	key := kubeClusterKey{teleportCluster: tc, kubeCluster: kc}
+	*req = *req.WithContext(context.WithValue(req.Context(), kubeClusterKeyContextKey{}, key))
+	req.URL.Path = rest
+	req.URL.RawPath = ""
+	return tc, kc, nil
+}
+
 // HandleRequest checks if middleware has valid certificate for this request and
 // reissues it if needed. In case of reissuing error we write directly to the response and return true,
 // so caller won't continue processing the request.
 func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
-	// On the first call we parse /v1/teleport/<b64>/<b64>/… out of the URL,
-	// stash the routing pair on the request context, and strip the prefix so
-	// the request we forward upstream looks like a regular /api/… kube
-	// request. A second invocation on the same req (e.g. in a retry loop)
-	// should not re-parse the already-stripped path — we read the context
-	// stash instead.
-	var teleportCluster, kubeCluster string
-	if key, ok := clusterKeyFromContext(req.Context()); ok {
-		teleportCluster, kubeCluster = key.teleportCluster, key.kubeCluster
-	} else {
-		tc, kc, rest, err := common.ClustersFromKubeLocalProxyPath(req.URL.Path)
-		if err != nil {
-			m.logger.WarnContext(req.Context(), "Invalid kube local proxy request path", "path", req.URL.Path, "error", err)
-			trace.WriteError(rw, trace.Wrap(err))
-			return true
-		}
-		teleportCluster, kubeCluster = tc, kc
-		key := kubeClusterKey{teleportCluster: tc, kubeCluster: kc}
-		*req = *req.WithContext(context.WithValue(req.Context(), kubeClusterKeyContextKey{}, key))
-		req.URL.Path = rest
-		req.URL.RawPath = ""
+	teleportCluster, kubeCluster, err := m.resolveClusterKey(req)
+	if err != nil {
+		m.logger.WarnContext(req.Context(), "Invalid kube local proxy request path", "path", req.URL.Path, "error", err)
+		trace.WriteError(rw, err)
+		return true
 	}
 
 	cert, err := m.getCert(teleportCluster, kubeCluster)
@@ -258,9 +260,8 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	return false
 }
 
-// GetServerName implements [LocalProxyHTTPMiddleware]. In relay mode it
-// returns the per-cluster SNI the upstream relay uses to identify the target
-// kube cluster; the cluster pair was parsed and stashed by HandleRequest.
+// GetServerName implements [LocalProxyHTTPMiddleware].
+// In relay mode it returns the per-cluster SNI the upstream relay uses to identify the target kube cluster.
 func (m *KubeMiddleware) GetServerName(req *http.Request) (string, bool, error) {
 	if !m.relay {
 		// if we're not connecting to a Relay we should use the standard SNI
