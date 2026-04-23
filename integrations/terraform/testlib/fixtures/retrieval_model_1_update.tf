@@ -1,7 +1,7 @@
 resource "teleport_inference_model" "prereq" {
   version = "v1"
   metadata = {
-    name = "another-dummy-model"
+    name = "bedrock-model"
   }
   spec = {
     openai = {
@@ -10,14 +10,15 @@ resource "teleport_inference_model" "prereq" {
   }
 }
 
-resource "teleport_inference_policy" "test-policy" {
+resource "teleport_retrieval_model" "test" {
   version = "v1"
-  metadata = {
-    name = "test-policy"
-  }
+
   spec = {
-    kinds = ["ssh", "db"]
-    model = "another-dummy-model"
+    bedrock = {
+      region           = "us-east-1"
+      bedrock_model_id = "amazon.titan-embed-text-v2:0"
+    }
+    inference_model_name = "bedrock-model"
   }
 
   depends_on = [teleport_inference_model.prereq]
