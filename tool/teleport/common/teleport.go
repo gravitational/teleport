@@ -844,7 +844,7 @@ Examples:
 	case checkSessionHelperCmd.FullCommand():
 		var ok bool
 		ok, err = reexec.InitEmbeddedReexec()
-		if ccf.Debug && err == nil {
+		if err == nil {
 			if ok {
 				fmt.Println("The embedded session helper is available in this build.")
 			} else {
