@@ -169,7 +169,7 @@ func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName strin
 		func(
 			ctx context.Context, pageSize int, pageToken string,
 		) ([]types.TunnelConnection, string, error) {
-			return c.ListTunnelConnections(ctx, pageSize, pageToken, filter)
+			return c.APIClient.ListTunnelConnections(ctx, pageSize, pageToken, filter)
 		},
 		func(ctx context.Context) ([]types.TunnelConnection, error) {
 			if clusterName != "" {
