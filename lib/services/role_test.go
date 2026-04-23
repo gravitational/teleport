@@ -1240,6 +1240,88 @@ func BenchmarkValidateRole(b *testing.B) {
 	}
 }
 
+func TestUnmarshalRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		json                string
+		disallowUnknown     bool
+		expectErrorContains string
+	}{
+		{
+			name: "valid role accepted with DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_groups": ["system:masters"]
+					}
+				}
+			}`,
+			disallowUnknown: true,
+		},
+		{
+			name: "unknown field rejected with DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_group": ["system:masters"]
+					}
+				}
+			}`,
+			disallowUnknown:     true,
+			expectErrorContains: "kubernetes_group",
+		},
+		{
+			name: "valid role accepted without DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_groups": ["system:masters"]
+					}
+				}
+			}`,
+		},
+		{
+			name: "unknown field silently accepted without DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_group": ["system:masters"]
+					}
+				}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []MarshalOption
+			if tt.disallowUnknown {
+				opts = append(opts, DisallowUnknown())
+			}
+			_, err := UnmarshalRole([]byte(tt.json), opts...)
+			if tt.expectErrorContains != "" {
+				require.ErrorContains(t, err, tt.expectErrorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateRoleName(t *testing.T) {
 	tests := []struct {
 		name         string
