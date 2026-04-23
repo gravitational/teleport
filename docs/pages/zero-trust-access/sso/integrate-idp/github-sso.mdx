@@ -220,13 +220,13 @@ $  tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
 --teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
---teams-to-roles="org-name,administrators,admins \
---teams-to-roles="different-org,developers,dev \
+--teams-to-roles="org-name,administrators,admins" \
+--teams-to-roles="different-org,developers,devs" \
 > github.yaml
 ```
 
 ```yaml
-spec.
+spec:
   teams_to_roles:
     - organization: org-name
       roles:
