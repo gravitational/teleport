@@ -224,6 +224,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionEnd{
 			AppSessionEnd: e,
 		}
+	case *AppSessionExpire:
+		out.Event = &OneOf_AppSessionExpire{
+			AppSessionExpire: e,
+		}
 	case *AppSessionChunk:
 		out.Event = &OneOf_AppSessionChunk{
 			AppSessionChunk: e,

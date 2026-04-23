@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -92,92 +93,79 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.Empty(t, nextKey)
 }
 
-func TestListAppSessions(t *testing.T) {
+func TestListExpiredAppSessions(t *testing.T) {
 	t.Parallel()
 
-	clock := clockwork.NewFakeClock()
-	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
-		Clock:   clockwork.NewFakeClock(),
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		backend, _ := memory.New(memory.Config{Context: ctx})
+		identity, _ := NewTestIdentityService(backend)
+
+		const totalExpired = 200
+		const totalValid = 10
+
+		// Create 210 sessions: 5 valid, 100 expired, 5 valid, 100 expired
+		for i := range totalValid / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i))
+			sess.SetExpiry(time.Now().Add(1 * time.Hour))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		for i := range totalExpired / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i))
+			sess.SetExpiry(time.Now().Add(-30 * time.Minute))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		for i := range totalValid / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i+5))
+			sess.SetExpiry(time.Now().Add(1 * time.Hour))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		for i := range totalExpired / 2 {
+			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i+100))
+			sess.SetExpiry(time.Now().Add(-30 * time.Minute))
+			err := identity.UpsertAppSession(ctx, sess)
+			require.NoError(t, err)
+		}
+
+		// Use arbitrary page size to force pagination logic to be exercised
+		expired, err := stream.Collect(clientutils.ResourcesWithPageSize(
+			ctx,
+			identity.ListExpiredAppSessions,
+			67,
+		))
+		require.NoError(t, err)
+		assert.Len(t, expired, totalExpired)
+
+		// List single page
+		expired, nextToken, err := identity.ListExpiredAppSessions(ctx, 67, "")
+		require.NoError(t, err)
+		assert.Len(t, expired, 67)
+		assert.NotEmpty(t, nextToken)
+
+		time.Sleep(2 * time.Hour)
+
+		// All 210 sessions should be expired
+		allExpired, err := stream.Collect(clientutils.Resources(ctx, identity.ListExpiredAppSessions))
+		require.NoError(t, err)
+		assert.Len(t, allExpired, totalExpired+totalValid)
+	})
+}
+
+// Helper for quick session generation
+func newTestAppSession(t *testing.T, name string) types.WebSession {
+	t.Helper()
+	s, err := types.NewWebSession(name, types.KindAppSession, types.WebSessionSpecV2{
+		User:    "alice",
+		Expires: time.Now().Add(12 * time.Hour),
 	})
 	require.NoError(t, err)
-
-	identity, err := NewTestIdentityService(backend)
-	require.NoError(t, err)
-
-	users := []string{"alice", "bob"}
-	ctx := context.Background()
-
-	// the default page size is used if the pageSize
-	// provide to ListAppSessions is 0 || > maxSessionPageSize
-	const useDefaultPageSize = 0
-
-	// Validate no sessions exist
-	sessions, token, err := identity.ListAppSessions(ctx, useDefaultPageSize, "", "")
-	require.NoError(t, err)
-	require.Empty(t, sessions)
-	require.Empty(t, token)
-
-	// Create 3 pages worth of sessions. One full
-	// page per user and one partial page with 5
-	// sessions per user.
-	for range maxSessionPageSize + 5 {
-		for _, user := range users {
-			session, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
-				User:    user,
-				Expires: clock.Now().Add(time.Hour),
-			})
-			require.NoError(t, err)
-
-			err = identity.UpsertAppSession(ctx, session)
-			require.NoError(t, err)
-		}
-	}
-
-	// Validate page size is truncated to maxSessionPageSize
-	sessions, token, err = identity.ListAppSessions(ctx, maxSessionPageSize+maxSessionPageSize*2/3, "", "")
-	require.NoError(t, err)
-	require.Len(t, sessions, maxSessionPageSize)
-	require.NotEmpty(t, token)
-
-	// reset token
-	token = ""
-
-	// Validate that sessions are retrieved for all users
-	// with the default page size
-	for {
-		sessions, token, err = identity.ListAppSessions(ctx, useDefaultPageSize, token, "")
-		require.NoError(t, err)
-		if token == "" {
-			require.Len(t, sessions, 10)
-			break
-		} else {
-			require.Len(t, sessions, maxSessionPageSize)
-		}
-	}
-
-	// reset token
-	token = ""
-
-	// Validate that sessions are retrieved per user with
-	// a page size of 11
-	for _, user := range users {
-		for {
-			sessions, token, err = identity.ListAppSessions(ctx, 11, token, user)
-			require.NoError(t, err)
-
-			for _, session := range sessions {
-				require.Equal(t, user, session.GetUser())
-			}
-
-			if token == "" {
-				require.Len(t, sessions, 7)
-				break
-			} else {
-				require.Len(t, sessions, 11)
-			}
-		}
-	}
+	return s
 }
 
 func TestListSnowflakeSessions(t *testing.T) {

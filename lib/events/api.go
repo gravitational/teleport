@@ -410,6 +410,8 @@ const (
 	AppSessionStartEvent = "app.session.start"
 	// AppSessionEndEvent is emitted when a user connects to a TCP application.
 	AppSessionEndEvent = "app.session.end"
+	// AppSessionExpireEvent is emitted when an application session has expired.
+	AppSessionExpireEvent = "app.session.expire"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
 	// proxy. This chunk is used to buffer 5 minutes of audit events at a time

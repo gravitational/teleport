@@ -138,6 +138,8 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
+	// AppSessionExpireCode is the application session expire event code.
+	AppSessionExpireCode = "T2015I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

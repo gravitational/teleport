@@ -92,6 +92,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	SessionRejectedEvent:                           &apievents.SessionReject{},
 	AppSessionStartEvent:                           &apievents.AppSessionStart{},
 	AppSessionEndEvent:                             &apievents.AppSessionEnd{},
+	AppSessionExpireCode:                           &apievents.AppSessionExpire{},
 	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
 	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
