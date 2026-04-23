@@ -3,28 +3,23 @@ import Teleport.Match
 
 namespace Teleport
 
-/-- Compute the effective label selector for a role condition, applying
-the implicit-wildcard injection from Go's `getKubeLabelMatchers`
-(`lib/services/role.go:2643`): when a deny condition has no explicit
-labels but does set `kubernetesResources`, the effective labels are
-`{*:*}`. All other cases return the literal `kubernetesLabels`. -/
-def effectiveLabels (cond : RoleCondition) (isDeny : Bool) : LabelSelector :=
-  if isDeny && cond.kubernetesLabels.isEmpty && !cond.kubernetesResources.isEmpty then
-    [("*", ["*"])]
-  else
-    cond.kubernetesLabels
-
 /-- A deny condition matches iff its namespace and label selectors match
 the cluster. Resource-level matching is out of v0 scope (request
-resources are always `none` in the corpus). -/
+resources are always `none` in the corpus).
+
+Note: production Kubernetes access (`lib/kube/proxy/forwarder.go:1014`)
+layers `NewKubernetesClusterLabelMatcher` on top, which injects `{*:*}`
+when deny labels are empty (`lib/services/role.go:2665`). That matcher
+is not part of the pure RBAC core exercised by `TestCheckAccessToKubernetes`
+and therefore not modeled here. -/
 def denyMatches (role : Role) (c : Cluster) (_r : Request) : Bool :=
   namespaceMatch role.deny.namespaces c.teleportNs &&
-  labelMatch (effectiveLabels role.deny true) c.labels
+  labelMatch role.deny.kubernetesLabels c.labels
 
 /-- An allow condition matches iff its namespace and label selectors match. -/
 def allowMatches (role : Role) (c : Cluster) (_r : Request) : Bool :=
   namespaceMatch role.allow.namespaces c.teleportNs &&
-  labelMatch (effectiveLabels role.allow false) c.labels
+  labelMatch role.allow.kubernetesLabels c.labels
 
 /-- Kubernetes access decision: deny dominates, then any allow grants,
 else deny. Mirrors `RoleSet.checkAccess` in `lib/services/role.go:2681-2905`. -/

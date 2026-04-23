@@ -89,20 +89,13 @@ theorem empty_allow_labels_never_grants
     (role : Role) (c : Cluster) (r : Request)
     (h : role.allow.kubernetesLabels = []) :
     allowMatches role c r = false := by
-  simp [allowMatches, effectiveLabels, h, labelMatch]
+  simp [allowMatches, h, labelMatch]
 
-/-- **T8** — The implicit-wildcard injection in `effectiveLabels` fires
-exactly when deny labels are empty and deny's resource list is non-empty. -/
-theorem implicit_wildcard_deny_encoded
-    (cond : RoleCondition)
-    (hLabels : cond.kubernetesLabels = [])
-    (hRes : cond.kubernetesResources ≠ []) :
-    effectiveLabels cond true = [("*", ["*"])] := by
-  unfold effectiveLabels
-  rw [hLabels]
-  cases hRes' : cond.kubernetesResources with
-  | nil => exact absurd hRes' hRes
-  | cons _ _ => simp
+-- T8 (implicit-wildcard deny injection) removed: the `effectiveLabels`
+-- function it described has been removed. The injection is part of
+-- `KubernetesClusterLabelMatcher` (production) and is not exercised by
+-- `TestCheckAccessToKubernetes` (the v0 oracle). Revisit if the model
+-- is extended to the production matcher path.
 
 /-- **T10** — Duplicate roles in the set do not change the decision.
 Follows from the fact that `any` is idempotent on duplicates. -/

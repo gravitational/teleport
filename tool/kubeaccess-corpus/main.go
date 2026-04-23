@@ -556,6 +556,66 @@ func syntheticCases() ([]testCase, error) {
 	return out, nil
 }
 
+// edgeCases exercises specific behaviors that combinatorial coverage in
+// `syntheticCases` misses: implicit-wildcard deny injection and glob
+// literal-`.` semantics. Namespace-mismatch is omitted because RoleV6's
+// CheckAndSetDefaults rejects any namespaces value other than "default".
+func edgeCases() ([]testCase, error) {
+	// Case 1 — implicit-wildcard deny: role has empty deny.kubernetesLabels
+	// but non-empty deny.kubernetesResources. Go's getKubeLabelMatchers
+	// injects {*:*}, so the deny matches any cluster labels. T8 covers the
+	// Lean side; this case validates cross-language agreement.
+	denyResourcesOnlyRole := mkRole("r-deny-resources-only",
+		types.RoleConditions{
+			Namespaces:       []string{apidefaults.Namespace},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+		types.RoleConditions{
+			Namespaces: []string{apidefaults.Namespace},
+			KubernetesResources: []types.KubernetesResource{
+				{Kind: "pods", Namespace: "*", Name: "*", APIGroup: "*", Verbs: []string{"*"}},
+			},
+		})
+
+	// Case 2 — cluster label `version=1.2.3` against role pattern
+	// `version=1.2.*`. QuoteMeta + glob expansion means `.` is literal;
+	// this verifies Lean's globMatch agrees on non-trivial literal chars.
+	versionedCluster := mkCluster("c-version-dotted", map[string]string{"version": "1.2.3"})
+	globVersionRole := globValueAllowRole("r-version-glob", "version", "1.2.*")
+	exactMismatchRole := singleLabelAllowRole("r-version-exact", "version", "1.2")
+
+	entries := []struct {
+		name    string
+		roles   []*types.RoleV6
+		cluster *types.KubernetesCluster
+	}{
+		{"implicit-wildcard-deny-injection", []*types.RoleV6{denyResourcesOnlyRole}, mkCluster("c-any", map[string]string{"any": "value"})},
+		{"glob-literal-dot-matches", []*types.RoleV6{globVersionRole}, versionedCluster},
+		{"glob-literal-dot-requires-suffix", []*types.RoleV6{exactMismatchRole}, versionedCluster},
+	}
+
+	out := make([]testCase, 0, len(entries))
+	for _, e := range entries {
+		expected, err := runCheckAccess(e.roles, e.cluster)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", e.name, err)
+		}
+		roles := make([]roleJSON, 0, len(e.roles))
+		for _, r := range e.roles {
+			roles = append(roles, roleToJSON(r))
+		}
+		out = append(out, testCase{
+			Name:     "edge/" + e.name,
+			Source:   "edge",
+			Roles:    roles,
+			Cluster:  clusterToJSON(e.cluster.Name, e.cluster.StaticLabels, e.cluster.DynamicLabels),
+			Request:  nil,
+			Expected: expected,
+		})
+	}
+	return out, nil
+}
+
 // ----------------------------------------------------------------------
 // Entry point
 // ----------------------------------------------------------------------
@@ -569,7 +629,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	edge, err := edgeCases()
+	if err != nil {
+		return err
+	}
 	all := append(organic, synthetic...)
+	all = append(all, edge...)
 	c := corpus{Cases: all}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
