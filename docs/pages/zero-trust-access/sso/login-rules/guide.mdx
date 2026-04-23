@@ -37,9 +37,6 @@ Reference](../../../reference/access-controls/login-rules.mdx).
 
 - (!docs/pages/includes/tctl.mdx!)
 
-Before you get started you’ll need a running Teleport Enterprise or Cloud
-cluster on version `11.3.1` or greater.
-
 Login Rules only operate on SSO logins, so make sure you have
 configured an OIDC, SAML, or GitHub connector before you begin.
 Check the [Single Sign-On](../../../zero-trust-access/sso/sso.mdx) docs to learn how to set this up.
@@ -49,7 +46,7 @@ Check the [Single Sign-On](../../../zero-trust-access/sso/sso.mdx) docs to learn
 First, ensure you are logged into Teleport as a user that has permissions
 to read and modify `login_rule` resources. The preset `editor` role
 has access to this already, but in case you are using a more customized configuration,
-create a role called `loginrule-manager.yaml` with the following contents:
+create a file called `loginrule-manager.yaml` with the following contents:
 
 ```yaml
 kind: role
