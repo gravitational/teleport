@@ -145,11 +145,19 @@ type discoPub struct {
 	compact bool
 	log     *slog.Logger
 
-	// pm manages access to [discoPub.proxies], [discoPub.versions], [discoPub.version].
-	// These fields are immutable snapshots. Once a reader copies the pointer, it
-	// can be used outside the mutex because writes replace the whole value instead
-	// of mutating it in place.
-	pm sync.RWMutex
+	// state points to the current immutable discovery snapshot.
+	// writers must publish a fully rebuilt discoState and never mutate it.
+	state atomic.Pointer[discoState]
+
+	// sm manages access to [discoPub.subs].
+	sm   sync.Mutex
+	subs map[*discoSub]struct{}
+}
+
+// discoState is a single published discovery snapshot.
+// its fields are read without locking and must be treated as immutable.
+type discoState struct {
+
 	// proxies is the lastest set of servers received from the watcher.
 	proxies []types.Server
 	// proxy version associates a proxy by name with the version at which its
@@ -157,10 +165,6 @@ type discoPub struct {
 	versions map[string]proxyversion
 	// version is incremented each time a proxy watch event is receieved.
 	version uint64
-
-	// sm manages access to [discoPub.subs].
-	sm   sync.Mutex
-	subs map[*discoSub]struct{}
 }
 
 type proxyversion struct {
@@ -179,10 +183,14 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 		ctx:     ctx,
 		cancel:  cancel,
 		watcher: watcher,
+		state:   atomic.Pointer[discoState]{},
 		subs:    make(map[*discoSub]struct{}),
 		compact: compact,
 		log:     logger,
 	}
+	dp.state.Store(&discoState{
+		versions: map[string]proxyversion{},
+	})
 	go dp.run()
 	return dp
 }
@@ -221,24 +229,28 @@ func (dp *discoPub) run() {
 			}
 			now := dp.watcher.Clock.Now()
 
-			func() {
-				dp.pm.Lock()
-				defer dp.pm.Unlock()
-
-				dp.version++
-				dp.proxies = servers
-				prevVersions := dp.versions
-				dp.versions = make(map[string]proxyversion, len(servers))
-				for _, server := range servers {
-					pv, ok := prevVersions[server.GetName()]
-					if !ok || !server.Expiry().Equal(pv.expiry) {
-						pv.version = dp.version
-						pv.updated = now
-					}
-					pv.expiry = server.Expiry()
-					dp.versions[server.GetName()] = pv
+			prev := dp.state.Load()
+			next := &discoState{
+				proxies:  servers,
+				versions: make(map[string]proxyversion, len(servers)),
+				version:  prev.version + 1,
+			}
+			for _, server := range servers {
+				nextpv := proxyversion{
+					version: next.version,
+					expiry:  server.Expiry(),
+					updated: now,
 				}
-			}()
+				prevpv, ok := prev.versions[server.GetName()]
+				if ok && prevpv.expiry.Equal(nextpv.expiry) {
+					// Preserve previous version and updated timestamp if the
+					// server hasn't heartbeated.
+					nextpv.version = prevpv.version
+					nextpv.updated = prevpv.updated
+				}
+				next.versions[server.GetName()] = nextpv
+			}
+			dp.state.Store(next)
 
 			func() {
 				dp.sm.Lock()
@@ -266,10 +278,8 @@ func (dp *discoPub) Subscribe() *discoSub {
 	dp.subs[s] = struct{}{}
 	dp.sm.Unlock()
 
-	dp.pm.RLock()
-	version := dp.version
-	dp.pm.RUnlock()
-	if version > 0 {
+	state := dp.state.Load()
+	if state.version > 0 {
 		select {
 		case s.notify <- struct{}{}:
 		default:
@@ -294,12 +304,8 @@ type discoGetParams struct {
 
 // get fetches the latest set of [discoveryProxy]s.
 func (dp *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
-	dp.pm.RLock()
-	proxies := dp.proxies
-	version := dp.version
-	versions := dp.versions
 	compact := dp.compact
-	dp.pm.RUnlock()
+	state := dp.state.Load()
 
 	var ttl time.Duration
 	if compact {
@@ -307,11 +313,11 @@ func (dp *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
 	}
 
 	now := dp.watcher.Clock.Now()
-	disco := make([]discoveryProxy, 0, len(proxies))
-	lastVersion := sub.version.Swap(version)
-	for _, proxy := range proxies {
+	disco := make([]discoveryProxy, 0, len(state.proxies))
+	lastVersion := sub.version.Swap(state.version)
+	for _, proxy := range state.proxies {
 		if compact {
-			pv, ok := versions[proxy.GetName()]
+			pv, ok := state.versions[proxy.GetName()]
 			if !ok {
 				continue
 			}

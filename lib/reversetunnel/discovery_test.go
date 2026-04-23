@@ -119,7 +119,10 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 
 	// create the request
 	var req discoveryRequest
-	req.SetProxies(proxies)
+	dp := &discoPub{}
+	for _, proxy := range proxies {
+		req.Proxies = append(req.Proxies, dp.discoFromServer(proxy, 0))
+	}
 
 	// test marshaling the request with the legacy mechanism and unmarshaling
 	// with the new mechanism
