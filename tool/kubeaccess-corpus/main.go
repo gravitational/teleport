@@ -35,6 +35,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"sort"
 
@@ -617,6 +618,136 @@ func edgeCases() ([]testCase, error) {
 }
 
 // ----------------------------------------------------------------------
+// Randomized corpus — property-based-testing-lite. Seeded so output is
+// deterministic; re-running produces byte-identical JSON. Generates N
+// cases from a small vocabulary of label keys, values, and glob
+// patterns, with Go's CheckAccess as the oracle for every case.
+// ----------------------------------------------------------------------
+
+const (
+	randomSeedLo = 0xdeadbeef
+	randomSeedHi = 0xcafe1234
+	randomCount  = 400
+)
+
+var (
+	randomLabelKeys = []string{"env", "team", "tier", "region"}
+	// Values include wildcards and glob patterns to exercise matcher edges.
+	randomLabelValues = []string{
+		"prod", "staging", "dev",
+		"sre", "platform", "web",
+		"us-east", "us-west",
+		"v1.2.3", "v1.2.4",
+		"*", "prod*", "*-east", "v1.2.*",
+	}
+	randomClusterValues = []string{
+		"prod", "staging", "dev",
+		"sre", "platform", "web",
+		"us-east", "us-west",
+		"v1.2.3", "v1.2.4", "v1.3.0",
+	}
+)
+
+// pick returns one element uniformly at random.
+func pick[T any](rng *rand.Rand, xs []T) T {
+	return xs[rng.IntN(len(xs))]
+}
+
+// pickN returns n distinct-index picks (no repeated keys). Max n =
+// len(xs). Returns up to min(n, len(xs)) picks.
+func pickDistinct[T any](rng *rand.Rand, xs []T, n int) []T {
+	if n > len(xs) {
+		n = len(xs)
+	}
+	idx := rng.Perm(len(xs))[:n]
+	out := make([]T, n)
+	for i, k := range idx {
+		out[i] = xs[k]
+	}
+	return out
+}
+
+func randomLabels(rng *rand.Rand, valuePool []string, maxKeys int) types.Labels {
+	n := rng.IntN(maxKeys + 1) // 0..maxKeys
+	if n == 0 {
+		return nil
+	}
+	keys := pickDistinct(rng, randomLabelKeys, n)
+	out := make(types.Labels, n)
+	for _, k := range keys {
+		// Each key gets 1-2 values.
+		numVals := 1 + rng.IntN(2)
+		vals := make(apiutils.Strings, 0, numVals)
+		for range numVals {
+			vals = append(vals, pick(rng, valuePool))
+		}
+		out[k] = vals
+	}
+	return out
+}
+
+func randomRoleCondition(rng *rand.Rand, valuePool []string) types.RoleConditions {
+	return types.RoleConditions{
+		Namespaces:       []string{apidefaults.Namespace},
+		KubernetesLabels: randomLabels(rng, valuePool, 2),
+	}
+}
+
+func randomRole(rng *rand.Rand, nameSuffix int) *types.RoleV6 {
+	name := fmt.Sprintf("r-rand-%d", nameSuffix)
+	allow := randomRoleCondition(rng, randomLabelValues)
+	deny := randomRoleCondition(rng, randomLabelValues)
+	return mkRole(name, allow, deny)
+}
+
+func randomCluster(rng *rand.Rand, nameSuffix int) *types.KubernetesCluster {
+	name := fmt.Sprintf("c-rand-%d", nameSuffix)
+	n := rng.IntN(4) // 0..3 labels
+	var staticLabels map[string]string
+	if n > 0 {
+		keys := pickDistinct(rng, randomLabelKeys, n)
+		staticLabels = make(map[string]string, n)
+		for _, k := range keys {
+			staticLabels[k] = pick(rng, randomClusterValues)
+		}
+	}
+	return &types.KubernetesCluster{Name: name, StaticLabels: staticLabels}
+}
+
+func randomCases() ([]testCase, error) {
+	rng := rand.New(rand.NewPCG(randomSeedLo, randomSeedHi))
+
+	out := make([]testCase, 0, randomCount)
+	for i := range randomCount {
+		// 1 to 3 roles per set.
+		numRoles := 1 + rng.IntN(3)
+		roles := make([]*types.RoleV6, 0, numRoles)
+		for j := range numRoles {
+			roles = append(roles, randomRole(rng, i*10+j))
+		}
+		cluster := randomCluster(rng, i)
+
+		expected, err := runCheckAccess(roles, cluster)
+		if err != nil {
+			return nil, fmt.Errorf("random %d: %w", i, err)
+		}
+		jroles := make([]roleJSON, 0, len(roles))
+		for _, r := range roles {
+			jroles = append(jroles, roleToJSON(r))
+		}
+		out = append(out, testCase{
+			Name:     fmt.Sprintf("random/%04d", i),
+			Source:   "random",
+			Roles:    jroles,
+			Cluster:  clusterToJSON(cluster.Name, cluster.StaticLabels, cluster.DynamicLabels),
+			Request:  nil,
+			Expected: expected,
+		})
+	}
+	return out, nil
+}
+
+// ----------------------------------------------------------------------
 // Entry point
 // ----------------------------------------------------------------------
 
@@ -633,8 +764,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	random, err := randomCases()
+	if err != nil {
+		return err
+	}
 	all := append(organic, synthetic...)
 	all = append(all, edge...)
+	all = append(all, random...)
 	c := corpus{Cases: all}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
