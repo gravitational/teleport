@@ -15,22 +15,18 @@
 package types
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed to implement JSONPBUnmarshaler
+	"github.com/gravitational/trace"
 )
 
 var (
-	// json.Marshaler is what both gogo's jsonpb marshal (via json.Marshal) and
-	// ghodss/yaml call for fields of this type.
-	_ json.Marshaler = DurationStringForJamfSpecV1(0)
-	// json.Unmarshaler is called by encoding/json (e.g. via ghodss/yaml in tctl edit).
-	_ json.Unmarshaler = (*DurationStringForJamfSpecV1)(nil)
 	// jsonpb.JSONPBUnmarshaler is what makes this type's existence worthwhile:
 	// gogo's jsonpb checks it before the int64 quote-stripping path that breaks
 	// [Duration] roundtripping.
 	_ jsonpb.JSONPBUnmarshaler = (*DurationStringForJamfSpecV1)(nil)
+	_ jsonpb.JSONPBMarshaler   = (*DurationStringForJamfSpecV1)(nil)
 )
 
 // DurationStringForJamfSpecV1 is a [Duration]-like casttype used only by the
@@ -47,22 +43,22 @@ var (
 // See https://github.com/gravitational/teleport/issues/57747.
 type DurationStringForJamfSpecV1 time.Duration
 
-// MarshalJSON delegates to [Duration.MarshalJSON]. Called by encoding/json,
-// which is used by both gogo's jsonpb marshal (via json.Marshal) and
-// ghodss/yaml in tctl edit.
+// MarshalJSON implements [json.Marshaler] as an unconditional error.
 func (d DurationStringForJamfSpecV1) MarshalJSON() ([]byte, error) {
+	return nil, trace.Errorf("DurationStringForJamfSpecV1 should not be marshaled with encoding/json directly")
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] as an unconditional error.
+func (d *DurationStringForJamfSpecV1) UnmarshalJSON(data []byte) error {
+	return trace.Errorf("DurationStringForJamfSpecV1 should not be unmarshaled with encoding/json directly")
+}
+
+// MarshalJSONPB implements [jsonpb.JSONPBMarshaler].
+func (d DurationStringForJamfSpecV1) MarshalJSONPB(*jsonpb.Marshaler) ([]byte, error) {
 	return Duration(d).MarshalJSON()
 }
 
-// UnmarshalJSON delegates to [Duration.UnmarshalJSON]. Called by encoding/json
-// (e.g. when ghodss/yaml is used by tctl edit).
-func (d *DurationStringForJamfSpecV1) UnmarshalJSON(data []byte) error {
-	return (*Duration)(d).UnmarshalJSON(data)
-}
-
-// UnmarshalJSONPB intercepts gogo's jsonpb unmarshal before it strips quotes
-// from the string value of int64 fields, delegating to [Duration.UnmarshalJSON]
-// which correctly parses the properly quoted JSON string.
+// UnmarshalJSONPB implements [jsonpb.JSONPBUnmarshaler].
 func (d *DurationStringForJamfSpecV1) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, data []byte) error {
 	return (*Duration)(d).UnmarshalJSON(data)
 }

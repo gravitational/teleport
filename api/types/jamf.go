@@ -15,10 +15,12 @@
 package types
 
 import (
+	"bytes"
 	"net/url"
 	"slices"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // sadness
 	"github.com/gravitational/trace"
 )
 
@@ -68,5 +70,23 @@ func ValidateJamfSpecV1(s *JamfSpecV1) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *PluginJamfSettings) MarshalJSON() ([]byte, error) {
+	b := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(b, s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return b.Bytes(), nil
+}
+
+func (s *PluginJamfSettings) UnmarshalJSON(b []byte) error {
+	if string(b) == "null" {
+		return nil
+	}
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
