@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -58,7 +59,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.S
 	// create a spoof of the cookie to send to the server for authentication.
 	// During X11 forwarding, the spoofed cookie will be replaced
 	// with the client's cookie to connect to the client's XServer.
-	ns.spoofedXAuthEntry, err = ns.clientXAuthEntry.SpoofXAuthEntry()
+	ns.spoofedXAuthEntry, err = ns.clientXAuthEntry.SpoofXAuthEntry(rand.Reader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -105,7 +106,7 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 		// mechanisms it would use as if the client made the request locally.
 		slog.InfoContext(ctx, "No xauth data found, creating a fake xauth cookie for trusted X11 forwarding.")
 
-		ns.clientXAuthEntry, err = x11.NewFakeXAuthEntry(display)
+		ns.clientXAuthEntry, err = x11.NewFakeXAuthEntry(display, rand.Reader)
 		return trace.Wrap(err)
 	}
 
