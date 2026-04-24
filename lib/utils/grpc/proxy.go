@@ -87,7 +87,14 @@ func forwardClientToServer[Req, Resp any](ctx context.Context, cancel context.Ca
 			return nil
 		}
 		if err != nil {
-			log.WarnContext(ctx, "Failed to receive from client stream", "error", err)
+			// Debug log because it's impossible to distinguish between transport and
+			// application errors.
+			//
+			// If both proxying functions were to warn on err from Recv, each
+			// application-level err from the server would result in two log lines.
+			// First with the server error and the second with a context canceled for
+			// the client stream.
+			log.DebugContext(ctx, "Failed to receive from client stream", "error", err)
 			cancel()
 			return trace.Wrap(err)
 		}
@@ -109,7 +116,9 @@ func forwardServerToClient[Req, Resp any](ctx context.Context, log *slog.Logger,
 			return nil
 		}
 		if err != nil {
-			log.WarnContext(ctx, "Failed to receive from server stream", "error", err)
+			// Debug log because it's impossible to distinguish between transport and
+			// application errors.
+			log.DebugContext(ctx, "Failed to receive from server stream", "error", err)
 			return trace.Wrap(err)
 		}
 		if err := client.Send(out); err != nil {

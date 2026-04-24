@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -34,6 +33,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // unimplementedFakeServerService is the gRPC service interface implemented both
@@ -43,6 +43,11 @@ type unimplementedFakeServerSvc = accessgraphsecretsv1pb.UnimplementedSecretsSca
 // fakeServerSvcClient is an interface for a gRPC client that talks to a
 // gRPC service implemented by the proxy and the server.
 type fakeServerSvcClient = accessgraphsecretsv1pb.SecretsScannerServiceClient
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	m.Run()
+}
 
 // TestProxyBidiStream creates two gRPC services: one acting as a server and one
 // as a proxy. The proxy uses [grpcutils.ProxyBidiStream] to proxy messages from
@@ -316,7 +321,7 @@ func (p *proxyService) ReportSecrets(client accessgraphsecretsv1pb.SecretsScanne
 	getServer := func(ctx context.Context) (accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient, error) {
 		return p.serverSvcClient.ReportSecrets(ctx)
 	}
-	err := grpcutils.ProxyBidiStream(slog.Default(), client, getServer)
+	err := grpcutils.ProxyBidiStream(logtest.NewLogger(), client, getServer)
 	return trace.Wrap(err)
 }
 
