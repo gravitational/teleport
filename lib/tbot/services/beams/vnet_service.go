@@ -342,13 +342,21 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		return nil, trace.NotFound("no matches for FQDN: %s", fqdn)
 	}
 
-	// VNet proper intentionally doesn't support HTTP apps (due to security
-	// concerns) - instead bouncing the user unauthenticated to the web proxy.
+	// VNet intentionally doesn't support HTTP apps for a number of reasons.
 	//
-	// These security concerns don't apply in the Beams environment, so we make
-	// it work by pretending they're actually plain TCP apps.
+	// One such reason is the security risk of untrusted code (e.g. JavaScript
+	// in a web browser) being able to access arbitrary local services. Browsers
+	// help to some extent here via the same-origin policy, but cannot reliably
+	// prevent DNS rebinding attacks for plain HTTP apps.
 	//
-	// How this works:
+	// While the underlying issue remains in the beam sandbox, the risk is more
+	// acceptable because (1) you can restrict the beam's access to a subset of
+	// your application via Delegation Sessions, and (2) allowing untrusted code
+	// and agents to access your Teleport-protected resources is the entire point
+	// of Beams! by using them you're already accepting a larger security trade-
+	// off than the browser sandbox normally would.
+	//
+	// We make it work by pretending they're actually plain TCP apps:
 	//
 	// 	- The local ALPN proxy will advertise support for the "teleport-tcp"
 	// 	  protocol in the TLS handshake.
