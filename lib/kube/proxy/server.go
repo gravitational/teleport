@@ -115,7 +115,7 @@ type TLSServerConfig struct {
 	// kubernetes cluster name. Proxy uses this map to route requests to the correct
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
-	KubernetesServersWatcher *services.GenericWatcher[types.KubeServer, readonly.KubeServer]
+	KubernetesServersWatcher *services.ProxyKubeServerWatcher
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 	// InventoryHandle is used to send kube server heartbeats via the inventory control stream.
