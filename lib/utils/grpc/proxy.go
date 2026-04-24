@@ -39,10 +39,10 @@ import (
 // messages from the server. Those two behaviors match what the client would see
 // talking to the server directly.
 //
-// If the client stream fails first, the context gets canceled and the server
-// stream returns context.Canceled and that's what the handler returns. This is
-// fine in practice because if the client is gone, there's no one reading what
-// the handler returns.
+// During the brief window between the server ending the stream and the proxy's
+// handler returning, client Send calls return nil rather than io.EOF and are
+// dropped. A client that interleaves Send with Recv is unaffected because the
+// next Recv carries the terminal status.
 func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingServer[Req, Resp],
 	getServer func(context.Context) (grpc.BidiStreamingClient[Req, Resp], error),
 ) error {
@@ -54,21 +54,36 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 		return trace.Wrap(err, "establishing server stream")
 	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- trace.Wrap(forwardClientToServer(ctx, cancel, log, client, server))
-	}()
+	clientErrCh := make(chan error, 1)
+	serverErrCh := make(chan error, 1)
 
-	err = forwardServerToClient(ctx, log, client, server)
-	if err != nil {
-		// Return immediately so gRPC closes the stream, which unblocks client.Recv()
-		// in the forwardClientToServer goroutine. The buffered errCh prevents a leak.
-		return trace.Wrap(err)
+	go func() { clientErrCh <- forwardClientToServer(ctx, log, client, server) }()
+	go func() { serverErrCh <- forwardServerToClient(ctx, log, client, server) }()
+
+	for {
+		select {
+		case err := <-serverErrCh:
+			// The server stream is authoritative for the RPC's terminal status.
+			// Whatever it returns is what the client should see.
+			return trace.Wrap(err)
+		case err := <-clientErrCh:
+			if err != nil {
+				// Something went wrong on the client side (client.Recv failure, or a
+				// locally-generated server.Send failure). Cancel the server stream and
+				// surface the client error — it's more specific than whatever Canceled
+				// serverErrCh is about to produce.
+				cancel()
+				return trace.Wrap(err)
+			}
+			// forwardClientToServer finished cleanly: the client half-closed or the
+			// server stream is already terminal (Send returned io.EOF). In either
+			// case, keep waiting on the server stream to deliver its terminal status.
+			clientErrCh = nil
+		}
 	}
-	return trace.Wrap(<-errCh)
 }
 
-func forwardClientToServer[Req, Resp any](ctx context.Context, cancel context.CancelFunc, log *slog.Logger,
+func forwardClientToServer[Req, Resp any](ctx context.Context, log *slog.Logger,
 	client grpc.BidiStreamingServer[Req, Resp],
 	server grpc.BidiStreamingClient[Req, Resp],
 ) error {
@@ -80,10 +95,9 @@ func forwardClientToServer[Req, Resp any](ctx context.Context, cancel context.Ca
 	for {
 		req, err := client.Recv()
 		if errors.Is(err, io.EOF) {
-			// The client closed the send direction and won't send more messages.
-			// Close the send direction of the server stream by returning and _do not_
-			// cancel the context so that the client can receive any messages that the
-			// server sends after getting io.EOF from the client.
+			// The client half-closed its send side and won't send more messages.
+			// Returning here triggers the deferred CloseSend on the server stream.
+			// The caller keeps waiting on the server stream for its terminal status.
 			return nil
 		}
 		if err != nil {
@@ -95,12 +109,20 @@ func forwardClientToServer[Req, Resp any](ctx context.Context, cancel context.Ca
 			// First with the server error and the second with a context canceled for
 			// the client stream.
 			log.DebugContext(ctx, "Failed to receive from client stream", "error", err)
-			cancel()
 			return trace.Wrap(err)
 		}
-		if err := server.Send(req); err != nil {
+
+		err = server.Send(req)
+		if errors.Is(err, io.EOF) {
+			// io.EOF means the server ended the stream and the real status is
+			// discoverable via Recv. forwardServerToClient is running that Recv.
+			// Let it surface the terminal status.
+			// We can't forward this io.EOF to the client because the client already
+			// got nil from its Send when we got its message through client.Recv.
+			return nil
+		}
+		if err != nil {
 			log.WarnContext(ctx, "Failed to send to server stream", "error", err)
-			cancel()
 			return trace.Wrap(err)
 		}
 	}
