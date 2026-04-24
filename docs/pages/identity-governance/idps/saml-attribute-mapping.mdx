@@ -195,7 +195,7 @@ E.g.:
 Test with user name and service provider spec file:
 ```code
 # test with username and service provider file
-$ tctl idp saml test-attribute-mapping --user user1 --sp sp.yml
+$ tctl idp saml test-attribute-mapping --users user1 --sp sp.yml
 User: user1
 Attribute Name Attribute Value
 -------------- -----------------------------
@@ -207,12 +207,12 @@ groups         okta-admin, dev-sso, dev-rdp
 
 Test with user spec file and service provider spec file:
 ```code
-$ tctl idp saml test-attribute-mapping --user user.yml --sp sp.yml
+$ tctl idp saml test-attribute-mapping --users user.yml --sp sp.yml
 ```
 
 Print result in format of choice.
 ```code
-$ tctl idp saml test-attribute-mapping --user user.yml --sp sp.yml --format (json/yaml)
+$ tctl idp saml test-attribute-mapping --users user.yml --sp sp.yml --format (json/yaml)
 ```
 
 ## Overwriting default attributes
