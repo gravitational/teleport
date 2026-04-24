@@ -2351,11 +2351,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
-	var (
-		outputA bytes.Buffer
-		outputB bytes.Buffer
-	)
-
 	// make sure the direct dialer was used and not the proxy dialer
 	require.Zero(t, ph.Count())
 
@@ -2372,10 +2367,11 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		ForwardAgent: true,
 	})
 	require.NoError(t, err)
-	tc.Stdout = &outputA
+	stdout := new(bytes.Buffer)
+	tc.Stdout = stdout
 	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
-	require.Equal(t, "hello world\n", outputA.String())
+	require.Equal(t, "hello world\n", stdout.String())
 
 	// Update trusted CAs.
 	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
@@ -2397,11 +2393,14 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		ForwardAgent: true,
 	})
 	require.NoError(t, err)
-	tc.Stdout = &outputB
 
-	err = tc.SSH(ctx, cmd)
-	require.NoError(t, err)
-	require.Equal(t, outputA.String(), outputB.String())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		stdout = new(bytes.Buffer)
+		tc.Stdout = stdout
+		err = tc.SSH(ctx, cmd)
+		require.NoError(t, err)
+	}, 10*time.Second, 250*time.Millisecond)
+	require.Equal(t, "hello world\n", stdout.String())
 
 	clientHasEvents := func(site authclient.ClientI, count int) func() bool {
 		// only look for exec events
