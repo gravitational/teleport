@@ -83,7 +83,7 @@ you'll need:
 
 To set up the operator:
 
-- Make sure CRDs are deployed in the Kuberntes cluster. If they're not, you can deploy them with:
+- Make sure CRDs are deployed in the Kubernetes cluster. If they're not, you can deploy them with:
   ```shell
   helm install crds ../../examples/chart/teleport-cluster/charts/teleport-operator/ --set enabled=false --set installCRDs=always
   ```

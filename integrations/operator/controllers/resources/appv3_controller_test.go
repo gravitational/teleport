@@ -24,8 +24,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
@@ -142,4 +147,58 @@ func TestTeleportAppV3DeletionDrift(t *testing.T) {
 func TestTeleportAppV3Update(t *testing.T) {
 	test := &appV3TestingPrimitives{}
 	testlib.ResourceUpdateTestSynchronous(t, resources.NewAppV3Reconciler, test)
+}
+
+func TestTeleportAppV3AllNamespacesSameName(t *testing.T) {
+	ctx := t.Context()
+
+	setup := testlib.SetupFakeKubeTestEnv(t)
+	reconciler, err := resources.NewAppV3ReconcilerWithNamespaceSuffix(setup.K8sClient, setup.TeleportClient, true)
+	require.NoError(t, err)
+
+	secondNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testlib.ValidRandomResourceName("ns-")}}
+	require.NoError(t, setup.K8sClient.Create(ctx, secondNS))
+
+	resourceName := testlib.ValidRandomResourceName("app-")
+
+	app1 := &resourcesv1.TeleportAppV3{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resourceName,
+			Namespace: setup.Namespace.Name,
+		},
+		Spec: resourcesv1.TeleportAppV3Spec(appV3Spec),
+	}
+	app2 := &resourcesv1.TeleportAppV3{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resourceName,
+			Namespace: secondNS.Name,
+		},
+		Spec: resourcesv1.TeleportAppV3Spec(appV3Spec),
+	}
+
+	require.NoError(t, setup.K8sClient.Create(ctx, app1))
+	require.NoError(t, setup.K8sClient.Create(ctx, app2))
+
+	req1 := reconcile.Request{NamespacedName: apimachinerytypes.NamespacedName{Namespace: app1.Namespace, Name: app1.Name}}
+	req2 := reconcile.Request{NamespacedName: apimachinerytypes.NamespacedName{Namespace: app2.Namespace, Name: app2.Name}}
+
+	_, err = reconciler.Reconcile(ctx, req1)
+	require.NoError(t, err)
+	_, err = reconciler.Reconcile(ctx, req1)
+	require.NoError(t, err)
+
+	_, err = reconciler.Reconcile(ctx, req2)
+	require.NoError(t, err)
+	_, err = reconciler.Reconcile(ctx, req2)
+	require.NoError(t, err)
+
+	name1 := resourceName + "-" + app1.Namespace
+	name2 := resourceName + "-" + app2.Namespace
+
+	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := setup.TeleportClient.GetApp(ctx, name1)
+		require.NoError(t, err)
+		_, err = setup.TeleportClient.GetApp(ctx, name2)
+		require.NoError(t, err)
+	})
 }

@@ -137,7 +137,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures); err != nil {
+	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures, config.watchAllNamespaces); err != nil {
 		setupLog.Error(err, "failed to setup controllers")
 		os.Exit(1)
 	}
