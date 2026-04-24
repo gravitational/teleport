@@ -410,15 +410,15 @@ That said, you might consider Bound Keypair for Agents in certain circumstances:
   registration secret to a user would only allow them to join a single node.
 
 - You do not want any shared secrets in your joining process. Bound Keypair's
-  [static keys](#configuring-an-agent-with-a-static-key) allow you to generate a
-  keypair on the target node itself. Only the public key would ever leave the
-  system, and no secrets or private key material would ever have to leave the
-  host.
+  [static keys](../../../installation/agents/bound-keypair-static-keys.mdx)
+  allow you to generate a keypair on the target node itself. Only the public key
+  would ever leave the system, and no secrets or private key material would ever
+  have to leave the host.
 
 If you'd like to join an agent using Bound Keypair joining, refer to these
 guides:
-- [Joining an agent using Bound Keypair](../../../enroll-resources/agents/bound-keypair.mdx)
-- [Joining an agent using Bound Keypair Static Keys](../../../enroll-resources/agents/bound-keypair-static-keys.mdx)
+- [Joining an agent using Bound Keypair](../../../installation/agents/bound-keypair.mdx)
+- [Joining an agent using Bound Keypair Static Keys](../../../installation/agents/bound-keypair-static-keys.mdx)
 
 [rbac]: ../../access-controls/roles.mdx
 [ephemeral]: ../../architecture/machine-id-architecture.mdx#ephemeral-token
