@@ -1012,6 +1012,27 @@ Flags:
 |`--format`|`text`|Output format, 'text', 'json' or 'yaml'|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
+## tctl detections ls
+
+List Identity Security detections.
+
+Usage:
+
+```code
+$ tctl detections ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--limit`|`100`|Maximum number of detections to return.|
+|`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
+|`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
+|`--source`|*no default*|Filter detections by source.|
+|`--status`|`in_progress`,`triaged` (any of (repeatable): `in_progress`, `triaged`, `resolved`, `closed`)|Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.|
+|`--type`|*no default*|Filter detections by type.|
+
 ## tctl devices add
 
 Register managed devices.
