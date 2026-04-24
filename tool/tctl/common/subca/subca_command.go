@@ -254,22 +254,31 @@ func findMinHashes(hashes []string) []string {
 	}
 
 	minHashes := make([]string, len(hashes))
-	seenHashes := make(map[string]struct{})
 
 	const startLen = 8
-	minLen := startLen
-
 Outer:
-	for minLen < len(hashes[0]) {
-		// Trim all entries to minLen...
+	for minLen := startLen; true; minLen++ {
+		seenHashes := make(map[string]struct{})
+		trimmed := false
+
+		// Attempt to trim all entries to minLen.
 		for i, h := range hashes {
-			minHashes[i] = h[:minLen]
+			if minLen < len(h) {
+				minHashes[i] = h[:minLen]
+				trimmed = true
+			} else {
+				minHashes[i] = h
+			}
 		}
 
-		// ...then look for a repeated hash. If there is none, return.
+		// If no hashes could be trimmed stop and return original slice.
+		if !trimmed {
+			break
+		}
+
+		// Look for a repeated hash. If there is none, return.
 		for _, mh := range minHashes {
 			if _, seen := seenHashes[mh]; seen {
-				minLen++
 				continue Outer
 			}
 			seenHashes[mh] = struct{}{}

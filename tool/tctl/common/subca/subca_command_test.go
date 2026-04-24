@@ -236,6 +236,21 @@ func TestFindMinHashes(t *testing.T) {
 				"11b52b511de1f0d8c4b5e5a3beb053fb5497727d696de6dae338560e4e2f8e0c",
 			},
 		},
+		{
+			name: "uneven/small hashes",
+			in: []string{
+				"f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc", // normal len
+				"aaaaaaa",       // <8 characters, aka <minLen.
+				"bananallama1a", // clashes below.
+				"bananallama2a", // clashes above.
+			},
+			want: []string{
+				"f4522365888f", // trimmed
+				"aaaaaaa",      // original (<minLen)
+				"bananallama1", // trimmed
+				"bananallama2", // trimmed
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
