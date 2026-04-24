@@ -10,14 +10,14 @@ WORKDIR /go/src/github.com/gravitational/teleport/integrations/kube-agent-update
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-# We have to copy the API before `go mod download` because go.mod has a replace directive for it
+# We have to copy submodules replaced in go.mod before `go mod download`
 COPY api/ api/
+COPY session/ session/
 
 RUN go mod download
 
 # Copy in code
 COPY lib/ lib/
-COPY session/ session/
 COPY entitlements/ entitlements/
 COPY *.go ./
 COPY integrations/kube-agent-updater/ integrations/kube-agent-updater/

@@ -64,8 +64,9 @@ WORKDIR /go/src/github.com/gravitational/teleport
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-# We have to copy the API before `go mod download` because go.mod has a replace directive for it
+# We have to copy submodules replaced in go.mod before `go mod download`
 COPY api/ api/
+COPY session/ session/
 
 # Download and Cache dependencies before building and copying source
 # This will prevent re-downloading the operator's dependencies if they have not changed as this
@@ -74,7 +75,6 @@ RUN go mod download
 
 COPY *.go ./
 COPY lib/ lib/
-COPY session/ session/
 COPY gen/ gen/
 COPY entitlements/ entitlements/
 COPY integrations/lib/embeddedtbot/ integrations/lib/embeddedtbot/
