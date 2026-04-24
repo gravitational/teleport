@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -178,6 +179,7 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 		cfg:     cfg,
 		logger:  cfg.Logger,
 		metrics: cfg.Metrics,
+		stats:   &reconcileStats{},
 	}, nil
 }
 
@@ -190,28 +192,65 @@ type GenericReconciler[K comparable, T any] struct {
 	cfg     GenericReconcilerConfig[K, T]
 	logger  *slog.Logger
 	metrics *ReconcilerMetrics
+	stats   *reconcileStats
 }
 
-// onCreate wraps the OnCreate callback with metrics observation.
+// reconcileStats tracks the number of resources created, updated, and deleted
+// during a reconciliation cycle.
+type reconcileStats struct {
+	created atomic.Int64
+	updated atomic.Int64
+	deleted atomic.Int64
+}
+
+func (s *reconcileStats) reset() {
+	s.created.Store(0)
+	s.updated.Store(0)
+	s.deleted.Store(0)
+}
+
+func (s *reconcileStats) hasChanges() bool {
+	return s.created.Load() > 0 || s.updated.Load() > 0 || s.deleted.Load() > 0
+}
+
+// LogValue implements [slog.LogValuer].
+func (s *reconcileStats) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int64("created", s.created.Load()),
+		slog.Int64("updated", s.updated.Load()),
+		slog.Int64("deleted", s.deleted.Load()),
+	)
+}
+
+// onCreate wraps the OnCreate callback with metrics and stats observation.
 func (r *GenericReconciler[K, T]) onCreate(ctx context.Context, kind string, newT T) error {
 	start := time.Now()
 	err := r.cfg.OnCreate(ctx, newT)
+	if err == nil {
+		r.stats.created.Add(1)
+	}
 	r.observeMetrics(kind, metricLabelOperationCreate, start, err)
 	return trace.Wrap(err)
 }
 
-// onUpdate wraps the OnUpdate callback with metrics observation.
+// onUpdate wraps the OnUpdate callback with metrics and stats observation.
 func (r *GenericReconciler[K, T]) onUpdate(ctx context.Context, kind string, newT, registered T) error {
 	start := time.Now()
 	err := r.cfg.OnUpdate(ctx, newT, registered)
+	if err == nil {
+		r.stats.updated.Add(1)
+	}
 	r.observeMetrics(kind, metricLabelOperationUpdate, start, err)
 	return trace.Wrap(err)
 }
 
-// onDelete wraps the OnDelete callback with metrics observation.
+// onDelete wraps the OnDelete callback with metrics and stats observation.
 func (r *GenericReconciler[K, T]) onDelete(ctx context.Context, kind string, registered T) error {
 	start := time.Now()
 	err := r.cfg.OnDelete(ctx, registered)
+	if err == nil {
+		r.stats.deleted.Add(1)
+	}
 	r.observeMetrics(kind, metricLabelOperationDelete, start, err)
 	return trace.Wrap(err)
 }
@@ -243,6 +282,8 @@ func (r *GenericReconciler[K, T]) observeMetrics(kind, operation string, start t
 // Reconcile reconciles currently registered resources with new resources and
 // creates/updates/deletes them appropriately.
 func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
+	r.stats.reset()
+
 	currentResources := r.cfg.GetCurrentResources()
 	newResources := r.cfg.GetNewResources()
 
@@ -251,6 +292,7 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 
 	var errs []error
 
+	start := time.Now()
 	// Process already registered resources to see if any of them were removed.
 	for key, current := range currentResources {
 		if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
@@ -265,9 +307,34 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	if r.stats.hasChanges() {
+		r.logger.InfoContext(ctx, "Reconciliation completed",
+			"kind", r.resourceKind(currentResources, newResources),
+			"took", time.Since(start),
+			"stats", r.stats,
+		)
+	}
+
 	// TODO(zmb3): with a large number of resources, this can return a lengthy
 	// error message that is difficult to parse
 	return trace.NewAggregate(errs...)
+}
+
+// resourceKind extracts the resource kind from the first available resource.
+func (r *GenericReconciler[K, T]) resourceKind(currentResources, newResources map[K]T) string {
+	for _, res := range currentResources {
+		kind, err := types.GetKind(res)
+		if err == nil {
+			return kind
+		}
+	}
+	for _, res := range newResources {
+		kind, err := types.GetKind(res)
+		if err == nil {
+			return kind
+		}
+	}
+	return "unknown"
 }
 
 // processRegisteredResource checks the specified registered resource against the
