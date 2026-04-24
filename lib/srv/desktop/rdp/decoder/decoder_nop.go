@@ -25,18 +25,17 @@ import (
 )
 
 type Decoder struct{}
-type CursorState struct {
-	Visible bool
-	X, Y    uint16
-}
 
-func New(width, height uint16) (*Decoder, error) {
+func New(width, height uint16, opts ...Option) (*Decoder, error) {
 	return nil, trace.NotImplemented("the RDP decoder is not included in this build")
 }
 
-func (d *Decoder) Release()                       {}
-func (d *Decoder) Resize(w, h uint16)             {}
-func (d *Decoder) Process([]byte)                 {}
-func (d *Decoder) Image() *image.RGBA             { return nil }
-func (d *Decoder) Thumbnail(w, h int) *image.RGBA { return nil }
-func (d *Decoder) CursorState() CursorState       { return CursorState{} }
+func (d *Decoder) Release()                          {}
+func (d *Decoder) Resize(w, h uint16)                {}
+func (d *Decoder) Process([]byte)                    {}
+func (d *Decoder) Image() *image.RGBA                { return nil }
+func (d *Decoder) Thumbnail(w, h int) *image.RGBA    { return nil }
+func (d *Decoder) CursorState() CursorState          { return CursorState{} }
+func (d *Decoder) CursorBitmap() *CursorBitmapData   { return nil }
+func (d *Decoder) UpdatedRegions() []image.Rectangle { return nil }
+func (d *Decoder) ResetUpdatedRegions()              {}
