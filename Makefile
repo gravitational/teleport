@@ -401,7 +401,7 @@ $(BUILDDIR)/teleport: ensure-webassets rdpclient session/reexec/embed/sessionhel
 .PHONY: $(BUILDDIR)/sessionhelper
 $(BUILDDIR)/sessionhelper:
 ifneq ($(SESSIONHELPER_EMBED_TAG),)
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C session build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o '$(abspath $(BUILDDIR)/sessionhelper)' $(BUILDFLAGS) ./cmd/sessionhelper
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C session/cmd/sessionhelper build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o '$(abspath $(BUILDDIR)/sessionhelper)' $(BUILDFLAGS) .
 endif
 
 .PHONY: session/reexec/embed/sessionhelper
