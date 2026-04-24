@@ -2028,6 +2028,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 		timeout     time.Duration
 		update      func(*types.HeadlessAuthentication, *types.MFADevice)
 		assertError require.ErrorAssertionFunc
+		assertResp  func(*testing.T, *authclient.CLILoginResponse, *authtest.Device)
 	}{
 		{
 			name:    "OK approved",
@@ -2037,6 +2038,20 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.MfaDevice = mfa
 			},
 			assertError: require.NoError,
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, webDev *authtest.Device) {
+				require.NotNil(t, resp)
+				require.NotNil(t, webDev)
+				require.NotNil(t, webDev.MFA)
+
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+
+				identity, err := sshca.DecodeIdentity(sshCert)
+				require.NoError(t, err)
+
+				require.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
+				require.True(t, identity.PreviousIdentityExpires.IsZero())
+			},
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
@@ -2045,6 +2060,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				require.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK denied",
@@ -2055,11 +2073,17 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				require.Nil(t, resp)
+			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, context.DeadlineExceeded)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				require.Nil(t, resp)
 			},
 		},
 	} {
@@ -2110,7 +2134,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				}
 			}()
 
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+			resp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
@@ -2130,6 +2154,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			tc.assertError(t, err, trace.DebugReport(err))
+
+			if tc.assertResp != nil {
+				tc.assertResp(t, resp, mfa.WebDev)
+			}
 		})
 	}
 }
