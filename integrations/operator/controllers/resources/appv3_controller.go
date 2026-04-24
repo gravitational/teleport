@@ -41,9 +41,11 @@ type appClient struct {
 }
 
 func formatNamespacedAppName(name, namespace string) string {
-	return fmt.Sprintf("%s-%s", namespace, name)
+	return fmt.Sprintf("%s.%s", name, namespace)
 }
 
+// appNameForContext returns the name to use for a Teleport app
+// if watchAllNamespaces is true, it returns the name formatted as <app-name>.<k8s-namespace>, otherwise it returns the app name as is
 func (r appClient) appNameForContext(ctx context.Context, name string) string {
 	if !r.watchAllNamespaces {
 		return name
