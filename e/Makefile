@@ -158,6 +158,13 @@ STATIC_LIBS_TSH += -lpcsclite
 endif
 endif
 
+SESSIONHELPER_EMBED_TAG :=
+SESSIONHELPER_MESSAGE := without-session-helper
+ifeq ($(OS),linux)
+SESSIONHELPER_EMBED_TAG = sessionhelper_embed
+SESSIONHELPER_MESSAGE := with-session-helper
+endif
+
 # Enable PIV test packages for testing.
 # This test tag should never be used for builds/releases, only tests.
 PIV_TEST_TAG := pivtest
@@ -189,7 +196,7 @@ join-with = $(subst $(SPACE),$1,$(strip $2))
 
 # Separate TAG messages into comma-separated WITH and WITHOUT lists for readability.
 COMMA := ,
-MESSAGES := $(PAM_ENT_MESSAGE) $(FIPS_ENT_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_ENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(PIV_MESSAGE) $(VNETDAEMON_MESSAGE)
+MESSAGES := $(PAM_ENT_MESSAGE) $(FIPS_ENT_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_ENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(PIV_MESSAGE) $(VNETDAEMON_MESSAGE) $(SESSIONHELPER_MESSAGE)
 WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
 WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter without-%,$(MESSAGES)))))
 RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) with $(WITH) and without $(WITHOUT)."
@@ -246,8 +253,12 @@ $(BUILDDIR)/tctl:
 	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets-e teleport-fips-check rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "webassets_embed webassets_ent $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+$(BUILDDIR)/teleport: ensure-webassets-e teleport-fips-check rdpclient ../session/reexec/embed/sessionhelper
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "webassets_embed webassets_ent $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+
+.PHONY: ../session/reexec/embed/sessionhelper
+../session/reexec/embed/sessionhelper:
+	$(MAKE) -C .. session/reexec/embed/sessionhelper BUILDDIR=e/$(BUILDDIR)
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
@@ -345,6 +356,7 @@ teleport-fips-check:
 clean:
 	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
+	rm -rf ../session/reexec/embed
 	-cargo clean
 	rm -rf *gz
 
