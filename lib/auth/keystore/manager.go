@@ -234,12 +234,22 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableSigningBackends = []backend{awsBackend, softwareBackend}
 	}
 
-	return &Manager{
+	m := &Manager{
 		backendForNewKeys:     backendForNewKeys,
 		usableSigningBackends: usableSigningBackends,
 		currentSuiteGetter:    cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:                opts.Logger,
-	}, nil
+	}
+
+	// Initialize metrics to zero so they exist in Prometheus from startup.
+	for _, b := range usableSigningBackends {
+		for _, keyType := range []string{keyTypeTLS, keyTypeSSH, keyTypeJWT} {
+			signCounter.WithLabelValues(keyType, b.name())
+			signErrorCounter.WithLabelValues(keyType, b.name())
+		}
+	}
+
+	return m, nil
 }
 
 type cryptoCountSigner struct {
