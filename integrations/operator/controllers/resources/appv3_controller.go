@@ -41,7 +41,7 @@ type appClient struct {
 }
 
 func formatNamespacedAppName(name, namespace string) string {
-	return fmt.Sprintf("%s-%s", name, namespace)
+	return fmt.Sprintf("%s-%s", namespace, name)
 }
 
 func (r appClient) appNameForContext(ctx context.Context, name string) string {
