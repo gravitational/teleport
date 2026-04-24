@@ -8,7 +8,9 @@ kind: Role
 {{- end }}
 metadata:
   name: {{ include "teleport-cluster.operator.fullname" . }}
+  {{- if not .Values.watchAllNamespaces }}
   namespace: {{ .Release.Namespace }}
+  {{- end }}
 rules:
   # Rights to manage the Teleport CRs
   - apiGroups:
