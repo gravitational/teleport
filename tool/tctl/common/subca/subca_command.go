@@ -256,7 +256,6 @@ func findMinHashes(hashes []string) []string {
 	minHashes := make([]string, len(hashes))
 
 	const startLen = 8
-Outer:
 	for minLen := startLen; true; minLen++ {
 		seenHashes := make(map[string]struct{})
 		trimmed := false
@@ -277,14 +276,17 @@ Outer:
 		}
 
 		// Look for a repeated hash. If there is none, return.
+		collision := false
 		for _, mh := range minHashes {
 			if _, seen := seenHashes[mh]; seen {
-				continue Outer
+				collision = true
+				break
 			}
 			seenHashes[mh] = struct{}{}
 		}
-
-		return minHashes
+		if !collision {
+			return minHashes
+		}
 	}
 
 	return hashes
