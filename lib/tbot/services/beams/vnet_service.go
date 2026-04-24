@@ -284,7 +284,7 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 
 	// We never want to serve queries for the proxy address.
 	if fqdn == fullyQualify(hostname(osConfig.pong.GetProxyPublicAddr())) {
-		return nil, trace.NotFound("no matches for FQDN: %s", fqdn)
+		return &vnetv1.ResolveFQDNResponse{}, nil
 	}
 
 	// If the FQDN is not a subdomain of one of our configured zones, return
@@ -302,7 +302,7 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 			"fqdn", fqdn,
 			"dns_zones", osConfig.config.GetDnsZones(),
 		)
-		return nil, trace.NotFound("no matches for FQDN: %s", fqdn)
+		return &vnetv1.ResolveFQDNResponse{}, nil
 	}
 
 	expr := fmt.Sprintf(
@@ -325,7 +325,7 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 	}
 	if len(rsp.Resources) == 0 {
 		v.logger.DebugContext(ctx, "No matching apps for FQDN", "fqdn", fqdn)
-		return nil, trace.NotFound("no matches for FQDN: %s", fqdn)
+		return &vnetv1.ResolveFQDNResponse{}, nil
 	}
 
 	app, ok := rsp.Resources[0].GetApp().(*types.AppV3)
@@ -339,7 +339,7 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 			"app_uri", app.GetURI(),
 			"app_protocol", app.GetProtocol(),
 		)
-		return nil, trace.NotFound("no matches for FQDN: %s", fqdn)
+		return &vnetv1.ResolveFQDNResponse{}, nil
 	}
 
 	// VNet proper intentionally doesn't support HTTP apps (due to security

@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -65,6 +66,24 @@ func TestMain(m *testing.M) {
 func TestVNetService(t *testing.T) {
 	t.Setenv("TELEPORT_BEAMS_RUNTIME", "yes")
 
+	// Start a fake upstream nameserver to check recursion works.
+	logger := logtest.NewLogger()
+	upstreamResolvedIP := net.ParseIP("1.2.3.4")
+	upstreamNameserver, err := dns.NewServer(
+		staticResult{A: [4]byte(upstreamResolvedIP.To4())},
+		beams.StaticUpstreamNameservers{},
+		logger,
+	)
+	require.NoError(t, err)
+
+	nsConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
+	require.NoError(t, err)
+	go func() {
+		if err := upstreamNameserver.ListenAndServeUDP(t.Context(), nsConn); err != nil {
+			t.Logf("error serving nameserver: %v", err)
+		}
+	}()
+
 	// Start an HTTP server that we'll access over VNet.
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("hello, world!"))
@@ -73,7 +92,6 @@ func TestVNetService(t *testing.T) {
 
 	// Spin up a Teleport process, configured to expose the HTTP server by
 	// application access.
-	logger := logtest.NewLogger()
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		defaultTestServerOpts(logger),
@@ -173,7 +191,7 @@ func TestVNetService(t *testing.T) {
 			beams.VNetServiceBuilder(
 				&beams.VNetServiceConfig{
 					DelegationSessionID: session.GetMetadata().GetName(),
-					UpstreamNameservers: []string{"1.1.1.1:53"},
+					UpstreamNameservers: []string{nsConn.LocalAddr().String()},
 				},
 				beams.WithInsecure(),
 				beams.WithTUNDevice(hostNetwork.TUNDevice()),
@@ -207,6 +225,13 @@ func TestVNetService(t *testing.T) {
 	rspBody, err := io.ReadAll(rsp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "hello, world!", string(rspBody))
+
+	// Try to resolve a non-existent app to check it hits our upstream nameserver.
+	ips, err := hostNetwork.DNSResolver().
+		LookupIP(t.Context(), "ip4", "blog.dunder-mifflin.com")
+	require.NoError(t, err)
+	require.Len(t, ips, 1)
+	require.True(t, ips[0].Equal(upstreamResolvedIP))
 
 	cancel()
 	require.NoError(t, <-errCh)
@@ -314,8 +339,12 @@ func makeUserClient(t *testing.T, process *service.TeleportProcess, rootClient *
 	return userClient
 }
 
-type staticUpstreamNameserverSource []string
+type staticResult dns.Result
 
-func (src staticUpstreamNameserverSource) UpstreamNameservers(context.Context) ([]string, error) {
-	return src, nil
+func (s staticResult) ResolveA(context.Context, string) (dns.Result, error) {
+	return dns.Result(s), nil
+}
+
+func (s staticResult) ResolveAAAA(context.Context, string) (dns.Result, error) {
+	return dns.Result(s), nil
 }
