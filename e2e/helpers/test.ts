@@ -50,6 +50,7 @@ export interface UserTraits {
 export interface UserDefinition {
   roles: UserRole[];
   traits?: UserTraits;
+  recordings?: string[];
   loginAs?: boolean;
 }
 
@@ -59,18 +60,30 @@ const authDir = join(e2eDir, '.auth');
 const tryLoadUserMapping =
   cachedJSONLoader<Record<string, string>>('user-mapping.json');
 
+const tryLoadRecordingMapping = cachedJSONLoader<
+  Record<string, Record<string, string>>
+>('recording-mapping.json');
+
 const defaultUser: UserDefinition = { roles: ['access', 'editor'] };
 
 interface E2EFixtures {
+  recordings: string[];
   user: UserDefinition;
   users: UserDefinition[];
   username: string;
-  loginAs: (index: number) => Promise<string>;
+  loginAs: (index: number) => Promise<LoginAsResult>;
+  recordingIds: Record<string, string>;
   unifiedResourcesPage: UnifiedResourcesPage;
   playerPage: PlayerPage;
 }
 
+export interface LoginAsResult {
+  name: string;
+  recordingIds: Record<string, string>;
+}
+
 export const test = base.extend<E2EFixtures>({
+  recordings: [[], { option: true }],
   user: [undefined as unknown as UserDefinition, { option: true }],
   users: [[], { option: true }],
   username: async ({ user, users }, use, testInfo) => {
@@ -106,7 +119,7 @@ export const test = base.extend<E2EFixtures>({
 
     const browser = testInfo.project.name.split(':')[0];
 
-    await use(async (index: number) => {
+    await use(async (index: number): Promise<LoginAsResult> => {
       const definition = users[index];
       if (!definition) {
         throw new Error(
@@ -155,8 +168,18 @@ export const test = base.extend<E2EFixtures>({
 
       await page.reload();
 
-      return name;
+      const recordingMapping = tryLoadRecordingMapping() ?? {};
+      return { name, recordingIds: recordingMapping[name] ?? {} };
     });
+  },
+  recordingIds: async ({ username }, use) => {
+    if (!username) {
+      await use({});
+      return;
+    }
+
+    const mapping = tryLoadRecordingMapping() ?? {};
+    await use(mapping[username] ?? {});
   },
   page: async ({ page, username }, use) => {
     if (username) {

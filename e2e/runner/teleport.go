@@ -41,12 +41,13 @@ import (
 const clusterName = "teleport-e2e"
 
 type teleportInstance struct {
-	log         *slog.Logger
-	teleportBin string
-	proxyPort   int
-	configPath  string
-	stateFile   string
-	logFile     string // empty means stdout/stderr
+	log             *slog.Logger
+	teleportBin     string
+	proxyPort       int
+	configPath      string
+	stateFile       string
+	logFile         string // empty means stdout/stderr
+	recordingOwners recordingOwners
 
 	cmd      *exec.Cmd
 	logF     *os.File

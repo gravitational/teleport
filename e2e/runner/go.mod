@@ -6,6 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.77.2
 	github.com/docker/go-sdk/container v0.1.0-alpha013
 	github.com/google/go-github/v84 v84.0.0
+	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
 	github.com/lmittmann/tint v1.1.3
@@ -153,7 +154,6 @@ require (
 	github.com/google/go-tpm-tools v0.4.7 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.19.0 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect

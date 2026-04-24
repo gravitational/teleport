@@ -305,6 +305,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 		slog.Debug("wrote user credentials", "path", credsPath, "users", len(bootstrap.creds))
 
+		recMappingPath := filepath.Join(e2eDir, ".auth", "recording-mapping.json")
+		if err := writeRecordingMapping(recMappingPath, bootstrap.recordingMapping); err != nil {
+			return fmt.Errorf("failed to write recording mapping: %w", err)
+		}
+		slog.Debug("wrote recording mapping", "path", recMappingPath, "users", len(bootstrap.recordingMapping))
+
 		// One shared state file used by all instances.
 		stateFile, err := generateStateFile(config.stateTemplate, bootstrap.state)
 		if err != nil {
@@ -334,11 +340,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		// Create teleport instances (started lazily by the playwright runner so that at most 2 run concurrently).
 		for _, inst := range allInstances {
 			teleport := &teleportInstance{
-				log:         inst.log,
-				teleportBin: config.teleportBin,
-				proxyPort:   inst.proxyPort,
-				configPath:  inst.teleportConfigPath,
-				stateFile:   stateFile,
+				log:             inst.log,
+				teleportBin:     config.teleportBin,
+				proxyPort:       inst.proxyPort,
+				configPath:      inst.teleportConfigPath,
+				stateFile:       stateFile,
+				recordingOwners: bootstrap.recordingOwners,
 			}
 
 			if config.isCI || config.quiet {

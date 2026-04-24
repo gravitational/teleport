@@ -172,6 +172,54 @@ the same `user`/`users`. Concretely:
 `e2e/.auth/<browser>-<username>.json`. Tests pick up that state via Playwright's `storageState`, so they
 start already authenticated without running the UI login flow.
 
+### Session Recordings
+
+The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
+session recordings page has content immediately. Recordings are stored in `e2e/testdata/recordings/` organized
+by session type:
+
+```
+e2e/testdata/recordings/
+├── events.jsonl          # generated - do not edit
+├── ssh/
+│   ├── <session-id>.tar
+│   ├── <session-id>.metadata
+│   └── <session-id>.thumbnail
+├── k8s/
+│   └── ...
+└── desktop/
+    └── ...
+```
+
+Each recording consists of a `.tar` file (required) and optional `.metadata` and `.thumbnail` sidecar files.
+The `events.jsonl` file contains the session end audit events and is auto-generated from the `.tar` files.
+
+**Adding a new recording:**
+
+To add a new recording, place the `.tar` file (and any `.metadata`/`.thumbnail` files) in the appropriate subdirectory
+(`ssh/`, `k8s/`, or `desktop/`).
+
+Recordings are opt-in — only recordings referenced in `test.use()` via `recordings` or `UserDefinition.recordings`
+are seeded. Each recording is associated with the user that declares it, and each `(recording, owner)` pair gets
+a freshly-generated session ID so duplicates across users don't collide.
+
+**`recordingIds` fixture:** Because the runner rewrites session IDs, tests that need to navigate to a specific
+recording should look up the generated ID via the `recordingIds` fixture, which maps the logical ID (the `.tar`
+filename) to the seeded session ID for the currently-active user:
+
+```ts
+test.use({
+  user: { roles: ['access'], recordings: ['ssh-session-1'] },
+});
+
+test('open recording', async ({ page, recordingIds }) => {
+  await page.goto(`/web/recordings/${recordingIds['ssh-session-1']}`);
+});
+```
+
+At runtime, the runner copies recording files into Teleport's records directory and appends the audit events
+to the audit log with adjusted timestamps so that sessions appear recent in the UI.
+
 ### Common Commands
 
 Typically, you'll want to run with `--no-build` during test development to skip rebuilding Teleport binaries on every
