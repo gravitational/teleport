@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/vnetdns"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -1576,7 +1577,7 @@ func TestUpsertDatabaseServerPopulatesVNetDNSName(t *testing.T) {
 	dbServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, dbServers, 1)
-	require.Equal(t, types.VNetDNSName(dbName), dbServers[0].GetDatabase().GetStatusVNetDNSName())
+	require.Equal(t, vnetdns.Name(dbName), dbServers[0].GetDatabase().GetStatusVNetDNSName())
 }
 
 func TestGenerateUserCerts_singleUseCerts(t *testing.T) {

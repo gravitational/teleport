@@ -147,7 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	libsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/vnetdns"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -6756,8 +6756,11 @@ func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, serve
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
-	if db := server.GetDatabase(); db != nil {
-		db.SetStatusVNetDNSName(types.VNetDNSName(db.GetName()))
+	// TODO(nibrasohin): DELETE IN v21.0.0 - db agents set this themselves in
+	// getServerInfo starting in v20. This block only remains to populate the
+	// field for older agents that haven't been upgraded yet.
+	if db := server.GetDatabase(); db != nil && db.GetStatusVNetDNSName() == "" {
+		db.SetStatusVNetDNSName(vnetdns.Name(db.GetName()))
 	}
 
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)

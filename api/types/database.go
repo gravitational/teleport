@@ -18,8 +18,6 @@ package types
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -741,13 +739,6 @@ var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z
 // 63 chars in length and allow upper case chars.
 func ValidateDatabaseName(name string) error {
 	return ValidateResourceName(validDatabaseNameRegexp, name)
-}
-
-// VNetDNSName returns the VNet DNS name for a given database name.
-func VNetDNSName(name string) string {
-	hash := sha256.Sum256([]byte(name))
-	base32Encoding := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8])
-	return strings.ToLower(base32Encoding)
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
