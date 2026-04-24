@@ -130,7 +130,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
-	// TODO(noah): move to httpMigratedHandler in v20.0.0
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
