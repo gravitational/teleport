@@ -164,11 +164,16 @@ Run:
 
 ```code
 $ gcloud iam service-accounts get-iam-policy \
-  spanner-user@<Var name="project-id" />.iam.gserviceaccount.com \
-  --format=json | grep "roles/iam.serviceAccountTokenCreator"
+  spanner-user@<Var name="project-id" />.iam.gserviceaccount.com
 ```
+The output should include a binding that pairs `teleport-db-service` with `roles/iam.serviceAccountTokenCreator`:
 
-You should see the `roles/iam.serviceAccountTokenCreator` role.
+```yaml
+bindings:
+- members:
+  - serviceAccount:teleport-db-service@<project-id>.iam.gserviceaccount.com
+  role: roles/iam.serviceAccountTokenCreator
+```
 
 </Checkpoint>
 
