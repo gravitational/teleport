@@ -83,9 +83,10 @@ run "create" {
   }
 }
 
-run "no_teleport_integration" {
+run "teleport_integration_name_null" {
   variables {
     create_teleport_integration = false
+    teleport_integration_name   = null
   }
 
   assert {
@@ -104,11 +105,36 @@ run "no_teleport_integration" {
     condition     = length(teleport_discovery_config.azure) == 1
     error_message = "teleport_discovery_config should be created"
   }
+  assert {
+    condition     = try(teleport_discovery_config.azure[0].spec.azure[0].integration, null) == null
+    error_message = "discovery config should not reference an integration"
+  }
 }
 
-run "no_azure_managed_identity" {
+run "teleport_integration_name_reference" {
+  variables {
+    create_teleport_integration = false
+    teleport_integration_name   = "existing-integration"
+  }
+
+  assert {
+    condition     = length(teleport_integration.azure_oidc) == 0
+    error_message = "teleport_integration should not be created"
+  }
+  assert {
+    condition     = length(teleport_discovery_config.azure) == 1
+    error_message = "teleport_discovery_config should be created"
+  }
+  assert {
+    condition     = teleport_discovery_config.azure[0].spec.azure[0].integration == "existing-integration"
+    error_message = "discovery config should reference the existing integration by name"
+  }
+}
+
+run "azure_managed_identity_disabled" {
   variables {
     create_teleport_integration     = false
+    teleport_integration_name       = null
     create_azure_managed_identity   = false
     azure_resource_group_name       = null
     azure_managed_identity_location = null
@@ -136,7 +162,18 @@ run "no_azure_managed_identity" {
   }
 }
 
-run "integration_requires_azure_managed_identity" {
+run "teleport_integration_name_required_to_create" {
+  command = plan
+
+  variables {
+    create_teleport_integration = true
+    teleport_integration_name   = null
+  }
+
+  expect_failures = [teleport_integration.azure_oidc[0]]
+}
+
+run "teleport_integration_requires_azure_managed_identity" {
   command = plan
 
   variables {
@@ -147,7 +184,7 @@ run "integration_requires_azure_managed_identity" {
   expect_failures = [teleport_integration.azure_oidc[0]]
 }
 
-run "error_no_azure_resource_group_name" {
+run "azure_resource_group_name_required" {
   command = plan
 
   variables {
@@ -157,7 +194,7 @@ run "error_no_azure_resource_group_name" {
   expect_failures = [azurerm_user_assigned_identity.teleport_discovery_service[0]]
 }
 
-run "error_no_azure_managed_identity_location" {
+run "azure_managed_identity_location_required" {
   command = plan
 
   variables {
@@ -166,25 +203,8 @@ run "error_no_azure_managed_identity_location" {
 
   expect_failures = [azurerm_user_assigned_identity.teleport_discovery_service[0]]
 }
-run "without_azure_managed_identity" {
-  variables {
-    create_teleport_integration     = false
-    create_azure_managed_identity   = false
-    azure_resource_group_name       = null
-    azure_managed_identity_location = null
-  }
 
-  assert {
-    condition     = length(azurerm_user_assigned_identity.teleport_discovery_service) == 0
-    error_message = "azurerm_user_assigned_identity should not be created when create_azure_managed_identity is false"
-  }
-  assert {
-    condition     = length(teleport_discovery_config.azure) == 1
-    error_message = "teleport_discovery_config missing"
-  }
-}
-
-run "error_wildcard_no_role_scopes" {
+run "discovery_config_subscription_wildcard_missing_scopes_error" {
   command = plan
 
   variables {
@@ -200,7 +220,7 @@ run "error_wildcard_no_role_scopes" {
   expect_failures = [teleport_discovery_config.azure[0]]
 }
 
-run "error_wildcard_no_allow_rules" {
+run "discovery_config_subscription_wildcard_missing_allow_rules_error" {
   command = plan
 
   variables {
@@ -215,7 +235,7 @@ run "error_wildcard_no_allow_rules" {
   expect_failures = [teleport_provision_token.azure[0]]
 }
 
-run "wildcard" {
+run "discovery_config_subscription_wildcard" {
   variables {
     azure_matchers = [{
       types         = ["vm"]
@@ -237,8 +257,7 @@ run "wildcard" {
   }
 }
 
-# Each (subscription, resource_group) pair produces one allow rule on the provision token.
-run "resource_group_allow_rules" {
+run "discovery_config_resource_group_allow_rules" {
   variables {
     azure_matchers = [{
       types           = ["vm"]
@@ -269,7 +288,7 @@ run "resource_group_allow_rules" {
   }
 }
 
-run "one_subscription" {
+run "discovery_config_with_one_subscription" {
   assert {
     condition     = length(azurerm_role_assignment.teleport_discovery) == 1
     error_message = "azurerm_role_assignment does not match subscription count"
@@ -280,7 +299,7 @@ run "one_subscription" {
   }
 }
 
-run "multiple_subscriptions" {
+run "discovery_config_with_multiple_subscriptions" {
   variables {
     azure_matchers = [{
       types         = ["vm"]
@@ -302,7 +321,7 @@ run "multiple_subscriptions" {
   }
 }
 
-run "duplicate_subscriptions" {
+run "discovery_config_with_duplicate_subscriptions" {
   variables {
     azure_matchers = [
       { types = ["vm"], subscriptions = ["aaaaaaaa-0000-0000-0000-000000000000"] },
@@ -316,7 +335,7 @@ run "duplicate_subscriptions" {
   }
 }
 
-run "explicit_scopes_override_matchers" {
+run "azure_role_explicit_scopes_overrides_matchers" {
   variables {
     azure_matchers = [
       { types = ["vm"], subscriptions = ["aaaaaaaa-0000-0000-0000-000000000000", "aaaaaaaa-0000-0000-0000-000000000001"] },
@@ -360,7 +379,7 @@ run "name_suffix_applied_by_default" {
   }
 }
 
-run "exact_name_no_suffix" {
+run "name_suffix_exact" {
   variables {
     azure_managed_identity_name               = "my-identity"
     azure_managed_identity_use_name_prefix    = false

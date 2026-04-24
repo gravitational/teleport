@@ -191,14 +191,14 @@ variable "teleport_installer_script_name" {
 }
 
 variable "teleport_integration_name" {
-  description = "Name for the `teleport_integration` resource."
+  description = "Name for the `teleport_integration` resource. Required when `create_teleport_integration` is true. When `create_teleport_integration` is false, set to reference an existing integration or null to authenticate using ambient Azure credentials."
   type        = string
   default     = "discovery"
-  nullable    = false
+  nullable    = true
 }
 
 variable "create_teleport_integration" {
-  description = "Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials."
+  description = "Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; set teleport_integration_name to `null` to not use an integration to authenticate, ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials."
   type        = bool
   default     = true
   nullable    = false
@@ -237,7 +237,7 @@ variable "create_teleport_provision_token" {
 }
 
 variable "teleport_provision_token_name" {
-  description = "Name for the `teleport_provision_token` resource."
+  description = "Name for the `teleport_provision_token` resource. When `create_teleport_provision_token` is false, set to use an existing provision token."
   type        = string
   default     = "discovery"
   nullable    = false
