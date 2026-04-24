@@ -212,7 +212,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	require.NoError(t, err)
 	xauthTempFilePath := filepath.Join(tempDir, ".Xauthority")
 
-	fakeXauthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	fakeXauthEntry, err := x11.NewFakeXAuthEntry(x11.Display{}, rand.Reader)
 	require.NoError(t, err)
 
 	// Request a listener from the networking process.
