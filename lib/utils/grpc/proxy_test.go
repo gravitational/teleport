@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -178,7 +179,11 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	// server has already returned. Under the bug this reshapes the server's
 	// clean completion into an error via a failed upstream Send; under the
 	// fix the handler has already returned and the Send is irrelevant.
-	_ = stream.Send(&footest.SessionRequest{Input: "more"})
+	err = stream.Send(&footest.SessionRequest{Input: "more"})
+	// Server closed its stream after the first response, so a send should return
+	// io.EOF. The client is supposed to then discover the status of the stream
+	// with Recv.
+	require.ErrorIs(t, err, io.EOF)
 
 	// Server has returned nil. The client must see clean io.EOF, not a
 	// proxy-reshaped error and not a hang (which would surface as a
@@ -187,7 +192,71 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 }
 
-func newFakeServerSvc(t *testing.T) (*fakeServerSvc, footest.FooServiceClient) {
+// TestProxyBidiStream_SurfacesClientRecvError asserts that when client.Recv
+// on the proxy side fails with a non-EOF error, the proxy returns that
+// specific error instead of the Canceled artifact produced by a naive design
+// that cancels the server stream and then returns whatever server.Recv yields.
+//
+// To trigger this, we set a tiny MaxRecvMsgSize on the proxy's gRPC server and
+// have the client send a message exceeding it. The proxy's client.Recv returns
+// a ResourceExhausted status error; the handler must propagate it.
+func TestProxyBidiStream_SurfacesClientRecvError(t *testing.T) {
+	t.Parallel()
+	_, fakeServerSvcClient := newFakeServerSvc(t)
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	newProxyService(t, lis, fakeServerSvcClient, grpc.MaxRecvMsgSize(64))
+
+	client := newProxyServiceClient(t, lis)
+	stream, err := client.Session(t.Context())
+	require.NoError(t, err)
+
+	// Send a message larger than the proxy's MaxRecvMsgSize.
+	err = stream.Send(&footest.SessionRequest{Input: strings.Repeat("x", 256)})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.ErrorContains(t, err, "larger than max")
+}
+
+// TestProxyBidiStream_SurfacesServerSendError asserts that when server.Send on
+// the proxy side fails with a non-EOF error (locally generated, e.g. the
+// outbound message exceeds MaxCallSendMsgSize on the proxy's upstream
+// connection), the proxy returns that specific error rather than masking it as
+// Canceled.
+//
+// To trigger this, we dial the fake server with a tiny MaxCallSendMsgSize so
+// that the proxy's server.Send fails whenever the client-forwarded message is
+// larger than that limit.
+func TestProxyBidiStream_SurfacesServerSendError(t *testing.T) {
+	t.Parallel()
+	_, fakeServerSvcClient := newFakeServerSvc(t,
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(64)),
+	)
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	newProxyService(t, lis, fakeServerSvcClient)
+
+	client := newProxyServiceClient(t, lis)
+	stream, err := client.Session(t.Context())
+	require.NoError(t, err)
+
+	// The proxy accepts this message (its server-side MaxRecvMsgSize is the
+	// default 4MB), then tries to forward it to the fake server whose upstream
+	// connection caps sends at 64 bytes, triggering a local ResourceExhausted on
+	// the proxy's server.Send.
+	err = stream.Send(&footest.SessionRequest{Input: strings.Repeat("x", 256)})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.ErrorContains(t, err, "larger than max")
+}
+
+func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerSvc, footest.FooServiceClient) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -200,7 +269,8 @@ func newFakeServerSvc(t *testing.T) (*fakeServerSvc, footest.FooServiceClient) {
 	}()
 	t.Cleanup(server.GracefulStop)
 
-	client, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts := append([]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, clientOpts...)
+	client, err := grpc.NewClient(lis.Addr().String(), opts...)
 	require.NoError(t, err)
 
 	return service, footest.NewFooServiceClient(client)
@@ -247,11 +317,12 @@ func (f *fakeServerSvc) Session(stream footest.FooService_SessionServer) error {
 
 // newProxyService creates a gRPC server under lis and registers in it a gRPC
 // service that proxies Session calls to the server using
-// [grpcutils.ProxyBidiStream].
-func newProxyService(t *testing.T, lis net.Listener, client footest.FooServiceClient) {
+// [grpcutils.ProxyBidiStream]. Callers may supply extra grpc.ServerOptions to
+// drive specific fault scenarios.
+func newProxyService(t *testing.T, lis net.Listener, client footest.FooServiceClient, opts ...grpc.ServerOption) {
 	t.Helper()
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(opts...)
 	t.Cleanup(s.GracefulStop)
 
 	proxySvc := &proxyService{
