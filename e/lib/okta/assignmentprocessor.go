@@ -42,23 +42,6 @@ const (
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
 	processAssignmentTimeout time.Duration = 5 * time.Minute
-
-	// processAssignmentsLoopTimeout is the amount of time before giving up to process all
-	// assignments in a single processing loop. If we are exceeding this time we most likely
-	// have drained Okta limits anyway. The assignments are sorted by processing priority on
-	// each loop (see [sortAssignmentsByProcessingPriority]) so it's better to timeout early,
-	// give the system some breathing room (timeBetweenAssignmentProcessLoops) and re-attempt
-	// processing starting the assignments with the highest priority at the time the new loops
-	// starts.
-	//
-	// NOTE: Setting a timeout for individual assignment processing is not practical because
-	// for the [sourceTimer] we invalidate the cached [assignmentClient]. When that happens it
-	// can take a long time (potentially minutes) to refresh the cache and process the first
-	// assignment while it's expected to take seconds to process subsequent assignments.
-	// TODO(kopiczko): Warm up [assignmentClient] before processing the first assignment and
-	// create set a per-assignment or per-target timeout. Create a metric for the total
-	// processing and assignmentClient warming up time.
-	processAssignmentsLoopTimeout time.Duration = 10 * time.Minute
 )
 
 type assignmentProcessorAccessPoint struct {
@@ -192,9 +175,6 @@ func (a *assignmentProcessor) processWatcherEvent(ctx context.Context, assignmen
 	// loops are only processing assignments that are pending or scheduled for cleanup. Those
 	// are excluded during target counter building.
 
-	ctx, cancel := context.WithTimeout(ctx, processAssignmentsLoopTimeout)
-	defer cancel()
-
 	for _, assignment := range assignments {
 		// TODO(kopiczko): Get rid of the processAssignment return value.
 		_ = a.processAssignment(ctx, logger, assignment, source)
@@ -235,9 +215,6 @@ func (a *assignmentProcessor) processTimerEvent(ctx context.Context) {
 	// Watcher-based loops are only processing assignments that are pending or scheduled for
 	// cleanup. Those are excluded during target counter building.
 	a.rebuildTargetCounter(assignments)
-
-	ctx, cancel := context.WithTimeout(ctx, processAssignmentsLoopTimeout)
-	defer cancel()
 
 	for _, assignment := range assignments {
 		// TODO(kopiczko): Get rid of the processAssignment return value.
