@@ -134,6 +134,9 @@ func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userSt
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
 func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
+	userLoginAttempts.Inc()
+	loginStart := a.clock.Now()
+
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -214,6 +217,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 	}
 
+	userLoginLatencies.Observe(a.clock.Since(loginStart).Seconds())
 	return userState, checker, trace.Wrap(err)
 }
 
