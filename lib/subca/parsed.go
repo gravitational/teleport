@@ -34,9 +34,7 @@ import (
 
 // SupportedCATypes returns a slice of supported CA types for CA overrides.
 func SupportedCATypes() []string {
-	caTypes := make([]string, len(allowedCAOverrideSubKinds))
-	copy(caTypes, allowedCAOverrideSubKinds)
-	return caTypes
+	return slices.Clone(allowedCAOverrideSubKinds)
 }
 
 var (
