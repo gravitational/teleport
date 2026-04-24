@@ -401,7 +401,12 @@ $(BUILDDIR)/teleport: ensure-webassets rdpclient session/reexec/embed/sessionhel
 .PHONY: $(BUILDDIR)/sessionhelper
 $(BUILDDIR)/sessionhelper:
 ifneq ($(SESSIONHELPER_EMBED_TAG),)
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C session build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o '$(abspath $(BUILDDIR)/sessionhelper)' $(BUILDFLAGS) ./cmd/sessionhelper
+	rm -f session/x-crypto-stub.mod session/x-crypto-stub.sum
+	cp session/go.mod session/x-crypto-stub.mod
+	cp session/go.sum session/x-crypto-stub.sum
+	GOWORK=off go -C session mod edit -modfile x-crypto-stub.mod -replace golang.org/x/crypto=./x-crypto-stub
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C session build -modfile x-crypto-stub.mod -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o '$(abspath $(BUILDDIR)/sessionhelper)' $(BUILDFLAGS) ./cmd/sessionhelper
+	rm session/x-crypto-stub.mod session/x-crypto-stub.sum
 endif
 
 .PHONY: session/reexec/embed/sessionhelper
