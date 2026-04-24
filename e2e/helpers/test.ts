@@ -16,17 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test as base } from '@playwright/test';
-
+import { test as base } from './fixtures';
+import { PlayerPage } from './pages/Player';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';
 
 export const CLUSTER_NAME = 'teleport-e2e';
 
 export const test = base.extend<{
   unifiedResourcesPage: UnifiedResourcesPage;
+  playerPage: PlayerPage;
 }>({
   unifiedResourcesPage: async ({ page }, use) => {
     await use(new UnifiedResourcesPage(page));
+  },
+  playerPage: async ({ page }, use) => {
+    await use(new PlayerPage(page));
   },
 });
 

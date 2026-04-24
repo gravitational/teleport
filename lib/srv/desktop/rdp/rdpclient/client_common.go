@@ -25,15 +25,12 @@ import (
 	"encoding/binary"
 	"image/png"
 	"log/slog"
-	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 // LicenseStore implements client-side license storage for Microsoft
@@ -92,9 +89,6 @@ type Config struct {
 
 	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
-
-	// The desktop protocol version used by the client (TDP or TDPB).
-	ClientProtocol string
 }
 
 //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
@@ -110,9 +104,6 @@ func (c *Config) checkAndSetDefaults() error {
 	}
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
-	}
-	if !slices.Contains([]string{tdpb.ProtocolName, legacy.ProtocolName}, c.ClientProtocol) {
-		return trace.BadParameter("missing ClientProtocol in rdpclient.Config")
 	}
 	c.Logger = c.Logger.With("rdp_addr", c.Addr)
 	return nil

@@ -687,15 +687,18 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindDatabase,
 									types.KindDevice,
 									types.KindGithub,
+									types.KindLock,
 									types.KindLoginRule,
 									types.KindNode,
 									types.KindOIDC,
 									types.KindOktaImportRule,
 									types.KindRole,
 									types.KindSAML,
+									types.KindSAMLIdPServiceProvider,
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// Some of the new resources got introduced, but not all
 									types.KindBot,
@@ -725,6 +728,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -736,15 +740,18 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindDatabase,
 									types.KindDevice,
 									types.KindGithub,
+									types.KindLock,
 									types.KindLoginRule,
 									types.KindNode,
 									types.KindOIDC,
 									types.KindOktaImportRule,
 									types.KindRole,
 									types.KindSAML,
+									types.KindSAMLIdPServiceProvider,
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// The resources that already got into the main rule are still present.
 									types.KindBot,
@@ -754,6 +761,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							},
 							// The missing resources got added as individual rules
 							types.NewRule(types.KindDiscoveryConfig, RW()),
+							types.NewRule(types.KindKubernetesCluster, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),

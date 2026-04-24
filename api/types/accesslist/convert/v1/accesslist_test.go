@@ -502,5 +502,5 @@ func Test_convertGrantsToProto_never_nil(t *testing.T) {
 	//
 	// See https://github.com/gravitational/teleport/issues/58948
 	emptyGrants := accesslist.Grants{}
-	require.NotNil(t, convertGrantsToProto(emptyGrants))
+	require.NotNil(t, ConvertGrantsToProto(emptyGrants))
 }

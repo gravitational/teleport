@@ -877,8 +877,10 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] G Suite Screenshots are up-to-date
 - [ ] Azure Active Directory (AD) install instructions work
     - [ ] Azure Active Directory (AD) Screenshots are up-to-date
-- [ ] ActiveDirectory (ADFS) install instructions work
-    - [ ] Active Directory (ADFS) Screenshots are up-to-date
+- [ ] Entra ID SAML (previously ADFS) install instructions work
+    - [ ] Entra ID SAML Screenshots are up-to-date
+- [ ] Entra ID OIDC install instructions work
+    - [ ] Entra ID OIDC Screenshots are up-to-date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up-to-date
 - [ ] OneLogin install instructions work
@@ -1182,6 +1184,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
+    - [ ] App Access
     - [ ] Desktop Access
   - [ ] Device authorization applies to Trusted Clusters
         (root with mode="optional" and leaf with mode="required")
@@ -1517,7 +1520,8 @@ manualy testing.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
+    - [ ] MySQL server version reported by Teleport is correct. You can find this in the connection information that is printed when you connect via `tsh db connect`.
+    - [ ] MySQL server version reported by `SELECT VERSION();` is correct and approximately matches the one printed in the connection information above.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -1911,8 +1915,8 @@ proxy_service:
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
   - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
   - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
-- Keyboard Layout
-  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+- Keyboard Layout (Changes take effect after signing out of the Windows session on the remote host)
+  - [ ] If "System" is chosen in preferences, the default layout for the remote server is used
   - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility
@@ -2310,6 +2314,19 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Adding/removing users from a child list updates the parent Access List accordingly.
     - [ ] Deleting a child Access List removes users from the parent.
     - [ ] Verify behavior when users are moved between overlapping Access Lists with different permissions.
+
+## Teleport Entra ID integration
+  - [ ] Docs (including screenshots) are up to date.
+    - [ ] Verify that guided (Web UI) installation method is working as expected. 
+    - [ ] Verify that manual Entra ID configuration using Azure portal is working as expected.
+    - [ ] Verify that terraform-based Entra ID configuration is working as expected.  
+  - [ ] User sync - verify that all the users that exist in Entra ID directory are synced to Teleport.
+  - [ ] Group sync - verify that all the groups that exist in the Entra ID directory are synced to Teleport.
+      - [ ] Verify that group members are synced to Teleport.
+      - [ ] Verify that group id and name regexp based include/exclude filters are working as expected (refer to docs for filter settings).
+      - [ ] Verify that Access List owner's source configuration is working as expected. Test all the three source types including `plugin`, `entraid` and `plugin-and-entraid`.
+      - [ ] Verify that all the group import settings can be configured and updated using both the Web UI and `tctl`.
+  - [ ] Veriy that when Access Graph sync is enabled, Entra ID policies are synced to Teleport.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.

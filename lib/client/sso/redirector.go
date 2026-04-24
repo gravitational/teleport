@@ -78,6 +78,10 @@ const (
 	// but the user has no matching roles in Teleport.
 	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
 
+	// LoginFailedEntraIDGroupsOverageRedirectURL is a redirect URL for when an Entra SAML authentication
+	// is unable to process groups overage.
+	LoginFailedEntraIDGroupsOverageRedirectURL = "/web/msg/error/login/entra_groups_overage"
+
 	// LoginClose is a redirect URL that will close the tab performing the SSO
 	// login. It's used when a second tab will be opened due to the first
 	// failing (such as an unmet hardware key policy) and the first should be
@@ -271,16 +275,16 @@ func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
 
 	// If a command was found to launch the browser, create and start it.
 	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
-		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\n", err)
+		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\r\n", err)
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
 	if rd.Browser == teleport.BrowserNone {
-		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\r\n %v\r\n", clickableURL)
 	} else {
 		fmt.Fprintf(rd.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(rd.Stderr, "clicking on the link:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "clicking on the link:\r\n %v\r\n", clickableURL)
 	}
 
 	return nil

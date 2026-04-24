@@ -298,6 +298,44 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			desc: "github valid enterprise only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Enterprise: "my-enterprise",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github valid enterprise_id only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								EnterpriseID: "123456",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc: "github ghes valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -573,6 +611,26 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
 							{
 								ServiceAccount: "my-service-account",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: too many parts in service account name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "too:many:parts",
 							},
 						},
 					},
@@ -1363,6 +1421,64 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 							{
 								DeploymentEnvironmentUUID: "{foo}",
 							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure success with subscription",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Subscription: "00000000-0000-0000-0000-000000000001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure success with tenant only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Tenant: "00000000-0000-0000-0000-000000000002",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure missing subscription and tenant",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{},
 						},
 					},
 				},

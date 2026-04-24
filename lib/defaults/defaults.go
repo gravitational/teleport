@@ -367,6 +367,9 @@ const (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// LinuxDesktopQueueSize is linux_desktop service watch queue size.
+	LinuxDesktopQueueSize = 128
+
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
 )
@@ -549,12 +552,18 @@ func ReadableDatabaseProtocol(p string) string {
 }
 
 const (
-	// PerfBufferPageCount is the size of the perf ring buffer.
-	PerfBufferPageCount = 64
+	// CmdPerfBufferPageCount is the size of buffered channel that receives
+	// eBPF command event messages.
+	CmdPerfBufferPageCount = 64
 
-	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
-	// events generate many events so this buffer needs to be extra large.
+	// OpenPerfBufferPageCount is the size of buffered channel that receives
+	// eBPF disk event messages. Open events generate many events so this
+	// buffer needs to be extra large.
 	OpenPerfBufferPageCount = 128
+
+	// NetPerfBufferPageCount is the size of the buffered channel that receives
+	// eBPF network event messages.
+	NetPerfBufferPageCount = 64
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
@@ -832,7 +841,7 @@ type httpClientOptions struct {
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func UseProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		var enable = true
+		enable := true
 		opts.useProxyFromEnvironment = &enable
 		return opts
 	}
@@ -842,7 +851,7 @@ func UseProxyFromEnvironment() HTTPClientOption {
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func DisableProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		var enable = false
+		enable := false
 		opts.useProxyFromEnvironment = &enable
 		return opts
 	}

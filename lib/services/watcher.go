@@ -732,6 +732,10 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
+	// ResourceFilter is an optional filter that is applied on the backend when
+	// watching for resources. Only resources matching the filter will be sent
+	// to the watcher.
+	ResourceFilter map[string]string
 	// RequireResourcesForInitialBroadcast indicates whether an update should be
 	// performed if the initial set of resources is empty.
 	RequireResourcesForInitialBroadcast bool
@@ -877,6 +881,7 @@ func (g *genericCollector[T, R]) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{
 		Kind:        g.ResourceKind,
 		LoadSecrets: g.LoadSecrets,
+		Filter:      g.ResourceFilter,
 	}}
 }
 
@@ -984,7 +989,7 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			// Always broadcast when a resource is deleted.
 			updated = true
 		case types.OpPut:
-			resource, err := convertResource[T](event.Resource)
+			resource, err := types.ConvertResource[T](event.Resource)
 			if err != nil {
 				g.Logger.WarnContext(ctx, "Failed to convert event resource",
 					"resource", event.Resource.GetKind(),
@@ -1144,6 +1149,11 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 // CheckLockInForce returns an AccessDenied error if there is a lock in force
 // matching at least one of the targets.
 func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
+	if len(targets) == 0 {
+		// A lock can't match any targets if there are no targets.
+		return nil
+	}
+
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
 	if p.isStale && mode == constants.LockingModeStrict {
@@ -1159,9 +1169,6 @@ func (p *lockCollector) findLockInForceUnderMutex(targets []types.LockTarget) ty
 	for _, lock := range p.current {
 		if !lock.IsInForce(p.Clock.Now()) {
 			continue
-		}
-		if len(targets) == 0 {
-			return lock
 		}
 		for _, target := range targets {
 			if target.Match(lock) {
@@ -1680,7 +1687,7 @@ func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Contex
 	}
 	newCurrent := make(map[string]types.AccessRequest, len(accessRequests))
 	for _, accessRequest := range accessRequests {
-		newCurrent[accessRequest.GetName()] = accessRequest
+		newCurrent[accessRequest.GetName()] = accessRequest.Copy()
 	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -1856,7 +1863,7 @@ func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Conte
 
 	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
 	for _, oktaAssignment := range oktaAssignments {
-		newCurrent[oktaAssignment.GetName()] = oktaAssignment
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment.Copy()
 	}
 	c.mu.Lock()
 	c.current = newCurrent

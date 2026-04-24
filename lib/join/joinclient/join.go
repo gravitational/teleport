@@ -261,7 +261,19 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	// Convert the result message into a JoinResult.
 	switch typedResult := resultMsg.(type) {
 	case *messages.HostResult:
-		return makeJoinResult(signer, typedResult.Certificates, typedResult.ImmutableLabels)
+		joinResult, err := makeJoinResult(signer, typedResult.Certificates, typedResult.ImmutableLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if typedResult.BoundKeypairResult != nil {
+			joinResult.BoundKeypair = &authjoin.BoundKeypairRegisterResult{
+				BoundPublicKey: string(typedResult.BoundKeypairResult.PublicKey),
+				JoinState:      typedResult.BoundKeypairResult.JoinState,
+			}
+		}
+
+		return joinResult, nil
 	case *messages.BotResult:
 		joinResult, err := makeJoinResult(signer, typedResult.Certificates, nil)
 		if err != nil {
@@ -361,7 +373,7 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodKubernetes:
 		if joinParams.IDToken == "" {
-			joinParams.IDToken, err = kubetoken.GetIDToken(os.Getenv, joinParams.KubernetesReadFileFunc)
+			joinParams.IDToken, err = kubetoken.GetIDToken(joinParams.KubernetesTokenPath, os.Getenv, joinParams.KubernetesReadFileFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

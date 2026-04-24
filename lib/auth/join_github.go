@@ -60,7 +60,7 @@ func (a *Server) checkGitHubJoinRequest(
 	req *types.RegisterUsingTokenRequest,
 	pt types.ProvisionToken,
 ) (*githubactions.IDTokenClaims, error) {
-	claims, err := githubactions.CheckGithubIDToken(ctx, &githubactions.CheckGithubIDTokenParams{
+	claims, err := githubactions.CheckGithubIDToken(ctx, a.modules, &githubactions.CheckGithubIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        []byte(req.IDToken),
 		Clock:          a.GetClock(),

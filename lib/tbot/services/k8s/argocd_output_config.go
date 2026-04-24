@@ -114,7 +114,10 @@ func (o *ArgoCDOutputConfig) SetName(name string) {
 
 // CheckAndSetDefaults validates the service configuration and sets any default
 // values.
-func (o *ArgoCDOutputConfig) CheckAndSetDefaults() error {
+func (o *ArgoCDOutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", ArgoCDOutputServiceType)
+	}
 	if len(o.Selectors) == 0 {
 		return trace.BadParameter("at least one selector is required")
 	}

@@ -341,6 +341,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   private async initWasm() {
+    if (typeof WebAssembly === 'undefined') {
+      throw new Error(
+        'WebAssembly is not supported in this browser. Desktop sessions and desktop session recordings require WebAssembly.'
+      );
+    }
+
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {

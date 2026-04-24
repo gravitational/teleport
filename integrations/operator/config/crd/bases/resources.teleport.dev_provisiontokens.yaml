@@ -101,6 +101,8 @@ spec:
                           type: array
                         subscription:
                           type: string
+                        tenant:
+                          type: string
                       type: object
                     nullable: true
                     type: array
@@ -315,6 +317,10 @@ spec:
                     items:
                       properties:
                         actor:
+                          type: string
+                        enterprise:
+                          type: string
+                        enterprise_id:
                           type: string
                         environment:
                           type: string

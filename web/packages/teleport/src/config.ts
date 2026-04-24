@@ -161,6 +161,7 @@ export const ossRoutes = {
   loginErrorCallback: '/web/msg/error/login/callback',
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
+  loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
   samlSloFailed: '/web/msg/error/slo',
   userInvite: '/web/invite/:tokenId',
   userInviteContinue: '/web/invite/:tokenId/continue',
@@ -168,6 +169,7 @@ export const ossRoutes = {
   userResetContinue: '/web/reset/:tokenId/continue',
   kubernetes: '/web/cluster/:clusterId/kubernetes',
   headlessSso: `/web/headless/:requestId`,
+  browserMfa: `/web/mfa/browser/:requestId?`,
   integrations: '/web/integrations',
   integrationOverview: '/web/integrations/overview/:type/:name',
   integrationStatus: '/web/integrations/status/:type/:name',
@@ -240,6 +242,9 @@ const cfg = {
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
 
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
@@ -264,7 +269,7 @@ const cfg = {
   /** @deprecated Use entitlements instead; remove in v20 */
   saml: false,
   // isPolicyEnabled refers to the Teleport Policy product
-  /** @deprecated Use entitlements instead; remove in v20 */
+  /** @deprecated Use entitlements.Policy.enabled instead;*/
   isPolicyEnabled: false,
 
   ui: {
@@ -431,6 +436,8 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
+    browserMfaPath: `/v1/webapi/mfa/browser/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -1149,6 +1156,10 @@ const cfg = {
     return generatePath(cfg.api.headlessSsoPath, { requestId });
   },
 
+  getBrowserMfaPath(requestId: string) {
+    return generatePath(cfg.api.browserMfaPath, { requestId });
+  },
+
   getUserInviteTokenRoute(tokenId = '') {
     return generatePath(cfg.routes.userInvite, { tokenId });
   },
@@ -1190,6 +1201,17 @@ const cfg = {
 
   getUserWithUsernameUrl(username: string) {
     return generatePath(cfg.api.userWithUsernamePath, { username });
+  },
+
+  // TODO(kimlisa): DELETE IN v21 and replace with getUserWithUsernameUrl.
+  // React Router v7 auto encodes dynamic segments in path (v5 version did not).
+  // The upgrade surfaced a backend bug where path params were not getting auto decoded which
+  // is the default behavior of go's httprouter.Params.ByName() b/c path params for this
+  // particular endpoint are being manually set.
+  // This is a temporary patch that does not encode segments (same behavior pre-React Router v7)
+  // to provide backwards compatibility.
+  getUserWithUsernameTemporaryPatchedUrl(username: string) {
+    return cfg.api.userWithUsernamePath.replace(':username', username);
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {

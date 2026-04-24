@@ -339,7 +339,7 @@ integration:
           "kms:GenerateDataKey",
           "kms:GenerateDataKeyWithoutPlaintext"
       ],
-      "Resources": [
+      "Resource": [
         "<Var name="aws-sqs-kms-queue-key"/>",
         "<Var name="aws-s3-kms-key"/>"
       ]

@@ -195,3 +195,49 @@ func TestRDSURLs(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureVMURLs(t *testing.T) {
+	resourceID := "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.Compute/virtualMachines/my-vm"
+	dummyVM := &usertasksv1.DiscoverAzureVMInstance{
+		VmId:       "my-vm",
+		ResourceId: resourceID,
+	}
+	baseVMData := &usertasksv1.DiscoverAzureVM{
+		Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
+			resourceID: dummyVM,
+		},
+	}
+
+	for _, tt := range []struct {
+		name              string
+		issueType         string
+		expectedVMWithURL *DiscoverAzureVMInstanceWithURLs
+	}{
+		{
+			name:      "url for azure vm",
+			issueType: usertasksapi.AutoDiscoverAzureVMIssueVMNotRunning,
+			expectedVMWithURL: &DiscoverAzureVMInstanceWithURLs{
+				ResourceURL: "https://portal.azure.com/#resource" + resourceID,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			vmWithURL := tt.expectedVMWithURL
+			vmWithURL.DiscoverAzureVMInstance = dummyVM
+			expected := &UserTaskDiscoverAzureVMWithURLs{
+				DiscoverAzureVM: baseVMData,
+				Instances: map[string]*DiscoverAzureVMInstanceWithURLs{
+					resourceID: vmWithURL,
+				},
+			}
+
+			got := AzureVMInstancesWithURLs(&usertasksv1.UserTask{
+				Spec: &usertasksv1.UserTaskSpec{
+					IssueType:       tt.issueType,
+					DiscoverAzureVm: baseVMData,
+				},
+			})
+			require.Equal(t, expected, got)
+		})
+	}
+}

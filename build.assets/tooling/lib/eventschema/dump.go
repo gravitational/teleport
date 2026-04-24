@@ -24,8 +24,8 @@ import (
 	"go/format"
 	"sort"
 	"strings"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"

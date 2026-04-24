@@ -201,7 +201,7 @@ func (p *vnetClientApplication) retryWithRelogin(ctx context.Context, tc *client
 			return nil
 		}),
 		client.WithAfterLoginHook(func() error {
-			return trace.Wrap(p.clientCache.ClearForRoot(profileName), "clearing client cache after relogin")
+			return trace.Wrap(p.clientCache.ClearStaleClientsForRoot(profileName), "clearing client cache after relogin")
 		}),
 		client.WithMakeCurrentProfile(false),
 	)

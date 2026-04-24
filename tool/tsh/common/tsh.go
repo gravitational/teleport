@@ -99,14 +99,14 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -1563,7 +1563,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, args)
+	utils.UpdateAppUsageTemplate(app)
 	command, err := app.Parse(insertDoubleDashAfterKubectl(args))
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
@@ -2518,6 +2518,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// the login operation may update the username and should be considered the more
 	// "authoritative" source.
 	cf.Username = tc.Username
+
+	// When the scope changes between logins (e.g. scoped→unscoped or vice
+	// versa), clear all Teleport keys for this proxy from the SSH agent.
+	if scopeChanged {
+		if agent := tc.LocalAgent(); agent != nil {
+			proxyIdx := client.KeyRingIndex{ProxyHost: tc.WebProxyHost()}
+			if err := agent.UnloadKeyRing(proxyIdx); err != nil {
+				logger.WarnContext(cf.Context, "Failed to unload old keys from agent on scope change", "error", err)
+			}
+		}
+	}
 
 	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, keyRing)
 	if err != nil {
@@ -4214,7 +4225,7 @@ func retryWithAccessRequest(
 	}
 
 	// Print and log the original AccessDenied error.
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprint(os.Stderr, utils.UserMessageFromError(origErr))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 	if err := promptUserForAccessRequestDetails(cf, req); err != nil {
 		return trace.Wrap(err)
@@ -4581,17 +4592,26 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 
 func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if status := tc.ExitStatus(); status != 0 {
+		if err == nil {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
+		}
+
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
-		if err != nil {
-			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+
+		// If we get a basic SSH exit error with no unexpected msg or signal,
+		// convert it to an exitCodeError and return.
+		var sshExitErr *ssh.ExitError
+		if errors.As(err, &sshExitErr) && sshExitErr.Msg() == "" && sshExitErr.Signal() == "" {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
 		}
-		err = &common.ExitCodeError{Code: status}
-		return trace.Wrap(err)
+
+		// For unexpected errors, print the error message before converting to an exitCodeError.
+		fmt.Fprint(tc.Stderr, utils.UserMessageFromError(err))
+		return trace.Wrap(&common.ExitCodeError{Code: status})
 	}
 	return trace.Wrap(err)
 }
@@ -4609,7 +4629,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		fmt.Fprint(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
@@ -4633,7 +4653,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", trace.UserMessage(err))
 		} else {
 			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}
@@ -5581,6 +5601,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
+	if p.DelegationSessionID != "" {
+		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
+	}
+
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
@@ -5747,6 +5771,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5800,6 +5825,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		DelegationSessionID:      p.DelegationSessionID,
 	}
 
 	// update active profile info from env

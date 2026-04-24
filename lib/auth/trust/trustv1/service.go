@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -71,6 +72,7 @@ type ServiceConfig struct {
 	Cache            services.AuthorityGetter
 	Backend          services.TrustInternal
 	AuthServer       authServer
+	Modules          modules.Modules
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -81,6 +83,7 @@ type Service struct {
 	cache            services.AuthorityGetter
 	backend          services.TrustInternal
 	authServer       authServer
+	modules          modules.Modules
 }
 
 // NewService returns a new trust gRPC service.
@@ -96,6 +99,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
+	case cfg.Modules == nil:
+		return nil, trace.BadParameter("modules is required")
 	}
 
 	return &Service{
@@ -104,6 +109,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		cache:            cfg.Cache,
 		backend:          cfg.Backend,
 		authServer:       cfg.AuthServer,
+		modules:          cfg.Modules,
 	}, nil
 }
 
@@ -141,8 +147,8 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	if err := decisionFn(
 		ctx,
 		scopes.Root,
-		func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -171,8 +177,8 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 	ruleCtx.Resource = ca
 	if err := decisionFn(
-		ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(
+		ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(
 				&ruleCtx, types.KindCertAuthority, readVerb)
 		},
 	); err != nil {
@@ -280,8 +286,8 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 	// perform access-control decision. all cert authorities can be considered as being "root" resources from
 	// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
-	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
