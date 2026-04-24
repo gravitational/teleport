@@ -62,7 +62,6 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 			name: "ok: db_client",
 			flags: []string{
 				"--type", string(types.DatabaseClientCA),
-				"--out=-",
 			},
 			csrPEMs: []string{dbClientCSRPEM},
 			wantReq: &subcav1.CreateCSRRequest{
@@ -74,7 +73,6 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 			name: "ok: windows",
 			flags: []string{
 				"--type", string(types.WindowsCA),
-				"--out=-",
 			},
 			csrPEMs: []string{windowsCSRPEM},
 			wantReq: &subcav1.CreateCSRRequest{
@@ -83,10 +81,9 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 			wantStdout: windowsCSRPEM + "\n",
 		},
 		{
-			name: "all flags",
+			name: "--public-key and --subject",
 			flags: []string{
 				"--type", string(types.WindowsCA),
-				"--out=-",
 				"--public-key=f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc",
 				"--subject=O=Llama,CN=Llamo",
 			},
@@ -109,7 +106,6 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 			name: "multiple PEMs",
 			flags: []string{
 				"--type", string(types.WindowsCA),
-				"--out=-",
 			},
 			csrPEMs: []string{
 				windowsCSRPEM,

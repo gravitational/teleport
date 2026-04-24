@@ -96,7 +96,7 @@ func (c *Command) Initialize(
 		Required().
 		StringVar(&c.createOverrideCSR.caType)
 	c.createOverrideCSR.
-		Flag("out", "Output path prefix. Use '-' for stdout.").
+		Flag("out", "If set writes CSRs to files using --out as the path prefix").
 		StringVar(&c.createOverrideCSR.out)
 	c.createOverrideCSR.
 		Flag("public-key", "Public key hash of CA certificate to be targeted").
@@ -211,7 +211,7 @@ func (c *createOverrideCSRCommand) Run(
 	}
 
 	// If writing to stdout there's no need to parse the PEMs or form filenames.
-	if writeToStdout := c.out == "-"; writeToStdout {
+	if c.out == "" {
 		for _, csr := range resp.Csrs {
 			fmt.Fprintln(s.Stdout, csr.Pem)
 		}
