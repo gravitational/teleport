@@ -882,7 +882,7 @@ func TestDeleteReverseTunnel(t *testing.T) {
 func TestDeleteProxyServer(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
