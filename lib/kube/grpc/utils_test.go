@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -320,14 +321,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Create kubernetes proxy server.
-	kubeServersWatcher, err := services.NewKubeServerWatcher(
+	kubeServersWatcher, err := services.NewProxyKubeServerWatcher(
 		testCtx.Context,
-		services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentKube,
-				Client:    client,
-			},
-			KubernetesServerGetter: client,
+		services.ProxyKubeServerWatcherConfig{
+			Component:      teleport.ComponentKube,
+			AccessPoint:    client,
+			FallbackGetter: client,
 		},
 	)
 	require.NoError(t, err)
@@ -423,7 +422,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Ensure watcher has the correct list of clusters.
 	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.CurrentResources(ctx)
+		kubeServers, err := kubeServersWatcher.CurrentResourcesWithFilter(ctx, func(readonly.KubeServer) bool { return true })
 		return err == nil && len(kubeServers) == len(cfg.Clusters)
 	}, 3*time.Second, time.Millisecond*100)
 
