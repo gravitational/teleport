@@ -40,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -960,7 +962,7 @@ func TestDeleteProxyServer(t *testing.T) {
 			_, err = client.PresenceServiceClient().DeleteProxyServer(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				proxies, err := srv.Auth().GetProxies()
+				proxies, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListProxyServers))
 				require.NoError(t, err)
 				for _, p := range proxies {
 					require.NotEqual(t, tt.req.Name, p.GetName(), "proxy should be deleted")
