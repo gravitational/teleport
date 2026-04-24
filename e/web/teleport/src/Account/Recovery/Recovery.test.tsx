@@ -18,6 +18,7 @@ const privilegeToken = 'privilegeToken123';
 describe('recovery dashboard testing', () => {
   let addNotification;
   let ctx;
+  const createdDate = new Date('2019-08-30T11:00:00.00Z');
 
   beforeEach(() => {
     ctx = new TeleportContextE();
@@ -34,7 +35,7 @@ describe('recovery dashboard testing', () => {
 
     jest
       .spyOn(ctx.recoveryService, 'fetchRecoveryCodesMetadata')
-      .mockResolvedValue({ createdDate: new Date('2019-08-30T11:00:00.00Z') });
+      .mockResolvedValue({ createdDate });
 
     jest.spyOn(ctx.recoveryService, 'generateRecoveryCodes').mockResolvedValue({
       codes: [
@@ -42,7 +43,7 @@ describe('recovery dashboard testing', () => {
         'tele-recovery-code-2',
         'tele-recovery-code-3',
       ],
-      createdDate: new Date('2019-08-30T11:00:00.00Z'),
+      createdDate,
     });
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('on');
@@ -133,7 +134,9 @@ describe('recovery dashboard testing', () => {
         screen.getByText('Recovery codes were last generated on:')
       ).toBeInTheDocument();
     });
-    expect(screen.getByText('8/30/2019')).toBeInTheDocument();
+    expect(
+      screen.getByText(createdDate.toLocaleDateString())
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /When you generate new recovery codes, your old ones will no longer work/i
