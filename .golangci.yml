@@ -223,6 +223,13 @@ linters:
               desc: the session submodule cannot import packages from the other modules
             - pkg: 'github.com/gravitational/teleport$'
               desc: the session submodule cannot import packages from the other modules
+        session_submodule_nocrypto:
+          files:
+            - '!$test'
+            - '${config-path}/session/**'
+          deny:
+            - pkg: crypto/
+              desc: the session helper should not use crypto/...
         test_packages:
           files:
             - '!$test'
