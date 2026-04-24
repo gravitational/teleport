@@ -50,8 +50,8 @@ override, in case a Teleport downgrade is ever required.
 1. First, Alice issues CSRs for the desired CA
 
     ```shell
-    $ tctl auth create-override-csr --type=db_client
-    > (Writes "db_client-${public_key}.pem".)
+    $ tctl auth create-override-csr --type=db_client --out='reqs/'
+    > (Writes "reqs/db_client-${public_key}.pem".)
     ```
 
     Note: if HSMs are configured then `tctl auth create-override-csr` must be
@@ -181,7 +181,9 @@ delete may be forced with the `--force` flag.
 
     ```shell
     $ tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
-    > (Writes "db_client-${public_key}.pem".)
+    > -----BEGIN CERTIFICATE REQUEST-----
+    > (...)
+    > -----END CERTIFICATE REQUEST-----
 
     # Alice issues certificate from CSR.
 
@@ -244,9 +246,11 @@ rotation.
 tctl auth rotate --type=db_client --phase=init
 
 # 2. Create the CSR.
-tctl auth create-override-csr --type=db_client \
-  --subject='OU=Llama Unit,CN=Llama Teleport DB client CA'
-> (Writes CSR file for NEW key.)
+tctl auth create-override-csr \
+  --type=db_client \
+  --subject='OU=Llama Unit,CN=Llama Teleport DB client CA' \
+  --out='reqs/'
+> (Writes CSR files for OLD and NEW keys.)
 
 # 3. Sign the CSR for the NEW key using the external CA.
 
