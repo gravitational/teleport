@@ -268,32 +268,7 @@ $ tsh db logout
 
 ## Troubleshooting
 
-### Could not find default credentials
-
-This error can come from either your client application or from the Teleport
-Database Service.
-
-**Client application.** Disable GCP credential loading in your client. The client
-should not load credentials directly, because the Teleport Database Service
-provides them.
-
-**Teleport Database Service.** If the error appears in the Teleport Database
-Service logs at DEBUG level, the service does not have GCP credentials configured
-correctly.
-
-If you are using a service account key, confirm that `GOOGLE_APPLICATION_CREDENTIALS`
-is set to the path of your credentials file, then restart the Teleport Database
-Service so it picks up the variable. For example, if the service runs under
-`systemd`:
-
-```code
-$ echo 'GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json' | sudo tee -a /etc/default/teleport
-$ sudo systemctl restart teleport
-```
-
-For other ways to authenticate as a service account, see
-[Authentication at Google](https://cloud.google.com/docs/authentication#service-accounts)
-in the Google Cloud documentation.
+(!docs/pages/includes/database-access/gcp-troubleshooting.mdx!)
 
 ## Next steps
 
