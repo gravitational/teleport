@@ -40,9 +40,11 @@ type AccessGraphCommand struct {
 	config *servicecfg.Config
 	stdout io.Writer
 
-	detections    detectionsArgs
-	investigate   investigateArgs
-	accessChanges accessChangesArgs
+	detections     detectionsArgs
+	investigate    investigateArgs
+	accessChanges  accessChangesArgs
+	accessRequests accessRequestsArgs
+	access         accessArgs
 }
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
@@ -54,8 +56,11 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 	}
 
 	// Initialize AG subcommands.
+	c.initInvestigate(app)
+	c.initAccess(app)
 	c.initDetections(app)
 	c.initInvestigate(app)
+	c.initAccessRequests(app)
 	c.initAccessChanges(app)
 }
 
@@ -80,6 +85,18 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.AccessChangesList
 	case c.accessChanges.get.cmd.FullCommand():
 		commandFunc = c.AccessChangesGet
+	case c.access.query.cmd.FullCommand():
+		commandFunc = c.AccessQuery
+	case c.access.review.resource.cmd.FullCommand():
+		commandFunc = c.AccessReviewResource
+	case c.access.review.acl.cmd.FullCommand():
+		commandFunc = c.AccessReviewACL
+	case c.access.review.role.cmd.FullCommand():
+		commandFunc = c.AccessReviewRole
+	case c.access.review.identity.cmd.FullCommand():
+		commandFunc = c.AccessReviewIdentity
+	case c.accessRequests.ls.cmd.FullCommand():
+		commandFunc = c.AccessRequestsList
 	default:
 		return false, nil
 	}
