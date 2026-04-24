@@ -25,24 +25,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
+	footest "github.com/gravitational/teleport/lib/utils/grpc/test"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-// unimplementedFakeServerService is the gRPC service interface implemented both
-// by the proxy and the server.
-type unimplementedFakeServerSvc = accessgraphsecretsv1pb.UnimplementedSecretsScannerServiceServer
-
-// fakeServerSvcClient is an interface for a gRPC client that talks to a
-// gRPC service implemented by the proxy and the server.
-type fakeServerSvcClient = accessgraphsecretsv1pb.SecretsScannerServiceClient
 
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
@@ -51,9 +41,9 @@ func TestMain(m *testing.M) {
 
 // TestProxyBidiStream creates two gRPC services: one acting as a server and one
 // as a proxy. The proxy uses [grpcutils.ProxyBidiStream] to proxy messages from
-// the client to the server.
+// the client and the server.
 //
-// Both services implement [unimplementedFakeServerSvc]. The server uses
+// Both services implement [footest.FooServiceServer]. The server uses
 // [fakeServerSvc] as its implementation, whereas the proxy uses [proxyService].
 //
 // The other tests in this file use the same setup. TestProxyBidiStream tests
@@ -69,52 +59,29 @@ func TestProxyBidiStream(t *testing.T) {
 	ctx := t.Context()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.ReportSecrets(ctx)
+	stream, err := client.Session(ctx)
 	require.NoError(t, err)
 
-	// Send the device assertion init message
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_Init{
-					Init: &devicepb.AssertDeviceInit{},
-				},
-			},
-		},
-	})
+	// Send a message.
+	err = stream.Send(&footest.SessionRequest{Input: "hello"})
 	require.NoError(t, err)
 
-	// Receive the device assertion challenge message
+	// Receive the server's response.
 	msg, err := stream.Recv()
 	require.NoError(t, err)
-	assert.NotNil(t, msg.GetDeviceAssertion().GetChallenge())
+	require.Equal(t, "ack", msg.GetOutput())
 
-	// Send the device assertion challenge response message
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
-					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Receive the device assertion response message
-	msg, err = stream.Recv()
-	require.NoError(t, err)
-	assert.NotNil(t, msg.GetDeviceAssertion().GetDeviceAsserted())
-
-	// Send close message
+	// Half-close and wait for the server to terminate the stream cleanly.
 	err = stream.CloseSend()
 	require.NoError(t, err)
 
-	// Receive the termination message
 	_, err = stream.Recv()
 	require.ErrorIs(t, err, io.EOF)
 }
 
+// TestProxyBidiStream_HandlesServerReturningErr covers the case where the
+// server errors on its first Recv. Before this regression test the proxy
+// handler could deadlock instead of propagating the error.
 func TestProxyBidiStream_HandlesServerReturningErr(t *testing.T) {
 	t.Parallel()
 	_, fakeServerSvcClient := newFakeServerSvc(t)
@@ -129,20 +96,20 @@ func TestProxyBidiStream_HandlesServerReturningErr(t *testing.T) {
 	defer cancel()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.ReportSecrets(ctx)
+	stream, err := client.Session(ctx)
 	require.NoError(t, err)
 
-	// Send incomplete message which should cause the server to return an error.
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{})
+	// Empty input triggers the fake server to return an error on its first
+	// Recv.
+	err = stream.Send(&footest.SessionRequest{})
 	require.NoError(t, err)
 	_, err = stream.Recv()
-	require.ErrorContains(t, err, "missing device init")
+	require.ErrorContains(t, err, "empty input")
 }
 
 // TestProxyBidiStream_PropagatesServerErrorAfterClientEOF asserts that a
-// terminal error produced by the server SecretsScannerService *after* the
-// client has half-closed (CloseSend) is still propagated through the proxy to
-// the client.
+// terminal error produced by the server *after* the client has half-closed
+// (CloseSend) is still propagated through the proxy to the client.
 //
 // This exercises the handler path where forwardClientToServer returns first
 // (normal CloseSend) and forwardServerToClient is the one that ends up carrying
@@ -161,36 +128,11 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 	ctx := t.Context()
 
 	client := newProxyServiceClient(t, lis)
-
-	stream, err := client.ReportSecrets(ctx)
+	stream, err := client.Session(ctx)
 	require.NoError(t, err)
 
-	// Full handshake so server reaches the final in.Recv() that ends in EOF.
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_Init{
-					Init: &devicepb.AssertDeviceInit{},
-				},
-			},
-		},
-	})
+	err = stream.Send(&footest.SessionRequest{Input: "hello"})
 	require.NoError(t, err)
-
-	_, err = stream.Recv()
-	require.NoError(t, err)
-
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
-					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
 	_, err = stream.Recv()
 	require.NoError(t, err)
 
@@ -210,7 +152,7 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	t.Parallel()
 	service, fakeServerSvcClient := newFakeServerSvc(t)
-	service.returnAfterChallenge = true
+	service.returnAfterFirstResponse = true
 
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -222,21 +164,13 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	defer cancel()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.ReportSecrets(ctx)
+	stream, err := client.Session(ctx)
 	require.NoError(t, err)
 
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_Init{
-					Init: &devicepb.AssertDeviceInit{},
-				},
-			},
-		},
-	})
+	err = stream.Send(&footest.SessionRequest{Input: "hello"})
 	require.NoError(t, err)
 
-	// Drain the challenge the server sent before returning.
+	// Drain the first response the server sent before returning.
 	_, err = stream.Recv()
 	require.NoError(t, err)
 
@@ -244,15 +178,7 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	// server has already returned. Under the bug this reshapes the server's
 	// clean completion into an error via a failed upstream Send; under the
 	// fix the handler has already returned and the Send is irrelevant.
-	_ = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
-					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
-				},
-			},
-		},
-	})
+	_ = stream.Send(&footest.SessionRequest{Input: "more"})
 
 	// Server has returned nil. The client must see clean io.EOF, not a
 	// proxy-reshaped error and not a hang (which would surface as a
@@ -261,101 +187,68 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 }
 
-func newFakeServerSvc(t *testing.T) (*fakeServerSvc, fakeServerSvcClient) {
+func newFakeServerSvc(t *testing.T) (*fakeServerSvc, footest.FooServiceClient) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	server := grpc.NewServer()
 	service := &fakeServerSvc{}
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, service)
+	footest.RegisterFooServiceServer(server, service)
 	go func() {
 		err := server.Serve(lis)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}()
 	t.Cleanup(server.GracefulStop)
 
 	client, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
-	return service, accessgraphsecretsv1pb.NewSecretsScannerServiceClient(client)
+	return service, footest.NewFooServiceClient(client)
 }
 
 type fakeServerSvc struct {
-	unimplementedFakeServerSvc
+	footest.UnimplementedFooServiceServer
 
-	// postClientEOFErr, if non-nil, is returned by ReportSecrets after it
-	// gets EOF from the client, modeling the server producing a terminal error
-	// during post-upload processing (after the client has already half-closed).
+	// postClientEOFErr, if non-nil, is returned by Session after it gets EOF
+	// from the client, modeling the server producing a terminal error during
+	// post-upload processing (after the client has already half-closed).
 	postClientEOFErr error
 
-	// returnAfterChallenge, if true, makes ReportSecrets return nil right after
-	// sending the challenge, without waiting for the client's challenge
-	// response or for the client to half-close. It models a server that ends
-	// the stream early while the client is still mid-conversation.
-	returnAfterChallenge bool
+	// returnAfterFirstResponse, if true, makes Session return nil right after
+	// sending its first response, without waiting for any further client input
+	// or for the client to half-close. It models a server that ends the
+	// stream early while the client is still mid-conversation.
+	returnAfterFirstResponse bool
 }
 
-func (f *fakeServerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
-	msg, err := in.Recv()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if msg.GetDeviceAssertion().GetInit() == nil {
-		return trace.BadParameter("missing device init")
-	}
-
-	err = in.Send(&accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceResponse{
-				Payload: &devicepb.AssertDeviceResponse_Challenge{
-					Challenge: &devicepb.AuthenticateDeviceChallenge{Challenge: []byte("challenge")},
-				},
-			},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if f.returnAfterChallenge {
-		return nil
-	}
-	msg, err = in.Recv()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if msg.GetDeviceAssertion().GetChallengeResponse() == nil {
-		return trace.BadParameter("missing device challenge")
-	}
-
-	err = in.Send(&accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceResponse{
-				Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{
-					DeviceAsserted: &devicepb.DeviceAsserted{},
-				},
-			},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = in.Recv()
-	if errors.Is(err, io.EOF) {
-		if f.postClientEOFErr != nil {
-			return f.postClientEOFErr
+func (f *fakeServerSvc) Session(stream footest.FooService_SessionServer) error {
+	for {
+		req, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			if f.postClientEOFErr != nil {
+				return f.postClientEOFErr
+			}
+			return nil
 		}
-		return nil
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(req.GetInput()) == 0 {
+			return trace.BadParameter("empty input")
+		}
+		if err := stream.Send(&footest.SessionResponse{Output: "ack"}); err != nil {
+			return trace.Wrap(err)
+		}
+		if f.returnAfterFirstResponse {
+			return nil
+		}
 	}
-	return trace.BadParameter("unexpected message")
 }
 
 // newProxyService creates a gRPC server under lis and registers in it a gRPC
-// service that proxies a specific RPC to the server using
+// service that proxies Session calls to the server using
 // [grpcutils.ProxyBidiStream].
-func newProxyService(t *testing.T, lis net.Listener, client fakeServerSvcClient) {
+func newProxyService(t *testing.T, lis net.Listener, client footest.FooServiceClient) {
 	t.Helper()
 
 	s := grpc.NewServer()
@@ -365,39 +258,39 @@ func newProxyService(t *testing.T, lis net.Listener, client fakeServerSvcClient)
 		serverSvcClient: client,
 	}
 
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(s, proxySvc)
+	footest.RegisterFooServiceServer(s, proxySvc)
 
 	go func() {
 		err := s.Serve(lis)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}()
 }
 
 type proxyService struct {
-	unimplementedFakeServerSvc
+	footest.UnimplementedFooServiceServer
 
-	serverSvcClient fakeServerSvcClient
+	serverSvcClient footest.FooServiceClient
 }
 
-// ReportSecrets is the gRPC handler in the proxy.
+// Session is the gRPC handler in the proxy.
 // client goes from a client to the proxy. From that point of view, the proxy is
 // a server for the client.
 // server from getServer goes from the proxy to the server. From that point of
 // view, the proxy is a client of the server.
-func (p *proxyService) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
-	getServer := func(ctx context.Context) (accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient, error) {
-		return p.serverSvcClient.ReportSecrets(ctx)
+func (p *proxyService) Session(client footest.FooService_SessionServer) error {
+	getServer := func(ctx context.Context) (footest.FooService_SessionClient, error) {
+		return p.serverSvcClient.Session(ctx)
 	}
 	err := grpcutils.ProxyBidiStream(logtest.NewLogger(), client, getServer)
 	return trace.Wrap(err)
 }
 
-func newProxyServiceClient(t *testing.T, lis net.Listener) fakeServerSvcClient {
+func newProxyServiceClient(t *testing.T, lis net.Listener) footest.FooServiceClient {
 	t.Helper()
 	clientConn, err := grpc.NewClient(
 		lis.Addr().String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)
-	return accessgraphsecretsv1pb.NewSecretsScannerServiceClient(clientConn)
+	return footest.NewFooServiceClient(clientConn)
 }
