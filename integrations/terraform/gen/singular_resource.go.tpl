@@ -136,7 +136,11 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 	var {{.VarName}}Before *{{.ProtoPackage}}.{{.TypeName}}
 	if err == nil {
+    {{- if .RequestWrapper.ReturnsUnwrappedResource }}
+		{{.VarName}}Before = {{.VarName}}BeforeResp
+	{{ else }}
 		{{.VarName}}Before = {{.VarName}}BeforeResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end }}
 	}
 {{- else}}
 
@@ -207,7 +211,11 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		})
 		err = getErr
 		if err == nil {
+		{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{.VarName}}I = {{.VarName}}GetResp
+		{{- else }}
 			{{.VarName}}I = {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+		{{- end }}
 		}
 	{{- else}}
 		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
@@ -323,7 +331,11 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 		return
 	}
 {{ if .RequestWrapper }}
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}I := {{.VarName}}GetResp
+	{{- else }}
 	{{.VarName}}I := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end }}
 {{- end}}
 	{{if .IsPlainStruct -}}
 	{{.VarName}} := {{.VarName}}I
@@ -406,7 +418,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}Before := {{.VarName}}BeforeResp
+	{{- else }}
 	{{.VarName}}Before := {{.VarName}}BeforeResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end }}
 {{- else}}
 
 	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
@@ -467,7 +483,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		})
 		err = getErr
 		if err == nil {
+		{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{.VarName}}I = {{.VarName}}GetResp
+		{{- else }}
 			{{.VarName}}I = {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+		{{- end }}
 		}
 	{{- else}}
 		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
@@ -566,7 +586,12 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}I := {{.VarName}}GetResp
+	{{- else }}
 	{{.VarName}}I := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end}}
 {{- else}}
 	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if err != nil {
