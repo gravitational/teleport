@@ -767,6 +767,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
+			AgentScope: id.Identity.AgentScope,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
