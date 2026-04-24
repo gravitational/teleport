@@ -203,6 +203,64 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 	require.ErrorContains(t, recvErr, "post-EOF validation failed")
 }
 
+// TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly asserts that when the
+// server ends its handler cleanly (nil) *before* the client has half-closed,
+// the proxy propagates that as io.EOF to the client rather than hanging or
+// reshaping the server's nil into an error.
+func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
+	t.Parallel()
+	service, fakeServerSvcClient := newFakeServerSvc(t)
+	service.returnAfterChallenge = true
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	newProxyService(t, lis, fakeServerSvcClient)
+	// Short timeout so a hang surfaces as a test failure rather than waiting
+	// out the default go-test timeout.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	client := newProxyServiceClient(t, lis)
+	stream, err := client.ReportSecrets(ctx)
+	require.NoError(t, err)
+
+	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceRequest{
+				Payload: &devicepb.AssertDeviceRequest_Init{
+					Init: &devicepb.AssertDeviceInit{},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Drain the challenge the server sent before returning.
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	// Client sends the next message it would naturally send, not knowing the
+	// server has already returned. Under the bug this reshapes the server's
+	// clean completion into an error via a failed upstream Send; under the
+	// fix the handler has already returned and the Send is irrelevant.
+	_ = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceRequest{
+				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
+					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
+				},
+			},
+		},
+	})
+
+	// Server has returned nil. The client must see clean io.EOF, not a
+	// proxy-reshaped error and not a hang (which would surface as a
+	// DeadlineExceeded from ctx).
+	_, err = stream.Recv()
+	require.ErrorIs(t, err, io.EOF)
+}
+
 func newFakeServerSvc(t *testing.T) (*fakeServerSvc, fakeServerSvcClient) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -229,6 +287,12 @@ type fakeServerSvc struct {
 	// gets EOF from the client, modeling the server producing a terminal error
 	// during post-upload processing (after the client has already half-closed).
 	postClientEOFErr error
+
+	// returnAfterChallenge, if true, makes ReportSecrets return nil right after
+	// sending the challenge, without waiting for the client's challenge
+	// response or for the client to half-close. It models a server that ends
+	// the stream early while the client is still mid-conversation.
+	returnAfterChallenge bool
 }
 
 func (f *fakeServerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
@@ -252,6 +316,9 @@ func (f *fakeServerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerSe
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if f.returnAfterChallenge {
+		return nil
 	}
 	msg, err = in.Recv()
 	if err != nil {
