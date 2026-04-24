@@ -192,8 +192,8 @@ func TestTeleportAppV3AllNamespacesSameName(t *testing.T) {
 	_, err = reconciler.Reconcile(ctx, req2)
 	require.NoError(t, err)
 
-	name1 := resourceName + "-" + app1.Namespace
-	name2 := resourceName + "-" + app2.Namespace
+	name1 := app1.Namespace + "-" + resourceName
+	name2 := app2.Namespace + "-" + resourceName
 
 	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := setup.TeleportClient.GetApp(ctx, name1)
