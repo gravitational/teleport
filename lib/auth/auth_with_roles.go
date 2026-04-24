@@ -2578,13 +2578,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	return resp, nil
 }
 
-func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) error {
-	if err := a.authorizeAction(types.KindAuthServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertAuthServer(ctx, s)
-}
-
 // Deprecated: Prefer paginated variant [ListAuthServers].
 //
 // TODO(kiosion) DELETE IN 21.0.0

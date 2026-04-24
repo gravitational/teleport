@@ -124,7 +124,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.deleteWebSession))
 
 	// Servers and presence heartbeat
-	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
@@ -154,6 +153,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", httpMigratedHandler)
 	srv.DELETE("/:version/proxies", httpMigratedHandler)
 	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", httpMigratedHandler)
+	srv.POST("/:version/authservers", httpMigratedHandler)
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -236,7 +236,6 @@ type upsertServerRawReq struct {
 // presenceForAPIServer is a subset of [services.Presence].
 type presenceForAPIServer interface {
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-	UpsertAuthServer(ctx context.Context, s types.Server) error
 	UpsertProxy(ctx context.Context, s types.Server) error
 }
 
@@ -250,8 +249,6 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	switch role {
 	case types.RoleNode:
 		kind = types.KindNode
-	case types.RoleAuth:
-		kind = types.KindAuthServer
 	case types.RoleProxy:
 		kind = types.KindProxy
 	default:
@@ -279,10 +276,6 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 			return nil, trace.Wrap(err)
 		}
 		return handle, nil
-	case types.RoleAuth:
-		if err := auth.UpsertAuthServer(r.Context(), server); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	case types.RoleProxy:
 		if err := auth.UpsertProxy(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
@@ -321,11 +314,6 @@ func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-// upsertAuthServer is called by remote Auth servers when they ping back into the auth service
-func (s *APIServer) upsertAuthServer(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	return s.upsertServer(auth, types.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers

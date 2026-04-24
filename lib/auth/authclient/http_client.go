@@ -394,20 +394,6 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// UpsertAuthServer is used by auth servers to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
-func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error {
-	data, err := services.MarshalServer(s)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertServerRawReq{
-		Server: data,
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authservers"), args)
-	return trace.Wrap(err)
-}
-
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
 func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
