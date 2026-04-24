@@ -2381,7 +2381,7 @@ Verify SAML IdP service provider resource management.
   - [ ] Desktop Access: verify MFA when starting a desktop session
 - [ ] Audit log should show [MFA challenge events](https://goteleport.com/docs/reference/audit-events/).
 - [ ] Force in-band MFA for SSH only (`TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA=yes`) ([RFD
-  234](https://github.com/gravitational/teleport/blob/master/rfd/0234-in-band-mfa-ssh-sessions.md))
+  234](https://github.com/gravitational/teleport/blob/a1478ef54c252db4a49c225015ede10e2baef7e0/rfd/0234-in-band-mfa-ssh-sessions.md))
   - [ ] `tsh ssh`
   - [ ] Web UI
   - [ ] Teleport Connect
