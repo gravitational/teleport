@@ -100,6 +100,36 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 	return re, nil
 }
 
+// DeleteProxy deletes a proxy server heartbeat by name. It calls the gRPC
+// PresenceService and falls back to the legacy HTTP endpoint if the server
+// does not yet implement the gRPC RPC.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *Client) DeleteProxy(ctx context.Context, name string) error {
+	err := c.APIClient.DeleteProxy(ctx, name)
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.HTTPClient.deleteProxyLegacy(ctx, name)
+}
+
+// deleteProxyLegacy deletes proxy by name via the legacy HTTP endpoint.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *HTTPClient) deleteProxyLegacy(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing parameter name")
+	}
+	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetProxies returns the list of auth servers registered in the cluster.
 //
 // Deprecated: Prefer paginated variant [APIClient.ListProxyServers].

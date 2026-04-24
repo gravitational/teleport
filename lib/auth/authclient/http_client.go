@@ -422,18 +422,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	return trace.Wrap(err)
 }
 
-// DeleteProxy deletes proxy by name
-func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
-	if name == "" {
-		return trace.BadParameter("missing parameter name")
-	}
-	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {

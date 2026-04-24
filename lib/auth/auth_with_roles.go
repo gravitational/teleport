@@ -2703,6 +2703,10 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 }
 
 // DeleteProxy deletes proxy by name
+//
+// Deprecated: Use PresenceService.DeleteProxyServer instead.
+//
+// TODO(noah): DELETE IN v20.0.0
 func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 	if err := a.authorizeAction(types.KindProxy, types.VerbDelete); err != nil {
 		return trace.Wrap(err)

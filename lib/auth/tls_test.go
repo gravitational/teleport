@@ -1713,6 +1713,76 @@ func TestServersCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(out, []types.Server{auth}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
+// TestDeleteProxy exercises both wire paths that coexist during the
+// HTTP-to-gRPC migration window: the direct gRPC RPC on *APIClient and the
+// legacy HTTP endpoint invoked via the raw HTTP client.
+//
+// TODO(noah): DELETE IN v20.0.0 - once the legacy HTTP endpoint is removed,
+// the DeleteProxy call in TestServersCRUD is sufficient.
+func TestDeleteProxy(t *testing.T) {
+	t.Parallel()
+
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	newProxy := func(name string) types.Server {
+		return &types.ServerV2{
+			Kind:    types.KindProxy,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "127.0.0.1:2023",
+				Hostname: "proxy.llama",
+			},
+		}
+	}
+
+	proxyNames := func(t *testing.T) []string {
+		proxies, _, err := testSrv.Auth().ListProxyServers(ctx, 0, "")
+		require.NoError(t, err)
+		names := make([]string, 0, len(proxies))
+		for _, p := range proxies {
+			names = append(names, p.GetName())
+		}
+		return names
+	}
+
+	t.Run("direct gRPC RPC", func(t *testing.T) {
+		proxy := newProxy("proxy-grpc")
+		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+
+		require.NoError(t, clt.APIClient.DeleteProxy(ctx, proxy.GetName()))
+
+		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("through fallback abstraction", func(t *testing.T) {
+		proxy := newProxy("proxy-through-fallback-grpc")
+		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+
+		require.NoError(t, clt.DeleteProxy(ctx, proxy.GetName()))
+
+		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("legacy HTTP endpoint", func(t *testing.T) {
+		proxy := newProxy("proxy-http")
+		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+
+		_, err := clt.HTTPClient.Delete(ctx, clt.HTTPClient.Endpoint("proxies", proxy.GetName()))
+		require.NoError(t, err)
+
+		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+}
+
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
 func TestAppServerCRUD(t *testing.T) {
 	t.Parallel()

@@ -878,6 +878,98 @@ func TestDeleteReverseTunnel(t *testing.T) {
 	}
 }
 
+// TestDeleteProxyServer is an integration test that uses a real gRPC client/server.
+func TestDeleteProxyServer(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-deleter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindProxy},
+				Verbs:     []string{types.VerbDelete},
+			},
+		})
+	require.NoError(t, err)
+	unprivilegedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+
+	proxy, err := types.NewServer("proxy-1", types.KindProxy, types.ServerSpecV2{})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().UpsertProxy(ctx, proxy))
+
+	tests := []struct {
+		name                  string
+		user                  string
+		req                   *presencev1pb.DeleteProxyServerRequest
+		assertError           require.ErrorAssertionFunc
+		checkResourcesDeleted bool
+	}{
+		{
+			name: "success",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+			assertError:           require.NoError,
+			checkResourcesDeleted: true,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req: &presencev1pb.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
+			name: "non existent",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+		{
+			name: "missing name",
+			user: user.GetName(),
+			req:  &presencev1pb.DeleteProxyServerRequest{},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			require.NoError(t, err)
+
+			_, err = client.PresenceServiceClient().DeleteProxyServer(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.checkResourcesDeleted {
+				proxies, err := srv.Auth().GetProxies()
+				require.NoError(t, err)
+				for _, p := range proxies {
+					require.NotEqual(t, tt.req.Name, p.GetName(), "proxy should be deleted")
+				}
+			}
+		})
+	}
+}
+
 func TestUpsertReverseTunnel(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)

@@ -48,6 +48,8 @@ type Backend interface {
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 
 	DeleteRelayServer(ctx context.Context, name string) error
+
+	DeleteProxy(ctx context.Context, name string) error
 }
 
 type Cache interface {
@@ -476,4 +478,26 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 	}
 
 	return &presencepb.DeleteRelayServerResponse{}, nil
+}
+
+// DeleteProxyServer deletes a proxy server heartbeat by name.
+func (s *Service) DeleteProxyServer(
+	ctx context.Context, req *presencepb.DeleteProxyServerRequest,
+) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Name == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	if err := s.backend.DeleteProxy(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }

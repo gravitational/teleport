@@ -52,6 +52,8 @@ service PresenceService {
   rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
   // ListProxyServers returns a page of Proxy servers.
   rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
+  // DeleteProxyServer removes an existing Proxy server heartbeat by name.
+  rpc DeleteProxyServer(DeleteProxyServerRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetRemoteCluster
@@ -201,4 +203,10 @@ message ListProxyServersResponse {
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
+}
+
+// Request message for the PresenceService.DeleteProxyServer rpc.
+message DeleteProxyServerRequest {
+  // Name is the name (host UUID) of the Proxy server to delete.
+  string name = 1;
 }
