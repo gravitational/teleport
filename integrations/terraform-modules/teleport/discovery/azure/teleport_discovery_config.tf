@@ -24,7 +24,7 @@ locals {
         regions         = matcher.regions
         tags            = matcher.tags
       },
-      local.create_teleport_integration ? { integration = local.teleport_integration_name } : {},
+      local.teleport_integration_name != null ? { integration = local.teleport_integration_name } : {},
       contains(matcher.types, "vm") ? { install_params = local.vm_install_params } : {}
     )
   ]
