@@ -577,10 +577,10 @@ func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
 		// Missing traits should log a debug message that this rewrite is skipped.
 		{Name: "x-bad-rewrite", Value: "{{external.bad_rewrite}}"},
 	}
-	traits := map[string][]string{
+	rewriteTraits := map[string][]string{
 		"rewrite": {"value1", "value2"},
 	}
-	RewriteHeadersAndApplyValueTraits(r, slices.Values(rewrites), traits, slog.Default())
+	RewriteHeadersAndApplyValueTraits(r, slices.Values(rewrites), rewriteTraits, slog.Default())
 
 	assert.Equal(t, "1.2.3.4", r.Host)
 	wantHeaders := make(http.Header)
