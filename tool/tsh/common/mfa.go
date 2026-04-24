@@ -237,18 +237,16 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	if c.devType == "" {
-		// If we are prompting the user for the device type, then take a glimpse at
-		// server-side settings and adjust the options accordingly.
-		// This is undesirable to do during flag setup, but we can do it here.
-		pingResp, err := tc.Ping(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	allowedDevTypes := deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor)
 
+	if c.devType == "" {
 		c.devType, err = prompt.PickOne(
 			ctx, os.Stdout, prompt.Stdin(),
-			"Choose device type", deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor))
+			"Choose device type", allowedDevTypes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -282,7 +280,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	logger.DebugContext(ctx, "tsh using passwordless registration?", "allow_passwordless", c.allowPasswordless)
 
-	dev, err := c.addDeviceRPC(ctx, tc)
+	dev, err := c.addDeviceRPC(ctx, tc, allowedDevTypes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -302,7 +300,7 @@ func deviceTypesFromSecondFactor(sf constants.SecondFactorType) []string {
 	}
 }
 
-func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient) (*types.MFADevice, error) {
+func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient, allowedDevTypes []string) (*types.MFADevice, error) {
 	devTypePB := map[string]proto.DeviceType{
 		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
 		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
@@ -522,7 +520,13 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
 	prompt.PINMessage = "Enter your *new* security key PIN"
-	prompt.FirstTouchMessage = "Tap your *new* security key"
+	if touchid.IsAvailable() {
+		prompt.FirstTouchMessage =
+			"(Note: Touch ID is not supported by WEBAUTHN; to register a Touch ID device, use --type=TOUCHID instead.)\n" +
+				"Tap your *new* security key"
+	} else {
+		prompt.FirstTouchMessage = "Tap your *new* security key"
+	}
 	prompt.SecondTouchMessage = "Tap your *new* security key again to complete registration"
 
 	resp, err := wancli.Register(ctx, origin, cc, prompt)
