@@ -14,46 +14,38 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package vnetdns
+package vnet
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-func TestName(t *testing.T) {
+func TestDNSName(t *testing.T) {
 	t.Parallel()
 
-	const validChars = "0123456789abcdefghijklmnopqrstuv"
 	// 8 bytes encoded as base32hex without padding = ceil(64/5) = 13 chars.
 	const expectedLen = 13
 
-	tests := []string{
-		"db",
-		"db-a",
-		"my-database",
-		"DB",
-		"db with spaces",
-		strings.Repeat("a", 256),
+	// Golden values so a future change to the hashing scheme is caught and
+	// callers have concrete examples of what the output looks like.
+	tests := map[string]string{
+		"db":               "ffe2bkb99rso8",
+		"db-a":             "kgg8bbl0tj7eg",
+		"my-database":      "h9mqceo9f87i8",
+		"postgres-prod-01": "15458etlcae38",
 	}
 
-	seen := make(map[string]string)
-	for _, name := range tests {
-		t.Run(name, func(t *testing.T) {
-			got := Name(name)
+	for input, want := range tests {
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+			got := DNSName(input)
+			require.Equal(t, want, got)
 			require.Len(t, got, expectedLen)
-			for _, c := range got {
-				require.Contains(t, validChars, string(c),
-					"output %q contains invalid character %q", got, c)
-			}
-			require.Equal(t, got, Name(name), "function must be deterministic")
-
-			if other, ok := seen[got]; ok {
-				t.Fatalf("collision: %q and %q both hash to %q", name, other, got)
-			}
-			seen[got] = name
+			require.Empty(t, validation.IsDNS1123Label(got),
+				"output %q must be a valid DNS 1123 label", got)
 		})
 	}
 }

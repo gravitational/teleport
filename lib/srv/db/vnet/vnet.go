@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package vnetdns derives DNS-safe identifiers for databases used by VNet.
-package vnetdns
+// Package vnet contains VNet-related helpers shared between the auth server
+// and the database agent.
+package vnet
 
 import (
 	"crypto/sha256"
@@ -26,9 +27,9 @@ import (
 // lowercase letters and no padding.
 var base32hex = base32.NewEncoding("0123456789abcdefghijklmnopqrstuv").WithPadding(base32.NoPadding)
 
-// Name returns a DNS-safe, deterministic name derived from the database name.
+// DNSName returns a DNS-safe, deterministic name derived from the database name.
 // used by VNet for database FQDN resolution.
-func Name(dbName string) string {
+func DNSName(dbName string) string {
 	sum := sha256.Sum256([]byte(dbName))
 	return base32hex.EncodeToString(sum[:8])
 }

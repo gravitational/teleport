@@ -147,7 +147,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/srv/db/vnetdns"
+	libsession "github.com/gravitational/teleport/lib/session"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -6757,10 +6758,11 @@ func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, serve
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	// TODO(nibrasohin): DELETE IN v21.0.0 - db agents set this themselves in
-	// getServerInfo starting in v20. This block only remains to populate the
-	// field for older agents that haven't been upgraded yet.
+	// getServerInfo starting in v20, so this block only remains to populate
+	// the field for older agents that haven't been upgraded yet. If this
+	// change is backported to v18, we can drop it on the v20
 	if db := server.GetDatabase(); db != nil && db.GetStatusVNetDNSName() == "" {
-		db.SetStatusVNetDNSName(vnetdns.Name(db.GetName()))
+		db.SetStatusVNetDNSName(dbvnet.DNSName(db.GetName()))
 	}
 
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)

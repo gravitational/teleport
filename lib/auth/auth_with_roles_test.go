@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3580,6 +3581,11 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
+
+	for _, server := range testServers {
+		db := server.GetDatabase()
+		require.Equal(t, dbvnet.DNSName(db.GetName()), db.GetStatusVNetDNSName())
+	}
 
 	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
