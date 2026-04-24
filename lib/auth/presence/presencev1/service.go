@@ -55,6 +55,8 @@ type Backend interface {
 }
 
 type Cache interface {
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
@@ -331,6 +333,80 @@ func (s *Service) DeleteRemoteCluster(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ListAuthServers returns a page of auth servers.
+func (s *Service) ListAuthServers(
+	ctx context.Context, req *presencepb.ListAuthServersRequest,
+) (*presencepb.ListAuthServersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListAuthServers(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return &presencepb.ListAuthServersResponse{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}, nil
+}
+
+// ListProxyServers returns a page of proxy servers.
+func (s *Service) ListProxyServers(
+	ctx context.Context, req *presencepb.ListProxyServersRequest,
+) (*presencepb.ListProxyServersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListProxyServers(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return &presencepb.ListProxyServersResponse{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // ListReverseTunnels returns a page of reverse tunnels.
