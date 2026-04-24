@@ -76,11 +76,11 @@ This account represents the database identity. Teleport users specify this name 
 <Tabs>
 <TabItem label="Google Cloud console">
 
-1. Navigate to **IAM & Admin** → **Service Accounts**
-1. Click **Create Service Account**
-1. Set the name to `spanner-user`
+1. Navigate to **IAM & Admin** → **Service Accounts**.
+1. Click **Create Service Account**.
+1. Set the name to `spanner-user`.
 1. Skip optional steps and click **Done**. You will grant permissions later.
-
+=
 </TabItem>
 
 <TabItem label="gcloud CLI">
@@ -94,7 +94,8 @@ $ gcloud iam service-accounts create spanner-user --display-name="Spanner User"
 
 ## Step 2/6. Grant permissions
 
-Grant the database user account access to Spanner, then allow the Database Service account to impersonate it.
+Grant the database user account access to Spanner, then allow the Database Service account 
+to impersonate the database user account.
 
 ### Grant Spanner access
 
@@ -164,7 +165,7 @@ Run:
 ```code
 $ gcloud iam service-accounts get-iam-policy \
   spanner-user@<Var name="project-id" />.iam.gserviceaccount.com \
-  --format=json | grep role
+  --format=json | grep "roles/iam.serviceAccountTokenCreator"
 ```
 
 You should see the `roles/iam.serviceAccountTokenCreator` role.
@@ -241,7 +242,7 @@ remove stored credentials when you are done.
 
 Log in to your Teleport cluster as the new user that you just created:
 ```code
-$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=example-db-user
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="example-user" />
 ```
 
 Connect using the service account name (without the domain suffix):
@@ -265,10 +266,10 @@ To remove all database credentials:
 $ tsh db logout
 ```
 
-<Checkpoint
-  title="Troubleshoot connection issues"
-  description="Error: Could not find default credentials."
->
+
+## Troubleshoot connection issues
+
+"Error: Could not find default credentials."
 
 This error can come from either your client application or Teleport.
 
@@ -294,8 +295,6 @@ $ sudo systemctl restart teleport
 See [authentication](https://cloud.google.com/docs/authentication#service-accounts)
 in the Google Cloud documentation for more information about service account
 authentication methods.
-
-</Checkpoint>
 
 ## Next steps
 
