@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
+	openapi_types "github.com/google/uuid"
 	externalRef0 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
 	externalRef1 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff"
 	externalRef2 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
-	"github.com/oapi-codegen/runtime"
-	openapi_types "github.com/oapi-codegen/runtime/types"
+	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/internal/oapiruntime"
 )
 
 // Defines values for AccountAliasAccountType.

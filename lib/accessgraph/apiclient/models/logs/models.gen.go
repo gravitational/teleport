@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oapi-codegen/runtime"
+	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/internal/oapiruntime"
 )
 
 // Defines values for EventSource.

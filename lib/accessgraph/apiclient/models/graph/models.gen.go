@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/oapi-codegen/runtime"
-	openapi_types "github.com/oapi-codegen/runtime/types"
+	openapi_types "github.com/google/uuid"
+	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/internal/oapiruntime"
 )
 
 // Defines values for NodeKind.
