@@ -39,7 +39,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -746,7 +746,11 @@ func TestGetCertsForConn(t *testing.T) {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
 			stubConnBytes: func() []byte {
-				val, err := (&pgproto3.CancelRequest{}).Encode(nil)
+				req := pgproto3.CancelRequest{
+					ProcessID: 1,
+					SecretKey: []byte{1, 2, 3, 4},
+				}
+				val, err := req.Encode(nil)
 				require.NoError(t, err, "CancelRequest.Encode failed")
 				return val
 			}(),
