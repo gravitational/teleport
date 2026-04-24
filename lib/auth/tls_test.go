@@ -1704,7 +1704,7 @@ func TestServersCRUD(t *testing.T) {
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
 	auth.Spec.Hostname = "auth.llama"
-	require.NoError(t, clt.UpsertAuthServer(ctx, auth))
+	require.NoError(t, testSrv.Auth().UpsertAuthServer(ctx, auth))
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
