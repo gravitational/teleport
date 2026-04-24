@@ -53,6 +53,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -70,6 +71,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -5280,47 +5282,233 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
+func TestIsLocalOrRemoteServerAction(t *testing.T) {
+	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildOSS,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: modules.EntitlementInfo{Enabled: false},
+			},
+		},
+	})
+
+	tts := []struct {
+		name      string
+		getSrvFn  func(t *testing.T) *auth.ServerWithRoles
+		expectErr bool
+	}{
+		{
+			name: "local server builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
+				require.NoError(t, err)
+				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
+			},
+		},
+		{
+			name: "remote server builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestRemoteBuiltin(types.RoleProxy, "remote-cluster").I))
+				require.NoError(t, err)
+				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
+			},
+		},
+		{
+			name: "local wrapped server builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
+				require.NoError(t, err)
+				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
+			},
+		},
+		{
+			name: "remote wrapped server builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestRemoteBuiltin(types.RoleProxy, "remote-cluster").I))
+				require.NoError(t, err)
+				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
+			},
+		},
+		{
+			name: "non-server builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestAdmin().I))
+				require.NoError(t, err)
+				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
+			},
+			expectErr: true,
+		},
+		{
+			name: "wrapped non-server builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestAdmin().I))
+				require.NoError(t, err)
+				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
+			},
+			expectErr: true,
+		},
+		{
+			name: "remote non-builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx := authz.Context{
+					Identity: authz.RemoteBuiltinRole{
+						Role:        types.RoleProvisionToken,
+						Username:    string(types.RoleProvisionToken),
+						ClusterName: "remote-cluster",
+					},
+				}
+				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, authCtx)
+			},
+			expectErr: true,
+		},
+		{
+			name: "remote wrapped non-builtin",
+			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+				authCtx := authz.Context{
+					Identity: authz.RemoteBuiltinRole{
+						Role:        types.RoleProvisionToken,
+						Username:    string(types.RoleProvisionToken),
+						ClusterName: "remote-cluster",
+					},
+				}
+				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(&authCtx))
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := tt.getSrvFn(t)
+			_, err := srv.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindKubeServer,
+			})
+			if tt.expectErr {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "not licensed")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestListResources_KindKubernetesCluster(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
 
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
+	scopedAccess := srv.Auth().ScopedAccess()
+	scopes := []string{"/test", "/other"}
+	getScopeAsName := func(scope string) string {
+		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
+	}
+	// create scoped roles, users, and assignments
+	for _, scope := range scopes {
+		roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: &scopedaccessv1.ScopedRole{
+				Kind:    scopedaccess.KindScopedRole,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: getScopeAsName(scope) + "-role",
+				},
+				Scope: scope,
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{scope},
+					Kube: &scopedaccessv1.ScopedRoleKube{
+						Users:  []string{"kube_user"},
+						Groups: []string{"kube_group"},
+						Labels: []*labelv1.Label{
+							{
+								Name:   types.Wildcard,
+								Values: []string{types.Wildcard},
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		user, err := authtest.CreateUser(ctx, srv.Auth(), getScopeAsName(scope)+"-reader")
+		require.NoError(t, err)
+
+		role := roleResp.GetRole()
+		sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.NewString(),
+				},
+				Scope: scope,
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: user.GetName(),
+					Assignments: []*scopedaccessv1.Assignment{
+						{Role: role.GetMetadata().GetName(), Scope: scope},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		waitForSRACache(t, srv, sra)
+	}
+	unscopedClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	s := auth.NewServerWithRoles(
-		srv.AuthServer,
-		srv.AuditLog,
-		*authContext,
-	)
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(
+		getScopeAsName(scopes[0])+"-reader",
+		scopes[0],
+	))
+	require.NoError(t, err)
+
+	otherScopedClient, err := srv.NewClient(authtest.TestScopedUser(
+		getScopeAsName(scopes[1])+"-reader",
+		scopes[1],
+	))
+	require.NoError(t, err)
 
 	testNames := []string{"a", "b", "c", "d"}
 
 	// Add a kube service with 3 clusters.
-	createKubeServer(t, s, []string{"d", "b", "a"}, "host1")
+	createKubeServer(t, srv.Auth(), []string{"d", "b", "a"}, "host1", "")
 
 	// Add a kube service with 2 clusters.
 	// Includes a duplicate cluster name to test deduplicate.
-	createKubeServer(t, s, []string{"a", "c"}, "host2")
+	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "host2", "")
+
+	// Add scoped variants of the kube services
+	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", scopes[0])
+
+	// Add a kube service with 2 clusters.
+	// Includes a duplicate cluster name to test deduplicate.
+	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", scopes[0])
 
 	// Test upsert.
-	kubeServers, err := s.GetKubernetesServers(ctx)
+	kubeServers, err := srv.Auth().GetKubernetesServers(ctx)
 	require.NoError(t, err)
-	require.Len(t, kubeServers, 5)
+	// 5 unscoped and 4 scoped kube servers
+	require.Len(t, kubeServers, 9)
 
 	t.Run("fetch all", func(t *testing.T) {
 		t.Parallel()
 
-		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        10,
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		// There is 2 kube services, but 4 unique clusters.
+		// There are 4 unique clusters across all kube services.
 		require.Equal(t, 4, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
@@ -5334,7 +5522,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		t.Parallel()
 
 		// First fetch.
-		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        1,
 		})
@@ -5343,7 +5531,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.Equal(t, kubeServers[1].GetCluster().GetName(), res.NextKey)
 
 		// Second fetch.
-		res, err = s.ListResources(ctx, proto.ListResourcesRequest{
+		res, err = unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        1,
 			StartKey:     res.NextKey,
@@ -5355,7 +5543,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	t.Run("fetch with sort and total count", func(t *testing.T) {
 		t.Parallel()
-		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        10,
 			SortBy: types.SortBy{
@@ -5375,16 +5563,91 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.IsDecreasing(t, names)
 	})
+
+	t.Run("fetch all scoped", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := scopedClient.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 3)
+		require.Empty(t, res.NextKey)
+		// There are 2 scoped kube services referencing 3 unique clusters.
+		require.Equal(t, 3, res.TotalCount)
+
+		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
+		require.NoError(t, err)
+		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
+		require.NoError(t, err)
+		require.ElementsMatch(t, names, []string{"a", "b", "c"})
+	})
+
+	t.Run("fetch all scoped - orthogonal scope", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := otherScopedClient.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Empty(t, res.Resources, "expected no resources when listing from orthogonal scope")
+		require.Equal(t, 0, res.TotalCount, "expected no resources when listing from orthogonal scope")
+		require.Empty(t, res.NextKey)
+	})
+
+	t.Run("fetch servers", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubeServer,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		// 4 services, 1 with 3 clusters and 3 with 2 clusters
+		// (1 * 3) + (3 * 2) = 9
+		require.Len(t, res.Resources, 9)
+	})
+
+	t.Run("fetch scoped servers", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := scopedClient.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubeServer,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 4)
+	})
 }
 
-func createKubeServer(t *testing.T, s *auth.ServerWithRoles, clusterNames []string, hostID string) {
+func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, resp := range resps {
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+				Name:    resp.GetAssignment().GetMetadata().GetName(),
+				SubKind: resp.GetAssignment().GetSubKind(),
+			})
+			require.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
+func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostID, scope string) {
 	for _, clusterName := range clusterNames {
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
 			Name: clusterName,
 		}, types.KubernetesClusterSpecV3{})
 		require.NoError(t, err)
+		kubeCluster.Scope = scope
+
 		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, hostID, hostID)
 		require.NoError(t, err)
+		kubeServer.Scope = scope
+
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
 	}
