@@ -42,6 +42,7 @@ func NewAptRunner() (*AptRunner, error) {
 				"noble",    // 24.04 LTS
 				"plucky",   // 25.04 (EOL 01/17/26)
 				"questing", // 25.10
+				"resolute", // 26.04 LTS
 			},
 		},
 	}
