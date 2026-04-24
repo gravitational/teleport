@@ -353,7 +353,7 @@ func TestSessions(t *testing.T) {
 			tlsCert, _ := parseX509PEMAndIdentity(t, ws.GetTLSCert())
 			assert.Equal(t, tc.expectTLSPubKeyAlgo, tlsCert.PublicKeyAlgorithm)
 
-			// GetWebSessionInfo and make sure it matches
+			// GetWebSession and make sure it matches
 			out, err := s.a.GetWebSession(ctx, types.GetWebSessionRequest{
 				User:      user,
 				SessionID: ws.GetName(),
