@@ -61,7 +61,15 @@ func (r appClient) appNameForContext(ctx context.Context, name string) string {
 
 // Get gets the Teleport app of a given name
 func (r appClient) Get(ctx context.Context, name string) (types.Application, error) {
-	app, err := r.teleportClient.GetApp(ctx, r.appNameForContext(ctx, name))
+	appName := r.appNameForContext(ctx, name)
+	app, err := r.teleportClient.GetApp(ctx, appName)
+
+	// If app not found and we're using namespace suffixes, try the legacy unprefixed name
+	// This handles migrations when watchAllNamespaces is enabled on existing deployments
+	if trace.IsNotFound(err) && r.watchAllNamespaces && appName != name {
+		app, err = r.teleportClient.GetApp(ctx, name)
+	}
+
 	return app, trace.Wrap(err)
 }
 
