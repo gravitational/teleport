@@ -225,7 +225,7 @@ func TestS_Run_stopsOnCancel(t *testing.T) {
 
 	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
 		// Don't trigger a sync.
-		opts.Config.Spec.SyncDelay = types.Duration(1 * time.Hour)
+		opts.Config.Spec.SyncDelay = types.DurationStringForJamfSpecV1(1 * time.Hour)
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -545,7 +545,7 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 		opts.Config.Spec.Inventory = []*types.JamfInventoryEntry{
 			{
 				SyncPeriodPartial: -1, // disabled
-				SyncPeriodFull:    types.Duration(100 * time.Millisecond),
+				SyncPeriodFull:    types.DurationStringForJamfSpecV1(100 * time.Millisecond),
 				OnMissing:         "DELETE",
 			},
 		}
@@ -884,7 +884,7 @@ func TestS_RunOnce_pagingGaps(t *testing.T) {
 		opts.Config.Spec.Inventory = []*types.JamfInventoryEntry{
 			{
 				SyncPeriodPartial: -1, // disabled
-				SyncPeriodFull:    types.Duration(100 * time.Millisecond),
+				SyncPeriodFull:    types.DurationStringForJamfSpecV1(100 * time.Millisecond),
 				OnMissing:         "DELETE",
 			},
 		}

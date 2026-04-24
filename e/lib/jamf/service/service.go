@@ -44,8 +44,8 @@ var defaultInventory = []*types.JamfInventoryEntry{
 	// https://github.com/gravitational/teleport.e/blob/master/rfd/0007e-device-trust-mdm-integration.md#jamf-inventory-sync
 	{
 		FilterRsql:        `general.remoteManagement.managed==true`,
-		SyncPeriodPartial: types.Duration(6 * time.Hour),
-		SyncPeriodFull:    types.Duration(24 * time.Hour),
+		SyncPeriodPartial: types.DurationStringForJamfSpecV1(6 * time.Hour),
+		SyncPeriodFull:    types.DurationStringForJamfSpecV1(24 * time.Hour),
 		OnMissing:         "DELETE",
 	},
 }

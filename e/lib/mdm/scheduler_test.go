@@ -17,17 +17,17 @@ func TestSyncScheduler_completeSchedule(t *testing.T) {
 	entries := []*types.JamfInventoryEntry{
 		{
 			FilterRsql:        "full+partial", // Abuse RSQL strings for easier debugging.
-			SyncPeriodPartial: types.Duration(6 * time.Hour),
-			SyncPeriodFull:    types.Duration(18 * time.Hour),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(6 * time.Hour),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(18 * time.Hour),
 		},
 		{
 			FilterRsql:        "full only",
-			SyncPeriodPartial: types.Duration(8 * time.Hour), // partial>=full means only full happens.
-			SyncPeriodFull:    types.Duration(8 * time.Hour),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(8 * time.Hour), // partial>=full means only full happens.
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(8 * time.Hour),
 		},
 		{
 			FilterRsql:        "partial only",
-			SyncPeriodPartial: types.Duration(5 * time.Hour),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(5 * time.Hour),
 			SyncPeriodFull:    0, // disabled
 		},
 		{
@@ -138,8 +138,8 @@ func TestSyncScheduler_partialNotDivisor(t *testing.T) {
 	// SyncPeriodPartial is not a divisor of SyncPeriodFull, meaning the schedules
 	// don't line up perfectly.
 	entry := &types.JamfInventoryEntry{
-		SyncPeriodPartial: types.Duration(5 * time.Hour),
-		SyncPeriodFull:    types.Duration(12 * time.Hour),
+		SyncPeriodPartial: types.DurationStringForJamfSpecV1(5 * time.Hour),
+		SyncPeriodFull:    types.DurationStringForJamfSpecV1(12 * time.Hour),
 	}
 
 	scheduler, err := mdm.NewSyncScheduler(
@@ -203,16 +203,16 @@ func TestSyncScheduler_scheduleCantBeExhausted(t *testing.T) {
 	entries := []*types.JamfInventoryEntry{
 		{
 			FilterRsql:        "full+partial", // Abuse RSQL strings for easier debugging.
-			SyncPeriodPartial: types.Duration(1 * time.Minute),
-			SyncPeriodFull:    types.Duration(2 * time.Minute),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(1 * time.Minute),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(2 * time.Minute),
 		},
 		{
 			FilterRsql:        "partial",
-			SyncPeriodPartial: types.Duration(2 * time.Minute),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(2 * time.Minute),
 		},
 		{
 			FilterRsql:     "full",
-			SyncPeriodFull: types.Duration(2 * time.Minute),
+			SyncPeriodFull: types.DurationStringForJamfSpecV1(2 * time.Minute),
 		},
 	}
 
