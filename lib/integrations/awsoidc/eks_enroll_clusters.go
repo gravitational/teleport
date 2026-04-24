@@ -23,8 +23,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"maps"
-	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -36,17 +34,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	helmCli "helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
@@ -56,10 +47,7 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
@@ -73,11 +61,6 @@ const (
 	awsHeaderClusterName        = "x-k8s-aws-id"
 	awsHeaderExpires            = "X-Amz-Expires" // Header required by AWS when creating presigned URL.
 	concurrentEKSEnrollingLimit = 5
-)
-
-var (
-	agentRepoURL        = teleportassets.HelmRepoURL()
-	agentStagingRepoURL = teleportassets.HelmStagingRepoURL()
 )
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
@@ -147,15 +130,10 @@ func (d *defaultEnrollEKSClustersClient) PresignGetCallerIdentityURL(ctx context
 	return presignCallerIdentityURL(ctx, d.stsClient, clusterName)
 }
 
-// CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
+// CheckAgentAlreadyInstalled reports whether teleport-kube-agent is already
+// installed on the EKS cluster.
 func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger) (bool, error) {
-	log = log.With("helm_action", "check agent already installed")
-	actionConfig, err := getHelmActionConfig(ctx, clientGetter, log)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	return checkAgentAlreadyInstalled(ctx, actionConfig)
+	return checkAgentAlreadyInstalled(ctx, clientGetter)
 }
 
 func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreatorFn) (string, string, error) {
@@ -188,20 +166,15 @@ func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCrea
 	return provisionToken.GetName(), resourceId, trace.Wrap(err)
 }
 
-// InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
+// InstallKubeAgent installs the teleport-kube-agent into the EKS cluster.
 func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger, req EnrollEKSClustersRequest) error {
-	log = log.With("helm_action", "install kube agent")
-	actionConfig, err := getHelmActionConfig(ctx, clientGetter, log)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	return installKubeAgent(ctx, installKubeAgentParams{
 		eksCluster:   eksCluster,
 		proxyAddr:    proxyAddr,
 		joinToken:    joinToken,
 		resourceID:   resourceId,
-		actionConfig: actionConfig,
+		clientGetter: clientGetter,
+		log:          log,
 		req:          req,
 	})
 }
@@ -580,163 +553,6 @@ func getKubeClientGetter(presignedUrl, clusterCA, clusterEndpoint string) (*gene
 	})
 
 	return configFlags, nil
-}
-
-func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger) (*action.Configuration, error) {
-	actionConfig := new(action.Configuration)
-
-	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
-	// > func(format string, v ...interface{})
-	// slog.Log does not support it, so it must be added
-	debugLogWithFormat := func(format string, v ...any) {
-		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
-			return
-		}
-		//nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
-		log.DebugContext(ctx, fmt.Sprintf(format, v...))
-	}
-	if err := actionConfig.Init(clientGetter, agentNamespace, "secret", debugLogWithFormat); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return actionConfig, nil
-}
-
-// checkAgentAlreadyInstalled checks through the Helm if teleport-kube-agent chart was already installed in the EKS cluster.
-func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Configuration) (bool, error) {
-	var releases []*release.Release
-	var err error
-	// We setup a little backoff loop because sometimes access entry auth needs a bit more time to propagate and take
-	// effect, so we could get errors when trying to access cluster right after giving us permissions to do so.
-	// From real scenarios, we've seen this taking as long as 30 seconds.
-	for attempt := 1; attempt <= 6; attempt++ {
-		listCmd := action.NewList(actionConfig)
-		releases, err = listCmd.Run()
-		if err != nil {
-			select {
-			case <-time.After(10 * time.Second):
-			case <-ctx.Done():
-				return false, trace.NewAggregate(err, ctx.Err())
-			}
-		} else {
-			break
-		}
-	}
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	for _, r := range releases {
-		if r.Name == agentName {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-type installKubeAgentParams struct {
-	eksCluster   *eksTypes.Cluster
-	proxyAddr    string
-	joinToken    string
-	resourceID   string
-	actionConfig *action.Configuration
-	req          EnrollEKSClustersRequest
-}
-
-func getChartURL(version string) (*url.URL, error) {
-	repo := agentRepoURL
-	ver, err := semver.NewVersion(version)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse chart version %q", version)
-	}
-
-	// pre release tagged charts are located in the staging repo.
-	if ver.PreRelease != "" {
-		repo = agentStagingRepoURL
-	}
-	return repo.JoinPath(fmt.Sprintf("%s-%s.tgz", agentName, version)), nil
-}
-
-// getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
-// chart downloading because it tends to save temporary files and here we do everything just in memory.
-func getChartData(version string) (*chart.Chart, error) {
-	chartURL, err := getChartURL(version)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	g, err := getter.All(helmCli.New()).ByScheme(chartURL.Scheme)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	data, err := g.Get(chartURL.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	agentChart, err := loader.LoadArchive(data)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return agentChart, nil
-}
-
-// installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
-func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
-	installCmd := action.NewInstall(cfg.actionConfig)
-	installCmd.RepoURL = agentRepoURL.String()
-	installCmd.Version = cfg.req.AgentVersion
-
-	agentChart, err := getChartData(installCmd.Version)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	installCmd.ReleaseName = agentName
-	installCmd.Namespace = agentNamespace
-	installCmd.CreateNamespace = true
-	vals := map[string]any{}
-	vals["proxyAddr"] = cfg.proxyAddr
-
-	vals["roles"] = "kube"
-	// todo(anton): Remove check for 13 once Teleport cloud is unblocked to move from v13 chart.
-	if cfg.req.EnableAppDiscovery && !strings.HasPrefix(installCmd.Version, "13") {
-		vals["roles"] = "kube,app,discovery"
-	}
-	vals["authToken"] = cfg.joinToken
-
-	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
-		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
-
-		vals["highAvailability"] = map[string]any{
-			"replicaCount":        2,
-			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
-		}
-	}
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		vals["enterprise"] = true
-	}
-
-	eksTags := make(map[string]string, len(cfg.eksCluster.Tags))
-	maps.Copy(eksTags, cfg.eksCluster.Tags)
-	eksTags[types.OriginLabel] = types.OriginCloud
-
-	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	common.ApplyEKSNameSuffix(kubeCluster)
-	vals["kubeClusterName"] = kubeCluster.GetName()
-
-	vals["labels"] = kubeAgentLabels(kubeCluster, cfg.resourceID, cfg.req.ExtraLabels)
-
-	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
-		return trace.Wrap(err, "could not install Helm chart.")
-	}
-
-	return nil
 }
 
 func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]any {
