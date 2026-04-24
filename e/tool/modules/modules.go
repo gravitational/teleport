@@ -156,8 +156,13 @@ func (p *EnterpriseModules) PrintVersion() {
 	fmt.Printf("Teleport Enterprise v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+// IsBoringBinary is a transition method that will be removed soon.
 func (p *EnterpriseModules) IsBoringBinary() bool {
+	return p.IsFIPSBuild()
+}
+
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *EnterpriseModules) IsFIPSBuild() bool {
 	return modules.IsBoringBinary()
 }
 
