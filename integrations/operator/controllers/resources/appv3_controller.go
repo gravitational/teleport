@@ -34,8 +34,7 @@ import (
 
 // appClient implements TeleportResourceClient and offers CRUD methods needed to reconcile apps
 // Currently the same client is used by all app versions. If we need to treat
-// them differently at some point, for example by adding a Mutate function
-// functions, we can always split the client into separate clients.
+// them differently at some point, we can always split the client into separate clients.
 type appClient struct {
 	teleportClient     *client.Client
 	watchAllNamespaces bool
@@ -66,27 +65,19 @@ func (r appClient) Get(ctx context.Context, name string) (types.Application, err
 
 // Create creates a Teleport app
 func (r appClient) Create(ctx context.Context, app types.Application) error {
+	app.SetName(r.appNameForContext(ctx, app.GetName()))
 	return trace.Wrap(r.teleportClient.CreateApp(ctx, app))
 }
 
 // Update updates a Teleport app
 func (r appClient) Update(ctx context.Context, app types.Application) error {
+	app.SetName(r.appNameForContext(ctx, app.GetName()))
 	return trace.Wrap(r.teleportClient.UpdateApp(ctx, app))
 }
 
 // Delete deletes a Teleport app
 func (r appClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteApp(ctx, r.appNameForContext(ctx, name)))
-}
-
-// Mutate appends the CR namespace to app names when the operator watches all namespaces.
-func (r appClient) Mutate(_ context.Context, new, _ types.Application, crKey kclient.ObjectKey) error {
-	if !r.watchAllNamespaces {
-		return nil
-	}
-
-	new.SetName(formatNamespacedAppName(new.GetName(), crKey.Namespace))
-	return nil
 }
 
 // NewAppV3Reconciler instantiates a new Kubernetes controller reconciling app v6 resources
