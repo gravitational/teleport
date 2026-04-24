@@ -457,8 +457,9 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if !checkRemoteProxySourceCluster(*authCtx, req.GetSourceCluster()) {
-		return nil, trace.AccessDenied(
+	if err := checkRemoteProxySourceCluster(*authCtx, req.GetSourceCluster()); err != nil {
+		return nil, trace.WrapWithMessage(
+			err,
 			"only remote proxy identities from the same source cluster can replicate validated MFA challenges",
 		)
 	}
@@ -794,9 +795,6 @@ func checkReplicateValidatedMFAChallengeRequest(req *mfav1.ReplicateValidatedMFA
 	case req.GetName() == "":
 		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name")
 
-	case req.GetSourceCluster() == "":
-		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
-
 	case req.GetTargetCluster() == "":
 		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster")
 
@@ -895,21 +893,29 @@ func isLocalProxy(authContext authz.Context) bool {
 	return true
 }
 
-func checkRemoteProxySourceCluster(authContext authz.Context, sourceCluster string) bool {
-	remoteRole, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole)
-	if !ok {
-		return false
+func checkRemoteProxySourceCluster(authContext authz.Context, sourceCluster string) error {
+	if sourceCluster == "" {
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
 	}
 
-	if remoteRole.ClusterName != sourceCluster {
-		return false
+	remoteRole, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	if !ok {
+		return trace.AccessDenied("identity is not a remote builtin role, cannot be a remote proxy")
 	}
 
 	if !authContext.Checker.HasRole(string(types.RoleRemoteProxy)) {
-		return false
+		return trace.AccessDenied("role %q does not have permission to replicate validated MFA challenges", remoteRole.Role)
 	}
 
-	return true
+	if remoteRole.ClusterName != sourceCluster {
+		return trace.AccessDenied(
+			"remote proxy cluster %q does not match request source cluster %q",
+			remoteRole.ClusterName,
+			sourceCluster,
+		)
+	}
+
+	return nil
 }
 
 // CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
