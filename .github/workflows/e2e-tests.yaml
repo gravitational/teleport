@@ -97,6 +97,9 @@ jobs:
       - name: Type-check e2e tests
         run: pnpm --filter=@gravitational/e2e type-check
 
+      - name: Verify canonical key parity (TS)
+        run: pnpm --filter=@gravitational/e2e test:canonical-key
+
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -109,6 +112,10 @@ jobs:
           path: ${{ steps.cache-paths.outputs.go-mod }}
           key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
           restore-keys: go-mod-${{ runner.os }}-
+
+      - name: Test e2e runner (Go)
+        working-directory: e2e/runner
+        run: go test ./...
 
       - name: Check generated files are up to date
         working-directory: e2e/runner
