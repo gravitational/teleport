@@ -31,9 +31,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
-
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 // clusterName is the name of the Teleport cluster used for E2E testing.
@@ -195,20 +194,8 @@ func resolveDockerHost() (string, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
-type StateConfig struct {
-	PasswordHashBase64  string
-	CredentialIDBase64  string
-	PublicKeyCBORBase64 string
-}
-
-func generateStateFile(templatePath string, creds *credentials) (string, error) {
-	stateConfig := &StateConfig{
-		PasswordHashBase64:  creds.passwordHashBase64,
-		CredentialIDBase64:  creds.credentialIDBase64,
-		PublicKeyCBORBase64: creds.publicKeyCBORBase64,
-	}
-
-	return renderTemplate(templatePath, stateConfig)
+func generateStateFile(templatePath string, state *stateConfig) (string, error) {
+	return renderTemplate(templatePath, state)
 }
 
 func renderTemplate(templatePath string, data any) (string, error) {

@@ -58,7 +58,9 @@ type credentialsJSON struct {
 	WebauthnCredentialId string `json:"webauthnCredentialId"`
 }
 
-// readRoleFile reads e2eDir/testdata/roles/<filename> and extracts metadata.name. Uses os.Root so filenames sourced from test code can't escape the roles directory.
+// readRoleFile reads e2eDir/testdata/roles/<filename> and extracts
+// metadata.name. Uses os.Root so filenames sourced from test code can't escape
+// the roles directory.
 func readRoleFile(e2eDir, filename string) (*customRole, error) {
 	rolesDir := filepath.Join(e2eDir, "testdata", "roles")
 
@@ -105,7 +107,9 @@ type bootstrapResult struct {
 	userMapping map[string]string // canonical user key → generated name
 }
 
-// canonicalUserKey produces a deterministic key for a scanned user. The TS side computes the same format to look up generated names; both implementations must stay in lockstep.
+// canonicalUserKey produces a deterministic key for a scanned user. The TS
+// side computes the same format to look up generated names; both
+// implementations must stay in lockstep.
 func canonicalUserKey(su scannedUser) (string, error) {
 	roles := make([]string, 0, len(su.roles))
 	for _, r := range su.roles {
@@ -119,19 +123,32 @@ func canonicalUserKey(su scannedUser) (string, error) {
 	slices.Sort(roles)
 
 	type keyDef struct {
-		Index  *int                `json:"index,omitempty"`
-		Roles  []string            `json:"roles"`
-		Traits map[string][]string `json:"traits,omitempty"`
+		Default bool                `json:"default,omitempty"`
+		Source  string              `json:"source,omitempty"`
+		Index   *int                `json:"index,omitempty"`
+		Roles   []string            `json:"roles"`
+		Traits  map[string][]string `json:"traits,omitempty"`
 	}
 
-	kd := keyDef{Index: su.arrayIdx, Roles: roles}
+	kd := keyDef{
+		Default: su.isDefault,
+		Source:  su.sourceFile,
+		Index:   su.arrayIdx,
+		Roles:   roles,
+	}
 
 	if len(su.traits) > 0 {
-		kd.Traits = make(map[string][]string, len(su.traits))
+		traits := make(map[string][]string, len(su.traits))
 		for k, v := range su.traits {
+			if len(v) == 0 {
+				continue
+			}
 			sorted := slices.Clone(v)
 			slices.Sort(sorted)
-			kd.Traits[k] = sorted
+			traits[k] = sorted
+		}
+		if len(traits) > 0 {
+			kd.Traits = traits
 		}
 	}
 
@@ -143,7 +160,8 @@ func canonicalUserKey(su scannedUser) (string, error) {
 	return string(data), nil
 }
 
-// writeUserMapping writes the JSON file the Playwright fixture reads to resolve generated usernames.
+// writeUserMapping writes the JSON file the Playwright fixture reads to
+// resolve generated usernames.
 func writeUserMapping(path string, mapping map[string]string) error {
 	data, err := json.MarshalIndent(mapping, "", "  ")
 	if err != nil {
@@ -157,7 +175,8 @@ func writeUserMapping(path string, mapping map[string]string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// buildBootstrapState assigns names + credentials per scanned user, resolves role refs, and dedupes custom-role files.
+// buildBootstrapState assigns names + credentials per scanned user, resolves
+// role refs, and dedupes custom-role files.
 func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapResult, error) {
 	state := &stateConfig{}
 	creds := make(map[string]*credentials)
@@ -230,7 +249,9 @@ func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapR
 	}, nil
 }
 
-// writeCredentialsFile writes the user-credentials JSON Playwright reads at startup. File-based (not env) so the payload doesn't grow unbounded with user count.
+// writeCredentialsFile writes the user-credentials JSON Playwright reads at
+// startup. File-based (not env) so the payload doesn't grow unbounded with
+// user count.
 func writeCredentialsFile(path string, creds map[string]*credentials) error {
 	m := make(map[string]credentialsJSON, len(creds))
 	for name, c := range creds {

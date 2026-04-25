@@ -67,38 +67,110 @@ Available fixtures:
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
 
-### Session Recordings
+### Users and Roles
 
-The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
-session recordings page has content immediately. Recordings are stored in `e2e/testdata/recordings/` organized
-by session type:
+By default, the runner creates a single user with the `access` and `editor` roles. Tests that need custom
+roles or traits can declare them via `test.use()`. Usernames are auto-generated as human-readable IDs
+(e.g. `brave-falcon`) — tests don't specify names.
 
-```
-e2e/testdata/recordings/
-├── events.jsonl          # generated - do not edit
-├── ssh/
-│   ├── <session-id>.tar
-│   ├── <session-id>.metadata
-│   └── <session-id>.thumbnail
-├── k8s/
-│   └── ...
-└── desktop/
-    └── ...
+**Single user (most common):**
+
+```ts
+test.use({
+  user: { roles: ['access', 'editor'] },
+});
 ```
 
-Each recording consists of a `.tar` file (required) and optional `.metadata` and `.thumbnail` sidecar files.
-The `events.jsonl` file contains the session end audit events and is auto-generated from the `.tar` files.
+The singular `user` form creates one user and automatically logs in as that user.
 
-**Adding a new recording:**
+**Multiple users:**
 
-To add a new recording, place the `.tar` file (and any `.metadata`/`.thumbnail` files) in the appropriate subdirectory
-(`ssh/`, `k8s/`, or `desktop/`).
+For tests that need more than one user (e.g. RBAC tests), use the `users` array. At least one user must
+have `loginAs: true` to indicate which user the test authenticates as:
 
-By default, all recordings are associated with the `bob` user. To assign a recording to a different user,
-add the session ID and username to the `recordingUserMap` in `e2e/runner/recordings.go`.
+```ts
 
-At runtime, the runner copies recording files into Teleport's records directory and appends the audit events
-to the audit log with adjusted timestamps so that sessions appear recent in the UI.
+test.use({
+  users: [
+    { roles: ['access', 'editor'], loginAs: true },
+    { roles: [{ file: '@gravitational/e2e/roles/viewer.yaml' }] },
+  ],
+});
+```
+
+**Traits:**
+
+Users can specify Teleport traits. Built-in trait keys (`logins`, `kubernetes_groups`, `db_names`, etc.)
+are typed in the `UserTraits` interface, and custom keys are also supported:
+
+```ts
+test.use({
+  user: {
+    roles: ['access'],
+    traits: { logins: ['root', 'alice'], kubernetes_groups: ['dev'] },
+  },
+});
+```
+
+When traits are omitted, the default is `{ logins: ['root'] }`.
+
+**Custom roles from YAML files:**
+
+For roles that don't exist as built-in Teleport roles, reference a YAML file in `e2e/testdata/roles/`:
+
+```ts
+test.use({
+  user: {
+    roles: [{ file: '@gravitational/e2e/roles/rbac-read-access.yaml' }],
+  },
+});
+```
+
+The `@gravitational/e2e/roles/` prefix is stripped and the file is loaded from `e2e/testdata/roles/`. The role
+name is extracted from `metadata.name` in the YAML. Custom role files are deduplicated, so multiple users can
+reference the same file.
+
+**`username` fixture:** The generated username of the logged-in user is available as the `username`
+fixture value, for use in test assertions.
+
+**Switching users mid-test:** For RBAC-style tests that need to swap users partway through, use the `loginAs`
+fixture. It takes an index into the `users` array and swaps the page's cached session state for that user
+without running the UI login flow, so the switch is near-instant.
+
+```ts
+test.use({
+  users: [
+    { roles: ['access'], loginAs: true },
+    { roles: ['editor'] },
+  ],
+});
+
+test('switch users', async ({ page, loginAs }) => {
+  // signed in as users[0] at test start
+  // ...
+  const editorName = await loginAs(1);
+  // now signed in as users[1]; `editorName` is the generated username
+});
+```
+
+**Scoping:** `test.use()` follows Playwright's normal scoping rules — place it inside a `test.describe()` block
+to limit it to that group, or at the top level of a file to apply to all tests in the file.
+
+**Account isolation:** the runner gives each spec its own bootstrapped account, even when two specs declare
+the same `user`/`users`. Concretely:
+- Tests with no `test.use({ user/users })` in a project that needs auth (web `:authenticated` projects and
+  the `connect` project) fall through to a single shared `access`/`editor` default user.
+- An explicit `test.use({ user: { roles: [...] } })` always gets a fresh account, distinct from the default
+  even when the roles match.
+- Two specs that declare identical `test.use({ user: ... })` get distinct accounts (keyed by spec path).
+- Tests in the same spec share one account when their `test.use()` resolves to identical content. To force
+  separate accounts, vary traits or use the `users: [...]` array (entries are distinguished by index).
+- Helper-declared `test.use({ user/users })` stays shared across every spec that imports the helper.
+
+**How it works (briefly):** The runner generates credentials server-side, logs each user in over HTTP
+(`/v1/webapi/mfa/login/*`) during setup, and writes the resulting cookies + localStorage to
+`e2e/.auth/<browser>-<username>.json`. Tests pick up that state via Playwright's `storageState`, so they
+start already authenticated without running the UI login flow.
 
 ### Common Commands
 

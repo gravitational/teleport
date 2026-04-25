@@ -51,7 +51,6 @@ export default defineConfig({
   projects: [
     ...browserList.flatMap(browser => {
       const setupName = `${browser}:setup`;
-      const authState = `.auth/${browser}-user.json`;
       return [
         {
           name: setupName,
@@ -62,7 +61,7 @@ export default defineConfig({
         {
           name: `${browser}:authenticated`,
           testDir: './tests/web/authenticated',
-          use: { ...browserDevices[browser], storageState: authState },
+          use: { ...browserDevices[browser] },
           dependencies: [setupName],
         },
         {

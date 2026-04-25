@@ -440,7 +440,7 @@ func TestScanUsers(t *testing.T) {
 			tmpFile := filepath.Join(dir, "test.spec.ts")
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			got, err := scanFileUsers(tmpFile, 0)
+			got, err := scanFileUsers(tmpFile, 0, "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -543,7 +543,7 @@ func TestScanUsersMutuallyExclusiveError(t *testing.T) {
   users: [{ roles: ['access'] }],
 });`)
 
-	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0)
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
 	if err == nil {
 		t.Fatal("expected error for user + users in same test.use(), got nil")
 	}
@@ -562,7 +562,7 @@ func TestScanUsersMultipleLoginAsError(t *testing.T) {
   ],
 });`)
 
-	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0)
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
 	if err == nil {
 		t.Fatal("expected error for multiple loginAs: true, got nil")
 	}
@@ -622,7 +622,7 @@ func TestScanUsersDuplicateRoleWarn(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			if _, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0); err != nil {
+			if _, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, ""); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -681,7 +681,7 @@ func TestScanUsersDelimitersInStringLiterals(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0)
+			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -699,6 +699,85 @@ func TestScanUsersDelimitersInStringLiterals(t *testing.T) {
 	}
 }
 
+func TestScanUsersQuotedTraitKeys(t *testing.T) {
+	tests := []struct {
+		name       string
+		content    string
+		wantTraits map[string][]string
+	}{
+		{
+			name: "single-quoted trait key with hyphen",
+			content: `test.use({
+  user: {
+    roles: ['access'],
+    traits: { 'tenant-id': ['acme', 'globex'] },
+  },
+});`,
+			wantTraits: map[string][]string{"tenant-id": {"acme", "globex"}},
+		},
+		{
+			name: "double-quoted trait key",
+			content: `test.use({
+  user: {
+    roles: ['access'],
+    traits: { "db-roles": ['reader'] },
+  },
+});`,
+			wantTraits: map[string][]string{"db-roles": {"reader"}},
+		},
+		{
+			name: "mixed quoted and bare trait keys",
+			content: `test.use({
+  user: {
+    roles: ['access'],
+    traits: { logins: ['root'], 'tenant-id': ['acme'] },
+  },
+});`,
+			wantTraits: map[string][]string{
+				"logins":    {"root"},
+				"tenant-id": {"acme"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(got) != 1 {
+				t.Fatalf("got %d users, want 1", len(got))
+			}
+
+			if len(got[0].traits) != len(tt.wantTraits) {
+				t.Fatalf("got %d traits, want %d: %+v", len(got[0].traits), len(tt.wantTraits), got[0].traits)
+			}
+
+			for k, want := range tt.wantTraits {
+				gotVals, ok := got[0].traits[k]
+				if !ok {
+					t.Errorf("missing trait %q", k)
+					continue
+				}
+				if len(gotVals) != len(want) {
+					t.Errorf("trait %q: got %d values, want %d", k, len(gotVals), len(want))
+					continue
+				}
+				for i, v := range gotVals {
+					if v != want[i] {
+						t.Errorf("trait %q[%d] = %q, want %q", k, i, v, want[i])
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestScanUsersIdentifierBoundaries(t *testing.T) {
 	// Declarations that look like they should match the user/users/roles/traits
 	// regexes but don't because the identifier has additional word characters.
@@ -710,7 +789,7 @@ func TestScanUsersIdentifierBoundaries(t *testing.T) {
   myRoles: ['nope'],
 });`)
 
-	got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0)
+	got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

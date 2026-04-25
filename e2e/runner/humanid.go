@@ -48,7 +48,8 @@ func newHumanIDGenerator() *humanIDGenerator {
 	return &humanIDGenerator{used: make(map[string]struct{})}
 }
 
-// Generate returns a unique human-readable identifier. On collision, it appends a numeric suffix (e.g. "brave-falcon-2").
+// Generate returns a unique human-readable identifier. On collision, it
+// appends a numeric suffix (e.g. "brave-falcon-2").
 func (g *humanIDGenerator) Generate() string {
 	id := generateHumanID()
 	if _, ok := g.used[id]; !ok {

@@ -41,15 +41,16 @@ var (
 
 	// The "key" regexes below require a word boundary so identifiers like
 	// `super_user:` or `myRoles:` don't match as `user:` / `roles:`.
-	usersBlockRe     = regexp.MustCompile(`\busers:\s*\[`)
-	userObjRe        = regexp.MustCompile(`\buser:\s*\{`)
-	rolesBlockRe     = regexp.MustCompile(`\broles:\s*\[`)
-	traitsBlockRe    = regexp.MustCompile(`\btraits:\s*\{`)
-	traitKeyArrayRe  = regexp.MustCompile(`\b(\w+):\s*\[`)
-	loginAsBoolRe    = regexp.MustCompile(`\bloginAs:\s*true\b`)
+	usersBlockRe    = regexp.MustCompile(`\busers:\s*\[`)
+	userObjRe       = regexp.MustCompile(`\buser:\s*\{`)
+	rolesBlockRe    = regexp.MustCompile(`\broles:\s*\[`)
+	traitsBlockRe   = regexp.MustCompile(`\btraits:\s*\{`)
+	traitKeyArrayRe = regexp.MustCompile(`(?:'([^'\\]+)'|"([^"\\]+)"|\b(\w+))\s*:\s*\[`)
+	loginAsBoolRe   = regexp.MustCompile(`\bloginAs:\s*true\b`)
 )
 
-// defaultRoleNames returns the built-in roles assigned when no roles are specified. Returns a fresh slice each call so callers can mutate/sort safely.
+// defaultRoleNames returns the built-in roles assigned when no roles are
+// specified. Returns a fresh slice each call so callers can mutate/sort safely.
 func defaultRoleNames() []scannedRole {
 	return []scannedRole{
 		{name: "access"},
@@ -59,16 +60,27 @@ func defaultRoleNames() []scannedRole {
 
 const testUseCallPrefix = "test.use("
 
-// scannedUser is a user declaration discovered in test source. Names are generated at bootstrap time, not by the test author.
+// scannedUser is a user declaration discovered in test source. Names are
+// generated at bootstrap time, not by the test author.
 type scannedUser struct {
 	roles   []scannedRole
 	traits  map[string][]string
 	loginAs bool
-	// arrayIdx is the position within a `users: [...]` array; nil otherwise. Keeps duplicate-by-content entries addressable as distinct accounts via loginAs(N).
+	// arrayIdx is the position within a `users: [...]` array; nil otherwise.
+	// Keeps duplicate-by-content entries addressable as distinct accounts via
+	// loginAs(N).
 	arrayIdx *int
+	// isDefault marks the implicit default user so its canonical key is
+	// distinct from any explicit `user: {}` declaration with the same roles.
+	isDefault bool
+	// sourceFile is the spec path (relative to e2eDir) where this user was
+	// declared inline; empty for helper-declared and default users so those
+	// stay shared.
+	sourceFile string
 }
 
-// scannedRole is a role reference; exactly one of name (built-in like "access") or file (e.g. "viewer.yaml" under e2e/testdata/roles/) is set.
+// scannedRole is a role reference; exactly one of name (built-in like
+// "access") or file (e.g. "viewer.yaml" under e2e/testdata/roles/) is set.
 type scannedRole struct {
 	name string
 	file string
@@ -78,6 +90,10 @@ type scannedRole struct {
 type scanTarget struct {
 	path string
 	line int // 0 means scan entire file
+	// sourceFile, when non-empty, is the spec path (relative to e2eDir) emitted
+	// in the canonical key for users declared in this target. Empty for helpers
+	// so helper-declared users stay shared across all importing specs.
+	sourceFile string
 }
 
 // blockRange represents a brace-delimited block in a source file (1-indexed lines).
@@ -90,11 +106,18 @@ type callRange struct {
 	start, end int
 }
 
-// resolveTargetsWithHelpers resolves test files plus any helper modules they import, so fixtures and users declared in helpers are also discovered.
+// resolveTargetsWithHelpers resolves test files plus any helper modules they
+// import, so fixtures and users declared in helpers are also discovered.
 func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget, error) {
 	targets, err := resolveFilesToScan(e2eDir, testFiles)
 	if err != nil {
 		return nil, err
+	}
+
+	for i := range targets {
+		if rel, err := filepath.Rel(e2eDir, targets[i].path); err == nil {
+			targets[i].sourceFile = rel
+		}
 	}
 
 	importedHelpers := make(map[string]bool)
@@ -113,7 +136,8 @@ func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget,
 	return targets, nil
 }
 
-// scanFixturesFromTargets scans pre-resolved targets to discover which fixtures are needed.
+// scanFixturesFromTargets scans pre-resolved targets to discover which
+// fixtures are needed.
 func scanFixturesFromTargets(targets []scanTarget) []*fixtures.Fixture {
 	seen := make(map[string]struct{})
 	var result []*fixtures.Fixture
@@ -132,7 +156,8 @@ func scanFixturesFromTargets(targets []scanTarget) []*fixtures.Fixture {
 	return result
 }
 
-// scanFixtures wraps resolveTargetsWithHelpers + scanFixturesFromTargets for callers that haven't been split yet.
+// scanFixtures wraps resolveTargetsWithHelpers + scanFixturesFromTargets for
+// callers that haven't been split yet.
 func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
 	targets, err := resolveTargetsWithHelpers(e2eDir, testFiles)
 	if err != nil {
@@ -324,7 +349,8 @@ func stripComments(lines []string) []string {
 	return cleaned
 }
 
-// findInlineComment returns the byte offset of the first // not inside a string/template literal, or -1.
+// findInlineComment returns the byte offset of the first // not inside a
+// string/template literal, or -1.
 func findInlineComment(line string) int {
 	var quote byte
 
@@ -354,7 +380,8 @@ func findInlineComment(line string) int {
 	return -1
 }
 
-// findBlockCommentOpen returns the byte offset of the first /* that is not inside a string literal, or -1.
+// findBlockCommentOpen returns the byte offset of the first /* that is not
+// inside a string literal, or -1.
 func findBlockCommentOpen(line string) int {
 	var quote byte
 
@@ -511,57 +538,41 @@ func fixtureInScope(fixtureLine, targetLine int, blocks []blockRange) bool {
 	return targetLine >= enclosing.start && targetLine <= enclosing.end
 }
 
-// scanUsersFromTargets scans pre-resolved targets for user declarations and always appends the default access/editor user so implicit-auth specs (no test.use(), :authenticated project) resolve a username in mixed runs.
+// scanUsersFromTargets scans pre-resolved targets for user declarations and
+// always appends the default access/editor user so implicit-auth specs resolve
+// a username in mixed runs. The default user has a distinct canonical key
+// (`"default": true`), so explicit `user: {}` declarations with the same roles
+// still get their own account.
 func scanUsersFromTargets(targets []scanTarget) ([]scannedUser, error) {
 	var result []scannedUser
 	for _, t := range targets {
-		users, err := scanFileUsers(t.path, t.line)
+		users, err := scanFileUsers(t.path, t.line, t.sourceFile)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, users...)
 	}
 
-	return ensureDefaultUser(result)
-}
-
-// ensureDefaultUser appends the default user unless an explicit declaration already produces the same canonical key.
-func ensureDefaultUser(users []scannedUser) ([]scannedUser, error) {
-	keys := make(map[string]bool, len(users))
-	for _, u := range users {
-		k, err := canonicalUserKey(u)
-		if err != nil {
-			return nil, err
-		}
-		keys[k] = true
-	}
-
-	for _, du := range defaultUsers() {
-		k, err := canonicalUserKey(du)
-		if err != nil {
-			return nil, err
-		}
-		if keys[k] {
-			continue
-		}
-		users = append(users, du)
-	}
-
-	return users, nil
+	return append(result, defaultUsers()...), nil
 }
 
 // defaultUsers returns a default user with access and editor roles.
 func defaultUsers() []scannedUser {
 	return []scannedUser{
 		{
-			roles:   defaultRoleNames(),
-			loginAs: true,
+			roles:     defaultRoleNames(),
+			loginAs:   true,
+			isDefault: true,
 		},
 	}
 }
 
-// scanFileUsers extracts user declarations from test.use() calls. Singular `user: {}` and array `users: [...]` are mutually exclusive per call; at most one array entry may have `loginAs: true`.
-func scanFileUsers(path string, targetLine int) ([]scannedUser, error) {
+// scanFileUsers extracts user declarations from test.use() calls. Singular
+// `user: {}` and array `users: [...]` are mutually exclusive per call; at
+// most one array entry may have `loginAs: true`. sourceFile, when non-empty,
+// is stamped onto each scanned user so its canonical key includes the spec
+// path (helpers leave it empty).
+func scanFileUsers(path string, targetLine int, sourceFile string) ([]scannedUser, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// Helper module paths are guessed from import names (see
@@ -636,13 +647,18 @@ func scanFileUsers(path string, targetLine int) ([]scannedUser, error) {
 			}
 		}
 
+		for i := range users {
+			users[i].sourceFile = sourceFile
+		}
 		result = append(result, users...)
 	}
 
 	return result, nil
 }
 
-// scanBalanced returns the index of the close delimiter matching the open at openIdx, or -1 if unmatched. Delimiters inside string/template literals are ignored.
+// scanBalanced returns the index of the close delimiter matching the open at
+// openIdx, or -1 if unmatched. Delimiters inside string/template literals are
+// ignored.
 func scanBalanced(s string, openIdx int, open, close byte) int {
 	depth := 0
 	var quote byte
@@ -722,7 +738,8 @@ func parseUserBlock(userBlock string) scannedUser {
 	return user
 }
 
-// extractInner returns the content between the first open delimiter and its matching close, ignoring delimiters inside string/template literals.
+// extractInner returns the content between the first open delimiter and its
+// matching close, ignoring delimiters inside string/template literals.
 func extractInner(s string, open, close byte) string {
 	start := strings.IndexByte(s, open)
 	if start < 0 {
@@ -737,12 +754,22 @@ func extractInner(s string, open, close byte) string {
 	return s[start+1 : end]
 }
 
-// parseTraits parses trait key-value pairs (e.g. `logins: ['root', 'alice'], groups: ['dev']`) into a map.
+// parseTraits parses trait key-value pairs
+// (e.g. `logins: ['root', 'alice'], groups: ['dev']`) into a map.
 func parseTraits(traitsContent string) map[string][]string {
 	traits := make(map[string][]string)
 
 	for _, m := range traitKeyArrayRe.FindAllStringSubmatchIndex(traitsContent, -1) {
-		key := traitsContent[m[2]:m[3]]
+		var key string
+		switch {
+		case m[2] >= 0:
+			key = traitsContent[m[2]:m[3]]
+		case m[4] >= 0:
+			key = traitsContent[m[4]:m[5]]
+		default:
+			key = traitsContent[m[6]:m[7]]
+		}
+
 		// traitKeyArrayRe ends at the byte after `[`, so m[1]-1 is the `[` byte.
 		bracketOpen := m[1] - 1
 		bracketClose := scanBalanced(traitsContent, bracketOpen, '[', ']')
@@ -759,7 +786,8 @@ func parseTraits(traitsContent string) map[string][]string {
 	return traits
 }
 
-// extractAllOuter returns each top-level open...close block from s (including delimiters), ignoring delimiters inside string/template literals.
+// extractAllOuter returns each top-level open...close block from s (including
+// delimiters), ignoring delimiters inside string/template literals.
 func extractAllOuter(s string, open, close byte) []string {
 	var blocks []string
 	depth := 0
@@ -813,7 +841,8 @@ func warnDuplicateRoles(path string, line int, roles []scannedRole) {
 	}
 }
 
-// sortRoles sorts roles with built-in names before file refs, alphabetical within each group.
+// sortRoles sorts roles with built-in names before file refs, alphabetical
+// within each group.
 func sortRoles(roles []scannedRole) {
 	slices.SortStableFunc(roles, func(a, b scannedRole) int {
 		// Built-in names (name set) come before file refs (file set).
