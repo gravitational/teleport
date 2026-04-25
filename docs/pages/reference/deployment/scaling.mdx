@@ -310,3 +310,81 @@ wait
 ```
 
 The payload can be customized to represent a typical use case.
+
+## Teleport Database Service resource utilization
+
+The Database Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Database Service.
+
+There are three primary factors that influence resource utilization by the Database Service:
+1. Number of concurrent sessions.
+1. Number of new sessions per second.
+1. Number of registered databases.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### Long lived sessions
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 40              |
+| 2                   | 50              |
+| 4                   | 60              |
+| 8                   | 80              |
+| 16                  | 120             |
+| 32                  | 200             |
+| 64                  | 400             |
+| 128                 | 800             |
+
+For a typical agent RAM usage increases linearly with the number of concurrent sessions.
+
+### New session requests
+
+| sessions per second | CPU peak (millicores) |
+| ------------------- | --------------------- |
+| 1                   | 100                   |
+| 2                   | 250                   |
+| 4                   | 500                   |
+| 8                   | 950                   |
+| 16                  | 1800                  |
+| 32                  | 3850                  |
+
+The primary driver of CPU usage by the Database Service is the burst usage when new sessions are established.
+
+### Registered databases
+
+A single Database Service can proxy multiple databases. Each registered database adds idle background overhead from heartbeats and health checks.
+
+| registered databases | idle CPU (millicores) | idle RAM (MiB) |
+| -------------------- | --------------------- | -------------- |
+| 100                  | 10                    | 70             |
+| 200                  | 12                    | 80             |
+| 500                  | 20                    | 130            |
+| 1000                 | 35                    | 200            |
+| 5000                 | 150                   | 450            |
+| 10000                | 250                   | 800            |
+| 50000                | 1300                  | 3300           |
+| 100000               | 1950                  | 7450           |
+
+Both CPU and RAM grow approximately linearly with the number of registered databases. To serve more databases, deploy multiple Database Service instances.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the Database Service:
+1. Determine the maximum number of concurrent sessions.
+1. Determine the maximum number of new sessions per second.
+1. Determine the number of databases served by each Database Service instance.
+
+Using `tsh bench`, simulate session activity to measure resource usage under expected conditions. Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
+For example, spawn 32 new session requests per second for 2 minutes against a specific database:
+
+```code
+$ tsh bench postgres --rate=32 --duration=2m --db-user=alice --db-name=mydb mydb-resource
+```
+
+To measure memory usage under concurrent sessions, use your existing database tooling or clients to open simultaneous connections and run representative queries while monitoring the Database Service process.
