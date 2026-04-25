@@ -16,30 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
-import { CLUSTER_NAME } from '../test';
+export class SideNavPage {
+  constructor(private page: Page) {}
 
-export type RecordingType = 'ssh' | 'k8s' | 'desktop' | 'database';
+  async openSection(sectionName: string): Promise<Locator> {
+    const button = this.page.getByRole('button', { name: sectionName });
 
-export class PlayerPage {
-  readonly terminal: Locator;
+    await button.hover();
+    await button.click();
 
-  constructor(private page: Page) {
-    this.terminal = page.locator('.xterm');
+    const panel = this.page.locator(`[id="panel-${sectionName}"]`);
+
+    await panel.waitFor({ state: 'visible' });
+
+    return panel;
   }
 
-  async goto(sessionId: string, recordingType: RecordingType) {
-    await this.page.goto(
-      `/web/cluster/${CLUSTER_NAME}/session/${sessionId}?recordingType=${recordingType}&durationMs=1000`
-    );
-  }
+  async navigateToLink(sectionName: string, linkName: string) {
+    const panel = await this.openSection(sectionName);
 
-  async expectError(text: string | RegExp) {
-    await expect(this.page.getByText(text)).toBeVisible();
-  }
+    await panel.getByRole('link', { name: linkName }).click();
 
-  getByText(text: string) {
-    return this.page.getByText(text);
+    await this.page.waitForLoadState('networkidle');
   }
 }
