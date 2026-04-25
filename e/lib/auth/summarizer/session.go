@@ -39,7 +39,7 @@ func analyzeSessionCommands(
 	provider sessionInferenceProvider,
 	pool *workerPool,
 	commands <-chan ttyterminal.Command,
-	details sessionDetails,
+	details *sessionDetails,
 ) (*schema.SessionAnalysis, []*schema.CommandAnalysis, error) {
 	sa := &sessionAnalyzer{
 		pool:            pool,

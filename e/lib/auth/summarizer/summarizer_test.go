@@ -689,6 +689,7 @@ func TestSummarizer(t *testing.T) {
 				resourceType, resourceName := getResourceNameFromSessionEnd(sessEvents[len(sessEvents)-1])
 				assert.Equal(t, resourceName, summaryEvent.ResourceName, "Resource name mismatch")
 				assert.Equal(t, resourceType, summaryEvent.SessionType, "Resource type mismatch")
+				assert.False(t, summaryEvent.HasStoredEmbeddings, "Stored embeddings flag mismatch")
 
 				auditEvents := mockEmitter.Events()
 				var summaryCreateEvents []*apievents.SessionSummarized
@@ -746,6 +747,78 @@ func getResourceNameFromSessionEnd(evt apievents.AuditEvent) (string, string) {
 	default:
 		return "", ""
 	}
+}
+
+func TestSummarizer_ReportsStoredEmbeddingsUsage(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	serverID := "9d68b09f-8c0c-49a3-b54d-f8791f0c3941"
+	agClient := &fakeAGRecordingClient{}
+	mockReporter := &mockUsageReporter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:                         eventstest.NewMemoryUploader(),
+		usageReporter:                    mockReporter,
+		mockEmitter:                      mockEmitter,
+		enableBedrockWithoutRestrictions: true,
+		accessGraphClientGetter: func() (accessgraphv1.SessionRecordingServiceClient, error) {
+			return agClient, nil
+		},
+	})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	sclt := clt.SummarizerServiceClient()
+	createSummarizerConfig(t, ctx, sclt)
+
+	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+		Model: apisummarizer.NewRetrievalModel(&summarizerv1pb.RetrievalModelSpec{
+			EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
+				Bedrock: &summarizerv1pb.BedrockProvider{
+					BedrockModelId: "amazon.titan-embed-text-v1",
+					Region:         "us-east-1",
+				},
+			},
+			InferenceModelName: "bedrock-model",
+		}),
+	})
+	require.NoError(t, err)
+
+	sessionID := uuid.NewString()
+	sessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		ClusterName: "openai-cluster",
+		UserName:    "alice",
+		SessionID:   sessionID,
+		ServerID:    serverID,
+		PrintData:   []string{"whoami"},
+	})
+
+	// Pre-initialize the tiktoken encoder outside the synctest bubble.
+	_, err = tokenizer.EncodeTokens("warmup")
+	require.NoError(t, err)
+
+	var summaryEvents []*usagereporter.SessionSummaryCreateEvent
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
+
+		// Wait until every goroutine in the bubble (including the summarizer)
+		// has exited or is blocked outside of synctest.
+		synctest.Wait()
+
+		for _, e := range mockReporter.getEvents() {
+			if summaryEvent, ok := e.(*usagereporter.SessionSummaryCreateEvent); ok {
+				summaryEvents = append(summaryEvents, summaryEvent)
+			}
+		}
+	})
+
+	require.Len(t, summaryEvents, 1)
+	assert.True(t, summaryEvents[0].HasStoredEmbeddings)
 }
 
 func TestSummarizer_BedrockConfigFromEnvironment(t *testing.T) {

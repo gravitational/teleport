@@ -24,7 +24,7 @@ func TestAnalyseSessionCommands_NoCommands(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-empty")
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.ErrorContains(t, err, "no commands to analyze")
 
 	require.Nil(t, sessionAnalysis)
@@ -43,7 +43,7 @@ func TestAnalyseSessionCommands_SingleCommand(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-single")
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -69,7 +69,7 @@ func TestAnalyseSessionCommands_MultipleCommands(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-multiple")
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -88,7 +88,7 @@ func TestAnalyseSessionCommands_ErrorFromProvider(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-error")
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -114,7 +114,7 @@ func TestAnalyseSessionCommands_PartialFailure(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-partial-failure")
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -150,7 +150,7 @@ func TestAnalyseSessionCommands_FailedCommandBumpsRiskToMedium(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-risk-bump")
-	sessionAnalysis, _, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, _, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -173,7 +173,7 @@ func TestAnalyseSessionCommands_FailedCommandKeepsHigherRisk(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-risk-keep-high")
-	sessionAnalysis, _, err := analyzeSessionCommands(ctx, provider, pool, commands, details)
+	sessionAnalysis, _, err := analyzeSessionCommands(ctx, provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)
@@ -196,7 +196,7 @@ func TestAnalyseSessionCommands_PartialFailureBumpsRiskToMedium(t *testing.T) {
 	pool := newWorkerPool(5)
 
 	details := createSessionDetails("test-session-partial-risk-bump")
-	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, &details)
 	require.NoError(t, err)
 
 	require.NotNil(t, sessionAnalysis)

@@ -179,7 +179,7 @@ func createTestUser(
 		[]string{},
 		[]types.Rule{
 			{
-				Resources: []string{types.KindInferenceSecret, types.KindInferenceModel, types.KindInferencePolicy},
+				Resources: []string{types.KindInferenceSecret, types.KindInferenceModel, types.KindInferencePolicy, types.KindRetrievalModel},
 				Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete, types.VerbList},
 			},
 			{
@@ -1446,6 +1446,61 @@ func TestService_AuditEvents(t *testing.T) {
 		require.True(t, ok, "expected InferencePolicyDelete event, got %T", evts[len(evts)-1])
 		assert.Equal(t, events.InferencePolicyDeleteCode, deleteEvt.Code)
 		assert.Equal(t, "policyaudit3", deleteEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), deleteEvt.User)
+	})
+
+	t.Run("RetrievalModel events", func(t *testing.T) {
+		secret := summarizer.NewInferenceSecret("secret1", &summarizerv1pb.InferenceSecretSpec{
+			Value: "my-secret-value",
+		})
+		model := newBedrockModel("test-inference-model")
+		retrievalModel := newTestRetrievalModel()
+
+		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+			Secret: secret,
+		})
+		require.NoError(t, err)
+		_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+			Model: model,
+		})
+		require.NoError(t, err)
+
+		createdRetrievalModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+			Model: retrievalModel,
+		})
+		require.NoError(t, err)
+
+		evts := getRecentEvents(events.RetrievalModelCreateEvent)
+		require.NotEmpty(t, evts, "expected at least one retrieval model create event")
+		createEvt, ok := evts[len(evts)-1].(*apievents.RetrievalModelCreate)
+		require.True(t, ok, "expected RetrievalModelCreate event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.RetrievalModelCreateCode, createEvt.Code)
+		assert.Equal(t, types.MetaNameRetrievalModel, createEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), createEvt.User)
+
+		createdRetrievalModel.Model.Spec.GetOpenai().Temperature = 0.5
+		_, err = sclt.UpdateRetrievalModel(ctx, &summarizerv1pb.UpdateRetrievalModelRequest{
+			Model: createdRetrievalModel.Model,
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.RetrievalModelUpdateEvent)
+		require.NotEmpty(t, evts, "expected at least one retrieval model update event")
+		updateEvt, ok := evts[len(evts)-1].(*apievents.RetrievalModelUpdate)
+		require.True(t, ok, "expected RetrievalModelUpdate event got %T", evts[len(evts)-1])
+		assert.Equal(t, events.RetrievalModelUpdateCode, updateEvt.Code)
+		assert.Equal(t, types.MetaNameRetrievalModel, updateEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), updateEvt.User)
+
+		_, err = sclt.DeleteRetrievalModel(ctx, &summarizerv1pb.DeleteRetrievalModelRequest{})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.RetrievalModelDeleteEvent)
+		require.NotEmpty(t, evts, "expected at least one retrieval model delete event")
+		deleteEvt, ok := evts[len(evts)-1].(*apievents.RetrievalModelDelete)
+		require.True(t, ok, "expected RetrievalModelDelete event got %T", evts[len(evts)-1])
+		assert.Equal(t, events.RetrievalModelDeleteCode, deleteEvt.Code)
+		assert.Equal(t, types.MetaNameRetrievalModel, deleteEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), deleteEvt.User)
 	})
 }

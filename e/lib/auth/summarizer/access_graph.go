@@ -18,9 +18,13 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 )
 
+// pushSummaryToAccessGraph generates embeddings for the session summary and pushes them to the access graph.
+// sessionDetails are used as input and output of this function:
+//   - sessionDetails.summary is the input session summary for which to generate embeddings and push to the access graph.
+//   - sessionDetails.hadEmbeddingsGenerated is set to true if embeddings were successfully generated and pushed to the access graph, and false otherwise.
 func (s *SessionSummarizer) pushSummaryToAccessGraph(
 	ctx context.Context,
-	details sessionDetails,
+	details *sessionDetails,
 ) error {
 	availability, err := s.accessGraphAvailabilityChecker.Get(ctx)
 	if err != nil {
@@ -89,6 +93,7 @@ func (s *SessionSummarizer) pushSummaryToAccessGraph(
 	}
 
 	_, err = client.StoreSessionSummary(ctx, req)
+	details.hadEmbeddingsGenerated = err == nil
 	return trace.Wrap(err, "failed to store session summary in access graph")
 }
 

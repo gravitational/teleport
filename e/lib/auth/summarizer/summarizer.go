@@ -234,16 +234,17 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 // sessionDetails contains details about the session to be summarized,
 // including any pending summarization result.
 type sessionDetails struct {
-	sessionID       session.ID
-	username        string
-	loginName       string
-	resourceName    string
-	kind            types.SessionKind
-	summary         *summarizerv1pb.Summary
-	provider        InferenceProvider
-	sessionEnd      apievents.AuditEvent
-	errorFormatFunc func(error) string
-	now             time.Time
+	sessionID              session.ID
+	username               string
+	loginName              string
+	resourceName           string
+	kind                   types.SessionKind
+	summary                *summarizerv1pb.Summary
+	provider               InferenceProvider
+	sessionEnd             apievents.AuditEvent
+	errorFormatFunc        func(error) string
+	now                    time.Time
+	hadEmbeddingsGenerated bool
 }
 
 // TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
@@ -428,14 +429,14 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, de
 
 			metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
 
-			s.finalizeFailedSummary(ctx, details)
+			s.finalizeFailedSummary(ctx, &details)
 		}
 	}()
 
 	metrics.SummarizationsTotal.WithLabelValues(details.summary.ModelName).Inc()
 
 	success := true
-	if err := s.summarizeNow(ctx, details); err != nil {
+	if err := s.summarizeNow(ctx, &details); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", details.sessionID, "kind", details.kind, "error", err)
 		metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
 		success = false
@@ -443,12 +444,13 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, de
 
 	inputTokens, outputTokens := details.provider.GetTotalTokens()
 	s.usageReporter.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
-		SessionType:       string(details.kind),
-		Provider:          details.provider.GetType(),
-		TotalInputTokens:  inputTokens,
-		TotalOutputTokens: outputTokens,
-		Success:           success,
-		ResourceName:      details.resourceName,
+		SessionType:         string(details.kind),
+		Provider:            details.provider.GetType(),
+		TotalInputTokens:    inputTokens,
+		TotalOutputTokens:   outputTokens,
+		Success:             success,
+		ResourceName:        details.resourceName,
+		HasStoredEmbeddings: details.hadEmbeddingsGenerated,
 		IsCloudDefaultModel: details.summary.GetModelName() == apisummarizer.CloudDefaultInferenceModelName &&
 			s.enableBedrockWithoutRestrictions,
 	})
@@ -463,7 +465,7 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, de
 // The provided context is only used to create a new one with appropriate
 // timeout and can be canceled at any time without affecting the summarization
 // process.
-func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDetails) error {
+func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDetails) error {
 	// TODO(bl-nero): Make the timeout configurable, or at least depend on the
 	// provider.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTimeout)
@@ -517,7 +519,7 @@ func (s *SessionSummarizer) summarizeSession(
 	ctx context.Context,
 	log *slog.Logger,
 	result *summarizerv1pb.Summary,
-	details sessionDetails,
+	details *sessionDetails,
 ) error {
 	eventsCh, errCh := s.streamer.StreamSessionEvents(ctx, details.sessionID, 0)
 	stream, err := ttyterminal.StreamTTYRecording(ctx, eventsCh, errCh)
@@ -557,7 +559,7 @@ func (s *SessionSummarizer) summarizeSimple(
 	ctx context.Context,
 	log *slog.Logger,
 	result *summarizerv1pb.Summary,
-	details sessionDetails,
+	details *sessionDetails,
 ) error {
 	reader := newSessionReader(ctx, s.streamer, details.sessionID)
 	defer reader.Close()
@@ -590,7 +592,7 @@ func (s *SessionSummarizer) summarizeSimple(
 // uploader. It's called from the panic-recovery path in
 // summarizeNowAndReportMetrics so the pending summary that was uploaded before
 // the worker goroutine started doesn't get stranded in SUMMARY_STATE_PENDING.
-func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details sessionDetails) {
+func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details *sessionDetails) {
 	if details.summary == nil {
 		return
 	}
@@ -613,7 +615,7 @@ func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details s
 func (s *SessionSummarizer) uploadSummary(
 	ctx context.Context,
 	log *slog.Logger,
-	details sessionDetails,
+	details *sessionDetails,
 	result *summarizerv1pb.Summary,
 	sumErr error,
 ) error {

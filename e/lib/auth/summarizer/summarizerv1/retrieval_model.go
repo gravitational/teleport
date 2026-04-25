@@ -7,8 +7,11 @@ import (
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 // CreateRetrievalModel creates the RetrievalModel.
@@ -33,6 +36,8 @@ func (s *Service) CreateRetrievalModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.emitCreateRetrievalModelEvent(ctx, authCtx, model)
 	return &pb.CreateRetrievalModelResponse{Model: model}, nil
 }
 
@@ -79,6 +84,8 @@ func (s *Service) UpdateRetrievalModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.emitUpdateRetrievalModelEvent(ctx, authCtx, model)
 	return &pb.UpdateRetrievalModelResponse{Model: model}, nil
 }
 
@@ -100,10 +107,22 @@ func (s *Service) UpsertRetrievalModel(
 		return nil, trace.Wrap(err)
 	}
 
+	exists := false
+	if _, err := s.cache.GetRetrievalModel(ctx); err == nil {
+		exists = true
+	}
+
 	model, err := s.backend.UpsertRetrievalModel(ctx, req.GetModel())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if exists {
+		s.emitUpdateRetrievalModelEvent(ctx, authCtx, model)
+	} else {
+		s.emitCreateRetrievalModelEvent(ctx, authCtx, model)
+	}
+
 	return &pb.UpsertRetrievalModelResponse{Model: model}, nil
 }
 
@@ -126,7 +145,46 @@ func (s *Service) DeleteRetrievalModel(
 		return nil, trace.Wrap(err)
 	}
 
+	s.emitDeleteRetrievalModelEvent(ctx, authCtx)
 	return &pb.DeleteRetrievalModelResponse{}, nil
+}
+
+func (s *Service) emitCreateRetrievalModelEvent(ctx context.Context, authCtx *authz.Context, model *pb.RetrievalModel) {
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.RetrievalModelCreate{
+		Metadata:           apievents.Metadata{Type: events.RetrievalModelCreateEvent, Code: events.RetrievalModelCreateCode},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ResourceMetadata:   apievents.ResourceMetadata{Name: model.GetMetadata().GetName(), Expires: model.GetMetadata().GetExpires().AsTime()},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             apievents.Status{Success: true},
+		Payload:            s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit retrieval model create event", "error", err)
+	}
+}
+
+func (s *Service) emitUpdateRetrievalModelEvent(ctx context.Context, authCtx *authz.Context, model *pb.RetrievalModel) {
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.RetrievalModelUpdate{
+		Metadata:           apievents.Metadata{Type: events.RetrievalModelUpdateEvent, Code: events.RetrievalModelUpdateCode},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ResourceMetadata:   apievents.ResourceMetadata{Name: model.GetMetadata().GetName(), Expires: model.GetMetadata().GetExpires().AsTime()},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             apievents.Status{Success: true},
+		Payload:            s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit retrieval model update event", "error", err)
+	}
+}
+
+func (s *Service) emitDeleteRetrievalModelEvent(ctx context.Context, authCtx *authz.Context) {
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.RetrievalModelDelete{
+		Metadata:           apievents.Metadata{Type: events.RetrievalModelDeleteEvent, Code: events.RetrievalModelDeleteCode},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ResourceMetadata:   apievents.ResourceMetadata{Name: types.MetaNameRetrievalModel},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             apievents.Status{Success: true},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit retrieval model delete event", "error", err)
+	}
 }
 
 func (s *Service) validateRetrievalModel(ctx context.Context, model *pb.RetrievalModel) error {
