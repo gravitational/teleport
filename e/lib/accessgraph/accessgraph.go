@@ -184,7 +184,7 @@ func processEventStream(ctx context.Context, log *slog.Logger, stream eventStrea
 	)
 
 	if svcWatchKinds := supportedKindsToWatcherKinds(supportedKinds, servicesWatcherKind); len(svcWatchKinds) > 0 {
-		servicesWatcher, err := authServer.Services.NewWatcher(
+		servicesWatcher, err = authServer.Services.NewWatcher(
 			eventWatcherSender.Context(),
 			types.Watch{
 				Kinds:               svcWatchKinds,

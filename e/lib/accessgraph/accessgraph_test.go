@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,13 +21,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accessgraph"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -384,6 +389,9 @@ type accessGraphService struct {
 	mu               sync.Mutex
 	receivedMessages []*accessgraphv1alpha.EventsStreamV2Request
 	supportedActions []string
+	// kinds overrides the supported kinds sent in the stream header.
+	// If nil, defaults to the standard set of cache-watcher kinds.
+	kinds []string
 }
 
 func (a *accessGraphService) getReceivedMessages() []*accessgraphv1alpha.EventsStreamV2Request {
@@ -408,8 +416,9 @@ func (a *accessGraphService) EventsStreamV2(stream accessgraphv1alpha.AccessGrap
 	a.supportedActions = md.Get(supportedActionsKey)
 	a.mu.Unlock()
 
-	if err := stream.SendHeader(metadata.MD{
-		supportedKindsKey: []string{
+	kinds := a.kinds
+	if len(kinds) == 0 {
+		kinds = []string{
 			types.KindUser,
 			types.KindRole,
 			types.KindNode,
@@ -420,7 +429,10 @@ func (a *accessGraphService) EventsStreamV2(stream accessgraphv1alpha.AccessGrap
 			types.KindDatabaseObject,
 			types.KindAccessRequest,
 			"non_supported_kind", /* this kind is not supported  but is here to ensure that the cache runs with allow partials */
-		},
+		}
+	}
+	if err := stream.SendHeader(metadata.MD{
+		supportedKindsKey: kinds,
 	}); err != nil {
 		return fmt.Errorf("send header: %w", err)
 	}
@@ -593,4 +605,130 @@ func TestUserSecretsCleanup(t *testing.T) {
 		return usersFound && noSecret && hasSync
 	}, 10*time.Second, 100*time.Millisecond, "expected to receive non-secret user before timeout")
 
+}
+
+// TestProcessEventStream_WatcherCreation exercises the full watcher-initialization
+// path inside processEventStream using a real auth server and an in-process gRPC
+// server backed by bufconn.
+//
+// It verifies that both the cache watcher (KindRole) and the services watcher
+// (KindAccessGraphSecretAuthorizedKey) are properly created and forward events.
+// The services-watcher assertion is the regression check for the := vs = bug:
+// with the old code servicesWatcher was left as noOpWatcher (nil Events channel)
+// so all authorized-key events were silently dropped.
+func TestProcessEventStream_WatcherCreation(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			Dir:      t.TempDir(),
+			AuditLog: events.NewDiscardAuditLog(),
+			Modules:  modulestest.EnterpriseModules(),
+		})
+		require.NoError(t, err)
+
+		// Wire an AccessGraphSecretsService so that authorized-key writes emit
+		// backend events and sendAuthorizedKeys has a working lister.
+		secretsSvc, err := local.NewAccessGraphSecretsService(as.Backend)
+		require.NoError(t, err)
+		as.AuthServer.SetAccessGraphSecretService(secretsSvc)
+
+		// Build the in-process gRPC server via bufconn.
+		// Advertise KindRole (→ cache watcher) and KindAccessGraphSecretAuthorizedKey (→ services watcher).
+		lis := bufconn.Listen(1 << 20)
+		grpcSrv := grpc.NewServer()
+		tagSvc := &accessGraphService{
+			kinds: []string{
+				types.KindRole,
+				types.KindAccessGraphSecretAuthorizedKey,
+			},
+		}
+		accessgraphv1alpha.RegisterAccessGraphServiceServer(grpcSrv, tagSvc)
+		go grpcSrv.Serve(lis)
+
+		conn, err := grpc.NewClient(
+			"passthrough:///bufconn",
+			grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+				return lis.DialContext(ctx)
+			}),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		require.NoError(t, err)
+
+		stream, err := accessgraphv1alpha.NewAccessGraphServiceClient(conn).EventsStreamV2(ctx)
+		require.NoError(t, err)
+
+		errc := make(chan error, 1)
+		go func() {
+			errc <- processEventStream(ctx, slog.Default(), stream, as.AuthServer)
+		}()
+
+		// processEventStream creates both watchers, lists all initial resources
+		// (empty for a fresh backend), sends the sync message, and calls markReady().
+		// forwardEventsWatch is now blocked on channel select.
+		synctest.Wait()
+
+		syncFound := false
+		for _, msg := range tagSvc.getReceivedMessages() {
+			if msg.GetSync() != nil {
+				syncFound = true
+				break
+			}
+		}
+		require.True(t, syncFound, "sync not received after initialization")
+
+		// Create a role; the cache watcher should forward the upsert event.
+		role, err := types.NewRole("test-role", types.RoleSpecV6{})
+		require.NoError(t, err)
+		_, err = as.AuthServer.Services.UpsertRole(ctx, role)
+		require.NoError(t, err)
+		synctest.Wait()
+
+		roleFound := false
+		for _, msg := range tagSvc.getReceivedMessages() {
+			for _, r := range msg.GetUpsert().GetResources() {
+				if r.GetRole() != nil && r.GetRole().GetName() == "test-role" {
+					roleFound = true
+				}
+			}
+		}
+		require.True(t, roleFound, "role upsert not received via cache watcher")
+
+		// Create an authorized key; the services watcher should forward the upsert event.
+		// Regression: the := bug left servicesWatcher as noOpWatcher (nil Events channel),
+		// causing all authorized-key events to be silently dropped.
+		authKey, err := accessgraph.NewAuthorizedKey(&accessgraphsecretsv1pb.AuthorizedKeySpec{
+			HostId:         "host1",
+			HostUser:       "user1",
+			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC",
+			KeyType:        "ssh-rsa",
+		})
+		require.NoError(t, err)
+		_, err = secretsSvc.UpsertAuthorizedKey(ctx, authKey)
+		require.NoError(t, err)
+		synctest.Wait()
+
+		authKeyFound := false
+		for _, msg := range tagSvc.getReceivedMessages() {
+			for _, r := range msg.GetUpsert().GetResources() {
+				if r.GetAuthorizedKey() != nil && r.GetAuthorizedKey().GetSpec().GetHostId() == "host1" {
+					authKeyFound = true
+				}
+			}
+		}
+		require.True(t, authKeyFound, "authorized key not received via services watcher")
+
+		// Terminate: cancel the stream context, close the auth server (terminates
+		// all watcher goroutines in the bubble), stop the gRPC server, close the
+		// client connection, then drain.
+		cancel()
+		as.Close()
+		grpcSrv.Stop()
+		conn.Close()
+		lis.Close()
+		synctest.Wait()
+		require.NoError(t, <-errc)
+	})
 }
