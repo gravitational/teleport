@@ -424,22 +424,6 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 		reset := func(time.Duration) {}
 		periodicInterval := retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)
 		if len(s.cfg.ResourceMatchers) > 0 {
-			// Pre-populate dynamic desktops. This covers the case where
-			// the LDAP discovery happens before dynamic desktops are
-			// received from the watcher and ensures that dynamically
-			// registered hosts don't get deleted.
-			for dynamicDesktop, err := range clientutils.Resources(
-				ctx,
-				s.cfg.AccessPoint.ListDynamicWindowsDesktops,
-			) {
-				if err != nil {
-					break
-				}
-				if d, err := s.toWindowsDesktop(dynamicDesktop); err == nil {
-					dynamicDesktops[d.GetName()] = d
-				}
-			}
-
 			dynamicWatcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
 				DynamicWindowsDesktopGetter: s.cfg.AccessPoint,
 				ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -483,6 +467,8 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 			ldapDesktops = s.getDesktopsFromLDAP()
 		}
 
+		watcherNotificationReceived := false
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -509,8 +495,15 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 				}
 
 				reset(periodicInterval)
+				watcherNotificationReceived = true
 
 			case <-ldapDiscoveryTimer:
+				// If dynamic registration is enabled, wait for the watcher's initial notification.
+				// This handles a rare condition where the first LDAP discovery tick happens before
+				// the first watcher notification, causing existing dynamic desktops to be deleted.
+				if len(s.cfg.ResourceMatchers) > 0 && !watcherNotificationReceived {
+					continue
+				}
 				s.cfg.Logger.DebugContext(ctx, "Performing LDAP discovery")
 				ldapDesktops = s.getDesktopsFromLDAP()
 				if err := reconciler.Reconcile(ctx); err != nil && !errors.Is(err, context.Canceled) {

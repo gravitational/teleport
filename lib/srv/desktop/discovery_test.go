@@ -766,11 +766,16 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, client.Close()) })
 
+		logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+		if testing.Verbose() {
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		}
+
 		s := &WindowsService{
 			closeCtx: t.Context(),
 			cfg: WindowsServiceConfig{
 				Heartbeat:         HeartbeatConfig{HostUUID: hostUUID},
-				Logger:            slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+				Logger:            logger,
 				Clock:             clockwork.NewRealClock(),
 				AccessPoint:       client,
 				AuthClient:        client,
@@ -791,9 +796,11 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			name := "desktop-" + strconv.Itoa(i)
 			desktop, err := types.NewWindowsDesktopV3(name, map[string]string{
-				types.OriginLabel:                      types.OriginDynamic,
-				types.DiscoveryLabelWindowsDNSHostName: name + ".example.com",
-				types.DiscoveryLabelWindowsOS:          "Windows Server 2019",
+				types.OriginLabel:                       types.OriginDynamic,
+				types.DiscoveryLabelWindowsDNSHostName:  name + ".example.com",
+				types.DiscoveryLabelWindowsOS:           "Windows",
+				types.DiscoveryLabelWindowsOSVersion:    "Vista",
+				types.DiscoveryLabelWindowsComputerName: name,
 			}, types.WindowsDesktopSpecV3{
 				HostID: hostUUID,
 				Addr:   name + ".example.com:3389",
