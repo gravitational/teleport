@@ -280,7 +280,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	log.Debugf("tsh using passwordless registration? %v", c.allowPasswordless)
 
-	dev, err := c.addDeviceRPC(ctx, tc, allowedDevTypes)
+	dev, err := c.addDeviceRPC(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -300,7 +300,7 @@ func deviceTypesFromSecondFactor(sf constants.SecondFactorType) []string {
 	}
 }
 
-func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient, allowedDevTypes []string) (*types.MFADevice, error) {
+func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient) (*types.MFADevice, error) {
 	devTypePB := map[string]proto.DeviceType{
 		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
 		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
@@ -519,7 +519,7 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 	prompt.PINMessage = "Enter your *new* security key PIN"
 	if touchid.IsAvailable() {
 		prompt.FirstTouchMessage =
-			"(Note: Touch ID is not supported by WEBAUTHN; to register a Touch ID device, use --type=TOUCHID instead.)\n" +
+			"(WEBAUTHN is used to register security keys. To register Touch ID, use --type=TOUCHID instead.)\n" +
 				"Tap your *new* security key"
 	} else {
 		prompt.FirstTouchMessage = "Tap your *new* security key"
