@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -941,6 +940,41 @@ func TestContext_GetAccessState(t *testing.T) {
 	}
 }
 
+type roleGetterFunc func(context.Context, string) (types.Role, error)
+
+func (f roleGetterFunc) GetRole(ctx context.Context, name string) (types.Role, error) {
+	return f(ctx, name)
+}
+
+func TestContext_WithExtraRoles_ExpandsUserMetadataName(t *testing.T) {
+	t.Parallel()
+
+	user, err := types.NewUser("llama")
+	require.NoError(t, err)
+
+	extraRole, err := types.NewRole("extra", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{user.metadata.name}}"},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := authz.Context{
+		User:    user,
+		Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, clusterName, nil),
+	}
+
+	newCtx, err := ctx.WithExtraRoles(roleGetterFunc(func(ctx context.Context, name string) (types.Role, error) {
+		require.Equal(t, "extra", name)
+		return extraRole, nil
+	}), clusterName, []string{"extra"})
+	require.NoError(t, err)
+
+	logins, err := newCtx.Checker.CheckLoginDuration(0)
+	require.NoError(t, err)
+	require.Contains(t, logins, user.GetName())
+}
+
 func TestCheckIPPinning(t *testing.T) {
 	testCases := []struct {
 		desc       string
@@ -980,7 +1014,7 @@ func TestCheckIPPinning(t *testing.T) {
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "client source address was not found in the context",
+			wantErr:  "client IP was not provided",
 		},
 		{
 			desc:       "IP pinning enabled, port=0 (marked by proxyProtocolMode unspecified)",
@@ -995,23 +1029,51 @@ func TestCheckIPPinning(t *testing.T) {
 			pinnedIP:   "127.0.0.1",
 			pinIP:      true,
 		},
+		{
+			desc:       "invalid client IP",
+			clientAddr: "localhost:1",
+			pinnedIP:   "127.0.0.1:1",
+			pinIP:      true,
+			wantErr:    "\"localhost\" is not a valid IP address",
+		},
+		{
+			desc:       "invalid pinned IP",
+			clientAddr: "127.0.0.1:1",
+			pinnedIP:   "localhost",
+			pinIP:      true,
+			wantErr:    "\"localhost\" is not a valid IP address",
+		},
+		// IPv6
+		{
+			desc:       "IPv6: correct IP pinning",
+			clientAddr: "[2001:db8::1]:444",
+			pinnedIP:   "2001:db8::1",
+			pinIP:      true,
+		},
+		{
+			desc:       "IPv6: pinned IP doesn't match",
+			clientAddr: "[2001:db8::1]:444",
+			pinnedIP:   "2001:db8::2",
+			pinIP:      true,
+			wantErr:    authz.ErrIPPinningMismatch.Error(),
+		},
+		{
+			desc:       "IPv6: equivalency with compression",
+			clientAddr: "[2001:db8:0:0:0:0:0:1]:444",
+			pinnedIP:   "2001:db8::1",
+			pinIP:      true,
+		},
 	}
 
 	for _, tt := range testCases {
-		ctx := context.Background()
-		if tt.clientAddr != "" {
-			ctx = authz.ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
-		}
-		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
-
-		err := authz.CheckIPPinning(ctx, identity, tt.pinIP, nil)
-
-		if tt.wantErr != "" {
-			require.ErrorContains(t, err, tt.wantErr)
-		} else {
-			require.NoError(t, err)
-		}
-
+		t.Run(tt.desc, func(t *testing.T) {
+			err := authz.CheckIPPinning(t.Context(), tt.clientAddr, tt.pinnedIP, tt.pinIP, nil)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -1021,7 +1083,9 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 		clusterName   string
 		recConfig     types.SessionRecordingConfig
 		roles         []types.SystemRole
+		isScoped      bool
 		assertRoleSet func(t *testing.T, rs services.RoleSet)
+		expectErr     string
 	}{
 		{
 			name:        "RoleMDM is mapped",
@@ -1034,13 +1098,83 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:        "RoleKube is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleKube},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					allowedResourceKinds := make(map[string]bool)
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+					requiredKinds := []string{types.KindKubeServer, types.KindKubernetesCluster, types.KindKubeWaitingContainer}
+					for _, kind := range requiredKinds {
+						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
+					}
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleKube is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleKube},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					for _, rule := range r.GetRules(types.Allow) {
+						assert.NotContains(t, rule.Resources, types.KindKubeServer)
+						assert.NotContains(t, rule.Resources, types.KindKubernetesCluster)
+						assert.NotContains(t, rule.Resources, types.KindKubeWaitingContainer)
+					}
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleNode is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleNode},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleMDM is not mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			isScoped:    true,
+			expectErr:   fmt.Sprintf("builtin role for scoped %q is not recognized", types.RoleMDM),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rs, err := authz.RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			rs, err := authz.RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.isScoped, test.roles...)
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				return
+			}
 			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
 			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
-			test.assertRoleSet(t, rs)
+			if test.assertRoleSet != nil {
+				test.assertRoleSet(t, rs)
+			}
 		})
 	}
 }

@@ -41,11 +41,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
@@ -493,7 +491,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
 					},
-					"allow_browser_authentication": "true",
+					"allow_cli_auth_via_browser": "true",
 				}
 			},
 			expected: &AuthenticationConfig{
@@ -501,7 +499,7 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					RPID: "example.com",
 				},
-				AllowBrowserAuthentication: types.NewBoolOption(true),
+				AllowCLIAuthViaBrowser: types.NewBoolOption(true),
 			},
 		}, {
 			desc: "Local auth with browser authentication disabled",
@@ -511,7 +509,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
 					},
-					"allow_browser_authentication": "false",
+					"allow_cli_auth_via_browser": "false",
 				}
 			},
 			expected: &AuthenticationConfig{
@@ -519,31 +517,31 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					RPID: "example.com",
 				},
-				AllowBrowserAuthentication: types.NewBoolOption(false),
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}, {
 			desc: "Local auth with browser authentication disabled without WebAuthn",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":                         "local",
-					"allow_browser_authentication": "false",
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "false",
 				}
 			},
 			expected: &AuthenticationConfig{
-				Type:                       "local",
-				AllowBrowserAuthentication: types.NewBoolOption(false),
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}, {
 			desc: "Local auth with browser authentication empty string",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":                         "local",
-					"allow_browser_authentication": "",
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "",
 				}
 			},
 			expected: &AuthenticationConfig{
-				Type:                       "local",
-				AllowBrowserAuthentication: &types.BoolOption{},
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: &types.BoolOption{},
 			},
 		},
 	}
@@ -996,11 +994,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
-	// Device trust mode=required is an Enterprise feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
+	t.Parallel()
 	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
 	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
 	require.NoError(t, err)
@@ -1603,6 +1597,88 @@ func TestBackoffConfig(t *testing.T) {
 			tc.errorFn(t, err)
 
 			require.Equal(t, tc.expectSvcBackoffConfig, svccfg)
+		})
+	}
+}
+
+func TestBoundKeypairConfig(t *testing.T) {
+	testCases := []struct {
+		desc             string
+		mutate           func(cfgMap)
+		expectJoinParams JoinParams
+	}{
+		{
+			desc:             "empty",
+			mutate:           func(cfg cfgMap) {},
+			expectJoinParams: JoinParams{},
+		},
+		{
+			desc: "bound keypair registration secret value",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"registration_secret_value": "reg-secret",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					RegistrationSecretValue: "reg-secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair registration secret path",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"registration_secret_path": "/path/to/secret",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					RegistrationSecretPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair registration static key path",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"static_key_path": "/path/to/key",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					StaticPrivateKeyPath: "/path/to/key",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectJoinParams, cfg.JoinParams)
 		})
 	}
 }

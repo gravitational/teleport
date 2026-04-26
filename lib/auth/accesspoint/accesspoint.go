@@ -72,8 +72,9 @@ type Config struct {
 	Access                  services.Access
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
-	AppSession              services.AppSession
+	AppSession              services.AppSessionReader
 	Applications            services.Applications
+	Beams                   services.BeamReader
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -81,6 +82,7 @@ type Config struct {
 	DatabaseObjects         services.DatabaseObjects
 	DatabaseServices        services.DatabaseServices
 	Databases               services.Databases
+	DelegationSessions      services.DelegationSessions
 	DiscoveryConfigs        services.DiscoveryConfigs
 	DynamicAccess           services.DynamicAccessCore
 	Events                  types.Events
@@ -107,6 +109,7 @@ type Config struct {
 	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
+	LinuxDesktops           services.LinuxDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
 	ProvisioningStates      services.ProvisioningStates
 	IdentityCenter          services.IdentityCenter
@@ -117,6 +120,8 @@ type Config struct {
 	Plugin                  services.Plugins
 	AppAuthConfig           services.AppAuthConfigReader
 	WorkloadClusterService  services.WorkloadClusterService
+	Summarizer              services.Summarizer
+	SubCAService            services.SubCAServiceGetter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -163,6 +168,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Applications,
+		Beams:                   cfg.Beams,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
@@ -195,6 +201,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebToken:                cfg.WebToken,
 		WorkloadIdentity:        cfg.WorkloadIdentity,
 		WindowsDesktops:         cfg.WindowsDesktops,
+		LinuxDesktops:           cfg.LinuxDesktops,
 		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
 		ProvisioningStates:      cfg.ProvisioningStates,
 		IdentityCenter:          cfg.IdentityCenter,
@@ -206,6 +213,8 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Plugin:                  cfg.Plugin,
 		AppAuthConfig:           cfg.AppAuthConfig,
 		WorkloadClusterService:  cfg.WorkloadClusterService,
+		Summarizer:              cfg.Summarizer,
+		SubCAService:            cfg.SubCAService,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

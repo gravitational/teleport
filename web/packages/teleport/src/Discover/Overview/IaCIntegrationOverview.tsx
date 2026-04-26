@@ -42,8 +42,8 @@ import cfg from 'teleport/config';
 import {
   ContentWithSidePanel,
   InfoGuideSwitch,
-  type InfoGuideTab,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
+  useTerraformInfoGuide,
+} from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
 import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { useNoMinWidth } from 'teleport/Main';
 import {
@@ -54,7 +54,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
-import { SETTINGS_PANEL_WIDTH, SettingsTab } from './SettingsTab';
+import { SettingsTab } from './SettingsTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -99,9 +99,7 @@ export function IaCIntegrationOverview() {
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
-    'terraform' as const
-  );
+  const { activeInfoGuideTab, setActiveInfoGuideTab } = useTerraformInfoGuide();
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
   useNoMinWidth();
 
@@ -123,14 +121,11 @@ export function IaCIntegrationOverview() {
     );
   }
 
-  const isPanelOpen = activeTab === 'settings' && activeInfoGuideTab !== null;
+  const isPanelOpen = activeTab === 'settings' && !!activeInfoGuideTab;
 
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
-      <ContentWithSidePanel
-        isPanelOpen={isPanelOpen}
-        panelWidth={SETTINGS_PANEL_WIDTH}
-      >
+      <ContentWithSidePanel isPanelOpen={isPanelOpen}>
         <Flex alignItems="center" justifyContent="space-between" mb={3}>
           <Flex alignItems="center">
             <HoverTooltip placement="bottom" tipContent="Back to Integrations">
@@ -144,7 +139,7 @@ export function IaCIntegrationOverview() {
           </Flex>
           {activeTab === 'settings' && (
             <InfoGuideSwitch
-              isPanelOpen={activeInfoGuideTab !== null}
+              isPanelOpen={isPanelOpen}
               activeTab={activeInfoGuideTab}
               onSwitch={setActiveInfoGuideTab}
             />

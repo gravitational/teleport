@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // NewAdminContext returns new admin auth context
@@ -224,6 +225,8 @@ type MFAAuthData struct {
 	SourceCluster string
 	// TargetCluster is the target cluster name associated with this MFA authentication.
 	TargetCluster string
+	// MFAViaBrowser indicates that this MFA device was used as part of the Browser MFA flow.
+	MFAViaBrowser bool
 }
 
 // authorizer creates new local authorizer
@@ -347,9 +350,11 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 	}
 
 	accessInfo := &services.AccessInfo{
+		Username:                 c.User.GetName(),
 		Roles:                    newRoleNames,
 		Traits:                   c.User.GetTraits(),
 		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
+		DelegationSessionID:      c.Checker.DelegationSessionID(),
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
@@ -436,7 +441,12 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 		return nil, trace.Wrap(err)
 	}
 
-	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
+	var clientAddr string
+	if clientSrcAddr, err := ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := CheckIPPinning(ctx, clientAddr, authContext.Identity.GetIdentity().PinnedIP, authContext.Checker.PinSourceIP(), a.logger); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -653,31 +663,40 @@ var ErrIPPinningNotAllowed = &trace.AccessDeniedError{Message: "IP pinning is no
 	"downgraded or are behind a L4 load balancers with PROXY protocol enabled without explicitly setting 'proxy_protocol: on'" +
 	"in the proxy_service and/or auth_service config."}
 
-// CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
+// CheckIPPinning verifies IP pinning for the identity, using the provided client addr.
 // Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log *slog.Logger) error {
-	if identity.PinnedIP == "" {
+func CheckIPPinning(ctx context.Context, clientAddr string, pinnedIP string, pinSourceIP bool, log *slog.Logger) error {
+	if pinnedIP == "" {
 		if pinSourceIP {
 			return trace.Wrap(ErrIPPinningMissing)
 		}
 		return nil
 	}
 
-	clientSrcAddr, err := ClientSrcAddrFromContext(ctx)
+	if clientAddr == "" {
+		return trace.BadParameter("pinned IP is required for the user, but the client IP was not provided")
+	}
+
+	clientHost, clientPort, err := net.SplitHostPort(clientAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clientIP, clientPort, err := net.SplitHostPort(clientSrcAddr.String())
-	if err != nil {
-		return trace.Wrap(err)
+	parsedClientIP := net.ParseIP(clientHost)
+	if parsedClientIP == nil {
+		return trace.BadParameter("client IP address %q is not a valid IP address", clientHost)
 	}
 
-	if clientIP != identity.PinnedIP {
+	parsedPinnedIP := net.ParseIP(pinnedIP)
+	if parsedPinnedIP == nil {
+		return trace.BadParameter("pinned IP address %q is not a valid IP address", pinnedIP)
+	}
+
+	if !parsedClientIP.Equal(net.ParseIP(pinnedIP)) {
 		if log != nil {
 			log.DebugContext(ctx, "Pinned IP and client IP mismatch",
-				"client_ip", clientIP,
-				"pinned_ip", identity.PinnedIP,
+				"client_ip", logutils.StringerAttr(parsedClientIP),
+				"pinned_ip", logutils.StringerAttr(parsedPinnedIP),
 			)
 		}
 		return trace.Wrap(ErrIPPinningMismatch)
@@ -686,7 +705,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
 	if clientPort == "0" {
 		if log != nil {
-			log.DebugContext(ctx, "client address is not allowed to use IP pinning", "client_ip", clientIP, "pinned_ip", identity.PinnedIP, "error", ErrIPPinningNotAllowed.Message)
+			log.DebugContext(ctx, "client address is not allowed to use IP pinning", "client_ip", parsedClientIP, "pinned_ip", pinnedIP, "error", ErrIPPinningNotAllowed.Message)
 		}
 		return trace.Wrap(ErrIPPinningNotAllowed)
 	}
@@ -895,8 +914,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
 				types.NewRule(types.KindSSHSession, services.RW()),
-				types.NewRule(types.KindSession, services.RO()),
-				types.NewRule(types.KindEvent, services.RW()),
+				types.NewRule(types.KindEvent, services.WO()),
 				types.NewRule(types.KindSAMLRequest, services.RW()),
 				types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
 				types.NewRule(types.KindSAML, services.ReadNoSecrets()),
@@ -930,6 +948,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindLinuxDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),
@@ -950,6 +969,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindAccessList, services.RO()),
 				types.NewRule(types.KindHealthCheckConfig, services.RO()),
 				types.NewRule(types.KindAppAuthConfig, services.RO()),
+				types.NewRule(types.KindValidatedMFAChallenge, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -983,10 +1003,10 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 }
 
 // RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
-func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
+func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {
-		rd, err := definitionForBuiltinRole(clusterName, recConfig, role)
+		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -995,8 +1015,51 @@ func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecord
 	return services.NewRoleSet(definitions...), nil
 }
 
-// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role.
-func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role with
+// consideration for whether the definition be will be used in a scoped context.
+func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole, isScoped bool) (types.Role, error) {
+	if isScoped {
+		return scopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+	}
+	return unscopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+}
+
+// scopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in a scoped context.
+func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+	switch role {
+	case types.RoleNode:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleNode)
+	case types.RoleKube:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+					},
+				},
+			},
+		)
+	}
+
+	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
+}
+
+// unscopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in an unscoped context.
+func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
 	switch role {
 	case types.RoleAuth:
 		return services.RoleFromSpec(
@@ -1021,8 +1084,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
-						types.NewRule(types.KindSession, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1058,7 +1120,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1087,7 +1149,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1149,7 +1211,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
@@ -1220,7 +1282,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1245,7 +1307,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1269,7 +1331,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
@@ -1302,7 +1364,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindSemaphore, services.RW()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindAppServer, services.RW()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindUser, services.RW()),
@@ -1381,7 +1443,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 		// all other certs encode a single system role
 		systemRoles = []types.SystemRole{r.Role}
 	}
-	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, systemRoles...)
+	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, r.GetIdentity().AgentScope != "", systemRoles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

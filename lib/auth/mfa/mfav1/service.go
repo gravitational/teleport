@@ -31,6 +31,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -55,6 +56,12 @@ type AuthServer interface {
 		token string,
 		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
+
+	CompleteBrowserMFAChallenge(
+		ctx context.Context,
+		requestID string,
+		webauthnResponse *webauthnpb.CredentialAssertionResponse,
+	) (string, error)
 }
 
 // Cache defines the subset of cache methods used by the MFA service.
@@ -896,4 +903,43 @@ func isRemoteProxy(authContext authz.Context) bool {
 	}
 
 	return true
+}
+
+// CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
+// it via an encrypted response parameter in a callback URL for the browser to
+// return to tsh.
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can complete a browser MFA challenge")
+	}
+
+	if req.BrowserMfaResponse == nil {
+		return nil, trace.BadParameter("missing browser_mfa_response in request")
+	}
+
+	if req.BrowserMfaResponse.RequestId == "" {
+		return nil, trace.BadParameter("missing request_id in browser_mfa_response")
+	}
+
+	if req.BrowserMfaResponse.WebauthnResponse == nil {
+		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
+	}
+
+	tshRedirectURL, err := s.authServer.CompleteBrowserMFAChallenge(
+		ctx,
+		req.BrowserMfaResponse.RequestId,
+		req.BrowserMfaResponse.WebauthnResponse,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.CompleteBrowserMFAChallengeResponse{
+		TshRedirectUrl: tshRedirectURL,
+	}, nil
 }

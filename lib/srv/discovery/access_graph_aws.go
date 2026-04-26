@@ -107,6 +107,9 @@ func (s *Server) reconcileAccessGraph(
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
+	s.Log.InfoContext(ctx, "Access graph AWS discovery iteration started")
+	defer s.Log.InfoContext(ctx, "Access graph AWS discovery iteration finished")
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -800,9 +803,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			}
 			return matchersMap
 		},
-		// Compare allows custom comparators without having to implement IsEqual.
-		// Defaults to `CompareResources[T]` if not specified.
-		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
+		CompareResources: func(aga1, aga2 *types.AccessGraphAWSSync) int {
+			return services.EqualFromBool(aga1.IsEqual(aga2))
+		},
 		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
 			spawnMatcher(ctx, disc)
 			return nil

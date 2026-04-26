@@ -444,22 +444,6 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 	return path, nil
 }
 
-func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
 func (m *mockUploadHandler) Complete(ctx context.Context, upload events.StreamUpload) error {
 	return nil
 }

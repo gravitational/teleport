@@ -31,9 +31,13 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
+
+// clusterName is the name of the Teleport cluster used for E2E testing.
+const clusterName = "teleport-e2e"
 
 type teleportInstance struct {
 	log         *slog.Logger
@@ -147,6 +151,7 @@ func (t *teleportInstance) stop() {
 }
 
 type TeleportConfig struct {
+	ClusterName    string
 	DataDir        string
 	AuthServerPort int
 	ProxyPort      int

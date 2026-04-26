@@ -389,38 +389,9 @@ func (c *HTTPClient) DeleteTunnelConnection(clusterName string, connName string)
 	return trace.Wrap(err)
 }
 
-// DeleteTunnelConnections deletes all tunnel connections for cluster
-func (c *HTTPClient) DeleteTunnelConnections(clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing parameter cluster name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName))
-	return trace.Wrap(err)
-}
-
-// DeleteAllTunnelConnections deletes all tunnel connections
-func (c *HTTPClient) DeleteAllTunnelConnections() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections"))
-	return trace.Wrap(err)
-}
-
 type upsertServerRawReq struct {
 	Server json.RawMessage `json:"server"`
 	TTL    time.Duration   `json:"ttl"`
-}
-
-// UpsertAuthServer is used by auth servers to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
-func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error {
-	data, err := services.MarshalServer(s)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertServerRawReq{
-		Server: data,
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authservers"), args)
-	return trace.Wrap(err)
 }
 
 // UpsertProxy is used by proxies to report their presence
@@ -435,15 +406,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	}
 	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
-}
-
-// DeleteAllProxies deletes all proxies
-func (c *HTTPClient) DeleteAllProxies() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // DeleteProxy deletes proxy by name
@@ -498,7 +460,7 @@ func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUs
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
 	out, err := c.PostJSON(
 		ctx,
 		c.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
@@ -507,7 +469,7 @@ func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSS
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re SSHLoginResponse
+	var re CLILoginResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, trace.Wrap(err)
 	}

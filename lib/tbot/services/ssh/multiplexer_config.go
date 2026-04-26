@@ -57,6 +57,11 @@ type MultiplexerConfig struct {
 	// all the SSH connections going through this mux.
 	RelayAddress string `yaml:"relay_server,omitempty"`
 
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
@@ -106,7 +111,10 @@ func (o *MultiplexerConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node
 	return nil
 }
 
-func (s *MultiplexerConfig) CheckAndSetDefaults() error {
+func (s *MultiplexerConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", MultiplexerServiceType)
+	}
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}

@@ -1563,6 +1563,29 @@ func (m *SSMRun) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *AzureRun) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.StandardOutput = ""
+	out.StandardError = ""
+	out.APIError = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.StandardOutput, m.StandardError, m.APIError)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
+	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
+	out.APIError = trimStr(m.APIError, maxFieldsSize)
+
+	return out
+}
+
 func (m *KubernetesClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -2908,6 +2931,18 @@ func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *RetrievalModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
@@ -2917,6 +2952,16 @@ func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		return fieldTrimmers{
 			newStrTrimmer(m.Status.Error, &out.Status.Error),
 			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
+		}
+	})
+}
+
+func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
 		}
 	})
 }

@@ -18,6 +18,7 @@
 /integrations/terraform/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
 /integrations/terraform-mwi/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato @strideynet
 /integrations/event-handler/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
+/examples/**/go.mod @russjones @r0mant @zmb3 @rosstimothy
 
 # Owners for Rust dependency updates.
 /Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini

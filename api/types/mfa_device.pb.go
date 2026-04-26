@@ -382,7 +382,7 @@ func (m *SSOMFADevice) XXX_DiscardUnknown() {
 var xxx_messageInfo_SSOMFADevice proto.InternalMessageInfo
 
 // BrowserMFADevice is a synthetic MFA device that is made available if a user
-// has at least one WebAuthn device and no SSO setup. This message doesn't
+// has at least one WebAuthn device and no SSO MFA setup. This message doesn't
 // require any fields, it just needs to exist so it can be an MFA option.
 type BrowserMFADevice struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

@@ -6,15 +6,12 @@ locals {
   teleport_provision_token_name = (
     var.teleport_provision_token_use_name_prefix
     ? "${var.teleport_provision_token_name}-${local.teleport_resource_name_suffix}"
-    : coalesce(
-      var.teleport_provision_token_name,
-      local.teleport_resource_name_suffix,
-    )
+    : var.teleport_provision_token_name
   )
 }
 
 resource "teleport_provision_token" "aws_iam" {
-  count = local.create ? 1 : 0
+  count = local.create && local.uses_ec2 ? 1 : 0
 
   metadata = {
     name        = local.teleport_provision_token_name

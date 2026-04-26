@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -59,8 +58,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestIntegrationCRUD(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
+	t.Parallel()
 	clusterName := "test-cluster"
 	proxyPublicAddr := "127.0.0.1.nip.io"
 
@@ -1019,6 +1017,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Cache:           cache,
 		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
+		Modules:         modulestest.EnterpriseModules(),
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{
 				Version:         1,

@@ -263,6 +263,10 @@ type AuditLogConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider provides recording metadata service
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an encrypted upload completes to find or
+	// recover the session end event for post-processing. If nil, no
+	// post-processing is performed.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -561,27 +565,26 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
-	// TODO(tigrato): consider changing the implementation of Download* to return
-	// an io.ReadCloser instead of writing to a provided writer, which would allow
-	// us to avoid using io.Pipe here.
-	reader, writer := io.Pipe()
-
-	go func() {
-		err := l.UploadHandler.Download(ctx, sessionID, writer)
-		if errors.Is(err, fs.ErrNotExist) {
+	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
-
-		// if the error is nil, it means the download was successful and closing the
-		// writer will signal the reader with io.EOF.
-		if err := writer.CloseWithError(err); err != nil {
-			l.log.WarnContext(ctx, "Failed to close the writer with error", "session_id", string(sessionID), "error", err)
-		}
-	}()
+		e <- trace.Wrap(err)
+		close(sessionStartCh)
+		return c, e
+	}
 
 	go func() {
 		defer close(sessionStartCh)
 		defer reader.Close()
+
+		// Ensure that the reader is closed when the context is done, to unblock any
+		// pending reads.
+		stop := context.AfterFunc(ctx, func() {
+			_ = reader.Close()
+		})
+		defer stop()
 
 		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()
@@ -681,7 +684,10 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "completing upload")
 	}
 
-	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
+	if l.OnUploadComplete == nil {
+		return nil
+	}
+	sessionEnd, err := l.OnUploadComplete(ctx, upload.SessionID)
 	if err != nil || sessionEnd == nil {
 		return nil
 	}
@@ -697,6 +703,12 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
 	}
 	return nil
+}
+
+// SetOnUploadComplete sets the callback to be invoked after an encrypted upload
+// completes. It must be called before any uploads are processed.
+func (l *AuditLog) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	l.OnUploadComplete = fn
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

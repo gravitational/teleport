@@ -31,10 +31,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -94,6 +96,9 @@ type leafCluster struct {
 
 	// databaseServerWatcher is a database server watcher.
 	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
+
+	// validatedMFAChallengeWatcher is a ValidatedMFAChallenge resource watcher.
+	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -1024,4 +1029,238 @@ func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn
 	}
 
 	return conn, nil
+}
+
+// runValidatedMFAChallengeSync runs a loop that watches for changes to ValidatedMFAChallenge resources in the root
+// cluster and syncs them to the leaf cluster. If syncing a batch of challenges fails, it will retry syncing after a
+// backoff period defined by the provided LinearConfig. The loop will continue running until the context is canceled or
+// the validatedMFAChallengeWatcher is closed.
+func (s *leafCluster) runValidatedMFAChallengeSync(ctx context.Context, cfg retryutils.LinearConfig) error {
+	if err := s.validatedMFAChallengeWatcher.WaitInitialization(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	retry, err := retryutils.NewLinear(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	latestDesired := newCoalescingMailbox()
+
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	// This goroutine produces the desired set of ValidatedMFAChallenges to be synced to the leaf cluster.
+	group.Go(func() error {
+		for {
+			select {
+			case <-groupCtx.Done():
+				return nil
+
+			case <-s.validatedMFAChallengeWatcher.Done():
+				return trace.Errorf("validated MFA challenge watcher closed")
+
+			case challenges, ok := <-s.validatedMFAChallengeWatcher.ResourcesC:
+				if !ok {
+					return trace.Errorf("watcher resources channel closed")
+				}
+
+				// Since the producer is faster than the consumer, we want to make sure that we don't overwhelm the
+				// consumer with too many updates. If a new set of challenges comes in while we're waiting to sync the
+				// previous set, we'll just replace it with the new set and skip syncing the old set altogether.
+				latestDesired.store(newValidatedMFAChallengeSet(challenges...))
+			}
+		}
+	})
+
+	// This goroutine consumes the desired set of ValidatedMFAChallenges and attempts to sync it to the leaf cluster.
+	group.Go(func() error {
+		var retryC <-chan time.Time
+
+		pendingSync := newValidatedMFAChallengeSet()
+
+		for {
+			// If we're currently not in a retry loop, we'll consume updates from the latestDesired mailbox. If we are
+			// in a retry loop, we'll ignore updates from the mailbox and only attempt to retry syncing the current
+			// pending set of challenges until it succeeds.
+			latestDesiredC := latestDesired.updates()
+			if retryC != nil {
+				latestDesiredC = nil
+			}
+
+			select {
+			case <-groupCtx.Done():
+				return nil
+
+			case pendingSync = <-latestDesiredC:
+				// New desired state produced. If we're currently in a retry loop, we'll wait until the next retry
+				// attempt to consume this new desired state.
+				pendingSync = latestDesired.drain(pendingSync)
+
+			case <-retryC:
+				// Syncing the desired state to the leaf cluster failed in the previous attempt, so we need to retry. If
+				// it fails again, we'll stay in the retry loop and keep attempting to sync after backoff periods until
+				// it succeeds.
+				retry.Inc()
+				pendingSync = latestDesired.drain(pendingSync)
+			}
+
+			// If there are no challenges to sync, reset the retry and wait for the next desired state to be produced.
+			if len(pendingSync) == 0 {
+				retry.Reset()
+				retryC = nil
+				continue
+			}
+
+			// Attempt to sync the pending set of challenges to the leaf cluster. If it fails, enter a retry loop.
+			pendingSync = s.syncValidatedMFAChallenges(ctx, pendingSync)
+			if len(pendingSync) > 0 {
+				retryC = retry.After()
+				continue
+			}
+
+			// Sync was successful, so we can reset the retry.
+			retry.Reset()
+			retryC = nil
+		}
+	})
+
+	return trace.Wrap(group.Wait())
+}
+
+// coalescingMailbox keeps at most one pending update. Storing a new update replaces any older pending update that has
+// not been consumed yet. It is only safe for one producer and one consumer.
+type coalescingMailbox struct {
+	updatesC chan validatedMFAChallengeSet
+}
+
+func newCoalescingMailbox() *coalescingMailbox {
+	return &coalescingMailbox{
+		updatesC: make(chan validatedMFAChallengeSet, 1),
+	}
+}
+
+func (s *coalescingMailbox) updates() <-chan validatedMFAChallengeSet {
+	return s.updatesC
+}
+
+// drain removes all pending updates from the channel and returns the latest update.
+func (s *coalescingMailbox) drain(latest validatedMFAChallengeSet) validatedMFAChallengeSet {
+	select {
+	case latest = <-s.updatesC:
+		return latest
+
+	default:
+		return latest
+	}
+}
+
+// store stores the latest value in the channel.
+func (s *coalescingMailbox) store(latest validatedMFAChallengeSet) {
+	// Attempt to store the latest value in the channel without draining.
+	select {
+	case s.updatesC <- latest:
+		return
+	default:
+	}
+
+	// Channel is full, drain it to make room for the new value.
+	select {
+	case <-s.updatesC:
+	default:
+	}
+
+	// Channel is empty, we can now store the latest value.
+	s.updatesC <- latest
+}
+
+const (
+	// expiredValidatedMFAChallengeGracePeriod defines how long after a ValidatedMFAChallenge has expired that we should
+	// still attempt to sync it to the leaf cluster.
+	expiredValidatedMFAChallengeGracePeriod = -time.Minute
+
+	// replicateValidatedMFAChallengeTimeout defines the timeout for replicating a ValidatedMFAChallenge to the leaf
+	// cluster.
+	replicateValidatedMFAChallengeTimeout = 30 * time.Second
+)
+
+// syncValidatedMFAChallenges syncs the provided ValidatedMFAChallenge resources to the leaf cluster and returns the
+// resources that failed to sync.
+func (s *leafCluster) syncValidatedMFAChallenges(
+	ctx context.Context,
+	challenges validatedMFAChallengeSet,
+) validatedMFAChallengeSet {
+	log := s.logger.With(teleport.ComponentKey, "syncValidatedMFAChallenges", "cluster", s.GetName())
+
+	log.DebugContext(
+		ctx,
+		"Syncing ValidatedMFAChallenges to leaf cluster",
+		"pending_count", len(challenges),
+	)
+
+	failed := newValidatedMFAChallengeSet()
+
+	for _, challenge := range challenges {
+		// Since replicating resets the TTL of the challenge in the leaf cluster, we want to skip replicating challenges
+		// that have already expired in the root cluster for a certain grace period. This is to prevent potential auth
+		// bypass in the case where a challenge expires while we're attempting to sync it to the leaf cluster, as well
+		// as to account for potential clock skew between the root and leaf clusters.
+		if challenge.GetMetadata().Expiry().Sub(s.clock.Now()) < expiredValidatedMFAChallengeGracePeriod {
+			log.WarnContext(
+				ctx,
+				"Skipping sync of expired ValidatedMFAChallenge to leaf cluster",
+				"challenge_name", challenge.GetMetadata().GetName(),
+				"expiry_time", challenge.GetMetadata().Expiry(),
+			)
+
+			continue
+		}
+
+		rpcCtx, cancel := context.WithTimeout(ctx, replicateValidatedMFAChallengeTimeout)
+
+		if _, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
+			rpcCtx,
+			&mfav1.ReplicateValidatedMFAChallengeRequest{
+				Name:          challenge.GetMetadata().GetName(),
+				Payload:       challenge.GetSpec().GetPayload(),
+				SourceCluster: challenge.GetSpec().GetSourceCluster(),
+				TargetCluster: challenge.GetSpec().GetTargetCluster(),
+				Username:      challenge.GetSpec().GetUsername(),
+			},
+		); err != nil && !trace.IsAlreadyExists(err) {
+			log.ErrorContext(
+				ctx,
+				"Failed to replicate ValidatedMFAChallenge to leaf cluster",
+				"challenge_name", challenge.GetMetadata().GetName(),
+				"error", err,
+			)
+			failed.add(challenge)
+		}
+
+		cancel()
+	}
+
+	log.DebugContext(
+		ctx,
+		"Finished syncing ValidatedMFAChallenges to leaf cluster",
+		"replicated_count", len(challenges)-len(failed),
+		"failed_count", len(failed),
+	)
+
+	return failed
+}
+
+type validatedMFAChallengeSet map[string]*mfav1.ValidatedMFAChallenge
+
+func newValidatedMFAChallengeSet(challenges ...*mfav1.ValidatedMFAChallenge) validatedMFAChallengeSet {
+	set := make(validatedMFAChallengeSet, len(challenges))
+
+	set.add(challenges...)
+
+	return set
+}
+
+func (s validatedMFAChallengeSet) add(challenges ...*mfav1.ValidatedMFAChallenge) {
+	for _, chal := range challenges {
+		s[chal.GetMetadata().GetName()] = chal
+	}
 }

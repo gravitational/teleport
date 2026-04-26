@@ -39,7 +39,10 @@ Download and run the installer `.exe` file.
 The installer supports two modes:
 - `Only for me` (per-user): installs to `%LOCALAPPDATA%` and does not require administrator privileges.
 - `Anyone who uses this computer` (per-machine): installs to `%PROGRAMFILES%`, requires administrator
-  privileges (UAC), and enables [VNet](#connecting-to-tcp-apps-with-vnet).
+privileges (UAC) for the initial installation, and enables [VNet](#connecting-to-tcp-apps-with-vnet).
+
+Once Teleport Connect is installed, subsequent updates via [Managed Updates](#managed-updates) do not require administrator
+privileges.
 
 A silent installation can be performed with `/S`. This hides the progress bar and skips launching the app after install.
 By default, `/S` installs per-machine. If a per-user installation already exists, it updates that installation instead.
@@ -48,6 +51,15 @@ To choose the mode explicitly, add `/allusers` (per-machine) or `/currentuser` (
 ```code
 $ "Teleport Connect Setup-(=teleport.version=).exe" /S /allusers
 ```
+
+<Admonition
+    type="warning"
+    title="Avoid Dual Installations"
+>
+  Having both per-user and per-machine installations may cause the Start Menu shortcut to point to a different instance than expected.
+
+  Before installing the app in a different mode, [uninstall](#uninstalling-teleport-connect) the existing installation.
+</Admonition>
 
 </TabItem>
 </Tabs>
@@ -217,7 +229,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../../zero-trust-access/management/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -549,7 +561,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../../enroll-resources/agents/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../../installation/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -846,7 +858,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../../zero-trust-access/deploy-a-cluster/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../../installation/self-hosted/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>

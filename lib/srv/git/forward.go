@@ -33,13 +33,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -47,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 var (
@@ -267,7 +269,8 @@ func (s *ForwardServer) Serve() {
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{
-			PublicKey: s.userKeyAuth,
+			PublicKey:         s.userKeyAuth,
+			VerifiedPublicKey: s.auth.VerifiedPublicKeyCallback,
 		},
 		sshutils.SetFIPS(s.cfg.FIPS),
 		sshutils.SetCiphers(s.cfg.Ciphers),
@@ -319,9 +322,9 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
+	// Use auth.PublicKeyCallback to verify user cert is signed by UserCA and to evaluate
 	// RBAC permissions.
-	permissions, err := s.auth.UserKeyAuth(conn, key)
+	permissions, err := s.auth.PublicKeyCallback(conn, key)
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
@@ -621,19 +624,21 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientConfig := &ssh.ClientConfig{
+	clientConfig := apissh.ClientConfig{
 		User: gitUser,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
 		},
 		HostKeyCallback: s.verifyRemoteHost,
 		Timeout:         netConfig.GetSSHDialTimeout(),
 	}
-	clientConfig.Ciphers = s.cfg.Ciphers
-	clientConfig.KeyExchanges = s.cfg.KEXAlgorithms
-	clientConfig.MACs = s.cfg.MACAlgorithms
+	clientConfig.SSHConfig.Ciphers = s.cfg.Ciphers
+	clientConfig.SSHConfig.KeyExchanges = s.cfg.KEXAlgorithms
+	clientConfig.SSHConfig.MACs = s.cfg.MACAlgorithms
 
-	s.remoteClient, err = tracessh.NewClientWithTimeout(
+	s.remoteClient, err = apissh.NewClient(
 		s.cfg.ParentContext,
 		s.cfg.TargetConn,
 		s.cfg.DstAddr.String(),
@@ -718,8 +723,8 @@ func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
 
-func (s *ForwardServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (s *ForwardServer) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 func (s *ForwardServer) GetClock() clockwork.Clock {
@@ -762,7 +767,7 @@ func (s *ForwardServer) GetSELinuxEnabled() bool {
 // does not spawn child processes.
 func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{},
+		ExecLogConfig: reexec.ExecLogConfig{},
 		Writer:        io.Discard,
 	}
 }

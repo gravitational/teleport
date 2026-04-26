@@ -20,11 +20,14 @@ package provider
 import (
 	"context"
 
-	{{ if not .IsPlainStruct }}
+	{{ if or (not .IsPlainStruct) .RequestWrapper }}
     {{- protoImport . }}
     {{- end }}
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+{{- if .DefaultSubKind }}
+	"github.com/hashicorp/terraform-plugin-framework/path"
+{{- end }}
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -53,11 +56,36 @@ func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p tfsd
 
 // Read reads teleport {{.Name}}
 func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx)
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
+{{- if .RequestWrapper}}
+	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: {{.DefaultName}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
+{{- else}}
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+{{- end}}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+{{- if .RequestWrapper}}
+	{{.VarName}}I := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+{{- end}}
 
 	var state types.Object
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)

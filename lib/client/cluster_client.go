@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -134,20 +136,6 @@ func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, clus
 	}
 
 	return conn, details, nil
-}
-
-// ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
-type ceremonyFailedErr struct {
-	err error
-}
-
-// Error returns the error string of the wrapped error if one exists.
-func (c ceremonyFailedErr) Error() string {
-	if c.err == nil {
-		return ""
-	}
-
-	return c.err.Error()
 }
 
 // ReissueUserCerts generates a new set of certificates for the user.
@@ -265,7 +253,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
 // provided target for the provided user. If per session MFA is required to establish the
 // connection, then the MFA ceremony will be performed.
-func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, target NodeDetails) (*ssh.ClientConfig, error) {
+func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, target NodeDetails) (apissh.ClientConfig, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"clusterClient/SessionSSHConfig",
@@ -284,20 +272,25 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	newKeyRing, completedMFA, err := c.SessionSSHKeyRing(ctx, user, target)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	if !completedMFA {
 		// The caller relies on this function returning an error if
 		// target.MFACheck is nil and session MFA was not actually required.
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+		return apissh.ClientConfig{}, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
-	am, err := newKeyRing.AsAuthMethod()
-	if err != nil {
-		return nil, trace.Wrap(ceremonyFailedErr{err})
+	sshConfig.PublicKeyAuth = apissh.PublicKeyAuthConfig{
+		Signers: func() ([]ssh.Signer, error) {
+			sshSigner, err := newKeyRing.SSHSigner()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return []ssh.Signer{sshSigner}, nil
+		},
 	}
 
-	sshConfig.Auth = []ssh.AuthMethod{am}
 	return sshConfig, nil
 }
 
@@ -361,6 +354,7 @@ func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, targ
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
+			SSHLogin:       user,
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
@@ -461,6 +455,8 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	}
 
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+
 	return newUserKeys, &proto.UserCertsRequest{
 		SSHPublicKey:                     sshPub,
 		TLSPublicKey:                     tlsPub,
@@ -477,7 +473,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
 		RequesterName:                    params.RequesterName,
-		SSHLogin:                         c.tc.HostLogin,
+		SSHLogin:                         sshLogin,
 		SSHPublicKeyAttestationStatement: sshAttestationStatement.ToProto(),
 		TLSPublicKeyAttestationStatement: tlsAttestationStatement.ToProto(),
 		Purpose:                          purpose,
@@ -493,7 +489,8 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
-	mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+	mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -576,7 +573,8 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			}
 		}
 
-		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+		mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

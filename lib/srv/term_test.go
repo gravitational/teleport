@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -108,16 +109,14 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	ctx := context.Background()
 
 	// Run sh
-	err = term.Run(ctx)
+	err = term.Run(ctx, io.Discard)
 	require.NoError(t, err)
 
 	errors := make(chan error)
 	go func() {
 		// Call wait to avoid creating zombie process.
 		// Ignore exit code as we're checking term.cmd.ProcessState already
-		_, err := term.Wait()
-
-		errors <- err
+		errors <- term.Wait().Error
 	}()
 
 	// Continue execution

@@ -39,7 +39,7 @@ import (
 // another service (e.g. the SPIFFE Workload API service) use NewSidecar instead.
 func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &Service{

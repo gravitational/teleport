@@ -166,6 +166,35 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              inference:
+                description: LLM contains LLM inference endpoint related configurations.
+                nullable: true
+                properties:
+                  fallback_model:
+                    description: Defines a model that will be used if the model requested
+                      is not on the list. The fallback model must be in the "models"
+                      list.
+                    type: string
+                  format:
+                    description: Defines the LLM inference API format.
+                    type: string
+                  models:
+                    description: Defines the list of supported models, and optionally
+                      their name on the inference provider.
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        provider_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  provider:
+                    description: Defines which inference provider will be used to
+                      serve the requests.
+                    type: string
+                type: object
               insecure_skip_verify:
                 description: InsecureSkipVerify disables app's TLS certificate verification.
                 type: boolean

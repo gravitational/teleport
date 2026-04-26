@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/gitserver"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -44,6 +45,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
@@ -510,11 +512,6 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
-// UpsertAppSession not implemented: can only be called locally.
-func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -831,6 +828,11 @@ func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertAuthServer is used by auth servers to report their presence.
+func (c *Client) UpsertAuthServer(ctx context.Context, s types.Server) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -857,10 +859,13 @@ type WebService interface {
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
-	// AppSession defines application session features.
-	services.AppSession
+	// AppSessionReader defines application session features available to remote clients.
+	services.AppSessionReader
 	// SnowflakeSession defines Snowflake session features.
 	services.SnowflakeSession
+
+	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -1417,6 +1422,9 @@ type AuthenticateUserRequest struct {
 	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
+	// BrowserMFA is a Browser MFA message that a CLI client has sent to the proxy
+	// containing a WebAuthn response for auth
+	BrowserMFA *proto.BrowserMFAResponse `json:"browser,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client
@@ -1452,7 +1460,7 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	case a.Username == "" && a.Webauthn != nil: // OK, passwordless.
 	case a.Username == "":
 		return trace.BadParameter("missing parameter 'username'")
-	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
+	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "" && a.BrowserMFA == nil:
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -1515,9 +1523,9 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
+// CLILoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
-type SSHLoginResponse struct {
+type CLILoginResponse struct {
 	// User contains a logged-in user information
 	Username string `json:"username"`
 	// Cert is a PEM encoded  signed certificate
@@ -1533,7 +1541,14 @@ type SSHLoginResponse struct {
 	// ClientOptions contains some options that the cluster wants the client to
 	// use.
 	ClientOptions ClientOptions `json:"client_options"`
+	// BrowserMFAWebauthnResponse is a webauthn response for the browser MFA flow
+	// Exists in SSHLoginResponse as this is the payload used by the SSO redirector
+	// (lib/client/sso/redirector.go).
+	BrowserMFAWebauthnResponse *wantypes.CredentialAssertionResponse `json:"browser_mfa_webauthn_response,omitempty"`
 }
+
+// TODO(danielashare): Remove this alias once e no longer references it
+type SSHLoginResponse = CLILoginResponse
 
 // ClientOptions contains options passed from the control plane to the client at
 // login time.
@@ -1620,6 +1635,7 @@ type ClientI interface {
 	types.Events
 	services.ScopedAccessClientGetter
 	services.WorkloadClusterService
+	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
@@ -1630,6 +1646,8 @@ type ClientI interface {
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
+	LinuxDesktopClient() *linuxdesktop.Client
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1694,7 +1712,7 @@ type ClientI interface {
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short-lived certificates as a result
-	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error)
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
@@ -1948,4 +1966,8 @@ type ClientI interface {
 	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
 	// are of the scoped access API available in agent access points to only what is necessary.
 	ScopedRoleReader() services.ScopedRoleReader
+
+	// DelegationSessionServiceClient returns a client for the delegation
+	// session service.
+	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
 }
