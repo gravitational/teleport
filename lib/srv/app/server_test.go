@@ -19,7 +19,6 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -163,8 +162,6 @@ type suiteConfig struct {
 	// ManualStart skips calling Start() automatically so the
 	// caller can inject state before starting the server.
 	ManualStart bool
-	// HostUUID overrides the generated host UUID when set.
-	HostUUID string
 }
 
 type fakeConnMonitor struct{}
@@ -183,7 +180,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = cmp.Or(config.HostUUID, uuid.New().String())
+	s.hostUUID = uuid.New().String()
 	s.login = config.Login
 
 	var err error

@@ -475,8 +475,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 // When an app is removed from config and the agent is
 // reloaded via SIGHUP, the removed app's heartbeat record
 // is not deleted. It lingers in the auth backend until TTL
-// expiry (up to 15 minutes). This method runs on startup
-// to clean up those orphaned records immediately.
+// expiry (up to [apidefaults.ServerAnnounceTTL]). This
+// method runs on startup to clean up those orphaned records
+// immediately.
 //
 // For agents with dynamic apps (ResourceMatchers), cleanup
 // waits for the first successful reconciliation so that
