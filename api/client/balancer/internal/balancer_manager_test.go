@@ -17,6 +17,8 @@ package internal
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -133,7 +135,10 @@ func TestBalancerManagerUpdates(t *testing.T) {
 
 			bm := NewBalancerManager(ctx, fb, func() {
 				callbacks <- struct{}{}
-			}, nil)
+			}, slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+				Level:     slog.LevelDebug,
+				AddSource: true,
+			})))
 
 			bm.state.Reconnect = tt.initialReconnect
 
