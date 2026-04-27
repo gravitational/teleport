@@ -1003,7 +1003,7 @@ func RunAndExit(commandType string) {
 	case reexecconstants.TrueSubCommand:
 		// nothing to do
 	case reexecconstants.SFTPSubCommand:
-		initLogger("sftp", os.Stderr, ExecLogConfig{})
+		initLogger("sftp", os.Stderr, ExecLogConfig{Level: new(slog.LevelVar)})
 		err = reexecsftp.RunSFTP(slog.Default())
 		if err != nil {
 			code = 1
