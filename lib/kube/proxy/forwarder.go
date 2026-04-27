@@ -1103,6 +1103,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return nil
 	}
 	if actx.kubeClusterName == "" {
+		if !isUnscoped {
+			return trace.Wrap(services.ErrScopedIdentity, "unknown kube cluster cannot skip authZ for scoped identities")
+		}
 		// This should only happen for remote clusters (filtered above), but
 		// check and report anyway.
 		f.log.DebugContext(ctx, "Skipping authorization due to unknown kubernetes cluster name",

@@ -447,8 +447,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	var policySets []*types.SessionTrackerPolicySet
 	unscopedCtx, isUnscoped := ctx.UnscopedContext()
+	// TODO(eriktate/scopes): scoped identities don't support policy sets, so we skip attempting to aggregate
+	// them unless the identity is unscoped.
 	if isUnscoped {
-		// scoped identities don't support policy sets
 		roles := unscopedCtx.Checker.Roles()
 		for _, role := range roles {
 			policySet := role.GetSessionPolicySet()
