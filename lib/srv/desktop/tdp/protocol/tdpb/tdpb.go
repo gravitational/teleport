@@ -69,7 +69,7 @@ func (c *ClientHello) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *ClientHello) validate() error { return nil }
+func (*ClientHello) validate() error { return nil }
 
 // ServerHello is the first message sent by the server *after* receiving
 // the ClientHello. It selects and advertises server capabilities and
@@ -85,7 +85,7 @@ func (s *ServerHello) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *ServerHello) validate() error { return nil }
+func (*ServerHello) validate() error { return nil }
 
 // PNGFrame carries screen data in PNG format. It is required
 // for interop with older session recordings that came before
@@ -101,7 +101,7 @@ func (p *PNGFrame) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *PNGFrame) validate() error { return nil }
+func (*PNGFrame) validate() error { return nil }
 
 // FastPathPDU is a raw RDP Fast-Path Protocol Data Unit (PDU).
 type FastPathPDU tdpbv1.FastPathPDU
@@ -115,7 +115,7 @@ func (f *FastPathPDU) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *FastPathPDU) validate() error { return nil }
+func (*FastPathPDU) validate() error { return nil }
 
 // RDPResponsePDU is a raw RDP response PDU.
 type RDPResponsePDU tdpbv1.RDPResponsePDU
@@ -129,7 +129,7 @@ func (f *RDPResponsePDU) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *RDPResponsePDU) validate() error { return nil }
+func (*RDPResponsePDU) validate() error { return nil }
 
 // SyncKeys message is sent from the client to the server to
 // synchronize the state of keyboard's modifier keys.
@@ -144,7 +144,7 @@ func (s *SyncKeys) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *SyncKeys) validate() error { return nil }
+func (*SyncKeys) validate() error { return nil }
 
 // MouseMove contains mouse coordinates.
 type MouseMove tdpbv1.MouseMove
@@ -158,7 +158,7 @@ func (m *MouseMove) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *MouseMove) validate() error { return nil }
+func (*MouseMove) validate() error { return nil }
 
 // MouseButton contains mouse button state.
 type MouseButton tdpbv1.MouseButton
@@ -172,7 +172,7 @@ func (m *MouseButton) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *MouseButton) validate() error { return nil }
+func (*MouseButton) validate() error { return nil }
 
 // KeyboardButton encodes a keyboard button update.
 type KeyboardButton tdpbv1.KeyboardButton
@@ -186,7 +186,7 @@ func (k *KeyboardButton) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *KeyboardButton) validate() error { return nil }
+func (*KeyboardButton) validate() error { return nil }
 
 // ClientScreenSpec contains the dimensions of the client view.
 // It is included in the ClientHello at the start of the session, and
@@ -202,7 +202,7 @@ func (c *ClientScreenSpec) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *ClientScreenSpec) validate() error { return nil }
+func (*ClientScreenSpec) validate() error { return nil }
 
 // Alert encodes an error/warning/informational message and severity code.
 // Sent by the server to the client for display.
@@ -217,7 +217,7 @@ func (a *Alert) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *Alert) validate() error { return nil }
+func (*Alert) validate() error { return nil }
 
 // MouseWheel contains a mousewheel update.
 type MouseWheel tdpbv1.MouseWheel
@@ -231,7 +231,7 @@ func (m *MouseWheel) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *MouseWheel) validate() error { return nil }
+func (*MouseWheel) validate() error { return nil }
 
 // ClipboardData carries clipboard data to support copy/paste
 // operations between the client and target desktop.
@@ -266,7 +266,7 @@ func (m *MFA) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *MFA) validate() error { return nil }
+func (*MFA) validate() error { return nil }
 
 // SharedDirectoryAnnounce is sent by the client to begin sharing a directory.
 type SharedDirectoryAnnounce tdpbv1.SharedDirectoryAnnounce
@@ -280,6 +280,8 @@ func (s *SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	})
 }
 
+func (*SharedDirectoryAnnounce) validate() error { return nil }
+
 // SharedDirectoryRemove is sent by the client to stop sharing a directory.
 type SharedDirectoryRemove tdpbv1.SharedDirectoryRemove
 
@@ -292,7 +294,7 @@ func (s *SharedDirectoryRemove) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *SharedDirectoryAnnounce) validate() error { return nil }
+func (*SharedDirectoryRemove) validate() error { return nil }
 
 // SharedDirectoryAcknowledge is sent by the server to acknowledge a
 // new shared directory.
@@ -307,7 +309,7 @@ func (s *SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *SharedDirectoryAcknowledge) validate() error { return nil }
+func (*SharedDirectoryAcknowledge) validate() error { return nil }
 
 // SharedDirectoryRequest encodes various directory operation requests
 // such as Info, Create, Delete, List, Read, Write, Move, or Truncate.
@@ -415,7 +417,7 @@ func (l *LatencyStats) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *LatencyStats) validate() error { return nil }
+func (*LatencyStats) validate() error { return nil }
 
 // Ping is used to measure latency between the Proxy and
 // target desktop.
@@ -430,7 +432,7 @@ func (p *Ping) Encode() ([]byte, error) {
 	})
 }
 
-func (_ *Ping) validate() error { return nil }
+func (*Ping) validate() error { return nil }
 
 func marshalWithHeader(msg proto.Message) ([]byte, error) {
 	data, err := proto.Marshal(msg)
