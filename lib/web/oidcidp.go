@@ -57,5 +57,5 @@ func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.
 // Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
 // In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
 func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
-	return awsoidc.ThumbprintIdP(r.Context(), h.PublicProxyAddr())
+	return awsoidc.ThumbprintIdP(r.Context(), h.PublicProxyAddr(), h.cfg.InsecureMode)
 }

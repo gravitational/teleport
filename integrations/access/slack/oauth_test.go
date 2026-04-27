@@ -28,6 +28,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testOAuthServer struct {
@@ -100,6 +102,8 @@ func TestOAuth(t *testing.T) {
 		expiresInSeconds  = 43200
 	)
 
+	log := logtest.NewLogger()
+
 	newServer := func(t *testing.T) *testOAuthServer {
 		s := &testOAuthServer{
 			clientID:          clientID,
@@ -137,7 +141,7 @@ func TestOAuth(t *testing.T) {
 		defer s.close()
 		s.exchangeResponse = ok("my-access-token1", "my-refresh-token2", expiresInSeconds)
 
-		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret)
+		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
 		creds, err := authorizer.Exchange(context.Background(), s.authorizationCode, s.redirectURI)
 		require.NoError(t, err)
@@ -151,7 +155,7 @@ func TestOAuth(t *testing.T) {
 		defer s.close()
 		s.exchangeResponse = fail("invalid_code")
 
-		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret)
+		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
 		_, err := authorizer.Exchange(context.Background(), s.authorizationCode, s.redirectURI)
 		require.Error(t, err)
@@ -164,7 +168,7 @@ func TestOAuth(t *testing.T) {
 		defer s.close()
 		s.refreshResponse = ok("my-access-token2", "my-refresh-token3", expiresInSeconds)
 
-		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret)
+		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
 		creds, err := authorizer.Refresh(context.Background(), refreshToken)
 		require.NoError(t, err)
@@ -179,7 +183,7 @@ func TestOAuth(t *testing.T) {
 		defer s.close()
 		s.refreshResponse = fail("expired_token")
 
-		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret)
+		authorizer := newAuthorizer(makeSlackClient(s.url()), clientID, clientSecret, log)
 
 		_, err := authorizer.Refresh(context.Background(), refreshToken)
 		require.Error(t, err)

@@ -159,6 +159,214 @@ func TestTrimToMaxSize(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "AzureRun fields trimmed",
+			maxSize: 300,
+			in: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 500),
+				StandardError:  strings.Repeat("B", 500),
+				APIError:       strings.Repeat("E", 500),
+			},
+			want: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 60),
+				StandardError:  strings.Repeat("B", 60),
+				APIError:       strings.Repeat("E", 60),
+			},
+		},
+		{
+			name:    "AzureRun one field trimmed",
+			maxSize: 300,
+			in: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 10),
+				StandardError:  strings.Repeat("B", 10),
+				APIError:       strings.Repeat("E", 500),
+			},
+			want: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 10),
+				StandardError:  strings.Repeat("B", 10),
+				APIError:       strings.Repeat("E", 60),
+			},
+		},
+		{
+			name:    "SCIM Resource Event trimmed",
+			maxSize: 200,
+			in: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am the very model of a modern Major General",
+					UserMessage: "I have information animal, vegetable and mineral",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+					ResourceType: "ttttttttttttttttttttttttttttttttttttttttttt",
+					Request: &SCIMRequest{
+						ID:            "idididididididididididididididididididididid",
+						SourceAddress: "srcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrc",
+						UserAgent:     "agentagentagentagentagentagentagentagentagent",
+						Method:        "PATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCH",
+						Path:          "/Users/teleport-user-with-a-long-name",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggggggggggggggggggggggggggggggggggggggg",
+						}),
+					},
+				},
+			},
+			want: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am t",
+					UserMessage: "I have",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiii",
+					ResourceType: "tttttt",
+					Request: &SCIMRequest{
+						ID:            "ididid",
+						SourceAddress: "srcsrc",
+						UserAgent:     "agenta",
+						Method:        "PATCHP",
+						Path:          "/Users",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggg",
+						}),
+					},
+				},
+			},
+			cmpOpts: []cmp.Option{
+				cmp.Transformer("struct", func(s *Struct) map[string]any {
+					result, err := DecodeToMap(s)
+					require.NoError(t, err)
+					return result
+				}),
+			},
+		},
+		{
+			name:    "CertAuthorityOverrideEvent trimmed",
+			maxSize: 200,
+			in: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 200),
+					UserMessage: strings.Repeat("B", 200),
+				},
+			},
+			want: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 70),
+					UserMessage: strings.Repeat("B", 70),
+				},
+			},
+		},
+		{
+			name:    "AppSessionLLMRequest trimmed",
+			maxSize: 200,
+			in: &AppSessionLLMRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "T2014I",
+					Type: "app.session.llm.request.success",
+				},
+				Path:           strings.Repeat("/path", 20),
+				Method:         strings.Repeat("POST", 20),
+				RequestedModel: strings.Repeat("requested-model", 20),
+				// Models and provider comes from the app config and should not
+				// be trimmed.
+				Provider: "a-long-provider-name-not-trimmed",
+				Model:    "a-long-model-name-not-trimmed",
+			},
+			want: &AppSessionLLMRequest{
+				Metadata: Metadata{
+					Code: "T2014I",
+					Type: "app.session.llm.request.success",
+				},
+				Path:           "/path/path/path/",
+				Method:         "POSTPOSTPOSTPOST",
+				RequestedModel: "requested-modelr",
+				Provider:       "a-long-provider-name-not-trimmed",
+				Model:          "a-long-model-name-not-trimmed",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

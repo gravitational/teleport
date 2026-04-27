@@ -217,7 +217,7 @@ necessary credentials to authenticate to MongoDB:
 
 Your role won’t require any permission, so you can leave it empty on the
 **Add Permissions** step. Then, choose a name for it and create it. In this
-guide, we will the name `teleport-access`.
+guide, we will use the name `teleport-access`.
 
 ### Create a MongoDB User
 
@@ -270,6 +270,8 @@ To retrieve credentials for a database and connect to it:
 ```code
 $ tsh db connect --db-user=alice --db-name dev mongodb-atlas
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="mongodb-atlas" dbArgs="--db-user=alice --db-name=dev"!)
 </TabItem>
 <TabItem label="AWS IAM authentication">
 To retrieve credentials for a database and connect to it, you must provide the

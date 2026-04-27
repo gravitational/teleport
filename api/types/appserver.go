@@ -44,6 +44,8 @@ type AppServer interface {
 	GetHostname() string
 	// GetHostID returns ID of the host the server is running on.
 	GetHostID() string
+	// SetHostID sets ID of the host the server is running on.
+	SetHostID(string)
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -52,7 +54,8 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
-
+	// IsEqual determines if two servers are equivalent to one another.
+	IsEqual(AppServer) bool
 	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
@@ -119,6 +122,15 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 	})
 }
 
+func (s *AppServerV3) IsEqual(other AppServer) bool {
+	otherv3, ok := other.(*AppServerV3)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualAppServerV3(s, otherv3)
+}
+
 // GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
 func (s *AppServerV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
 	return s.Spec.ComponentFeatures
@@ -147,6 +159,11 @@ func (s *AppServerV3) GetHostname() string {
 // GetHostID returns ID of the host the server is running on.
 func (s *AppServerV3) GetHostID() string {
 	return s.Spec.HostID
+}
+
+// SetHostID sets ID of the host the server is running on.
+func (s *AppServerV3) SetHostID(hostID string) {
+	s.Spec.HostID = hostID
 }
 
 // GetKind returns the resource kind.
@@ -342,7 +359,7 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.App.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the app server static labels.

@@ -37,12 +37,12 @@ like:
 ## Step 1/3. Configure GitLab
 
 You should have at least one group configured in GitLab to map to Teleport roles.
-In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users
+In this example we use the names `devs` and `admins`.  Assign users
 to each of these groups.
 
 1. Create an application in one of your groups (**Group overview** ->
    **Settings** -> **Applications**) that will allow using GitLab as an OAuth
-   provider to Teleport. 
+   provider to Teleport.
 
    Assign <Var name="teleport.example.com" /> to your Teleport Proxy Service's
    public address. If you have a self-hosted cluster with multiple public
@@ -115,8 +115,8 @@ $ tctl sso configure oidc --preset gitlab \
 </TabItem>
 </Tabs>
 
-This example maps the two subgroups `admin` and `dev` of the parent group
-`company` to the `admin` and `dev` roles in Teleport, and creates the `oidc.yaml` file:
+This example maps the two subgroups `admins` and `devs` of the parent group
+`company` to the `auditor` and `access` roles in Teleport, and creates the `oidc.yaml` file:
 
 ```yaml
 kind: oidc
@@ -126,12 +126,13 @@ spec:
   claims_to_roles:
   - claim: groups
     roles:
-    - admin
-    value: company/admin
+    - auditor
+    - editor
+    value: company/admins
   - claim: groups
     roles:
-    - dev
-    value: company/gitlab-dev
+    - access
+    value: company/devs
   client_id: <APPLICATION-ID>
   client_secret: <APPLICATION-SECRET>
   display: GitLab

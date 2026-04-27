@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
@@ -39,14 +39,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -134,12 +139,24 @@ func TestJoinIAM(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	allowedOrgID := "o-allowedorg"
+	allowedOrgIDUsingAmbientCredentials := "o-allowedorg"
+	allowedOrgIDUsingIntegrationCredentials := "o-allowedorg-integration"
+
+	exampleIntegrationName := "my-integration"
 	organizationsClientGetter := &mockAWSOrganizationsClientGetter{
-		OrganizationsAPI: &mockAWSOrganizationsClient{
+		ambientCredentialsOrgsAPI: &mockAWSOrganizationsClient{
 			getAccountOutput: &organizations.DescribeAccountOutput{
 				Account: &organizationstypes.Account{
-					Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgID + "/1234"),
+					Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingAmbientCredentials + "/1234"),
+				},
+			},
+		},
+		integrationCredentialsOrgsAPI: map[string]iamjoin.OrganizationsAPI{
+			exampleIntegrationName: &mockAWSOrganizationsClient{
+				getAccountOutput: &organizations.DescribeAccountOutput{
+					Account: &organizationstypes.Account{
+						Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingIntegrationCredentials + "/1234"),
+					},
 				},
 			},
 		},
@@ -196,7 +213,7 @@ func TestJoinIAM(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "using organizations",
+			desc:             "using organizations with ambient credentials",
 			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
@@ -204,7 +221,7 @@ func TestJoinIAM(t *testing.T) {
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
 					{
-						AWSOrganizationID: allowedOrgID,
+						AWSOrganizationID: allowedOrgIDUsingAmbientCredentials,
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -219,7 +236,31 @@ func TestJoinIAM(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "using organizations - organization id is not allowed",
+			desc:             "using organizations with integration credentials",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: exampleIntegrationName,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "using organizations with ambient credentials - organization id is not allowed",
 			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
@@ -228,6 +269,30 @@ func TestJoinIAM(t *testing.T) {
 				Allow: []*types.TokenRule{
 					{
 						AWSOrganizationID: "not-allowedorg",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.Error,
+		},
+		{
+			desc:             "using organizations with integration credentials - organization id is not allowed",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: exampleIntegrationName,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingAmbientCredentials,
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -708,11 +773,21 @@ func (m *mockAWSOrganizationsClient) DescribeAccount(ctx context.Context, params
 }
 
 type mockAWSOrganizationsClientGetter struct {
-	OrganizationsAPI iamjoin.OrganizationsAPI
+	ambientCredentialsOrgsAPI     iamjoin.OrganizationsAPI
+	integrationCredentialsOrgsAPI map[string]iamjoin.OrganizationsAPI
 }
 
-func (m *mockAWSOrganizationsClientGetter) Get(ctx context.Context) (iamjoin.OrganizationsAPI, error) {
-	return m.OrganizationsAPI, nil
+func (m *mockAWSOrganizationsClientGetter) Get(ctx context.Context, integration string, awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient) (iamjoin.OrganizationsAPI, error) {
+	if integration == "" {
+		return m.ambientCredentialsOrgsAPI, nil
+	}
+
+	client, found := m.integrationCredentialsOrgsAPI[integration]
+	if !found {
+		return nil, trace.NotFound("integration %q not found", integration)
+	}
+
+	return client, nil
 }
 
 func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
@@ -729,6 +804,29 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	require.NoError(t, tc.authServer.Auth().UpsertToken(ctx, token))
 	t.Cleanup(func() {
 		assert.NoError(t, tc.authServer.Auth().DeleteToken(ctx, token.GetName()))
+	})
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+		Scope: "/test",
+		Metadata: &headerv1.Metadata{
+			Name: "scoped_" + token.GetName(),
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = tc.authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		Token: scopedToken,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+			Name: scopedToken.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
 	})
 
 	// Make an unauthenticated auth client that will be used for the join.
@@ -811,6 +909,56 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 					Method:    "iam",
 					NodeName:  "test-node",
 					TokenName: "test-token",
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID" || key == "TokenExpires"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond)
+	})
+	t.Run("scoped", func(t *testing.T) {
+		_, err := joinclient.Join(ctx, joinclient.JoinParams{
+			Token: "scoped_" + tc.requestTokenName,
+			ID: state.IdentityID{
+				Role:     types.RoleInstance,
+				NodeName: "test-node",
+			},
+			CreateSignedSTSIdentityRequestFunc: createSignedSTSIdentityRequest,
+			AuthClient:                         nopClient,
+		})
+		tc.assertError(t, err)
+
+		// If the challenge-response is expected to fail, assert that a join
+		// failure event was emitted with an error message about the client
+		// giving up on the join attempt.
+		if tc.challengeResponseErr == nil {
+			return
+		}
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := lastEvent(ctx, tc.authServer.Auth(), tc.authServer.Auth().GetClock(), "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error: fmt.Sprintf(
+							"receiving challenge solution\n\tclient gave up on join attempt: challenge solution failed: creating signed sts:GetCallerIdentity request %s",
+							tc.challengeResponseErr,
+						),
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Role:      "Instance",
+					Method:    "iam",
+					NodeName:  "test-node",
+					TokenName: "scoped_test-token",
 				},
 				evt,
 				protocmp.Transform(),

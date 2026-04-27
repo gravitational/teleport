@@ -145,30 +145,128 @@ type AccessRequest interface {
 	GetLongTermResourceGrouping() *LongTermResourceGrouping
 	// SetLongTermResourceGrouping sets the long-term resource grouping.
 	SetLongTermResourceGrouping(*LongTermResourceGrouping)
+	// GetRequestedResourceAccessIDs gets the resourceAccessIDs to which access is being requested.
+	GetRequestedResourceAccessIDs() []ResourceAccessID
+	// SetRequestedResourceAccessIDs sets the resourceAccessIDs to which access is being requested.
+	SetRequestedResourceAccessIDs([]ResourceAccessID)
+	// GetAllRequestedResourceIDs get all requested resources, in [ResourceAccessID]-form.
+	GetAllRequestedResourceIDs() []ResourceAccessID
+	// IsEqual determines if two access requests are equivalent to one another.
+	IsEqual(AccessRequest) bool
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
-	return NewAccessRequestWithResources(name, user, roles, []ResourceID{})
+	return NewAccessRequestWithResources(name, user, roles, []ResourceAccessID{})
 }
 
 // NewAccessRequestWithResources assembles an AccessRequest resource with
 // requested resources.
-func NewAccessRequestWithResources(name string, user string, roles []string, resourceIDs []ResourceID) (AccessRequest, error) {
+func NewAccessRequestWithResources(name string, user string, roles []string, resources []ResourceAccessID) (AccessRequest, error) {
+	resourceIDs, resourceAccessIDs := UnwrapResourceAccessIDs(resources)
 	req := AccessRequestV3{
 		Metadata: Metadata{
 			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
-			User:                 user,
-			Roles:                slices.Clone(roles),
-			RequestedResourceIDs: append([]ResourceID{}, resourceIDs...),
+			User:                       user,
+			Roles:                      slices.Clone(roles),
+			RequestedResourceIDs:       append([]ResourceID{}, resourceIDs...),
+			RequestedResourceAccessIDs: append([]ResourceAccessID{}, resourceAccessIDs...),
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
+}
+
+// IsEqual determines if two access requests are equivalent to one another.
+// The Revision field is ignored during comparison.
+func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
+	if r == nil && other == nil {
+		return true
+	}
+
+	otherv3, ok := other.(*AccessRequestV3)
+	if !ok {
+		return false
+	}
+
+	if r == nil && otherv3 == nil {
+		return true
+	}
+
+	if !deriveTeleportEqualAccessRequestV3(r, otherv3) {
+		return false
+	}
+
+	// The derived equality function skips RequestedResourceAccessIDs entirely
+	// because the ResourceConstraints.Details oneof interface is not handled by
+	// goderive. Compare it manually here.
+	if !resourceAccessIDsEqual(r.Spec.RequestedResourceAccessIDs, otherv3.Spec.RequestedResourceAccessIDs) {
+		return false
+	}
+
+	return true
+}
+
+// resourceAccessIDsEqual compares two ResourceAccessID slices independent of
+// ordering. This is necessary because goderive cannot handle the oneof
+// Details field on ResourceConstraints.
+func resourceAccessIDsEqual(a, b []ResourceAccessID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if !resourceAccessIDEqual(&a[i], &b[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// resourceAccessIDEqual compares all fields of two ResourceAccessIDs.
+// goderive handles all fields except the Details oneof on ResourceConstraints
+// must be checked manually.
+func resourceAccessIDEqual(a, b *ResourceAccessID) bool {
+	if !deriveTeleportEqualResourceAccessID(a, b) {
+		return false
+	}
+	return resourceConstraintsDetailsEqual(a.Constraints, b.Constraints)
+}
+
+// resourceConstraintsDetailsEqual compares the Details oneof field of two
+// ResourceConstraints. The oneof interface is not handled by goderive, so
+// this must be done manually.
+func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	switch av := a.Details.(type) {
+	case *ResourceConstraints_AwsConsole:
+		bv, ok := b.Details.(*ResourceConstraints_AwsConsole)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualAWSConsoleResourceConstraints(av.AwsConsole, bv.AwsConsole)
+	case *ResourceConstraints_Ssh:
+		bv, ok := b.Details.(*ResourceConstraints_Ssh)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualSSHResourceConstraints(av.Ssh, bv.Ssh)
+	default:
+		return a.Details == nil && b.Details == nil
+	}
 }
 
 // GetUser gets User
@@ -414,13 +512,26 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if r.Spec.RequestedResourceIDs == nil {
 		r.Spec.RequestedResourceIDs = []ResourceID{}
 	}
-	if len(r.GetRoles()) == 0 && len(r.GetRequestedResourceIDs()) == 0 {
+	if r.Spec.RequestedResourceAccessIDs == nil {
+		r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{}
+	}
+	if len(r.GetRoles()) == 0 && len(r.GetAllRequestedResourceIDs()) == 0 {
 		return trace.BadParameter("access request does not specify any roles or resources")
 	}
 
 	// dedupe and sort roles to simplify comparing role lists
 	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
 	sort.Strings(r.Spec.Roles)
+
+	// If an Access Request is resource-constrained exclusively via RequestedResourceAccessIDs,
+	// we add a non-matching sentinel ResourceID into RequestedResourceIDs.
+	// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
+	// on certs (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
+	// "no resource-specific restrictions".
+	// TODO(kiosion): DELETE in 21.0.0
+	if len(r.Spec.RequestedResourceIDs) == 0 && len(r.Spec.RequestedResourceAccessIDs) > 0 {
+		r.Spec.RequestedResourceIDs = []ResourceID{CreateSentinelResourceID()}
+	}
 
 	return nil
 }
@@ -487,12 +598,45 @@ func (r *AccessRequestV3) SetRevision(rev string) {
 
 // GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
-	return append([]ResourceID{}, r.Spec.RequestedResourceIDs...)
+	ids := make([]ResourceID, 0, len(r.Spec.RequestedResourceIDs))
+	for _, id := range r.Spec.RequestedResourceIDs {
+		if !IsSentinelResourceID(id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // SetRequestedResourceIDs sets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) SetRequestedResourceIDs(ids []ResourceID) {
 	r.Spec.RequestedResourceIDs = append([]ResourceID{}, ids...)
+}
+
+// GetRequestedResourceAccessIDs gets the resourceAccessIDs to which access is being requested.
+func (r *AccessRequestV3) GetRequestedResourceAccessIDs() []ResourceAccessID {
+	return append([]ResourceAccessID{}, r.Spec.RequestedResourceAccessIDs...)
+}
+
+// SetRequestedResourceAccessIDs sets the resourceAccessIDs to which access is being requested.
+func (r *AccessRequestV3) SetRequestedResourceAccessIDs(ids []ResourceAccessID) {
+	r.Spec.RequestedResourceAccessIDs = append([]ResourceAccessID{}, ids...)
+}
+
+// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations of requested resources.
+func (r *AccessRequestV3) GetAllRequestedResourceIDs() []ResourceAccessID {
+	wrapped := make([]ResourceAccessID, 0, len(r.Spec.RequestedResourceIDs)+len(r.Spec.RequestedResourceAccessIDs))
+	for _, rid := range r.Spec.RequestedResourceIDs {
+		// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
+		// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
+		// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
+		//
+		// It should be filtered out here, as it's not a real "requested resource".
+		if !IsSentinelResourceID(rid) {
+			wrapped = append(wrapped, ResourceAccessID{Id: rid})
+		}
+	}
+	wrapped = append(wrapped, r.Spec.RequestedResourceAccessIDs...)
+	return wrapped
 }
 
 // GetLoginHint gets the requested login hint.

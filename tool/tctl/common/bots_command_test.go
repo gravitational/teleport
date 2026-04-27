@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -44,11 +46,161 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func useStaticTemplateData(t *testing.T) func(map[string]any) {
+	return func(data map[string]any) {
+		if v, ok := data["join_uri"]; ok {
+			u, err := joinuri.Parse(v.(string))
+			require.NoError(t, err)
+			u.Address = "localhost:443"
+
+			data["join_uri"] = u.String()
+		}
+
+		if _, ok := data["addr"]; ok {
+			data["addr"] = "localhost:443"
+		}
+
+		// Not worth the plumbing to ensure the table remains consistent, ugh.
+		if _, ok := data["param_table"]; ok {
+			data["param_table"] = "  Fake: Table\n"
+		}
+	}
+}
+
+func TestAddBot(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, (&BotsCommand{
+		stdout:                 buf,
+		format:                 teleport.Text,
+		botName:                "test",
+		botRoles:               "access",
+		registrationSecret:     "static-registration-secret",
+		testStaticToken:        "static-example-1234",
+		testMutateTemplateData: useStaticTemplateData(t),
+	}).AddBot(t.Context(), rootClient))
+
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
+func TestAddBotLegacy(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, (&BotsCommand{
+		stdout:                 buf,
+		format:                 teleport.Text,
+		botName:                "test",
+		botRoles:               "access",
+		legacy:                 true,
+		testStaticToken:        "static-example-1234",
+		testMutateTemplateData: useStaticTemplateData(t),
+	}).AddBot(t.Context(), rootClient))
+
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
+func TestAddBotJSON(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Generate a public key to test pregenerated keys
+	key, err := cryptosuites.GenerateKey(
+		t.Context(),
+		cryptosuites.StaticAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1),
+		cryptosuites.BoundKeypairJoining,
+	)
+	require.NoError(t, err)
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+
+	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
+	publicKeyString := strings.TrimSpace(string(publicKeyBytes))
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, (&BotsCommand{
+		stdout:           buf,
+		format:           teleport.JSON,
+		botName:          "test",
+		botRoles:         "access",
+		recoveryLimit:    12,
+		initialPublicKey: publicKeyString,
+		testStaticToken:  "static-example-1234",
+	}).AddBot(t.Context(), rootClient))
+
+	// Validate the response
+	response := botJSONResponse{}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &response))
+
+	require.Empty(t, response.RegistrationSecret)
+
+	uri, err := joinuri.Parse(response.JoinURI)
+	require.NoError(t, err)
+
+	require.Equal(t, types.JoinMethodBoundKeypair, uri.JoinMethod)
+	require.Empty(t, uri.JoinMethodParameter)
+
+	// Fetch the token and make sure it's sane
+	token, err := rootClient.GetToken(t.Context(), response.TokenID)
+	require.NoError(t, err)
+
+	ptv2, ok := token.(*types.ProvisionTokenV2)
+	require.True(t, ok)
+
+	require.EqualValues(t, 12, ptv2.Spec.BoundKeypair.Recovery.Limit)
+	// Note: soft string comparison against a public key, but it should just use our value
+	require.Equal(t, publicKeyString, ptv2.Spec.BoundKeypair.Onboarding.InitialPublicKey)
+	require.Empty(t, ptv2.Status.BoundKeypair.RegistrationSecret)
+}
 
 func TestUpdateBotLogins(t *testing.T) {
 	tests := []struct {
@@ -260,7 +412,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 			},
 		},
 	}
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableProxy())
 	ctx := context.Background()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
@@ -298,8 +450,15 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	response := botJSONResponse{}
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response))
 
-	_, err = client.GetToken(ctx, response.TokenID)
+	token, err := client.GetToken(ctx, response.TokenID)
 	require.NoError(t, err)
+
+	// Make sure these are being created with the intended defaults
+	require.Equal(t, types.JoinMethodBoundKeypair, token.GetJoinMethod())
+	uri, err := joinuri.Parse(response.JoinURI)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodBoundKeypair, uri.JoinMethod)
+	require.True(t, token.Expiry().IsZero(), "bound keypair token must not expire")
 
 	// Run the command again to ensure multiple distinct tokens can be created.
 	buf.Reset()
@@ -307,13 +466,28 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 
 	response2 := botJSONResponse{}
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response2))
-
 	require.NotEqual(t, response.TokenID, response2.TokenID)
 
 	_, err = client.GetToken(ctx, response2.TokenID)
 	require.NoError(t, err)
 
+	// Try once more, but with legacy mode
 	buf.Reset()
+	cmd.legacy = true
+	require.NoError(t, cmd.AddBotInstance(ctx, client))
+
+	response3 := botJSONResponse{}
+	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response3))
+
+	token, err = client.GetToken(ctx, response3.TokenID)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodToken, token.GetJoinMethod())
+
+	// We should still include the URI in legacy mode
+	uri, err = joinuri.Parse(response3.JoinURI)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodToken, uri.JoinMethod)
+	require.False(t, token.Expiry().IsZero(), "traditional token must expire")
 }
 
 func TestAggregateServiceHealth(t *testing.T) {

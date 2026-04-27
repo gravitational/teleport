@@ -81,7 +81,7 @@ spec:
 Replace `example-role` with a descriptive name related to your use case.
 
 For production use, you should use labels to restrict this access to only the
-hosts that Ansible will need to access. This is known as the principal of
+hosts that Ansible will need to access. This is known as the principle of
 least privilege and reduces damage that exfiltrated credentials can do.
 
 Use `tctl create -f ./role.yaml` to create the role.
@@ -174,7 +174,7 @@ requirement with a script like the following:
 ```code
 # Source tsh env to get the name of the current Teleport cluster.
 $ eval "$( tsh env )"
-# You can modify the `tsh ls` command to filter nodes based ont he label.
+# You can modify the `tsh ls` command to filter nodes based on the label.
 $ tsh ls --format=json | jq --arg cluster $TELEPORT_CLUSTER -r '.[].spec.hostname + "." + $cluster' > hosts
 ```
 

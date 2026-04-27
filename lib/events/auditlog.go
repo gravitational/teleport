@@ -263,6 +263,10 @@ type AuditLogConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider provides recording metadata service
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an encrypted upload completes to find or
+	// recover the session end event for post-processing. If nil, no
+	// post-processing is performed.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -561,58 +565,28 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
-
-	rawSession, err := os.CreateTemp(l.playbackDir, string(sessionID)+".stream.tar.*")
+	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
 	if err != nil {
-		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
-		close(sessionStartCh)
-		return c, e
-	}
-	// The file is still perfectly usable after unlinking it, and the space it's
-	// using on disk will get reclaimed as soon as the file is closed (or the
-	// process terminates) - and if the session is small enough and we go
-	// through it quickly enough, we're likely not even going to end up with any
-	// bytes on the physical disk, anyway. We're using the same playback
-	// directory as the GetSessionChunk flow, which means that if we crash
-	// between creating the empty file and unlinking it, we'll end up with an
-	// empty file that will eventually be cleaned up by periodicCleanupPlaybacks
-	//
-	// TODO(espadolini): investigate the use of O_TMPFILE on Linux, so we don't
-	// even have to bother with the unlink and we avoid writing on the directory
-	if err := os.Remove(rawSession.Name()); err != nil {
-		_ = rawSession.Close()
-		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
-		close(sessionStartCh)
-		return c, e
-	}
-
-	start := time.Now()
-	if err := l.UploadHandler.Download(ctx, sessionID, rawSession); err != nil {
-		_ = rawSession.Close()
-		if errors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
 		e <- trace.Wrap(err)
 		close(sessionStartCh)
 		return c, e
 	}
-	l.log.DebugContext(ctx, "Downloaded session to a temporary file for streaming.",
-		"duration", time.Since(start),
-		"session_id", string(sessionID),
-	)
 
 	go func() {
-		defer rawSession.Close()
 		defer close(sessionStartCh)
+		defer reader.Close()
 
-		// this shouldn't be necessary as the position should be already 0 (Download
-		// takes an io.WriterAt), but it's better to be safe than sorry
-		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {
-			e <- trace.Wrap(err)
-			return
-		}
+		// Ensure that the reader is closed when the context is done, to unblock any
+		// pending reads.
+		stop := context.AfterFunc(ctx, func() {
+			_ = reader.Close()
+		})
+		defer stop()
 
-		protoReader := NewProtoReader(rawSession, l.decrypter)
+		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()
 
 		firstEvent := true
@@ -710,7 +684,10 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "completing upload")
 	}
 
-	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
+	if l.OnUploadComplete == nil {
+		return nil
+	}
+	sessionEnd, err := l.OnUploadComplete(ctx, upload.SessionID)
 	if err != nil || sessionEnd == nil {
 		return nil
 	}
@@ -726,6 +703,12 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
 	}
 	return nil
+}
+
+// SetOnUploadComplete sets the callback to be invoked after an encrypted upload
+// completes. It must be called before any uploads are processed.
+func (l *AuditLog) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	l.OnUploadComplete = fn
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

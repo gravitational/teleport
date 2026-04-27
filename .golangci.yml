@@ -9,6 +9,7 @@ linters:
     - depguard
     - errorlint
     - forbidigo
+    - forcetypeassert
     - govet
     - ineffassign
     - misspell
@@ -19,9 +20,27 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - usetesting
   settings:
     depguard:
       rules:
+        api_constants_defaults:
+          files:
+            - '!$test'
+            - '${config-path}/api/*'
+            - '${config-path}/api/constants/*'
+            - '${config-path}/api/defaults/*'
+          list-mode: strict
+          allow:
+            - 'encoding/json$'
+            - 'github.com/coreos/go-semver/semver$'
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api/defaults$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/trace$'
+            - 'os$'
+            - 'sync$'
+            - 'time$'
         cgo:
           files:
             - '!$test'
@@ -37,7 +56,7 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/cgroup
               desc: '"lib/cgroup" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/config
-              desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
+              desc: '"lib/config" requires CGO via "session/pam" and "lib/backend/lite"'
             - pkg: github.com/gravitational/teleport/lib/desktop/rdp/rdpclient
               desc: '"lib/desktop/rdp/rdpclient" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
@@ -48,10 +67,10 @@ linters:
               desc: '"lib/devicetrust/native" requires CGO on darwin'
             - pkg: github.com/gravitational/teleport/lib/inventory/metadata
               desc: '"lib/inventory/metadata" requires CGO'
-            - pkg: github.com/gravitational/teleport/lib/pam
-              desc: '"lib/pam" requires CGO'
-            - pkg: github.com/gravitational/teleport/lib/srv/uacc
-              desc: '"lib/srv/uacc" requires CGO'
+            - pkg: github.com/gravitational/teleport/session/pam$
+              desc: '"session/pam" requires CGO'
+            - pkg: github.com/gravitational/teleport/session/uacc$
+              desc: '"session/uacc" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/system/signal
               desc: '"lib/system/signal" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/vnet/daemon
@@ -72,6 +91,7 @@ linters:
             - '**/lib/cloud/imds/**'
           allow:
             - github.com/gravitational/teleport/lib/cloud/imds
+            - github.com/gravitational/teleport/lib/cloud/aws/config
           deny:
             - pkg: github.com/gravitational/teleport/lib/auth$
               desc: lib/auth should not be imported to prevent increasing binary size, prefer lib/auth/authclient instead
@@ -88,13 +108,6 @@ linters:
             - '!**/integrations/operator/controllers/resources/testlib/**'
             - '!**/lib/auth/test/**'
             - '!**/lib/services/suite/**'
-            - '!**/e/lib/accesslist/equal.go'
-            - '!**/e/lib/auth/saml.go'
-            - '!**lib/services/authority.go'
-            - '!**lib/services/compare.go'
-            - '!**/lib/services/local/access_list.go'
-            - '!**/lib/services/local/users.go'
-            - '!**/lib/services/user.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
@@ -140,6 +153,12 @@ linters:
               desc: 'use "aws-sdk-go-v2" instead'
             - pkg: github.com/aws/aws-sdk-go$
               desc: 'use "aws-sdk-go-v2" instead'
+        template:
+          deny:
+            - pkg: text/template
+              desc: 'text/template prevents DCE, use the following instead: template "github.com/DataDog/datadog-agent/pkg/template/text" instead'
+            - pkg: html/template
+              desc: 'html/template prevents DCE, use the following instead: template "github.com/DataDog/datadog-agent/pkg/template/html" instead'
         main:
           deny:
             - pkg: io/ioutil
@@ -189,6 +208,21 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        session_submodule:
+          files:
+            - '${config-path}/session/**'
+          list-mode: lax
+          allow:
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api/defaults$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/teleport/session/'
+            - 'github.com/gravitational/teleport/session$'
+          deny:
+            - pkg: 'github.com/gravitational/teleport/'
+              desc: the session submodule cannot import packages from the other modules
+            - pkg: 'github.com/gravitational/teleport$'
+              desc: the session submodule cannot import packages from the other modules
         test_packages:
           files:
             - '!$test'
@@ -199,11 +233,11 @@ linters:
             - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
-            - '!**/integration/db/fixture.go'
-            - '!**/integration/helpers/**'
+            - '!**/integration/**'
             - '!**/integrations/lib/testing/**'
             - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/lib/auth/authtest/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -244,27 +278,19 @@ linters:
             - '!**/e/lib/auth/ssotestlib.go'
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/idp/saml/testenv/**'
+            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
-            - '!**/lib/auth/helpers.go'
-            - '!**/lib/auth/keystore/testhelpers.go'
-            - '!**/lib/backend/test/**'
-            - '!**/lib/events/test/**'
-            - '!**/lib/services/suite/**'
-            - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
-            - '!**/lib/teleterm/gatewaytest/**'
-            - '!**/lib/utils/mcptest/**'
-            - '!**/lib/utils/testutils/**'
             - '!**/integration/appaccess/fixtures.go'
             - '!**/integration/appaccess/jwt.go'
             - '!**/integration/appaccess/pack.go'
             - '!**/integration/db/fixture.go'
-            - '!**/integration/hsm/helpers.go'
             - '!**/integration/helpers/**'
+            - '!**/integration/hsm/helpers.go'
             - '!**/integration/proxy/proxy_helpers.go'
-            - '!**/integrations/access/email/testlib/**'
             - '!**/integrations/access/datadog/testlib/**'
             - '!**/integrations/access/discord/testlib/**'
+            - '!**/integrations/access/email/testlib/**'
             - '!**/integrations/access/jira/testlib/**'
             - '!**/integrations/access/mattermost/testlib/**'
             - '!**/integrations/access/msteams/testlib/**'
@@ -277,7 +303,17 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
-            - '!**/e/lib/intune/testenv/**'
+            - '!**/lib/auth/helpers.go'
+            - '!**/lib/auth/keystore/testhelpers.go'
+            - '!**/lib/backend/test/**'
+            - '!**/lib/events/test/**'
+            - '!**/lib/services/suite/**'
+            - '!**/lib/subca/testenv/**'
+            - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
+            - '!**/lib/teleterm/gatewaytest/**'
+            - '!**/lib/utils/mcptest/**'
+            - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -287,11 +323,11 @@ linters:
             - '!**/api/testhelpers/**'
             - '!**/e/lib/auth/ssotestlib.go'
             - '!**/e/lib/aws/identitycenter/test/**'
-            - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/devicetrust/storage/storage.go'
+            - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
-            - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/intune/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/okta/api/oktaapitest/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
@@ -304,19 +340,21 @@ linters:
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
-            - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
+            - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/events/test/**'
             - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'
             - '!**/lib/services/suite/**'
+            - '!**/lib/subca/testenv/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
@@ -327,7 +365,10 @@ linters:
     forbidigo:
       forbid:
         - pattern: ^rsa\.GenerateKey$
+          pkg: ^crypto/rsa$
           msg: generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type
+        - pattern: ^common\.StringToRegion$
+          msg: use oraclejoincommon.StringToRegion to avoid OCI SDK data races
         - pattern: ^iam\.NewFromConfig$
           msg: Use iamutils.NewFromConfig
         - pattern: ^sts\.NewFromConfig$
@@ -340,6 +381,19 @@ linters:
           msg: use protojson.UnmarshalOptions and consider enabling DiscardUnknown
         - pattern: ^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$
           msg: use protojson if possible, or use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
+        - pattern: ^semver\.New$
+          pkg: ^github.com/coreos/go-semver/semver$
+          msg: construct a semver.Version manually or use semver.NewVersion
+        - pattern: ^[^\.]+\.LoadDefaultConfig$
+          pkg: ^github.com/aws/aws-sdk-go-v2/config$
+          msg: use github.com/gravitational/teleport/lib/cloud/aws/config.LoadDefaultConfig to ensure region validation
+        - pattern: ^ssh\.(Dial|NewClient|NewClientConn)$
+          pkg: ^golang\.org/x/crypto/ssh$
+          msg: Use api/ssh package to construct SSH clients with proper defaults
+        - pattern: ^ssh\.(Dial|NewClientWithTimeout|NewClientConnWithTimeout)$
+          pkg: ^github\.com/gravitational/teleport/api/observability/tracing/ssh$
+          msg: Use api/ssh package to construct SSH clients with proper defaults
+      analyze-types: true
     misspell:
       locale: US
     nolintlint:
@@ -372,6 +426,15 @@ linters:
         - len
         - suite-extra-assert-call
         - suite-thelper
+    usetesting:
+      context-todo: true
+      # TODO: Enable the following after the issues are fixed.
+      context-background: false
+      os-chdir: false
+      os-create-temp: false
+      os-mkdir-temp: false
+      os-setenv: false
+      os-temp-dir: false
   exclusions:
     generated: lax
     presets:
@@ -456,6 +519,57 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+      - linters:
+          - forbidigo
+        path: lib/cloud/aws/config/config.go
+        text: LoadDefaultConfig
+      - linters:
+          - forbidigo
+        path: examples/dynamoathenamigration/migration.go
+        text: LoadDefaultConfig
+      - linters:
+          - forbidigo
+        path: e/scripts/loadtest-login/main.go
+        text: LoadDefaultConfig
+
+      # Only the api/observability/tracing/ssh package is allowed to call x/crypto/ssh new client functions directly.
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: ssh.NewClient
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: ssh.NewClientConn
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientConnWithTimeout
+
+      # Only the api/ssh package is allowed to call the api/observability/tracing/ssh package directly. All others must use the api/ssh package.
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.Dial
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.NewClientConnWithTimeout
+
+      # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
+      # enforce this rule everywhere.
+      - linters:
+          - forcetypeassert
+        path-except: ^lib/tlsca/ca\.go$
+
     paths:
       - (^|/)node_modules/
       - ^api/gen/

@@ -54,6 +54,7 @@ export const eventCodes = {
   ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
+  APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_CREATED: 'TAP03I',
@@ -202,6 +203,8 @@ export const eventCodes = {
   SESSION_RECORDING_ACCESS: 'T2012I',
   SSMRUN_FAIL: 'TDS00W',
   SSMRUN_SUCCESS: 'TDS00I',
+  AZURERUN_FAIL: 'TDA00W',
+  AZURERUN_SUCCESS: 'TDA00I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -357,7 +360,9 @@ export const eventCodes = {
   SCIM_RESOURCE_GET: 'TSCIM004I',
   SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
   SCIM_RESOURCE_LIST: 'TSCIM005I',
-  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
+  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005E',
+  SCIM_RESOURCE_PATCH: 'TSCIM006I',
+  SCIM_RESOURCE_PATCH_FAILURE: 'TSCIM006E',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
   APPAUTHCONFIG_CREATE: 'TAAC001I',
   APPAUTHCONFIG_UPDATE: 'TAAC002I',
@@ -367,6 +372,30 @@ export const eventCodes = {
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
+  WORKLOAD_CLUSTER_CREATE: 'WC001I',
+  WORKLOAD_CLUSTER_CREATE_FAILURE: 'WC001E',
+  WORKLOAD_CLUSTER_UPDATE: 'WC002I',
+  WORKLOAD_CLUSTER_UPDATE_FAILURE: 'WC002E',
+  WORKLOAD_CLUSTER_DELETE: 'WC003I',
+  WORKLOAD_CLUSTER_DELETE_FAILURE: 'WC003E',
+  INFERENCE_MODEL_CREATE: 'INF001I',
+  INFERENCE_MODEL_UPDATE: 'INF002I',
+  INFERENCE_MODEL_DELETE: 'INF003I',
+  INFERENCE_SECRET_CREATE: 'INF004I',
+  INFERENCE_SECRET_UPDATE: 'INF005I',
+  INFERENCE_SECRET_DELETE: 'INF006I',
+  INFERENCE_POLICY_CREATE: 'INF007I',
+  INFERENCE_POLICY_UPDATE: 'INF008I',
+  INFERENCE_POLICY_DELETE: 'INF009I',
+  SESSION_SUMMARIZED: 'INF010I',
+  SESSION_SUMMARIZED_FAILURE: 'INF010E',
+  RETRIEVAL_MODEL_CREATE: 'INF011I',
+  RETRIEVAL_MODEL_UPDATE: 'INF012I',
+  RETRIEVAL_MODEL_DELETE: 'INF013I',
+  CERT_AUTH_OVERRIDE_CREATE: 'TCO01I',
+  CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
+  CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
+  CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
 } as const;
 
 /**
@@ -629,6 +658,14 @@ export type RawEvents = {
       sid: string;
       aws_role_arn: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_START_FAILURE]: RawEvent<
+    typeof eventCodes.APP_SESSION_START_FAILURE,
+    {
+      app_name: string;
+      error: string;
+      message: string;
     }
   >;
   [eventCodes.APP_SESSION_END]: RawEvent<
@@ -1344,6 +1381,7 @@ export type RawEvents = {
     {
       sid: string;
       user: string;
+      session_type?: string;
     }
   >;
   [eventCodes.SSMRUN_SUCCESS]: RawEvent<
@@ -1368,6 +1406,40 @@ export type RawEvents = {
       exit_code: number;
     }
   >;
+  [eventCodes.AZURERUN_SUCCESS]: RawEvent<
+    typeof eventCodes.AZURERUN_SUCCESS,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
+  [eventCodes.AZURERUN_FAIL]: RawEvent<
+    typeof eventCodes.AZURERUN_FAIL,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
   [eventCodes.BOT_JOIN]: RawEvent<
     typeof eventCodes.BOT_JOIN,
     {
@@ -1377,7 +1449,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.BOT_JOIN,
+    typeof eventCodes.BOT_JOIN_FAILURE,
     {
       bot_name: string;
       method: string;
@@ -1393,7 +1465,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN,
+    typeof eventCodes.INSTANCE_JOIN_FAILURE,
     {
       node_name: string;
       method: string;
@@ -1545,7 +1617,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
-    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP,
     {
       name: string;
       source: string;
@@ -2104,6 +2176,12 @@ export type RawEvents = {
   [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
     typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
   >;
+  [eventCodes.SCIM_RESOURCE_PATCH]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_PATCH
+  >;
+  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_PATCH_FAILURE
+  >;
   [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
     typeof eventCodes.SCIM_RESOURCE_DELETE
   >;
@@ -2154,6 +2232,110 @@ export type RawEvents = {
   [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
     typeof eventCodes.VNET_CONFIG_DELETE,
     HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_DELETE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_DELETE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_DELETE,
+    HasName
+  >;
+  [eventCodes.SESSION_SUMMARIZED]: RawEvent<
+    typeof eventCodes.SESSION_SUMMARIZED,
+    {
+      sid: string;
+      session_type?: string;
+      model_name?: string;
+      risk_level?: string;
+      short_description?: string;
+    }
+  >;
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: RawEvent<
+    typeof eventCodes.SESSION_SUMMARIZED_FAILURE,
+    {
+      sid: string;
+      session_type?: string;
+      model_name?: string;
+      risk_level?: string;
+      short_description?: string;
+    }
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_CREATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPDATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPSERT
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
   >;
 };
 
@@ -2389,6 +2571,33 @@ type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
     external_id: string;
     integration: string;
     display: string;
+  }
+>;
+
+type RawCertAuthOverrideEvent<T extends EventCode> = RawEvent<
+  T,
+  HasName & {
+    ca_override?: {
+      ca_type?: string;
+      cluster_name?: string;
+      certificate_overrides?: {
+        certificate?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        };
+        chain?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        }[];
+        disabled?: boolean;
+      }[];
+    };
+    success?: boolean;
+    user?: string;
   }
 >;
 

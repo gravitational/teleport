@@ -47,13 +47,15 @@ var lostDiskEvents = prometheus.NewCounter(
 type open struct {
 	objs diskObjects
 
-	eventBuf chan []byte
-	toClose  []io.Closer
-
-	closed bool
-	mtx    sync.Mutex
-
+	bpfEvents   chan []byte
 	lostCounter *Counter
+	toClose     []io.Closer
+
+	closed   bool
+	flushBuf func() error
+
+	mtx sync.Mutex
+	wg  sync.WaitGroup
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
@@ -142,18 +144,20 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
-	bpfEvents := make(chan []byte, bufferSize)
-	go sendEvents(bpfEvents, eventBuf)
-
-	return &open{
+	o := &open{
 		objs:        objs,
-		eventBuf:    bpfEvents,
-		toClose:     toClose,
 		lostCounter: lostCtr,
-	}, nil
+		toClose:     toClose,
+		flushBuf:    eventBuf.Flush,
+	}
+
+	o.bpfEvents = make(chan []byte, bufferSize)
+	o.wg.Go(func() { sendEvents("disk", o.bpfEvents, eventBuf) })
+
+	return o, nil
 }
 
-func (o *open) startSession(cgroupID uint64) error {
+func (o *open) startSession(auditSessionID uint32) error {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
@@ -161,22 +165,22 @@ func (o *open) startSession(cgroupID uint64) error {
 		return trace.BadParameter("open session already closed")
 	}
 
-	if err := o.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+	if err := o.objs.MonitoredSessionids.Put(auditSessionID, uint8(0)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (o *open) endSession(cgroupID uint64) error {
+func (o *open) endSession(auditSessionID uint32) error {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
 	if o.closed {
-		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
+		return nil
 	}
 
-	if err := o.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+	if err := o.objs.MonitoredSessionids.Delete(&auditSessionID); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -187,13 +191,19 @@ func (o *open) endSession(cgroupID uint64) error {
 // program. The ring buffer is closed as part of the module being closed.
 func (o *open) close() {
 	o.mtx.Lock()
-	defer o.mtx.Unlock()
 
 	if o.closed {
+		o.mtx.Unlock()
 		return
 	}
 
 	o.closed = true
+
+	if err := o.flushBuf(); err != nil {
+		logger.WarnContext(context.Background(), "failed to flush disk ring buffer", "error", err)
+	} else {
+		logger.DebugContext(context.Background(), "Flushed disk ring buffer, waiting for pending events to be processed")
+	}
 
 	for _, toClose := range o.toClose {
 		if err := toClose.Close(); err != nil {
@@ -209,10 +219,15 @@ func (o *open) close() {
 		logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
 	}
 
+	// Unlock before waiting for the goroutines to finish to avoid
+	// startSession/endSession blocking for potentially a long time.
+	o.mtx.Unlock()
+	o.wg.Wait()
+
 	logger.DebugContext(context.Background(), "Closed disk BPF module")
 }
 
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
-	return o.eventBuf
+	return o.bpfEvents
 }

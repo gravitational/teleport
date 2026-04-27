@@ -1,0 +1,117 @@
+---
+title: Set up the Teleport Event Handler Plugin
+sidebar_label: Event Handler Setup
+sidebar_position: 1
+description: Set up Teleport Event Handler plugin with credentials to access events API.
+tags:
+ - how-to
+ - zero-trust
+ - audit
+ - mwi
+ - infrastructure-identity
+---
+
+In this guide, we will set up the Teleport Event Handler plugin with credentials
+to authenticate to the Teleport Auth Service and access the events API.
+
+## How it works
+
+The Event Handler plugin is a binary that runs independently of your Teleport
+cluster. It authenticates to your Teleport cluster using mutual TLS to begin forwarding events.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
+
+- A server, virtual machine, Kubernetes cluster, or Docker environment to run the
+  Teleport Event Handler plugin.
+
+- (!docs/pages/includes/tctl.mdx!)
+
+- On your workstation, create a folder called `event-handler`, to hold configuration files and plugin state:
+
+  ```code
+  $ mkdir -p event-handler
+  $ cd event-handler
+  ```
+
+## Step 1/2. Install the Event Handler plugin
+
+(!docs/pages/includes/plugins/install-event-handler.mdx!)
+
+## Step 2/2. Set up the Event Handler plugin
+
+In this section, you will set up the Teleport Event Handler plugin 
+and generate credentials that the plugin will use for authentication.
+
+### Generate a starter config file
+
+Generate a configuration file with placeholder values for the Teleport Event
+Handler plugin. Later in this guide, we will edit the configuration file for
+your environment.
+
+(!docs/pages/includes/plugins/configure-event-handler.mdx!)
+
+(!docs/pages/includes/plugins/configure-event-handler-output.mdx!)
+
+If you have an existing Fluentd setup with TLS, issue a client certificate and
+key from the same certificate authority for the Teleport Event Handler to use.
+
+### Define the Event Handler role
+
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
+
+### Enable issuing of credentials for the Event Handler role
+
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
+
+### Export an identity file for the Event Handler user
+
+Give the plugin access to a Teleport identity file. We recommend using Machine
+ID for this in order to produce short-lived identity files that are less
+dangerous if exfiltrated, though in demo deployments, you can generate
+longer-lived identity files with `tctl`:
+
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler" secret="teleport-event-handler-identity"!)
+</TabItem>
+</Tabs>
+
+## Next steps
+
+You have now configured the Teleport Event Handler plugin with credentials to access the Teleport events API.
+
+If you are new to exporting audit events with Teleport, read [Forwarding Events
+with Fluentd](fluentd.mdx) to learn the basics of how our
+Event Handler plugin works. While this guide focuses on Fluentd, the Event
+Handler plugin can export audit events to any endpoint that ingests JSON
+messages via HTTP.
+
+Next, read our guides to setting up the Event Handler plugin to export audit
+events to your solution of choice:
+
+- [Export Teleport Audit Events with the Elastic
+  Stack](elastic-stack.mdx): How to configure the Event
+  Handler plugin to forward Teleport audit logs to Logstash for ingestion in
+  Elasticsearch so you can explore them in Kibana.
+- [Export Teleport Audit Events with Panther](panther.mdx):
+  How to configure the Event Handler plugin to send logs to Panther via Fluentd
+  so you can explore your audit events in Panther.
+- [Export Teleport Audit Events with Splunk](splunk.mdx):
+  How to configure the Event Handler plugin to send logs to Splunk's Universal
+  Forwarder so you can explore your audit events in Splunk.
+- [Export Teleport Audit Events with Datadog](datadog.mdx):
+  How to configure the Event Handler plugin to export audit logs to Datadog via Fluentd.

@@ -20,18 +20,14 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/oracle/oci-go-sdk/v65/common"
-)
 
-// Hack: StringToRegion will lazily load regions from a config file if its
-// input isn't in its hard-coded list, in a non-threadsafe way. Call it here
-// to load the config ahead of time so future calls are threadsafe.
-var _ = common.StringToRegion("")
+	"github.com/gravitational/teleport/lib/join/oraclejoin/oraclejoincommon"
+)
 
 // ParseRegion parses a string into a full (not abbreviated) Oracle Cloud
 // region. It returns the empty string if the input is not a valid region.
 func ParseRegion(rawRegion string) (region, realm string) {
-	canonicalRegion := common.StringToRegion(rawRegion)
+	canonicalRegion := oraclejoincommon.StringToRegion(rawRegion)
 	realm, err := canonicalRegion.RealmID()
 	if err != nil {
 		return "", ""

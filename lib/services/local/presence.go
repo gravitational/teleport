@@ -228,6 +228,21 @@ func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name
 	return s.Delete(ctx, key)
 }
 
+// AppendDeleteNodeActions adds conditional actions to an atomic write to
+// delete a node resource.
+func (s *PresenceService) AppendDeleteNodeActions(
+	actions []backend.ConditionalAction,
+	namespace string,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(nodesPrefix, namespace, name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
+}
+
 // GetNode returns a node by name and namespace.
 func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	if namespace == "" {
@@ -306,6 +321,32 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		Type: types.KeepAlive_NODE,
 		Name: server.GetName(),
 	}, nil
+}
+
+// AppendPutNodeActions adds conditional actions to an atomic write to create
+// or update a node resource.
+func (s *PresenceService) AppendPutNodeActions(
+	actions []backend.ConditionalAction,
+	server types.Server,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if server.GetNamespace() == "" {
+		server.SetNamespace(apidefaults.Namespace)
+	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := itemFromNode(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
 }
 
 func itemFromNode(server types.Server) (*backend.Item, error) {
@@ -437,12 +478,6 @@ func (s *PresenceService) GetProxies() ([]types.Server, error) {
 // ListProxyServers returns a paginated list of registered proxy servers.
 func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
-}
-
-// DeleteAllProxies deletes all proxies
-func (s *PresenceService) DeleteAllProxies() error {
-	startKey := backend.ExactKey(proxiesPrefix)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
 // DeleteProxy deletes proxy

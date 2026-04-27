@@ -145,3 +145,19 @@ func makeNamePredicate(name string) string {
 	}
 	return fmt.Sprintf(`name == %q`, name)
 }
+
+// PrintMetadataLabels formats resource metadata labels as a key=value pair string.
+func PrintMetadataLabels(labels map[string]string) string {
+	var sb strings.Builder
+	sb.Grow(len(labels) * 4)
+	i := 0
+	for key, value := range labels {
+		sb.WriteString(key + "=" + value)
+
+		if i < len(labels)-1 {
+			sb.WriteRune(',')
+		}
+		i++
+	}
+	return sb.String()
+}

@@ -26,10 +26,10 @@ import (
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // App describes an application
@@ -85,7 +85,7 @@ type App struct {
 	MCP *MCP `json:"mcp,omitempty"`
 
 	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
-	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -131,9 +131,9 @@ type MakeAppsConfig struct {
 	// AppsToUserGroups is a mapping of application names to user groups.
 	AppsToUserGroups        map[string]types.UserGroups
 	SAMLIdPServiceProviders types.SAMLIdPServiceProviders
-	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
+	// AWSRoles holds the visible and granted AWS role ARNs for this app.
 	// Only used for AWS Console Apps.
-	AllowedAWSRolesLookup map[string][]string
+	AWSRoles *PrincipalSet
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
@@ -194,13 +194,18 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
-		SupportedFeatureIDs:   componentfeatures.ToIntegers(c.SupportedFeatures),
 	}
 
-	if app.IsAWSConsole() {
-		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
-		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
-			app.GetAWSAccountID())
+	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
+		resultApp.SupportedFeatureIDs = f
+	}
+
+	if app.IsAWSConsole() && c.AWSRoles != nil {
+		visibleRoles := aws.FilterAWSRoles(c.AWSRoles.All.Elements(), app.GetAWSAccountID())
+		resultApp.AWSRoles = slices.Map(visibleRoles, func(r aws.Role) aws.Role {
+			r.RequiresRequest = !c.AWSRoles.Granted.Contains(r.ARN)
+			return r
+		})
 	}
 
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {

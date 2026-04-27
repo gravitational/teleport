@@ -42,14 +42,21 @@ type session struct {
 	tr *transport
 }
 
-// newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
-	// Extract the identity of the user.
+// getIdentityFromWebSession parses the TLS certificate from the web session and
+// extracts the user identity from its subject.
+func getIdentityFromWebSession(ws types.WebSession) (*tlsca.Identity, error) {
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	return identity, trace.Wrap(err)
+}
+
+// newSession creates a new session.
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
+	// Extract the identity of the user.
+	identity, err := getIdentityFromWebSession(ws)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,7 +89,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return !isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if len(servers) == 0 {
-		return nil, trace.NotFound("all app servers unheatlhy")
+		return nil, trace.NotFound("all app servers unhealthy")
 	}
 
 	rand.Shuffle(len(servers), func(i, j int) {

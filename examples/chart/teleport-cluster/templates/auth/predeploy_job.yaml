@@ -39,6 +39,10 @@ spec:
       - name: "teleport-config-check"
         image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
+{{- if $auth.jobResources }}
+        resources:
+  {{- toYaml $auth.jobResources | nindent 10 }}
+{{- end }}
 {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
   {{- if (gt (len $auth.extraEnv) 0) }}

@@ -25,6 +25,7 @@ import (
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 type dirObjMetadata struct { //nolint:unused // invoked in a dependent PR
@@ -33,14 +34,14 @@ type dirObjMetadata struct { //nolint:unused // invoked in a dependent PR
 
 type queryResult struct { //nolint:unused // invoked in a dependent PR
 	metadata dirObjMetadata
-	dirObj   msgraph.DirectoryObject
+	dirObj   models.DirectoryObject
 }
 
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
 func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint: unused // invoked in a dependent PR
 	// Fetch the users, groups, and service principals as directory objects
 	var queryResults []queryResult
-	err := cli.IterateUsers(ctx, func(user *msgraph.User) bool {
+	err := cli.IterateUsers(ctx, func(user *models.User) bool {
 		res := queryResult{metadata: dirObjMetadata{objectType: "user"}, dirObj: user.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
@@ -48,7 +49,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = cli.IterateGroups(ctx, func(group *msgraph.Group) bool {
+	err = cli.IterateGroups(ctx, func(group *models.Group) bool {
 		res := queryResult{metadata: dirObjMetadata{objectType: "group"}, dirObj: group.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
@@ -56,7 +57,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = cli.IterateServicePrincipals(ctx, func(servicePrincipal *msgraph.ServicePrincipal) bool {
+	err = cli.IterateServicePrincipals(ctx, func(servicePrincipal *models.ServicePrincipal) bool {
 		res := queryResult{metadata: dirObjMetadata{objectType: "servicePrincipal"}, dirObj: servicePrincipal.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true

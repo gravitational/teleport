@@ -17,7 +17,6 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -25,8 +24,10 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -35,6 +36,7 @@ import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/trackingTester';
@@ -42,21 +44,18 @@ import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => {
-  server.listen();
-
+beforeEach(() => {
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
+  server.use(fetchUnifiedResourcesSuccess());
   server.use(userEventCaptureSuccess());
 
   jest.useFakeTimers();
 });
 
 afterAll(() => {
-  server.close();
-
   jest.useRealTimers();
   jest.resetAllMocks();
 });
@@ -72,12 +71,13 @@ describe('ConnectGitHub', () => {
         environment: 'production',
         gitHubUrl: 'https://github.com/gravitational/teleport',
         isBranchDisabled: false,
-        ref: 'main',
+        ref: 'refs/heads/main',
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: '',
       },
     });
 
@@ -89,9 +89,7 @@ describe('ConnectGitHub', () => {
       screen.getByPlaceholderText('https://github.com/gravitational/teleport')
     ).toHaveValue('https://github.com/gravitational/teleport');
 
-    expect(screen.getAllByPlaceholderText('refs/heads/main')[0]).toHaveValue(
-      'main'
-    );
+    expect(screen.getByPlaceholderText('main')).toHaveValue('main');
 
     expect(screen.getByPlaceholderText('my-workflow')).toHaveValue(
       'my-workflow'
@@ -99,8 +97,8 @@ describe('ConnectGitHub', () => {
 
     expect(screen.getByPlaceholderText('production')).toHaveValue('production');
 
-    expect(screen.getAllByPlaceholderText('refs/heads/main')[1]).toHaveValue(
-      'main'
+    expect(screen.getByPlaceholderText('refs/heads/main')).toHaveValue(
+      'refs/heads/main'
     );
 
     expect(screen.getByPlaceholderText('octo-enterprise')).toHaveValue(
@@ -122,12 +120,13 @@ describe('ConnectGitHub', () => {
         environment: 'production',
         gitHubUrl: 'https://github.com/gravitational/teleport',
         isBranchDisabled: false,
-        ref: 'main',
+        ref: 'refs/heads/main',
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: '',
       },
     });
 
@@ -171,7 +170,7 @@ describe('ConnectGitHub', () => {
     await user.type(input, 'main');
 
     expect(input).toHaveValue('main');
-    expect(screen.getByLabelText('Git Ref')).toHaveValue('main');
+    expect(screen.getByLabelText('Git Ref')).toHaveValue('refs/heads/main');
 
     // Skip start event
     tracking.skip();

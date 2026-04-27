@@ -31,7 +31,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -475,7 +475,10 @@ func TestShutdown(t *testing.T) {
 				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, dbServers, 1)
-				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
+				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
+				))
 			}, 10*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, server.Shutdown(ctx))
@@ -491,7 +494,10 @@ func TestShutdown(t *testing.T) {
 				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, dbServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
+				))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)

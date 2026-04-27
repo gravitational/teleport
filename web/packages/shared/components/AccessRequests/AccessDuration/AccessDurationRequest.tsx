@@ -31,7 +31,7 @@ export function AccessDurationRequest({
 }) {
   return (
     <LabelInput color="text.slightlyMuted">
-      <Flex alignItems="center">
+      <Flex alignItems="center" mb={1}>
         <Text mr={1}>Access Duration</Text>
         <IconTooltip>
           How long you would be given elevated privileges. Note that the time it

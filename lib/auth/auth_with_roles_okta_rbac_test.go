@@ -71,6 +71,7 @@ func newTestServerWithRoles(t *testing.T, srv *authtest.AuthServer, role types.S
 }
 
 func TestOktaMayNotResetPasswords(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Given an auth server...
@@ -134,6 +135,7 @@ func newTestLock(t *testing.T, target types.User, origin string) types.Lock {
 }
 
 func TestOktaServiceLockCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Given an auth server...

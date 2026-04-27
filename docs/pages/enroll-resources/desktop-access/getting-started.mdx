@@ -59,17 +59,19 @@ To prepare a Windows computer:
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
 {/*lint ignore ordered-list-marker-value*/}
-2. Export the Teleport user certificate authority by running the following
-   command, assigning <Var name="teleport.example.com"/> to your
-   Teleport cluster address:
+2. Export the Teleport certificate authority by running the following command,
+   assigning <Var name="teleport.example.com"/> to your Teleport cluster
+   address:
 
    ```code
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple 
-   user CAs (one for each Auth Service instance). You can download a bundle containing
-   all CAs by appending `&format=zip` to the URL.
+   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple
+   CA certificates (one for each Auth Service instance). You can download a bundle
+   containing all certificates by appending `&format=zip` to the URL.
+
+   (!docs/pages/includes/desktop-access/windows-ca-note.mdx!)
 
 3. Download the Teleport Windows Auth setup program:
 
@@ -106,13 +108,18 @@ $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
 
+   Once this is done, you can verify the Teleport authentication package is loaded by running the following command in a Command Prompt and confirming that `teleport` appears in the list:
+
+   ```code
+   $ REG QUERY "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v "Authentication Packages"
+   ```
 
 If you want to automate the installation process, you can run the setup program from
 an administrative Command Prompt or PowerShell console with the following command:
 
 ```code
 $ teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe install --cert=teleport.cer -r
-```
+``` 
 
 ## Step 2/4. Configure the Windows Desktop Service
 
@@ -153,7 +160,7 @@ Windows Desktop Service by running the following command:
    ```
 
    If Teleport isn't installed on the Linux server, follow the appropriate [Installation
-instructions](../../installation/linux.mdx) for your environment.
+instructions](../../installation/single-machine/linux.mdx) for your environment.
 
 1. Configure the `/etc/teleport.yaml` file on the Linux server with settings similar to the
 following for the Windows Desktop Service:
@@ -241,6 +248,29 @@ following for the Windows Desktop Service:
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Windows Desktop Service"!)
 
+<Checkpoint
+  title="Verify the Windows Desktop Service is running"
+  description="Confirm that the Teleport Windows Desktop Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
+  - Check the service status on the Linux server: 
+  
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors: 
+  
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify the token hasn't expired (tokens are valid for 30 minutes by default).
+
+  - Ensure the Linux server can reach the Teleport Proxy Service.
+
+</Checkpoint>
+
 ## Step 3/4. Configure remote Windows desktop access
 
 To access a remote desktop, a Teleport user must have a role with the
@@ -312,6 +342,26 @@ Windows login to use for the connection.
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
+
+<Checkpoint
+  title="Verify Windows desktop access"
+  description="Confirm that you can connect to the Windows desktop and see the Windows login screen or desktop."
+>
+  Here are some troubleshooting tips:
+  
+  - Ensure your Teleport user is assigned the `windows-desktop-admins` role (or equivalent role with desktop permissions).
+
+  - Verify the Windows login you selected exists on the Windows computer.
+
+  - Check that RDP port 3389 is open between the Linux server running the Desktop Service and the Windows host.
+
+  - If the connection fails, review the Windows Desktop Service logs on the Linux server: 
+  
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+</Checkpoint>
 
 ## Uninstall
 

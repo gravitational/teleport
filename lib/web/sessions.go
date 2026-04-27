@@ -51,6 +51,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -603,9 +604,10 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
+	expiry := c.cfg.Session.GetEarliestExpiry()
+
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
-	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
@@ -640,6 +642,7 @@ type sessionCacheOptions struct {
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
+	buildType                           string
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -674,6 +677,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		proxySigner:                         config.proxySigner,
 		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
+		buildType:                           config.buildType,
 	}
 
 	// periodically close expired and unused sessions
@@ -700,6 +704,7 @@ type sessionCache struct {
 	sessionLingeringThreshold time.Duration
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
+	buildType    string
 
 	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
@@ -776,7 +781,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // It only stops when ctx is done.
 func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if s.buildType != modules.BuildEnterprise {
 		return
 	}
 
@@ -954,7 +959,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -972,6 +977,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
@@ -1016,6 +1027,21 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	sctx, ok := i.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return sctx, nil
@@ -1140,6 +1166,26 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetTLSPriv())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

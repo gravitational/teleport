@@ -29,8 +29,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -64,8 +64,6 @@ type HandlerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// WebPublicAddr
-	WebPublicAddr string
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
@@ -181,14 +179,13 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	if ws.GetUser() != identity.Username {
 		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: userMeta,
+			UserMetadata: userMetadata(identity, ws.GetUser()),
+			AppMetadata:  appMetadata(identity),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  clientConn.LocalAddr().String(),
 				RemoteAddr: clientConn.RemoteAddr().String(),
@@ -246,7 +243,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 		return isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if i < 0 {
-		return trace.NotFound("all app servers unheatlhy")
+		return trace.NotFound("all app servers unhealthy")
 	}
 
 	return nil
@@ -421,6 +418,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
@@ -432,18 +430,14 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		err := trace.AccessDenied("session owner %q does not match caller %q",
 			ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: userMeta,
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
+			UserMetadata:       userMetadata(identity, ws.GetUser()),
+			AppMetadata:        appMetadata(identity),
+			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
@@ -470,21 +464,16 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ws.GetBearerToken() != subjectValue {
-		err := trace.AccessDenied("subject session token does not match")
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+	if err := checkSubjectToken(subjectValue, ws); err != nil {
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  "unknown", // we don't have client's username, since this came from an http request with cookies.
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
+			// Do not use an identity in this event since token cannot be
+			// validated.
+			UserMetadata:       userMetadata(nil, ws.GetUser()),
+			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
@@ -570,6 +559,41 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 
 	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host(), launcherURLParams{})
 	return urlString, true
+}
+
+func (h *Handler) emitAuditEvent(event apievents.AuditEvent) {
+	if err := h.c.AuthClient.EmitAuditEvent(h.closeContext, event); err != nil {
+		h.logger.WarnContext(h.closeContext, "Failed to emit audit event", "error", err)
+	}
+}
+
+func connectionMetadataFromRequest(r *http.Request) apievents.ConnectionMetadata {
+	return apievents.ConnectionMetadata{
+		LocalAddr:  r.Host,
+		RemoteAddr: r.RemoteAddr,
+	}
+}
+
+func userMetadata(identity *tlsca.Identity, login string) apievents.UserMetadata {
+	if identity == nil {
+		return apievents.UserMetadata{
+			User:  "unknown",
+			Login: login,
+		}
+	}
+	m := identity.GetUserMetadata()
+	m.Login = login
+	return m
+}
+
+func appMetadata(identity *tlsca.Identity) apievents.AppMetadata {
+	if identity == nil {
+		return apievents.AppMetadata{}
+	}
+	return apievents.AppMetadata{
+		AppName:       identity.RouteToApp.Name,
+		AppPublicAddr: identity.RouteToApp.PublicAddr,
+	}
 }
 
 const (
@@ -669,7 +693,17 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 			}
 		}
 
-		u.Path = path.Join(urlPath...)
+		// Percent-encode every segment so that slashes in ARNs
+		// are not interpreted as path separators during URL
+		// serialization. Use strings.Join instead of path.Join
+		// to preserve the percent-encoded segments.
+		for i, s := range urlPath {
+			urlPath[i] = url.PathEscape(s)
+		}
+		u.RawPath = "/" + strings.Join(urlPath, "/")
+		// Error is unreachable: RawPath was built from
+		// PathEscape output above.
+		u.Path, _ = url.PathUnescape(u.RawPath)
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly

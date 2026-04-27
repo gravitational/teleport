@@ -43,6 +43,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -51,10 +53,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -503,15 +508,35 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName   string           `yaml:"token_name"`
-	TokenSecret string           `yaml:"token_secret,omitempty"`
-	Method      types.JoinMethod `yaml:"method"`
-	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName    string             `yaml:"token_name"`
+	TokenSecret  string             `yaml:"token_secret,omitempty"`
+	Method       types.JoinMethod   `yaml:"method"`
+	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
+	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
 type AzureJoinParams struct {
 	ClientID string `yaml:"client_id"`
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string `yaml:"registration_secret_value"`
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string `yaml:"registration_secret_path"`
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string `yaml:"static_key_path"`
 }
 
 // ConnectionRate configures rate limiter
@@ -763,6 +788,9 @@ type Auth struct {
 	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
+	// StaticScopedTokens are pre-defined, scoped host provisioning tokens supplied via config file
+	// for environments where paranoid security is not needed
+	StaticScopedTokens StaticScopedTokens `yaml:"scoped_tokens,omitempty"`
 	// Authentication holds authentication configuration information like authentication
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
@@ -935,6 +963,8 @@ type CAKeyParams struct {
 	// AWSKMS configures AWS Key Management Service to to be used for
 	// all CA private key crypto operations.
 	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
+	// HealthCheck contains configuration for keystore health checking.
+	HealthCheck *servicecfg.KeystoreHealthCheck `yaml:"health_check,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -1069,6 +1099,122 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	return provisionTokens, nil
 }
 
+// StaticScopedTokens is the list of [StaticScopedToken] configurations that
+// should be used to generate the auth service's [joiningv1.StaticScopedTokens]
+// resource.
+type StaticScopedTokens []StaticScopedToken
+
+// Parse converts [StaticScopedTokens] into [*joiningv1.StaticScopedTokens] so
+// they can be used to provision static scoped tokens.
+func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
+	var scopedTokens []*joiningv1.ScopedToken
+	for _, st := range t {
+		if err := st.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if st.Path != "" {
+			tokenDef, err := os.ReadFile(st.Path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if err := yaml.Unmarshal(tokenDef, &st); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		roles, err := types.NewTeleportRoles(st.Roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		immutableLabels, err := st.ImmutableLabels.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		scopedToken := &joiningv1.ScopedToken{
+			Version: types.V1,
+			Kind:    types.KindScopedToken,
+			Metadata: &headerv1.Metadata{
+				Name: st.Name,
+			},
+			Scope: scopes.Root,
+			Spec: &joiningv1.ScopedTokenSpec{
+				Roles:           roles.StringSlice(),
+				AssignedScope:   st.Scope,
+				JoinMethod:      string(types.JoinMethodToken),
+				UsageMode:       string(joining.TokenUsageModeUnlimited),
+				ImmutableLabels: immutableLabels,
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Secret: st.Secret,
+			},
+		}
+
+		if err := joining.StrongValidateToken(scopedToken); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		scopedTokens = append(scopedTokens, scopedToken)
+	}
+
+	return &joiningv1.StaticScopedTokens{
+		Version: types.V1,
+		Kind:    types.KindStaticScopedTokens,
+		Scope:   scopes.Root,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameStaticScopedTokens,
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
+			Tokens: scopedTokens,
+		},
+	}, nil
+}
+
+// ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
+type ImmutableLabels struct {
+	SSH map[string]string `yaml:"ssh"`
+}
+
+// Parse converts [ImmutableLabels] into [*joininv1.ImmutableLabels] so they
+// can be used to provision static scoped tokens.
+func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
+	if il == nil {
+		return nil, nil
+	}
+
+	return &joiningv1.ImmutableLabels{
+		Ssh: il.SSH,
+	}, nil
+}
+
+// StaticScopedToken is a statically defined scoped token. It is meant to capture
+// yaml configuration that can be used to generate a [joiningv1.ScopedToken].
+type StaticScopedToken struct {
+	Name            string           `yaml:"name"`
+	Secret          string           `yaml:"secret"`
+	Roles           []string         `yaml:"roles"`
+	Scope           string           `yaml:"scope"`
+	Path            string           `yaml:"path"`
+	ImmutableLabels *ImmutableLabels `yaml:"immutable_labels"`
+}
+
+// Validate whether or not a [StaticScopedToken] is well formed.
+//
+// Returns an error if both the "path" field is defined alongside any of
+// the other fields.
+func (s StaticScopedToken) Validate() error {
+	isPathToken := s.Path != ""
+	isDefinedToken := s.Name != "" || s.Secret != "" || s.Roles != nil || s.Scope != ""
+
+	if isPathToken && isDefinedToken {
+		return trace.BadParameter("A static_scoped_token must either define a path to a yaml file describing the token or the token definition itself, but not both")
+	}
+
+	return nil
+}
+
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
 	Type           string                     `yaml:"type"`
@@ -1094,6 +1240,13 @@ type AuthenticationConfig struct {
 	// Defaults to true if the Webauthn is configured, defaults to false
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
+
+	// AllowCLIAuthViaBrowser enables/disables browser-based authentication for
+	// authenticating CLI sessions.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	AllowCLIAuthViaBrowser *types.BoolOption `yaml:"allow_cli_auth_via_browser"`
 
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
@@ -1188,6 +1341,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowLocalAuth:          a.LocalAuth,
 		AllowPasswordless:       a.Passwordless,
 		AllowHeadless:           a.Headless,
+		AllowCLIAuthViaBrowser:  a.AllowCLIAuthViaBrowser,
 		DeviceTrust:             dt,
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
@@ -1713,13 +1867,13 @@ type PAM struct {
 }
 
 // Parse returns a parsed PAM config.
-func (p *PAM) Parse() *servicecfg.PAMConfig {
+func (p *PAM) Parse() *pamcfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &servicecfg.PAMConfig{
+	return &pamcfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
@@ -1741,11 +1895,14 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// CgroupPath controls where cgroupv2 hierarchy is mounted.
+	// Deprecated: CgroupPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// RootPath root directory for the Teleport cgroups.
-	// Optional, defaults to /teleport
+	// Deprecated: RootPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	RootPath string `yaml:"root_path"`
 }
 
@@ -1757,8 +1914,6 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
-		CgroupPath:        b.CgroupPath,
-		RootPath:          b.RootPath,
 	}
 }
 
@@ -2310,6 +2465,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *LLM `yaml:"inference,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2377,6 +2535,29 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// LLM contains LLM inference endpoint related configurations.
+type LLM struct {
+	// Format is the LLM inference API format.
+	Format string `yaml:"format"`
+	// Provider is the inference provider that will be used to serve the
+	// requests.
+	Provider string `yaml:"provider"`
+	// Models is the list of supported models, and optionally their name on the
+	// inference provider.
+	Models []LLMModel `yaml:"models,omitempty"`
+	// FallbackModel is a model that will be used if the model requested is not
+	// on the list.
+	FallbackModel string `yaml:"fallback_model,omitempty"`
+}
+
+// LLMModel is a provider model definition.
+type LLMModel struct {
+	// Name defines the model name.
+	Name string `yaml:"name"`
+	// ProviderName is the model name in the configured provider.
+	ProviderName string `yaml:"provider_name,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2793,8 +2974,8 @@ type LDAPConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
-	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// PEMEncodedCACerts are optional PEM encoded CA certs to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACerts string `yaml:"ldap_ca_cert,omitempty"`
 	// LocateServer is the config that enables LDAP server location using DNS SRV records.
 	LocateServer `yaml:"locate_server"`
 }
@@ -2988,8 +3169,8 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
 		}
@@ -2997,7 +3178,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
+		SyncDelay:   types.DurationStringForJamfSpecV1(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
 	}

@@ -1,0 +1,5 @@
+introduction: |-
+  `tbot` is a CLI tool used with **Machine & Workload Identity** that
+  programatically issues and renews short-lived certificates to any service
+  account (e.g, a CI/CD server).
+

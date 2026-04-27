@@ -20,6 +20,7 @@ package tfgen
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -28,11 +29,22 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tfgen/internal"
 )
+
+// invalidTerraformName matches any character that is not valid in a
+// Terraform resource name.
+var invalidTerraformName = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+// SanitizeResourceName returns a copy of name safe for use as Terraform resource
+// name. Chars not matching "a-zA-Z0-9_-" are replaced with underscores.
+func SanitizeResourceName(name string) string {
+	return invalidTerraformName.ReplaceAllString(name, "_")
+}
 
 // Resource for which Terraform configuration can be generated. It's a subset of
 // the common methods between types.Resource and types.Resource153.
@@ -40,6 +52,55 @@ type Resource interface {
 	GetKind() string
 	GetSubKind() string
 	GetVersion() string
+}
+
+// HeaderResource is a resource that stores kind/version/metadata in a header.
+//
+// Use WrapHeaderResource to adapt resource to the Resource interface.
+// Unlike most Teleport resources where fields kind/version/metadata are top-level
+// some resources e.g. access_list, has these fields stored inside a "header" field.
+type HeaderResource interface {
+	proto.Message
+	GetHeader() *headerv1.ResourceHeader
+}
+
+// headerResourceWrapper wraps a HeaderResource to implement Resource interface.
+type headerResourceWrapper struct {
+	HeaderResource
+}
+
+func (w *headerResourceWrapper) GetKind() string {
+	if h := w.GetHeader(); h != nil {
+		return h.GetKind()
+	}
+	return ""
+}
+
+func (w *headerResourceWrapper) GetSubKind() string {
+	if h := w.GetHeader(); h != nil {
+		return h.GetSubKind()
+	}
+	return ""
+}
+
+func (w *headerResourceWrapper) GetVersion() string {
+	if h := w.GetHeader(); h != nil {
+		return h.GetVersion()
+	}
+	return ""
+}
+
+// ProtoReflect forwards to the underlying proto message so the wrapper
+// can be used with reflectMessage.
+func (w *headerResourceWrapper) ProtoReflect() protoreflect.Message {
+	return w.HeaderResource.ProtoReflect()
+}
+
+// WrapHeaderResource wraps a resource that has kind/version in a header
+// (e.g. access_list) to implement the Resource interface for use with
+// func Generate.
+func WrapHeaderResource(r HeaderResource) Resource {
+	return &headerResourceWrapper{r}
 }
 
 // Generate Terraform configuration for the given resource protobuf message, so
@@ -84,16 +145,27 @@ func generateResource(
 
 	resourceName := opts.resourceName
 	if resourceName == "" {
-		if v, ok := resource.(interface {
-			GetMetadata() *headerv1.Metadata
-		}); ok {
+		switch v := resource.(type) {
+		case interface{ GetMetadata() *headerv1.Metadata }:
+			// Some resources use a proto-generated headerv1.Metadata pointer.
 			resourceName = v.GetMetadata().GetName()
-		}
-		if v, ok := resource.(interface {
-			GetMetadata() types.Metadata
-		}); ok {
+		case interface{ GetMetadata() types.Metadata }:
+			// Some resources use the types.Metadata value type.
 			resourceName = v.GetMetadata().Name
+		case interface {
+			GetHeader() *headerv1.ResourceHeader
+		}:
+			// Some proto-generated resources (e.g. access_list) store
+			// metadata inside a header field.
+			if v.GetHeader() != nil {
+				resourceName = v.GetHeader().GetMetadata().GetName()
+			}
 		}
+	}
+
+	// Add any optinal comment about the resource at the top of the resourceBlock.
+	if opts.resourceBlockComment != "" {
+		file.Body().AppendUnstructuredTokens(commentToTokens(opts.resourceBlockComment))
 	}
 
 	resourceBlock := file.Body().AppendNewBlock(
@@ -101,31 +173,56 @@ func generateResource(
 		[]string{resourceType, resourceName},
 	)
 
-	// Top level fields: version and sub_kind.
-	if v := resource.GetVersion(); v != "" {
-		resourceBlock.Body().SetAttributeValue("version", cty.StringVal(v))
+	// Add the terraform depends_on meta-argument to the resource block.
+	if len(opts.dependsOn) > 0 {
+		dependsOnTokens := make([]hclwrite.Tokens, 0, len(opts.dependsOn))
+		for _, d := range opts.dependsOn {
+			dependsOnTokens = append(dependsOnTokens, hclwrite.TokensForIdentifier(d))
+		}
+		resourceBlock.Body().SetAttributeRaw("depends_on", hclwrite.TokensForTuple(dependsOnTokens))
+		resourceBlock.Body().AppendNewline()
 	}
-	if v := resource.GetSubKind(); v != "" {
-		resourceBlock.Body().SetAttributeValue("sub_kind", cty.StringVal(v))
-	}
-	resourceBlock.Body().AppendNewline()
 
 	msg, err := reflectMessage(resource)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Metadata object.
-	if v := msg.AttributeNamed("metadata"); v != nil {
-		tokens := messageToTokens(fieldPath{"metadata"}, v.Value, opts)
-		if tokens != nil {
-			resourceBlock.Body().SetAttributeRaw("metadata", tokens)
+	// Some resources (e.g. proto access_list) expect kind/version/metadata wrapped in
+	// a header field, while other resources expect these fields as top-level fields.
+	_, hasHeaderField := resource.(*headerResourceWrapper)
+	if hasHeaderField {
+		if header := msg.AttributeNamed("header"); header != nil && !opts.fieldsToOmit["header"] {
+			tokens := messageToTokens(fieldPath{"header"}, header.Value, opts)
+			if tokens != nil {
+				resourceBlock.Body().SetAttributeRaw("header", tokens)
+				resourceBlock.Body().AppendNewline()
+			}
+		}
+	} else {
+		appendNewLine := false
+		if v := resource.GetVersion(); v != "" && !opts.fieldsToOmit["version"] {
+			resourceBlock.Body().SetAttributeValue("version", cty.StringVal(v))
+			appendNewLine = true
+		}
+		if v := resource.GetSubKind(); v != "" && !opts.fieldsToOmit["sub_kind"] {
+			resourceBlock.Body().SetAttributeValue("sub_kind", cty.StringVal(v))
+			appendNewLine = true
+		}
+		if appendNewLine {
+			resourceBlock.Body().AppendNewline()
+		}
+		if v := msg.AttributeNamed("metadata"); v != nil && !opts.fieldsToOmit["metadata"] {
+			tokens := messageToTokens(fieldPath{"metadata"}, v.Value, opts)
+			if tokens != nil {
+				resourceBlock.Body().SetAttributeRaw("metadata", tokens)
+				resourceBlock.Body().AppendNewline()
+			}
 		}
 	}
-	resourceBlock.Body().AppendNewline()
 
 	// Spec object.
-	if v := msg.AttributeNamed("spec"); v != nil {
+	if v := msg.AttributeNamed("spec"); v != nil && !opts.fieldsToOmit["spec"] {
 		tokens := messageToTokens(fieldPath{"spec"}, v.Value, opts)
 		if tokens != nil {
 			resourceBlock.Body().SetAttributeRaw("spec", tokens)
@@ -158,6 +255,12 @@ func messageToTokens(
 	var tokens hclwrite.Tokens
 	for _, attr := range val.Message().Attributes {
 		fieldPath := append(path, attr.Name)
+		fieldPathStr := fieldPath.String()
+
+		if opts.fieldsToOmit[fieldPathStr] {
+			continue
+		}
+
 		comment, hasComment := opts.fieldComments[fieldPath.String()]
 
 		valueTokens := valueToTokens(
@@ -380,8 +483,12 @@ func valueToCty(
 		messageVal := val.Message()
 		attrs := make(map[string]cty.Value)
 		for _, attr := range messageVal.Attributes {
+			attrPath := append(path, attr.Name)
+			if opts.fieldsToOmit[attrPath.withoutIndexes().String()] {
+				continue
+			}
 			if val := valueToCty(
-				append(path, attr.Name),
+				attrPath,
 				attr.Value,
 				opts,
 				false, /* emitZeroVal */
@@ -398,3 +505,21 @@ func valueToCty(
 type fieldPath []string
 
 func (p fieldPath) String() string { return strings.Join(p, ".") }
+
+// withoutIndexes returns the field path with indexes stripped e.g. [0], etc.
+// This is used to help match fields to omit when the field is inside a list
+// regardless of the index.
+//
+// For example, if the field path is "spec.user.friends[N].pets[M].name",
+// withoutIndexes will return "spec.user.friends.pets.name".
+func (p fieldPath) withoutIndexes() fieldPath {
+	result := make(fieldPath, 0, len(p))
+	for _, part := range p {
+		// Ignore parts that look like an index (e.g. [0], [1], etc.)
+		if len(part) > 0 && (part[0] == '[' && part[len(part)-1] == ']') {
+			continue
+		}
+		result = append(result, part)
+	}
+	return result
+}

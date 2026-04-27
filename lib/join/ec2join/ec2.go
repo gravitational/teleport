@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/services"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -63,7 +63,7 @@ func ec2ClientFromConfig(cfg aws.Config) EC2Client {
 // checkEC2AllowRules checks that the iid matches at least one of the allow
 // rules of the given token.
 func checkEC2AllowRules(ctx context.Context, params *CheckEC2RequestParams, iid *imds.InstanceIdentityDocument) error {
-	allowRules := params.ProvisionToken.GetAllowRules()
+	allowRules := params.ProvisionToken.GetAWSAllowRules()
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the IID must match
 		if len(rule.AWSAccount) > 0 {

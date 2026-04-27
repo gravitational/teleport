@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -52,6 +53,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
@@ -105,7 +107,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		name           string
 		expectedResult bool
 		expectedError  string
-		req            *FileTransferRequest
+		req            *fileTransferRequestWithApprovers
 		reqID          string
 		location       string
 	}{
@@ -121,9 +123,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: false,
 			expectedError:  "Teleport user does not match original requester",
 			reqID:          "123",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "michael",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "michael",
+				},
 				approvers: make(map[string]*party),
 			},
 		},
@@ -133,11 +137,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/badlocation",
+				},
 				approvers: make(map[string]*party),
-				Location:  "~/badlocation",
 			},
 		},
 		{
@@ -146,11 +152,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/Downloads",
+				},
 				approvers: approvers,
-				Location:  "~/Downloads",
 			},
 		},
 	}
@@ -1311,10 +1319,14 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 	// Establish a connection to the newly created server.
 	sessCh := make(chan *tracessh.Session)
 	go func() {
-		client, err := tracessh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
-			Timeout:         10 * time.Second,
-			User:            "user",
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		client, err := apissh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), apissh.ClientConfig{
+			Timeout: 10 * time.Second,
+			User:    "user",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
 		if err != nil {

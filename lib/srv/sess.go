@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -83,7 +84,7 @@ var serverSessions = prometheus.NewGauge(
 
 func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
 	var modeCtrl bytes.Buffer
-	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	fmt.Fprintf(&modeCtrl, "\r\nTeleport > Joining session with participant mode: %s\r\n", string(m))
 	modeCtrl.WriteString("Teleport > Controls\r\n")
 	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
 	if m == types.SessionModeratorMode {
@@ -520,7 +521,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.Wrap(err)
 	}
 	if approved {
-		scx.setApprovedFileTransferRequest(sess.fileTransferReq)
+		scx.setApprovedFileTransferRequest(&sess.fileTransferReq.FileTransferRequest)
 		sess.fileTransferReq = nil
 	}
 
@@ -545,7 +546,7 @@ const (
 
 // notifyFileTransferRequestUnderLock is called to notify all members of a party that a file transfer request has been created/approved/denied.
 // The notification is a global ssh request and requires the client to update its UI state accordingly.
-func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
+func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *fileTransferRequestWithApprovers, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
 		s.logger.DebugContext(
@@ -744,7 +745,7 @@ type session struct {
 	// fileTransferReq a pending file transfer request for this session.
 	// If the request is denied or approved it should be set to nil to
 	// prevent its reuse.
-	fileTransferReq *FileTransferRequest
+	fileTransferReq *fileTransferRequestWithApprovers
 
 	io       *TermManager
 	inWriter io.WriteCloser
@@ -1424,44 +1425,48 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		return trace.Wrap(err)
 	}
 
+	bpfEnabled := scx.srv.GetBPF().Enabled()
 	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
-	} else if scx.srv.GetBPF().Enabled() {
+	} else if bpfEnabled {
 		// in theory this should never happen, as this method should only ever be called either on a
 		// standard ssh agent (in which case we will always have an access permit) or a recording
 		// proxy (in which case we will never have bpf enabled).
 		return trace.BadParameter("cannot start an interactive session with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	// Open a BPF recording session. If BPF was not configured, not available,
-	// or running in a recording proxy, OpenSession is a NOP.
-	sessionContext := &bpf.SessionContext{
-		Context:               scx.srv.Context(),
-		PID:                   s.term.PID(),
-		Emitter:               s.emitter,
-		Namespace:             scx.srv.GetNamespace(),
-		SessionID:             s.id.String(),
-		ServerID:              scx.srv.ID(),
-		ServerHostname:        scx.srv.GetInfo().GetHostname(),
-		Login:                 scx.Identity.Login,
-		User:                  scx.Identity.TeleportUser,
-		UserOriginClusterName: scx.Identity.OriginClusterName,
-		UserRoles:             scx.Identity.MappedRoles,
-		UserTraits:            scx.Identity.Traits,
-		Events:                eventsMap,
-	}
+	// Only open a BPF recording session if Enhanced Session Recording
+	// is enabled on the server and the access permit enables at least
+	// one event.
+	if bpfEnabled && len(eventsMap) > 0 {
+		auditSessID, err := s.term.ReadAuditSessionID()
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed to get BPF PID", "error", err)
+			return trace.Wrap(err)
+		}
 
-	if err := s.term.WaitForChild(ctx); err != nil {
-		return trace.Wrap(err)
-	}
+		sessionContext := &bpf.SessionContext{
+			Context:               scx.srv.Context(),
+			AuditSessionID:        auditSessID,
+			Emitter:               s.emitter,
+			Namespace:             scx.srv.GetNamespace(),
+			SessionID:             s.id.String(),
+			ServerID:              scx.srv.ID(),
+			ServerHostname:        scx.srv.GetInfo().GetHostname(),
+			Login:                 scx.Identity.Login,
+			User:                  scx.Identity.TeleportUser,
+			UserOriginClusterName: scx.Identity.OriginClusterName,
+			UserRoles:             scx.Identity.MappedRoles,
+			UserTraits:            scx.Identity.Traits,
+			Events:                eventsMap,
+		}
 
-	bpfService := scx.srv.GetBPF()
-	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
-		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
-		return trace.Wrap(err)
-	} else if cgroupID > 0 {
-		// If a cgroup ID was assigned then enhanced session recording was enabled.
+		bpfService := scx.srv.GetBPF()
+		if err := bpfService.OpenSession(sessionContext); err != nil {
+			s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
+			return trace.Wrap(err)
+		}
 		s.setHasEnhancedRecording(true)
 		go func() {
 			// Close the BPF recording session once the session is closed
@@ -1474,7 +1479,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 
 	s.logger.DebugContext(ctx, "Waiting for continue signal.")
 
-	// Process has been placed in a cgroup, continue execution.
+	// Signal to child that it may execute the requested program.
 	s.term.Continue()
 
 	s.logger.DebugContext(ctx, "Got continue signal.")
@@ -1483,9 +1488,9 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
 	go func() {
-		result, err := s.term.Wait()
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", err)
+		result := s.term.Wait()
+		if result.Error != nil {
+			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", result.Error)
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1497,14 +1502,12 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		case <-s.doneCh:
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
-			}
+		if err := s.registry.broadcastResult(s.id, result); err != nil {
+			s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
 		}
 
-		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
-			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
+		if result.Command != "" {
+			emitExecAuditEvent(scx, result)
 		}
 
 		s.emitSessionEndEvent()
@@ -1531,7 +1534,7 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 		s.term = term
 	}
 
-	if err := s.term.Run(ctx); err != nil {
+	if err := s.term.Run(ctx, s.io); err != nil {
 		s.logger.ErrorContext(ctx, "Unable to run shell command.", "error", err)
 		return trace.ConvertSystemError(err)
 	}
@@ -1607,37 +1610,31 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 
-	// Start execution. If the program failed to start, send that result back.
-	// Note this is a partial start. Teleport will have re-exec'ed itself and
-	// wait until it's been placed in a cgroup and told to continue.
-	result, err := execRequest.Start(ctx, channel)
-	if err != nil {
+	if err := execRequest.Start(ctx, channel); err != nil {
 		return trace.Wrap(err)
 	}
-	if result != nil {
-		s.logger.DebugContext(
-			ctx, "Exec request completed.",
-			"request", execRequest,
-			"result", result,
-		)
-		scx.SendExecResult(ctx, *result)
-	}
 
+	bpfEnabled := scx.srv.GetBPF().Enabled()
 	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
-	} else if scx.srv.GetBPF().Enabled() {
+	} else if bpfEnabled {
 		// in theory this should never happen, as this method should only ever be called either on a
 		// standard ssh agent (in which case we will always have an access permit) or a recording
 		// proxy (in which case we will never have bpf enabled).
 		return trace.BadParameter("cannot start exec with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	// Open a BPF recording session. If BPF was not configured, not available,
-	// or running in a recording proxy, OpenSession is a NOP.
+	auditSessID, err := execRequest.ReadAuditSessionID()
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to get child PID", "error", err)
+		return trace.Wrap(err)
+	}
+
+	// Open a BPF recording session.
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
-		PID:                   scx.execRequest.PID(),
+		AuditSessionID:        auditSessID,
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),
@@ -1649,12 +1646,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	if err := execRequest.WaitForChild(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
-	if err != nil {
+	if err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to open enhanced recording (exec) session.",
 			"command", execRequest.GetCommand(),
@@ -1663,27 +1655,24 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 
-	// If a cgroup ID was assigned then enhanced session recording was enabled.
-	if cgroupID > 0 {
-		s.setHasEnhancedRecording(true)
-	}
+	s.setHasEnhancedRecording(bpfEnabled && len(eventsMap) > 0)
 
-	// Process has been placed in a cgroup, continue execution.
+	s.logger.DebugContext(ctx, "Waiting for continue signal.")
+
+	// Signal to child that it may execute the requested program.
 	execRequest.Continue()
+
+	s.logger.DebugContext(ctx, "Got continue signal.")
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result = execRequest.Wait()
-		if result != nil {
-			scx.SendExecResult(ctx, *result)
-		}
+		result := execRequest.Wait()
+		scx.SendExecResult(ctx, result)
 
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
-		// Close the BPF recording session. If BPF was not configured, not available,
-		// or running in a recording proxy, this is simply a NOP.
 		err = scx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)
@@ -1852,24 +1841,13 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
-// FileTransferRequest is a request to upload or download a file from a node.
-type FileTransferRequest struct {
-	// ID is a UUID that uniquely identifies a file transfer request
-	// and is unlikely to collide with another file transfer request
-	ID string
-	// Requester is the Teleport User that requested the file transfer
-	Requester string
-	// Download is true if the request is a download, false if its an upload
-	Download bool
-	// Filename is the name of the file to upload.
-	Filename string
-	// Location of the requested download or where a file will be uploaded
-	Location string
+type fileTransferRequestWithApprovers struct {
+	reexecsftp.FileTransferRequest
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
 
-func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, error) {
+func (s *session) checkIfFileTransferApproved(req *fileTransferRequestWithApprovers) (bool, error) {
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
@@ -1910,12 +1888,14 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 		return trace.BadParameter("no source file is set for the upload")
 	}
 
-	s.fileTransferReq = &FileTransferRequest{
-		ID:        uuid.New().String(),
-		Requester: params.Requester,
-		Location:  params.Location,
-		Filename:  params.Filename,
-		Download:  params.Download,
+	s.fileTransferReq = &fileTransferRequestWithApprovers{
+		FileTransferRequest: reexecsftp.FileTransferRequest{
+			ID:        uuid.New().String(),
+			Requester: params.Requester,
+			Location:  params.Location,
+			Filename:  params.Filename,
+			Download:  params.Download,
+		},
 		approvers: make(map[string]*party),
 	}
 

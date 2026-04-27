@@ -30,7 +30,7 @@ Enrolling the Okta integration is a guided process and contains four components:
    available only if Teleport Identity Governance is enabled. The SCIM
    integration is optional for enabling user, application, and group sync.
 3. **User sync:** Imports Okta users as Teleport users via a continuous
-   reconciliation loop. It is usually slower than SCIM, but but more reliable,
+   reconciliation loop. It is usually slower than SCIM, but more reliable,
    and does not require a publicly accessible Teleport cluster. Combined with
    SCIM, it provides both speed and reliability.
 4. **Application and group sync:** imports Okta applications and groups as Teleport
@@ -47,14 +47,7 @@ to align with the state defined by Teleport's RBAC configuration.
 
 ## Get started
 
-To start the enrolment, visit the Teleport Web UI. From the left sidebar,
-navigate to **Add New** -> **Integration**. Select the **Okta** tile.
-
-![Enroll an integration](../../../../img/enterprise/plugins/enroll.png)
-
-This will bring you to the SSO integration configuration screen. Read [Guided
-Okta SSO Integration](./guided-sso.mdx) for supplementary instructions as you
-work through the guided flow.
+To start the enrolment, follow the [Guided Okta SSO Integration](./guided-sso.mdx). 
 
 ## Guides
 

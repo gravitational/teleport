@@ -24,6 +24,9 @@
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
 //!   and whose name begins with `CGO`)
 
+// bring in rdp-decoder to export its unmangled symbols in the staticlib
+extern crate rdp_decoder as _;
+
 use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
@@ -34,8 +37,8 @@ use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
-    SharedDirectoryWriteResponse, TdpErrCode,
+    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryRemove,
+    SharedDirectoryTruncateResponse, SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::ffi::CString;
 use std::fmt::Debug;
@@ -253,6 +256,26 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
         cgo_handle,
         "client_handle_tdp_sd_announce",
         move |client_handle| client_handle.handle_tdp_sd_announce(sd_announce),
+    )
+}
+
+/// client_handle_tdp_sd_remove removes a drive that has been redirected over RDP
+///
+///
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+///
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_remove(
+    cgo_handle: CgoHandle,
+    sd_remove: CGOSharedDirectoryRemove,
+) -> CGOErrCode {
+    let sd_remove = SharedDirectoryRemove::from(sd_remove);
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_remove",
+        move |client_handle| client_handle.handle_tdp_sd_remove(sd_remove),
     )
 }
 
@@ -600,6 +623,11 @@ pub struct CGOSharedDirectoryAnnounce {
 }
 
 pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
+
+#[repr(C)]
+pub struct CGOSharedDirectoryRemove {
+    pub directory_id: u32,
+}
 
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoRequest {

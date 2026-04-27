@@ -219,6 +219,7 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 	}
 	staticHostUserResource := staticHostUser
 
+	staticHostUserResource.Kind = apitypes.KindStaticHostUser
 
 	
 	name := staticHostUserResource.Metadata.Name

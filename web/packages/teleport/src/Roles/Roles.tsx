@@ -281,7 +281,7 @@ export function Roles(props: State & RolesProps) {
 function Directions() {
   return (
     <>
-      WARNING Roles are defined using{' '}
+      WARNING: Roles are defined using{' '}
       <Link
         color="text.main"
         target="_blank"

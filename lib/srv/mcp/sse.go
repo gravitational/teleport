@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -49,7 +48,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		return trace.Wrap(err, "parsing SSE URI")
 	}
 
-	session, err := s.makeSessionHandlerWithJWT(ctx, sessionCtx)
+	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
 	}
@@ -136,7 +135,7 @@ func (s *Server) makeBasicHTTPTransport(app types.Application) (http.RoundTrippe
 	// from the target server.
 	tr.ResponseHeaderTimeout = time.Minute
 	tr.TLSClientConfig = utils.TLSConfig(s.cfg.CipherSuites)
-	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode() || app.GetInsecureSkipVerify()
+	tr.TLSClientConfig.InsecureSkipVerify = s.cfg.InsecureMode || app.GetInsecureSkipVerify()
 	return tr, nil
 }
 
@@ -146,7 +145,9 @@ type sseHTTPTransport struct {
 }
 
 func (t *sseHTTPTransport) RoundTrip(r *http.Request) (resp *http.Response, err error) {
-	t.session.rewriteHTTPRequestHeaders(r)
+	if err := t.session.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return t.targetTransport.RoundTrip(r)
 }
 

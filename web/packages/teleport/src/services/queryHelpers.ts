@@ -18,9 +18,11 @@
 
 import * as reactQuery from '@tanstack/react-query';
 import {
+  useMutation,
   type DataTag,
   type DefaultError,
   type InfiniteData,
+  type MutationOptions,
   type QueryFunction,
   type UseInfiniteQueryOptions,
   type UseInfiniteQueryResult,
@@ -401,6 +403,45 @@ export function createQueryHook<
   };
 
   return wrapped;
+}
+
+/**
+ * createMutationHook is a utility function to create a TanStack Query `useMutation`
+ * hook from a service method.
+ *
+ * This is useful for quickly creating a mutation hook.
+ *
+ * @example
+ * This example shows how to create a mutation hook for creating a user.
+ *
+ * ```tsx
+ * const useCreateUser = createMutationHook(userService.createUser);
+ * ```
+ *
+ * Usage:
+ *
+ * ```tsx
+ * function CreateUserForm() {
+ *   const mutation = useCreateUser({
+ *     onSuccess: (data) => {
+ *       // data is correctly inferred as User
+ *     },
+ *   });
+ *
+ *   const handleSubmit = (userData: User) => {
+ *     mutation.mutate(userData);
+ *   };
+ *
+ *   // ...
+ * }
+ * ```
+ *
+ */
+export function createMutationHook<TData, TVariables, TError = DefaultError>(
+  mutationFn: (variables: TVariables) => Promise<TData>
+) {
+  return (options?: MutationOptions<TData, TError, TVariables>) =>
+    useMutation({ mutationFn, ...options });
 }
 
 function isSignalOnlyQueryFn<TData = unknown, TVariables = void>(

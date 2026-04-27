@@ -21,7 +21,9 @@ package app
 import (
 	"crypto/subtle"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -191,10 +193,12 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	}
 	if err := checkSubjectToken(req.SubjectCookieValue, ws); err != nil {
 		h.logger.WarnContext(r.Context(), "Request failed", "error", err)
+		identity, _ := getIdentityFromWebSession(ws)
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
-			sessionID: req.CookieValue,
-			err:       err.Error(),
-			loginName: ws.GetUser(),
+			sessionID:   req.CookieValue,
+			err:         err.Error(),
+			loginName:   ws.GetUser(),
+			appMetadata: appMetadata(identity),
 		})
 		return trace.AccessDenied("access denied")
 	}
@@ -223,30 +227,47 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	})
 
 	requiredApps := strings.Split(req.RequiredApps, ",")
-	if len(requiredApps) > 1 {
-		requiredApps := requiredApps[1:]
-		nextRequiredApp := requiredApps[0]
+	if len(requiredApps) <= 1 {
+		return nil
+	}
 
-		webLauncherURLParams := launcherURLParams{
-			publicAddr:          nextRequiredApp,
-			requiredAppFQDNs:    strings.Join(requiredApps, ","),
-			requiresAppRedirect: true,
-		}
-		addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	requiredApps = requiredApps[1:]
+	nextRequiredApp := requiredApps[0]
+
+	webLauncherURLParams := launcherURLParams{
+		publicAddr:          nextRequiredApp,
+		requiredAppFQDNs:    strings.Join(requiredApps, ","),
+		requiresAppRedirect: true,
+	}
+	addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var publicAddrs []string
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, proxyAddr.Host())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		var publicAddrs []string
-		for _, addr := range h.c.ProxyPublicAddrs {
-			publicAddrs = append(publicAddrs, addr.Host())
-		}
-		proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
-		urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
-		// this request does not return a response, so we can pass this value through a custom header instead
-		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
+		publicAddrs = append(publicAddrs, proxyAddr.Host())
 	}
-
+	if len(publicAddrs) == 0 {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, h.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		reqAddr, err := utils.ParseAddr(r.Host)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		port := reqAddr.Port(443)
+		publicAddrs = []string{net.JoinHostPort(h.clusterName, strconv.Itoa(port))}
+	}
+	proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
+	// this request does not return a response, so we can pass this value through a custom header instead
+	w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	return nil
 }
 
@@ -289,9 +310,10 @@ func getAuthStateCookieName(cookieID string) string {
 }
 
 type emitErrorEventFields struct {
-	loginName string
-	err       string
-	sessionID string
+	loginName   string
+	err         string
+	sessionID   string
+	appMetadata apievents.AppMetadata
 }
 
 func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitErrorEventFields) {
@@ -304,24 +326,17 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 		}
 	}
 
-	event := &apievents.AuthAttempt{
+	h.emitAuditEvent(&apievents.AuthAttempt{
 		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:  "unknown",
-			Login: f.loginName,
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  r.Host,
-			RemoteAddr: r.RemoteAddr,
-		},
+		UserMetadata:       userMetadata(nil, f.loginName),
+		AppMetadata:        f.appMetadata,
+		ConnectionMetadata: connectionMetadataFromRequest(r),
 		Status: apievents.Status{
 			Success: false,
 			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
 		},
-	}
-
-	h.c.AuthClient.EmitAuditEvent(h.closeContext, event)
+	})
 }

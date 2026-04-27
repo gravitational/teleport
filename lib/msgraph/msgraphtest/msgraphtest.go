@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // Server defines fake server.
@@ -67,6 +67,7 @@ func (s *Server) Handler() http.Handler {
 	r.HandleFunc("GET /v1.0/users", s.handleListUsers)
 	r.HandleFunc("GET /v1.0/groups", s.handleListGroups)
 	r.HandleFunc("GET /v1.0/groups/{id}/members", s.handleListGroupMembers)
+	r.HandleFunc("GET /v1.0/groups/{id}/owners/microsoft.graph.user", s.handleListGroupOwners)
 	r.HandleFunc("/v1.0/", s.handleCatchAll)
 	r.HandleFunc("/metadata/identity/oauth2/token", s.handleGetToken)
 
@@ -75,7 +76,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
-	users := make([]*msgraph.User, 0, len(s.Storage.Users))
+	users := make([]*models.User, 0, len(s.Storage.Users))
 	for _, user := range s.Storage.Users {
 		users = append(users, user)
 	}
@@ -88,7 +89,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
-	groups := make([]*msgraph.Group, 0, len(s.Storage.Groups))
+	groups := make([]*models.Group, 0, len(s.Storage.Groups))
 	for _, group := range s.Storage.Groups {
 		groups = append(groups, group)
 	}
@@ -113,9 +114,9 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 		}
 
 		switch member.(type) {
-		case *msgraph.User:
+		case *models.User:
 			memberData["@odata.type"] = "#microsoft.graph.user"
-		case *msgraph.Group:
+		case *models.Group:
 			memberData["@odata.type"] = "#microsoft.graph.group"
 		default:
 			// Default to user if unknown
@@ -127,6 +128,18 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 
 	jsonResponse(w, map[string]interface{}{
 		"value": members,
+	})
+}
+
+func (s *Server) handleListGroupOwners(w http.ResponseWriter, r *http.Request) {
+	groupID := r.PathValue("id")
+
+	s.mu.RLock()
+	owners := s.Storage.GroupOwners[groupID]
+	s.mu.RUnlock()
+
+	jsonResponse(w, map[string]interface{}{
+		"value": owners,
 	})
 }
 
@@ -178,7 +191,7 @@ func (s *Server) handleGetToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // SetUsers updates users storage.
-func (s *Server) SetUsers(users []*msgraph.User) {
+func (s *Server) SetUsers(users []*models.User) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, user := range users {
@@ -189,7 +202,7 @@ func (s *Server) SetUsers(users []*msgraph.User) {
 }
 
 // SetGroups updates groups storage.
-func (s *Server) SetGroups(groups []*msgraph.Group) {
+func (s *Server) SetGroups(groups []*models.Group) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, group := range groups {
@@ -200,14 +213,21 @@ func (s *Server) SetGroups(groups []*msgraph.Group) {
 }
 
 // SetGroupMembers updates group members storage.
-func (s *Server) SetGroupMembers(groupID string, members []msgraph.GroupMember) {
+func (s *Server) SetGroupMembers(groupID string, members []models.GroupMember) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Storage.GroupMembers[groupID] = members
 }
 
+// SetGroupOwners updates group owners storage.
+func (s *Server) SetGroupOwners(groupID string, users []*models.User) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Storage.GroupOwners[groupID] = users
+}
+
 // SetApplications updates application storage.
-func (s *Server) SetApplications(apps []*msgraph.Application) {
+func (s *Server) SetApplications(apps []*models.Application) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, app := range apps {

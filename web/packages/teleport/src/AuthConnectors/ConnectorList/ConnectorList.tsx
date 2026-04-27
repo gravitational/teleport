@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Box } from 'design';
@@ -38,7 +38,7 @@ export function ConnectorList<T extends KindAuthConnectors>({
   setAsDefault,
   onDelete,
 }: Props<T>) {
-  const history = useHistory();
+  const navigate = useNavigate();
   items = items || [];
   const $items = items.map(item => {
     const { id, name, kind } = item;
@@ -56,7 +56,7 @@ export function ConnectorList<T extends KindAuthConnectors>({
         }
         onSetAsDefault={() => setAsDefault({ type: kind, name })}
         isPlaceholder={false}
-        onEdit={() => history.push(cfg.getEditAuthConnectorRoute(kind, name))}
+        onEdit={() => navigate(cfg.getEditAuthConnectorRoute(kind, name))}
         onDelete={onDelete}
         name={name}
       />

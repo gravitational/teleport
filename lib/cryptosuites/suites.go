@@ -131,6 +131,10 @@ const (
 	// RecordingKeyWrapping is a key used for wrapping session recording decryption keys.
 	RecordingKeyWrapping
 
+	// WindowsCARDP represents a key used by the Windows CA to generate RDP
+	// (Remote Desktop Protocol) certificates.
+	WindowsCARDP
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -217,6 +221,7 @@ var (
 		BoundKeypairJoining:  Ed25519,
 		BoundKeypairCAJWT:    ECDSAP256,
 		RecordingKeyWrapping: RSA4096,
+		WindowsCARDP:         RSA2048, // same as UserCATLS
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -252,6 +257,7 @@ var (
 		BoundKeypairJoining:     Ed25519,
 		BoundKeypairCAJWT:       Ed25519,
 		RecordingKeyWrapping:    RSA4096,
+		WindowsCARDP:            ECDSAP256, // same as UserCATLS
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -288,6 +294,7 @@ var (
 		BoundKeypairJoining:     ECDSAP256,
 		BoundKeypairCAJWT:       ECDSAP256,
 		RecordingKeyWrapping:    RSA4096,
+		WindowsCARDP:            ECDSAP256, // same as UserCATLS
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -326,6 +333,7 @@ var (
 		BoundKeypairJoining:     Ed25519,
 		BoundKeypairCAJWT:       ECDSAP256,
 		RecordingKeyWrapping:    RSA4096,
+		WindowsCARDP:            ECDSAP256, // same as UserCATLS
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

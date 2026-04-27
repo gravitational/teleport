@@ -24,6 +24,8 @@ enroll EC2 instances as servers in your Teleport cluster.
 To manually configure IAM policies and SSM documents instead, read [Manual EC2
 Auto-Discovery Configuration](ec2-discovery-manual.mdx).
 
+If you manage multiple AWS accounts in an AWS Organization, see [Organization-level EC2 Auto-Discovery Configuration](ec2-discovery-organization.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -232,7 +234,7 @@ $ sudo teleport discovery bootstrap
 Restart the Teleport service to start discovering new instances:
 
 ```code
-$ sudo systemd restart teleport
+$ sudo systemctl restart teleport
 ```
 
 You can check the status of the Discovery Service with `systemctl status teleport`

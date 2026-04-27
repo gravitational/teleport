@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import * as teleport from 'teleport';
 import { getOSSFeatures } from 'teleport/features';
@@ -36,9 +35,9 @@ export function Story({ value }: { value: teleport.Context }) {
   return (
     <teleport.ContextProvider ctx={ctx}>
       <FeaturesContextProvider value={getOSSFeatures()}>
-        <Router history={createMemoryHistory()}>
+        <MemoryRouter>
           <ClusterListPage />
-        </Router>
+        </MemoryRouter>
       </FeaturesContextProvider>
     </teleport.ContextProvider>
   );

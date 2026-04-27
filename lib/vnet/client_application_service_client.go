@@ -40,6 +40,8 @@ type clientApplicationServiceClient struct {
 	conn *grpc.ClientConn
 }
 
+// newClientApplicationServiceClient creates a gRPC client over a TCP
+// socket using mTLS credentials.
 func newClientApplicationServiceClient(ctx context.Context, creds *credentials, addr string) (*clientApplicationServiceClient, error) {
 	tlsConfig, err := creds.clientTLSConfig()
 	if err != nil {

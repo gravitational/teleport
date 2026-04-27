@@ -34,7 +34,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -247,13 +249,16 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := ssh.NewClientConn(
+			conn, chCh, reqCh, err := apissh.NewClientConn(
+				t.Context(),
 				clientDialConn,
 				"127.0.0.1:222",
-				&ssh.ClientConfig{
+				apissh.ClientConfig{
 					User: test.clientLogin,
-					Auth: []ssh.AuthMethod{
-						ssh.PublicKeys(userCert),
+					PublicKeyAuth: apissh.PublicKeyAuthConfig{
+						Signers: func() ([]ssh.Signer, error) {
+							return []ssh.Signer{userCert}, nil
+						},
 					},
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 					Timeout:         5 * time.Second,
@@ -282,10 +287,9 @@ func TestForwardServer(t *testing.T) {
 
 func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 	t.Helper()
-	keygen := testauthority.New()
 	clientPrivateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientCertBytes, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	clientCertBytes, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:          caSigner,
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
 		CertificateFormat: constants.CertificateFormatStandard,
@@ -408,6 +412,14 @@ func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	return m.events.NewWatcher(ctx, watch)
+}
+
+type mockMFAServiceClient struct {
+	mfav1.MFAServiceClient
+}
+
+func (m mockAuthClient) MFAServiceClient() mfav1.MFAServiceClient {
+	return &mockMFAServiceClient{}
 }
 
 type mockAccessPoint struct {

@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -45,14 +44,15 @@ import (
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	app          types.Application
-	publicPort   string
-	cipherSuites []uint16
-	jwt          string
-	traits       wrappers.Traits
-	log          *slog.Logger
+	app           types.Application
+	publicPort    string
+	cipherSuites  []uint16
+	jwt           string
+	rewriteTraits wrappers.Traits
+	log           *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
-	hostID string
+	hostID       string
+	insecureMode bool
 }
 
 // Check validates configuration.
@@ -208,7 +208,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.Header.Set(teleport.AppJWTHeader, t.jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traits, t.log)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.rewriteTraits, t.log)
 	return nil
 }
 
@@ -220,6 +220,12 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 	uriPath := path.Clean(t.uri.Path)
 	if uriPath == "." {
 		uriPath = "/"
+	}
+	// path.Clean strips trailing slashes, but administrators may configure
+	// URIs like http://backend:9000/dashboard/ where the trailing slash is
+	// significant. Preserve it when the original URI had one.
+	if uriPath != "/" && strings.HasSuffix(t.uri.Path, "/") {
+		uriPath += "/"
 	}
 	if uriPath == "/" {
 		return "", false
@@ -284,7 +290,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Don't verify the server's certificate if Teleport was started with
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
 	// the application config.
-	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
+	tlsConfig.InsecureSkipVerify = (c.insecureMode || c.app.GetInsecureSkipVerify())
 
 	return tlsConfig, nil
 }

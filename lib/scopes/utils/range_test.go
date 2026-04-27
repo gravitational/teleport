@@ -19,7 +19,6 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -38,9 +37,7 @@ func TestRangeScopedRoles(t *testing.T) {
 	const roleCount = 503
 
 	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	upstream := roles.NewRoleCache()
 
@@ -79,18 +76,17 @@ func TestRangeScopedRoleAssignments(t *testing.T) {
 	const assignmentCount = 503
 
 	t.Parallel()
+	ctx := t.Context()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	upstream := assignments.NewAssignmentCache()
+	upstream := assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
 
 	expectedAssignmentNames := make([]string, 0, assignmentCount)
 
 	for range assignmentCount {
 		name := uuid.New().String()
 		err := upstream.Put(&scopedaccessv1.ScopedRoleAssignment{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerv1.Metadata{
 				Name: name,
 			},

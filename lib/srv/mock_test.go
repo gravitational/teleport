@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -54,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -107,8 +109,12 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
-	_, scx.logw, err = os.Pipe()
-	require.NoError(t, err)
+	logCfgWriter := srv.ChildLogConfig().Writer
+	if fileWriter, ok := logCfgWriter.(*os.File); ok {
+		scx.logw = fileWriter
+	} else {
+		require.NoError(t, scx.streamChildLogs(logCfgWriter))
+	}
 
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
@@ -150,10 +156,13 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	authServer, err := auth.NewServer(&auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
-		Authority:      testauthority.New(),
+		Authority:      authority,
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
@@ -181,6 +190,7 @@ type mockServer struct {
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
+	pamCfg    *pamcfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -226,8 +236,11 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
+	if m.pamCfg != nil {
+		return m.pamCfg
+	}
+	return new(pamcfg.PAMConfig)
 }
 
 // GetClock returns a clock setup for the server
@@ -336,10 +349,11 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 // ChildLogConfig returns a noop log configuration.
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
-		ExecLogConfig: ExecLogConfig{
-			Level: &slog.LevelVar{},
+		ExecLogConfig: reexec.ExecLogConfig{
+			Level:  slog.LevelDebug,
+			Format: "json",
 		},
-		Writer: io.Discard,
+		Writer: os.Stdout,
 	}
 }
 
@@ -450,7 +464,7 @@ type fakeBPF struct {
 	bpf bpf.NOP
 }
 
-func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) (uint64, error) {
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
 	return f.bpf.OpenSession(ctx)
 }
 
@@ -464,4 +478,8 @@ func (f fakeBPF) Close(restarting bool) error {
 
 func (f fakeBPF) Enabled() bool {
 	return true
+}
+
+func (f fakeBPF) LostEvents() bpf.EventCount {
+	return bpf.EventCount{}
 }

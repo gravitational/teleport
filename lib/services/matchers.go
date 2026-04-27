@@ -185,6 +185,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindLinuxDesktop,
 		types.KindUserGroup,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,

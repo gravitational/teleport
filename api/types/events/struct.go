@@ -23,6 +23,8 @@ import (
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	protobuf "google.golang.org/protobuf/proto"
 )
 
 // Struct is a wrapper around types.Struct
@@ -97,6 +99,11 @@ func (s *Struct) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// DecodeToMap decodes a protobuf Struct into a map[string]any
+func DecodeToMap(s *Struct) (map[string]any, error) {
+	return decodeToMap(&s.Struct)
+}
+
 // EncodeMap encodes map[string]interface{} to map<string, Value>
 func EncodeMap(msg map[string]interface{}) (*Struct, error) {
 	data, err := json.Marshal(msg)
@@ -130,4 +137,22 @@ func MustEncodeMap(msg map[string]interface{}) *Struct {
 		panic(err)
 	}
 	return m
+}
+
+// Resource153ToStruct converts a protobuf message to Struct using
+// protojson for compatibility with resources 153.
+func Resource153ToStruct(r protobuf.Message) (*Struct, error) {
+	encodingjson, err := (&protojson.MarshalOptions{
+		UseProtoNames: true,
+	}).Marshal(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pbs := types.Struct{}
+	if err = (&jsonpb.Unmarshaler{
+		AllowUnknownFields: true,
+	}).Unmarshal(bytes.NewReader(encodingjson), &pbs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Struct{Struct: pbs}, nil
 }

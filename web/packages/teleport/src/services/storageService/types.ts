@@ -24,7 +24,6 @@ export const KeysEnum = {
   THEME: 'grv_teleport_ui_theme',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
-  RECOMMEND_FEATURE: 'grv_recommend_feature',
   CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
@@ -43,6 +42,7 @@ export const KeysEnum = {
   RECENT_HISTORY: 'grv_teleport_sidenav_recent_history',
   LOGIN_TIME: 'grv_teleport_login_time',
   REMEMBERED_SSO_USERNAME: 'grv_teleport_remembered_sso_username',
+  ENABLE_TELEMETRY: 'grv_teleport_enable_telemetry',
   SESSION_RECORDINGS_VIEW_MODE: 'grv_teleport_session_recordings_view_mode',
   SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
   SESSION_RECORDINGS_DISMISSED_CTA:
@@ -64,6 +64,9 @@ export const KeysEnum = {
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',
   //TODO(rudream): Remove once sidenav implementation is complete.
   USE_TOP_BAR: 'grv_teleport_use_topbar',
+
+  IDENTITY_SECURITY_RECOMMENDATIONS_UNIFIED_RESOURCES_CTA_SEEN:
+    'grv_teleport_identity_security_recommendations_unified_resources_cta_seen',
 };
 
 // SurveyRequest is the request for sending data to the back end

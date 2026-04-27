@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
@@ -209,10 +208,15 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 
 type mockUserTasksLister struct {
 	defaultPageSize int64
+	err             error
 	userTasks       []*usertasksv1.UserTask
 }
 
 func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
+	if m.err != nil {
+		return nil, "", m.err
+	}
+
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize
@@ -368,9 +372,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						},
 					},
 				},
 			},
@@ -384,9 +390,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						},
 					},
 				},
 			},
@@ -400,9 +408,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0},
+						},
 					},
 				},
 			},
@@ -469,9 +479,11 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					integrationName: {
-						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+						},
 					},
 				},
 			},
@@ -660,6 +672,76 @@ func TestCollectIntegrationStats(t *testing.T) {
 		}
 		require.Equal(t, expectedSummary, gotSummary)
 	})
+
+	t.Run("collects Azure discovery configs", func(t *testing.T) {
+		mockInt := newMockAzureOIDCIntegration(t, integrationName)
+
+		syncTime := time.Now()
+		azureConfig := &discoveryconfig.DiscoveryConfig{
+			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
+				Integration: integrationName,
+				Types:       []string{types.AzureMatcherVM},
+				Regions:     []string{"eastus", "westus"},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					integrationName: {
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{
+								Found:    5,
+								Enrolled: 3,
+								Failed:   1,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		var userTasksList []*usertasksv1.UserTask
+		for range 10 {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverAzureVM}})
+		}
+
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{azureConfig},
+		}
+
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           mockInt,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{userTasks: userTasksList},
+		}
+
+		gotSummary, err := collectIntegrationStats(ctx, req)
+		require.NoError(t, err)
+
+		expectedSummary := &ui.IntegrationWithSummary{
+			Integration: &ui.Integration{
+				Name:    integrationName,
+				SubKind: "azure-oidc",
+				AzureOIDC: &ui.IntegrationAzureOIDCSpec{
+					TenantID: "00000000-0000-0000-0000-000000000000",
+					ClientID: "11111111-1111-1111-1111-111111111111",
+				},
+			},
+			UnresolvedUserTasks: 10,
+			UserTasks:           ui.MakeUserTasks(userTasksList),
+			AzureVM: ui.ResourceTypeSummary{
+				RulesCount:                 2,
+				ResourcesFound:             5,
+				ResourcesEnrollmentSuccess: 3,
+				ResourcesEnrollmentFailed:  1,
+				DiscoverLastSync:           &syncTime,
+				UnresolvedUserTasks:        10,
+			},
+		}
+		require.Equal(t, expectedSummary, gotSummary)
+	})
 }
 
 func TestCollectAutoDiscoveryRules(t *testing.T) {
@@ -679,6 +761,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 
 	t.Run("collects multiple discovery configs", func(t *testing.T) {
 		syncTime := time.Now()
+		kubeAppDiscoveryDisabled := false
 		dcForEC2 := &discoveryconfig.DiscoveryConfig{
 			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
 				Name: uuid.NewString(),
@@ -761,8 +844,9 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig: dcForEKS.GetName(),
-				LastSync:        &syncTime,
+				DiscoveryConfig:  dcForEKS.GetName(),
+				LastSync:         &syncTime,
+				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
 			},
 			{
 				ResourceType: "eks",
@@ -770,7 +854,8 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig: dcForEKSWithoutStatus.GetName(),
+				DiscoveryConfig:  dcForEKSWithoutStatus.GetName(),
+				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
 			},
 			{
 				ResourceType: "rds",
@@ -790,6 +875,47 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 					{Name: "env", Value: "prod"},
 				},
 				DiscoveryConfig: dcForRDS.GetName(),
+				LastSync:        &syncTime,
+			},
+		}
+		require.Empty(t, got.NextKey)
+		require.ElementsMatch(t, expectedRules, got.Rules)
+	})
+
+	t.Run("collects azure discovery configs", func(t *testing.T) {
+		syncTime := time.Now()
+		dcForVM := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
+				Integration:    integrationName,
+				Types:          []string{types.AzureMatcherVM},
+				Regions:        []string{"eastus"},
+				Subscriptions:  []string{"sub-1"},
+				ResourceGroups: []string{"rg-1", "rg-2"},
+				ResourceTags:   types.Labels{"env": []string{"dev"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dcForVM},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", types.AzureMatcherVM, nil, clt)
+		require.NoError(t, err)
+		expectedRules := []ui.IntegrationDiscoveryRule{
+			{
+				ResourceType: types.AzureMatcherVM,
+				Region:       "eastus",
+				LabelMatcher: []libui.Label{
+					{Name: "env", Value: "dev"},
+				},
+				Subscriptions:   []string{"sub-1"},
+				ResourceGroups:  []string{"rg-1", "rg-2"},
+				DiscoveryConfig: dcForVM.GetName(),
 				LastSync:        &syncTime,
 			},
 		}
@@ -945,6 +1071,41 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 		}
 		require.Equal(t, totalRules, rulesCounter)
 	})
+
+	t.Run("collects Azure VM rules with subscriptions and resource groups", func(t *testing.T) {
+		syncTime := time.Now()
+		azureConfig := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
+				Integration:    integrationName,
+				Types:          []string{types.AzureMatcherVM},
+				Regions:        []string{"eastus", "westus"},
+				Subscriptions:  []string{"sub-1", "sub-2"},
+				ResourceGroups: []string{"rg-1"},
+				ResourceTags:   types.Labels{"env": []string{"prod"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{azureConfig},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
+		require.NoError(t, err)
+
+		require.Len(t, got.Rules, 2)
+		for _, rule := range got.Rules {
+			require.Equal(t, types.AzureMatcherVM, rule.ResourceType)
+			require.ElementsMatch(t, []string{"sub-1", "sub-2"}, rule.Subscriptions)
+			require.ElementsMatch(t, []string{"rg-1"}, rule.ResourceGroups)
+			require.Equal(t, []libui.Label{{Name: "env", Value: "prod"}}, rule.LabelMatcher)
+			require.Equal(t, &syncTime, rule.LastSync)
+		}
+	})
 }
 
 // TestGitHubIntegration tests CRUD on GitHub integration subkind and CA export.
@@ -952,9 +1113,8 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 // The test cases in this test are performed sequentially and each test case
 // depends on the previous state.
 func TestGitHubIntegration(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
-	wPack := newWebPack(t, 1 /* proxies */)
+	t.Parallel()
+	wPack := newWebPack(t, 1 /* proxies */, withModules(modulestest.EnterpriseModules()))
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
 	ctx := context.Background()
@@ -975,7 +1135,6 @@ func TestGitHubIntegration(t *testing.T) {
 				Integration: uiIntegration,
 			})
 			require.Error(t, err)
-
 		})
 		t.Run("success", func(t *testing.T) {
 			createResp, err := authPack.clt.PostJSON(ctx, endpoint, ui.CreateIntegrationRequest{
@@ -1084,4 +1243,222 @@ func TestGitHubIntegration(t *testing.T) {
 			require.True(t, trace.IsNotFound(err))
 		})
 	})
+}
+
+func TestBuildBriefSummaries(t *testing.T) {
+	mockAwsInt := newMockAWSOIDCIntegration(t, "aws-oidc-1")
+	mockGithubInt := newMockGitHubIntegration(t, "gh")
+
+	mockUserTasks := []*usertasksv1.UserTask{
+		{
+			Spec: &usertasksv1.UserTaskSpec{
+				Integration: mockAwsInt.GetName(),
+				TaskType:    usertasks.TaskTypeDiscoverEC2,
+				State:       usertasks.TaskStateOpen,
+			},
+		},
+		{
+			Spec: &usertasksv1.UserTaskSpec{
+				Integration: mockAwsInt.GetName(),
+				TaskType:    usertasks.TaskTypeDiscoverEKS,
+				State:       usertasks.TaskStateOpen,
+			},
+		},
+	}
+
+	mockDC1 := &discoveryconfig.DiscoveryConfig{
+		Status: discoveryconfig.Status{
+			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+				mockAwsInt.GetName(): {
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 3, Enrolled: 0, Failed: 1},
+						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 5, Enrolled: 2, Failed: 2},
+					},
+				},
+			},
+		},
+	}
+	mockDC2 := &discoveryconfig.DiscoveryConfig{
+		Status: discoveryconfig.Status{
+			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+				mockAwsInt.GetName(): {
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+					},
+				},
+			},
+		},
+	}
+
+	mockErr := errors.New("test error")
+
+	tests := []struct {
+		name         string
+		utLister     *mockUserTasksLister
+		dcLister     *mockDiscoveryConfigLister
+		integrations []types.Integration
+		expected     map[string]*ui.BriefSummary
+		error        error
+	}{
+		{"Empty Input", &mockUserTasksLister{}, &mockDiscoveryConfigLister{}, nil, map[string]*ui.BriefSummary{}, nil},
+		{
+			"Skips Integrations With No Support",
+			&mockUserTasksLister{},
+			&mockDiscoveryConfigLister{},
+			[]types.Integration{
+				mockAwsInt,
+				mockGithubInt,
+			},
+			map[string]*ui.BriefSummary{
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: []ui.UserTask{},
+				},
+			},
+			nil,
+		},
+		{
+			"Collects User Tasks",
+			&mockUserTasksLister{
+				userTasks:       mockUserTasks,
+				defaultPageSize: 100,
+			},
+			&mockDiscoveryConfigLister{},
+			[]types.Integration{
+				mockAwsInt,
+				mockGithubInt,
+			},
+			map[string]*ui.BriefSummary{
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: ui.MakeUserTasks(mockUserTasks),
+				},
+			},
+			nil,
+		},
+		{
+			"Counts Discovered Resources",
+			&mockUserTasksLister{},
+			&mockDiscoveryConfigLister{
+				configs: [][]*discoveryconfig.DiscoveryConfig{{mockDC1}, {mockDC2}},
+			},
+			[]types.Integration{
+				mockAwsInt,
+				mockGithubInt,
+			},
+			map[string]*ui.BriefSummary{
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: []ui.UserTask{},
+					ResourcesCount: &ui.ResourcesCount{
+						Found:    12,
+						Enrolled: 4,
+						Failed:   3,
+					},
+				},
+			},
+			nil,
+		},
+		{
+			"Error From User Task Lister",
+			&mockUserTasksLister{err: mockErr},
+			&mockDiscoveryConfigLister{},
+			[]types.Integration{
+				mockAwsInt,
+			},
+			nil,
+			mockErr,
+		},
+		{
+			"Error From Discovery Config Lister",
+			&mockUserTasksLister{},
+			&mockDiscoveryConfigLister{err: mockErr},
+			[]types.Integration{
+				mockAwsInt,
+			},
+			nil,
+			mockErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := buildBriefSummaries(context.Background(), tt.integrations, tt.utLister, tt.dcLister)
+			require.Equal(t, tt.expected, actual)
+			require.Equal(t, tt.error, trace.Unwrap(err))
+		})
+	}
+}
+
+type mockDiscoveryConfigLister struct {
+	configs [][]*discoveryconfig.DiscoveryConfig
+	err     error
+
+	calls int
+}
+
+func (m *mockDiscoveryConfigLister) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	m.calls++
+	if m.err != nil {
+		return nil, "", m.err
+	}
+	if len(m.configs) == 0 {
+		return nil, "", nil
+	}
+
+	var page int
+	if nextToken != "" {
+		switch nextToken {
+		case "1":
+			page = 1
+		case "2":
+			page = 2
+		default:
+			page = 0
+		}
+	}
+
+	if page >= len(m.configs) {
+		return nil, "", nil
+	}
+	next := ""
+	if page+1 < len(m.configs) {
+		next = string(rune('0' + (page + 1)))
+	}
+	return m.configs[page], next, nil
+}
+
+func newMockAWSOIDCIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: name},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN:     "arn:aws:iam::123456789012:role/test",
+			IssuerS3URI: "s3://bucket/prefix",
+			Audience:    "aws-identity-center",
+		},
+	)
+	require.NoError(t, err)
+	return ig
+}
+
+func newMockGitHubIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+	ig, err := types.NewIntegrationGitHub(
+		types.Metadata{Name: name},
+		&types.GitHubIntegrationSpecV1{Organization: "test"},
+	)
+	require.NoError(t, err)
+	return ig
+}
+
+func newMockAzureOIDCIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+	ig, err := types.NewIntegrationAzureOIDC(
+		types.Metadata{Name: name},
+		&types.AzureOIDCIntegrationSpecV1{
+			TenantID: "00000000-0000-0000-0000-000000000000",
+			ClientID: "11111111-1111-1111-1111-111111111111",
+		},
+	)
+	require.NoError(t, err)
+	return ig
 }

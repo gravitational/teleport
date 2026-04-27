@@ -54,6 +54,7 @@ export function Audit(props: State) {
     clusterId,
     fetchNextPage,
     hasNextPage,
+    isPlaceholderData,
     isFetchingNextPage,
     error,
     isLoading,
@@ -68,9 +69,12 @@ export function Audit(props: State) {
 
   const [errorMessage, setErrorMessage] = useState('');
 
+  const canFetchNextPage =
+    hasNextPage && !isFetchingNextPage && !isError && !isPlaceholderData;
+
   const { setTrigger } = useInfiniteScroll({
     fetch: async () => {
-      if (hasNextPage && !isFetchingNextPage && !isError) {
+      if (canFetchNextPage) {
         fetchNextPage();
       }
     },
@@ -81,10 +85,15 @@ export function Audit(props: State) {
   };
 
   const onLoadMoreClicked = () => {
-    if (hasNextPage && !isFetchingNextPage) {
+    if (canFetchNextPage) {
       fetchNextPage();
     }
   };
+
+  const showSkeleton =
+    (isLoading && events.length === 0) ||
+    isFetchingNextPage ||
+    isPlaceholderData;
 
   return (
     <FeatureBox unsetHeight>
@@ -121,7 +130,7 @@ export function Audit(props: State) {
           hideAdvancedSearch={true}
           filter={{ search }}
         />
-        {!isLoading && (
+        {!isLoading && !isPlaceholderData && (
           <EventList
             events={events}
             search={search}
@@ -130,10 +139,8 @@ export function Audit(props: State) {
             setSort={setSort}
           />
         )}
-        {((isLoading && events.length === 0) || isFetchingNextPage) && (
-          <EventListSkeleton />
-        )}
-        <div ref={setTrigger} />
+        {showSkeleton && <EventListSkeleton />}
+        {!isPlaceholderData && <div ref={setTrigger} />}
         {isError && events.length > 0 && !isLoading && (
           <Box mt={2} textAlign="center">
             <ButtonSecondary onClick={onLoadMoreClicked}>

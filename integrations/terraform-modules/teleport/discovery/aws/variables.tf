@@ -3,18 +3,18 @@
 ################################################################################
 
 variable "teleport_proxy_public_addr" {
-  description = "Teleport cluster proxy public address."
+  description = "Teleport cluster proxy public address `host:port`."
   type        = string
   nullable    = false
 
   validation {
-    condition     = var.teleport_proxy_public_addr != ""
-    error_message = "Must not be empty."
+    condition     = !strcontains(var.teleport_proxy_public_addr, "://")
+    error_message = "Must not contain a URL scheme"
   }
 
   validation {
-    condition     = !strcontains(var.teleport_proxy_public_addr, "://")
-    error_message = "Must not contain a URL scheme"
+    condition     = var.teleport_proxy_public_addr == "" || strcontains(var.teleport_proxy_public_addr, ":")
+    error_message = "The address must be in the form `host:port`."
   }
 }
 
@@ -22,42 +22,61 @@ variable "teleport_discovery_group_name" {
   description = "Teleport discovery group to use. For discovery configuration to apply, this name must match at least one Teleport Discovery Service instance's configured `discovery_group`. For Teleport Cloud clusters, use \"cloud-discovery-group\"."
   type        = string
   nullable    = false
-
-  validation {
-    condition     = var.teleport_discovery_group_name != ""
-    error_message = "Must not be empty."
-  }
 }
 
 variable "match_aws_resource_types" {
-  description = "AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`."
+  description = "Deprecated legacy input. Use aws_matchers instead. AWS resource types to match when discovering resources with Teleport."
   type        = list(string)
+  default     = []
   nullable    = false
 
   validation {
     condition = alltrue([
       for rt in var.match_aws_resource_types :
       contains([
-        # TODO(gavin): add module support for all resource types
-        # "docdb",
-        "ec2",
-        # "eks",
-        # "elasticache-serverless",
-        # "elasticache",
-        # "memorydb",
-        # "opensearch",
-        # "rds",
-        # "rdsproxy",
-        # "redshift-serverless",
-        # "redshift"
+        "ec2"
       ], rt)
     ])
-    error_message = format(
-      "Allowed values for match_aws_resource_types are: %s.",
-      join(", ", [
-        "ec2",
-      ])
-    )
+    error_message = "Allowed values for match_aws_resource_types are: ec2. Use the new aws_matchers field instead for all supported types."
+  }
+}
+
+variable "aws_matchers" {
+  description = "AWS resource discovery matchers. Valid values for aws_matchers.types are: ec2, eks."
+  type = list(object({
+    types                = list(string)
+    regions              = optional(list(string), ["*"])
+    tags                 = optional(map(list(string)), { "*" : ["*"] })
+    setup_access_for_arn = optional(string, "")
+    kube_app_discovery   = optional(bool)
+  }))
+  default  = []
+  nullable = false
+
+  validation {
+    condition = alltrue([
+      for matcher in var.aws_matchers :
+      length(matcher.types) > 0 && length(matcher.regions) > 0
+    ])
+    error_message = "Each aws_matcher must have types and regions set."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for matcher in var.aws_matchers : [
+        for rt in matcher.types :
+        contains(["ec2", "eks"], rt)
+      ]
+    ]))
+    error_message = "Allowed values for aws_matchers.types are: ec2, eks."
+  }
+
+  validation {
+    condition = !anytrue([
+      for matcher in var.aws_matchers :
+      matcher.setup_access_for_arn != "" && !contains(matcher.types, "eks")
+    ])
+    error_message = "setup_access_for_arn is only supported for EKS matchers."
   }
 }
 
@@ -73,7 +92,7 @@ variable "apply_aws_tags" {
 }
 
 variable "apply_teleport_resource_labels" {
-  description = "Additional Teleport resource labels to apply to all created Teleport."
+  description = "Additional Teleport resource labels to apply to all created Teleport resources."
   type        = map(string)
   default     = {}
   nullable    = false
@@ -101,14 +120,14 @@ variable "aws_iam_policy_document" {
 }
 
 variable "match_aws_regions" {
-  description = "AWS regions to discover. The default matches all AWS regions."
+  description = "Deprecated legacy input. Use aws_matchers instead. AWS regions to discover. The default matches all AWS regions."
   type        = list(string)
   default     = ["*"]
   nullable    = false
 }
 
 variable "match_aws_tags" {
-  description = "AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources."
+  description = "Deprecated legacy input. Use aws_matchers instead. AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources."
   type        = map(list(string))
   default     = { "*" : ["*"] }
   nullable    = false
@@ -139,6 +158,13 @@ variable "aws_iam_role_use_name_prefix" {
   description = "Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix."
   type        = bool
   default     = true
+  nullable    = false
+}
+
+variable "teleport_discovery_config_install_suffix" {
+  description = "An optional installation suffix to use in the Teleport discovery_config. A suffix can be used to allow multiple Teleport installations on the same EC2 instance, which allows the instance to join multiple Teleport clusters. If specified, agent managed updates must be enabled on the cluster. See https://goteleport.com/docs/upgrading/agent-managed-updates/"
+  type        = string
+  default     = ""
   nullable    = false
 }
 
@@ -187,7 +213,7 @@ variable "teleport_provision_token_use_name_prefix" {
 variable "discovery_service_iam_credential_source" {
   description = "Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration."
   type = object({
-    use_oidc_integration = optional(bool)
+    use_oidc_integration = optional(bool, true)
     trust_role = optional(object({
       role_arn    = string
       external_id = optional(string, "")
@@ -204,13 +230,13 @@ variable "discovery_service_iam_credential_source" {
       var.discovery_service_iam_credential_source.use_oidc_integration
       && var.discovery_service_iam_credential_source.trust_role != null
     )
-    error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID. If the AWS IAM role for discovery will be attached directly to the discovery service instance outside of this module, then set `use_oidc_integration` to false and leave `trust_role` unset."
+    error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID, but not both."
   }
 
   validation {
     condition = !(
       !var.discovery_service_iam_credential_source.use_oidc_integration
-      && try(var.discovery_service_iam_credential_source.trust_role.role_arn == "", false)
+      && try(var.discovery_service_iam_credential_source.trust_role.role_arn, "") == ""
     )
     error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
   }

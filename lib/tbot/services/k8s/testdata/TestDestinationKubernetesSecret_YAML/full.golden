@@ -3,3 +3,5 @@ name: my-secret
 labels:
   key: value
 namespace: my-namespace
+kubeconfig_path: ./kubeconfig.yaml
+kubeconfig_context: my-context

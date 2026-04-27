@@ -68,7 +68,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 	require.NoError(t, err)
 

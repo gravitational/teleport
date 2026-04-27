@@ -194,22 +194,13 @@ func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, use
 		return stream.Fail[*notificationsv1.Notification](trace.BadParameter("username is required for fetching user notifications"))
 	}
 
-	cache, err := c.read(ctx)
-	if err != nil {
-		return stream.Fail[*notificationsv1.Notification](trace.Wrap(err))
-	}
-
-	if !cache.HasIndex(notificationKey) {
-		return stream.Fail[*notificationsv1.Notification](trace.Errorf("user notifications cache was not configured with index %q (this is a bug)", notificationKey))
-	}
-
 	endKey := username + string(backend.Separator)
 	// Get the initial startKey if it wasn't provided.
 	if startKey == "" {
 		startKey = sortcache.NextKey(endKey)
 	} else {
 		// The sortcache expects the key to be in <username>/<uuid> format, so we prepend the username since the startKey passed into this function will just be a UUID.
-		startKey = fmt.Sprintf("%s/%s", username, startKey)
+		startKey = username + "/" + startKey
 	}
 
 	const limit = 50
@@ -219,10 +210,19 @@ func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, use
 			return nil, io.EOF
 		}
 
+		cache, err := c.read(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !cache.HasIndex(notificationKey) {
+			return nil, trace.Errorf("user notifications cache was not configured with index \"" + string(notificationKey) + "\" (this is a bug)")
+		}
+
 		notifications := make([]*notificationsv1.Notification, 0, limit)
-		for n := range c.primaryCache.Descend(notificationKey, startKey, endKey) {
+		for n := range cache.Descend(notificationKey, startKey, endKey) {
 			if len(notifications) == limit {
-				startKey = c.primaryCache.KeyOf(notificationKey, n)
+				startKey = cache.KeyOf(notificationKey, n)
 				return notifications, nil
 			}
 
@@ -312,15 +312,6 @@ func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[
 
 // StreamGlobalNotifications returns a stream with all the global notifications in the cache, sorted from newest to oldest.
 func (c *GlobalNotificationCache) StreamGlobalNotifications(ctx context.Context, startKey string) stream.Stream[*notificationsv1.GlobalNotification] {
-	cache, err := c.read(ctx)
-	if err != nil {
-		return stream.Fail[*notificationsv1.GlobalNotification](trace.Wrap(err))
-	}
-
-	if !cache.HasIndex(notificationID) {
-		return stream.Fail[*notificationsv1.GlobalNotification](trace.Errorf("global notifications cache was not configured with index %q (this is a bug)", notificationID))
-	}
-
 	const limit = 50
 	var done bool
 	return stream.PageFunc(func() ([]*notificationsv1.GlobalNotification, error) {
@@ -328,10 +319,19 @@ func (c *GlobalNotificationCache) StreamGlobalNotifications(ctx context.Context,
 			return nil, io.EOF
 		}
 
+		cache, err := c.read(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !cache.HasIndex(notificationID) {
+			return nil, trace.Errorf("global notifications cache was not configured with index \"" + string(notificationID) + "\" (this is a bug)")
+		}
+
 		notifications := make([]*notificationsv1.GlobalNotification, 0, limit)
-		for n := range c.primaryCache.Descend(notificationID, startKey, "") {
+		for n := range cache.Descend(notificationID, startKey, "") {
 			if len(notifications) == limit {
-				startKey = c.primaryCache.KeyOf(notificationID, n)
+				startKey = cache.KeyOf(notificationID, n)
 				return notifications, nil
 			}
 
@@ -455,9 +455,16 @@ func (c *GlobalNotificationCache) getResourcesAndUpdateCurrent(ctx context.Conte
 // processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
 func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	if len(events) < 1 {
+		return
+	}
+
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
+	if cache == nil {
+		return
+	}
 
 	for _, event := range events {
 		switch event.Type {
@@ -482,9 +489,16 @@ func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Contex
 }
 
 func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	if len(events) < 1 {
+		return
+	}
+
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
+	if cache == nil {
+		return
+	}
 
 	for _, event := range events {
 		switch event.Type {

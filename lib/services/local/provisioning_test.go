@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -348,6 +349,7 @@ func TestProvisioningServiceTokenNameConflict(t *testing.T) {
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
 		},
 		Status: &joiningv1.ScopedTokenStatus{
 			Secret: "secret",

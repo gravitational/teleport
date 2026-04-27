@@ -19,6 +19,8 @@ package quic
 import (
 	"encoding/binary"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/status"
@@ -41,4 +43,54 @@ func TestDialResponseOKEncoding(t *testing.T) {
 	sizedResp, err := marshalSized(&quicpeeringv1a.DialResponse{})
 	require.NoError(t, err)
 	require.Equal(t, dialResponseOK, string(sizedResp))
+}
+
+func TestSessionTicketRefresher(t *testing.T) {
+	synctest.Test(t, testSessionTicketRefresher)
+}
+func testSessionTicketRefresher(t *testing.T) {
+	str := new(sessionTicketRefresher)
+
+	t1 := time.Now()
+	k1 := str.getSessionTicketKeys()
+	require.Len(t, k1, 1)
+	requireSameSlice(t, k1, str.getSessionTicketKeys())
+
+	time.Sleep(time.Hour)
+
+	// the first key is still valid, no keys are added
+
+	requireSameSlice(t, k1, str.getSessionTicketKeys())
+
+	requireSameSlice(t, k1, str.state.Load().tickets)
+	require.True(t, t1.Equal(str.state.Load().created[0]))
+
+	time.Sleep(24 * time.Hour)
+
+	// the first key is valid but old, a new fresh key is generated
+
+	t2 := time.Now()
+	k2 := str.getSessionTicketKeys()
+
+	require.Len(t, k2, 2)
+	requireSameSlice(t, k2, str.state.Load().tickets)
+	require.True(t, t2.Equal(str.state.Load().created[0]))
+	require.True(t, t1.Equal(str.state.Load().created[1]))
+
+	time.Sleep(6 * 24 * time.Hour)
+
+	// the first key should be rotated out
+
+	t3 := time.Now()
+	k3 := str.getSessionTicketKeys()
+
+	require.Len(t, k3, 2)
+	requireSameSlice(t, k3, str.state.Load().tickets)
+	require.True(t, t3.Equal(str.state.Load().created[0]))
+	require.True(t, t2.Equal(str.state.Load().created[1]))
+}
+
+func requireSameSlice[S ~[]T, T any](t *testing.T, expected, actual S) {
+	require.Len(t, actual, len(expected))
+	require.Same(t, &expected[0], &actual[0])
 }

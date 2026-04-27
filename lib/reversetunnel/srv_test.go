@@ -36,18 +36,19 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newCAAndSigner(t *testing.T, caType types.CertAuthType, name string) (types.CertAuthority, ssh.Signer) {
-	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	signer, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -70,7 +71,7 @@ func newCAAndSigner(t *testing.T, caType types.CertAuthType, name string) (types
 
 // newPubKey generates a new public key for testing.
 func newPubKey(t *testing.T) []byte {
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	return pub
 }
@@ -89,7 +90,8 @@ func TestServerKeyAuth(t *testing.T) {
 		},
 	}
 
-	ta := testauthority.New()
+	ta, err := testauthority.NewKeygen(modules.BuildOSS, s.Config.Clock.Now)
+	require.NoError(t, err)
 
 	con := mockSSHConnMetadata{}
 	tests := []struct {
@@ -481,8 +483,13 @@ func sshPipe(t *testing.T) (sshConn, sshConn) {
 		}
 	}()
 	go func() {
-		c, nc, r, err := ssh.NewClientConn(c2, "", &ssh.ClientConfig{
-			User:            "a",
+		c, nc, r, err := apissh.NewClientConn(t.Context(), c2, "", apissh.ClientConfig{
+			User: "a",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 		assert.NoError(t, err)

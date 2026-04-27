@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client"
@@ -97,14 +96,12 @@ type JoinServiceGRPCServer struct {
 	proto.UnimplementedJoinServiceServer
 
 	joinServiceClient joinServiceClient
-	clock             clockwork.Clock
 }
 
 // NewJoinServiceGRPCServer returns a new JoinServiceGRPCServer.
 func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
-		clock:             clockwork.NewRealClock(),
 	}
 }
 
@@ -501,7 +498,7 @@ func (s *JoinServiceGRPCServer) handleStreamingRegistration(ctx context.Context,
 		return trace.Wrap(err)
 		// Enforce a timeout on the entire RPC so that misbehaving clients cannot
 		// hold connections open indefinitely.
-	case <-s.clock.After(joinRequestTimeout):
+	case <-time.After(joinRequestTimeout):
 		nodeAddr := ""
 		if peerInfo, ok := peer.FromContext(ctx); ok {
 			nodeAddr = peerInfo.Addr.String()

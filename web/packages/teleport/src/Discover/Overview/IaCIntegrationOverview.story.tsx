@@ -17,12 +17,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
-import { Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router';
 
-import { ToastNotificationProvider } from 'shared/components/ToastNotification';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 
 import cfg from 'teleport/config';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IaCIntegrationOverview } from './IaCIntegrationOverview';
@@ -37,103 +38,208 @@ const initialEntries = [
 ];
 const path = cfg.routes.integrationOverview;
 
-export function Default() {
+function Component() {
   return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <Route path={path}>
-          <IaCIntegrationOverview />
-        </Route>
-      </ToastNotificationProvider>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={initialEntries}>
+      <ToastNotifications />
+      <ContentMinWidth>
+        <Routes>
+          <Route path={path} element={<IaCIntegrationOverview />} />
+        </Routes>
+      </ContentMinWidth>
+    </TeleportProviderBasic>
   );
+}
+
+const statsHandler = (overrides = {}) =>
+  http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
+    const lastSync = Date.now() - 2 * 60 * 1000;
+
+    return HttpResponse.json({
+      name: integrationName,
+      subKind: IntegrationKind.AwsOidc,
+      unresolvedUserTasks: 2,
+      userTasks: [
+        {
+          name: 'task-1',
+          taskType: 'discover-ec2',
+          state: 'OPEN',
+          issueType: 'ec2-ssm-invocation-failure',
+          title: 'EC2 SSM Invocation Failure',
+          integration: integrationName,
+          lastStateChange: new Date().toISOString(),
+        },
+        {
+          name: 'task-2',
+          taskType: 'discover-rds',
+          state: 'OPEN',
+          issueType: 'rds-agent-not-connecting',
+          title: 'RDS Agent Not Connecting',
+          integration: integrationName,
+          lastStateChange: new Date(
+            Date.now() - 24 * 60 * 60 * 1000
+          ).toISOString(),
+        },
+      ],
+      awsoidc: {
+        roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
+      },
+      awsec2: { enrolled: 5, failed: 1, discoverLastSync: lastSync },
+      awsrds: { enrolled: 3, failed: 0, discoverLastSync: lastSync },
+      awseks: { enrolled: 2, failed: 0, discoverLastSync: lastSync },
+      isManagedByTerraform: true,
+      ...overrides,
+    });
+  });
+
+const rulesHandler = http.get(
+  `*/integrations/${integrationName}/discoveryrules`,
+  ({ request }) => {
+    const resourceType = new URL(request.url).searchParams.get('resourceType');
+    if (resourceType === 'eks') {
+      return HttpResponse.json({
+        rules: [
+          {
+            resourceType: 'eks',
+            region: 'us-west-2',
+            labelMatcher: [{ name: 'team', value: 'platform' }],
+            kubeAppDiscovery: false,
+          },
+        ],
+      });
+    }
+    return HttpResponse.json({
+      rules: [
+        {
+          resourceType: 'ec2',
+          region: 'us-east-1',
+          labelMatcher: [{ name: 'env', value: 'prod' }],
+        },
+      ],
+    });
+  }
+);
+
+const userTaskHandlers = [
+  http.get(cfg.api.userTaskPath, ({ params }) => {
+    const taskName = params.name as string;
+    if (taskName === 'task-1') {
+      return HttpResponse.json({
+        name: 'task-1',
+        taskType: 'discover-ec2',
+        state: 'OPEN',
+        issueType: 'ec2-ssm-invocation-failure',
+        title: 'EC2 SSM Invocation Failure',
+        integration: integrationName,
+        lastStateChange: new Date().toISOString(),
+        description:
+          'The SSM agent failed to run the installation script on the following EC2 instances. Please ensure the SSM agent is installed and running on the instances.',
+        discoverEc2: {
+          region: 'us-east-1',
+          account_id: '123456789012',
+          instances: {
+            'i-1234567890abcdef0': {
+              instance_id: 'i-1234567890abcdef0',
+              name: 'web-server-1',
+              resourceUrl:
+                'https://console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-1234567890abcdef0',
+              invocation_url:
+                'https://console.aws.amazon.com/systems-manager/run-command/abc123',
+            },
+            'i-0987654321fedcba0': {
+              instance_id: 'i-0987654321fedcba0',
+              name: 'web-server-2',
+              resourceUrl:
+                'https://console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-0987654321fedcba0',
+            },
+          },
+        },
+      });
+    }
+    if (taskName === 'task-2') {
+      return HttpResponse.json({
+        name: 'task-2',
+        taskType: 'discover-rds',
+        state: 'OPEN',
+        issueType: 'rds-agent-not-connecting',
+        title: 'RDS Agent Not Connecting',
+        integration: integrationName,
+        lastStateChange: new Date(
+          Date.now() - 24 * 60 * 60 * 1000
+        ).toISOString(),
+        description:
+          'The Teleport Database Agent is not connecting to the following RDS databases. Please check network connectivity and security group settings.',
+        discoverRds: {
+          region: 'us-west-2',
+          account_id: '123456789012',
+          databases: {
+            'my-database-1': {
+              name: 'my-database-1',
+              resourceUrl:
+                'https://console.aws.amazon.com/rds/home?region=us-west-2#database:id=my-database-1',
+            },
+          },
+        },
+      });
+    }
+    return HttpResponse.json(
+      { error: { message: 'Task not found' } },
+      { status: 404 }
+    );
+  }),
+  http.put(cfg.api.resolveUserTaskPath, ({ params }) => {
+    const taskName = params.name as string;
+    if (taskName === 'task-1') {
+      return HttpResponse.json({ success: true });
+    }
+    return HttpResponse.json(
+      { error: { message: 'Failed to resolve task: permission denied' } },
+      { status: 403 }
+    );
+  }),
+];
+
+export function Default() {
+  return <Component />;
 }
 Default.parameters = {
   msw: {
-    handlers: [
-      http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
-        return HttpResponse.json({
-          name: integrationName,
-          subKind: IntegrationKind.AwsOidc,
-          unresolvedUserTasks: 2,
-          userTasks: [
-            {
-              name: 'task-1',
-              taskType: 'discover-ec2',
-              state: 'OPEN',
-              issueType: 'ec2-ssm-invocation-failure',
-              title: 'EC2 SSM Invocation Failure',
-              integration: integrationName,
-              lastStateChange: new Date().toISOString(),
-            },
-            {
-              name: 'task-2',
-              taskType: 'discover-rds',
-              state: 'OPEN',
-              issueType: 'rds-agent-not-connecting',
-              title: 'RDS Agent Not Connecting',
-              integration: integrationName,
-              lastStateChange: new Date(
-                Date.now() - 24 * 60 * 60 * 1000
-              ).toISOString(),
-            },
-          ],
-          awsoidc: {
-            roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
-          },
-          awsec2: { enrolled: 5, failed: 1 },
-          awsrds: { enrolled: 3, failed: 0 },
-          awseks: { enrolled: 2, failed: 0 },
-          isManagedByTerraform: true,
-        });
-      }),
-    ],
+    handlers: [statsHandler(), rulesHandler, ...userTaskHandlers],
   },
 };
 
 export function Healthy() {
-  return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <Route path={path}>
-          <IaCIntegrationOverview />
-        </Route>
-      </ToastNotificationProvider>
-    </MemoryRouter>
-  );
+  return <Component />;
 }
 Healthy.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
-        return HttpResponse.json({
-          name: integrationName,
-          subKind: IntegrationKind.AwsOidc,
-          unresolvedUserTasks: 0,
-          userTasks: [],
-          awsoidc: {
-            roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
-          },
-          awsec2: { enrolled: 10, failed: 0 },
-          awsrds: { enrolled: 5, failed: 0 },
-          awseks: { enrolled: 3, failed: 0 },
-          isManagedByTerraform: true,
-        });
+      statsHandler({
+        unresolvedUserTasks: 0,
+        userTasks: [],
+        awsec2: {
+          enrolled: 10,
+          failed: 0,
+          discoverLastSync: Date.now() - 2 * 60 * 1000,
+        },
+        awsrds: {
+          enrolled: 5,
+          failed: 0,
+          discoverLastSync: Date.now() - 2 * 60 * 1000,
+        },
+        awseks: {
+          enrolled: 3,
+          failed: 0,
+          discoverLastSync: Date.now() - 2 * 60 * 1000,
+        },
       }),
+      rulesHandler,
     ],
   },
 };
 
 export function Loading() {
-  return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <Route path={path}>
-          <IaCIntegrationOverview />
-        </Route>
-      </ToastNotificationProvider>
-    </MemoryRouter>
-  );
+  return <Component />;
 }
 Loading.parameters = {
   msw: {
@@ -146,15 +252,7 @@ Loading.parameters = {
 };
 
 export function Error() {
-  return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <Route path={path}>
-          <IaCIntegrationOverview />
-        </Route>
-      </ToastNotificationProvider>
-    </MemoryRouter>
-  );
+  return <Component />;
 }
 Error.parameters = {
   msw: {
@@ -165,6 +263,28 @@ Error.parameters = {
           { status: 500 }
         );
       }),
+    ],
+  },
+};
+
+export function SettingsError() {
+  return <Component />;
+}
+SettingsError.parameters = {
+  msw: {
+    handlers: [
+      statsHandler(),
+      http.get(`*/integrations/${integrationName}/discoveryrules`, () => {
+        return HttpResponse.json(
+          {
+            error: {
+              message: 'Failed to load integration rules',
+            },
+          },
+          { status: 500 }
+        );
+      }),
+      ...userTaskHandlers,
     ],
   },
 };

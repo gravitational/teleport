@@ -61,6 +61,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -85,6 +87,9 @@ Optional:
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specallowkubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `linux_desktop_labels` (Map of List of String) LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+- `linux_desktop_labels_expression` (String) LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.
+- `linux_desktop_logins` (List of String) LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specallowmcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
@@ -270,6 +275,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -294,6 +301,9 @@ Optional:
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specdenykubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `linux_desktop_labels` (Map of List of String) LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+- `linux_desktop_labels_expression` (String) LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.
+- `linux_desktop_logins` (List of String) LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specdenymcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).

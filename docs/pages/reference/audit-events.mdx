@@ -671,6 +671,10 @@ Example:
 
 ## app.session.start
 
+There are multiple events with the `app.session.start` type.
+
+### T2007I
+
 App Session Started
 
 Example:
@@ -689,6 +693,21 @@ Example:
   "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
   "user": "kimlisa",
   "app_name": "test"
+}
+```
+
+### T2007E
+
+App Session Start Failed
+
+Example:
+
+```json
+{
+  "code": "T2007E",
+  "event": "app.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 
@@ -1085,6 +1104,67 @@ Example:
 }
 ```
 
+## azure.run
+
+There are multiple events with the `azure.run` type.
+
+### TDA00I
+
+Azure Run Command Executed
+
+Example:
+
+```json
+{
+  "cluster_name": "example.teleport.sh",
+  "code": "TDA00I",
+  "ei": 0,
+  "event": "azure.run",
+  "subscription_id": "00000000-0000-0000-0000-000000000000",
+  "resource_group": "example-dev-a1b2c3d4-workload-rg",
+  "vm_id": "11111111-1111-1111-1111-111111111111",
+  "vm_name": "example-dev-a1b2c3d4-vm-0",
+  "resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-a1b2c3d4-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-a1b2c3d4-vm-0",
+  "region": "eastus",
+  "exit_code": 0,
+  "execution_state": "Succeeded",
+  "stdout": "teleport has been installed successfully",
+  "stderr": "",
+  "status": "Installation completed successfully.",
+  "time": "2026-04-01T00:00:00.000Z",
+  "uid": "11111111-1111-1111-1111-111111111110"
+}
+```
+
+### TDA00W
+
+Azure Run Command Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "example.teleport.sh",
+  "code": "TDA00W",
+  "ei": 0,
+  "event": "azure.run",
+  "api_error": "PUT https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-a1b2c3d4-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-a1b2c3d4-vm-1/runCommands/teleport-install: 403 Forbidden: AuthorizationFailed: The client does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write' over scope.",
+  "subscription_id": "00000000-0000-0000-0000-000000000000",
+  "resource_group": "example-dev-a1b2c3d4-workload-rg",
+  "vm_id": "22222222-2222-2222-2222-222222222222",
+  "vm_name": "example-dev-a1b2c3d4-vm-1",
+  "resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-a1b2c3d4-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-a1b2c3d4-vm-1",
+  "region": "eastus",
+  "exit_code": 0,
+  "execution_state": "",
+  "stdout": "",
+  "stderr": "",
+  "status": "API call failed",
+  "time": "2026-04-01T00:00:01.000Z",
+  "uid": "22222222-2222-2222-2222-222222222220"
+}
+```
+
 ## billing.create_card
 
 Credit Card Added
@@ -1317,6 +1397,150 @@ Example:
     "user": "alice"
   },
   "time": "2022-02-04T19:43:23.529Z"
+}
+```
+
+## cert_auth_override.create
+
+Certificate Authority Override Created
+
+Example:
+
+```json
+{
+  "ca_override": {
+    "ca_type": "windows",
+    "cluster_name": "zarquon2"
+  },
+  "cluster_name": "zarquon2",
+  "code": "TCO01I",
+  "ei": 0,
+  "event": "cert_auth_override.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "windows/zarquon2",
+  "success": true,
+  "time": "2026-04-08T22:01:00.061Z",
+  "uid": "dc718618-4e01-4044-b775-065de30dd51a",
+  "updated_by": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user_cluster_name": "zarquon2",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## cert_auth_override.delete
+
+Certificate Authority Override Deleted
+
+Example:
+
+```json
+{
+  "ca_override": {
+    "ca_type": "windows",
+    "cluster_name": "zarquon2"
+  },
+  "cluster_name": "zarquon2",
+  "code": "TCO04I",
+  "ei": 0,
+  "event": "cert_auth_override.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "windows/zarquon2",
+  "success": true,
+  "time": "2026-04-08T22:04:00.061Z",
+  "uid": "be0ad673-fdc6-481b-862f-a0447df63dff",
+  "updated_by": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user_cluster_name": "zarquon2",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## cert_auth_override.update
+
+Certificate Authority Override Updated
+
+Example:
+
+```json
+{
+  "ca_override": {
+    "ca_type": "windows",
+    "certificate_overrides": [
+      {
+        "certificate": {
+          "issuer": "CN=Llama Windows CA,OU=Llama CA,O=Llama Corp",
+          "public_key_hash": "f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc",
+          "serial_number": "110713595887223080163032262858678558596458745620",
+          "subject": "CN=zarquon2,O=zarquon2"
+        }
+      }
+    ],
+    "cluster_name": "zarquon2"
+  },
+  "cluster_name": "zarquon2",
+  "code": "TCO02I",
+  "ei": 0,
+  "event": "cert_auth_override.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "windows/zarquon2",
+  "success": true,
+  "time": "2026-04-08T22:02:00.061Z",
+  "uid": "4e789cfe-069c-46d1-8a44-ce1b2f735e37",
+  "updated_by": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user_cluster_name": "zarquon2",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## cert_auth_override.upsert
+
+Certificate Authority Override Upserted
+
+Example:
+
+```json
+{
+  "ca_override": {
+    "ca_type": "windows",
+    "certificate_overrides": [
+      {
+        "certificate": {
+          "issuer": "CN=Llama Windows CA,OU=Llama CA,O=Llama Corp",
+          "public_key_hash": "f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc",
+          "serial_number": "110713595887223080163032262858678558596458745620",
+          "subject": "CN=zarquon2,O=zarquon2"
+        }
+      }
+    ],
+    "cluster_name": "zarquon2"
+  },
+  "cluster_name": "zarquon2",
+  "code": "TCO03I",
+  "ei": 0,
+  "event": "cert_auth_override.upsert",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "windows/zarquon2",
+  "success": true,
+  "time": "2026-04-08T22:03:00.061Z",
+  "uid": "77dcc08b-04e3-4908-b1c8-7836c7b1f057",
+  "updated_by": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user": "55831da5-8898-4fd2-abe5-8c28c4741534.zarquon2",
+  "user_cluster_name": "zarquon2",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
 }
 ```
 
@@ -3412,6 +3636,277 @@ Example:
 }
 ```
 
+## inference_model.create
+
+Inference Model Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF001I",
+  "ei": 0,
+  "event": "inference_model.create",
+  "name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "a1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "gpt-4"
+    },
+    "spec": {
+      "model_source": "openai"
+    }
+  }
+}
+```
+
+## inference_model.delete
+
+Inference Model Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF003I",
+  "ei": 0,
+  "event": "inference_model.delete",
+  "name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T15:51:21.869Z",
+  "uid": "a3973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_model.update
+
+Inference Model Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF002I",
+  "ei": 0,
+  "event": "inference_model.update",
+  "name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T15:50:21.869Z",
+  "uid": "a2973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "gpt-4"
+    },
+    "spec": {
+      "model_source": "openai"
+    }
+  }
+}
+```
+
+## inference_policy.create
+
+Inference Policy Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF007I",
+  "ei": 0,
+  "event": "inference_policy.create",
+  "name": "model-access-policy",
+  "success": true,
+  "time": "2025-03-04T15:55:21.869Z",
+  "uid": "a7973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "model-access-policy"
+    },
+    "spec": {
+      "allowed_models": [
+        "gpt-4"
+      ]
+    }
+  }
+}
+```
+
+## inference_policy.delete
+
+Inference Policy Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF009I",
+  "ei": 0,
+  "event": "inference_policy.delete",
+  "name": "model-access-policy",
+  "success": true,
+  "time": "2025-03-04T15:57:21.869Z",
+  "uid": "a9973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_policy.update
+
+Inference Policy Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF008I",
+  "ei": 0,
+  "event": "inference_policy.update",
+  "name": "model-access-policy",
+  "success": true,
+  "time": "2025-03-04T15:56:21.869Z",
+  "uid": "a8973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "model-access-policy"
+    },
+    "spec": {
+      "allowed_models": [
+        "gpt-4",
+        "gpt-3.5-turbo"
+      ]
+    }
+  }
+}
+```
+
+## inference_secret.create
+
+Inference Secret Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF004I",
+  "ei": 0,
+  "event": "inference_secret.create",
+  "name": "openai-api-key",
+  "success": true,
+  "time": "2025-03-04T15:52:21.869Z",
+  "uid": "a4973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_secret.delete
+
+Inference Secret Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF006I",
+  "ei": 0,
+  "event": "inference_secret.delete",
+  "name": "openai-api-key",
+  "success": true,
+  "time": "2025-03-04T15:54:21.869Z",
+  "uid": "a6973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_secret.update
+
+Inference Secret Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF005I",
+  "ei": 0,
+  "event": "inference_secret.update",
+  "name": "openai-api-key",
+  "success": true,
+  "time": "2025-03-04T15:53:21.869Z",
+  "uid": "a5973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
 ## instance.join
 
 There are multiple events with the `instance.join` type.
@@ -4591,6 +5086,101 @@ Example:
 }
 ```
 
+## retrieval_model.create
+
+Retrieval Model Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF011I",
+  "ei": 0,
+  "event": "retrieval_model.create",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T15:58:21.869Z",
+  "uid": "ab973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "retrieval-model"
+    },
+    "spec": {
+      "inference_model_name": "gpt-4"
+    }
+  }
+}
+```
+
+## retrieval_model.delete
+
+Retrieval Model Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF013I",
+  "ei": 0,
+  "event": "retrieval_model.delete",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T16:00:00.869Z",
+  "uid": "ad973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## retrieval_model.update
+
+Retrieval Model Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF012I",
+  "ei": 0,
+  "event": "retrieval_model.update",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T15:59:21.869Z",
+  "uid": "ac973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "retrieval-model"
+    },
+    "spec": {
+      "inference_model_name": "gpt-4",
+      "embedding_dimension": 1536
+    }
+  }
+}
+```
+
 ## role.created
 
 User Role Created
@@ -5014,14 +5604,11 @@ Example:
   "event": "scim.list",
   "success": true,
   "integration": "okta",
-  "resource_type": "user",
-  "teleport_id": "root@localhost",
-  "external_id": "external-id-0987654321",
-  "display": "local admin"
+  "resource_type": "user"
 }
 ```
 
-### TSCIM005IE
+### TSCIM005E
 
 SCIM Resource Listing Failed
 
@@ -5029,10 +5616,82 @@ Example:
 
 ```json
 {
-  "code": "TSCIM005IE",
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM005E",
   "event": "scim.list",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+  "success": false,
+  "integration": "okta",
+  "resource_type": "vegetable",
+  "display": "no such resource type"
+}
+```
+
+## scim.patch
+
+There are multiple events with the `scim.patch` type.
+
+### TSCIM006I
+
+SCIM Patch Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM006I",
+  "event": "scim.patch",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "externa-id-00123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
+}
+```
+
+### TSCIM006E
+
+SCIM Patch Failed
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM006E",
+  "event": "scim.patch",
+  "resource_type": "user",
+  "success": false,
+  "error": "no such user",
+  "integration": "okta",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-000123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
 }
 ```
 
@@ -5504,6 +6163,70 @@ Example:
   "time": "2019-04-22T19:39:26.676Z",
   "uid": "84c07a99-856c-419f-9de5-15560451a116",
   "user": "admin@example.com"
+}
+```
+
+## session.summarized
+
+There are multiple events with the `session.summarized` type.
+
+### INF010I
+
+Session Summarized
+
+Example:
+
+```json
+{
+  "cluster_name": "teleport.dev",
+  "code": "INF010I",
+  "ei": 0,
+  "event": "session.summarized",
+  "sid": "c3ae6e8f-7f8e-4d44-a5b9-3c9b8e3f8e3f",
+  "session_type": "ssh",
+  "model_name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T16:00:21.869Z",
+  "uid": "aa973df2-4bee-4a67-9925-575c1d38cc80",
+  "risk_level": "medium",
+  "short_description": "User performed system administration tasks",
+  "inference_started_at": "2025-03-04T16:00:10.000Z",
+  "inference_finished_at": "2025-03-04T16:00:21.869Z",
+  "server_hostname": "ip-172-31-30-254",
+  "server_id": "d3ddd1f8-b602-488b-00c66e29879f",
+  "server_addr": "172.31.30.254:32962"
+}
+```
+
+### INF010E
+
+Session Summarization Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "teleport.dev",
+  "code": "INF010E",
+  "ei": 0,
+  "event": "session.summarized",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "session_type": "desktop",
+  "model_name": "gpt-4",
+  "success": false,
+  "time": "2025-03-04T16:15:21.869Z",
+  "uid": "ad973df2-4bee-4a67-9925-575c1d38cc80",
+  "short_description": "User accessed domain controller and modified AD policies",
+  "inference_started_at": "2025-03-04T16:15:10.000Z",
+  "inference_finished_at": "2025-03-04T16:15:21.869Z",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "desktop_addr": "100.104.52.89:3389",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator",
+  "desktop_labels": {
+    "env": "prod",
+    "role": "domain-controller"
+  }
 }
 ```
 
@@ -6245,6 +6968,9 @@ Example:
   "event": "ssm.run",
   "exit_code": 0,
   "instance_id": "i-057d0ffe877128673",
+  "platform_name": "Amazon Linux",
+  "platform_type": "Linux",
+  "platform_version": "2023.5.20240916",
   "region": "eu-central-1",
   "status": "Success",
   "time": "2022-09-14T14:45:38.122Z",
@@ -6268,6 +6994,9 @@ Example:
   "event": "ssm.run",
   "exit_code": 1,
   "instance_id": "i-057d0ffe877128673",
+  "platform_name": "Amazon Linux",
+  "platform_type": "Linux",
+  "platform_version": "2023.5.20240916",
   "region": "eu-central-1",
   "status": "Failure",
   "time": "2022-09-14T14:45:38.122Z",
@@ -6672,7 +7401,7 @@ Example:
   "event": "user.login",
   "method": "headless",
   "ei": 0,
-  "success": true,
+  "success": false,
   "time": "2019-04-22T00:49:03Z",
   "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef5",
   "user": "admin@example.com",
@@ -7026,6 +7755,108 @@ Example:
   "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
   "windows_domain": "desktopaccess.com",
   "windows_user": "Administrator"
+}
+```
+
+## workload_cluster.create
+
+There are multiple events with the `workload_cluster.create` type.
+
+### WC001I
+
+Workload Cluster Created
+
+Example:
+
+```json
+{
+  "code": "WC001I",
+  "event": "workload_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC001E
+
+Workload Cluster Create Failed
+
+Example:
+
+```json
+{
+  "code": "WC001E",
+  "event": "workload_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## workload_cluster.delete
+
+There are multiple events with the `workload_cluster.delete` type.
+
+### WC003I
+
+Workload Cluster Deleted
+
+Example:
+
+```json
+{
+  "code": "WC003I",
+  "event": "workload_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC003E
+
+Workload Cluster Delete Failed
+
+Example:
+
+```json
+{
+  "code": "WC003E",
+  "event": "workload_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## workload_cluster.update
+
+There are multiple events with the `workload_cluster.update` type.
+
+### WC002I
+
+Workload Cluster Updated
+
+Example:
+
+```json
+{
+  "code": "WC002I",
+  "event": "workload_cluster.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC002E
+
+Workload Cluster Update Failed
+
+Example:
+
+```json
+{
+  "code": "WC002E",
+  "event": "workload_cluster.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 

@@ -120,6 +120,8 @@ const (
 	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
+	// AppSessionStartFailureCode is the application session start failure code.
+	AppSessionStartFailureCode = "T2007E"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
@@ -132,6 +134,10 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
+	// AppSessionLLMRequestSuccessCode is the LLM app request/response success code.
+	AppSessionLLMRequestSuccessCode = "T2014I"
+	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
+	AppSessionLLMRequestFailureCode = "T2014E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -448,8 +454,13 @@ const (
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"
-	// SSMRunFailCode is the discovery script success code.
+	// SSMRunFailCode is the discovery script failure code.
 	SSMRunFailCode = "TDS00W"
+
+	// AzureRunSuccessCode is the Azure discovery script success code.
+	AzureRunSuccessCode = "TDA00I"
+	// AzureRunFailCode is the Azure discovery script failure code.
+	AzureRunFailCode = "TDA00W"
 
 	// DeviceCreateCode is the device creation/registration code.
 	DeviceCreateCode = "TV001I"
@@ -794,11 +805,11 @@ const (
 	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
 	// deleted via SCIM
 	SCIMResourceDeleteSuccessCode = "TSCIM003I"
-	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
-	// update a resource via SCIM
+	// SCIMResourceDeleteFailureCode indicates a failed attempt to
+	// delete a resource via SCIM
 	SCIMResourceDeleteFailureCode = "TSCIM003E"
 	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
-	// fron Teleport via SCIM
+	// from Teleport via SCIM
 	SCIMGetResourceSuccessCode = "TSCIM004I"
 	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
 	// resource via SCIM
@@ -809,6 +820,13 @@ const (
 	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
 	// via SCIM
 	SCIMListResourcesFailureCode = "TSCIM005E"
+	// SCIMResourcePatchSuccessCode indicates a resource was successfully patched
+	// via SCIM
+	SCIMResourcePatchSuccessCode = "TSCIM006I"
+	// SCIMResourcePatchFailureCode indicates a failed attempt to patch a resource
+	// via SCIM
+	SCIMResourcePatchFailureCode = "TSCIM006E"
+
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
 
@@ -831,6 +849,70 @@ const (
 	VnetConfigUpdateCode = "TVNET002I"
 	// VnetConfigDeleteCode is the Vnet config delete event code.
 	VnetConfigDeleteCode = "TVNET003I"
+
+	// WorkloadClusterCreateCode is the workload cluster create event code.
+	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.
+	WorkloadClusterCreateFailureCode = "WC001E"
+	// WorkloadClusterUpdateCode is the workload cluster update event code.
+	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterUpdateFailureCode is the workload cluster update failure event code.
+	WorkloadClusterUpdateFailureCode = "WC002E"
+	// WorkloadClusterDeleteCode is the workload cluster delete event code.
+	WorkloadClusterDeleteCode = "WC003I"
+	// WorkloadClusterDeleteFailureCode is the workload cluster delete failure event code.
+	WorkloadClusterDeleteFailureCode = "WC003E"
+
+	// InferenceModelCreateCode is the inference model create event code.
+	InferenceModelCreateCode = "INF001I"
+	// InferenceModelUpdateCode is the inference model update event code.
+	InferenceModelUpdateCode = "INF002I"
+	// InferenceModelDeleteCode is the inference model delete event code.
+	InferenceModelDeleteCode = "INF003I"
+
+	// InferenceSecretCreateCode is the inference secret create event code.
+	InferenceSecretCreateCode = "INF004I"
+	// InferenceSecretUpdateCode is the inference secret update event code.
+	InferenceSecretUpdateCode = "INF005I"
+	// InferenceSecretDeleteCode is the inference secret delete event code.
+	InferenceSecretDeleteCode = "INF006I"
+
+	// InferencePolicyCreateCode is the inference policy create event code.
+	InferencePolicyCreateCode = "INF007I"
+	// InferencePolicyUpdateCode is the inference policy update event code.
+	InferencePolicyUpdateCode = "INF008I"
+	// InferencePolicyDeleteCode is the inference policy delete event code.
+	InferencePolicyDeleteCode = "INF009I"
+
+	// SessionSummarizedCode is the session summarized event code.
+	SessionSummarizedCode = "INF010I"
+	// SessionSummarizedErrorCode is the session summarized error event code.
+	SessionSummarizedErrorCode = "INF010E"
+
+	// RetrievalModelCreateCode is the retrieval model create event code.
+	RetrievalModelCreateCode = "INF011I"
+	// RetrievalModelUpdateCode is the retrieval model update event code.
+	RetrievalModelUpdateCode = "INF012I"
+	// RetrievalModelDeleteCode is the retrieval model delete event code.
+	RetrievalModelDeleteCode = "INF013I"
+
+	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
+	CertAuthOverrideCreateCode = "TCO01I"
+	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
+	CertAuthOverrideUpdateCode = "TCO02I"
+	// CertAuthOverrideUpsertCode is the cert_auth_override upsert event code.
+	CertAuthOverrideUpsertCode = "TCO03I"
+	// CertAuthOverrideDeleteCode is the cert_auth_override delete event code.
+	CertAuthOverrideDeleteCode = "TCO04I"
+	// CertAuthOverrideCertificatesAddCode is the event code for specialized
+	// AddCertificateOverride operation.
+	CertAuthOverrideCertificatesAddCode = "TCO05I"
+	// CertAuthOverrideCertificatesUpdateCode is the event code for specialized
+	// UpdateCertificateOverride operation.
+	CertAuthOverrideCertificatesUpdateCode = "TCO06I"
+	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
+	// RemoveCertificateOverride operation.
+	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

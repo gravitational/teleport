@@ -31,7 +31,7 @@ could cause instability and non-deterministic behaviour.
 
 Supported Teleport resources are listed in [the Operator Reference Page](../../../reference/infrastructure-as-code/operator-resources/operator-resources.mdx).
 
-### Setting up the operator
+## Setting up the operator
 
 If you are self-hosting Teleport using the `teleport-cluster` Helm chart,
 follow [the guide for Helm-deployed clusters](teleport-operator-helm.mdx).
@@ -39,11 +39,11 @@ follow [the guide for Helm-deployed clusters](teleport-operator-helm.mdx).
 If you are hosting Teleport out of Kubernetes (Teleport Cloud, Terraform, ...),
 follow [the standalone operator guide](teleport-operator-standalone.mdx).
 
-### Control reconciliation with annotations
+## Control reconciliation with annotations
 
 The operator supports two annotations on CRs:
 
-#### `teleport.dev/keep`
+### `teleport.dev/keep`
 
 This annotation instructs the operator to keep the Teleport resource if the CR is deleted.
 This is useful if you want to migrate between two resource versions.
@@ -55,7 +55,7 @@ For example, to migrate from `TeleportRoleV6` to `TeleportRoleV7`:
 
 Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
 
-#### `teleport.dev/ignore`
+### `teleport.dev/ignore`
 
 This annotation instructs the operator to ignore the CR when reconciling.
 This means the resource will not be created, updated, or deleted in Teleport.
@@ -66,7 +66,7 @@ finalizer or remove the ignore annotation.
 
 Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
 
-### Look up values from secrets
+## Look up values from secrets
 
 Some Teleport resources might contain sensitive values. Select CR fields can reference an existing
 Kubernetes secret and the operator will retrieve the value from the secret when reconciling.
@@ -77,7 +77,7 @@ Teleport administrator and retrieve the sensitive values from Teleport.
 
 See [the dedicated guide](secret-lookup.mdx) for more details.
 
-### Troubleshooting
+## Troubleshooting
 
 (!docs/pages/includes/diagnostics/kubernetes-operator-troubleshooting.mdx!)
 

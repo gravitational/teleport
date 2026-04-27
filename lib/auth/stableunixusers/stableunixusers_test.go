@@ -101,7 +101,7 @@ func TestStableUNIXUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	authorizer = func(ctx context.Context) (*authz.Context, error) {
-		return authz.NewBuiltinRoleContext(types.RoleNop)
+		return authz.NewUnauthenticatedRoleContext(types.RoleNop)
 	}
 
 	obtainUIDForUsername := func(username string) (int32, error) {

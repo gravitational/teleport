@@ -967,6 +967,34 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:         "role with invalid kubernetes group containing newline",
+			kubeUsers:    []string{"kube-user-a"},
+			kubeGroups:   []string{"kube-group-a\r\nevil-header: injected"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
+		{
+			desc:         "role with invalid kubernetes user containing newline",
+			kubeUsers:    []string{"kube-user-a\r\nevil-header: injected"},
+			kubeGroups:   []string{"kube-group-a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
+		{
+			desc:         "role with invalid kubernetes group containing null byte",
+			kubeUsers:    []string{"kube-user-a"},
+			kubeGroups:   []string{"kube-group-\x00a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
+		{
+			desc:         "role with invalid kubernetes user containing null byte",
+			kubeUsers:    []string{"kube-user-\x00a"},
+			kubeGroups:   []string{"kube-group-a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -1152,11 +1180,14 @@ func newMockForwarder(ctx context.Context, t *testing.T) *Forwarder {
 	caClient, err := newMockCAClient()
 	require.NoError(t, err)
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	return &Forwarder{
 		log:    logtest.NewLogger(),
 		router: httprouter.New(),
 		cfg: ForwarderConfig{
-			Keygen:            testauthority.New(),
+			Keygen:            authority,
 			AuthClient:        caClient,
 			CachingAuthClient: mockAccessPoint{},
 			Clock:             clock,
@@ -1555,6 +1586,45 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 	}
 }
 
+func TestInvalidImpersonationGroupHeaderInjection(t *testing.T) {
+	t.Parallel()
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(
+		t.Context(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// Create a user whose role has a kubernetes_group containing a CRLF sequence,
+	// which is an invalid HTTP header field value and must be rejected to prevent
+	// header injection attacks.
+	invalidHeader := "kube-group-a\r\nevil-header: injected"
+	_, _ = testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeGroups: []string{invalidHeader},
+		},
+	)
+
+	client, _ := testCtx.GenTestKubeClientTLSCert(t, username, kubeCluster)
+
+	_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(t.Context(), metav1.ListOptions{})
+	require.Error(t, err)
+	var kubeErr *kubeerrors.StatusError
+	require.ErrorAs(t, err, &kubeErr)
+	require.Equal(t, int32(http.StatusBadRequest), kubeErr.ErrStatus.Code)
+	require.Contains(t, kubeErr.ErrStatus.Message, fmt.Sprintf("invalid impersonated group header value: %q", invalidHeader))
+}
+
 func Test_authContext_eventClusterMeta(t *testing.T) {
 	t.Parallel()
 	kubeClusterLabels := map[string]string{
@@ -1665,10 +1735,13 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	require.NoError(t, err)
 	cl.leafClusterName = clusterName
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	var getConnTLSRootsCalled bool
 	f := &Forwarder{
 		cfg: ForwarderConfig{
-			Keygen:            testauthority.New(),
+			Keygen:            authority,
 			AuthClient:        cl,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),

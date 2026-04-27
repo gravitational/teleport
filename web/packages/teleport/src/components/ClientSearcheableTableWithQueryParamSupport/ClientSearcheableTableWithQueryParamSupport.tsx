@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import Table from 'design/DataTable';
 import { TableProps } from 'design/DataTable/types';
@@ -30,14 +30,14 @@ export function ClientSearcheableTableWithQueryParamSupport<T>(
   props: Omit<TableProps<T>, 'serversideProps'>
 ) {
   const loc = useLocation();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const searchParams = new URLSearchParams(loc.search);
 
   function updateUrlParams(searchString: string) {
-    history.replace(
-      encodeUrlQueryParams({ pathname: loc.pathname, searchString })
-    );
+    navigate(encodeUrlQueryParams({ pathname: loc.pathname, searchString }), {
+      replace: true,
+    });
   }
 
   return (

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -218,6 +219,7 @@ func TestSSHServerBasics(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, testSSHServerBasics)
 	synctest.Test(t, testSSHServerScope)
+	synctest.Test(t, testSSHServerImmutableLabels)
 }
 
 func testSSHServerScope(t *testing.T) {
@@ -313,6 +315,130 @@ func testSSHServerScope(t *testing.T) {
 				Addr: zeroAddr,
 			},
 			Scope: "/aa/bb/cc",
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that the handler closes
+	awaitEvents(t, events,
+		expect(handlerClose),
+		deny(sshUpsertOk, sshKeepAliveOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+}
+
+func testSSHServerImmutableLabels(t *testing.T) {
+	const serverID = "test-server"
+	const zeroAddr = "0.0.0.0:123"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, &proto.UpstreamInventoryPong{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	immutableLabels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"foo": "bar",
+		},
+	}
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID:        serverID,
+		Version:         teleport.Version,
+		Services:        types.SystemRoles{types.RoleNode}.StringSlice(),
+		ImmutableLabels: immutableLabels,
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake ssh server heartbeat with a scope matching registration
+	err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:            zeroAddr,
+				ImmutableLabels: immutableLabels.GetSsh(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(sshUpsertOk, sshKeepAliveOk),
+		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
+	)
+
+	// send an ssh server heartbeat with immutable labels different from registration
+	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+				ImmutableLabels: map[string]string{
+					"foo": "baz",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1591,7 +1717,116 @@ func TestGoodbye(t *testing.T) {
 func TestKubernetesServerBasics(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, testKubernetesServerBasics)
+	// happy path, scopes always match
+	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/test"))
+	// server scope differs from scope given during control stream registration
+	synctest.Test(t, testKubernetesServerScoped("/test", "/other", "/test"))
+	// cluster scope differs from the server scope
+	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/other"))
 }
+
+func testKubernetesServerScoped(initialScope, serverScope, clusterScope string) func(t *testing.T) {
+	return func(t *testing.T) {
+		const serverID = "test-server"
+
+		ctx := t.Context()
+
+		events := make(chan testEvent, 1024)
+
+		auth := &fakeAuth{}
+
+		rc := &resourceCounter{}
+		controller := NewController(
+			auth,
+			usagereporter.DiscardUsageReporter{},
+			withServerKeepAlive(time.Millisecond*200),
+			withTestEventsChannel(events),
+			WithOnConnect(rc.onConnect),
+			WithOnDisconnect(rc.onDisconnect),
+		)
+		defer controller.Close()
+
+		// set up fake in-memory control stream
+		upstream, downstream := client.InventoryControlStreamPipe()
+		// launch goroutine to respond to ping requests
+		go func() {
+			for {
+				select {
+				case msg := <-downstream.Recv():
+					downstream.Send(ctx, &proto.UpstreamInventoryPong{
+						ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+					})
+				case <-downstream.Done():
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+			ServerID: serverID,
+			Version:  teleport.Version,
+			Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+			Scope:    initialScope,
+		})
+
+		// verify that control stream handle is now accessible
+		_, ok := controller.GetControlStream(serverID)
+		require.True(t, ok)
+
+		// verify that hb counter has been incremented
+		require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+		// send server heartbeat with scopes applied
+		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+			KubernetesServer: &types.KubernetesServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Scope: serverScope,
+				Spec: types.KubernetesServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Cluster: &types.KubernetesClusterV3{
+						Kind:    types.KindKubernetesCluster,
+						Version: types.V3,
+						Scope:   clusterScope,
+						Metadata: types.Metadata{
+							Name: "cluster",
+						},
+						Spec: types.KubernetesClusterSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		if serverScope != initialScope {
+			// scope mismatch between server scope and initial scope should close
+			// the stream
+			awaitEvents(t, events,
+				expect(handlerClose),
+				deny(kubeKeepAliveErr, kubeUpsertErr),
+			)
+			return
+		}
+		if clusterScope != serverScope {
+			// scope mismatch between server scope and cluster scope should close
+			// the stream
+			awaitEvents(t, events,
+				expect(handlerClose),
+				deny(kubeKeepAliveErr, kubeUpsertErr),
+			)
+			return
+		}
+		awaitEvents(t, events,
+			expect(kubeUpsertOk, kubeKeepAliveOk),
+			deny(kubeKeepAliveErr, kubeUpsertErr, handlerClose),
+		)
+	}
+}
+
 func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const kubeCount = 3
