@@ -237,12 +237,15 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	pingResp, err := tc.Ping(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if c.devType == "" {
+		// If we are prompting the user for the device type, then take a glimpse at
+		// server-side settings and adjust the options accordingly.
+		// This is undesirable to do during flag setup, but we can do it here.
+		pingResp, err := tc.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		c.devType, err = prompt.PickOne(
 			ctx, os.Stdout, prompt.Stdin(),
 			"Choose device type", deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor))
