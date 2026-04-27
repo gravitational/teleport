@@ -241,12 +241,11 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	allowedDevTypes := deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor)
 
 	if c.devType == "" {
 		c.devType, err = prompt.PickOne(
 			ctx, os.Stdout, prompt.Stdin(),
-			"Choose device type", allowedDevTypes)
+			"Choose device type", deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -518,9 +517,9 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
 	prompt.PINMessage = "Enter your *new* security key PIN"
 	if touchid.IsAvailable() {
-		prompt.FirstTouchMessage =
+		prompt.FirstTouchMessage = "" +
 			"(WEBAUTHN is used to register security keys. To register Touch ID, use --type=TOUCHID instead.)\n" +
-				"Tap your *new* security key"
+			"Tap your *new* security key"
 	} else {
 		prompt.FirstTouchMessage = "Tap your *new* security key"
 	}
