@@ -32,8 +32,8 @@ import (
 
 func TestTDPBMFAFlow(t *testing.T) {
 	client, server := net.Pipe()
-	clientConn := tdp.NewConn(client, tdp.DecoderAdapter(DecodeStrict))
-	serverConn := tdp.NewConn(server, tdp.DecoderAdapter(DecodeStrict))
+	clientConn := tdp.NewConn(client, tdp.DecoderAdapter(DecodeStrict), WarningConstructor)
+	serverConn := tdp.NewConn(server, tdp.DecoderAdapter(DecodeStrict), WarningConstructor)
 	defer clientConn.Close()
 	defer serverConn.Close()
 

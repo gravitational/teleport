@@ -658,19 +658,17 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Figure out which protocol the client is using
 	clientProtocol := proxyConn.ConnectionState().NegotiatedProtocol
-	var decoder tdp.Decoder
+	var tdpConn *tdp.Conn
 	switch clientProtocol {
 	case tdpb.ProtocolName:
-		decoder = tdp.DecoderAdapter(tdpb.DecodePermissive)
+		tdpConn = tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	case "":
 		clientProtocol = legacy.ProtocolName
-		decoder = legacy.Decode
+		tdpConn = tdp.NewConn(proxyConn, legacy.Decode, legacy.WarningConstructor)
 	default:
 		log.ErrorContext(context.Background(), "Unknown client protocol selection", "protocol", clientProtocol)
 		return
 	}
-
-	tdpConn := tdp.NewConn(proxyConn, decoder)
 	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP/TDPB Error sending in this function.

@@ -88,7 +88,7 @@ func TestProxyConnection(t *testing.T) {
 
 	// Echos back any TDP messages received
 	tdpEchoServer := func(conn net.Conn) error {
-		tdpConn := tdp.NewConn(conn, legacy.Decode)
+		tdpConn := tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
 		for {
 			msg, err := tdpConn.ReadMessage()
 			if err != nil {
@@ -102,7 +102,7 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w}, legacy.Decode)
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, legacy.Decode, legacy.WarningConstructor)
 
 		rdpMsg := legacy.RDPResponsePDU([]byte("hello"))
 		mouseMsg := legacy.MouseWheel{Axis: 2, Delta: 4}
@@ -144,7 +144,7 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpbClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.DecoderAdapter(tdpb.DecodePermissive))
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 
 		rdpMsg := &tdpb.RDPResponsePDU{
 			Response: []byte("hello"),
@@ -467,4 +467,8 @@ func TestDesktopWebsocketAdapter(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &tdpb.Alert{}, msg)
 	assert.Equal(t, "tdpb!", msg.(*tdpb.Alert).Message)
+}
+
+func TestLegacyErrorHandler(t *testing.T) {
+
 }

@@ -29,6 +29,51 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// TDPMaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
+	// the browser (Teleport never receives this message, so won't be decoding it)
+	TDPMaxAlertMessageLength = 10240
+
+	// TDPMaxPathLength is somewhat arbitrary because we weren't able to determine
+	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+	// The limit is kept as an additional defense-in-depth measure.
+	TDPMaxPathLength = 10240
+
+	MaxClipboardDataLength    = 1024 * 1024 // 1MB
+	TDPMaxFileReadWriteLength = 1024 * 1024 // 1MB
+)
+
+var (
+	ClipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")
+	StringMaxLenErr        = trace.LimitExceeded("TDP string length exceeds allowable limit")
+	FileReadWriteMaxLenErr = trace.LimitExceeded("TDP file read or write message exceeds maximum size limit")
+	MFADataMaxLenErr       = trace.LimitExceeded("MFA challenge data exceeds maximum length")
+)
+
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, ClipDataMaxLenErr) ||
+		errors.Is(err, StringMaxLenErr) ||
+		errors.Is(err, FileReadWriteMaxLenErr) ||
+		errors.Is(err, MFADataMaxLenErr)
+}
+
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
+}
+
 type Message interface {
 	Encode() ([]byte, error)
 }
@@ -55,12 +100,12 @@ type MessageReadWriteCloser interface {
 // It converts between a stream of bytes (io.ReadWriter) and a stream of
 // Teleport Desktop Protocol (TDP) messages.
 type Conn struct {
-	rwc       io.ReadWriteCloser
-	writeMu   sync.Mutex
-	bufr      *bufio.Reader
-	decode    Decoder
-	closeOnce sync.Once
-
+	rwc              io.ReadWriteCloser
+	writeMu          sync.Mutex
+	bufr             *bufio.Reader
+	decode           Decoder
+	closeOnce        sync.Once
+	constructWarning WarningConstructor
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
 	localAddr  net.Addr
@@ -86,12 +131,13 @@ func DecoderAdapter(f func(io.Reader) (Message, error)) Decoder {
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rwc io.ReadWriteCloser, decoder Decoder) *Conn {
+func NewConn(rwc io.ReadWriteCloser, decoder Decoder, wc WarningConstructor) *Conn {
 	br := bufio.NewReader(rwc)
 	c := &Conn{
-		rwc:    rwc,
-		bufr:   br,
-		decode: decoder,
+		rwc:              rwc,
+		bufr:             br,
+		decode:           decoder,
+		constructWarning: wc,
 	}
 
 	if tc, ok := rwc.(srvTrackingConn); ok {
@@ -133,10 +179,28 @@ func (c *Conn) PeekNextByte() (byte, error) {
 	return b, nil
 }
 
+// WarningConstructor is a function that constructs a TDP or TDPB
+// alert message with warning severity to be sent to the client.
+type WarningConstructor func(string) Message
+
+func (c *Conn) sendWarning(warning string) error {
+	return c.WriteMessage(c.constructWarning(warning))
+}
+
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
-	m, err := c.decode(c.bufr)
-	return m, trace.Wrap(err)
+	for {
+		m, err := c.decode(c.bufr)
+		if err != nil && IsNonFatalErr(err) {
+			if warnError := c.sendWarning(err.Error()); warnError != nil {
+				return nil, trace.Wrap(warnError, "error sending alert message in response to decode error: %v", err)
+			}
+			// Warning sent. Try reading the next message
+			continue
+		}
+		// err may still be non-nil
+		return m, trace.Wrap(err)
+	}
 }
 
 // WriteMessage sends a message to the connection.

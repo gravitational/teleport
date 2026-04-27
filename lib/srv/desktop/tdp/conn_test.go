@@ -62,7 +62,7 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			tc := NewConn(test.conn, nil)
+			tc := NewConn(test.conn, nil, nil)
 			l := tc.LocalAddr()
 			r := tc.RemoteAddr()
 			require.Equal(t, test.local, l)
