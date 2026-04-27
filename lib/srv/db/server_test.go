@@ -480,9 +480,10 @@ func TestShutdown(t *testing.T) {
 				if !assert.Len(t, dbServers, 1) {
 					return
 				}
-				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
-					return
-				}
+				assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
+				))
 			}, 10*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, server.Shutdown(ctx))
@@ -498,7 +499,10 @@ func TestShutdown(t *testing.T) {
 				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, dbServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
+				))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
