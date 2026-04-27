@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer"
@@ -29,7 +30,6 @@ import (
 	"google.golang.org/grpc/resolver"
 
 	grpcv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
-	"github.com/gravitational/trace"
 )
 
 func TestBalancerManagerUpdates(t *testing.T) {

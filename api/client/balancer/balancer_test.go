@@ -170,7 +170,7 @@ func TestBalancerModeChange(t *testing.T) {
 	server1.Stop()
 
 	resolver.UpdateAddresses(server2.Addr())
-	name, err = pingServer(ctx, conn)
+	_, err = pingServer(ctx, conn)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

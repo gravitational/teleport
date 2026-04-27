@@ -17,7 +17,7 @@ package balancer
 import (
 	"context"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,7 +36,7 @@ const (
 	// Name is the name used to register the customer [Balancer].
 	Name = "teleport_pick_healthy"
 
-	// reconnect deafults.
+	// reconnect defaults.
 	reconnectBaseBackoff = 1 * time.Second
 	reconnectMaxBackoff  = 16 * time.Second
 	connectTimeout       = 30 * time.Second
@@ -93,7 +93,7 @@ type Balancer struct {
 	cancel func()
 
 	// serializer ensures synchronization and ordering of balancer operations.
-	// This was prefered over a mutex to avoid potential issues with deadlocks
+	// This was preferred over a mutex to avoid potential issues with deadlocks
 	// and out-of-order events. The main culprit of this is the [balancer.UpdateClientConnState]
 	// which can trigger events which call back into this the [Balancer].
 	serializer *internal.CallbackSerializer
