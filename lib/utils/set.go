@@ -30,3 +30,8 @@ type Set[T comparable] = set.Set[T]
 func NewSet[T comparable](elements ...T) Set[T] {
 	return set.New(elements...)
 }
+
+// NewSetWithCapacity constructs a new, empty set with an given capacity hint.
+func NewSetWithCapacity[T comparable](capacity int) Set[T] {
+	return set.NewWithCapacity[T](capacity)
+}
