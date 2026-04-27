@@ -408,17 +408,13 @@ Direct Auth Service joining is only supported for Teleport Agents running the Te
 
 ## Troubleshooting
 
-Logs emitted by `teleport` instances can include the following messages if you
+Logs emitted by a Teleport process can include the following messages if you
 have set up your Teleport cluster network incorrectly.
 
 ### Connection reset by peer
 
-If you see the message, `connection reset by peer`, it means that the component
-of your Teleport cluster that has emitted the log (e.g., a Teleport Agent)
-received a TCP packet with a control bit set to RST (reset). A TCP endpoint
-sends an RST packet over an established connection if it receives a packet that
-is unexpected given its connection state, e.g., if the other side unexpectedly
-exits mid-connection.
+If you see the message, `connection reset by peer`, it means that the remote
+server (usually the Teleport control plane) closed the client's connection.
 
 There is a variety of reasons why an upstream server may reset the connection,
 and they may or may not have to do with the components of a Teleport cluster.
@@ -427,7 +423,7 @@ is behind the Teleport Proxy Service, which closes a connection if it receives
 traffic from an outdated `tsh` client. It could also be that a Teleport Agent
 proxying a connection exited without closing the connection. A device between
 the Teleport component and the other side of the connection, such as a load
-balancer, may also be injecting RST packets.
+balancer, may also be closing the connection.
 
 To investigate:
 
@@ -470,9 +466,8 @@ transport: authentication handshake failed: tls: failed to verify certificate: x
 As explained in
 [Troubleshooting](../../zero-trust-access/management/diagnostics/troubleshooting.mdx#teleportclusterlocal),
 Teleport issues certificates with `teleport.cluster.local` as a Subject
-Alternative Name (SAN) for the Teleport Auth Service and Proxy Service. In this
-case, the certificate your Teleport component received does not include the
-intended SAN.
+Alternative Name (SAN) for the Teleport Auth Service. In this case, the
+certificate your Teleport component received does not include the intended SAN.
 
 One reason this situation could take place is that the cluster is configured to
 use [TLS
