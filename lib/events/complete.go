@@ -21,7 +21,6 @@ package events
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -33,12 +32,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -69,6 +66,9 @@ type UploadCompleterConfig struct {
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
 	ClusterName string
+	// EnsureSessionEndEvent determines whether or not the UploadCompleter should
+	// detect missing session end events and attempt to emit them.
+	EnsureSessionEndEvent bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -305,19 +305,21 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
-		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-u.cfg.Clock.After(2 * time.Minute):
-				log.DebugContext(ctx, "checking for session end event")
-				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
-					log.WarnContext(ctx, "failed to ensure session end event", "error", err)
+		if u.cfg.EnsureSessionEndEvent {
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-u.cfg.Clock.After(2 * time.Minute):
+					log.DebugContext(ctx, "checking for session end event")
+					if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
+						log.WarnContext(ctx, "failed to ensure session end event", "error", err)
+					}
 				}
-			}
-		}()
-		session := &events.SessionUpload{
-			Metadata: events.Metadata{
+			}()
+		}
+		session := &apievents.SessionUpload{
+			Metadata: apievents.Metadata{
 				Type:        SessionUploadEvent,
 				Code:        SessionUploadCode,
 				Time:        u.cfg.Clock.Now().UTC(),
@@ -325,7 +327,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 				Index:       SessionUploadIndex,
 				ClusterName: u.cfg.ClusterName,
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
@@ -339,107 +341,18 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	// at this point, we don't know whether we'll need to emit a session.end or a
-	// windows.desktop.session.end, but as soon as we see the session start we'll
-	// be able to start filling in the details
-	var sshSessionEnd events.SessionEnd
-	var desktopSessionEnd events.WindowsDesktopSessionEnd
-
-	// We use the streaming events API to search through the session events, because it works
-	// for both Desktop and SSH sessions
-	var lastEvent events.AuditEvent
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
-
-loop:
-	for {
-		select {
-		case evt, more := <-evts:
-			if !more {
-				break loop
-			}
-
-			lastEvent = evt
-
-			switch e := evt.(type) {
-			// Return if session end event already exists
-			case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
-				return nil
-
-			case *events.WindowsDesktopSessionStart:
-				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
-				desktopSessionEnd.Code = DesktopSessionEndCode
-				desktopSessionEnd.ClusterName = e.ClusterName
-				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.User)
-				desktopSessionEnd.Recorded = true
-				desktopSessionEnd.UserMetadata = e.UserMetadata
-				desktopSessionEnd.SessionMetadata = e.SessionMetadata
-				desktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
-				desktopSessionEnd.Domain = e.Domain
-				desktopSessionEnd.DesktopAddr = e.DesktopAddr
-				desktopSessionEnd.DesktopLabels = e.DesktopLabels
-				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
-
-			case *events.SessionStart:
-				sshSessionEnd.Type = SessionEndEvent
-				sshSessionEnd.Code = SessionEndCode
-				sshSessionEnd.ClusterName = e.ClusterName
-				sshSessionEnd.StartTime = e.Time
-				sshSessionEnd.UserMetadata = e.UserMetadata
-				sshSessionEnd.SessionMetadata = e.SessionMetadata
-				sshSessionEnd.ServerMetadata = e.ServerMetadata
-				sshSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				sshSessionEnd.KubernetesClusterMetadata = e.KubernetesClusterMetadata
-				sshSessionEnd.KubernetesPodMetadata = e.KubernetesPodMetadata
-				sshSessionEnd.InitialCommand = e.InitialCommand
-				sshSessionEnd.SessionRecording = e.SessionRecording
-				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
-
-			case *events.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
-			}
-
-		case err := <-errors:
-			return trace.Wrap(err)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	if lastEvent == nil {
-		return trace.Errorf("could not find any events for session %v", uploadData.SessionID)
-	}
-
-	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
-	sshSessionEnd.EndTime = lastEvent.GetTime()
-	desktopSessionEnd.EndTime = lastEvent.GetTime()
-
-	var sessionEndEvent events.AuditEvent
-	switch {
-	case sshSessionEnd.Code != "":
-		sessionEndEvent = &sshSessionEnd
-	case desktopSessionEnd.Code != "":
-		sessionEndEvent = &desktopSessionEnd
-	default:
-		return trace.BadParameter("invalid session, could not find session start")
-	}
-
-	u.log.InfoContext(ctx, "emitting event for completed session",
-		"event_type", sessionEndEvent.GetType(),
-		"event_code", sessionEndEvent.GetCode(),
-		"session_id", uploadData.SessionID,
+	_, err := FindOrRecoverSessionEnd(
+		ctx,
+		FindOrRecoverSessionEndConfig{
+			ClusterName: u.cfg.ClusterName,
+			Streamer:    u.cfg.AuditLog,
+			SessionID:   uploadData.SessionID,
+			AuditLog:    u.cfg.AuditLog,
+			Log:         u.log,
+			Clock:       u.cfg.Clock,
+		},
 	)
-
-	sessionEndEvent.SetTime(lastEvent.GetTime())
-
-	// Check and set event fields
-	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

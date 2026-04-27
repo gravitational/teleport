@@ -88,6 +88,10 @@ type ProtoStreamerConfig struct {
 	// sending on this channel just forces a single flush for whichever upload happens
 	// to receive the signal first, so this may not be suitable for concurrent tests.
 	ForceFlush chan struct{}
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -114,16 +118,18 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool:        utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		onUploadComplete: cfg.OnUploadComplete,
 	}, nil
 }
 
 // ProtoStreamer creates protobuf-based streams uploaded to the storage
 // backends, for example S3 or GCS
 type ProtoStreamer struct {
-	cfg        ProtoStreamerConfig
-	bufferPool *utils.BufferSyncPool
-	slicePool  *utils.SliceSyncPool
+	cfg              ProtoStreamerConfig
+	bufferPool       *utils.BufferSyncPool
+	slicePool        *utils.SliceSyncPool
+	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CreateAuditStreamForUpload creates audit stream for existing upload,
@@ -137,7 +143,16 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		MinUploadBytes:    s.cfg.MinUploadBytes,
 		ConcurrentUploads: s.cfg.ConcurrentUploads,
 		ForceFlush:        s.cfg.ForceFlush,
+		OnUploadComplete:  s.onUploadComplete,
 	})
+}
+
+// SetOnUploadComplete sets a callback to be invoked after an upload completes
+// when no session end event was observed in the stream. This allows callers to
+// recover or synthesize the session end event from an external source (e.g.
+// the audit log). It must be called before any streams are created.
+func (s *ProtoStreamer) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	s.onUploadComplete = fn
 }
 
 // CreateAuditStream creates audit stream and upload
@@ -159,12 +174,13 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		return nil, trace.Wrap(err)
 	}
 	return NewProtoStream(ProtoStreamConfig{
-		Upload:         upload,
-		BufferPool:     s.bufferPool,
-		SlicePool:      s.slicePool,
-		Uploader:       s.cfg.Uploader,
-		MinUploadBytes: s.cfg.MinUploadBytes,
-		CompletedParts: parts,
+		Upload:           upload,
+		BufferPool:       s.bufferPool,
+		SlicePool:        s.slicePool,
+		Uploader:         s.cfg.Uploader,
+		MinUploadBytes:   s.cfg.MinUploadBytes,
+		CompletedParts:   parts,
+		OnUploadComplete: s.onUploadComplete,
 	})
 }
 
@@ -195,6 +211,10 @@ type ProtoStreamConfig struct {
 	Clock clockwork.Clock
 	// ConcurrentUploads sets concurrent uploads per stream
 	ConcurrentUploads int
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -487,6 +507,30 @@ type sliceWriter struct {
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
 	emptyHeader [ProtoStreamV1PartHeaderSize]byte
+
+	// sessionStartTime is the time of the first event in the session
+	sessionStartTime time.Time
+	// sessionEndTime is the time of the last event in the session
+	sessionEndTime time.Time
+	// shouldProcessSession is set to true if the session should be processed
+	// by the recording metadata service (currently, this is true if the session
+	// is a SSH session).
+	shouldProcessSession bool
+	// sshSessionEndEvent is an event that marked the end of this session if it was
+	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
+	// be nil if the stream picked up after an auth server start from a point
+	// where the session end event has already been uploaded. If captured, it
+	// will be passed to the summarizer.
+	sshSessionEndEvent *apievents.SessionEnd
+	// dbSessionEndEvent is an event that marked the end of this session if it was
+	// a database one. It may be nil if the stream hasn't ended yet, and it may
+	// also be nil if the stream picked up after an auth server start from a
+	// point where the session end event has already been uploaded. If captured,
+	// it will be passed to the summarizer.
+	dbSessionEndEvent *apievents.DatabaseSessionEnd
+
+	// hasSessionEnd indicates if the session end event is present.
+	hasSessionEnd bool
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -593,6 +637,32 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 				continue
 			}
+			// Capture the session start time and the last relevant end event time, and the actual end event.
+			switch e := event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionStart:
+				w.sessionStartTime = e.SessionStart.Time
+				w.shouldProcessSession = true
+
+			case *apievents.OneOf_SessionPrint:
+				w.sessionEndTime = e.SessionPrint.Time
+
+			case *apievents.OneOf_Resize:
+				w.sessionEndTime = e.Resize.Time
+
+			case *apievents.OneOf_SessionEnd:
+				w.sshSessionEndEvent = e.SessionEnd
+				w.sessionEndTime = e.SessionEnd.Time
+				w.hasSessionEnd = true
+
+			case *apievents.OneOf_DatabaseSessionEnd:
+				w.dbSessionEndEvent = e.DatabaseSessionEnd
+				w.hasSessionEnd = true
+			case *apievents.OneOf_WindowsDesktopSessionEnd:
+				w.hasSessionEnd = true
+			case *apievents.OneOf_AppSessionEnd:
+				w.hasSessionEnd = true
+			}
+
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
 				// upload has not completed and the current slice is out of capacity
@@ -693,11 +763,16 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload",
-				"error", err,
-				"upload", w.proto.cfg.Upload.ID,
-				"session", w.proto.cfg.Upload.SessionID,
-			)
+			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+			return
+		}
+
+		if !w.hasSessionEnd && w.proto.cfg.OnUploadComplete != nil {
+			_, err := w.proto.cfg.OnUploadComplete(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+				return
+			}
 		}
 	}
 }
