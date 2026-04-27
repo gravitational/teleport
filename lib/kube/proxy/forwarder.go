@@ -471,30 +471,6 @@ type authContext struct {
 	isLocalKubernetesCluster bool
 }
 
-// getCheckerForCluster returns either the cached scoped access checker that granted access to the
-// cluster or attempts to find that checker and then cache it for later use.
-func (c *authContext) getCheckerForCluster(ctx context.Context, kubeCluster types.KubeCluster, matchers ...services.RoleMatcher) (*services.ScopedAccessChecker, error) {
-	if c.checker != nil {
-		return c.checker, nil
-	}
-
-	var checker *services.ScopedAccessChecker
-	if err := c.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(check *services.ScopedAccessChecker) error {
-		if err := check.Kube().CheckAccessToCluster(kubeCluster, c.accessState, matchers...); err != nil {
-			return err
-		}
-		checker = check
-		return nil
-	}); err != nil {
-		if services.IsAccessExplicitlyDenied(err) {
-			return nil, trace.Wrap(err)
-		}
-		return nil, trace.Wrap(errImplicitDeny)
-	}
-
-	return checker, nil
-}
-
 func (c authContext) String() string {
 	return fmt.Sprintf("user: %v, users: %v, groups: %v, teleport cluster: %v, kube cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name, c.kubeClusterName)
 }
@@ -536,6 +512,16 @@ func (c *authContext) eventUserMetaWithLogin(login string) apievents.UserMetadat
 	meta := c.eventUserMeta()
 	meta.Login = login
 	return meta
+}
+
+// getAccessChecker returns the [*services.ScopedAccessChecker] that granted access to the kube cluster
+// refrenced by the authContext. Once it's set it should not be changed and all subsequent calls
+// to an access checker should use the cached checker.
+func (c *authContext) getAccessChecker() (*services.ScopedAccessChecker, error) {
+	if c.checker != nil {
+		return c.checker, nil
+	}
+	return nil, trace.AccessDenied("no access checker found for kube forwarder auth context")
 }
 
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
@@ -1034,27 +1020,33 @@ var errImplicitDeny = &trace.AccessDeniedError{Message: "access to kube cluster 
 func (f *Forwarder) getKubeAccessDetails(
 	ctx context.Context,
 	actx *authContext,
-	roleMatchers ...services.RoleMatcher,
+	matchers ...services.RoleMatcher,
 ) (kubeAccessDetails, error) {
 	// track explicit denies so we can decide how to return once all available kube servers have been visited
 	var explicitDenies []error
 	var implicitDenyOrNotFound error = errImplicitDeny
 
-	// We don't want to append directly to roleMatchers and don't want to clone roleMatchers on every iteration when we
+	// We don't want to append directly to matchers and don't want to clone matchers on every iteration when we
 	// append the label matcher. Instead we allocate a copy of the matchers with an extra slot reserved for adding the
-	// label prior to calling GetGroupsAndUsers. If roleMatchers is empty, this will result in a slice of length 1 which
+	// label prior to calling GetGroupsAndUsers. If matchers is empty, this will result in a slice of length 1 which
 	// will have its 0th element set to the label matcher.
-	matchersWithLabelMatcher := make([]services.RoleMatcher, len(roleMatchers)+1)
-	copy(matchersWithLabelMatcher, roleMatchers)
+	matchersWithLabelMatcher := make([]services.RoleMatcher, len(matchers)+1)
+	copy(matchersWithLabelMatcher, matchers)
 
+	var checker *services.ScopedAccessChecker
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range actx.kubeServers {
 		c := s.GetCluster()
 		if c.GetName() != actx.kubeClusterName {
 			continue
 		}
-		checker, err := actx.getCheckerForCluster(ctx, c, roleMatchers...)
-		if err != nil {
+		if err := actx.CheckerContext.Decision(ctx, c.GetScope(), func(check *services.ScopedAccessChecker) error {
+			if err := check.Kube().CheckAccessToCluster(c, actx.accessState, matchers...); err != nil {
+				return err
+			}
+			checker = check
+			return nil
+		}); err != nil {
 			if services.IsAccessExplicitlyDenied(err) {
 				explicitDenies = append(explicitDenies, err)
 			}
@@ -1187,7 +1179,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			}
 		}
 	}
-	var kubeUsers, kubeGroups []string
 	// check access to cluster, check signing TTL, and return a list of allowed logins for local cluster based on
 	// Kubernetes service labels.
 	kubeAccessDetails, err := f.getKubeAccessDetails(
@@ -1227,12 +1218,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
-	kubeUsers = kubeAccessDetails.kubeUsers
-	kubeGroups = kubeAccessDetails.kubeGroups
-
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
-	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
+	kubeUsers, kubeGroups := fillDefaultKubePrincipalDetails(kubeAccessDetails.kubeUsers, kubeAccessDetails.kubeGroups, actx.User.GetName())
 	actx.kubeUsers = set.New(kubeUsers...)
 	actx.kubeGroups = set.New(kubeGroups...)
 	actx.kubeCluster = kubeAccessDetails.kubeCluster
