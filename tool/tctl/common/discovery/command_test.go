@@ -104,7 +104,6 @@ AWS   222     us-west-2 i-success   2026-01-15... Installed ...
     {
         "region": "us-east-1",
         "is_online": false,
-        "expiry": "0001-01-01T00:00:00Z",
         "run_result": {
             "exit_code": 1,
             "output": "install failed",
@@ -119,7 +118,6 @@ AWS   222     us-west-2 i-success   2026-01-15... Installed ...
     {
         "region": "us-west-2",
         "is_online": false,
-        "expiry": "0001-01-01T00:00:00Z",
         "run_result": {
             "exit_code": 0,
             "output": "",
@@ -158,7 +156,6 @@ AWS   111     us-east-1 i-online1   2026-01-15... Online, ex... Script out...
     {
         "region": "us-east-1",
         "is_online": true,
-        "expiry": "0001-01-01T00:00:00Z",
         "run_result": {
             "exit_code": 1,
             "output": "err",
