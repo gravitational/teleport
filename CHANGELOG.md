@@ -1,6 +1,6 @@
 # Changelog
 
-## 17.7.23 (04/06/26)
+## 17.7.23 (04/27/26)
 
 * Initialize keystore sign and decrypt metrics at startup. [#66109](https://github.com/gravitational/teleport/pull/66109)
 * Updated `jackc/pgx` packages to fix CVE-2026-4427/CVE-2026-32286, CVE-2026-33815, CVE-2026-33816, GHSA-j88v-2chj-qfwx. [#66093](https://github.com/gravitational/teleport/pull/66093)
