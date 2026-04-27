@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -330,17 +329,4 @@ func combineOutput(stdout, stderr string) string {
 		return stdout
 	}
 	return stderr
-}
-
-// resolveTimeRange parses a --last duration string into a (from, to) pair.
-func resolveTimeRange(clock clockwork.Clock, last string) (from, to time.Time, err error) {
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-	now := clock.Now().UTC()
-	d, err := types.ParseDuration(strings.TrimSpace(last))
-	if err != nil {
-		return time.Time{}, time.Time{}, trace.BadParameter("invalid --last value %q, expected a duration like 1h, 24h, or 30m", last)
-	}
-	return now.Add(-d.Duration()), now, nil
 }

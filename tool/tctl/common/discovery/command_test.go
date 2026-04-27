@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -75,8 +73,7 @@ func (m *mockClient) GetResources(_ context.Context, _ *proto.ListResourcesReque
 // newTestCommand creates a Command for testing.
 func newTestCommand(format string) *Command {
 	return &Command{
-		config:      &servicecfg.Config{Clock: clockwork.NewRealClock()},
-		nodesLast:   "1h",
+		nodesLast:   time.Hour,
 		nodesFormat: format,
 	}
 }
