@@ -1691,7 +1691,7 @@ func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccess
 
 func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
 	// TODO(fspmarshall/scopes): implement caching for scoped roles
-	// on node agents.
+	// on kube agents.
 	return w.NoCache.ScopedRoleReader()
 }
 

@@ -1057,12 +1057,13 @@ func (f *Forwarder) getKubeAccessDetails(
 			services.NewKubernetesClusterLabelMatcher(labels, checker.AccessInfo().Username, actx.CheckerContext.Traits()),
 		)
 
-		// GetGroupsAndUsers returns the accumulated kubernetes_groups and kubernetes_users
-		// that satisfy te provided matchers for unscoped identities. When a KubernetesResourceMatcher,
-		// it will gather the Kubernetes principals whose role satisfy the desired Kubernetes Resource.
-		// For scoped identities, the groups and users will be sourced from the scoped role providing
-		// access to the resource. The users/groups will be forwarded to Kubernetes Cluster as Impersonation
-		// headers.
+		// GetGroupsAndUsers returns the accumulated kubernetes groups and users that satisfy the provided matchers.
+		// For unscoped identities, this will return the groups and users attached to any role that matches the
+		// target kubernetes cluster. If a KubernetesResourceMatcher is included in the list of matchers, it will
+		// only return the groups and users attached to roles that also satisfy the desired kubernetes resource.
+		// For scoped identities, the groups and users will be sourced from the scoped role providing access to the
+		// resource without matching on any specific kubernetes resources. The users/groups will be forwarded to the
+		// kubernetes cluster as impersonation headers.
 		const overrideTTL = false
 		groups, users, err := checker.Kube().GetGroupsAndUsers(actx.sessionTTL, overrideTTL, matchers...)
 		if err != nil {
@@ -1167,7 +1168,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 
 		if errors.Is(err, errImplicitDeny) {
+			// we should only skip authZ for unscoped, proxy-based kube clusters
 			if actx.kubeClusterName == f.cfg.ClusterName {
+				if !isUnscoped {
+					return trace.Wrap(services.ErrScopedIdentity, "proxy-based kube clusters cannot skip authZ for scoped identities")
+				}
 				f.log.DebugContext(ctx, "Skipping authorization for proxy-based kubernetes cluster",
 					"auth_context", logutils.StringerAttr(actx),
 				)
@@ -1192,8 +1197,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	actx.kubeGroups = set.New(kubeGroups...)
 	actx.kubeCluster = kubeAccessDetails.kubeCluster
 
-	// Scoped identities don't support resources or checking access requests,
-	// so we can skip the rest of the checks.
+	// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip the
+	// rest of these checks for now.
 	if !isUnscoped {
 		return nil
 	}
@@ -1648,8 +1653,10 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 // is allowed to start a session without moderation.
 func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
 	unscopedCtx, isUnscoped := authCtx.UnscopedContext()
+	// TODO(eriktate/scopes): scoped access does not currently support session moderation, so we always allow
+	// starting a session alone. We should revisit this once scoped moderated sessions are addressed more
+	// wholistically.
 	if !isUnscoped {
-		// scoped identities don't support session moderation, so they can always start sessions alone
 		return true, nil
 	}
 	policySets := unscopedCtx.Checker.SessionPolicySets()
