@@ -21,12 +21,10 @@ package awsoidc
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"maps"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -42,41 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-func TestGetChartUrl(t *testing.T) {
-	testCases := []struct {
-		version  string
-		expected string
-		error    string
-	}{
-		{
-			version:  "14.3.3",
-			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-14.3.3.tgz",
-		},
-		{
-			version:  "15.0.2",
-			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.2.tgz",
-		},
-		{
-			version:  "15.0.0-alpha.5",
-			expected: "https://charts.releases.development.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
-		},
-		{
-			version: "abc",
-			error:   "failed to parse chart version",
-		},
-	}
-
-	for _, tt := range testCases {
-		res, err := getChartURL(tt.version)
-		if tt.error != "" {
-			require.ErrorContains(t, err, tt.error)
-		} else {
-			require.NoError(t, err)
-			require.Equal(t, tt.expected, res.String())
-		}
-	}
-}
 
 func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
@@ -151,7 +114,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		TeleportClusterName: "my-teleport-cluster",
 	}
 
-	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+	clock := clockwork.NewFakeClock()
 
 	testCases := []struct {
 		name                string
@@ -342,7 +305,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
-				mockClt.checkAgentAlreadyInstalled = func(ctx context.Context, getter genericclioptions.RESTClientGetter, logger *slog.Logger) (bool, error) {
+				mockClt.checkAgentAlreadyInstalled = func(ctx context.Context, getter genericclioptions.RESTClientGetter) (bool, error) {
 					return true, nil
 				}
 				return mockClt
@@ -553,8 +516,8 @@ type mockEnrollEKSClusterClient struct {
 	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
 	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
+	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter) (bool, error)
+	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, EnrollEKSClustersRequest) error
 	createToken                 func(ctx context.Context, token types.ProvisionToken) error
 	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
 }
@@ -601,16 +564,16 @@ func (m *mockEnrollEKSClusterClient) GetCallerIdentity(ctx context.Context, para
 	return &sts.GetCallerIdentityOutput{}, nil
 }
 
-func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger) (bool, error) {
+func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter) (bool, error) {
 	if m.checkAgentAlreadyInstalled != nil {
-		return m.checkAgentAlreadyInstalled(ctx, kubeconfig, log)
+		return m.checkAgentAlreadyInstalled(ctx, kubeconfig)
 	}
 	return false, nil
 }
 
-func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger, req EnrollEKSClustersRequest) error {
+func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, req EnrollEKSClustersRequest) error {
 	if m.installKubeAgent != nil {
-		return m.installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeconfig, log, req)
+		return m.installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeconfig, req)
 	}
 	return nil
 }
@@ -647,7 +610,7 @@ func TestKubeAgentLabels(t *testing.T) {
 		resourceID,
 		extraLabels,
 	)
-	expectedLabels := map[string]any{
+	expectedLabels := map[string]string{
 		"priority":                      "yes",
 		"region":                        "us-east-1",
 		"custom":                        "yes",

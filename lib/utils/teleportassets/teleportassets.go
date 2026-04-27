@@ -97,6 +97,8 @@ const (
 	distrolessTeleportOSSImage = "teleport-distroless"
 	// distrolessTeleportEntImage is the distroless image of the Enterprise version of Teleport
 	distrolessTeleportEntImage = "teleport-ent-distroless"
+	// kubeAgentUpdaterImage is the kube-agent-updater image name.
+	kubeAgentUpdaterImage = "teleport-kube-agent-updater"
 )
 
 // DistrolessImage returns the distroless teleport image repo.
@@ -104,6 +106,14 @@ func DistrolessImage(version semver.Version) string {
 	repo := distrolessImageRepo(version)
 	name := distrolessImageName(modules.GetModules().BuildType())
 	return fmt.Sprintf("%s/%s:%s", repo, name, version)
+}
+
+// KubeAgentUpdaterImage returns the teleport-kube-agent-updater image
+// reference for the given version, picking the production or pre-release
+// ECR repo based on the version's pre-release tag (matching DistrolessImage).
+func KubeAgentUpdaterImage(version semver.Version) string {
+	repo := distrolessImageRepo(version)
+	return repo + "/" + kubeAgentUpdaterImage + ":" + version.String()
 }
 
 func distrolessImageRepo(version semver.Version) string {

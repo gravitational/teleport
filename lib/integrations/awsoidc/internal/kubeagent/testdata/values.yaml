@@ -1,0 +1,43 @@
+# Values file consumed by lib/kubeagent/internal/gen at build time.
+#
+# Structural toggles are all ON so every optional resource appears in the
+# rendered output; the runtime composer in options.go strips/keeps them per
+# Options. Scalar inputs that vary per-install are set to deliberately-unique
+# placeholder strings. The composer either overrides the typed field
+# directly (e.g. Secret.StringData["auth-token"]) or, for values that land
+# inside an opaque string (the teleport.yaml payload, container args),
+# does a string-replace at runtime via applyConfigSubs / setUpdaterChannel.
+# Keep these placeholders in sync with the constants in options.go.
+#
+# "roles" is rendered twice by the generator (once per allowed value) to
+# capture the two ConfigMap payloads.
+
+roles: "kube"
+
+proxyAddr: "proxy-placeholder:443"
+authToken: "token-placeholder"
+kubeClusterName: "cluster-placeholder"
+
+enterprise: true
+
+updater:
+  enabled: true
+  releaseChannel: "channel-placeholder"
+
+highAvailability:
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# Disable helm's delete-hook (a Job + RBAC) because the Teleport installer doesn't
+# use helm release lifecycle, so these resources are unused. With this set,
+# helm doesn't render them and the generator has nothing to filter.
+skipHooks: true
+
+# Disable PodSecurityPolicy. The chart's psp.yaml is gated on k8s <1.23, but
+# PSP itself was removed from k8s in 1.25. Disabling here means we don't depend
+# on what k8s version we claim to be (chartutil.DefaultCapabilities defaults to
+# 1.20 when imported as a library) and our decoder doesn't have to register policy/v1beta1.
+podSecurityPolicy:
+  enabled: false
