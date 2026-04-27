@@ -66,7 +66,7 @@ type scopedAssignmentsListCommand struct {
 	format string
 	// user allows filtering by user to whom assignments apply.
 	user string
-	// role allowed filtering by scoped role name.
+	// role allows filtering by scoped role name.
 	role string
 }
 
