@@ -3,11 +3,11 @@
 ## 18.7.6 (04/27/26)
 
 * Fixed an issue where `tctl edit plugin/jamf` could break other plugins when providing non-zero duration value. [#66191](https://github.com/gravitational/teleport/pull/66191)
-* Introduces `skip_initial_connection` option to the `teleportmwi` provider to allow lazy initialisation of the provider. [#66139](https://github.com/gravitational/teleport/pull/66139)
+* Introduces `skip_initial_connection` option to the `teleportmwi` provider to allow lazy initialization of the provider. [#66139](https://github.com/gravitational/teleport/pull/66139)
 * Initialize keystore sign and decrypt metrics at startup and register missing decrypt metric collectors. [#66110](https://github.com/gravitational/teleport/pull/66110)
 * Added current and previous resources discovered summary per service to Discovery Config Status. [#66097](https://github.com/gravitational/teleport/pull/66097)
 * Fixed a bug where generated JWT tokens were leaked into audit event. [#66095](https://github.com/gravitational/teleport/pull/66095)
-* Updated `jackc/pgx` packages to fix CVE-2026-4427/CVE-2026-32286, CVE-2026-33815, CVE-2026-33816, GHSA-j88v-2chj-qfwx. [#66083](https://github.com/gravitational/teleport/pull/66083)
+* Updated internal database dependencies to resolve multiple security vulnerabilities (CVE-2026-4427, CVE-2026-32286, and others). [#66083](https://github.com/gravitational/teleport/pull/66083)
 * Fixed a possible panic during TTY session processing/playback/summarization from crashing Teleport. [#66080](https://github.com/gravitational/teleport/pull/66080)
 * Fixed an issue where the endpoint used by `tsh scan keys` could leak resources on a server error; this affected only clusters with Access Graph enabled. [#66076](https://github.com/gravitational/teleport/pull/66076)
 * Added `teleport_app_active_sessions` Prometheus gauge with `app` label for app access agent autoscaling. [#66050](https://github.com/gravitational/teleport/pull/66050)
