@@ -379,6 +379,9 @@ message DatabaseStatusV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure"
   ];
+  // VNetDNSName is a DNS-safe, deterministic hash of the database name
+  // used by VNet for database FQDN resolution.
+  string VNetDNSName = 6 [(gogoproto.jsontag) = "vnet_dns_name,omitempty"];
 }
 
 // IAMPolicyStatus represents states that describe if an AWS database
