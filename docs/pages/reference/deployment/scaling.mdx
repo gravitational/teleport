@@ -124,38 +124,73 @@ has default limits of 4CPU and 4Gi memory.
 | Database      | 40       | Proxy CPU Limits exceeded |
 | Kubernetes    | 50       | Proxy CPU Limits exceeded |
 
-## Windows Desktop Service
+## Teleport Windows Desktop Service resource utilization
 
-Windows Desktop sessions can vary greatly in resource usage depending on the applications being used. The primary
-factor affecting resource usage per session is how often the screen is updated. For example, a session playing a video
-in full screen mode will consume significantly more resources than a session where the user is typing in a text editor.
+Windows Desktop Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Windows Desktop Service instance.
 
-We measured the resource usage of sessions playing fullscreen videos to get the worst-case estimate for resource requirements.
-We then inferred resource requirements for more standard use cases on the basis of those measurements.
+There are three primary factors that influence resource utilization by the Windows Desktop Service:
+1. Number of concurrent sessions.
+1. Number of registered desktops.
+1. Screen update frequency per session.
+1. Whether session recording is enabled.
 
-**Worst Case:**
-- 1/12 vCPU per concurrent session
-- 42 MB RAM per concurrent session
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a low activity workload (mostly static screens). Sessions with frequent screen updates, such as video playback, consume significantly more CPU and RAM per session. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
 
-**Typical Case:**
-- 1/240 vCPU per concurrent session
-- 2 MB RAM per concurrent session
+### Long lived sessions
 
-From these estimates we calculated the following table of recommendations based on the expected maximum number of concurrent
-sessions:
+Session recording adds per-session RAM overhead. The tables below show RAM usage with and without it enabled.
 
-| Concurrent users | CPU (vCPU, low to high) | Memory (GB, low to high) |
-|------------------|-------------------------|--------------------------|
-| 1                | 1                       | 0.5                      |
-| 10               | 1                       | 0.5 to 1                 |
-| 100              | 1 to 8                  | 1 to 8                   |
-| 1000             | 4 to 96                 | 4 to 64                  |
+#### With session recording enabled
 
-To avoid service interruptions, we recommend leaning towards the higher end of the recommendations to start while monitoring
-your resource usage, and then scaling resources based on measured outcomes.
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 40              |
+| 2                   | 55              |
+| 4                   | 65              |
+| 8                   | 85              |
+| 16                  | 105             |
+| 32                  | 160             |
 
-Note that you are not limited to a single `windows_desktop_service`, and can connect multiple to your cluster in order to
-spread resources out over multiple logical machines.
+#### Without session recording enabled
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 30              |
+| 2                   | 45              |
+| 4                   | 50              |
+| 8                   | 55              |
+| 16                  | 70              |
+| 32                  | 90              |
+
+### Registered desktops
+
+A single Windows Desktop Service can serve multiple desktops via static configuration or dynamic discovery. Each registered desktop adds idle background overhead.
+
+| registered desktops | idle CPU (millicores) | idle RAM (MiB) |
+| ------------------- | --------------------- | -------------- |
+| 100                 | 4                     | 60             |
+| 200                 | 4                     | 65             |
+| 500                 | 5                     | 70             |
+| 1000                | 5                     | 75             |
+| 5000                | 20                    | 100            |
+| 10000               | 40                    | 150            |
+| 50000               | 85                    | 350            |
+| 100000              | 100                   | 600            |
+
+Both CPU and RAM grow approximately linearly with the number of registered desktops. To serve more desktops, deploy multiple Windows Desktop Service instances.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the Windows Desktop Service:
+1. Determine the maximum number of concurrent sessions.
+1. Determine the number of desktops served by each Windows Desktop Service instance.
+
+There is no synthetic benchmark tool for Windows Desktop sessions. To measure resource usage under your expected workload, open representative sessions simultaneously through Teleport Connect or the Web UI and monitor the Windows Desktop Service process. Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
 
 ## Teleport SSH Service resource utilization
 
