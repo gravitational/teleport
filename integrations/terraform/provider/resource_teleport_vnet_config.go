@@ -83,7 +83,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 		vnetConfig.Metadata.Name = apitypes.MetaNameVnetConfig
 	}
 
-	vnetConfigBefore, err := r.p.Client.GetVnetConfig(ctx)
+	vnetConfigBefore, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))
 		return
@@ -172,7 +172,7 @@ func (r resourceTeleportVnetConfig) Read(ctx context.Context, req tfsdk.ReadReso
 		return
 	}
 
-	vnetConfigI, err := r.p.Client.GetVnetConfig(ctx)
+	vnetConfigI, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -217,7 +217,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 		return
 	}
 
-	vnetConfigBefore, err := r.p.Client.GetVnetConfig(ctx)
+	vnetConfigBefore, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))
 		return
@@ -279,7 +279,7 @@ func (r resourceTeleportVnetConfig) Delete(ctx context.Context, req tfsdk.Delete
 
 // ImportState imports VnetConfig state
 func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	vnetConfigI, err := r.p.Client.GetVnetConfig(ctx)
+	vnetConfigI, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating VnetConfig", trace.Wrap(err), "vnet_config"))
 		return
