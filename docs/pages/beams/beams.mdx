@@ -9,12 +9,11 @@ tags:
 ---
 
 [Beams](https://beams.run) are ephemeral, isolated runtimes for AI agents. Each
-beam is a short-lived [Firecracker](https://firecracker-microvm.github.io/)
-micro-VM provisioned with a Teleport-issued identity and connected to your
-infrastructure and inference services — with no secrets, no static API keys, and
-full audit coverage.
+beam is a short-lived microVM provisioned with a Teleport-issued identity and
+connected to your infrastructure and inference services — with no secrets, no
+static API keys, and full audit coverage.
 
-Beams are part of the [Teleport Agentic Identity
+Beams are a reference implementation of the [Teleport Agentic Identity
 Framework](../agentic-identity-framework/agentic-identity-framework.mdx) and are designed to solve the core
 adoption blockers for running agents in production: security, IAM, and
 operational overhead.
@@ -22,9 +21,9 @@ operational overhead.
 ## How Beams work
 
 When you run `tsh beams add`, Teleport's orchestrator provisions an isolated
-Firecracker micro-VM, injects a short-lived identity certificate, starts an SSH
-server, and configures virtual networking — all before your agent executes its
-first line of code.
+microVM, injects a short-lived identity certificate, starts an SSH server, and
+configures virtual networking — all before your agent executes its first line of
+code.
 
 Each beam runs a Debian-based environment that comes with Teleport's `tsh`
 command line and an assortment of common tooling.
@@ -121,7 +120,7 @@ All beam operations are performed through the `tsh beams` subcommand.
 
 ### Creating a beam
 
-Create a new beam with `tsh beams add`. This provisions a Firecracker micro-VM
+Create a new beam with `tsh beams add`. This provisions a microVM
 and returns when the beam is ready (typically under 5 seconds).
 
 ```code
@@ -259,9 +258,9 @@ This role is automatically assigned to users on Beams-enabled clusters.
 ## Security model
 
 Beams run on the Teleport Cloud platform. Each beam runs in a restricted
-containerized environment inside of a dedicated Firecracker microVM. A beam can
-only access your Teleport resources (like apps and databases) if it is granted
-the appropriate permissions. 
+containerized environment inside of a dedicated microVM. A beam can only access
+your Teleport resources (like apps and databases) if it is granted the
+appropriate permissions. 
 
 Ingress traffic to beams is either protected by Teleport SSH (for console
 access) or via Teleport application tunnels (for published apps).

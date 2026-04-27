@@ -135,12 +135,14 @@ layers of the secure agent environment.
 
 ### Sandboxing
 
-A beam runs on a Firecracker virtual machine with a time to live of under 24
-hours. An instance of `tbot` runs on the virtual machine. The `tbot` instance
-runs Teleport VNet, which sets up a TUN interface on the VM that intercepts all
-traffic that flows from the agentic workload. The agentic workload queries the
-VNet instance as its DNS resolver, and VNet returns the public addresses of
-Teleport protected resources in your infrastructure.
+A beam runs on a microVM that also hosts an instance of `tbot`, the [Machine &
+Workload Identity](../machine-workload-identity/introduction.mdx) agent. The
+`tbot` instance runs a server-side version of [Teleport
+VNet](../connect-your-client/teleport-clients/vnet.mdx), which sets up a TUN
+interface on the VM that intercepts all traffic that flows from the agentic
+workload. The agentic workload queries the VNet instance as its DNS resolver,
+and VNet returns the public addresses of Teleport protected resources in your
+infrastructure.
 
 From the point of view of the agentic workload, it can attempt a connection to
 any Teleport-protected resource. However, all traffic from the workload to the
@@ -148,9 +150,9 @@ infrastructure outside the sandbox must go through the local VNet TUN interface.
 From there, since the VNet resolver returns addresses of Teleport-protected
 resources, the workload can only dial the Teleport Proxy Service.
 
-Since Teleport-managed infrastructure tears down the virtual machine after the
-TTL, we can minimize the risk of the agent finding and exploiting
-vulnerabilities.
+Teleport-managed infrastructure tears down the virtual machine after a
+pre-configured time to live, minimizing the risk of the agent finding and
+exploiting vulnerabilities.
 
 ### Identity
 
@@ -162,8 +164,8 @@ In the case of Beams, the `tbot` instance authenticates itself to the Teleport
 Auth Service using [Bound Keypair
 Joining](../reference/machine-workload-identity/bound-keypair/admin-guide.mdx)
 and receives an identity of its own, then periodically issues identities to the
-agentic workload (TLS and SSH user certificates) and the Firecracker VM (an SSH
-host certificate).
+agentic workload (TLS and SSH user certificates) and the microVM (an SSH host
+certificate).
 
 `tbot` issues a **delegated identity** to the agentic workload. The `tbot`
 configuration specifies the ID of a **delegation session** resource, which
