@@ -2465,35 +2465,6 @@ func (s *clusterSession) close() {
 	s.sessionCancel(io.EOF)
 }
 
-// getLockTargets returns a list of [types.LockTarget] for scoped and unscoped
-// identities.
-// For unscoped identities, the result is unchanged from [AuthContext.LockTargets()].
-// For scoped identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
-// The only difference is that the Groups and AccessRequests are not considered
-// when generating the lock targets.
-func (s *clusterSession) getLockTargets() []types.LockTarget {
-	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
-		return unscopedCtx.LockTargets()
-	}
-	id := s.Identity.GetIdentity()
-	lockTargets := []types.LockTarget{
-		{User: id.Username},
-	}
-
-	if id.MFAVerified != "" {
-		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
-	}
-	if id.DeviceExtensions.DeviceID != "" {
-		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
-	}
-	if id.JoinToken != "" {
-		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
-	}
-	if id.BotInstanceID != "" {
-		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
-	}
-	return lockTargets
-}
 func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2515,7 +2486,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		connCancel(err)
 		return nil, trace.Wrap(err)
 	}
-	lockTargets := s.getLockTargets()
+	lockTargets := s.LockTargets()
 	// when the target is not a kubernetes_service instance, we don't need to lock it.
 	// the target could be a remote cluster or a local Kubernetes API server. In both cases,
 	// hostID is empty.
