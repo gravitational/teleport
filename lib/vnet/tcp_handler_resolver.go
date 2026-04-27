@@ -85,7 +85,7 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		dbInfo := matchedDB.GetDatabaseInfo()
 		return &tcpHandlerSpec{
 			ipv4CIDRRange: dbInfo.GetIpv4CidrRange(),
-			tcpHandler: newTCPDBHandler(&tcpDBHandlerConfig{
+			tcpHandler: newDBHandler(&dbHandlerConfig{
 				dbInfo:                   dbInfo,
 				dbProvider:               r.cfg.dbProvider,
 				clock:                    r.cfg.clock,
@@ -233,10 +233,10 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		return tcpAppHandler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
-		// If matched a database, build a tcpDBHandler that will be used for this
+		// If matched a database, build a dbHandler that will be used for this
 		// and all subsequent connections to this address.
 		log.DebugContext(ctx, "Resolved FQDN to a matched database")
-		dbHandler := newTCPDBHandler(&tcpDBHandlerConfig{
+		dbHandler := newDBHandler(&dbHandlerConfig{
 			dbInfo:                   matchedDB.GetDatabaseInfo(),
 			dbProvider:               h.cfg.dbProvider,
 			clock:                    h.cfg.clock,

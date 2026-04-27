@@ -37,15 +37,15 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-type tcpDBHandler struct {
-	cfg *tcpDBHandlerConfig
+type dbHandler struct {
+	cfg *dbHandlerConfig
 	log *slog.Logger
 
 	mu         sync.Mutex
 	localProxy *alpnproxy.LocalProxy
 }
 
-type tcpDBHandlerConfig struct {
+type dbHandlerConfig struct {
 	dbInfo     *vnetv1.DatabaseInfo
 	dbProvider *dbProvider
 	clock      clockwork.Clock
@@ -55,8 +55,8 @@ type tcpDBHandlerConfig struct {
 	alwaysTrustRootClusterCA bool
 }
 
-func newTCPDBHandler(cfg *tcpDBHandlerConfig) *tcpDBHandler {
-	return &tcpDBHandler{
+func newDBHandler(cfg *dbHandlerConfig) *dbHandler {
+	return &dbHandler{
 		cfg: cfg,
 		log: log.With(
 			teleport.ComponentKey, teleport.Component("vnet", "tcp-db-handler"),
@@ -68,7 +68,7 @@ func newTCPDBHandler(cfg *tcpDBHandlerConfig) *tcpDBHandler {
 	}
 }
 
-func (h *tcpDBHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.LocalProxy, error) {
+func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.LocalProxy, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.localProxy != nil {
@@ -111,7 +111,10 @@ func (h *tcpDBHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnprox
 // handleTCPConnector handles an incoming TCP connection from VNet by passing it
 // to the local ALPN proxy, which is configured with middleware to automatically
 // handle certificate renewal and re-logins.
-func (h *tcpDBHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+//
+// localPort is part of the tcpHandler interface contract but is unused here:
+// the local ALPN proxy ignores it for database connections.
+func (h *dbHandler) handleTCPConnector(ctx context.Context, _ uint16, connector func() (net.Conn, error)) error {
 	lp, err := h.getOrInitializeLocalProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)

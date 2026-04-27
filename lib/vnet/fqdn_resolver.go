@@ -33,7 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/vnet/dbfqdn"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // fqdnResolver resolves fully-qualified domain names to possible VNet targets.
@@ -62,7 +63,7 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		return nil, trace.Wrap(err, "listing profiles")
 	}
 	for _, profileName := range profileNames {
-		if fqdn == fullyQualify(profileName) {
+		if fqdn == dns.FullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
 			// The DNS request must be forwarded upstream so that the VNet
 			// process can always dial the proxy address without recursively
@@ -178,7 +179,7 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 
 		// Check if fqdn looks like a database FQDN using the root proxy address
 		rootProxyHost := rootProxyHostFromProfile(profileName)
-		fqdnMatchesDBZone := hasDBZoneSuffix(fqdn, rootProxyHost)
+		fqdnMatchesDBZone := dbfqdn.HasZoneSuffix(fqdn, rootProxyHost)
 
 		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
 			if shouldYieldAllCandidates {
@@ -277,7 +278,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	// for a web app in a leaf cluster.
 	var potentialAppName string
 	if candidate.leafClusterName != "" && isDirectSubdomain(fqdn, candidate.profileName) {
-		potentialAppName = strings.TrimSuffix(fqdn, "."+fullyQualify(candidate.profileName))
+		potentialAppName = strings.TrimSuffix(fqdn, "."+dns.FullyQualify(candidate.profileName))
 		expr += fmt.Sprintf(` || name == "%s"`, potentialAppName)
 	}
 
@@ -305,7 +306,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			if !ok {
 				return nil, trace.BadParameter("expected *types.AppV3, got %T", resource.GetApp())
 			}
-			matchedByPublicAddr := fullyQualify(app.GetPublicAddr()) == fqdn
+			matchedByPublicAddr := dns.FullyQualify(app.GetPublicAddr()) == fqdn
 			matchedByName := app.GetName() == potentialAppName
 			if !matchedByName && !matchedByPublicAddr {
 				// This shouldn't happen if the backend query worked correctly.
@@ -408,10 +409,10 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		zones = append(zones, rootProxyHost)
 	}
 
-	var dbUser, dbName string
+	var vnetDNSName string
 	var matched bool
 	for _, zone := range zones {
-		dbUser, dbName, err = parseDatabaseFQDN(fqdn, zone)
+		vnetDNSName, err = dbfqdn.Parse(fqdn, zone)
 		if err == nil {
 			matched = true
 			break
@@ -421,8 +422,9 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	// Query the cluster for a database server matching the parsed name.
-	expr := fmt.Sprintf(`name == "%s"`, dbName)
+	// Query the cluster for a database server whose status.vnet_dns_name
+	// matches the parsed identifier.
+	expr := fmt.Sprintf(`resource.status.vnet_dns_name == "%s"`, vnetDNSName)
 	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: expr,
@@ -441,11 +443,12 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	}
 
 	db := resp.Resources[0].GetDatabase()
+	dbName := db.GetName()
 	protocol := db.GetProtocol()
 
-	if err := validateDBUserForProtocol(dbUser, dbName, protocol); err != nil {
-		log.InfoContext(ctx, "Database FQDN username validation failed",
-			"protocol", protocol, "db_name", dbName, "db_user", dbUser, "error", err)
+	if !dbfqdn.IsSupportedProtocol(protocol) {
+		log.InfoContext(ctx, "Database protocol not currently supported by VNet",
+			"protocol", protocol, "db_name", dbName)
 		return nil, errNoMatch
 	}
 
@@ -455,7 +458,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, trace.Wrap(err, "getting dial options for matching database")
 	}
 
-	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "db_user", dbUser, "protocol", protocol)
+	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "protocol", protocol)
 	dbInfo := &vnetv1.DatabaseInfo{
 		DatabaseKey: &vnetv1.DatabaseKey{
 			Profile:     candidate.profileName,
@@ -464,7 +467,6 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		},
 		Cluster:       candidate.clusterName,
 		Protocol:      protocol,
-		Username:      dbUser,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
 	}
@@ -520,25 +522,16 @@ func (r *fqdnResolver) resolveClusterMatch(ctx context.Context, log *slog.Logger
 
 // isDescendantSubdomain checks if fqdn is a subdomain of zone.
 func isDescendantSubdomain(fqdn, zone string) bool {
-	return strings.HasSuffix(fqdn, "."+fullyQualify(zone))
+	return strings.HasSuffix(fqdn, "."+dns.FullyQualify(zone))
 }
 
 // isDirectSubdomain checks if fqdn is a direct single-level subdomain of zone.
 func isDirectSubdomain(fqdn, zone string) bool {
-	trimmed := strings.TrimSuffix(fqdn, "."+fullyQualify(zone))
+	trimmed := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(zone))
 	if trimmed == fqdn {
 		return false
 	}
 	return !strings.ContainsRune(trimmed, '.')
-}
-
-// fullyQualify returns a fully-qualified domain name from [domain].
-// Fully-qualified domain names always end with a ".".
-func fullyQualify(domain string) string {
-	if strings.HasSuffix(domain, ".") {
-		return domain
-	}
-	return domain + "."
 }
 
 // rootProxyHostFromProfile returns the root proxy hostname from a profile name,
@@ -547,31 +540,4 @@ func rootProxyHostFromProfile(profileName string) string {
 		return host
 	}
 	return profileName
-}
-
-// validateDBUserForProtocol checks that the db-user parsed from the FQDN is
-// appropriate for the database protocol
-func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
-	if dbProtocolExtractsUsernameFromWire(protocol) {
-		if dbUser != "" {
-			return trace.BadParameter("database protocol %q does not support username in domain name, specify the user in the client connection string instead", protocol)
-		}
-		return nil
-	}
-	if dbUser == "" {
-		return trace.BadParameter("database protocol %q requires username in domain name", protocol)
-	}
-	return nil
-}
-
-// dbProtocolExtractsUsernameFromWire returns true for database protocols where
-// the db_service extracts the database username from the wire protocol
-func dbProtocolExtractsUsernameFromWire(protocol string) bool {
-	switch protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB,
-		defaults.ProtocolMySQL, defaults.ProtocolSQLServer:
-		return true
-	default:
-		return false
-	}
 }

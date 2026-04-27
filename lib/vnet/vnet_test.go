@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -767,6 +768,9 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 							Protocol: db.protocol,
 							URI:      "localhost:5432",
 						},
+						Status: types.DatabaseStatusV3{
+							VNetDNSName: dbvnet.DNSName(db.name),
+						},
 					},
 				},
 			}
@@ -1252,6 +1256,8 @@ func TestDialFakeDatabase(t *testing.T) {
 				databases: []dbSpec{
 					{name: "my-postgres", protocol: "postgres"},
 					{name: "my-mysql", protocol: "mysql"},
+					// Unsupported protocol kept here so we exercise the
+					// resolver's protocol gate below.
 					{name: "my-mongo", protocol: "mongodb"},
 				},
 				cidrRange: "192.168.2.0/24",
@@ -1280,18 +1286,18 @@ func TestDialFakeDatabase(t *testing.T) {
 		expectRouteToDatabase proto.RouteToDatabase
 	}{
 		{
-			name:       "postgres without user in FQDN",
-			fqdn:       "my-postgres.db.root1.example.com",
+			name:       "postgres",
+			fqdn:       dbvnet.DNSName("my-postgres") + ".db.root1.example.com",
 			expectCIDR: "192.168.2.0/24",
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "my-postgres",
 				Protocol:    "postgres",
-				Username:    "",
+				Username:    "", // username comes from wire protocol
 			},
 		},
 		{
-			name:       "mysql without user in FQDN",
-			fqdn:       "my-mysql.db.root1.example.com",
+			name:       "mysql",
+			fqdn:       dbvnet.DNSName("my-mysql") + ".db.root1.example.com",
 			expectCIDR: "192.168.2.0/24",
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "my-mysql",
@@ -1301,22 +1307,12 @@ func TestDialFakeDatabase(t *testing.T) {
 		},
 		{
 			name:       "leaf cluster postgres via root proxy",
-			fqdn:       "leaf-postgres.db.root1.example.com",
+			fqdn:       dbvnet.DNSName("leaf-postgres") + ".db.root1.example.com",
 			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "leaf-postgres",
 				Protocol:    "postgres",
-				Username:    "", // user stripped — postgres gets it from wire protocol
-			},
-		},
-		{
-			name:       "mongodb with user in FQDN",
-			fqdn:       "admin.my-mongo.db.root1.example.com",
-			expectCIDR: "192.168.2.0/24",
-			expectRouteToDatabase: proto.RouteToDatabase{
-				ServiceName: "my-mongo",
-				Protocol:    "mongodb",
-				Username:    "admin", // mongodb requires user in cert
+				Username:    "", // username comes from wire protocol
 			},
 		},
 	}
@@ -1375,7 +1371,7 @@ func TestDialFakeDatabase(t *testing.T) {
 		}{
 			{
 				name: "wrong proxy address",
-				fqdn: "reader.my-postgres.db.wrong.example.com",
+				fqdn: dbvnet.DNSName("my-postgres") + ".db.wrong.example.com",
 			},
 		}
 
@@ -1419,7 +1415,7 @@ func TestOnNewDBConnection(t *testing.T) {
 	require.Equal(t, uint32(0), clientApp.onNewDBConnectionCallCount.Load())
 
 	// Connect to a valid database and verify OnNewDBConnection was called.
-	conn, err := p.dialHost(ctx, "my-postgres.db.root1.example.com", 5432)
+	conn, err := p.dialHost(ctx, dbvnet.DNSName("my-postgres")+".db.root1.example.com", 5432)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), clientApp.onNewDBConnectionCallCount.Load())
