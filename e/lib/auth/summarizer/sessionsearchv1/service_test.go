@@ -3,6 +3,8 @@ package sessionsearchv1
 import (
 	"context"
 	"net"
+	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -60,12 +62,7 @@ type fakeChecker struct {
 }
 
 func (c fakeChecker) HasRole(role string) bool {
-	for _, r := range c.roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.roles, role)
 }
 
 func (c fakeChecker) RoleNames() []string {
@@ -872,16 +869,10 @@ func (*fakeOpenAIEmbeddingClient) NewChatCompletion(
 	panic("NewChatCompletion not expected in embedding tests")
 }
 
-func TestSearchSessionSummaries_EmbeddingsGenerated(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	agSrv := &fakeAGServer{
-		pages: []agPage{
-			{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice")}, hasMore: false},
-		},
-	}
-	cache := &fakeCacheWithEmbeddings{
+// newEmbeddingsCache returns a fakeCacheWithEmbeddings pre-populated with a
+// standard OpenAI retrieval model and a fake API key, used by embedding tests.
+func newEmbeddingsCache() *fakeCacheWithEmbeddings {
+	return &fakeCacheWithEmbeddings{
 		model: &summarizerpb.RetrievalModel{
 			Metadata: &headerv1.Metadata{Name: "my-model"},
 			Spec: &summarizerpb.RetrievalModelSpec{
@@ -897,6 +888,18 @@ func TestSearchSessionSummaries_EmbeddingsGenerated(t *testing.T) {
 			Spec: &summarizerpb.InferenceSecretSpec{Value: "fake-api-key"},
 		},
 	}
+}
+
+func TestSearchSessionSummaries_EmbeddingsGenerated(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	agSrv := &fakeAGServer{
+		pages: []agPage{
+			{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice")}, hasMore: false},
+		},
+	}
+	cache := newEmbeddingsCache()
 
 	svc, err := NewService(ServiceConfig{
 		Authorizer:              &fakeAuthorizer{ctx: makeAuthCtx(t, allowAll())},
@@ -922,4 +925,140 @@ func TestSearchSessionSummaries_EmbeddingsGenerated(t *testing.T) {
 
 	// Verify the session was forwarded to the caller.
 	assert.Equal(t, []string{"s1"}, collectSummaryIDs(stream.sent))
+}
+
+// trackingOpenAIClientFactory wraps fakeOpenAIClientFactory but counts
+// how many times GenerateEmbeddings is called across all clients it creates.
+type trackingOpenAIClientFactory struct {
+	calls atomic.Int64
+}
+
+func (f *trackingOpenAIClientFactory) NewClient(_ ...option.RequestOption) sumopenai.Client {
+	return &trackingOpenAIEmbeddingClient{factory: f}
+}
+
+type trackingOpenAIEmbeddingClient struct {
+	factory *trackingOpenAIClientFactory
+}
+
+func (c *trackingOpenAIEmbeddingClient) GenerateEmbeddings(
+	_ context.Context, _ gopenai.EmbeddingNewParams, _ ...option.RequestOption,
+) (*gopenai.CreateEmbeddingResponse, error) {
+	c.factory.calls.Add(1)
+	return &gopenai.CreateEmbeddingResponse{
+		Data:  []gopenai.Embedding{{Embedding: []float64{0.1, 0.2, 0.3}}},
+		Usage: gopenai.CreateEmbeddingResponseUsage{TotalTokens: 3},
+	}, nil
+}
+
+func (c *trackingOpenAIEmbeddingClient) NewChatCompletion(
+	_ context.Context, _ gopenai.ChatCompletionNewParams, _ ...option.RequestOption,
+) (*gopenai.ChatCompletion, error) {
+	panic("NewChatCompletion not expected in search mode tests")
+}
+
+func newServiceWithTracking(t *testing.T, srv *fakeAGServer, factory *trackingOpenAIClientFactory) *Service {
+	t.Helper()
+	svc, err := NewService(ServiceConfig{
+		Authorizer:              &fakeAuthorizer{ctx: makeAuthCtx(t, allowAll())},
+		Cache:                   newEmbeddingsCache(),
+		AccessGraphClientGetter: startAGServer(t, srv),
+		AvailabilityCache:       &fakeAvailabilityChecker{},
+		OpenAIClientFactory:     factory,
+	})
+	require.NoError(t, err)
+	return svc
+}
+
+func TestSearchSessionSummaries_KeywordOnlySkipsEmbeddings(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	agSrv := &fakeAGServer{
+		pages: []agPage{
+			{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice")}, hasMore: false},
+		},
+	}
+	factory := &trackingOpenAIClientFactory{}
+	svc := newServiceWithTracking(t, agSrv, factory)
+
+	req := baseRequest()
+	req.SearchQueries = []string{"find ssh sessions"}
+	req.SearchMode = pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY
+	stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: ctx}
+	require.NoError(t, svc.SearchSessionSummaries(req, stream))
+
+	assert.Equal(t, int64(0), factory.calls.Load(), "KEYWORD_ONLY should not call the embedding provider")
+
+	require.NotNil(t, agSrv.receivedParams)
+	require.Len(t, agSrv.receivedParams.SearchQueries, 1)
+	assert.Equal(t, "find ssh sessions", agSrv.receivedParams.SearchQueries[0].GetText())
+	assert.Empty(t, agSrv.receivedParams.SearchQueries[0].GetEmbeddings(), "KEYWORD_ONLY should send no embeddings")
+	assert.Equal(t, accessgraphv1.SearchMode_SEARCH_MODE_KEYWORD_ONLY, agSrv.receivedParams.GetSearchMode())
+}
+
+func TestSearchSessionSummaries_SearchModeForwarded(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mode         pb.SearchMode
+		expectedMode accessgraphv1.SearchMode
+		wantEmbeds   bool
+	}{
+		{
+			name:         "unspecified forwards as unspecified and generates embeddings",
+			mode:         pb.SearchMode_SEARCH_MODE_UNSPECIFIED,
+			expectedMode: accessgraphv1.SearchMode_SEARCH_MODE_UNSPECIFIED,
+			wantEmbeds:   true,
+		},
+		{
+			name:         "hybrid forwards as hybrid and generates embeddings",
+			mode:         pb.SearchMode_SEARCH_MODE_HYBRID,
+			expectedMode: accessgraphv1.SearchMode_SEARCH_MODE_HYBRID,
+			wantEmbeds:   true,
+		},
+		{
+			name:         "embedding-only forwards and generates embeddings",
+			mode:         pb.SearchMode_SEARCH_MODE_EMBEDDING_ONLY,
+			expectedMode: accessgraphv1.SearchMode_SEARCH_MODE_EMBEDDING_ONLY,
+			wantEmbeds:   true,
+		},
+		{
+			name:         "keyword-only forwards and skips embeddings",
+			mode:         pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY,
+			expectedMode: accessgraphv1.SearchMode_SEARCH_MODE_KEYWORD_ONLY,
+			wantEmbeds:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			agSrv := &fakeAGServer{
+				pages: []agPage{
+					{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice")}, hasMore: false},
+				},
+			}
+			factory := &trackingOpenAIClientFactory{}
+			svc := newServiceWithTracking(t, agSrv, factory)
+
+			req := baseRequest()
+			req.SearchQueries = []string{"lateral movement"}
+			req.SearchMode = tc.mode
+			stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: ctx}
+			require.NoError(t, svc.SearchSessionSummaries(req, stream))
+
+			require.NotNil(t, agSrv.receivedParams)
+			assert.Equal(t, tc.expectedMode, agSrv.receivedParams.GetSearchMode())
+			require.Len(t, agSrv.receivedParams.SearchQueries, 1)
+			assert.Equal(t, "lateral movement", agSrv.receivedParams.SearchQueries[0].GetText())
+			if tc.wantEmbeds {
+				assert.Greater(t, factory.calls.Load(), int64(0), "mode %v should generate embeddings", tc.mode)
+			} else {
+				assert.Equal(t, int64(0), factory.calls.Load(), "mode %v should not generate embeddings", tc.mode)
+			}
+		})
+	}
 }

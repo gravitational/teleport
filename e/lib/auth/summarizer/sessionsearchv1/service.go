@@ -424,20 +424,22 @@ func (s *Service) buildAccessGraphParams(
 		Severity:           req.GetSeverity(),
 		MaxSummaries:       maxSummaries,
 		ResumeToken:        req.GetBatchToken(),
+		SearchMode:         accessgraphv1.SearchMode(req.GetSearchMode()),
 	}
 
-	// Generate vector embeddings for each query so the access graph can
-	// perform semantic search in addition to structured filtering.
+	skipEmbeddings := req.GetSearchMode() == pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY
+
 	for _, query := range req.GetSearchQueries() {
-		vec, modelName, err := s.generateEmbeddings(ctx, query)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating embeddings for search query")
+		eq := &accessgraphv1.EmbeddedQuery{Text: query}
+		if !skipEmbeddings {
+			vec, modelName, err := s.generateEmbeddings(ctx, query)
+			if err != nil {
+				return nil, trace.Wrap(err, "generating embeddings for search query")
+			}
+			eq.Embeddings = vec
+			eq.ModelName = modelName
 		}
-		params.SearchQueries = append(params.SearchQueries, &accessgraphv1.EmbeddedQuery{
-			Text:       query,
-			Embeddings: vec,
-			ModelName:  modelName,
-		})
+		params.SearchQueries = append(params.SearchQueries, eq)
 	}
 
 	return params, nil
