@@ -18,12 +18,12 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"rsc.io/ordered"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -169,5 +169,5 @@ func keyForBeamExpiryIndex(beam *beamsv1.Beam) string {
 }
 
 func keyForBeamExpiryIndexAt(expires time.Time, name string) string {
-	return fmt.Sprintf("%020d/%s", expires.UnixNano(), name)
+	return string(ordered.Encode(expires.Unix(), name))
 }
