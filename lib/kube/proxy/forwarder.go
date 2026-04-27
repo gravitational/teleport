@@ -471,31 +471,27 @@ type authContext struct {
 	isLocalKubernetesCluster bool
 }
 
-// getCheckerForCluster returns either the cached scoped access checker that
-// granted access to the cluster or attempts to find that checker and then
-// cache it for later use.
+// getCheckerForCluster returns either the cached scoped access checker that granted access to the
+// cluster or attempts to find that checker and then cache it for later use.
 func (c *authContext) getCheckerForCluster(ctx context.Context, kubeCluster types.KubeCluster, matchers ...services.RoleMatcher) (*services.ScopedAccessChecker, error) {
 	if c.checker != nil {
 		return c.checker, nil
 	}
 
-	// we don't use CheckerContext.Decision here because we don't want to
-	// reinterpret errors, but the logic for which errors are true failures
-	// is the same
-	for checker, err := range c.CheckerContext.CheckersForResourceScope(ctx, kubeCluster.GetScope()) {
-		if err != nil {
+	if err := c.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(check *services.ScopedAccessChecker) error {
+		if err := check.Kube().CheckAccessToCluster(kubeCluster, c.accessState, matchers...); err != nil {
+			return err
+		}
+		c.checker = check
+		return nil
+	}); err != nil {
+		if services.IsAccessExplicitlyDenied(err) {
 			return nil, trace.Wrap(err)
 		}
-		if err := checker.Kube().CheckAccessToCluster(kubeCluster, c.accessState, matchers...); err != nil {
-			if services.IsAccessExplicitlyDenied(err) {
-				return nil, trace.Wrap(err)
-			}
-			continue
-		}
-		c.checker = checker
-		return checker, nil
+		return nil, trace.Wrap(errImplicitDeny)
 	}
-	return nil, trace.Wrap(errImplicitDeny)
+
+	return c.checker, nil
 }
 
 func (c authContext) String() string {
