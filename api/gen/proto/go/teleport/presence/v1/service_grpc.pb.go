@@ -82,7 +82,7 @@ type PresenceServiceClient interface {
 	// ListProxyServers returns a page of Proxy servers.
 	ListProxyServers(ctx context.Context, in *ListProxyServersRequest, opts ...grpc.CallOption) (*ListProxyServersResponse, error)
 	// UpsertProxyServer upserts a Proxy server heartbeat.
-	UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*UpsertProxyServerResponse, error)
 	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
 	DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -215,9 +215,9 @@ func (c *presenceServiceClient) ListProxyServers(ctx context.Context, in *ListPr
 	return out, nil
 }
 
-func (c *presenceServiceClient) UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *presenceServiceClient) UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*UpsertProxyServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(UpsertProxyServerResponse)
 	err := c.cc.Invoke(ctx, PresenceService_UpsertProxyServer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -266,7 +266,7 @@ type PresenceServiceServer interface {
 	// ListProxyServers returns a page of Proxy servers.
 	ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error)
 	// UpsertProxyServer upserts a Proxy server heartbeat.
-	UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*emptypb.Empty, error)
+	UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*UpsertProxyServerResponse, error)
 	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
 	DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedPresenceServiceServer()
@@ -315,7 +315,7 @@ func (UnimplementedPresenceServiceServer) ListAuthServers(context.Context, *List
 func (UnimplementedPresenceServiceServer) ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProxyServers not implemented")
 }
-func (UnimplementedPresenceServiceServer) UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*emptypb.Empty, error) {
+func (UnimplementedPresenceServiceServer) UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*UpsertProxyServerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertProxyServer not implemented")
 }
 func (UnimplementedPresenceServiceServer) DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*emptypb.Empty, error) {

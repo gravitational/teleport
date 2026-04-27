@@ -485,7 +485,7 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 // UpsertProxyServer upserts a proxy server heartbeat.
 func (s *Service) UpsertProxyServer(
 	ctx context.Context, req *presencepb.UpsertProxyServerRequest,
-) (*emptypb.Empty, error) {
+) (*presencepb.UpsertProxyServerResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -513,7 +513,7 @@ func (s *Service) UpsertProxyServer(
 	if err := s.backend.UpsertProxy(ctx, req.Server); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
+	return &presencepb.UpsertProxyServerResponse{}, nil
 }
 
 // DeleteProxyServer deletes a proxy server heartbeat by name.

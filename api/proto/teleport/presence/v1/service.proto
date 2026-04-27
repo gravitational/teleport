@@ -50,10 +50,11 @@ service PresenceService {
 
   // ListAuthServers returns a page of Auth servers.
   rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
+
   // ListProxyServers returns a page of Proxy servers.
   rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
   // UpsertProxyServer upserts a Proxy server heartbeat.
-  rpc UpsertProxyServer(UpsertProxyServerRequest) returns (google.protobuf.Empty);
+  rpc UpsertProxyServer(UpsertProxyServerRequest) returns (UpsertProxyServerResponse);
   // DeleteProxyServer removes an existing Proxy server heartbeat by name.
   rpc DeleteProxyServer(DeleteProxyServerRequest) returns (google.protobuf.Empty);
 }
@@ -212,6 +213,9 @@ message UpsertProxyServerRequest {
   // Server is the Proxy server heartbeat to upsert.
   types.ServerV2 server = 1;
 }
+
+// Response message for the PresenceService.UpsertProxyServer rpc.
+message UpsertProxyServerResponse {}
 
 // Request message for the PresenceService.DeleteProxyServer rpc.
 message DeleteProxyServerRequest {
