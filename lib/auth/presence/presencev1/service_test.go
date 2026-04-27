@@ -1004,10 +1004,10 @@ func TestUpsertProxyServer(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name                 string
-		user                 string
-		req                  *presencev1pb.UpsertProxyServerRequest
-		assertError          require.ErrorAssertionFunc
+		name                  string
+		user                  string
+		req                   *presencev1pb.UpsertProxyServerRequest
+		assertError           require.ErrorAssertionFunc
 		checkResourceUpserted bool
 	}{
 		{
@@ -1016,7 +1016,7 @@ func TestUpsertProxyServer(t *testing.T) {
 			req: &presencev1pb.UpsertProxyServerRequest{
 				Server: proxy.(*types.ServerV2),
 			},
-			assertError:          require.NoError,
+			assertError:           require.NoError,
 			checkResourceUpserted: true,
 		},
 		{
