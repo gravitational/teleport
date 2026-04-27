@@ -1072,7 +1072,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// resource without matching on any specific kubernetes resources. The users/groups will be forwarded to the
 		// kubernetes cluster as impersonation headers.
 		const overrideTTL = false
-		groups, users, err := checker.Kube().GetGroupsAndUsers(actx.sessionTTL, overrideTTL, matchers...)
+		groups, users, err := checker.Kube().GetGroupsAndUsers(checker.AdjustSessionTTL(actx.sessionTTL), overrideTTL, matchers...)
 		if err != nil {
 			if services.IsAccessExplicitlyDenied(err) {
 				explicitDenies = append(explicitDenies, err)
@@ -1224,6 +1224,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	actx.kubeClusterLabels = kubeAccessDetails.clusterLabels
 	// cache the access checker for later decisions
 	actx.checker = kubeAccessDetails.checker
+	actx.sessionTTL = actx.checker.AdjustSessionTTL(actx.sessionTTL)
+	actx.clientIdleTimeout, err = actx.checker.Kube().AdjustClientIdleTimeout(actx.clientIdleTimeout)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip the
 	// rest of these checks for now.
