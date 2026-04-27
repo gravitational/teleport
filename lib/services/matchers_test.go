@@ -196,6 +196,31 @@ func TestSimplifyAzureMatchers(t *testing.T) {
 	require.Equal(t, want, simplified)
 }
 
+// TestSimplifyAzureMatchersDoesNotMutateInput guards against a regression where
+// SimplifyAzureMatchers normalized regions through an aliased input slice,
+// mutating the caller's matcher and racing with concurrent readers.
+func TestSimplifyAzureMatchersDoesNotMutateInput(t *testing.T) {
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{"sub-1"},
+			ResourceGroups: []string{"rg-1"},
+			// "East US" normalizes to "eastus", so any in-place write is observable by value comparison.
+			Regions: []string{"East US"},
+			Types:   []string{"vm"},
+		},
+	}
+	regionsBackingArray := matchers[0].Regions
+
+	simplified := SimplifyAzureMatchers(matchers)
+
+	require.Equal(t, []string{"East US"}, matchers[0].Regions,
+		"input regions slice must not be mutated")
+	require.Equal(t, "East US", regionsBackingArray[0],
+		"input regions backing array must not be mutated")
+	require.Equal(t, []string{"eastus"}, simplified[0].Regions,
+		"output regions must be normalized")
+}
+
 func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 

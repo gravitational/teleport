@@ -93,9 +93,15 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
 			regions = []string{types.Wildcard}
 		} else {
+			// Allocate a new slice rather than normalizing in place. Deduplicate may
+			// return its input unchanged for short inputs, so mutating regions could also
+			// mutate the caller's matcher slice and race with the dynamic discovery
+			// watcher's IsEqual comparison.
+			normalized := make([]string, len(regions))
 			for i, region := range regions {
-				regions[i] = azureutils.NormalizeLocation(region)
+				normalized[i] = azureutils.NormalizeLocation(region)
 			}
+			regions = normalized
 		}
 		elem := m
 		elem.Subscriptions = subs
