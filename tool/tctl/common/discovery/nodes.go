@@ -65,7 +65,7 @@ type runResult struct {
 type instanceInfo struct {
 	Region        string     `json:"region"`
 	IsOnline      bool       `json:"is_online"`
-	Expiry        time.Time  `json:"expiry,omitempty"`
+	Expiry        time.Time  `json:"expiry,omitzero"`
 	RunResult     *runResult `json:"run_result,omitempty"`
 	UserTaskID    string     `json:"user_task_id,omitempty"`
 	UserTaskIssue string     `json:"user_task_issue,omitempty"`
