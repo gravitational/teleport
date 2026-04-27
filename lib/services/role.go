@@ -275,9 +275,9 @@ func validateRoleExpressions(r types.Role) error {
 		{"deny", types.Deny},
 	} {
 		// Rules
-		for _, rule := range r.GetRules(condition.condition) {
+		for i, rule := range r.GetRules(condition.condition) {
 			if err := validateRule(rule); err != nil {
-				errs = append(errs, trace.BadParameter("parsing %s rule: %v", condition.name, err))
+				errs = append(errs, trace.BadParameter("parsing %s.rules[%d]: %v", condition.name, i, err))
 			}
 		}
 
@@ -326,16 +326,16 @@ func validateRoleExpressions(r types.Role) error {
 		}
 
 		// Trait templates in kubernetes_resources
-		for _, ks := range r.GetKubeResources(condition.condition) {
+		for i, ks := range r.GetKubeResources(condition.condition) {
 			if _, err := parse.NewTraitsTemplateExpression(ks.Namespace); err != nil {
-				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources.namespace expression: %v", condition.name, err))
+				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].namespace expression: %v", condition.name, i, err))
 			}
 			if _, err := parse.NewTraitsTemplateExpression(ks.Name); err != nil {
-				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources.name expression: %v", condition.name, err))
+				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].name expression: %v", condition.name, i, err))
 			}
 			for _, verb := range ks.Verbs {
 				if _, err := parse.NewTraitsTemplateExpression(verb); err != nil {
-					errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources.verbs expression: %v", condition.name, err))
+					errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].verbs expression: %v", condition.name, i, err))
 				}
 			}
 		}
@@ -377,10 +377,10 @@ func validateRoleExpressions(r types.Role) error {
 		}
 
 		// Trait templates in github_permissions.organizations
-		for _, perm := range r.GetGitHubPermissions(condition.condition) {
+		for i, perm := range r.GetGitHubPermissions(condition.condition) {
 			for _, org := range perm.Organizations {
 				if _, err := parse.NewTraitsTemplateExpression(org); err != nil {
-					errs = append(errs, trace.BadParameter("parsing %s.github_permissions.organizations expression: %v", condition.name, err))
+					errs = append(errs, trace.BadParameter("parsing %s.github_permissions[%d].organizations expression: %v", condition.name, i, err))
 				}
 			}
 		}
@@ -396,12 +396,12 @@ func validateRoleExpressions(r types.Role) error {
 	}
 
 	// Trait templates in options.cert_extensions.value
-	for _, ext := range r.GetOptions().CertExtensions {
+	for i, ext := range r.GetOptions().CertExtensions {
 		if ext == nil {
 			continue
 		}
 		if _, err := parse.NewTraitsTemplateExpression(ext.Value); err != nil {
-			errs = append(errs, trace.BadParameter("parsing options.cert_extensions.value expression: %v", err))
+			errs = append(errs, trace.BadParameter("parsing options.cert_extensions[%d].value expression: %v", i, err))
 		}
 	}
 
