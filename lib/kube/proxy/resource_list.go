@@ -80,7 +80,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-		checker, err := sess.getCheckerForCluster(ctx, sess.kubeCluster)
+		checker, err := sess.authContext.getAccessChecker()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -338,7 +338,7 @@ func deleteResources[T kubeObjectInterface](
 	deleteOptions metav1.DeleteOptions,
 ) ([]T, error) {
 	deletedItems := make([]T, 0, len(items))
-	checker, err := params.authCtx.getCheckerForCluster(ctx, params.kubeDetails.kubeCluster)
+	checker, err := params.authCtx.getAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

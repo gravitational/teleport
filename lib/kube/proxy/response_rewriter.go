@@ -130,7 +130,7 @@ func collectSystemMastersTeleportRoles(ctx context.Context, s *clusterSession) [
 	const (
 		systemMastersGroup = "system:masters"
 	)
-	accessChecker, err := s.authContext.getCheckerForCluster(ctx, s.kubeCluster)
+	accessChecker, err := s.authContext.getAccessChecker()
 	if err != nil {
 		return []string{}
 	}
