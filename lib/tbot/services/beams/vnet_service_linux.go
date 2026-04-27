@@ -33,7 +33,8 @@ import (
 )
 
 func platformCreateTUN() (vnet.TUNDevice, error) {
-	tun, err := tun.CreateTUN("vnet", 1500)
+	const mtu = 1500
+	tun, err := tun.CreateTUN("vnet", mtu)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating TUN device")
 	}
