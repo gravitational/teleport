@@ -325,39 +325,39 @@ func (s *SharedDirectoryRequest) Encode() ([]byte, error) {
 func (s *SharedDirectoryRequest) validate() error {
 	switch op := s.Operation.(type) {
 	case *tdpbv1.SharedDirectoryRequest_Create_:
-		if len(op.Create.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Create.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_Delete_:
-		if len(op.Delete.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Delete.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_Truncate_:
-		if len(op.Truncate.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Truncate.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_Read_:
-		if len(op.Read.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Read.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_Write_:
-		if len(op.Write.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Write.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
-		if len(op.Write.GetData()) > tdp.TDPMaxFileReadWriteLength {
+		if len(op.Write.GetData()) > tdp.MaxFileReadWriteLength {
 			return tdp.FileReadWriteMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_Info_:
-		if len(op.Info.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Info.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_List_:
-		if len(op.List.GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.List.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryRequest_Move_:
-		if len(op.Move.GetNewPath()) > tdp.TDPMaxPathLength ||
-			len(op.Move.GetOriginalPath()) > tdp.TDPMaxPathLength {
+		if len(op.Move.GetNewPath()) > tdp.MaxPathLength ||
+			len(op.Move.GetOriginalPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	}
@@ -379,20 +379,20 @@ func (s *SharedDirectoryResponse) Encode() ([]byte, error) {
 func (s *SharedDirectoryResponse) validate() error {
 	switch op := s.Operation.(type) {
 	case *tdpbv1.SharedDirectoryResponse_Create_:
-		if len(op.Create.GetFso().GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Create.GetFso().GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryResponse_Read_:
-		if len(op.Read.GetData()) > tdp.TDPMaxFileReadWriteLength {
+		if len(op.Read.GetData()) > tdp.MaxFileReadWriteLength {
 			return tdp.FileReadWriteMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryResponse_Info_:
-		if len(op.Info.GetFso().GetPath()) > tdp.TDPMaxPathLength {
+		if len(op.Info.GetFso().GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
 	case *tdpbv1.SharedDirectoryResponse_List_:
 		for _, fso := range op.List.GetFsoList() {
-			if len(fso.GetPath()) > tdp.TDPMaxPathLength {
+			if len(fso.GetPath()) > tdp.MaxPathLength {
 				return tdp.StringMaxLenErr
 			}
 		}

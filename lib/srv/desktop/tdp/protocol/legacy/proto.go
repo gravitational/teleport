@@ -174,9 +174,9 @@ func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 	case TypeSharedDirectoryReadRequest:
 		return decodeSharedDirectoryReadRequest(in)
 	case TypeSharedDirectoryReadResponse:
-		return decodeSharedDirectoryReadResponse(in, tdp.TDPMaxFileReadWriteLength)
+		return decodeSharedDirectoryReadResponse(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteRequest:
-		return decodeSharedDirectoryWriteRequest(in, tdp.TDPMaxFileReadWriteLength)
+		return decodeSharedDirectoryWriteRequest(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteResponse:
 		return decodeSharedDirectoryWriteResponse(in)
 	case TypeSharedDirectoryMoveRequest:
@@ -592,7 +592,7 @@ func (m Error) Encode() ([]byte, error) {
 }
 
 func decodeError(in io.Reader) (Error, error) {
-	message, err := decodeString(in, tdp.TDPMaxAlertMessageLength)
+	message, err := decodeString(in, tdp.MaxAlertMessageLength)
 	if err != nil {
 		return Error{}, trace.Wrap(err)
 	}
@@ -628,7 +628,7 @@ func (m Alert) Encode() ([]byte, error) {
 }
 
 func decodeAlert(in tdp.ByteReader) (Alert, error) {
-	message, err := decodeString(in, tdp.TDPMaxAlertMessageLength)
+	message, err := decodeString(in, tdp.MaxAlertMessageLength)
 	if err != nil {
 		return Alert{}, trace.Wrap(err)
 	}
@@ -928,7 +928,7 @@ func decodeSharedDirectoryInfoRequest(in io.Reader) (SharedDirectoryInfoRequest,
 	if err != nil {
 		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
 	}
@@ -1025,7 +1025,7 @@ func decodeFileSystemObject(in tdp.ByteReader) (FileSystemObject, error) {
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
@@ -1075,7 +1075,7 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 	if err != nil {
 		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
 	}
@@ -1162,7 +1162,7 @@ func decodeSharedDirectoryDeleteRequest(in io.Reader) (SharedDirectoryDeleteRequ
 	if err != nil {
 		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
 	}
@@ -1225,7 +1225,7 @@ func decodeSharedDirectoryListRequest(in io.Reader) (SharedDirectoryListRequest,
 	if err != nil {
 		return SharedDirectoryListRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryListRequest{}, trace.Wrap(err)
 	}
@@ -1332,7 +1332,7 @@ func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest,
 		return SharedDirectoryReadRequest{}, trace.Wrap(err)
 	}
 
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryReadRequest{}, trace.Wrap(err)
 	}
@@ -1458,7 +1458,7 @@ func decodeSharedDirectoryWriteRequest(in tdp.ByteReader, maxLen uint32) (Shared
 		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
 	}
 
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
 	}
@@ -1546,11 +1546,11 @@ func decodeSharedDirectoryMoveRequest(in io.Reader) (SharedDirectoryMoveRequest,
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
-	originalPath, err := decodeString(in, tdp.TDPMaxPathLength)
+	originalPath, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
-	newPath, err := decodeString(in, tdp.TDPMaxPathLength)
+	newPath, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
@@ -1614,7 +1614,7 @@ func decodeSharedDirectoryTruncateRequest(in io.Reader) (SharedDirectoryTruncate
 	if err != nil {
 		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdp.TDPMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
 	}

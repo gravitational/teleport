@@ -30,17 +30,17 @@ import (
 )
 
 const (
-	// TDPMaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
+	// MaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
 	// the browser (Teleport never receives this message, so won't be decoding it)
-	TDPMaxAlertMessageLength = 10240
+	MaxAlertMessageLength = 10240
 
-	// TDPMaxPathLength is somewhat arbitrary because we weren't able to determine
+	// MaxPathLength is somewhat arbitrary because we weren't able to determine
 	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
 	// The limit is kept as an additional defense-in-depth measure.
-	TDPMaxPathLength = 10240
+	MaxPathLength = 10240
 
-	MaxClipboardDataLength    = 1024 * 1024 // 1MB
-	TDPMaxFileReadWriteLength = 1024 * 1024 // 1MB
+	MaxClipboardDataLength = 1024 * 1024 // 1MB
+	MaxFileReadWriteLength = 1024 * 1024 // 1MB
 )
 
 var (
