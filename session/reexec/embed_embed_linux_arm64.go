@@ -20,5 +20,5 @@ package reexec
 
 import _ "embed"
 
-//go:embed sessionhelper_linux_arm64.gz
+//go:embed embed/sessionhelper_linux_arm64.gz
 var sessionHelperGZ string

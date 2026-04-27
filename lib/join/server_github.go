@@ -33,7 +33,7 @@ func (a *Server) validateGithubToken(
 	pt provision.Token,
 	idToken []byte,
 ) (any, *workloadidentityv1.JoinAttrs, error) {
-	claims, err := githubactions.CheckGithubIDToken(ctx, &githubactions.CheckGithubIDTokenParams{
+	claims, err := githubactions.CheckGithubIDToken(ctx, a.cfg.Modules, &githubactions.CheckGithubIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        idToken,
 		Validator:      a.cfg.AuthService.GetGHAIDTokenValidator(),

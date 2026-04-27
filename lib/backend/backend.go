@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -340,16 +339,6 @@ func TTL(clock clockwork.Clock, expires time.Time) time.Duration {
 	return ttl
 }
 
-// EarliestExpiry returns first of the
-// otherwise returns empty
-func EarliestExpiry(times ...time.Time) time.Time {
-	if len(times) == 0 {
-		return time.Time{}
-	}
-	sort.Sort(earliest(times))
-	return times[0]
-}
-
 // Expiry converts ttl to expiry time, if ttl is 0
 // returns empty time
 func Expiry(clock clockwork.Clock, ttl time.Duration) time.Time {
@@ -357,26 +346,6 @@ func Expiry(clock clockwork.Clock, ttl time.Duration) time.Time {
 		return time.Time{}
 	}
 	return clock.Now().UTC().Add(ttl)
-}
-
-type earliest []time.Time
-
-func (p earliest) Len() int {
-	return len(p)
-}
-
-func (p earliest) Less(i, j int) bool {
-	if p[i].IsZero() {
-		return false
-	}
-	if p[j].IsZero() {
-		return true
-	}
-	return p[i].Before(p[j])
-}
-
-func (p earliest) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
 }
 
 // CreateRevision generates a new identifier to be used

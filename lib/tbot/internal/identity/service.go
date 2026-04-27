@@ -335,7 +335,7 @@ func (s *Service) Initialize(ctx context.Context) error {
 		); err != nil {
 			return trace.BadParameter(
 				"bot identity loaded from storage has scoped %v, but scope config set to %v. change tbot scope configuration or delete the bot storage directory",
-				identScope,
+				identScope != "",
 				s.cfg.Scoped,
 			)
 		}

@@ -1815,6 +1815,15 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails ca_override = 2;
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
@@ -3551,22 +3560,6 @@ service AuthService {
   // ResetSessionRecordingConfig resets session recording configuration to defaults.
   // Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
   rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
-
-  // GetAuthPreference gets cluster auth preference.
-  // Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
-  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2) {
-    option deprecated = true;
-  }
-  // SetAuthPreference sets cluster auth preference.
-  // Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
-  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
-  // ResetAuthPreference resets cluster auth preference to defaults.
-  // Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
-  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty) {
     option deprecated = true;
   }
 

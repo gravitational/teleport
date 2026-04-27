@@ -1,0 +1,116 @@
+---
+title: TeleportScopedRoleV1
+description: Provides a comprehensive list of fields in the TeleportScopedRoleV1 resource available through the Teleport Kubernetes operator
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+{/* Disable the outdated name check since custom resource fields occasionally
+need to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
+
+This guide is a comprehensive reference to the fields in the `TeleportScopedRoleV1`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|scope|string|Scope is the scope of the role resource.|
+|spec|[object](#spec)|ScopedRole resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|assignable_scopes|[]string|AssignableScopes is a list of scopes to which this role can be assigned.|
+|defaults|[object](#specdefaults)|Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.|
+|kube|[object](#speckube)|The kubernetes specific configuration for a scoped role.|
+|rules|[][object](#specrules-items)|Rules describes basic resource:verb permissions (e.g. scoped_role:read).|
+|ssh|[object](#specssh)|Ssh specifies controls that govern SSH access.|
+
+### spec.defaults
+
+|Field|Type|Description|
+|---|---|---|
+|client_idle_timeout|string|ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").|
+
+### spec.kube
+
+|Field|Type|Description|
+|---|---|---|
+|client_idle_timeout|string|Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
+|groups|[]string|The list of kubernetes groups this role allows.|
+|labels|[][object](#speckubelabels-items)|The map of kubernetes cluster labels used for RBAC.|
+|users|[]string|An optional list of impersonatable kubernetes users this role allows.|
+
+### spec.kube.labels items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|The name of the label.|
+|values|[]string|The values associated with the label.|
+
+### spec.rules items
+
+|Field|Type|Description|
+|---|---|---|
+|resources|[]string|Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.|
+|verbs|[]string|Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.|
+
+### spec.ssh
+
+|Field|Type|Description|
+|---|---|---|
+|client_idle_timeout|string|ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
+|file_copy|boolean|FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.|
+|forward_agent|boolean|ForwardAgent enables SSH agent forwarding.|
+|host_sudoers|[]string|Sudoers is a list of entries to include in a users sudoer file|
+|host_user_creation|[object](#specsshhost_user_creation)|HostUserCreation configures the creation of host users.|
+|labels|[][object](#specsshlabels-items)|Labels is the set of node labels used to dynamically select which nodes this role applies to.|
+|logins|[]string|Logins is the list of OS logins this role permits on matching nodes.|
+|max_sessions|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
+|permit_x11_forwarding|boolean|PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.|
+|port_forwarding|[object](#specsshport_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
+
+### spec.ssh.host_user_creation
+
+|Field|Type|Description|
+|---|---|---|
+|groups|[]string|Groups is a list of host groups to add the user to.|
+|mode|string|Mode specifies how the host user should be created.|
+|shell|string|Shell is the shell to set for the user.|
+
+### spec.ssh.labels items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|The name of the label.|
+|values|[]string|The values associated with the label.|
+
+### spec.ssh.port_forwarding
+
+|Field|Type|Description|
+|---|---|---|
+|local|[object](#specsshport_forwardinglocal)|Allow for local port forwarding.|
+|remote|[object](#specsshport_forwardingremote)|Allow for remote port forwarding.|
+
+### spec.ssh.port_forwarding.local
+
+|Field|Type|Description|
+|---|---|---|
+|enabled|boolean||
+
+### spec.ssh.port_forwarding.remote
+
+|Field|Type|Description|
+|---|---|---|
+|enabled|boolean||
+

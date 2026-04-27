@@ -1056,15 +1056,6 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	t.Helper()
 	ctx := context.Background()
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	})
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -1080,6 +1071,15 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OIDC: {Enabled: true},
+						entitlements.SAML: {Enabled: true},
+					},
+				},
+			}
 			proxyPublicAddr = cfg.Proxy.WebAddr
 			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
