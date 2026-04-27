@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -127,4 +128,24 @@ func TestSSHDialTimeout(t *testing.T) {
 
 	require.NoError(t, yaml.Unmarshal(raw, &cnc))
 	require.Equal(t, time.Minute, cnc.GetSSHDialTimeout())
+}
+
+// TestPrioritizeHttp2RoundTrip verifies that the PrioritizeHttp2 field
+// in ClusterNetworkingConfigSpecV2 is preserved across a marshal/unmarshal
+// cycle. Guards against accidentally dropping the field from JSON/YAML
+// representations.
+func TestPrioritizeHttp2RoundTrip(t *testing.T) {
+	for _, want := range []bool{false, true} {
+		t.Run(fmt.Sprintf("PrioritizeHttp2=%v", want), func(t *testing.T) {
+			cfg := DefaultClusterNetworkingConfig().(*ClusterNetworkingConfigV2)
+			cfg.Spec.PrioritizeHttp2 = want
+
+			raw, err := yaml.Marshal(cfg)
+			require.NoError(t, err)
+
+			var got ClusterNetworkingConfigV2
+			require.NoError(t, yaml.Unmarshal(raw, &got))
+			require.Equal(t, want, got.Spec.PrioritizeHttp2)
+		})
+	}
 }
