@@ -104,8 +104,11 @@ type VNetService struct {
 	clientBuilder             *tbotclient.Builder
 	proxyPinger               connection.ProxyPinger
 	logger                    *slog.Logger
-	identity                  *clientcredentials.UnstableConfig
-	insecure                  bool
+	// TODO(boxofrad): Wrapping the clientcredentials service is a little awkward
+	// consider if we should move its automatic renewal behavior into the identity
+	// package.
+	identity *clientcredentials.UnstableConfig
+	insecure bool
 }
 
 // String satisfies the bot.Service interface.
