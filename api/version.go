@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.2"
+const Version = "18.7.6-rc.1-dev.entra-delta-sync.1"
 
 const VersionMajor = 18
 const VersionMinor = 7
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionPatch = 6
+const VersionPreRelease = "rc.1-dev.entra-delta-sync.1"
 const VersionMetadata = ""
