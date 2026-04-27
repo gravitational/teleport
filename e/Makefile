@@ -254,7 +254,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets-e teleport-fips-check rdpclient ../session/reexec/embed/sessionhelper
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "webassets_embed webassets_ent $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "grpcnotrace webassets_embed webassets_ent $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: ../session/reexec/embed/sessionhelper
 ../session/reexec/embed/sessionhelper:
@@ -280,9 +280,9 @@ endif
 $(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
 ifeq ("$(TBOT_DYNAMIC)", "yes")
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "grpcnotrace $(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
 else
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
 endif
 
 # A target that allows recompiling and restarting Teleport when Go sources
@@ -402,7 +402,7 @@ build-cloud-teleport-binary:
 	env -u CC -u CXX MAKEOVERRIDES= \
       $(MAKE) -C ../ ensure-webassets-e CC=cc CXX=c++
 	@echo "---> Building teleport binary."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CC="$(CC)" go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CC="$(CC)" go build -buildvcs=false -tags "grpcnotrace webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # make deploy-cloud-no-build - Uses a pre-compiled teleport binary to produce a docker image and deploys to a cloud
 # tenant in the staging cluster.
