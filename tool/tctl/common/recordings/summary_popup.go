@@ -127,7 +127,7 @@ func (m *summaryPopupModel) View() string {
 		BorderForeground(m.palette.accent).
 		Padding(0, 1)
 
-	header := titleStyle.Render(fmt.Sprintf("Summary  %s", m.session.GetSessionId()))
+	header := titleStyle.Render(fmt.Sprintf("Summary  %s", sanitize(m.session.GetSessionId())))
 	footer := lipgloss.NewStyle().
 		Faint(true).
 		Render("j/k or arrows: scroll  q/esc: close")
@@ -259,7 +259,7 @@ func defaultSummaryKeyMap() summaryKeyMap {
 // renderTimeline builds a timeline section from EnhancedSummary commands.
 // Each entry shows the start offset, title, and optional subtitle. Commands
 // listed in NotableCommandIndexes are prefixed with "*" and their risk level
-// is shown in colour.
+// is shown in color.
 func renderTimeline(enh *summarizerv1pb.EnhancedSummary, width int, p palette) string {
 	commands := enh.GetCommands()
 	if len(commands) == 0 {
@@ -287,9 +287,9 @@ func renderTimeline(enh *summarizerv1pb.EnhancedSummary, width int, p palette) s
 	fmt.Fprintf(&b, "%s\n", sectionStyle.Render("Timeline"))
 
 	for i, cmd := range commands {
-		title := cmd.GetTimelineTitle()
+		title := sanitize(cmd.GetTimelineTitle())
 		if title == "" {
-			title = cmd.GetCommand()
+			title = sanitize(cmd.GetCommand())
 		}
 		if title == "" {
 			continue
@@ -324,7 +324,7 @@ func renderTimeline(enh *summarizerv1pb.EnhancedSummary, width int, p palette) s
 		fmt.Fprintf(&b, "%s\n", line)
 
 		if sub := cmd.GetTimelineSubtitle(); sub != "" {
-			fmt.Fprintf(&b, "%s%s\n", subtitleIndent, faintStyle.Render(sub))
+			fmt.Fprintf(&b, "%s%s\n", subtitleIndent, faintStyle.Render(sanitize(sub)))
 		}
 	}
 

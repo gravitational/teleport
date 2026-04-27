@@ -38,7 +38,7 @@ const (
 	listWidthPercent = 40
 )
 
-// palette holds the per-run resolved colours.
+// palette holds the per-run resolved colors.
 type palette struct {
 	accent  lipgloss.TerminalColor
 	section lipgloss.TerminalColor

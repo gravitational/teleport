@@ -28,6 +28,7 @@ import (
 var orderedListRE = regexp.MustCompile(`^\d+\.\s+`)
 
 func renderMarkdownForTerminal(markdown string, width int, p palette) string {
+	markdown = sanitize(markdown)
 	if width < 20 {
 		width = 20
 	}
@@ -232,19 +233,18 @@ func wrapText(text string, maxWidth int) string {
 	}
 	var result strings.Builder
 	lineLen := 0
-	first := true
-	for _, word := range strings.Fields(text) {
-		if !first && lineLen+1+len(word) > maxWidth {
+	for i, word := range strings.Fields(text) {
+		if i == 0 {
+			// no leading space or newline before the first word
+		} else if lineLen+1+len(word) > maxWidth {
 			result.WriteString("\n")
 			lineLen = 0
-			first = true
-		} else if !first {
+		} else {
 			result.WriteByte(' ')
 			lineLen++
 		}
 		result.WriteString(word)
 		lineLen += len(word)
-		first = false
 	}
 	return result.String()
 }

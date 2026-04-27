@@ -90,7 +90,7 @@ type RecordingsCommand struct {
 	// searchAccessRequests filters results by access request IDs.
 	searchAccessRequests []string
 	// searchLimit is the maximum number of results to return.
-	searchLimit int
+	searchLimit uint32
 	// searchFormat is the output format for search results.
 	searchFormat string
 	// searchKinds filters results by session kind (ssh, db, k8s, desktop).
@@ -125,7 +125,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
 	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
 	c.recordingsSearch = recordings.Command("search", "Search session recordings using semantic and keyword queries.")
-	c.recordingsSearch.Arg("query", `Search query. Supports keywords and boolean operators (e.g. "DROP TABLE OR DELETE FROM").`).StringsVar(&c.searchQuery)
+	c.recordingsSearch.Arg("query", `Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").`).StringsVar(&c.searchQuery)
 	c.recordingsSearch.Flag("from", fmt.Sprintf("Start of time range. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchFromUTC)
 	c.recordingsSearch.Flag("to", fmt.Sprintf("End of time range. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchToUTC)
 	c.recordingsSearch.Flag("label", "Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.").StringVar(&c.searchLabel)
@@ -136,7 +136,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("resource-kind", "Filter by Teleport resource type (node, kube_cluster, db).").StringVar(&c.searchResourceKind)
 	c.recordingsSearch.Flag("resource-name", "Filter by resource name.").StringVar(&c.searchResourceName)
 	c.recordingsSearch.Flag("severity", "Minimum severity level to include (low, medium, high, critical).").StringVar(&c.searchSeverity)
-	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).IntVar(&c.searchLimit)
+	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
 	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
 
 	c.recordingsEncryption.Initialize(recordings, c.stdout)
@@ -279,7 +279,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		AccessRequestIds: c.searchAccessRequests,
 		Kinds:            c.searchKinds,
 		UserRoles:        c.searchRoles,
-		MaxResults:       uint32(c.searchLimit),
+		MaxResults:       c.searchLimit,
 	}
 	if c.searchUsername != "" {
 		req.Username = &c.searchUsername

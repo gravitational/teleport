@@ -36,14 +36,14 @@ type sessionItem struct {
 
 // Title returns the primary row text: "[KIND] resource_name".
 func (i sessionItem) Title() string {
-	name := i.s.GetResourceName()
+	name := sanitize(i.s.GetResourceName())
 	if name == "" {
-		name = i.s.GetResourceId()
+		name = sanitize(i.s.GetResourceId())
 	}
 	if name == "" {
 		name = "(unknown)"
 	}
-	return fmt.Sprintf("[%s] %s", strings.ToUpper(i.s.GetKind()), name)
+	return fmt.Sprintf("[%s] %s", strings.ToUpper(sanitize(i.s.GetKind())), name)
 }
 
 // Description returns the secondary row text: "start • username • severity".
@@ -52,7 +52,7 @@ func (i sessionItem) Description() string {
 	if ts := i.s.GetSessionStart(); ts != nil {
 		start = ts.AsTime().UTC().Format("2006-01-02 15:04 UTC")
 	}
-	return fmt.Sprintf("%s  •  %s  •  %s", start, i.s.GetUsername(), formatSeverity(i.s.GetSeverity()))
+	return fmt.Sprintf("%s  •  %s  •  %s", start, sanitize(i.s.GetUsername()), formatSeverity(i.s.GetSeverity()))
 }
 
 // FilterValue is used by the list's built-in filter.
