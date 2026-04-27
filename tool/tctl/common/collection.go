@@ -2196,6 +2196,12 @@ type scopedRoleAssignmentCollection struct {
 	items []*scopedaccessv1.ScopedRoleAssignment
 }
 
+func newScopedRoleAssignmentCollection(assignments []*scopedaccessv1.ScopedRoleAssignment) *scopedRoleAssignmentCollection {
+	return &scopedRoleAssignmentCollection{
+		items: assignments,
+	}
+}
+
 func (c *scopedRoleAssignmentCollection) resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c.items))
 	for _, item := range c.items {
