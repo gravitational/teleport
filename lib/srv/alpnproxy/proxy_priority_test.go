@@ -31,7 +31,7 @@ import (
 )
 
 // TestProxyDefaultALPNOrderPrioritizesHTTP1 guards the existing
-// behaviour established by https://github.com/gravitational/teleport/pull/17886.
+// behavior established by https://github.com/gravitational/teleport/pull/17886.
 // A client that offers both h2 and http/1.1 must negotiate http/1.1 when
 // the proxy runs with default settings, because Go's net/http does not yet
 // implement WebSockets over HTTP/2 and Chrome had crbug 1379017.

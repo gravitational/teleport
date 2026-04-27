@@ -2140,6 +2140,11 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          DurationType{},
 				},
+				"prioritize_http2": {
+					Description: "PrioritizeHttp2 controls the order of HTTP/1.1 and HTTP/2 in the ALPN list the proxy advertises on its web TLS listener. When false (the default), http/1.1 is offered before h2 to keep WebSocket apps working in browsers that have hit crbug 1379017 and to work around Go's lack of HTTP/2 WebSocket server support (golang/go#49918). Set this to true only on clusters that have no WebSocket apps and want browsers to pick HTTP/2 for multiplexing. Toggling requires a proxy restart to take effect. A bool was chosen over an enum for v1; if future variants are needed, introduce a new field rather than overloading this one.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
 				"proxy_listener_mode": {
 					Description: "ProxyListenerMode is proxy listener mode used by Teleport Proxies. 0 is \"separate\"; 1 is \"multiplex\".",
 					Optional:    true,
@@ -24069,6 +24074,23 @@ func CopyClusterNetworkingConfigV2FromTerraform(_ context.Context, tf github_com
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["prioritize_http2"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ClusterNetworkingConfigV2.Spec.PrioritizeHttp2"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.PrioritizeHttp2", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.PrioritizeHttp2 = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -24755,6 +24777,28 @@ func CopyClusterNetworkingConfigV2ToTerraform(ctx context.Context, obj *github_c
 							v.Value = time.Duration(obj.SSHDialTimeout)
 							v.Unknown = false
 							tf.Attrs["ssh_dial_timeout"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["prioritize_http2"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ClusterNetworkingConfigV2.Spec.PrioritizeHttp2"})
+						} else {
+							v, ok := tf.Attrs["prioritize_http2"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ClusterNetworkingConfigV2.Spec.PrioritizeHttp2", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.PrioritizeHttp2", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.PrioritizeHttp2) == false
+							}
+							v.Value = bool(obj.PrioritizeHttp2)
+							v.Unknown = false
+							tf.Attrs["prioritize_http2"] = v
 						}
 					}
 				}
