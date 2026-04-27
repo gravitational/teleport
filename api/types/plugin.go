@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/url"
 	"time"
 
@@ -365,6 +366,18 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		// backfill the Access List owners source if it's not set.
 		if settings.EntraId.SyncSettings.AccessListOwnersSource == EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
 			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
+		}
+
+		// backfill sync intervals
+		if settings.EntraId.SyncSettings.SyncIntervals == nil {
+			// Suitable default intervals for testing.
+			// The full sync interval otherwise should default to 5 minute for
+			// backward compatibility and delta sync can be opt-in.
+			settings.EntraId.SyncSettings.SyncIntervals = &PluginEntraIDSyncIntervals{
+				Delta:      time.Minute * 2,
+				Full:       time.Minute * 60,
+				StartDelay: time.Minute * 2,
+			}
 		}
 
 	case *PluginSpecV1_Scim:
@@ -1073,4 +1086,38 @@ func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
+}
+
+func (s *PluginEntraIDSyncIntervals) UnmarshalJSON(b []byte) error {
+	var payload struct {
+		Delta *Duration `json:"delta,omitempty"`
+		Full  *Duration `json:"full,omitempty"`
+	}
+	if err := json.Unmarshal(b, &payload); err == nil {
+		if payload.Delta != nil {
+			s.Delta = payload.Delta.Duration()
+		}
+		if payload.Full != nil {
+			s.Full = payload.Full.Duration()
+		}
+		return nil
+	}
+
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the PluginSyncFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s PluginEntraIDSyncIntervals) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Delta Duration `json:"delta,omitempty"`
+		Full  Duration `json:"full,omitempty"`
+	}{
+		Delta: NewDuration(s.Delta),
+		Full:  NewDuration(s.Full),
+	})
 }
