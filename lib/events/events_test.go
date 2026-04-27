@@ -164,6 +164,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	RenewableCertificateGenerationMismatchEvent:    &apievents.RenewableCertificateGenerationMismatch{},
 	SFTPEvent:                                     &apievents.SFTP{},
 	UpgradeWindowStartUpdateEvent:                 &apievents.UpgradeWindowStartUpdate{},
+	EnvironmentProfileUpdateEvent:                 &apievents.EnvironmentProfileUpdate{},
 	SessionRecordingAccessEvent:                   &apievents.SessionRecordingAccess{},
 	SSMRunEvent:                                   &apievents.SSMRun{},
 	AzureRunEvent:                                 &apievents.AzureRun{},

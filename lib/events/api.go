@@ -627,6 +627,9 @@ const (
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+	// EnvironmentProfileUpdateEvent is emitted when the environment profile
+	// is updated. Used only for teleport cloud.
+	EnvironmentProfileUpdateEvent = "environmentprofile.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
