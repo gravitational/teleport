@@ -42,7 +42,7 @@ AWS credentials, such as an EC2 instance profile or another AWS SDK credential
 source. Use AWS OIDC when you prefer to avoid host-level AWS credentials or want
 to manage AWS trust through a dedicated Teleport integration.
 
-#### Ambient system credentials
+### Ambient system credentials
 
 The ambient credentials must be able to assume the IAM role used by the
 integration.
@@ -54,7 +54,7 @@ $ tctl plugins install awsic \
     ...
 ```
 
-#### AWS OIDC integration
+### AWS OIDC integration
 
 Create the AWS OIDC integration first, then pass its name to the Identity Center
 installer.
@@ -109,7 +109,7 @@ $ tctl plugins install awsic \
 </TabItem>
 <TabItem label="Self-Hosted">
 
-#### Ambient system credentials
+### Ambient system credentials
 
 ```console
 $ tctl plugins install awsic \
@@ -123,7 +123,7 @@ $ tctl plugins install awsic \
     --roles-sync-mode NONE
 ```
 
-#### AWS OIDC integration
+### AWS OIDC integration
 
 ```console
 $ tctl plugins install awsic \
