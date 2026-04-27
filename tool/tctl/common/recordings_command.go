@@ -51,6 +51,12 @@ import (
 	recordingstui "github.com/gravitational/teleport/tool/tctl/common/recordings"
 )
 
+const (
+	searchModeHybrid    = "hybrid"
+	searchModeKeyword   = "keyword"
+	searchModeEmbedding = "embeddings"
+)
+
 // RecordingsCommand implements "tctl recordings" group of commands.
 type RecordingsCommand struct {
 	config *servicecfg.Config
@@ -105,6 +111,8 @@ type RecordingsCommand struct {
 	searchResourceName string
 	// searchSeverity filters results by minimum severity level (low/medium/high/critical).
 	searchSeverity string
+	// searchMode controls which search strategy to use: hybrid (default), keyword, or embedding.
+	searchMode string
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -136,6 +144,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("resource-kind", "Filter by Teleport resource type (node, kube_cluster, db).").StringVar(&c.searchResourceKind)
 	c.recordingsSearch.Flag("resource-name", "Filter by resource name.").StringVar(&c.searchResourceName)
 	c.recordingsSearch.Flag("severity", "Minimum severity level to include (low, medium, high, critical).").StringVar(&c.searchSeverity)
+	c.recordingsSearch.Flag("search-mode", "Search strategy to use when search queries are provided.").Default(searchModeHybrid).EnumVar(&c.searchMode, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
 	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
 
@@ -297,6 +306,13 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		}
 		req.Severity = &level
 	}
+	if c.searchMode != "" {
+		mode, err := parseSearchMode(c.searchMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SearchMode = mode
+	}
 
 	stream, err := searchClient.SearchSessionSummaries(ctx, req)
 	if err != nil {
@@ -384,6 +400,20 @@ func collectStream(stream sessionsearchv1pb.SessionSearchService_SearchSessionSu
 		}
 	}
 	return sessions, nextToken, nil
+}
+
+// parseSearchMode converts a CLI search-mode string to a SearchMode proto enum value.
+func parseSearchMode(s string) (sessionsearchv1pb.SearchMode, error) {
+	switch s {
+	case searchModeHybrid:
+		return sessionsearchv1pb.SearchMode_SEARCH_MODE_HYBRID, nil
+	case searchModeKeyword:
+		return sessionsearchv1pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY, nil
+	case searchModeEmbedding:
+		return sessionsearchv1pb.SearchMode_SEARCH_MODE_EMBEDDING_ONLY, nil
+	default:
+		return 0, trace.BadParameter("invalid --search-mode %q: must be one of %s, %s, %s", s, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
+	}
 }
 
 // parseSeverity converts a CLI severity string to a RiskLevel proto enum value.
