@@ -303,12 +303,14 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	if o.privateKey == nil {
 		// Generate a fresh keypair for the impersonated identity. We generally
-		// don't care to reuse keys here, constantly rotate private keys to limit
-		// their effective lifetime.
+		// don't care to reuse keys here, and instead constantly rotate private
+		// keys to limit their effective lifetime.
 		//
-		// In some cases (i.e. the VNet service) the key remains in-memory only,
-		// so the benefit of rotating it is very minimal and outweighed by the
-		// convenience of reuse.
+		// In the beams/vnet service, the private key remains in-memory only and
+		// the benefit of rotating it is minimal. It's also convenient to reuse
+		// the key because VNet splits client certificate issuance and signing
+		// into separate RPCs, so we'd need to store and correlate keys to their
+		// respective applications.
 		var err error
 		o.privateKey, err = cryptosuites.GenerateKey(ctx,
 			cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
