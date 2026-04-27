@@ -42,6 +42,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -890,6 +892,73 @@ func TestEndpoints(t *testing.T) {
 			assert.Nil(t, b, "backend not nil")
 		})
 	}
+}
+
+func TestNew_UsesEventsMetricsLabel(t *testing.T) {
+	// Don't t.Parallel(), this test reads global Prometheus counters.
+	ctx := context.Background()
+
+	before, err := getDynamoRequestsByTypeLabel("events")
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	b, err := New(ctx, Config{
+		Region:       "us-west-1",
+		Tablename:    "teleport-test",
+		UIDGenerator: utils.NewFakeUID(),
+		// Intentionally pass endpoint without scheme to exercise normalization.
+		Endpoint: strings.TrimPrefix(server.URL, "http://"),
+		Insecure: true,
+		CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{}, nil
+		}),
+	})
+	assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+	assert.Nil(t, b, "backend not nil")
+
+	after, err := getDynamoRequestsByTypeLabel("events")
+	require.NoError(t, err)
+	require.Greater(t, after, before, "expected dynamo metrics type=events to increase")
+}
+
+func getDynamoRequestsByTypeLabel(typeLabel string) (float64, error) {
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	var count float64
+	for _, family := range families {
+		if family.GetName() != "dynamo_requests_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if getMetricLabelValue(metric, "type") != typeLabel {
+				continue
+			}
+			if counter := metric.GetCounter(); counter != nil {
+				count += counter.GetValue()
+			}
+		}
+	}
+
+	return count, nil
+}
+
+func getMetricLabelValue(metric *dto.Metric, name string) string {
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
 }
 
 func TestStartKeyBackCompat(t *testing.T) {

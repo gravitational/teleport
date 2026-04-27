@@ -39,6 +39,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -685,4 +686,269 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
+}
+
+// TestOnUploadComplete_MissingSessionEnd verifies that when a stream is
+// completed without a session end event, the OnUploadComplete callback is
+// invoked and its returned session end event is passed through for
+// summarization and recording metadata processing.
+func TestOnUploadComplete_MissingSessionEnd(t *testing.T) {
+	uploader := eventstest.NewMemoryUploader()
+	summarizerProvider := &summarizer.SessionSummarizerProvider{}
+	mockSummarizer := &MockSummarizer{}
+	summarizerProvider.SetSummarizer(mockSummarizer)
+
+	sid := session.NewID()
+
+	// Build the session end that OnUploadComplete will return.
+	recoveredEnd := &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Type: events.SessionEndEvent,
+			Code: events.SessionEndCode,
+		},
+		SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+		StartTime:       time.Now().Add(-time.Minute),
+		EndTime:         time.Now(),
+		Interactive:     true,
+	}
+
+	called := false
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:                  uploader,
+		SessionSummarizerProvider: summarizerProvider,
+	})
+	require.NoError(t, err)
+	streamer.SetOnUploadComplete(func(_ context.Context, gotSID session.ID) (apievents.AuditEvent, error) {
+		called = true
+		require.Equal(t, sid, gotSID)
+		return recoveredEnd, nil
+	})
+
+	mockSummarizer.On("SummarizeSSH", mock.Anything, mock.MatchedBy(func(e *apievents.SessionEnd) bool {
+		return e.GetSessionID() == sid.String()
+	})).Return(nil).Once()
+
+	stream, err := streamer.CreateAuditStream(t.Context(), sid)
+	require.NoError(t, err)
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+	require.NoError(t, err)
+
+	// Emit a session start but deliberately omit the session end.
+	start := &apievents.SessionStart{
+		Metadata:        apievents.Metadata{Type: events.SessionStartEvent, Code: events.SessionStartCode, ClusterName: "cluster"},
+		SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+		TerminalSize:    "80:25",
+	}
+	prepared, err := preparer.PrepareSessionEvent(start)
+	require.NoError(t, err)
+	require.NoError(t, stream.RecordEvent(t.Context(), prepared))
+
+	require.NoError(t, stream.Complete(t.Context()))
+
+	require.True(t, called, "OnUploadComplete must be called when session end is missing")
+	mockSummarizer.AssertExpectations(t)
+}
+
+// MockRecordingMetadataService is a mock implementation of recordingmetadata.Service.
+type MockRecordingMetadataService struct {
+	mock.Mock
+}
+
+func (m *MockRecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
+	args := m.Called(ctx, sessionID, duration)
+	return args.Error(0)
+}
+
+// TestRecordingMetadataProcessing verifies that the recording metadata service
+// is called with the correct session duration when completing an upload, and
+// that sessionEndTime is correctly derived from different event types.
+func TestRecordingMetadataProcessing(t *testing.T) {
+	startTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name             string
+		buildEvents      func(sid session.ID) []apievents.AuditEvent
+		onUploadComplete func(ctx context.Context, sid session.ID) (apievents.AuditEvent, error)
+		expectProcess    bool
+		expectedDuration time.Duration
+		processingError  error
+	}{
+		{
+			name: "sessionEndTime from session end event",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.SessionStart{
+						Metadata:        apievents.Metadata{Type: events.SessionStartEvent, Code: events.SessionStartCode, Time: startTime, ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						TerminalSize:    "80:25",
+					},
+					&apievents.SessionPrint{
+						Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Time: startTime.Add(30 * time.Minute)},
+						Data:     []byte("hello"),
+						Bytes:    5,
+					},
+					&apievents.SessionEnd{
+						Metadata:        apievents.Metadata{Type: events.SessionEndEvent, Code: events.SessionEndCode, Time: startTime.Add(time.Hour), ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						StartTime:       startTime,
+						EndTime:         startTime.Add(time.Hour),
+						Interactive:     true,
+					},
+				}
+			},
+			// sessionEndTime is set from SessionEnd.Metadata.Time (not SessionPrint.Time),
+			// so duration = SessionEnd.Time - SessionStart.Time = 1h.
+			expectProcess:    true,
+			expectedDuration: time.Hour,
+		},
+		{
+			name: "sessionEndTime from last print event when no session end",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.SessionStart{
+						Metadata:        apievents.Metadata{Type: events.SessionStartEvent, Code: events.SessionStartCode, Time: startTime, ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						TerminalSize:    "80:25",
+					},
+					&apievents.SessionPrint{
+						Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Time: startTime.Add(30 * time.Minute)},
+						Data:     []byte("hello"),
+						Bytes:    5,
+					},
+				}
+			},
+			// No SessionEnd, so sessionEndTime falls back to the last SessionPrint.Time.
+			expectProcess:    true,
+			expectedDuration: 30 * time.Minute,
+		},
+		{
+			name: "no processing when session start event is missing",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.SessionPrint{
+						Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Time: startTime.Add(5 * time.Minute)},
+						Data:     []byte("hello"),
+						Bytes:    5,
+					},
+				}
+			},
+			// shouldProcessSession is never set without a SessionStart.
+			expectProcess: false,
+		},
+		{
+			name: "no processing when session end time is zero",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.SessionStart{
+						Metadata:        apievents.Metadata{Type: events.SessionStartEvent, Code: events.SessionStartCode, Time: startTime, ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						TerminalSize:    "80:25",
+					},
+				}
+			},
+			// shouldProcessSession is true, but sessionEndTime is zero (no prints or end event).
+			expectProcess: false,
+		},
+		{
+			name: "sessionEndTime from OnUploadComplete recovered SessionEnd",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.SessionStart{
+						Metadata:        apievents.Metadata{Type: events.SessionStartEvent, Code: events.SessionStartCode, Time: startTime, ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						TerminalSize:    "80:25",
+					},
+				}
+			},
+			onUploadComplete: func(_ context.Context, gotSID session.ID) (apievents.AuditEvent, error) {
+				return &apievents.SessionEnd{
+					Metadata:        apievents.Metadata{Type: events.SessionEndEvent, Code: events.SessionEndCode},
+					SessionMetadata: apievents.SessionMetadata{SessionID: gotSID.String()},
+					StartTime:       startTime,
+					EndTime:         startTime.Add(45 * time.Minute),
+					Interactive:     true,
+				}, nil
+			},
+			// sessionEndTime is set from the recovered SessionEnd.EndTime.
+			expectProcess:    true,
+			expectedDuration: 45 * time.Minute,
+		},
+		{
+			name: "processing error does not cause panic",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.SessionStart{
+						Metadata:        apievents.Metadata{Type: events.SessionStartEvent, Code: events.SessionStartCode, Time: startTime, ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						TerminalSize:    "80:25",
+					},
+					&apievents.SessionEnd{
+						Metadata:        apievents.Metadata{Type: events.SessionEndEvent, Code: events.SessionEndCode, Time: startTime.Add(time.Hour), ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+						StartTime:       startTime,
+						EndTime:         startTime.Add(time.Hour),
+						Interactive:     true,
+					},
+				}
+			},
+			expectProcess:    true,
+			expectedDuration: time.Hour,
+			processingError:  errors.New("processing error"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			summarizerProvider := &summarizer.SessionSummarizerProvider{}
+			metadataProvider := &recordingmetadata.Provider{}
+			uploader := eventstest.NewMemoryUploader()
+
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader:                  uploader,
+				SessionSummarizerProvider: summarizerProvider,
+				RecordingMetadataProvider: metadataProvider,
+			})
+			require.NoError(t, err)
+
+			sid := session.NewID()
+			mockMetadata := &MockRecordingMetadataService{}
+			metadataProvider.SetService(mockMetadata)
+
+			if tc.expectProcess {
+				mockMetadata.
+					On("ProcessSessionRecording", mock.Anything, sid, tc.expectedDuration).
+					Return(tc.processingError).
+					Once()
+			}
+
+			if tc.onUploadComplete != nil {
+				streamer.SetOnUploadComplete(tc.onUploadComplete)
+			}
+
+			stream, err := streamer.CreateAuditStream(t.Context(), sid)
+			require.NoError(t, err)
+
+			preparer, err := events.NewPreparer(events.PreparerConfig{
+				SessionID:   sid,
+				Namespace:   apidefaults.Namespace,
+				ClusterName: "cluster",
+			})
+			require.NoError(t, err)
+
+			for _, evt := range tc.buildEvents(sid) {
+				prepared, err := preparer.PrepareSessionEvent(evt)
+				require.NoError(t, err)
+				require.NoError(t, stream.RecordEvent(t.Context(), prepared))
+			}
+
+			require.NoError(t, stream.Complete(t.Context()))
+
+			mockMetadata.AssertExpectations(t)
+		})
+	}
 }

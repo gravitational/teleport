@@ -582,6 +582,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
+		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
 	}, nil
