@@ -1038,7 +1038,7 @@ func (f *Forwarder) getKubeAccessDetails(
 ) (kubeAccessDetails, error) {
 	// track explicit denies so we can decide how to return once all available kube servers have been visited
 	var explicitDenies []error
-
+	var implicitDenyOrNotFound error = errImplicitDeny
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range actx.kubeServers {
 		c := s.GetCluster()
@@ -1077,6 +1077,9 @@ func (f *Forwarder) getKubeAccessDetails(
 			if services.IsAccessExplicitlyDenied(err) {
 				explicitDenies = append(explicitDenies, err)
 			}
+			if trace.IsNotFound(err) {
+				implicitDenyOrNotFound = err
+			}
 			continue
 		}
 
@@ -1100,9 +1103,12 @@ func (f *Forwarder) getKubeAccessDetails(
 		return kubeAccessDetails{}, trace.NewAggregate(explicitDenies...)
 	}
 
-	// No explicit denials mean that actx.kubeClusterName was not found or no access checkers
-	// granted access. In either case we return an implicit deny.
-	return kubeAccessDetails{}, trace.Wrap(errImplicitDeny)
+	// If there are no explicit denials, we're left with three remaining cases:
+	// 1. There was no cluster found matching actx.kubeClusterName (implicit deny)
+	// 2. There were no access checkers granting access to the cluster (implicit deny)
+	// 3. An access checker that would have granted access returned no groups/users (not found)
+	// We can handle all three cases by returning implicitDenyOrNotFound
+	return kubeAccessDetails{}, trace.Wrap(implicitDenyOrNotFound)
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
