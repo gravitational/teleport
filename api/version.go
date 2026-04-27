@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.2"
+const Version = "18.7.3-dev.espadolini.20260427"
 
 const VersionMajor = 18
 const VersionMinor = 7
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionPatch = 3
+const VersionPreRelease = "dev.espadolini.20260427"
 const VersionMetadata = ""
