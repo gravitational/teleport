@@ -819,9 +819,10 @@ type mockReverseTunnelServer struct {
 
 func TestSetupProxyTLSConfig(t *testing.T) {
 	testCases := []struct {
-		name           string
-		acmeEnabled    bool
-		wantNextProtos []string
+		name            string
+		acmeEnabled     bool
+		prioritizeHTTP2 bool
+		wantNextProtos  []string
 	}{
 		{
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
@@ -914,6 +915,97 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-spanner",
 			},
 		},
+		{
+			name:            "ACME enabled, prioritize_http2 puts h2 before http/1.1",
+			acmeEnabled:     true,
+			prioritizeHTTP2: true,
+			wantNextProtos: []string{
+				"h2",
+				"http/1.1",
+				"acme-tls/1",
+				"teleport-tcp-ping",
+				"teleport-mcp-ping",
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-oracle-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
+				"teleport-elasticsearch-ping",
+				"teleport-opensearch-ping",
+				"teleport-dynamodb-ping",
+				"teleport-clickhouse-ping",
+				"teleport-spanner-ping",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
+				"teleport-postgres",
+				"teleport-mysql",
+				"teleport-mongodb",
+				"teleport-oracle",
+				"teleport-redis",
+				"teleport-sqlserver",
+				"teleport-snowflake",
+				"teleport-cassandra",
+				"teleport-elasticsearch",
+				"teleport-opensearch",
+				"teleport-dynamodb",
+				"teleport-clickhouse",
+				"teleport-spanner",
+			},
+		},
+		{
+			name:            "ACME disabled, prioritize_http2 puts h2 before http/1.1",
+			acmeEnabled:     false,
+			prioritizeHTTP2: true,
+			wantNextProtos: []string{
+				"teleport-tcp-ping",
+				"teleport-mcp-ping",
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-oracle-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
+				"teleport-elasticsearch-ping",
+				"teleport-opensearch-ping",
+				"teleport-dynamodb-ping",
+				"teleport-clickhouse-ping",
+				"teleport-spanner-ping",
+				"h2",
+				"http/1.1",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
+				"teleport-postgres",
+				"teleport-mysql",
+				"teleport-mongodb",
+				"teleport-oracle",
+				"teleport-redis",
+				"teleport-sqlserver",
+				"teleport-snowflake",
+				"teleport-cassandra",
+				"teleport-elasticsearch",
+				"teleport-opensearch",
+				"teleport-dynamodb",
+				"teleport-clickhouse",
+				"teleport-spanner",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -935,6 +1027,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				&mockReverseTunnelServer{},
 				&mockAccessPoint{},
 				"cluster",
+				tc.prioritizeHTTP2,
 			)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantNextProtos, tls.NextProtos)

@@ -75,6 +75,10 @@ type ProxyConfig struct {
 	ClusterName string
 	// PingInterval defines the ping interval for ping-wrapped connections.
 	PingInterval time.Duration
+	// PrioritizeHTTP2 puts HTTP/2 ahead of HTTP/1.1 in the ALPN list the
+	// proxy advertises on its web TLS listener. The set of supported
+	// protocols is unchanged. See [common.OrderedProtocols] for context.
+	PrioritizeHTTP2 bool
 }
 
 // NewRouter creates a ALPN new router.
@@ -310,7 +314,7 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	return &Proxy{
 		cfg:                cfg,
 		log:                cfg.Log,
-		supportedProtocols: common.SupportedProtocols,
+		supportedProtocols: common.OrderedProtocols(cfg.PrioritizeHTTP2),
 	}, nil
 }
 

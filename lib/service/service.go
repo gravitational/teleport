@@ -5364,7 +5364,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	if !process.Config.Proxy.DisableTLS {
-		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
+		prioritizeHTTP2 := clusterNetworkConfig.GetPrioritizeHttp2()
+		logger.InfoContext(process.ExitContext(),
+			"HTTP/2 ALPN priority configured for the proxy web listener.",
+			"prioritize_http2", prioritizeHTTP2,
+			"note", "requires proxy restart to change",
+		)
+		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName, prioritizeHTTP2)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -6245,12 +6251,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
+			PrioritizeHTTP2:   clusterNetworkConfig.GetPrioritizeHttp2(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		alpnTLSConfigForWeb, err := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName)
+		alpnTLSConfigForWeb, err := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName, clusterNetworkConfig.GetPrioritizeHttp2())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -6272,6 +6279,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Listener:          listeners.reverseTunnelALPN,
 				ClusterName:       clusterName,
 				AccessPoint:       accessPoint,
+				PrioritizeHTTP2:   clusterNetworkConfig.GetPrioritizeHttp2(),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6392,7 +6400,7 @@ func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) u
 	return config.Kube.ListenAddr
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint authclient.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint authclient.ReadProxyAccessPoint, clusterName string, prioritizeHTTP2 bool) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -6423,12 +6431,17 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// We have to duplicate the behavior of `m.TLSConfig()` here because
 		// http/1.1 needs to take precedence over h2 due to
 		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		// The cluster_networking_config.prioritize_http2 flag flips this
+		// order for clusters that have no WebSocket apps.
+		httpProtos := []string{string(alpncommon.ProtocolHTTP), string(alpncommon.ProtocolHTTP2)}
+		if prioritizeHTTP2 {
+			httpProtos = []string{string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolHTTP)}
+		}
 		tlsConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
-			NextProtos: []string{
-				string(alpncommon.ProtocolHTTP), string(alpncommon.ProtocolHTTP2), // enable HTTP/2
+			NextProtos: append(httpProtos,
 				acme.ALPNProto, // enable tls-alpn ACME challenges
-			},
+			),
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
@@ -6444,17 +6457,17 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig.GetCertificate = certReloader.GetCertificate
 	}
 
-	setupTLSConfigALPNProtocols(tlsConfig)
+	setupTLSConfigALPNProtocols(tlsConfig, prioritizeHTTP2)
 	if err := process.setupTLSConfigClientCAGeneratorForCluster(tlsConfig, accessPoint, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return tlsConfig, nil
 }
 
-func setupTLSConfigALPNProtocols(tlsConfig *tls.Config) {
+func setupTLSConfigALPNProtocols(tlsConfig *tls.Config, prioritizeHTTP2 bool) {
 	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
 	// the TLS handshake will fail.
-	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
+	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.OrderedProtocols(prioritizeHTTP2))...))
 }
 
 func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsConfig *tls.Config, accessPoint authclient.ReadProxyAccessPoint, clusterName string) error {
@@ -6496,9 +6509,9 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 	return nil
 }
 
-func (process *TeleportProcess) setupALPNTLSConfigForWeb(tlsConfig *tls.Config, accessPoint authclient.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupALPNTLSConfigForWeb(tlsConfig *tls.Config, accessPoint authclient.ReadProxyAccessPoint, clusterName string, prioritizeHTTP2 bool) (*tls.Config, error) {
 	tlsConfig = tlsConfig.Clone()
-	setupTLSConfigALPNProtocols(tlsConfig)
+	setupTLSConfigALPNProtocols(tlsConfig, prioritizeHTTP2)
 	if err := process.setupTLSConfigClientCAGeneratorForCluster(tlsConfig, accessPoint, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}

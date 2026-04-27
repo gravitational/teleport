@@ -145,6 +145,28 @@ var SupportedProtocols = WithPingProtocols(
 	}, DatabaseProtocols...),
 )
 
+// OrderedProtocols returns SupportedProtocols with HTTP/1.1 and HTTP/2
+// reordered according to prioritizeHTTP2. When prioritizeHTTP2 is false
+// (the default), HTTP/1.1 appears before HTTP/2 to preserve WebSocket
+// support in browsers affected by crbug 1379017 and to work around
+// Go's lack of HTTP/2 WebSocket server support (golang/go#49918). When
+// true, HTTP/2 appears before HTTP/1.1 so a browser offering both picks
+// HTTP/2 for multiplexing. The set of returned protocols is the same as
+// SupportedProtocols regardless of the flag value.
+func OrderedProtocols(prioritizeHTTP2 bool) []Protocol {
+	out := slices.Clone(SupportedProtocols)
+	if !prioritizeHTTP2 {
+		return out
+	}
+	httpIdx := slices.Index(out, ProtocolHTTP)
+	http2Idx := slices.Index(out, ProtocolHTTP2)
+	if httpIdx == -1 || http2Idx == -1 || http2Idx < httpIdx {
+		return out
+	}
+	out[httpIdx], out[http2Idx] = out[http2Idx], out[httpIdx]
+	return out
+}
+
 // ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
 	out := make([]string, 0, len(protocols))

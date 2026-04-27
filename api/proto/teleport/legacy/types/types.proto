@@ -2542,6 +2542,18 @@ message ClusterNetworkingConfigSpecV2 {
     (gogoproto.jsontag) = "ssh_dial_timeout,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // PrioritizeHttp2 controls the order of HTTP/1.1 and HTTP/2 in the
+  // ALPN list the proxy advertises on its web TLS listener. When false
+  // (the default), http/1.1 is offered before h2 to keep WebSocket apps
+  // working in browsers that have hit crbug 1379017 and to work around
+  // Go's lack of HTTP/2 WebSocket server support (golang/go#49918). Set
+  // this to true only on clusters that have no WebSocket apps and want
+  // browsers to pick HTTP/2 for multiplexing. Toggling requires a proxy
+  // restart to take effect. A bool was chosen over an enum for v1; if
+  // future variants are needed, introduce a new field rather than
+  // overloading this one.
+  bool PrioritizeHttp2 = 14 [(gogoproto.jsontag) = "prioritize_http2,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.

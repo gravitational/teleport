@@ -118,6 +118,12 @@ type ClusterNetworkingConfig interface {
 
 	// SetSSHDialTimeout sets the timeout value that should be used for SSH connections.
 	SetSSHDialTimeout(t time.Duration)
+
+	// GetPrioritizeHttp2 gets the HTTP/2 ALPN priority option.
+	GetPrioritizeHttp2() bool
+
+	// SetPrioritizeHttp2 sets the HTTP/2 ALPN priority option.
+	SetPrioritizeHttp2(prioritize bool)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -409,6 +415,19 @@ func (c *ClusterNetworkingConfigV2) GetSSHDialTimeout() time.Duration {
 // the docs on [ClusterNetworkingConfigV2.GetSSHDialTimeout] for more details.
 func (c *ClusterNetworkingConfigV2) SetSSHDialTimeout(t time.Duration) {
 	c.Spec.SSHDialTimeout = Duration(t)
+}
+
+// GetPrioritizeHttp2 returns whether the proxy should advertise HTTP/2
+// ahead of HTTP/1.1 in its web TLS listener's ALPN list. The default
+// is false. See the field comment on PrioritizeHttp2 for context.
+func (c *ClusterNetworkingConfigV2) GetPrioritizeHttp2() bool {
+	return c.Spec.PrioritizeHttp2
+}
+
+// SetPrioritizeHttp2 sets the HTTP/2 ALPN priority option. The proxy
+// reads this value once at startup; toggling it requires a restart.
+func (c *ClusterNetworkingConfigV2) SetPrioritizeHttp2(prioritize bool) {
+	c.Spec.PrioritizeHttp2 = prioritize
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string
