@@ -2903,9 +2903,21 @@ func (wds *WindowsDesktopService) Check() error {
 
 // LinuxDesktopService contains configuration for linux_desktop_service.
 type LinuxDesktopService struct {
-	Service `yaml:",inline"`
+	EnabledFlag string `yaml:"enabled,omitempty"`
 	// Labels are the configured linux desktops service labels.
-	Labels map[string]string `yaml:"labels,omitempty"`
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	XSessions XSessions         `yaml:"xsessions,omitempty"`
+}
+
+// Enabled returns true if the Linux desktop service is enabled.
+func (s *LinuxDesktopService) Enabled() bool {
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	return err == nil && v
+}
+
+type XSessions struct {
+	Included string `yaml:"enabled,omitempty"`
+	Excluded string `yaml:"excluded,omitempty"`
 }
 
 // WindowsHostLabelRule describes how a set of labels should be applied to

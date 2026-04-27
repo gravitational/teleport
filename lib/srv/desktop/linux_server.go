@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"regexp"
 	"slices"
 	"strconv"
 	"sync"
@@ -123,6 +124,10 @@ type LinuxServiceConfig struct {
 	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	Labels               map[string]string
 	ChildLogConfig       *srv.ChildLogConfig
+
+	// Filters used to limit available sessions
+	IncludedSessions *regexp.Regexp
+	ExcludedSessions *regexp.Regexp
 }
 
 func (cfg *LinuxServiceConfig) CheckAndSetDefaults() error {
@@ -431,7 +436,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 func (sess *linuxSession) run() error {
 	s := sess.service
 
-	xsessions, err := x11.GetAvailableXSessions(nil, nil)
+	xsessions, err := x11.GetAvailableXSessions(s.cfg.IncludedSessions, s.cfg.ExcludedSessions)
 	if err != nil {
 		sess.sendTDPError("Couldn't get available xsessions.")
 		return trace.Wrap(err)

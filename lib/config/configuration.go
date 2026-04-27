@@ -2433,6 +2433,22 @@ func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
 	}
 
+	if fc.LinuxDesktop.XSessions.Included != "" {
+		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Included)
+		if err != nil {
+			return trace.BadParameter("invalid pattern for included sessions: %s", fc.LinuxDesktop.XSessions.Included)
+		}
+		cfg.LinuxDesktop.IncludedSessions = r
+	}
+
+	if fc.LinuxDesktop.XSessions.Excluded != "" {
+		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Excluded)
+		if err != nil {
+			return trace.BadParameter("invalid pattern for excluded sessions: %s", fc.LinuxDesktop.XSessions.Excluded)
+		}
+		cfg.LinuxDesktop.ExcludedSessions = r
+	}
+
 	return nil
 }
 

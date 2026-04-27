@@ -17,6 +17,8 @@
 package servicecfg
 
 import (
+	"regexp"
+
 	"github.com/gravitational/teleport/lib/limiter"
 )
 
@@ -29,4 +31,8 @@ type LinuxDesktopConfig struct {
 	ConnLimiter limiter.Config
 
 	Labels map[string]string
+
+	// Filters used to limit available sessions
+	IncludedSessions *regexp.Regexp
+	ExcludedSessions *regexp.Regexp
 }

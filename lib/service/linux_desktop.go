@@ -200,6 +200,8 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		AuthClient:           conn.Client,
 		InventoryHandle:      process.inventoryHandle,
 		Labels:               cfg.LinuxDesktop.Labels,
+		IncludedSessions:     cfg.LinuxDesktop.IncludedSessions,
+		ExcludedSessions:     cfg.LinuxDesktop.ExcludedSessions,
 		ConnectedProxyGetter: proxyGetter,
 		Hostname:             process.Config.Hostname,
 		Heartbeat: desktop.HeartbeatConfig{
