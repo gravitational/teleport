@@ -20,8 +20,10 @@ package accesslists
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -44,6 +46,20 @@ type Collection struct {
 	AccessListsByName map[string]*accesslist.AccessList
 }
 
+func CollectionSkippableError(err error) bool {
+	if err == nil {
+		return true
+	}
+	if strings.Contains(err.Error(), "is already included as a Member or Owner in") {
+		return true
+	}
+	if strings.Contains(err.Error(), "exceed the maximum nesting depth") {
+		return true
+	}
+
+	return false
+}
+
 // Validate validates all access lists and members in the batch.
 func (b *Collection) Validate(ctx context.Context) error {
 	for _, accessList := range b.AccessListsByName {
@@ -60,9 +76,34 @@ func (b *Collection) Validate(ctx context.Context) error {
 	}
 	for _, accessList := range b.AccessListsByName {
 		members := b.MembersByAccessList[accessList.GetName()]
-		if err := ValidateAccessListWithMembers(ctx, nil, accessList, members, b); err != nil {
+		// below is a copied [ValidateAccessListWithMembers] in order to
+		// skip recursive gropu membership errors.
+		if err := validateAccessList(accessList); err != nil {
 			return trace.Wrap(err)
 		}
+		if err := validateAccessListUpdate(nil, accessList); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, owner := range accessList.Spec.Owners {
+			if err := validateAccessListOwner(ctx, accessList, owner, b); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		newMembers := make([]*accesslist.AccessListMember, 0, len(members))
+		for _, member := range members {
+			if err := ValidateAccessListMember(ctx, accessList, member, b); err != nil {
+				// Note(sshah): this is strictly done to consider OAI scenario.
+				if CollectionSkippableError(err) {
+					slog.DebugContext(ctx, "Access List member validation failed, member will be skipped", "error", err)
+					continue
+				}
+				return trace.Wrap(err)
+			} else {
+				newMembers = append(newMembers, member)
+			}
+		}
+
+		b.MembersByAccessList[accessList.GetName()] = newMembers
 	}
 	if err := b.RefUpdates(); err != nil {
 		return trace.Wrap(err)
