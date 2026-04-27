@@ -991,6 +991,29 @@ var (
 		WithoutImportState:    true,
 	}
 
+	retrievalModel = payload{
+		Name:                  "RetrievalModel",
+		VarName:               "retrievalModel",
+		TypeName:              "RetrievalModel",
+		GetMethod:             "SummarizerClient().GetRetrievalModel",
+		CreateMethod:          "SummarizerClient().CreateRetrievalModel",
+		UpdateMethod:          "SummarizerClient().UpsertRetrievalModel",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteRetrievalModel",
+		ID:                    "apitypes.MetaNameRetrievalModel",
+		DefaultName:           "apitypes.MetaNameRetrievalModel",
+		Kind:                  "retrieval_model",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_retrieval_model",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindRetrievalModel",
+	}
+
 	inferencePolicy = payload{
 		Name:                  "InferencePolicy",
 		VarName:               "inferencePolicy",
@@ -1015,6 +1038,65 @@ var (
 		// We import the package containing kinds, then use ForceSetKind.
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindInferencePolicy",
+	}
+
+	scopedRole = payload{
+		Name:                  "ScopedRole",
+		TypeName:              "ScopedRole",
+		VarName:               "scopedRole",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRole",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRole",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRole",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRole",
+		ID:                    "scopedRole.Metadata.Name",
+		Kind:                  "scoped_role",
+		HasStaticID:           false,
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1",
+		TerraformResourceType: "teleport_scoped_role",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRole",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Role",
+			GetRequest:           "GetScopedRoleRequest",
+			CreateRequest:        "CreateScopedRoleRequest",
+			UpdateRequest:        "UpsertScopedRoleRequest",
+			DeleteRequest:        "DeleteScopedRoleRequest",
+		},
+	}
+
+	scopedRoleAssignment = payload{
+		Name:                  "ScopedRoleAssignment",
+		TypeName:              "ScopedRoleAssignment",
+		VarName:               "scopedRoleAssignment",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRoleAssignment",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRoleAssignment",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRoleAssignment",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRoleAssignment",
+		ID:                    "scopedRoleAssignment.Metadata.Name",
+		Kind:                  "scoped_role_assignment",
+		HasStaticID:           false,
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
+		SchemaPackage:         "assignmentschemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/assignment/v1",
+		TerraformResourceType: "teleport_scoped_role_assignment",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRoleAssignment",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Assignment",
+			GetRequest:           "GetScopedRoleAssignmentRequest",
+			CreateRequest:        "CreateScopedRoleAssignmentRequest",
+			UpdateRequest:        "UpsertScopedRoleAssignmentRequest",
+			DeleteRequest:        "DeleteScopedRoleAssignmentRequest",
+		},
+		DefaultSubKind: "\"dynamic\"",
 	}
 
 	scopedToken = payload{
@@ -1190,6 +1272,12 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(retrievalModel, singularResource)
+	generateDataSource(retrievalModel, singularDataSource)
+	generateResource(scopedRole, pluralResource)
+	generateDataSource(scopedRole, pluralDataSource)
+	generateResource(scopedRoleAssignment, pluralResource)
+	generateDataSource(scopedRoleAssignment, pluralDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)

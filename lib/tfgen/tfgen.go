@@ -192,31 +192,37 @@ func generateResource(
 	// a header field, while other resources expect these fields as top-level fields.
 	_, hasHeaderField := resource.(*headerResourceWrapper)
 	if hasHeaderField {
-		if header := msg.AttributeNamed("header"); header != nil {
+		if header := msg.AttributeNamed("header"); header != nil && !opts.fieldsToOmit["header"] {
 			tokens := messageToTokens(fieldPath{"header"}, header.Value, opts)
 			if tokens != nil {
 				resourceBlock.Body().SetAttributeRaw("header", tokens)
+				resourceBlock.Body().AppendNewline()
 			}
 		}
 	} else {
-		if v := resource.GetVersion(); v != "" {
+		appendNewLine := false
+		if v := resource.GetVersion(); v != "" && !opts.fieldsToOmit["version"] {
 			resourceBlock.Body().SetAttributeValue("version", cty.StringVal(v))
+			appendNewLine = true
 		}
-		if v := resource.GetSubKind(); v != "" {
+		if v := resource.GetSubKind(); v != "" && !opts.fieldsToOmit["sub_kind"] {
 			resourceBlock.Body().SetAttributeValue("sub_kind", cty.StringVal(v))
+			appendNewLine = true
 		}
-		resourceBlock.Body().AppendNewline()
-		if v := msg.AttributeNamed("metadata"); v != nil {
+		if appendNewLine {
+			resourceBlock.Body().AppendNewline()
+		}
+		if v := msg.AttributeNamed("metadata"); v != nil && !opts.fieldsToOmit["metadata"] {
 			tokens := messageToTokens(fieldPath{"metadata"}, v.Value, opts)
 			if tokens != nil {
 				resourceBlock.Body().SetAttributeRaw("metadata", tokens)
+				resourceBlock.Body().AppendNewline()
 			}
 		}
 	}
-	resourceBlock.Body().AppendNewline()
 
 	// Spec object.
-	if v := msg.AttributeNamed("spec"); v != nil {
+	if v := msg.AttributeNamed("spec"); v != nil && !opts.fieldsToOmit["spec"] {
 		tokens := messageToTokens(fieldPath{"spec"}, v.Value, opts)
 		if tokens != nil {
 			resourceBlock.Body().SetAttributeRaw("spec", tokens)
@@ -249,6 +255,12 @@ func messageToTokens(
 	var tokens hclwrite.Tokens
 	for _, attr := range val.Message().Attributes {
 		fieldPath := append(path, attr.Name)
+		fieldPathStr := fieldPath.String()
+
+		if opts.fieldsToOmit[fieldPathStr] {
+			continue
+		}
+
 		comment, hasComment := opts.fieldComments[fieldPath.String()]
 
 		valueTokens := valueToTokens(
@@ -471,8 +483,12 @@ func valueToCty(
 		messageVal := val.Message()
 		attrs := make(map[string]cty.Value)
 		for _, attr := range messageVal.Attributes {
+			attrPath := append(path, attr.Name)
+			if opts.fieldsToOmit[attrPath.withoutIndexes().String()] {
+				continue
+			}
 			if val := valueToCty(
-				append(path, attr.Name),
+				attrPath,
 				attr.Value,
 				opts,
 				false, /* emitZeroVal */
@@ -489,3 +505,21 @@ func valueToCty(
 type fieldPath []string
 
 func (p fieldPath) String() string { return strings.Join(p, ".") }
+
+// withoutIndexes returns the field path with indexes stripped e.g. [0], etc.
+// This is used to help match fields to omit when the field is inside a list
+// regardless of the index.
+//
+// For example, if the field path is "spec.user.friends[N].pets[M].name",
+// withoutIndexes will return "spec.user.friends.pets.name".
+func (p fieldPath) withoutIndexes() fieldPath {
+	result := make(fieldPath, 0, len(p))
+	for _, part := range p {
+		// Ignore parts that look like an index (e.g. [0], [1], etc.)
+		if len(part) > 0 && (part[0] == '[' && part[len(part)-1] == ']') {
+			continue
+		}
+		result = append(result, part)
+	}
+	return result
+}

@@ -62,6 +62,8 @@ rules:
       - teleportinferencepolicies/status
       - teleportinferencesecrets
       - teleportinferencesecrets/status
+      - teleportretrievalmodelsv1
+      - teleportretrievalmodelsv1/status
       - teleportaccessmonitoringrulesv1
       - teleportaccessmonitoringrulesv1/status
       - teleportscopedtokensv1

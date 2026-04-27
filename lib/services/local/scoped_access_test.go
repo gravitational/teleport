@@ -339,7 +339,7 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 		Name: "non-existent",
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// verify that delete fails if the revision does not match
 	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
