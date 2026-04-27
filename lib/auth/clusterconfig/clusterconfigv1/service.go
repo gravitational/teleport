@@ -31,7 +31,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -156,18 +155,10 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
-	// Use RiskyUnpinnedDecision to allow scoped identities (regardless of their
+	// Use AuthorizeUnpinnedRead to allow scoped identities (regardless of their
 	// scope pin) to call GetAuthPreference.
 	ruleCtx := authzCtx.RuleContext()
-	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
-		ctx,
-		scopes.Root,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(
-				&ruleCtx, types.KindClusterAuthPreference, types.VerbRead,
-			)
-		},
-	); err != nil {
+	if err := authzCtx.CheckerContext.AuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthPreference, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
