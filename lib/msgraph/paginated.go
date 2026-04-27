@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
+	"iter"
 	"net/http"
 	"net/url"
 	"path"
@@ -42,12 +42,15 @@ type iterateConfig struct {
 	top int
 	// selector is the $select query param.
 	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#select
-	selector string
+	selector    string
+	latestDelta bool
 	// header includes headers that are going to be set during iteration.
 	header http.Header
 	// count is the $count query param.
 	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#count
-	count bool
+	count       bool
+	resyncDelta bool
+	useDelta    bool
 }
 
 func (ic *iterateConfig) query() url.Values {
@@ -64,6 +67,9 @@ func (ic *iterateConfig) query() url.Values {
 	if ic.count {
 		q.Set("$count", "true")
 	}
+	if ic.latestDelta {
+		q.Set("$deltatoken", "latest")
+	}
 	return q
 }
 
@@ -76,6 +82,26 @@ func (c *Client) newIterateConfig() *iterateConfig {
 
 // IterateOpt is a function that can be passed to [Client] methods that iterate over API results.
 type IterateOpt func(*iterateConfig)
+
+// WithFilter sets the $filter query param.
+// https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
+func WithNewDelta() IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.resyncDelta = true
+	}
+}
+
+func WithUseDelta(d bool) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.useDelta = d
+	}
+}
+
+func WithLatestDelta(l bool) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.latestDelta = l
+	}
+}
 
 // WithFilter sets the $filter query param.
 // https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
@@ -213,6 +239,173 @@ func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool, opts ...I
 	return iterateSimple(c, ctx, "users", f, opts...)
 }
 
+// iterateSeq implements pagination for "list" endpoints and yields pages as a sequence.
+func (c *Client) iterateSeq(ctx context.Context, endpoint string, iterateOpts ...IterateOpt) iter.Seq2[json.RawMessage, error] {
+	ic := c.newIterateConfig()
+	for _, opt := range iterateOpts {
+		opt(ic)
+	}
+
+	var uriString string
+	if ic.useDelta {
+		if deltaURI, ok := c.deltaCache[endpoint]; ok && deltaURI != "" {
+			uriString = deltaURI
+		}
+	}
+	if uriString == "" {
+		uri := *c.baseURL
+		uri.Path = path.Join(uri.Path, endpoint)
+		uri.RawQuery = ic.query().Encode()
+		uriString = uri.String()
+	}
+
+	return func(yield func(json.RawMessage, error) bool) {
+		var deltaLink string
+
+		for uriString != "" {
+			resp, err := c.request(ctx, http.MethodGet, uriString, ic.header, nil /* payload */)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			var page oDataPage
+			if err := jsoniter.ConfigFastest.NewDecoder(resp.Body).Decode(&page); err != nil {
+				resp.Body.Close()
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			resp.Body.Close()
+			uriString = page.NextLink
+
+			if page.DeltaLink != "" {
+				deltaLink = page.DeltaLink
+			}
+
+			if !yield(page.Value, nil) {
+				return
+			}
+		}
+
+		if deltaLink != "" {
+			c.deltaCache[endpoint] = deltaLink
+		}
+	}
+}
+
+// IterateUsersDelta. If the delta cache is empty,
+// returns error if delta cache is empty, suggesting
+// to start with a full scan which sets up latest
+// delta token.
+func (c *Client) IterateUsersDelta(ctx context.Context, opts ...IterateOpt) iter.Seq2[*ListUsersDeltaResponse, error] {
+	endpoint := path.Join("users", "delta")
+	if deltaToken, ok := c.deltaCache[endpoint]; ok && deltaToken != "" {
+		opts = append(opts, WithUseDelta(true))
+	} else {
+		return func(yield func(*ListUsersDeltaResponse, error) bool) {
+			yield(nil, trace.Wrap(ErrMissingDeltaToken))
+		}
+	}
+
+	return func(yield func(*ListUsersDeltaResponse, error) bool) {
+		for msg, itErr := range c.iterateSeq(ctx, endpoint, opts...) {
+			if itErr != nil {
+				yield(nil, trace.Wrap(itErr))
+				return
+			}
+			var page []ListUsersDeltaResponse
+			if err := utils.FastUnmarshal(msg, &page); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			for _, item := range page {
+				if !yield(&item, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// IterateGroupsDelta. If the delta cache is empty,
+// returns error if delta cache is empty, suggesting
+// to start with a full scan which sets up latest
+// delta token.
+func (c *Client) IterateGroupsDelta(ctx context.Context, opts ...IterateOpt) iter.Seq2[*ListGroupsDeltaResponse, error] {
+	endpoint := path.Join("groups", "delta")
+	if deltaToken, ok := c.deltaCache[endpoint]; ok && deltaToken != "" {
+		opts = append(opts, WithUseDelta(true))
+	} else {
+		return func(yield func(*ListGroupsDeltaResponse, error) bool) {
+			yield(nil, trace.Wrap(ErrMissingDeltaToken))
+		}
+	}
+
+	return func(yield func(*ListGroupsDeltaResponse, error) bool) {
+		for msg, itErr := range c.iterateSeq(ctx, endpoint, opts...) {
+			if itErr != nil {
+				yield(nil, trace.Wrap(itErr))
+				return
+			}
+			var page []ListGroupsDeltaResponse
+			if err := utils.FastUnmarshal(msg, &page); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			for _, item := range page {
+				if !yield(&item, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// SetupUserAndGroupDelta configures latest delta token from msgraph
+// user and group delta API. Should always be called before iterating
+// over user and group delta API.
+func (c *Client) SetupUserAndGroupDelta(ctx context.Context) error {
+	userEndpoint := path.Join("users", "delta")
+	// wipe existing cache
+	c.deltaCache[userEndpoint] = ""
+	// ensure these fields are always included
+	userOpts := []IterateOpt{
+		WithSelect("id,displayName,userPrincipalName,mail,onPremisesSamAccountName,givenName,surname"),
+		WithUseDelta(true),
+		WithLatestDelta(true),
+	}
+
+	// only a single page of delta token is expected.
+	for _, err := range c.iterateSeq(ctx, userEndpoint, userOpts...) {
+		if err != nil {
+			return trace.Wrap(err, "setting up user latest delta token")
+		}
+	}
+
+	groupEndpoint := path.Join("groups", "delta")
+	// wipe existing cache
+	c.deltaCache[groupEndpoint] = ""
+	// ensure these fields are always included.
+	// members are always included in groups delta,
+	// owners are optional.
+	// TODO(sshah): configure owners based on opt value.
+	groupOpts := []IterateOpt{
+		WithSelect("id,displayName,description,members,owners"),
+		WithUseDelta(true),
+		WithLatestDelta(true),
+	}
+
+	// only a single page of delta token is expected.
+	for _, err := range c.iterateSeq(ctx, groupEndpoint, groupOpts...) {
+		if err != nil {
+			return trace.Wrap(err, "setting up group latest delta token")
+		}
+	}
+
+	return nil
+}
+
 // IterateServicePrincipals lists all service principals in the Entra ID directory using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
@@ -234,11 +427,13 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 		}
 		for _, entry := range page {
 			var member GroupMember
-			member, err = decodeGroupMember(entry)
+			member, err = DecodeGroupMember(entry)
 			if err != nil {
 				var gmErr *unsupportedGroupMember
 				if errors.As(err, &gmErr) {
-					slog.DebugContext(ctx, "unsupported group member", "type", gmErr.Type)
+					// TODO(sshah): collect all the members and report at once?
+					// Honestly, we can just stop printing these logs!!
+					// slog.DebugContext(ctx, "unsupported group member", "type", gmErr.Type)
 					err = nil // Reset so that we do not return the error up if this is the last entry
 					continue
 				} else {

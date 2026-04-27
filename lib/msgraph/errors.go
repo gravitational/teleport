@@ -22,6 +22,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -40,6 +41,9 @@ type graphErrorResponse struct {
 	Error *GraphError `json:"error,omitempty"`
 }
 
+// ErrMissingDeltaToken is returned if a delta token is missing from the cache.
+var ErrMissingDeltaToken = &trace.BadParameterError{Message: "missing delta token"}
+
 // GraphError defines the structure of errors returned from MS Graph API.
 // https://learn.microsoft.com/en-us/graph/errors#json-representation
 type GraphError struct {
@@ -56,6 +60,8 @@ type GraphError struct {
 	Details []GraphError `json:"details,omitempty"`
 	// StatusCode is the status code of the HTTP response that GraphError arrived with.
 	StatusCode int `json:"-"`
+	// RetryAfter holds the value of "Retry-After" header is sent by the Graph API.
+	RetryAfter time.Duration `json:"-"`
 }
 
 func (g *GraphError) Error() string {
@@ -141,4 +147,18 @@ const (
 	// and instead a regular string that doesn't match said requirements.
 	// https://login.microsoftonline.com/error?code=900023
 	DiagCodeInvalidTenantIdentifier = 900023
+)
+
+const (
+	// resyncRequired is returned by the msgraph delta API when a resync is required.
+	ErrCodeResyncRequired = "resyncRequired"
+	// resyncApplyDifferences is returned by the msgraph delta API when a two-way
+	// resync is required.
+	ErrCodeResyncApplyDifferences = "resyncApplyDifferences"
+
+	// Throttled is returned when request throttled.
+	ErrCodeThrottled = "Request_ThrottledTemporarily"
+
+	// TooManyRequest is returned when client sends too many requests.
+	ErrCodeTooManyRequest = "TooManyRequests"
 )

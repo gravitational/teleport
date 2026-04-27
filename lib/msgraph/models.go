@@ -161,7 +161,7 @@ type AppRoleAssignment struct {
 	ResourceID  *string `json:"resourceId,omitempty"`
 }
 
-func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
+func DecodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	var temp struct {
 		Type string `json:"@odata.type"`
 	}
@@ -188,4 +188,35 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	}
 
 	return member, trace.Wrap(err)
+}
+
+// Delta defines shape of the msgraph delta object.
+type Delta struct {
+	DirectoryObject
+	Type    string         `json:"@odata.type,omitempty"`
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+func (d *Delta) GetID() *string { return d.ID }
+func (g *Delta) isGroupMember() {}
+
+// RemovedReason returned in the delta response.
+type RemovedReason struct {
+	// value can be "changed" or "deleted".
+	// "changed" implies soft delete that could be restored.
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ListGroupsDeltaResponse defines group delta response.
+type ListGroupsDeltaResponse struct {
+	Group
+	Owners  []Delta        `json:"owners@delta,omitempty"`
+	Members []Delta        `json:"members@delta,omitempty"`
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+// ListUsersDeltaResponse defines user delta response.
+type ListUsersDeltaResponse struct {
+	User
+	Removed *RemovedReason `json:"@removed,omitempty"`
 }

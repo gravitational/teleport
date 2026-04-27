@@ -152,6 +152,9 @@ type Client struct {
 	pageSize      int
 	logger        *slog.Logger
 	metrics       *clientMetrics
+	// deltaCache is used to store delta token state URL.
+	// key should hold endpoint used for request.
+	deltaCache map[string]string
 }
 
 // NewClient returns a new client for the given config.
@@ -180,6 +183,7 @@ func NewClient(cfg Config) (*Client, error) {
 		pageSize:      cfg.PageSize,
 		logger:        cfg.Logger,
 		metrics:       m,
+		deltaCache:    make(map[string]string),
 	}, nil
 }
 
@@ -273,12 +277,27 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			"status", resp.StatusCode,
 			"url", req.URL,
 			"client_request_id", requestID,
+			"retry_count", maxRetries,
 		)
+
+		retryAfter = retry.Duration()
+		retryAfterFromHeader := time.Duration(0)
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if seconds, err := strconv.Atoi(ra); err == nil {
+				retryAfterFromHeader = time.Duration(seconds) * time.Second
+				retryAfter = time.Duration(seconds) * time.Second
+			}
+		}
+		retry.Inc()
 
 		graphError, err := readError(respBody, resp.StatusCode)
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
 		} else if graphError != nil {
+			if retryAfterFromHeader > 0 {
+				graphError.RetryAfter = retryAfterFromHeader
+			}
+
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
@@ -287,14 +306,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		if !isRetriable(resp.StatusCode) {
 			break
 		}
-
-		retryAfter = retry.Duration()
-		if ra := resp.Header.Get("Retry-After"); ra != "" {
-			if seconds, err := strconv.Atoi(ra); err == nil {
-				retryAfter = time.Duration(seconds) * time.Second
-			}
-		}
-		retry.Inc()
 
 		// prepare for the next request attempt by rewinding the body
 		if body != nil {
@@ -481,6 +492,12 @@ func (c *Client) UpdateServicePrincipal(ctx context.Context, spID string, sp *Se
 }
 
 // isRetriable returns `true` when the given HTTP status code should be retried.
+// default values matches with sdk/azcore/policy/policy.go
 func isRetriable(code int) bool {
-	return code == http.StatusTooManyRequests || code == http.StatusServiceUnavailable || code == http.StatusGatewayTimeout
+	return code == http.StatusTooManyRequests ||
+		code == http.StatusServiceUnavailable ||
+		code == http.StatusGatewayTimeout ||
+		code == http.StatusRequestTimeout ||
+		code == http.StatusInternalServerError ||
+		code == http.StatusBadGateway
 }
