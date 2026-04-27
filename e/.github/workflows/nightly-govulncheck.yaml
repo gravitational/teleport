@@ -139,7 +139,7 @@ jobs:
                 --ignore=GO-2026-4394 \
                 --ignore=GO-2026-4529 \
                 -- \
-                -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... 2>&1; \
+                -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... tool 2>&1; \
               EXIT_CODE=$?
             set -e
 
