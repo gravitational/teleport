@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
@@ -91,6 +92,94 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, sessions)
 	require.Empty(t, nextKey)
+}
+
+func TestListAppSessions(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
+
+	users := []string{"alice", "bob"}
+	ctx := context.Background()
+
+	// the default page size is used if the pageSize
+	// provide to ListAppSessions is 0 || > maxSessionPageSize
+	const useDefaultPageSize = 0
+
+	// Validate no sessions exist
+	sessions, token, err := identity.ListAppSessions(ctx, useDefaultPageSize, "", "")
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+	require.Empty(t, token)
+
+	// Create 3 pages worth of sessions. One full
+	// page per user and one partial page with 5
+	// sessions per user.
+	for range maxSessionPageSize + 5 {
+		for _, user := range users {
+			session, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
+				User:    user,
+				Expires: clock.Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+
+			err = identity.UpsertAppSession(ctx, session)
+			require.NoError(t, err)
+		}
+	}
+
+	// Validate page size is truncated to maxSessionPageSize
+	sessions, token, err = identity.ListAppSessions(ctx, maxSessionPageSize+maxSessionPageSize*2/3, "", "")
+	require.NoError(t, err)
+	require.Len(t, sessions, maxSessionPageSize)
+	require.NotEmpty(t, token)
+
+	// reset token
+	token = ""
+
+	// Validate that sessions are retrieved for all users
+	// with the default page size
+	for {
+		sessions, token, err = identity.ListAppSessions(ctx, useDefaultPageSize, token, "")
+		require.NoError(t, err)
+		if token == "" {
+			require.Len(t, sessions, 10)
+			break
+		} else {
+			require.Len(t, sessions, maxSessionPageSize)
+		}
+	}
+
+	// reset token
+	token = ""
+
+	// Validate that sessions are retrieved per user with
+	// a page size of 11
+	for _, user := range users {
+		for {
+			sessions, token, err = identity.ListAppSessions(ctx, 11, token, user)
+			require.NoError(t, err)
+
+			for _, session := range sessions {
+				require.Equal(t, user, session.GetUser())
+			}
+
+			if token == "" {
+				require.Len(t, sessions, 7)
+				break
+			} else {
+				require.Len(t, sessions, 11)
+			}
+		}
+	}
 }
 
 func TestListExpiredAppSessions(t *testing.T) {
@@ -155,6 +244,35 @@ func TestListExpiredAppSessions(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, allExpired, totalExpired+totalValid)
 	})
+}
+
+func TestUpdateAppSession_UnsetBackendExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(mem)
+	require.NoError(t, err)
+
+	session := newTestAppSession(t, "updated-session")
+	require.NoError(t, identity.UpsertAppSession(ctx, session))
+
+	item, err := mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
+	require.NoError(t, err)
+	require.True(t, item.Expires.IsZero(), "new app sessions should not have backend TTL")
+
+	session, err = identity.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: session.GetName()})
+	require.NoError(t, err)
+
+	testDBSCPublicKey := []byte("test-dbsc-key")
+	session.SetDBSCPublicKey(testDBSCPublicKey)
+	require.NoError(t, identity.UpdateAppSession(ctx, session))
+
+	item, err = mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
+	require.NoError(t, err)
+	require.True(t, item.Expires.IsZero(), "updated app sessions should not regain backend TTL")
 }
 
 // Helper for quick session generation

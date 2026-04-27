@@ -165,10 +165,16 @@ func (s *IdentityService) UpdateAppSession(ctx context.Context, session types.We
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// App sessions are expired manually so it can emit an
+	// app.session.expire audit event prior to expiry.
+	backendExpiry := session.GetExpiryTime()
+	if session.GetSubKind() == types.KindAppSession {
+		backendExpiry = time.Time{}
+	}
 	item := backend.Item{
 		Key:      backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()),
 		Value:    value,
-		Expires:  session.GetExpiryTime(),
+		Expires:  backendExpiry,
 		Revision: rev,
 	}
 	if _, err = s.ConditionalUpdate(ctx, item); err != nil {
@@ -189,6 +195,8 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// App sessions are expired manually so it can emit an
+	// app.session.expire audit event prior to expiry.
 	backendExpiry := session.GetExpiryTime()
 	if session.GetSubKind() == types.KindAppSession {
 		backendExpiry = time.Time{}

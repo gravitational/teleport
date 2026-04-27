@@ -633,8 +633,8 @@ export const formatters: Formatters = {
     type: 'app.session.expire',
     desc: 'App Session Expired',
     format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] app session expired for [${app_name}]`;
+      const { app_name, sid } = event;
+      return `App session for [${app_name}] expired [${sid}]`;
     },
   },
   [eventCodes.APP_SESSION_CHUNK]: {

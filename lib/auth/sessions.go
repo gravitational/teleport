@@ -532,15 +532,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	expires := a.clock.Now().UTC().Add(req.SessionTTL)
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:           req.User,
-		TLSPriv:        privateKeyPEM,
-		TLSCert:        certs.TLS,
-		LoginTime:      a.clock.Now().UTC(),
-		Expires:        expires,
-		ResourceExpiry: &expires,
-		BearerToken:    bearer,
+		User:        req.User,
+		TLSPriv:     privateKeyPEM,
+		TLSCert:     certs.TLS,
+		LoginTime:   a.clock.Now().UTC(),
+		Expires:     a.clock.Now().UTC().Add(req.SessionTTL),
+		BearerToken: bearer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

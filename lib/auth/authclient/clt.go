@@ -512,16 +512,6 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
-// UpsertAppSession not implemented: can only be called locally.
-func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// ListExpiredAppSessions not implemented: can only be called locally.
-func (c *Client) ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error) {
-	return nil, "", trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)

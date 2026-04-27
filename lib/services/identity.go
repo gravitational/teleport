@@ -371,10 +371,6 @@ type AppSessionReader interface {
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
-	// UpsertAppSession upserts an application web session.
-	UpsertAppSession(context.Context, types.WebSession) error
-	// ListExpiredAppSessions lists expired application web sessions.
-	ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error)
 	// DeleteAppSession removes an application web session.
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.

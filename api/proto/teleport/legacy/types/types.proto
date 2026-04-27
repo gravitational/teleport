@@ -4976,12 +4976,6 @@ message WebSessionSpecV2 {
   bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
   // Usage identifies the intended usage of the session.
   WebSessionUsage Usage = 17 [(gogoproto.jsontag) = "usage,omitempty"];
-  // ResourceExpiry is the time at which the application session resource will expire.
-  google.protobuf.Timestamp ResourceExpiry = 18 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "expiry,omitempty"
-  ];
 }
 
 // WebSessionUsage identifies the intended usage of a web session.

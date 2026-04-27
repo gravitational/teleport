@@ -19,6 +19,7 @@
 package expiry
 
 import (
+	"context"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -33,20 +34,29 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestAccessListExpiryBasic(t *testing.T) {
+type testAccessPoint struct {
+	*auth.Server
+	appSessions interface {
+		ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error)
+	}
+}
+
+func (t testAccessPoint) ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error) {
+	return t.appSessions.ListExpiredAppSessions(ctx, limit, pageToken)
+}
+
+func TestAccessRequestExpiryBasic(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-
 		expiry, authServer, emitter := setupExpiryService(t)
-		go func() {
-			err := expiry.Run(ctx)
-			require.NoError(t, err)
-		}()
+		runExpiryBackground(t, func(ctx context.Context) error {
+			return expiry.Run(ctx)
+		})
 
 		const expiry1, expiry2 = 10 * scanInterval, 20 * scanInterval
 		_ = createAccessRequest(t, authServer, types.RequestState_NONE, time.Now().Add(expiry1))
@@ -70,11 +80,9 @@ func TestAccessListExpiryBasic(t *testing.T) {
 	})
 }
 
-func TestAccessListExpiryInterval(t *testing.T) {
+func TestAccessRequestExpiryInterval(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-
 		const testInterval = time.Hour
 
 		expiry, authServer, emitter := setupExpiryService(t)
@@ -82,11 +90,10 @@ func TestAccessListExpiryInterval(t *testing.T) {
 			Duration:      testInterval,
 			FirstDuration: testInterval,
 		}
-		go func() {
+		runExpiryBackground(t, func(ctx context.Context) error {
 			// Run with rigid intervals.
-			err := expiry.run(ctx, expiry.expiryTasks[0])
-			require.NoError(t, err)
-		}()
+			return expiry.run(ctx, expiry.expiryTasks[0])
+		})
 
 		// Create a request with minimal expiry after each interval.
 		_ = createAccessRequest(t, authServer, types.RequestState_DENIED, time.Now().Add(1))
@@ -137,11 +144,9 @@ func TestAccessListExpiryInterval(t *testing.T) {
 	})
 }
 
-func TestAccessListExpiryPendingGracePeriod(t *testing.T) {
+func TestAccessRequestExpiryPendingGracePeriod(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-
 		const testInterval = time.Hour
 
 		expiryService, authServer, emitter := setupExpiryService(t)
@@ -149,11 +154,10 @@ func TestAccessListExpiryPendingGracePeriod(t *testing.T) {
 			Duration:      testInterval,
 			FirstDuration: testInterval,
 		}
-		go func() {
+		runExpiryBackground(t, func(ctx context.Context) error {
 			// Run with rigid intervals.
-			err := expiryService.run(ctx, expiryService.expiryTasks[0])
-			require.NoError(t, err)
-		}()
+			return expiryService.run(ctx, expiryService.expiryTasks[0])
+		})
 
 		expiryTime := time.Now().Add(testInterval - pendingRequestGracePeriod + time.Nanosecond)
 
@@ -195,13 +199,10 @@ func TestAccessListExpiryPendingGracePeriod(t *testing.T) {
 func TestAppSessionExpiry(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-
 		expiry, authServer, emitter := setupExpiryService(t)
-		go func() {
-			err := expiry.Run(ctx)
-			require.NoError(t, err)
-		}()
+		runExpiryBackground(t, func(ctx context.Context) error {
+			return expiry.Run(ctx)
+		})
 
 		const expiry1 = 5 * scanInterval
 		const expiry2 = 10 * scanInterval
@@ -242,10 +243,9 @@ func TestAppSessionExpiryInvalidTLSCert(t *testing.T) {
 			Duration:      testInterval,
 			FirstDuration: testInterval,
 		}
-		go func() {
-			err := expiry.run(ctx, expiry.expiryTasks[1])
-			require.NoError(t, err)
-		}()
+		runExpiryBackground(t, func(ctx context.Context) error {
+			return expiry.run(ctx, expiry.expiryTasks[1])
+		})
 
 		// Create a session and update it with an invalid TLS cert
 		session := createAppSession(t, authServer, "alice", time.Now().Add(1))
@@ -276,8 +276,6 @@ func TestAppSessionExpiryInvalidTLSCert(t *testing.T) {
 func TestAppSessionExpiryInterval(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-
 		const testInterval = time.Hour
 
 		expiry, authServer, emitter := setupExpiryService(t)
@@ -285,11 +283,10 @@ func TestAppSessionExpiryInterval(t *testing.T) {
 			Duration:      testInterval,
 			FirstDuration: testInterval,
 		}
-		go func() {
+		runExpiryBackground(t, func(ctx context.Context) error {
 			// Run with rigid intervals.
-			err := expiry.run(ctx, expiry.expiryTasks[1])
-			require.NoError(t, err)
-		}()
+			return expiry.run(ctx, expiry.expiryTasks[1])
+		})
 
 		createAppSession(t, authServer, "alice", time.Now().Add(1))
 		createAppSession(t, authServer, "bob", time.Now().Add(testInterval+time.Nanosecond))
@@ -361,14 +358,35 @@ func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockR
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
+	identity, err := local.NewTestIdentityService(authServer.Backend)
+	require.NoError(t, err)
+
 	expiry, err := New(&Config{
-		Log:         logger,
-		Emitter:     emitter,
-		AccessPoint: authServer.AuthServer,
+		Log:     logger,
+		Emitter: emitter,
+		AccessPoint: testAccessPoint{
+			Server:      authServer.AuthServer,
+			appSessions: identity,
+		},
 	})
 	require.NoError(t, err)
 
 	return expiry, authServer.AuthServer, emitter
+}
+
+func runExpiryBackground(t *testing.T, run func(context.Context) error) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- run(ctx)
+	}()
+
+	t.Cleanup(func() {
+		cancel()
+		require.NoError(t, <-errCh)
+	})
 }
 
 func createAccessRequest(t *testing.T, auth *auth.Server, state types.RequestState, expiry time.Time) types.AccessRequest {

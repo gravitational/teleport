@@ -38,15 +38,15 @@ import (
 )
 
 const (
-	semaphoreNameAccessRequest = "auth.expiry.access_request"
+	semaphoreNameAccessRequest = "auth.expiry"
 	semaphoreNameAppSession    = "auth.expiry.app_session"
 	semaphoreExpiration        = time.Minute * 5
 
-	// scanInterval is the interval at which the expiry checker scans for resource.
+	// scanInterval is the interval at which the expiry checker scans for resources.
 	scanInterval = time.Minute * 5
 
 	// pendingRequestGracePeriod is a grace period specifically for pending access requests.
-	// This is allowed because a request's expiry may be extended on approval
+	// This is allowed because a request's expiry may be extended on approval.
 	pendingRequestGracePeriod = time.Second * 40
 
 	// maxExpiresPerCycle is an arbitrary limit on the number of resources to expire per cycle
@@ -97,21 +97,21 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// expiryTask is a struct that defines a task for expiring resources
+// expiryTask defines a task for expiring resources.
 type expiryTask struct {
-	lockName     string
+	semaphoreName string
 	resourceKind string
 	intervalCfg  interval.Config
 	processFunc  func(context.Context)
 }
 
-// Service is a expiry service.
+// Service is an expiry service.
 type Service struct {
 	*Config
 	expiryTasks []expiryTask
 }
 
-// New initializes a expiry service
+// New initializes an expiry service.
 func New(cfg *Config) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -129,13 +129,13 @@ func New(cfg *Config) (*Service, error) {
 
 	s.expiryTasks = []expiryTask{
 		{
-			lockName:     semaphoreNameAccessRequest,
+			semaphoreName: semaphoreNameAccessRequest,
 			resourceKind: types.KindAccessRequest,
 			intervalCfg:  intervalCfg,
 			processFunc:  s.processRequests,
 		},
 		{
-			lockName:     semaphoreNameAppSession,
+			semaphoreName: semaphoreNameAppSession,
 			resourceKind: types.KindAppSession,
 			intervalCfg:  intervalCfg,
 			processFunc:  s.processAppSessions,
@@ -150,9 +150,8 @@ func (s *Service) Run(ctx context.Context) error {
 	g, gCtx := errgroup.WithContext(ctx)
 
 	for _, t := range s.expiryTasks {
-		task := t
 		g.Go(func() error {
-			return s.run(gCtx, task)
+			return s.run(gCtx, t)
 		})
 	}
 
@@ -183,8 +182,8 @@ func (s *Service) runWithLock(ctx context.Context, task expiryTask) error {
 			SemaphoreLockConfig: services.SemaphoreLockConfig{
 				Service: s.AccessPoint,
 				Params: types.AcquireSemaphoreRequest{
-					SemaphoreKind: task.lockName,
-					SemaphoreName: task.resourceKind,
+					SemaphoreKind: task.resourceKind,
+					SemaphoreName: task.semaphoreName,
 					MaxLeases:     1,
 					Holder:        s.HostID,
 				},
@@ -319,8 +318,6 @@ func (s *Service) expireRequest(ctx context.Context, req types.AccessRequest) er
 }
 
 func (s *Service) expireAppSession(ctx context.Context, sess types.WebSession) error {
-	expiry := sess.Expiry()
-
 	event := &apievents.AppSessionExpire{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionExpireEvent,
@@ -335,11 +332,10 @@ func (s *Service) expireAppSession(ctx context.Context, sess types.WebSession) e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: sess.GetExpiryTime(),
 		},
-		ResourceExpiry: &expiry,
 	}
 
 	// Extract identity from certificate for audit event when possible.
-	// It is unlikely that the certificate cannot be parsed or the identity cannot be extracted, so this serves as a sanity check
+	// It is unlikely that certificate parsing or identity extraction fails, so this serves as a sanity check.
 	cert, err := tlsca.ParseCertificatePEM(sess.GetTLSCert())
 	if err != nil {
 		s.Log.WarnContext(ctx, "Failed to parse application session TLS certificate for expiry event.", "session_id", sess.GetName(), "error", err)

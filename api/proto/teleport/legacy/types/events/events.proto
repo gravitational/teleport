@@ -3113,13 +3113,6 @@ message AppSessionExpire {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // ResourceExpiry is the time at which the application session resource will expire.
-  google.protobuf.Timestamp ResourceExpiry = 6 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "expiry,omitempty"
-  ];
 }
 
 // AppSessionChunk is emitted at the start of a 5 minute chunk on each
