@@ -1034,19 +1034,26 @@ var errImplicitDeny = &trace.AccessDeniedError{Message: "access to kube cluster 
 func (f *Forwarder) getKubeAccessDetails(
 	ctx context.Context,
 	actx *authContext,
-	matchers ...services.RoleMatcher,
+	roleMatchers ...services.RoleMatcher,
 ) (kubeAccessDetails, error) {
 	// track explicit denies so we can decide how to return once all available kube servers have been visited
 	var explicitDenies []error
 	var implicitDenyOrNotFound error = errImplicitDeny
+
+	// We don't want to append directly to roleMatchers and don't want to clone roleMatchers on every iteration when we
+	// append the label matcher. Instead we allocate a copy of the matchers with an extra slot reserved for adding the
+	// label prior to calling GetGroupsAndUsers. If roleMatchers is empty, this will result in a slice of length 1 which
+	// will have its 0th element set to the label matcher.
+	matchersWithLabelMatcher := make([]services.RoleMatcher, len(roleMatchers)+1)
+	copy(matchersWithLabelMatcher, roleMatchers)
+
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range actx.kubeServers {
 		c := s.GetCluster()
 		if c.GetName() != actx.kubeClusterName {
 			continue
 		}
-
-		checker, err := actx.getCheckerForCluster(ctx, c, matchers...)
+		checker, err := actx.getCheckerForCluster(ctx, c, roleMatchers...)
 		if err != nil {
 			if services.IsAccessExplicitlyDenied(err) {
 				explicitDenies = append(explicitDenies, err)
@@ -1054,15 +1061,17 @@ func (f *Forwarder) getKubeAccessDetails(
 			continue
 		}
 
-		// Get list of allowed kube user/groups based on kubernetes service labels.
-		labels := types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role. If a role has no `kubernetes_labels` defined, this matcher will
 		// treat it as a wildcard deny. We don't want this when checking access to the cluster, but we do
-		// when fetching groups and users so we only include it here if there are labels to match against.
-		matchers = append(matchers,
-			services.NewKubernetesClusterLabelMatcher(labels, checker.AccessInfo().Username, actx.CheckerContext.Traits()),
+		// when fetching groups and users so we only include it after getCheckerForCluster.
+		labels := types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
+		labelMatcher := services.NewKubernetesClusterLabelMatcher(
+			types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels())),
+			checker.AccessInfo().Username,
+			actx.CheckerContext.Traits(),
 		)
+		matchersWithLabelMatcher[len(matchersWithLabelMatcher)-1] = labelMatcher
 
 		// GetGroupsAndUsers returns the accumulated kubernetes groups and users that satisfy the provided matchers.
 		// For unscoped identities, this will return the groups and users attached to any role that matches the
@@ -1072,7 +1081,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// resource without matching on any specific kubernetes resources. The users/groups will be forwarded to the
 		// kubernetes cluster as impersonation headers.
 		const overrideTTL = false
-		groups, users, err := checker.Kube().GetGroupsAndUsers(checker.AdjustSessionTTL(actx.sessionTTL), overrideTTL, matchers...)
+		groups, users, err := checker.Kube().GetGroupsAndUsers(checker.AdjustSessionTTL(actx.sessionTTL), overrideTTL, matchersWithLabelMatcher...)
 		if err != nil {
 			if services.IsAccessExplicitlyDenied(err) {
 				explicitDenies = append(explicitDenies, err)
