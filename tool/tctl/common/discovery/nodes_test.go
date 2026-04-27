@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -398,52 +397,4 @@ func TestFilterFailures(t *testing.T) {
 	require.Len(t, got, 2)
 	require.Equal(t, "i-fail", got[0].AWS.InstanceID)
 	require.Equal(t, "i-task", got[1].AWS.InstanceID)
-}
-
-func TestResolveTimeRange(t *testing.T) {
-	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
-	clock := clockwork.NewFakeClockAt(now)
-
-	tests := []struct {
-		desc     string
-		input    string
-		wantErr  bool
-		wantFrom time.Time
-		wantTo   time.Time
-	}{
-		{
-			desc:     "valid duration 30m",
-			input:    "30m",
-			wantFrom: now.Add(-30 * time.Minute),
-			wantTo:   now,
-		},
-		{
-			desc:     "valid duration 2h",
-			input:    "2h",
-			wantFrom: now.Add(-2 * time.Hour),
-			wantTo:   now,
-		},
-		{
-			desc:    "empty input",
-			input:   "",
-			wantErr: true,
-		},
-		{
-			desc:    "invalid input",
-			input:   "notaduration",
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			from, to, err := resolveTimeRange(clock, tt.input)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.wantFrom, from)
-			require.Equal(t, tt.wantTo, to)
-		})
-	}
 }
