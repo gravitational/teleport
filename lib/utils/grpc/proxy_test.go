@@ -30,8 +30,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	teletermv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
-	footest "github.com/gravitational/teleport/lib/utils/grpc/test"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 // as a proxy. The proxy uses [grpcutils.ProxyBidiStream] to proxy messages from
 // the client and the server.
 //
-// Both services implement [footest.FooServiceServer]. The server uses
+// Both services implement [teletermv1.TerminalServiceServer]. The server uses
 // [fakeServerSvc] as its implementation, whereas the proxy uses [proxyService].
 //
 // The other tests in this file use the same setup. TestProxyBidiStream tests
@@ -60,17 +60,17 @@ func TestProxyBidiStream(t *testing.T) {
 	ctx := t.Context()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.Session(ctx)
+	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
 	// Send a message.
-	err = stream.Send(&footest.SessionRequest{Input: "hello"})
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
 	require.NoError(t, err)
 
 	// Receive the server's response.
 	msg, err := stream.Recv()
 	require.NoError(t, err)
-	require.Equal(t, "ack", msg.GetOutput())
+	require.Equal(t, []byte("ack"), msg.GetData())
 
 	// Half-close and wait for the server to terminate the stream cleanly.
 	err = stream.CloseSend()
@@ -97,15 +97,15 @@ func TestProxyBidiStream_HandlesServerReturningErr(t *testing.T) {
 	defer cancel()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.Session(ctx)
+	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
 	// Empty input triggers the fake server to return an error on its first
 	// Recv.
-	err = stream.Send(&footest.SessionRequest{})
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{})
 	require.NoError(t, err)
 	_, err = stream.Recv()
-	require.ErrorContains(t, err, "empty input")
+	require.ErrorContains(t, err, "empty data")
 }
 
 // TestProxyBidiStream_PropagatesServerErrorAfterClientEOF asserts that a
@@ -129,10 +129,10 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 	ctx := t.Context()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.Session(ctx)
+	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
-	err = stream.Send(&footest.SessionRequest{Input: "hello"})
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
 	require.NoError(t, err)
 	_, err = stream.Recv()
 	require.NoError(t, err)
@@ -165,10 +165,10 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	defer cancel()
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.Session(ctx)
+	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
-	err = stream.Send(&footest.SessionRequest{Input: "hello"})
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
 	require.NoError(t, err)
 
 	// Drain the first response the server sent before returning.
@@ -182,7 +182,7 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	//
 	// At this point, the Send returns either nil if the trailer wasn't propagated
 	// to the client yet or io.EOF if it was, so we skip asserting on err here.
-	_ = stream.Send(&footest.SessionRequest{Input: "more"})
+	_ = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("more")})
 
 	// Server has returned nil. The client must see clean io.EOF, not a
 	// proxy-reshaped error and not a hang (which would surface as a
@@ -209,11 +209,11 @@ func TestProxyBidiStream_SurfacesClientRecvError(t *testing.T) {
 	newProxyService(t, lis, fakeServerSvcClient, grpc.MaxRecvMsgSize(64))
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.Session(t.Context())
+	stream, err := client.ConnectToDesktop(t.Context())
 	require.NoError(t, err)
 
 	// Send a message larger than the proxy's MaxRecvMsgSize.
-	err = stream.Send(&footest.SessionRequest{Input: strings.Repeat("x", 256)})
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte(strings.Repeat("x", 256))})
 	require.NoError(t, err)
 
 	_, err = stream.Recv()
@@ -241,27 +241,27 @@ func TestProxyBidiStream_SurfacesServerSendError(t *testing.T) {
 	newProxyService(t, lis, fakeServerSvcClient)
 
 	client := newProxyServiceClient(t, lis)
-	stream, err := client.Session(t.Context())
+	stream, err := client.ConnectToDesktop(t.Context())
 	require.NoError(t, err)
 
 	// The proxy accepts this message (its server-side MaxRecvMsgSize is the
 	// default 4MB), then tries to forward it to the fake server whose upstream
 	// connection caps sends at 64 bytes, triggering a local ResourceExhausted on
 	// the proxy's server.Send.
-	err = stream.Send(&footest.SessionRequest{Input: strings.Repeat("x", 256)})
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte(strings.Repeat("x", 256))})
 	require.NoError(t, err)
 
 	_, err = stream.Recv()
 	require.ErrorContains(t, err, "larger than max")
 }
 
-func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerSvc, footest.FooServiceClient) {
+func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerSvc, teletermv1.TerminalServiceClient) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	server := grpc.NewServer()
 	service := &fakeServerSvc{}
-	footest.RegisterFooServiceServer(server, service)
+	teletermv1.RegisterTerminalServiceServer(server, service)
 	go func() {
 		err := server.Serve(lis)
 		require.NoError(t, err)
@@ -272,25 +272,34 @@ func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerS
 	client, err := grpc.NewClient(lis.Addr().String(), opts...)
 	require.NoError(t, err)
 
-	return service, footest.NewFooServiceClient(client)
+	return service, teletermv1.NewTerminalServiceClient(client)
 }
 
 type fakeServerSvc struct {
-	footest.UnimplementedFooServiceServer
+	teletermv1.UnimplementedTerminalServiceServer
 
-	// postClientEOFErr, if non-nil, is returned by Session after it gets EOF
-	// from the client, modeling the server producing a terminal error during
+	// postClientEOFErr, if non-nil, is returned by ConnectToDesktop after it gets
+	// EOF from the client, modeling the server producing a terminal error during
 	// post-upload processing (after the client has already half-closed).
 	postClientEOFErr error
 
-	// returnAfterFirstResponse, if true, makes Session return nil right after
-	// sending its first response, without waiting for any further client input
-	// or for the client to half-close. It models a server that ends the
+	// returnAfterFirstResponse, if true, makes ConnectToDesktop return nil right
+	// after sending its first response, without waiting for any further client
+	// input or for the client to half-close. It models a server that ends the
 	// stream early while the client is still mid-conversation.
 	returnAfterFirstResponse bool
 }
 
-func (f *fakeServerSvc) Session(stream footest.FooService_SessionServer) error {
+// ConnectToDesktop does NOT implement the semantics of the real
+// ConnectToDesktop RPC. The RPC is borrowed purely for its bidi-stream shape so
+// the tests in this file can exercise ProxyBidiStream without introducing a
+// custom test-only proto.
+//
+// Contract used by the tests:
+//   - Every request must populate data with a non-empty payload. An empty data
+//     triggers a trace.BadParameter return.
+//   - Every response carries data = "ack".
+func (f *fakeServerSvc) ConnectToDesktop(stream teletermv1.TerminalService_ConnectToDesktopServer) error {
 	for {
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -302,10 +311,10 @@ func (f *fakeServerSvc) Session(stream footest.FooService_SessionServer) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(req.GetInput()) == 0 {
-			return trace.BadParameter("empty input")
+		if len(req.GetData()) == 0 {
+			return trace.BadParameter("empty data")
 		}
-		if err := stream.Send(&footest.SessionResponse{Output: "ack"}); err != nil {
+		if err := stream.Send(&teletermv1.ConnectToDesktopResponse{Data: []byte("ack")}); err != nil {
 			return trace.Wrap(err)
 		}
 		if f.returnAfterFirstResponse {
@@ -315,10 +324,10 @@ func (f *fakeServerSvc) Session(stream footest.FooService_SessionServer) error {
 }
 
 // newProxyService creates a gRPC server under lis and registers in it a gRPC
-// service that proxies Session calls to the server using
+// service that proxies ConnectToDesktop calls to the server using
 // [grpcutils.ProxyBidiStream]. Callers may supply extra grpc.ServerOptions to
 // drive specific fault scenarios.
-func newProxyService(t *testing.T, lis net.Listener, client footest.FooServiceClient, opts ...grpc.ServerOption) {
+func newProxyService(t *testing.T, lis net.Listener, client teletermv1.TerminalServiceClient, opts ...grpc.ServerOption) {
 	t.Helper()
 
 	s := grpc.NewServer(opts...)
@@ -328,7 +337,7 @@ func newProxyService(t *testing.T, lis net.Listener, client footest.FooServiceCl
 		serverSvcClient: client,
 	}
 
-	footest.RegisterFooServiceServer(s, proxySvc)
+	teletermv1.RegisterTerminalServiceServer(s, proxySvc)
 
 	go func() {
 		err := s.Serve(lis)
@@ -337,30 +346,36 @@ func newProxyService(t *testing.T, lis net.Listener, client footest.FooServiceCl
 }
 
 type proxyService struct {
-	footest.UnimplementedFooServiceServer
+	teletermv1.UnimplementedTerminalServiceServer
 
-	serverSvcClient footest.FooServiceClient
+	serverSvcClient teletermv1.TerminalServiceClient
 }
 
-// Session is the gRPC handler in the proxy.
-// client goes from a client to the proxy. From that point of view, the proxy is
-// a server for the client.
+// ConnectToDesktop forwards every client request (whose data is non-empty by
+// contract) to the upstream server and every response (carrying data = "ack" by
+// contract) back to the client, using ProxyBidiStream.
+//
+// ConnectToDesktop does NOT implement the semantics of the real
+// ConnectToDesktop RPC. See the godoc for [fakeServerSvc.ConnectToDesktop].
+//
+// client goes from a client to the proxy. From that point of view, the proxy
+// is a server for the client.
 // server from getServer goes from the proxy to the server. From that point of
 // view, the proxy is a client of the server.
-func (p *proxyService) Session(client footest.FooService_SessionServer) error {
-	getServer := func(ctx context.Context) (footest.FooService_SessionClient, error) {
-		return p.serverSvcClient.Session(ctx)
+func (p *proxyService) ConnectToDesktop(client teletermv1.TerminalService_ConnectToDesktopServer) error {
+	getServer := func(ctx context.Context) (teletermv1.TerminalService_ConnectToDesktopClient, error) {
+		return p.serverSvcClient.ConnectToDesktop(ctx)
 	}
 	err := grpcutils.ProxyBidiStream(logtest.NewLogger(), client, getServer)
 	return trace.Wrap(err)
 }
 
-func newProxyServiceClient(t *testing.T, lis net.Listener) footest.FooServiceClient {
+func newProxyServiceClient(t *testing.T, lis net.Listener) teletermv1.TerminalServiceClient {
 	t.Helper()
 	clientConn, err := grpc.NewClient(
 		lis.Addr().String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)
-	return footest.NewFooServiceClient(clientConn)
+	return teletermv1.NewTerminalServiceClient(clientConn)
 }

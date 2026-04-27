@@ -35,7 +35,6 @@ lint:
     - api/proto/teleport/legacy/types/mfa_device.proto
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
-    - proto/teleport/lib/utils/grpc/test/foo.proto
     - proto/teleport/lib/web/terminal/envelope.proto
   ignore_only:
     COMMENT_MESSAGE:
