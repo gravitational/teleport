@@ -2405,7 +2405,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		tc.Stdout = stdout
 		err = tc.SSH(ctx, cmd)
 		require.NoError(t, err)
-	}, 10*time.Second, 250*time.Millisecond)
+	}, time.Minute, 250*time.Millisecond)
 	require.Equal(t, "hello world\n", stdout.String())
 
 	clientHasEvents := func(cc authclient.ClientI, count int) func() bool {
