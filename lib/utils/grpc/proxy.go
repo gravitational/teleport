@@ -78,7 +78,6 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 			// forwardClientToServer finished cleanly: the client half-closed or the
 			// server stream is already terminal (Send returned io.EOF). In either
 			// case, keep waiting on the server stream to deliver its terminal status.
-			clientErrCh = nil
 		}
 	}
 }
