@@ -503,9 +503,7 @@ func (s *Service) UpsertProxyServer(
 	}
 
 	// If the proxy advertised a local/unspecified address, replace the host
-	// component with the peer address observed on the socket. Matches the
-	// legacy HTTP handler (lib/auth/apiserver.go upsertServer) and the gRPC
-	// UpsertNode in lib/auth/grpcserver.go.
+	// component with the peer address observed on the socket.
 	if p, ok := peer.FromContext(ctx); ok {
 		req.Server.SetAddr(utils.ReplaceLocalhost(req.Server.GetAddr(), p.Addr.String()))
 	}
