@@ -173,7 +173,7 @@ func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
 	return nil
 }
 
-// Delete removes an role from the cache by name.
+// Delete removes a role from the cache by name.
 func (c *RoleCache) Delete(name string) {
 	c.cache.Del(name)
 }
