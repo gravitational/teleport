@@ -478,11 +478,12 @@ func (c *authContext) getCheckerForCluster(ctx context.Context, kubeCluster type
 		return c.checker, nil
 	}
 
+	var checker *services.ScopedAccessChecker
 	if err := c.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(check *services.ScopedAccessChecker) error {
 		if err := check.Kube().CheckAccessToCluster(kubeCluster, c.accessState, matchers...); err != nil {
 			return err
 		}
-		c.checker = check
+		checker = check
 		return nil
 	}); err != nil {
 		if services.IsAccessExplicitlyDenied(err) {
@@ -491,7 +492,7 @@ func (c *authContext) getCheckerForCluster(ctx context.Context, kubeCluster type
 		return nil, trace.Wrap(errImplicitDeny)
 	}
 
-	return c.checker, nil
+	return checker, nil
 }
 
 func (c authContext) String() string {
@@ -1021,16 +1022,23 @@ type kubeAccessDetails struct {
 	clusterLabels map[string]string
 	// kubeCluster is the local kube cluster we're granting access to
 	kubeCluster types.KubeCluster
+	// checker is the scoped access checker that permitted access to this
+	// kubeAccessDetails
+	checker *services.ScopedAccessChecker
 }
 
 var errImplicitDeny = &trace.AccessDeniedError{Message: "access to kube cluster implicitly denied"}
 
 // getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
+// It also returns the [*services.ScopedAccessChecker] that granted access to the returned details.
 func (f *Forwarder) getKubeAccessDetails(
 	ctx context.Context,
 	actx *authContext,
 	matchers ...services.RoleMatcher,
 ) (kubeAccessDetails, error) {
+	// track explicit denies so we can decide how to return once all available kube servers have been visited
+	var explicitDenies []error
+
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range actx.kubeServers {
 		c := s.GetCluster()
@@ -1040,7 +1048,10 @@ func (f *Forwarder) getKubeAccessDetails(
 
 		checker, err := actx.getCheckerForCluster(ctx, c, matchers...)
 		if err != nil {
-			return kubeAccessDetails{}, trace.Wrap(err)
+			if services.IsAccessExplicitlyDenied(err) {
+				explicitDenies = append(explicitDenies, err)
+			}
+			continue
 		}
 
 		// Get list of allowed kube user/groups based on kubernetes service labels.
@@ -1063,7 +1074,10 @@ func (f *Forwarder) getKubeAccessDetails(
 		const overrideTTL = false
 		groups, users, err := checker.Kube().GetGroupsAndUsers(actx.sessionTTL, overrideTTL, matchers...)
 		if err != nil {
-			return kubeAccessDetails{}, trace.Wrap(err)
+			if services.IsAccessExplicitlyDenied(err) {
+				explicitDenies = append(explicitDenies, err)
+			}
+			continue
 		}
 
 		return kubeAccessDetails{
@@ -1071,10 +1085,23 @@ func (f *Forwarder) getKubeAccessDetails(
 			kubeUsers:     users,
 			clusterLabels: labels,
 			kubeCluster:   c,
+			checker:       checker,
 		}, nil
 
 	}
-	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
+
+	// Any explicit denials mean the cluster was found, no checkers granted access,
+	// and at least one explicitly denied access.
+	if len(explicitDenies) == 1 {
+		return kubeAccessDetails{}, trace.Wrap(explicitDenies[0])
+	}
+
+	if len(explicitDenies) > 1 {
+		return kubeAccessDetails{}, trace.NewAggregate(explicitDenies...)
+	}
+
+	// No explicit denials mean that actx.kubeClusterName was not found or no access checkers
+	// granted access. In either case we return an implicit deny.
 	return kubeAccessDetails{}, trace.Wrap(errImplicitDeny)
 }
 
@@ -1187,7 +1214,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 	kubeUsers = kubeAccessDetails.kubeUsers
 	kubeGroups = kubeAccessDetails.kubeGroups
-	actx.kubeClusterLabels = kubeAccessDetails.clusterLabels
 
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
@@ -1195,6 +1221,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	actx.kubeUsers = set.New(kubeUsers...)
 	actx.kubeGroups = set.New(kubeGroups...)
 	actx.kubeCluster = kubeAccessDetails.kubeCluster
+	actx.kubeClusterLabels = kubeAccessDetails.clusterLabels
+	// cache the access checker for later decisions
+	actx.checker = kubeAccessDetails.checker
 
 	// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip the
 	// rest of these checks for now.
