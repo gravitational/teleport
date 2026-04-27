@@ -371,7 +371,8 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 	// 	  determines the protocol from the application *resource* not the ALPN
 	// 	  protocol.
 	//
-	// TODO(boxofrad): Check in with @greedy52 how we'd like to solve this.
+	// TODO(boxofrad): Replace this with HTTPS-in-mTLS once RFD 0035e is approved
+	// and implemented.
 	proxyAddr := osConfig.pong.GetProxyPublicAddr()
 	return &vnetv1.ResolveFQDNResponse{
 		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
