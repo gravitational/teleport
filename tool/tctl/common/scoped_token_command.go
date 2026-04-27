@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"time"
 
@@ -109,7 +108,6 @@ func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io
 		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
 	c.tokenAdd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
 		EnumVar(&c.format, defaults.DefaultFormats...)
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
@@ -126,10 +124,6 @@ func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io
 		Short('f').
 		EnumVar(&c.format, defaults.DefaultFormats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
-
-	if c.Stdout == nil {
-		c.Stdout = os.Stdout
-	}
 }
 
 // TryRun attempts to run subcommands like like "scoped tokens ls".

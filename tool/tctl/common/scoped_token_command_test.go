@@ -54,11 +54,6 @@ func TestScopedTokens(t *testing.T) {
 		Global: config.Global{
 			DataDir: t.TempDir(),
 		},
-		Proxy: config.Proxy{
-			Service: config.Service{
-				EnabledFlag: "false",
-			},
-		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
