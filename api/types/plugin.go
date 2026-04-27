@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/url"
 	"time"
 
@@ -355,6 +356,21 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.EntraId == nil {
 			return trace.BadParameter("missing Entra ID settings")
 		}
+
+		if settings.EntraId.SyncSettings == nil {
+			return trace.BadParameter("sync_settings must be set")
+		}
+
+		// backfill sync intervals
+		if settings.EntraId.SyncSettings.SyncIntervals == nil {
+			// Full sync interval should default to 5 minutes for backward
+			// compatibility. Delta sync is opt-in.
+			settings.EntraId.SyncSettings.SyncIntervals = &PluginEntraIDSyncIntervals{
+				Delta: 0, // disables delta sync by default.
+				Full:  5 * time.Minute,
+			}
+		}
+
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -777,14 +793,23 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 }
 
 func (c *PluginEntraIDSettings) Validate() error {
-	if c.SyncSettings == nil {
-		return trace.BadParameter("sync_settings must be set")
-	}
 	if len(c.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("sync_settings.default_owners must be set")
 	}
 	if c.SyncSettings.SsoConnectorId == "" {
 		return trace.BadParameter("sync_settings.sso_connector_id must be set")
+	}
+
+	syncIntervals := c.SyncSettings.SyncIntervals
+	if syncIntervals.Delta < 0 {
+		return trace.BadParameter(`sync_settings.sync_intervals.delta cannot be a negative value`)
+	}
+	if syncIntervals.Full < 0 {
+		return trace.BadParameter(`sync_settings.sync_intervals.full cannot be a negative value`)
+	}
+	if syncIntervals.Delta > 0 && syncIntervals.Delta >= syncIntervals.Full {
+		return trace.BadParameter(`sync_settings.sync_intervals.delta sync interval value ` +
+			`should be less than sync_settings.sync_intervals.full sync interval`)
 	}
 
 	return nil
@@ -1073,4 +1098,24 @@ func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
+}
+
+// UnmarshalJSON implements [json.Unmarshal] for the PluginEntraIDSyncIntervals.
+func (s *PluginEntraIDSyncIntervals) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the PluginEntraIDSyncIntervals,
+// forcing it to pack [types.Duration] into a friendly readable values.
+func (s PluginEntraIDSyncIntervals) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Delta Duration `json:"delta,omitempty"`
+		Full  Duration `json:"full,omitempty"`
+	}{
+		Delta: NewDuration(s.Delta),
+		Full:  NewDuration(s.Full),
+	})
 }
