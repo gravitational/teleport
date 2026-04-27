@@ -1255,54 +1255,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// Make sure all fields have defaults.
-	if r.Spec.Options.CertificateFormat == "" {
-		r.Spec.Options.CertificateFormat = constants.CertificateFormatStandard
-	}
-	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
-		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
-	}
-	if len(r.Spec.Options.BPF) == 0 {
-		r.Spec.Options.BPF = defaults.EnhancedEvents()
-	}
-	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Allow.Namespaces); err != nil {
-		// Using trace.BadParameter instead of trace.Wrap for a better error message.
-		return trace.BadParameter("allow: %s", err)
-	}
-	if r.Spec.Options.RecordSession == nil {
-		r.Spec.Options.RecordSession = &RecordSession{
-			Desktop: NewBoolOption(true),
-			Default: constants.SessionRecordingModeBestEffort,
-		}
-	}
-	if r.Spec.Options.DesktopClipboard == nil {
-		r.Spec.Options.DesktopClipboard = NewBoolOption(true)
-	}
-	if r.Spec.Options.DesktopDirectorySharing == nil {
-		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
-	}
-	if r.Spec.Options.CreateDesktopUser == nil {
-		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
-	}
-	if r.Spec.Options.CreateDatabaseUser == nil {
-		r.Spec.Options.CreateDatabaseUser = NewBoolOption(false)
-	}
-	if r.Spec.Options.SSHFileCopy == nil {
-		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
-	}
-	if r.Spec.Options.IDP == nil {
-		if IsLegacySAMLRBAC(r.GetVersion()) {
-			// By default, allow users to access the IdP.
-			r.Spec.Options.IDP = &IdPOptions{
-				SAML: &IdPSAMLOptions{
-					Enabled: NewBoolOption(true),
-				},
-			}
-		}
-	}
-
-	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
-		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
+	if err := r.checkAndSetOptionsDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	switch r.Version {
@@ -1385,25 +1339,66 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
 
-	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Deny.Namespaces); err != nil {
-		// Using trace.BadParameter instead of trace.Wrap for a better error message.
-		return trace.BadParameter("deny: %s", err)
+	if err := r.checkAndSetConditionsDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
-	// Validate request.kubernetes_resources fields are all valid.
-	if r.Spec.Allow.Request != nil {
-		if err := validateRequestKubeResources(r.Version, r.Spec.Allow.Request.KubernetesResources); err != nil {
-			return trace.Wrap(err)
+	return nil
+}
+
+// checkAndSetOptionsDefaults sets defaults on r.Spec.Options and validates its
+// fields.
+// Must be kept in sync with
+// `web/packages/teleport/src/Roles/RoleEditor/withDefaults.ts`.
+func (r *RoleV6) checkAndSetOptionsDefaults() error {
+	o := &r.Spec.Options
+
+	// Defaults.
+	if o.CertificateFormat == "" {
+		o.CertificateFormat = constants.CertificateFormatStandard
+	}
+	if o.MaxSessionTTL.Value() <= 0 {
+		o.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
+	}
+	if len(o.BPF) == 0 {
+		o.BPF = defaults.EnhancedEvents()
+	}
+	if o.RecordSession == nil {
+		o.RecordSession = &RecordSession{
+			Desktop: NewBoolOption(true),
+			Default: constants.SessionRecordingModeBestEffort,
 		}
 	}
-	if r.Spec.Deny.Request != nil {
-		if err := validateRequestKubeResources(r.Version, r.Spec.Deny.Request.KubernetesResources); err != nil {
-			return trace.Wrap(err)
+	if o.DesktopClipboard == nil {
+		o.DesktopClipboard = NewBoolOption(true)
+	}
+	if o.DesktopDirectorySharing == nil {
+		o.DesktopDirectorySharing = NewBoolOption(true)
+	}
+	if o.CreateDesktopUser == nil {
+		o.CreateDesktopUser = NewBoolOption(false)
+	}
+	if o.CreateDatabaseUser == nil {
+		o.CreateDatabaseUser = NewBoolOption(false)
+	}
+	if o.SSHFileCopy == nil {
+		o.SSHFileCopy = NewBoolOption(true)
+	}
+	if o.IDP == nil && IsLegacySAMLRBAC(r.GetVersion()) {
+		// By default, allow users to access the IdP.
+		o.IDP = &IdPOptions{
+			SAML: &IdPSAMLOptions{
+				Enabled: NewBoolOption(true),
+			},
 		}
+	}
+
+	if _, ok := CreateHostUserMode_name[int32(o.CreateHostUserMode)]; !ok {
+		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", o.CreateHostUserMode)
 	}
 
 	// Validate that enhanced recording options are all valid.
-	for _, opt := range r.Spec.Options.BPF {
+	for _, opt := range o.BPF {
 		if opt == constants.EnhancedRecordingCommand ||
 			opt == constants.EnhancedRecordingDisk ||
 			opt == constants.EnhancedRecordingNetwork {
@@ -1413,125 +1408,139 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	}
 
 	// Validate locking mode.
-	switch r.Spec.Options.Lock {
+	switch o.Lock {
 	case "":
 		// Missing locking mode implies the cluster-wide default should be used.
 	case constants.LockingModeBestEffort, constants.LockingModeStrict:
 	default:
-		return trace.BadParameter("invalid value for role option lock: %v", r.Spec.Options.Lock)
+		return trace.BadParameter("invalid value for role option lock: %v", o.Lock)
 	}
 
-	// check and correct the session ttl
-	if r.Spec.Options.MaxSessionTTL.Value() <= 0 {
-		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
-	}
+	return nil
+}
 
-	// restrict wildcards
-	for _, login := range r.Spec.Allow.Logins {
-		if login == Wildcard {
-			return trace.BadParameter("wildcard matcher is not allowed in logins")
-		}
-	}
-	for _, arn := range r.Spec.Allow.AWSRoleARNs {
-		if arn == Wildcard {
-			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
-		}
-	}
-	for _, identity := range r.Spec.Allow.AzureIdentities {
-		if identity == Wildcard {
-			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
-		}
-	}
-	for _, identity := range r.Spec.Allow.GCPServiceAccounts {
-		if identity == Wildcard {
-			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
-		}
-	}
-	for _, role := range r.Spec.Allow.DatabaseRoles {
-		if role == Wildcard {
-			return trace.BadParameter("wildcard is not allowed in allow.database_roles")
-		}
-	}
-	checkWildcardSelector := func(labels Labels) error {
-		for key, val := range labels {
-			if key == Wildcard && (len(val) != 1 || val[0] != Wildcard) {
-				return trace.BadParameter("selector *:<val> is not supported")
-			}
-		}
-		return nil
-	}
-	for _, labels := range []Labels{
-		r.Spec.Allow.NodeLabels,
-		r.Spec.Allow.AppLabels,
-		r.Spec.Allow.KubernetesLabels,
-		r.Spec.Allow.DatabaseLabels,
-		r.Spec.Allow.WindowsDesktopLabels,
-		r.Spec.Allow.GroupLabels,
-		r.Spec.Allow.WorkloadIdentityLabels,
-		r.Spec.Allow.BeamLabels,
+// checkAndSetConditionsDefaults sets defaults on and validates r.Spec.Allow and
+// r.Spec.Deny.
+// Must be kept in sync with
+// `web/packages/teleport/src/Roles/RoleEditor/withDefaults.ts`.
+func (r *RoleV6) checkAndSetConditionsDefaults() error {
+	for _, side := range []struct {
+		name string
+		rct  RoleConditionType
+	}{
+		{"allow", Allow},
+		{"deny", Deny},
 	} {
-		if err := checkWildcardSelector(labels); err != nil {
-			return trace.Wrap(err)
+		var conditions *RoleConditions
+		if side.rct == Allow {
+			conditions = &r.Spec.Allow
+		} else {
+			conditions = &r.Spec.Deny
 		}
-	}
 
-	for i, perm := range r.Spec.Allow.DatabasePermissions {
-		if err := perm.CheckAndSetDefaults(); err != nil {
-			return trace.BadParameter("failed to process 'allow' db_permission #%v: %v", i+1, err)
+		if err := checkAndSetRoleConditionNamespaces(&conditions.Namespaces); err != nil {
+			// Using trace.BadParameter instead of trace.Wrap for a better error message.
+			return trace.BadParameter("%s: %s", side.name, err)
 		}
-		// Wildcards permissions are disallowed. Even though this should never pass the db-specific driver,
-		// it doesn't hurt to check it here. Wildcards *are* allowed on deny side,
-		// which is why this check is here and not in CheckAndSetDefaults().
-		for _, permission := range perm.Permissions {
-			if permission == Wildcard {
-				return trace.BadParameter("individual database permissions cannot be wildcards strings")
+
+		// Validate request.kubernetes_resources fields are all valid.
+		if conditions.Request != nil {
+			if err := validateRequestKubeResources(r.Version, conditions.Request.KubernetesResources); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// TODO(tangyatsu): the wildcard checks below are applied to allow only
+		// to preserve pre-refactor behavior. There is no obvious reason these
+		// checks should not apply to deny as well, check whether extending them
+		// to deny is safe and, if so, drop this switch and run the loops for
+		// both sides.
+		switch side.rct {
+		case Allow:
+			// Restrict wildcards.
+			for _, field := range []struct {
+				name   string
+				values []string
+			}{
+				{"logins", conditions.Logins},
+				{"aws_role_arns", conditions.AWSRoleARNs},
+				{"azure_identities", conditions.AzureIdentities},
+				{"gcp_service_accounts", conditions.GCPServiceAccounts},
+				{"database_roles", conditions.DatabaseRoles},
+			} {
+				if slices.Contains(field.values, Wildcard) {
+					return trace.BadParameter("wildcard is not allowed in %s.%s", side.name, field.name)
+				}
+			}
+
+			// Malformed *:<val> label selectors.
+			for _, labels := range []struct {
+				name   string
+				values Labels
+			}{
+				{"node_labels", conditions.NodeLabels},
+				{"app_labels", conditions.AppLabels},
+				{"kubernetes_labels", conditions.KubernetesLabels},
+				{"db_labels", conditions.DatabaseLabels},
+				{"windows_desktop_labels", conditions.WindowsDesktopLabels},
+				{"group_labels", conditions.GroupLabels},
+				{"workload_identity_labels", conditions.WorkloadIdentityLabels},
+				{"beam_labels", conditions.BeamLabels},
+			} {
+				if err := checkWildcardSelector(labels.values); err != nil {
+					return trace.BadParameter("invalid %s.%s: %v", side.name, labels.name, err)
+				}
+			}
+		case Deny:
+		}
+
+		for i, perm := range conditions.DatabasePermissions {
+			if err := perm.CheckAndSetDefaults(); err != nil {
+				return trace.BadParameter("failed to process %s.db_permission #%v: %v", side.name, i+1, err)
+			}
+			if side.rct == Allow {
+				// Wildcards permissions are disallowed. Even though this should never pass the db-specific driver,
+				// it doesn't hurt to check it here. Wildcards *are* allowed on deny side,
+				// which is why this check is here and not in CheckAndSetDefaults().
+				if slices.Contains(perm.Permissions, Wildcard) {
+					return trace.BadParameter("individual database permissions cannot be wildcards strings")
+				}
+			}
+		}
+
+		for i := range conditions.SPIFFE {
+			if err := conditions.SPIFFE[i].CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err, "validating spec.%s.spiffe[%d]", side.name, i)
+			}
+		}
+
+		for i := range conditions.Rules {
+			if err := conditions.Rules[i].CheckAndSetDefaults(); err != nil {
+				return trace.BadParameter("failed to process %s.rule[%v]: %v", side.name, i, err)
+			}
+		}
+
+		if conditions.Impersonate != nil {
+			if side.rct == Deny && conditions.Impersonate.Where != "" {
+				return trace.BadParameter("'where' is not supported in deny.impersonate conditions")
+			}
+			if err := conditions.Impersonate.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 	}
-	for i, perm := range r.Spec.Deny.DatabasePermissions {
-		if err := perm.CheckAndSetDefaults(); err != nil {
-			return trace.BadParameter("failed to process 'deny' db_permission #%v: %v", i+1, err)
-		}
-	}
-	for i := range r.Spec.Allow.SPIFFE {
-		err := r.Spec.Allow.SPIFFE[i].CheckAndSetDefaults()
-		if err != nil {
-			return trace.Wrap(err, "validating spec.allow.spiffe[%d]", i)
-		}
-	}
-	for i := range r.Spec.Deny.SPIFFE {
-		err := r.Spec.Deny.SPIFFE[i].CheckAndSetDefaults()
-		if err != nil {
-			return trace.Wrap(err, "validating spec.deny.spiffe[%d]", i)
-		}
-	}
 
-	for i := range r.Spec.Allow.Rules {
-		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
-		if err != nil {
-			return trace.BadParameter("failed to process 'allow' rule %v: %v", i, err)
-		}
-	}
-	for i := range r.Spec.Deny.Rules {
-		err := r.Spec.Deny.Rules[i].CheckAndSetDefaults()
-		if err != nil {
-			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
-		}
-	}
-	if r.Spec.Allow.Impersonate != nil {
-		if err := r.Spec.Allow.Impersonate.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if r.Spec.Deny.Impersonate != nil {
-		if r.Spec.Deny.Impersonate.Where != "" {
-			return trace.BadParameter("'where' is not supported in deny.impersonate conditions")
-		}
-		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
+	return nil
+}
 
+// checkWildcardSelector rejects malformed label selectors of the form
+// "*":<non-wildcard>. "*":"*" is accepted.
+func checkWildcardSelector(labels Labels) error {
+	for key, val := range labels {
+		if key == Wildcard && (len(val) != 1 || val[0] != Wildcard) {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
 	return nil
 }
 
