@@ -302,6 +302,7 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     fi
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         mkdir -p ${PACKAGE_TEMPDIR}/buildroot/etc/needrestart/conf.d
+        # shellcheck disable=SC2016 # the single quotes are deliberate, we don't expect variable expansion on $nrconf
         printf '# necessary for needrestart before 3.9\npush(@{$nrconf{blacklist}}, qr(^/memfd:teleport-));\n' > ${PACKAGE_TEMPDIR}/buildroot/etc/needrestart/conf.d/teleport.conf
     fi
 
