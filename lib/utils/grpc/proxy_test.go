@@ -179,11 +179,10 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	// server has already returned. Under the bug this reshapes the server's
 	// clean completion into an error via a failed upstream Send; under the
 	// fix the handler has already returned and the Send is irrelevant.
-	err = stream.Send(&footest.SessionRequest{Input: "more"})
-	// Server closed its stream after the first response, so a send should return
-	// io.EOF. The client is supposed to then discover the status of the stream
-	// with Recv.
-	require.ErrorIs(t, err, io.EOF)
+	//
+	// At this point, the Send returns either nil if the trailer wasn't propagated
+	// to the client yet or io.EOF if it was, so we skip asserting on err here.
+	_ = stream.Send(&footest.SessionRequest{Input: "more"})
 
 	// Server has returned nil. The client must see clean io.EOF, not a
 	// proxy-reshaped error and not a hang (which would surface as a
