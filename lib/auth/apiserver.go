@@ -127,6 +127,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
@@ -295,6 +296,8 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 }
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	return s.upsertServer(auth, types.RoleProxy, r, p)
 }

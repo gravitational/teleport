@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -49,6 +50,7 @@ type Backend interface {
 
 	DeleteRelayServer(ctx context.Context, name string) error
 
+	UpsertProxy(ctx context.Context, server types.Server) error
 	DeleteProxy(ctx context.Context, name string) error
 }
 
@@ -478,6 +480,40 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 	}
 
 	return &presencepb.DeleteRelayServerResponse{}, nil
+}
+
+// UpsertProxyServer upserts a proxy server heartbeat.
+func (s *Service) UpsertProxyServer(
+	ctx context.Context, req *presencepb.UpsertProxyServerRequest,
+) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Server == nil {
+		return nil, trace.BadParameter("server: must be specified")
+	}
+	req.Server.Kind = types.KindProxy
+	if err := req.Server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the proxy advertised a local/unspecified address, replace the host
+	// component with the peer address observed on the socket. Matches the
+	// legacy HTTP handler (lib/auth/apiserver.go upsertServer) and the gRPC
+	// UpsertNode in lib/auth/grpcserver.go.
+	if p, ok := peer.FromContext(ctx); ok {
+		req.Server.SetAddr(utils.ReplaceLocalhost(req.Server.GetAddr(), p.Addr.String()))
+	}
+
+	if err := s.backend.UpsertProxy(ctx, req.Server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // DeleteProxyServer deletes a proxy server heartbeat by name.

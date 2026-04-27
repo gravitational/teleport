@@ -52,6 +52,8 @@ service PresenceService {
   rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
   // ListProxyServers returns a page of Proxy servers.
   rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
+  // UpsertProxyServer upserts a Proxy server heartbeat.
+  rpc UpsertProxyServer(UpsertProxyServerRequest) returns (google.protobuf.Empty);
   // DeleteProxyServer removes an existing Proxy server heartbeat by name.
   rpc DeleteProxyServer(DeleteProxyServerRequest) returns (google.protobuf.Empty);
 }
@@ -203,6 +205,12 @@ message ListProxyServersResponse {
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
+}
+
+// Request message for the PresenceService.UpsertProxyServer rpc.
+message UpsertProxyServerRequest {
+  // Server is the Proxy server heartbeat to upsert.
+  types.ServerV2 server = 1;
 }
 
 // Request message for the PresenceService.DeleteProxyServer rpc.

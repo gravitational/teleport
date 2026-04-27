@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -1780,6 +1781,73 @@ func TestDeleteProxy(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+}
+
+// TestUpsertProxy exercises both wire paths that coexist during the
+// HTTP-to-gRPC migration window: the direct gRPC RPC on *APIClient and the
+// legacy HTTP endpoint invoked via the raw HTTP client.
+//
+// TODO(noah): DELETE IN v20.0.0 - once the legacy HTTP endpoint is removed,
+// the UpsertProxy call in TestServersCRUD is sufficient.
+func TestUpsertProxy(t *testing.T) {
+	t.Parallel()
+
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	newProxy := func(name string) types.Server {
+		return &types.ServerV2{
+			Kind:    types.KindProxy,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "127.0.0.1:2023",
+				Hostname: "proxy.llama",
+			},
+		}
+	}
+
+	proxyNames := func(t *testing.T) []string {
+		proxies, _, err := testSrv.Auth().ListProxyServers(ctx, 0, "")
+		require.NoError(t, err)
+		names := make([]string, 0, len(proxies))
+		for _, p := range proxies {
+			names = append(names, p.GetName())
+		}
+		return names
+	}
+
+	t.Run("direct gRPC RPC", func(t *testing.T) {
+		proxy := newProxy("proxy-grpc")
+		require.NoError(t, clt.APIClient.UpsertProxy(ctx, proxy))
+
+		require.Contains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("through fallback abstraction", func(t *testing.T) {
+		proxy := newProxy("proxy-through-fallback-grpc")
+		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+
+		require.Contains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("legacy HTTP endpoint", func(t *testing.T) {
+		proxy := newProxy("proxy-http")
+		data, err := services.MarshalServer(proxy)
+		require.NoError(t, err)
+		body := map[string]any{"server": json.RawMessage(data)}
+		_, err = clt.HTTPClient.PostJSON(ctx, clt.HTTPClient.Endpoint("proxies"), body)
+		require.NoError(t, err)
+
+		require.Contains(t, proxyNames(t), proxy.GetName())
 	})
 }
 

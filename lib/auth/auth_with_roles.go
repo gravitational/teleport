@@ -2644,6 +2644,11 @@ func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 	return a.authServer.DeleteAuthServer(name)
 }
 
+// UpsertProxy registers proxy server presence.
+//
+// Deprecated: Use PresenceService.UpsertProxyServer instead.
+//
+// TODO(noah): DELETE IN v20.0.0
 func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error {
 	if err := a.authorizeAction(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)

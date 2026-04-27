@@ -47,6 +47,7 @@ const (
 	PresenceService_DeleteRelayServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteRelayServer"
 	PresenceService_ListAuthServers_FullMethodName     = "/teleport.presence.v1.PresenceService/ListAuthServers"
 	PresenceService_ListProxyServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListProxyServers"
+	PresenceService_UpsertProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/UpsertProxyServer"
 	PresenceService_DeleteProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteProxyServer"
 )
 
@@ -80,6 +81,8 @@ type PresenceServiceClient interface {
 	ListAuthServers(ctx context.Context, in *ListAuthServersRequest, opts ...grpc.CallOption) (*ListAuthServersResponse, error)
 	// ListProxyServers returns a page of Proxy servers.
 	ListProxyServers(ctx context.Context, in *ListProxyServersRequest, opts ...grpc.CallOption) (*ListProxyServersResponse, error)
+	// UpsertProxyServer upserts a Proxy server heartbeat.
+	UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
 	DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -212,6 +215,16 @@ func (c *presenceServiceClient) ListProxyServers(ctx context.Context, in *ListPr
 	return out, nil
 }
 
+func (c *presenceServiceClient) UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, PresenceService_UpsertProxyServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *presenceServiceClient) DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -252,6 +265,8 @@ type PresenceServiceServer interface {
 	ListAuthServers(context.Context, *ListAuthServersRequest) (*ListAuthServersResponse, error)
 	// ListProxyServers returns a page of Proxy servers.
 	ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error)
+	// UpsertProxyServer upserts a Proxy server heartbeat.
+	UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*emptypb.Empty, error)
 	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
 	DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedPresenceServiceServer()
@@ -299,6 +314,9 @@ func (UnimplementedPresenceServiceServer) ListAuthServers(context.Context, *List
 }
 func (UnimplementedPresenceServiceServer) ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProxyServers not implemented")
+}
+func (UnimplementedPresenceServiceServer) UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertProxyServer not implemented")
 }
 func (UnimplementedPresenceServiceServer) DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteProxyServer not implemented")
@@ -540,6 +558,24 @@ func _PresenceService_ListProxyServers_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_UpsertProxyServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertProxyServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).UpsertProxyServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_UpsertProxyServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).UpsertProxyServer(ctx, req.(*UpsertProxyServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PresenceService_DeleteProxyServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteProxyServerRequest)
 	if err := dec(in); err != nil {
@@ -612,6 +648,10 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListProxyServers",
 			Handler:    _PresenceService_ListProxyServers_Handler,
+		},
+		{
+			MethodName: "UpsertProxyServer",
+			Handler:    _PresenceService_UpsertProxyServer_Handler,
 		},
 		{
 			MethodName: "DeleteProxyServer",

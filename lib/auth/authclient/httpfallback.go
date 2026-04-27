@@ -100,6 +100,38 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 	return re, nil
 }
 
+// UpsertProxy registers a proxy server heartbeat. It calls the gRPC
+// PresenceService and falls back to the legacy HTTP endpoint if the server
+// does not yet implement the gRPC RPC.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *Client) UpsertProxy(ctx context.Context, s types.Server) error {
+	err := c.APIClient.UpsertProxy(ctx, s)
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.HTTPClient.upsertProxyLegacy(ctx, s)
+}
+
+// upsertProxyLegacy registers a proxy server heartbeat via the legacy HTTP
+// endpoint.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *HTTPClient) upsertProxyLegacy(ctx context.Context, s types.Server) error {
+	data, err := services.MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
+	}
+	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
+	return trace.Wrap(err)
+}
+
 // DeleteProxy deletes a proxy server heartbeat by name. It calls the gRPC
 // PresenceService and falls back to the legacy HTTP endpoint if the server
 // does not yet implement the gRPC RPC.
