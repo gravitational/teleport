@@ -1148,7 +1148,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 
 		// Set upgradeToHTTP2 to trigger h2 transport upgrade logic.
 		sess.upgradeToHTTP2 = true
-		fwd, err := f.makeSessionForwarder(ctx, sess)
+		fwd, err := f.makeSessionForwarder(sess)
 		require.NoError(t, err)
 
 		// Create KubeProxy that uses fwd and forward incoming request to kubernetes API.
@@ -1827,7 +1827,7 @@ func TestGOAWAYHandling(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(sess.close)
 
-	fwd, err := f.makeSessionForwarder(ctx, sess)
+	fwd, err := f.makeSessionForwarder(sess)
 	require.NoError(t, err)
 
 	// Forward all requests for this session to the GOAWAY server.

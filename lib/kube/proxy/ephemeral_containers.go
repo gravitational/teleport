@@ -93,7 +93,7 @@ func (f *Forwarder) ephemeralContainers(authCtx *authContext, w http.ResponseWri
 	defer sess.close()
 
 	sess.upgradeToHTTP2 = true
-	sess.forwarder, err = f.makeSessionForwarder(ctx, sess)
+	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
