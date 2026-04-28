@@ -86,21 +86,11 @@ func ParseCAOverride(resource *subcav1.CertAuthorityOverride) (*ParsedCertAuthor
 	}
 
 	for i, co := range resource.GetSpec().GetCertificateOverrides() {
-		// Certificate.
-		var cert *x509.Certificate
-		var pkh string
-		if co.GetCertificate() != "" {
-			var err error
-			cert, err = tlsutils.ParseCertificatePEM([]byte(co.Certificate))
-			if err != nil {
-				return nil, trace.Wrap(err, "spec.certificate_overrides[%d].certificate", i)
-			}
-			pkh = HashCertificatePublicKey(cert)
+		// Certificate and PublicKey.
+		cert, pkh, err := parseCertificateAndPublicKey(co)
+		if err != nil {
+			return nil, trace.Wrap(err, "spec.certificate_overrides[%d].certificate", i)
 		}
-
-		// PublicKey.
-		pkh = cmp.Or(pkh, co.GetPublicKey())
-		pkh = strings.ToLower(pkh) // normalize user-supplied PublicKeys
 
 		// Chain.
 		var chain []*x509.Certificate
@@ -124,6 +114,20 @@ func ParseCAOverride(resource *subcav1.CertAuthorityOverride) (*ParsedCertAuthor
 	}
 
 	return parsed, nil
+}
+
+func parseCertificateAndPublicKey(co *subcav1.CertificateOverride) (_ *x509.Certificate, publicKeyHash string, _ error) {
+	if co.GetCertificate() != "" {
+		cert, err := tlsutils.ParseCertificatePEM([]byte(co.Certificate))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return cert, HashCertificatePublicKey(cert), nil
+	}
+
+	// Normalize user-supplied public keys.
+	pkh := strings.ToLower(co.GetPublicKey())
+	return nil, pkh, nil
 }
 
 // ValidateAndParseCAOverride validates a CertAuthorityOverride resource and
