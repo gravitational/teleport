@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/oapi-codegen/runtime"
-	openapi_types "github.com/oapi-codegen/runtime/types"
+	"github.com/google/uuid"
+	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/runtime"
 )
 
 // Defines values for NodeKind.
@@ -185,13 +185,13 @@ type DummyNodeProperties struct {
 
 // Edge defines model for Edge.
 type Edge struct {
-	EdgeType string             `json:"edge_type"`
-	From     openapi_types.UUID `json:"from"`
+	EdgeType string    `json:"edge_type"`
+	From     uuid.UUID `json:"from"`
 
 	// Id The unique identifier of the edge computed from EdgeKind, From and To
-	Id         openapi_types.UUID `json:"id"`
-	Properties *Edge_Properties   `json:"properties,omitempty"`
-	To         openapi_types.UUID `json:"to"`
+	Id         uuid.UUID        `json:"id"`
+	Properties *Edge_Properties `json:"properties,omitempty"`
+	To         uuid.UUID        `json:"to"`
 }
 
 // Edge_Properties defines model for Edge.Properties.
@@ -471,7 +471,7 @@ type NetIQCategory struct {
 
 // Node defines model for Node.
 type Node struct {
-	Id         openapi_types.UUID `json:"id"`
+	Id         uuid.UUID          `json:"id"`
 	Kind       NodeKind           `json:"kind"`
 	Labels     *map[string]string `json:"labels,omitempty"`
 	Name       string             `json:"name"`

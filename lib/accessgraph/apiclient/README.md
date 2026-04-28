@@ -45,12 +45,10 @@ When the Access Graph API changes (or when new endpoints/models are added), rege
    - `access-graph/pkg/api/models/jsondiff/models.gen.go` → `lib/accessgraph/apiclient/models/jsondiff/models.gen.go`.
    - `access-graph/pkg/api/models/logs/models.gen.go` → `lib/accessgraph/apiclient/models/logs/models.gen.go`.
 
-4. **Fix up `client.gen.go`** so it compiles in this repo:
-   - Change the package declaration from `package api` to `package accessgraph`.
-   - Replace the model imports (which point back into `access-graph`) with the local paths:
+4. **Fix up the generated files** so they compile in this repo:
 
-     ```go
-     externalRef0 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
-     externalRef1 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff"
-     externalRef2 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
-     ```
+   ```sh
+   make -C lib/accessgraph/apiclient rewrite-generated
+   ```
+
+   The rewrite script changes `client.gen.go` to `package accessgraph`, points model imports at this repository, rewrites generated UUID references to `github.com/google/uuid`, replaces `oapi-codegen` runtime imports with local helpers, and inlines scalar path/query parameter formatting. The Make target also runs `make fix-imports`.
