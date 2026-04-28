@@ -305,12 +305,17 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 			// note: we don't use t.Run() because we're already inside a synctest bubble
 			t.Logf("executing test case: %v", testCase.name)
 
+			logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+			if testing.Verbose() {
+				logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			}
+
 			s := &WindowsService{
 				cfg: WindowsServiceConfig{
 					Heartbeat: HeartbeatConfig{
 						HostUUID: "1234",
 					},
-					Logger:               slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+					Logger:               logger,
 					Clock:                clockwork.NewFakeClock(),
 					AuthClient:           client,
 					AccessPoint:          client,

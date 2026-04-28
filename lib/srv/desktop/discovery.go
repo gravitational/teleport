@@ -379,15 +379,9 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 	errCh := make(chan error)
 
 	go func() {
-		dynamicDesktops := make(map[string]types.WindowsDesktop)
-		ldapDesktops := make(map[string]types.WindowsDesktop)
-
-		newDesktops := func() map[string]types.WindowsDesktop {
-			// Combine the results from the last watcher update with the LDAP results
-			result := maps.Clone(dynamicDesktops)
-			maps.Copy(result, ldapDesktops)
-			return result
-		}
+		dynamicDesktopNames := make(map[string]struct{})
+		ldapDesktopNames := make(map[string]struct{})
+		allDesktops := make(map[string]types.WindowsDesktop)
 
 		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
 			Matcher: func(desktop types.WindowsDesktop) bool {
@@ -407,7 +401,7 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 				return services.MatchResourceLabels(matchers, desktop.GetAllLabels())
 			},
 			GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(ctx) },
-			GetNewResources:     func() map[string]types.WindowsDesktop { return newDesktops() },
+			GetNewResources:     func() map[string]types.WindowsDesktop { return allDesktops },
 			OnCreate:            s.upsertDesktop,
 			OnUpdate:            s.updateDesktop,
 			OnDelete:            s.deleteDesktop,
@@ -464,10 +458,15 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 			// Pre-populate LDAP desktops but don't reconcile yet.
 			// This covers the case when the dynamic watcher triggers
 			// before LDAP discovery and makes sure LDAP hosts don't get deleted.
-			ldapDesktops = s.getDesktopsFromLDAP()
+			ldapDesktops := s.getDesktopsFromLDAP()
+			maps.Copy(allDesktops, ldapDesktops)
+			for name := range ldapDesktops {
+				ldapDesktopNames[name] = struct{}{}
+			}
 		}
 
 		watcherNotificationReceived := false
+		start := s.cfg.Clock.Now()
 
 		for {
 			select {
@@ -476,8 +475,9 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 
 			// Changes to dynamic desktops were detected.
 			case desktops := <-dynamicDesktopUpdates:
+				watcherNotificationReceived = true
+				nextDynamicDesktops := make(map[string]types.WindowsDesktop, len(desktops))
 				s.cfg.Logger.DebugContext(ctx, "Reconciling due to dynamic desktop change", "count", len(desktops))
-				clear(dynamicDesktops)
 				for _, dynamicDesktop := range desktops {
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)
 					if err != nil {
@@ -486,7 +486,20 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 					}
 
 					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
-					dynamicDesktops[dynamicDesktop.GetName()] = desktop
+					nextDynamicDesktops[dynamicDesktop.GetName()] = desktop
+				}
+
+				// Remove any dynamic desktops that didn't appear in this update.
+				for name := range dynamicDesktopNames {
+					if _, ok := nextDynamicDesktops[name]; !ok {
+						delete(dynamicDesktopNames, name)
+						delete(allDesktops, name)
+					}
+				}
+				// Add/update new dynamic desktops.
+				for name, desktop := range nextDynamicDesktops {
+					dynamicDesktopNames[name] = struct{}{}
+					allDesktops[name] = desktop
 				}
 
 				if err := reconciler.Reconcile(ctx); err != nil {
@@ -495,17 +508,36 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 				}
 
 				reset(periodicInterval)
-				watcherNotificationReceived = true
 
 			case <-ldapDiscoveryTimer:
-				// If dynamic registration is enabled, wait for the watcher's initial notification.
-				// This handles a rare condition where the first LDAP discovery tick happens before
-				// the first watcher notification, causing existing dynamic desktops to be deleted.
-				if len(s.cfg.ResourceMatchers) > 0 && !watcherNotificationReceived {
+				// If dynamic registration is enabled, wait (up to 5 minutes) for the watcher's
+				// initial notification. This handles a rare condition where the first LDAP
+				// discovery tick happens before the first watcher notification, causing existing
+				// dynamic desktops to be deleted.
+				//
+				// The 5-minute maximum wait period ensures that an unhealthy dynamic desktop
+				// watcher doesn't prevent LDAP discovery from running.
+				if len(s.cfg.ResourceMatchers) > 0 &&
+					!watcherNotificationReceived &&
+					s.cfg.Clock.Since(start) > 5*time.Minute {
 					continue
 				}
 				s.cfg.Logger.DebugContext(ctx, "Performing LDAP discovery")
-				ldapDesktops = s.getDesktopsFromLDAP()
+
+				ldapDesktops := s.getDesktopsFromLDAP()
+				// Remove any desktops that no longer show up in LDAP.
+				for currentDesktop := range ldapDesktopNames {
+					if _, ok := ldapDesktops[currentDesktop]; !ok {
+						delete(allDesktops, currentDesktop)
+						delete(ldapDesktopNames, currentDesktop)
+					}
+				}
+				// Add new LDAP desktops.
+				maps.Copy(allDesktops, ldapDesktops)
+				for name := range ldapDesktops {
+					ldapDesktopNames[name] = struct{}{}
+				}
+
 				if err := reconciler.Reconcile(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					s.cfg.Logger.ErrorContext(s.closeCtx, "Periodic reconciliation failed", "error", err)
 				}
@@ -514,8 +546,10 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 			// no other changes have triggered the watcher.
 			case <-periodicUpdate:
 				s.cfg.Logger.DebugContext(ctx, "Performing periodic reconciliation")
-				for _, desktop := range dynamicDesktops {
-					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
+				for name := range dynamicDesktopNames {
+					if desktop, ok := allDesktops[name]; ok {
+						desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
+					}
 				}
 
 				if err := reconciler.Reconcile(ctx); err != nil && !errors.Is(err, context.Canceled) {
