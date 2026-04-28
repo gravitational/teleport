@@ -29,6 +29,7 @@ import (
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -71,6 +72,67 @@ type ParsedCertificateOverride struct {
 	Certificate *x509.Certificate
 	// Chain is the parsed certificate chain.
 	Chain []*x509.Certificate
+}
+
+// ParseCAOverride parses a CA override without validation. Useful to parse
+// resources that are known to be valid.
+//
+// If resource is nil, returns nil.
+//
+// See [ValidateAndParseCAOverride].
+func ParseCAOverride(resource *subcav1.CertAuthorityOverride) (*ParsedCertAuthorityOverride, error) {
+	if resource == nil {
+		return nil, nil
+	}
+
+	parsed := &ParsedCertAuthorityOverride{
+		CAOverride:           resource,
+		CertificateOverrides: make([]*ParsedCertificateOverride, len(resource.GetSpec().GetCertificateOverrides())),
+	}
+
+	for i, co := range resource.GetSpec().GetCertificateOverrides() {
+		// Certificate and PublicKey.
+		cert, pkh, err := parseCertificateAndPublicKey(co)
+		if err != nil {
+			return nil, trace.Wrap(err, "spec.certificate_overrides[%d].certificate", i)
+		}
+
+		// Chain.
+		var chain []*x509.Certificate
+		if l := len(co.GetChain()); l > 0 {
+			chain = make([]*x509.Certificate, l)
+			for j, pem := range co.Chain {
+				cert, err := tlsutils.ParseCertificatePEM([]byte(pem))
+				if err != nil {
+					return nil, trace.Wrap(err, "spec.certificate_overrides[%d].chain[%d]", i, j)
+				}
+				chain[j] = cert
+			}
+		}
+
+		parsed.CertificateOverrides[i] = &ParsedCertificateOverride{
+			CertificateOverride: co,
+			PublicKey:           pkh,
+			Certificate:         cert,
+			Chain:               chain,
+		}
+	}
+
+	return parsed, nil
+}
+
+func parseCertificateAndPublicKey(co *subcav1.CertificateOverride) (_ *x509.Certificate, publicKeyHash string, _ error) {
+	if co.GetCertificate() != "" {
+		cert, err := tlsutils.ParseCertificatePEM([]byte(co.Certificate))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return cert, HashCertificatePublicKey(cert), nil
+	}
+
+	// Normalize user-supplied public keys.
+	pkh := strings.ToLower(co.GetPublicKey())
+	return nil, pkh, nil
 }
 
 // ValidateAndParseCAOverride validates a CertAuthorityOverride resource and
@@ -175,7 +237,6 @@ func validateCertificateOverride(
 	}
 
 	// Chain.
-
 	var chain []*x509.Certificate
 	if len(co.Chain) > 0 {
 		if cert == nil {
