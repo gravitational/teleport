@@ -1772,7 +1772,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	// the resources as soon as we know the session is no longer active.
 	defer sess.close()
 
-	sess.forwarder, err = f.makeSessionForwarder(ctx, sess)
+	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1891,7 +1891,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 	// the resources as soon as we know the session is no longer active.
 	defer sess.close()
 
-	sess.forwarder, err = f.makeSessionForwarder(ctx, sess)
+	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2233,7 +2233,7 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	defer sess.close()
 
 	sess.upgradeToHTTP2 = true
-	sess.forwarder, err = f.makeSessionForwarder(ctx, sess)
+	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2711,7 +2711,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authCon
 // - for HTTP2 in all other cases.
 // The reason being is that streaming requests are going to be upgraded to SPDY, which is only
 // supported coming from an HTTP1 request.
-func (f *Forwarder) makeSessionForwarder(ctx context.Context, sess *clusterSession) (*reverseproxy.Forwarder, error) {
+func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Forwarder, error) {
 	transport, err := f.transportForRequest(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2731,7 +2731,7 @@ func (f *Forwarder) makeSessionForwarder(ctx context.Context, sess *clusterSessi
 		// that is returned when the user tries to access a GKE Autopilot cluster
 		// with system:masters group impersonation.
 		//nolint:bodyclose // the caller closes the response body in httputils.ReverseProxy
-		opts = append(opts, reverseproxy.WithResponseModifier(f.rewriteResponseForbidden(ctx, sess)))
+		opts = append(opts, reverseproxy.WithResponseModifier(f.rewriteResponseForbidden(sess)))
 	}
 
 	forwarder, err := reverseproxy.New(

@@ -73,7 +73,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 	defer sess.close()
 
 	sess.upgradeToHTTP2 = true
-	sess.forwarder, err = f.makeSessionForwarder(ctx, sess)
+	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -53,7 +52,7 @@ import (
 // Your Teleport Roles [role1,role2] have given access to the "system:masters" group for the cluster "<cluster>".
 // For additional information and resolution, please visit
 // https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters
-func (f *Forwarder) rewriteResponseForbidden(ctx context.Context, s *clusterSession) func(r *http.Response) error {
+func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Response) error {
 	return func(r *http.Response) error {
 		const (
 			// The string that is returned by the GKE Autopilot cluster when
@@ -100,7 +99,7 @@ func (f *Forwarder) rewriteResponseForbidden(ctx context.Context, s *clusterSess
 				Message: "GKE Autopilot denied the request because it impersonates the \"system:masters\" group.\n" +
 					fmt.Sprintf(
 						"Your Teleport Roles %v have given access to the \"system:masters\" group "+
-							"for the cluster %q.\n", collectSystemMastersTeleportRoles(ctx, s), s.kubeClusterName) +
+							"for the cluster %q.\n", collectSystemMastersTeleportRoles(s), s.kubeClusterName) +
 					"For additional information and resolution, " +
 					"please visit https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
 			}
@@ -126,7 +125,7 @@ func (f *Forwarder) rewriteResponseForbidden(ctx context.Context, s *clusterSess
 
 // collectSystemMastersTeleportRoles returns a list of teleport roles that grant
 // system:masters to the target cluster.
-func collectSystemMastersTeleportRoles(ctx context.Context, s *clusterSession) []string {
+func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	const (
 		systemMastersGroup = "system:masters"
 	)

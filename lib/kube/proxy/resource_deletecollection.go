@@ -172,7 +172,6 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 			return internalErrStatus, trace.Wrap(err)
 		}
 		items, err := deleteResources(
-			ctx,
 			params,
 			sess.metaResource.requestedResource.resourceKind,
 			sess.metaResource.requestedResource.apiGroup,
@@ -201,7 +200,6 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 
 		apiVersion, itemsR, objs, underlyingType := output.apiVersion, output.underlyingValue, output.items, output.underlyingType
 		items, err := deleteResources(
-			ctx,
 			params,
 			sess.metaResource.requestedResource.resourceKind,
 			sess.metaResource.requestedResource.apiGroup,
@@ -331,7 +329,6 @@ type deleteResourcesCommonParams struct {
 }
 
 func deleteResources[T kubeObjectInterface](
-	ctx context.Context,
 	params deleteResourcesCommonParams,
 	kind, group, apiVersion string,
 	items []T,
