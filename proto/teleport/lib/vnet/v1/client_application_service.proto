@@ -418,17 +418,14 @@ message DatabaseInfo {
   // Cluster is the name of the cluster in which the database is found.
   // Iff the database is in a leaf cluster, this will match database_key.leaf_cluster.
   string cluster = 2;
-  // Protocol is the database wire protocol (e.g. "postgres", "mysql", "mongodb").
+  // Protocol is the database wire protocol (e.g. "postgres", "mysql").
   string protocol = 3;
-  // Username is the database user parsed from the FQDN. May be empty when the
-  // user is auto-provisioned or when only one database user is allowed.
-  string username = 4;
   // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
   // assigned to the database.
-  string ipv4_cidr_range = 5;
+  string ipv4_cidr_range = 4;
   // DialOptions holds options that should be used when dialing the root cluster
   // of the database.
-  DialOptions dial_options = 6;
+  DialOptions dial_options = 5;
 }
 
 // DatabaseKey uniquely identifies a database in a specific profile and cluster.
@@ -465,10 +462,6 @@ message SignForDBRequest {
   DatabaseKey database_key = 1;
   // Sign holds signature request details.
   SignRequest sign = 2;
-  // Username is the database user for which the cert was issued. Required
-  // because different users connecting to the same database get different
-  // certs and signers.
-  string username = 3;
 }
 
 // SignForDBResponse is a response for SignForDB.

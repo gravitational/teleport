@@ -474,14 +474,14 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
-// ReissueDBCert issues a new cert for the target database.
-// TODO(ohin): Full implementation will be added in a follow-up PR for Teleport Connect VNet database support.
+// ReissueDBCert is part of the [vnet.ClientApplication] interface but is not
+// supported in Teleport Connect.
 func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
-	return tls.Certificate{}, trace.NotImplemented("database VNet support in Connect is not yet implemented")
+	return tls.Certificate{}, trace.NotImplemented("VNet database access is not supported in Teleport Connect")
 }
 
-// OnNewDBConnection is called when a new database connection is established through VNet.
-// TODO(ohin): Full implementation will be added in a follow-up PR for Teleport Connect VNet database support.
+// OnNewDBConnection is part of the [vnet.ClientApplication] interface. See
+// the note on ReissueDBCert above; this is a no-op in Connect.
 func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
 	return nil
 }

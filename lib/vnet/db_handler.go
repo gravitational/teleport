@@ -53,17 +53,17 @@ type dbHandlerConfig struct {
 	// proxy always trust the root cluster CA rather than the system cert pool,
 	// even when ALPN conn upgrades are not required.
 	alwaysTrustRootClusterCA bool
+	parentCtx                context.Context
 }
 
 func newDBHandler(cfg *dbHandlerConfig) *dbHandler {
 	return &dbHandler{
 		cfg: cfg,
 		log: log.With(
-			teleport.ComponentKey, teleport.Component("vnet", "tcp-db-handler"),
+			teleport.ComponentKey, teleport.Component("vnet", "db-handler"),
 			"profile", cfg.dbInfo.GetDatabaseKey().GetProfile(),
 			"leaf_cluster", cfg.dbInfo.GetDatabaseKey().GetLeafCluster(),
 			"db_name", cfg.dbInfo.GetDatabaseKey().GetName(),
-			"db_user", cfg.dbInfo.GetUsername(),
 			"protocol", cfg.dbInfo.GetProtocol()),
 	}
 }
@@ -96,7 +96,7 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 	lp, err := newLocalProxyForVnet(localProxyConfig{
 		dialOptions:              h.cfg.dbInfo.GetDialOptions(),
 		protocols:                []alpncommon.Protocol{alpnProtocol},
-		parentContext:            ctx,
+		parentContext:            h.cfg.parentCtx,
 		middleware:               middleware,
 		clock:                    h.cfg.clock,
 		alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
@@ -112,7 +112,7 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 // to the local ALPN proxy, which is configured with middleware to automatically
 // handle certificate renewal and re-logins.
 //
-// localPort is part of the tcpHandler interface contract but is unused here:
+// localPort is part of the tcpHandler interface contract but is unused here
 // the local ALPN proxy ignores it for database connections.
 func (h *dbHandler) handleTCPConnector(ctx context.Context, _ uint16, connector func() (net.Conn, error)) error {
 	lp, err := h.getOrInitializeLocalProxy(ctx)
@@ -130,25 +130,44 @@ type dbCertIssuer struct {
 }
 
 func (i *dbCertIssuer) CheckCert(cert *x509.Certificate) error {
-	return alpnproxy.CheckDBCertSubject(cert, tlsca.RouteToDatabase{
-		ServiceName: i.dbInfo.GetDatabaseKey().GetName(),
-		Protocol:    i.dbInfo.GetProtocol(),
-		Username:    i.dbInfo.GetUsername(),
-	})
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err, "parsing cert subject")
+	}
+	wantService := i.dbInfo.GetDatabaseKey().GetName()
+	if identity.RouteToDatabase.ServiceName != wantService {
+		return trace.BadParameter(
+			"certificate subject is for database service %q, but need %q",
+			identity.RouteToDatabase.ServiceName, wantService)
+	}
+	if identity.RouteToDatabase.Username != "" {
+		return trace.BadParameter(
+			"VNet database certificate must have an empty subject username, got %q",
+			identity.RouteToDatabase.Username)
+	}
+	return nil
 }
 
 func (i *dbCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
-	cert, err, _ := i.group.Do("", func() (any, error) {
+	certVal, err, _ := i.group.Do("", func() (any, error) {
 		return i.dbProvider.ReissueDBCert(ctx, i.dbInfo)
 	})
-	return cert.(tls.Certificate), trace.Wrap(err)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cert, ok := certVal.(tls.Certificate)
+	if !ok {
+		return tls.Certificate{}, trace.BadParameter("singleflight returned unexpected type %T", certVal)
+	}
+	return cert, nil
 }
 
 // RouteToDatabase returns a proto.RouteToDatabase populated from dbInfo.
+// Omitting the username is intentional: VNet only supports protocols where the
+// db_service extracts the username from the wire protocol.
 func RouteToDatabase(dbInfo *vnetv1.DatabaseInfo) *proto.RouteToDatabase {
 	return &proto.RouteToDatabase{
 		ServiceName: dbInfo.GetDatabaseKey().GetName(),
 		Protocol:    dbInfo.GetProtocol(),
-		Username:    dbInfo.GetUsername(),
 	}
 }

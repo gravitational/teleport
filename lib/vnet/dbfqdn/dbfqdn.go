@@ -18,6 +18,7 @@ package dbfqdn
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,6 +37,14 @@ const (
 // the given zone.
 var ErrNoMatch = errors.New("fqdn does not match a VNet database for the zone")
 
+// ErrNotDBFQDN is returned by Parse when fqdn does not have the .db.<zone>
+// suffix expected for a VNet database FQDN.
+var ErrNotDBFQDN = fmt.Errorf("not a VNet database FQDN: %w", ErrNoMatch)
+
+// ErrInvalidVNetDNSName is returned by Parse when fqdn has the .db.<zone>
+// suffix but the prefix is not a well-formed vnet_dns_name
+var ErrInvalidVNetDNSName = fmt.Errorf("invalid vnet_dns_name: %w", ErrNoMatch)
+
 // HasZoneSuffix reports whether fqdn ends with .db.<zone>.
 func HasZoneSuffix(fqdn, zone string) bool {
 	return strings.HasSuffix(fqdn, infix+dns.FullyQualify(zone))
@@ -47,11 +56,11 @@ func HasZoneSuffix(fqdn, zone string) bool {
 // status.vnet_dns_name matches.
 func Parse(fqdn, zone string) (vnetDNSName string, err error) {
 	if !HasZoneSuffix(fqdn, zone) {
-		return "", ErrNoMatch
+		return "", ErrNotDBFQDN
 	}
 	prefix := strings.TrimSuffix(fqdn, infix+dns.FullyQualify(zone))
 	if !isValidVNetDNSName(prefix) {
-		return "", ErrNoMatch
+		return "", ErrInvalidVNetDNSName
 	}
 	return prefix, nil
 }

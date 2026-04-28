@@ -2190,17 +2190,14 @@ type DatabaseInfo struct {
 	// Cluster is the name of the cluster in which the database is found.
 	// Iff the database is in a leaf cluster, this will match database_key.leaf_cluster.
 	Cluster string `protobuf:"bytes,2,opt,name=cluster,proto3" json:"cluster,omitempty"`
-	// Protocol is the database wire protocol (e.g. "postgres", "mysql", "mongodb").
+	// Protocol is the database wire protocol (e.g. "postgres", "mysql").
 	Protocol string `protobuf:"bytes,3,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	// Username is the database user parsed from the FQDN. May be empty when the
-	// user is auto-provisioned or when only one database user is allowed.
-	Username string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
 	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be
 	// assigned to the database.
-	Ipv4CidrRange string `protobuf:"bytes,5,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
+	Ipv4CidrRange string `protobuf:"bytes,4,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
 	// DialOptions holds options that should be used when dialing the root cluster
 	// of the database.
-	DialOptions   *DialOptions `protobuf:"bytes,6,opt,name=dial_options,json=dialOptions,proto3" json:"dial_options,omitempty"`
+	DialOptions   *DialOptions `protobuf:"bytes,5,opt,name=dial_options,json=dialOptions,proto3" json:"dial_options,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2252,13 +2249,6 @@ func (x *DatabaseInfo) GetCluster() string {
 func (x *DatabaseInfo) GetProtocol() string {
 	if x != nil {
 		return x.Protocol
-	}
-	return ""
-}
-
-func (x *DatabaseInfo) GetUsername() string {
-	if x != nil {
-		return x.Username
 	}
 	return ""
 }
@@ -2445,11 +2435,7 @@ type SignForDBRequest struct {
 	// database from a previous successful call to ReissueDBCert.
 	DatabaseKey *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
 	// Sign holds signature request details.
-	Sign *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
-	// Username is the database user for which the cert was issued. Required
-	// because different users connecting to the same database get different
-	// certs and signers.
-	Username      string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	Sign          *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2496,13 +2482,6 @@ func (x *SignForDBRequest) GetSign() *SignRequest {
 		return x.Sign
 	}
 	return nil
-}
-
-func (x *SignForDBRequest) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
 }
 
 // SignForDBResponse is a response for SignForDB.
@@ -2751,14 +2730,13 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x17ExchangeSSHKeysResponse\x12&\n" +
 	"\x0fuser_public_key\x18\x01 \x01(\fR\ruserPublicKey\"Z\n" +
 	"\x0fMatchedDatabase\x12G\n" +
-	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"\x94\x02\n" +
+	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"\xf8\x01\n" +
 	"\fDatabaseInfo\x12D\n" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1a\n" +
-	"\bprotocol\x18\x03 \x01(\tR\bprotocol\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\x12&\n" +
-	"\x0fipv4_cidr_range\x18\x05 \x01(\tR\ripv4CidrRange\x12D\n" +
-	"\fdial_options\x18\x06 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"^\n" +
+	"\bprotocol\x18\x03 \x01(\tR\bprotocol\x12&\n" +
+	"\x0fipv4_cidr_range\x18\x04 \x01(\tR\ripv4CidrRange\x12D\n" +
+	"\fdial_options\x18\x05 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"^\n" +
 	"\vDatabaseKey\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
 	"\fleaf_cluster\x18\x02 \x01(\tR\vleafCluster\x12\x12\n" +
@@ -2766,11 +2744,10 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x14ReissueDBCertRequest\x12G\n" +
 	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"+\n" +
 	"\x15ReissueDBCertResponse\x12\x12\n" +
-	"\x04cert\x18\x01 \x01(\fR\x04cert\"\xab\x01\n" +
+	"\x04cert\x18\x01 \x01(\fR\x04cert\"\x8f\x01\n" +
 	"\x10SignForDBRequest\x12D\n" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x125\n" +
-	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\x12\x1a\n" +
-	"\busername\x18\x03 \x01(\tR\busername\"1\n" +
+	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"1\n" +
 	"\x11SignForDBResponse\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\"`\n" +
 	"\x18OnNewDBConnectionRequest\x12D\n" +

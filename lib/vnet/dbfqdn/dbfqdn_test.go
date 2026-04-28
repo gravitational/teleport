@@ -59,31 +59,31 @@ func TestParse(t *testing.T) {
 			name:    "no db infix",
 			fqdn:    "app.proxy.example.com.",
 			zone:    "proxy.example.com",
-			wantErr: dbfqdn.ErrNoMatch,
+			wantErr: dbfqdn.ErrNotDBFQDN,
 		},
 		{
 			name:    "wrong zone",
 			fqdn:    myPostgres + ".db.other.example.com.",
 			zone:    "proxy.example.com",
-			wantErr: dbfqdn.ErrNoMatch,
+			wantErr: dbfqdn.ErrNotDBFQDN,
 		},
 		{
 			name:    "empty prefix",
 			fqdn:    ".db.proxy.example.com.",
 			zone:    "proxy.example.com",
-			wantErr: dbfqdn.ErrNoMatch,
+			wantErr: dbfqdn.ErrInvalidVNetDNSName,
 		},
 		{
 			name:    "only db infix and zone",
 			fqdn:    "db.proxy.example.com.",
 			zone:    "proxy.example.com",
-			wantErr: dbfqdn.ErrNoMatch,
+			wantErr: dbfqdn.ErrNotDBFQDN,
 		},
 		{
 			name:    "literal db name (not a hash) is rejected",
 			fqdn:    "my-postgres.db.proxy.example.com.",
 			zone:    "proxy.example.com",
-			wantErr: dbfqdn.ErrNoMatch,
+			wantErr: dbfqdn.ErrInvalidVNetDNSName,
 		},
 	}
 

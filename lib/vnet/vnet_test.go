@@ -172,6 +172,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		sshProvider:              sshProvider,
 		clock:                    cfg.clock,
 		alwaysTrustRootClusterCA: true,
+		parentCtx:                ctx,
 	})
 
 	// Create the VNet and connect it to the other side of the TUN.

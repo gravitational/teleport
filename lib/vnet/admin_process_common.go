@@ -38,6 +38,7 @@ func newNetworkStackConfig(ctx context.Context, tun tunDevice, clt *clientApplic
 		dbProvider:  newDBProvider(clt),
 		sshProvider: sshProvider,
 		clock:       clock,
+		parentCtx:   ctx,
 	})
 	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {

@@ -60,7 +60,6 @@ func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (
 	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
 		return p.clt.SignForDB(context.TODO(), &vnetv1.SignForDBRequest{
 			DatabaseKey: dbInfo.GetDatabaseKey(),
-			Username:    dbInfo.GetUsername(),
 			Sign:        req,
 		})
 	})

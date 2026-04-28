@@ -44,6 +44,7 @@ type tcpHandlerResolverConfig struct {
 	sshProvider              *sshProvider
 	clock                    clockwork.Clock
 	alwaysTrustRootClusterCA bool
+	parentCtx                context.Context
 }
 
 func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
@@ -90,6 +91,7 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 				dbProvider:               r.cfg.dbProvider,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+				parentCtx:                r.cfg.parentCtx,
 			}),
 		}, nil
 	}
@@ -241,6 +243,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 			dbProvider:               h.cfg.dbProvider,
 			clock:                    h.cfg.clock,
 			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+			parentCtx:                h.cfg.parentCtx,
 		})
 		h.setDecidedHandler(dbHandler)
 		return dbHandler.handleTCPConnector(ctx, localPort, connector)
