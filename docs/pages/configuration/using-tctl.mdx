@@ -12,10 +12,10 @@ This guide provides an overview of `tctl`, a command-line tool for managing
 Teleport dynamic resources.
 
 For an overview of what a dynamic resource is, see [Infrastructure as
-Code](infrastructure-as-code.mdx).
+Code](configuration.mdx).
 
 For a comprehensive list of `tctl` commands, arguments, flag, and environment
-variables, see the [`tctl` CLI Reference](../../reference/cli/tctl.mdx).
+variables, see the [`tctl` CLI Reference](../reference/cli/tctl.mdx).
 
 ## When to use tctl
 
@@ -24,7 +24,7 @@ following Teleport Auth Service clients can also manage dynamic resources:
 
 - [Teleport Terraform provider](./terraform-provider/terraform-provider.mdx)
 - [Teleport Kubernetes operator](./teleport-operator/teleport-operator.mdx)
-- [Custom API clients](../api/api.mdx)
+- [Custom API clients](../zero-trust-access/api/api.mdx)
 
 `tctl` is best suited for ad hoc operations such as retrieving data about your
 cluster or unanticipated configuration changes. You can also use it to manage
@@ -54,7 +54,7 @@ allow:
 ```
 
 See-the [Role
-Reference](../../reference/access-controls/roles.mdx#rbac-for-dynamic-teleport-resources)
+Reference](../reference/access-controls/roles.mdx#rbac-for-dynamic-teleport-resources)
 for more information on configuring access to Teleport resources.
 
 ## Audit log 
@@ -65,7 +65,7 @@ event to determine which resource modifications took place using `tctl` and
 which ones occurred with the Terraform provider, Kubernetes operator, or custom
 API clients.
 
-See the [audit event reference](../../reference/audit-events.mdx) for a full
+See the [audit event reference](../reference/audit-events.mdx) for a full
 list of events.
 
 ## Authentication
@@ -77,7 +77,7 @@ cluster. You can authenticate to your cluster by running the following command:
 $ tsh login --user=TELEPORT_USER --proxy=PROXY_SERVICE_ADDRESS
 ```
 
-See the [`tsh login`](../../reference/cli/tsh.mdx#tsh-login) reference entry for
+See the [`tsh login`](../reference/cli/tsh.mdx#tsh-login) reference entry for
 a full list of `tsh login` flags. 
 
 ### Using the local Auth Service backend
@@ -111,7 +111,7 @@ logs will show that it was performed by the Auth Service itself.
 
 To provide an accurate audit trail, it is important to limit direct SSH access
 to the Auth Service with
-[Access Controls](../../zero-trust-access/authentication/authentication.mdx) and ensure that
+[Access Controls](../zero-trust-access/authentication/authentication.mdx) and ensure that
 admins use `tctl` remotely instead.
 
 ### Using an identity file
