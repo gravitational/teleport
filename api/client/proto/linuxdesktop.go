@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// PackLinuxDesktop packs Linux desktop in to its wire format.
+// PackLinuxDesktop packs Linux desktop into its wire format.
 func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_Resource {
 	return &PaginatedResource_LinuxDesktop{
 		LinuxDesktop: &LinuxDesktop{
