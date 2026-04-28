@@ -2189,19 +2189,16 @@ message IdentityCenterAccountAssignment {
 // `linuxdesktop` package should be used for actual processing.
 message LinuxDesktop {
   // Kind is the Linux desktop resource kind.
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  string kind = 1;
   // SubKind is an optional resource subkind.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  string sub_kind = 2;
   // Version is the resource version.
-  string Version = 3 [(gogoproto.jsontag) = "version"];
+  string version = 3;
   // Metadata is the account metadata.
-  types.Metadata Metadata = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "metadata"
-  ];
-  string Addr = 5 [(gogoproto.jsontag) = "addr"];
-  string Hostname = 6 [(gogoproto.jsontag) = "hostname"];
-  repeated string ProxyIDs = 7 [(gogoproto.jsontag) = "proxy_ids"];
+  types.Metadata metadata = 4 [(gogoproto.nullable) = false];
+  string addr = 5;
+  string hostname = 6;
+  repeated string proxy_ids = 7;
 }
 
 message ListInstallersRequest {
@@ -2251,7 +2248,7 @@ message PaginatedResource {
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
     // LinuxDesktop represents LinuxDesktop resource
-    LinuxDesktop LinuxDesktop = 17 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
+    LinuxDesktop linux_desktop = 17;
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
