@@ -30,7 +30,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // azureListClient defines an interface for a common Azure client that can list
@@ -127,7 +127,7 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	c.regionSet = utils.StringsSet(c.Regions)
+	c.regionSet = set.New(c.Regions...)
 	return nil
 }
 

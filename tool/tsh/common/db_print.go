@@ -155,6 +155,7 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 			)
 			return ""
 		}
+		slices.Sort(roles)
 		return fmt.Sprintf("%v", roles)
 	}
 	return ""
