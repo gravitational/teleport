@@ -442,7 +442,8 @@ func deriveTeleportEqual_3(this, that *AppSpecV3) bool {
 			deriveTeleportEqual_46(this.TCPPorts, that.TCPPorts) &&
 			this.UseAnyProxyPublicAddr == that.UseAnyProxyPublicAddr &&
 			deriveTeleportEqual_47(this.MCP, that.MCP) &&
-			deriveTeleportEqual_48(this.LLM, that.LLM)
+			deriveTeleportEqual_48(this.LLM, that.LLM) &&
+			this.PrioritizeHttp2 == that.PrioritizeHttp2
 }
 
 // deriveTeleportEqual_4 returns whether this and that are equal.

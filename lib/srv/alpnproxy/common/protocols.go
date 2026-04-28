@@ -126,12 +126,12 @@ const (
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = WithPingProtocols(
 	append([]Protocol{
-		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
-		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
-		// If Chrome resolves this, we can switch the prioritization. We may
-		// also be able to get around this if https://github.com/golang/go/issues/49918
-		// is implemented and we can enable HTTP2 websockets on our end, but
-		// it's less clear this will actually fix the issue.
+		// HTTP/1.1 leads in the default ALPN list because Go's net/http
+		// does not implement RFC 8441 (HTTP/2 extended CONNECT for
+		// WebSockets); see https://github.com/golang/go/issues/49918.
+		// Apps that benefit from HTTP/2 multiplexing and have no
+		// WebSocket usage can opt in via AppSpecV3.PrioritizeHttp2;
+		// see ReorderHTTPNextProtos.
 		ProtocolHTTP,
 		ProtocolHTTP2,
 		ProtocolProxySSH,
@@ -145,14 +145,12 @@ var SupportedProtocols = WithPingProtocols(
 	}, DatabaseProtocols...),
 )
 
-// ReorderHTTPNextProtos returns a copy of next with `http/1.1` and
-// `h2` reordered according to prioritizeHTTP2. When prioritizeHTTP2
-// is true, `h2` precedes `http/1.1` in the result; otherwise the
-// default order is restored. All other protocols (in particular
-// `acme-tls/1` carried in NextProtos for ACME TLS-ALPN-01 challenges
-// on app FQDNs) keep their existing indices. If next does not
-// contain both HTTP entries, it is returned unchanged. The input
-// slice is never mutated.
+// ReorderHTTPNextProtos returns next with `http/1.1` and `h2`
+// swapped according to prioritizeHTTP2. When prioritizeHTTP2 is
+// true, `h2` precedes `http/1.1`; otherwise `http/1.1` precedes
+// `h2`. Other entries (e.g. `acme-tls/1`) keep their indices. If
+// either HTTP entry is missing, next is returned unchanged. This
+// function never mutates the input slice.
 func ReorderHTTPNextProtos(next []string, prioritizeHTTP2 bool) []string {
 	httpIdx, http2Idx := -1, -1
 	for i, p := range next {
@@ -164,12 +162,13 @@ func ReorderHTTPNextProtos(next []string, prioritizeHTTP2 bool) []string {
 		}
 	}
 	if httpIdx == -1 || http2Idx == -1 {
-		return append([]string(nil), next...)
+		return next
 	}
-	out := append([]string(nil), next...)
-	if prioritizeHTTP2 == (http2Idx < httpIdx) {
-		return out
+	http2First := http2Idx < httpIdx
+	if prioritizeHTTP2 == http2First {
+		return next
 	}
+	out := slices.Clone(next)
 	out[httpIdx], out[http2Idx] = out[http2Idx], out[httpIdx]
 	return out
 }

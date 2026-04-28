@@ -97,6 +97,12 @@ func TestReorderHTTPNextProtos(t *testing.T) {
 			want:            []string{acmeProto, http2Proto, httpProto},
 		},
 		{
+			name:            "ACME shipping shape, flag off, unchanged (default)",
+			input:           []string{acmeProto, httpProto, http2Proto},
+			prioritizeHTTP2: false,
+			want:            []string{acmeProto, httpProto, http2Proto},
+		},
+		{
 			name:            "only one HTTP entry present, flag on, unchanged",
 			input:           []string{acmeProto, http2Proto},
 			prioritizeHTTP2: true,

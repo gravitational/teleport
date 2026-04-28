@@ -100,6 +100,9 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetUseAnyProxyPublicAddr will return true if a client should rebuild this app's fqdn based on the proxy's public addr.
 	GetUseAnyProxyPublicAddr() bool
+	// GetPrioritizeHttp2 reports whether the proxy advertises HTTP/2
+	// ahead of HTTP/1.1 in the ALPN list for this app.
+	GetPrioritizeHttp2() bool
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
 	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
@@ -410,6 +413,10 @@ func (a *AppV3) GetRequiredAppNames() []string {
 
 func (a *AppV3) GetUseAnyProxyPublicAddr() bool {
 	return a.Spec.UseAnyProxyPublicAddr
+}
+
+func (a *AppV3) GetPrioritizeHttp2() bool {
+	return a.Spec.PrioritizeHttp2
 }
 
 func (a *AppV3) GetCORS() *CORSPolicy {
