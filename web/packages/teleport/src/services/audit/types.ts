@@ -401,6 +401,12 @@ export const eventCodes = {
   CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
   CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
   CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
+  SCOPED_TOKEN_CREATE: 'TST000I',
+  SCOPED_TOKEN_UPSERT: 'TST001I',
+  SCOPED_TOKEN_UPDATE: 'TST002I',
+  SCOPED_TOKEN_DELETE: 'TST003I',
+  SCOPED_TOKEN_USE: 'TST004I',
+  SCOPED_TOKEN_FAILURE: 'TST004E',
 } as const;
 
 /**
@@ -2365,6 +2371,62 @@ export type RawEvents = {
   >;
   [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
     typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
+  >;
+  [eventCodes.SCOPED_TOKEN_CREATE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_CREATE,
+    {
+      name: string;
+      scope: string;
+      assigned_scope: string;
+      roles: string[];
+      join_method: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_UPSERT]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPSERT,
+    {
+      name: string;
+      scope: string;
+      assigned_scope: string;
+      roles: string[];
+      join_method: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_UPDATE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPDATE,
+    {
+      name: string;
+      scope: string;
+      assigned_scope: string;
+      roles: string[];
+      join_method: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_DELETE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_DELETE,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_USE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_USE,
+    {
+      name: string;
+      scope: string;
+      assigned_scope: string;
+      host_id: string;
+      join_method: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_FAILURE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_FAILURE,
+    {
+      name: string;
+      scope: string;
+      assigned_scope: string;
+      host_id: string;
+      join_method: string;
+    }
   >;
 };
 

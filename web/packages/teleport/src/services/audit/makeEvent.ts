@@ -2695,6 +2695,42 @@ export const formatters: Formatters = {
         : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
     },
   },
+  [eventCodes.SCOPED_TOKEN_CREATE]: {
+    type: 'scoped_token.create',
+    desc: 'Scoped Join Token Created',
+    format: ({ user, roles, join_method, assigned_scope }) =>
+      `User [${user}] created a scoped join token with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPSERT]: {
+    type: 'scoped_token.upsert',
+    desc: 'Scoped Join Token Upserted',
+    format: ({ user, roles, join_method, assigned_scope }) =>
+      `User [${user}] upserted a scoped join token with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPDATE]: {
+    type: 'scoped_token.update',
+    desc: 'Scoped Join Token Updated',
+    format: ({ user, name, roles, join_method, assigned_scope }) =>
+      `User [${user}] updated scoped join token [${name}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_DELETE]: {
+    type: 'scoped_token.delete',
+    desc: 'Scoped Join Token Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] deleted scoped join token [${name}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_USE]: {
+    type: 'scoped_token.use',
+    desc: 'Scoped Join Token Used',
+    format: ({ name, host_id, assigned_scope }) =>
+      `Scoped join token [${name}] provisioned [${host_id}] into scope [${assigned_scope}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_FAILURE]: {
+    type: 'scoped_token.fail',
+    desc: 'Scoped Join Token Failure',
+    format: ({ name, scope, host_id }) =>
+      `Scoped join token [${name}] in scope [${scope}] failed to provision [${host_id}]`,
+  },
 };
 
 const unknownFormatter = {
