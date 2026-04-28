@@ -39,6 +39,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |insecure_skip_verify|boolean|InsecureSkipVerify disables app's TLS certificate verification.|
 |integration|string|Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|
 |mcp|[object](#specmcp)|MCP contains MCP server related configurations.|
+|prioritize_http2|boolean|PrioritizeHttp2 advertises HTTP/2 ahead of HTTP/1.1 in the proxy's ALPN list for connections to this app. Default false keeps HTTP/1.1 first, which is required for WebSocket apps because Go's net/http does not implement RFC 8441 (HTTP/2 extended CONNECT for WebSockets); see https://github.com/golang/go/issues/49918. Set true only on apps that benefit from HTTP/2 multiplexing and have no WebSocket usage.|
 |public_addr|string|PublicAddr is the public address the application is accessible at.|
 |required_app_names|[]string|RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|
 |rewrite|[object](#specrewrite)|Rewrite is a list of rewriting rules to apply to requests and responses.|
