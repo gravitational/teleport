@@ -3883,13 +3883,13 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					Name:        "jamf2",
-					SyncDelay:   types.Duration(1 * time.Minute),
+					SyncDelay:   types.DurationStringForJamfSpecV1(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
-							SyncPeriodPartial: types.Duration(4 * time.Hour),
-							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+							SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 							OnMissing:         "NOOP",
 							PageSize:          10,
 						},
@@ -5605,6 +5605,7 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
+	t.Parallel()
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
@@ -5659,15 +5660,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
+			t.Parallel()
 			clf := &CommandLineFlags{
 				FIPS: tc.fips,
 			}
 			cfg := servicecfg.MakeDefaultConfig()
+			cfg.Modules = &modulestest.Modules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			}
 			if tc.fips {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}

@@ -82,10 +82,12 @@ func TestJoinTerraformCloud(t *testing.T) {
 
 	ctx := t.Context()
 
+	testModules := modulestest.OSSModules()
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			ClusterName: "test.localhost",
 			Dir:         t.TempDir(),
+			Modules:     testModules,
 		},
 	})
 	require.NoError(t, err)
@@ -406,10 +408,9 @@ func TestJoinTerraformCloud(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setEnterprise {
-				modulestest.SetTestModules(
-					t,
-					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
-				)
+				testModules.TestBuildType = modules.BuildEnterprise
+			} else {
+				testModules.TestBuildType = modules.BuildOSS
 			}
 
 			token, err := types.NewProvisionTokenFromSpec(

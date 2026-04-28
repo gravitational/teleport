@@ -73,6 +73,7 @@ type Service struct {
 func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
 	ctx, cancel := context.WithCancel(client.Context())
 	defer cancel()
+
 	upstream, err := s.authClient.AccessGraphSecretsScannerClient().ReportSecrets(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,38 +81,45 @@ func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerServ
 
 	errCh := make(chan error, 1)
 	go func() {
-		err := trace.Wrap(s.forwardClientToServer(ctx, client, upstream))
-		if err != nil {
-			cancel()
-		}
-		errCh <- err
+		errCh <- trace.Wrap(s.forwardClientToServer(ctx, cancel, client, upstream))
 	}()
 
 	err = s.forwardServerToClient(ctx, client, upstream)
-	return trace.NewAggregate(err, <-errCh)
+	if err != nil {
+		// Return immediately so gRPC closes the stream, which unblocks client.Recv()
+		// in the forwardClientToServer goroutine. The buffered errCh prevents a leak.
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(<-errCh)
 }
 
-func (s *Service) forwardClientToServer(ctx context.Context,
+func (s *Service) forwardClientToServer(ctx context.Context, cancel context.CancelFunc,
 	client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer,
 	server accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) (err error) {
+	defer func() {
+		// CloseSend always returns nil error.
+		_ = server.CloseSend()
+	}()
 	for {
 		req, err := client.Recv()
 		if errors.Is(err, io.EOF) {
-			if err := server.CloseSend(); err != nil {
-				s.log.WarnContext(ctx, "Failed to close upstream stream", "error", err)
-			}
-			break
+			// The client closed the send direction and won't send more messages.
+			// Close the send direction of the server stream by returning and _do not_
+			// cancel the context so that the client can receive any messages that the
+			// server sends after getting io.EOF from the client.
+			return nil
 		}
 		if err != nil {
 			s.log.WarnContext(ctx, "Failed to receive from client stream", "error", err)
+			cancel()
 			return trace.Wrap(err)
 		}
 		if err := server.Send(req); err != nil {
 			s.log.WarnContext(ctx, "Failed to send to upstream stream", "error", err)
+			cancel()
 			return trace.Wrap(err)
 		}
 	}
-	return nil
 }
 
 func (s *Service) forwardServerToClient(ctx context.Context,

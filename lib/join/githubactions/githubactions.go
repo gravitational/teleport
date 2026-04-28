@@ -190,7 +190,7 @@ func (p *CheckGithubIDTokenParams) checkAndSetDefaults() error {
 // CheckGithubIDToken checks a Github OIDC token against a provision token.
 // If the token is valid and its claims match at least one allow rule, the
 // claims are returned.
-func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (*IDTokenClaims, error) {
+func CheckGithubIDToken(ctx context.Context, m modules.Modules, params *CheckGithubIDTokenParams) (*IDTokenClaims, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
@@ -205,7 +205,7 @@ func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (
 	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
 	enterpriseSlug := token.Spec.GitHub.EnterpriseSlug
 	if enterpriseOverride != "" || enterpriseSlug != "" {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		if m.BuildType() != modules.BuildEnterprise {
 			return nil, trace.Wrap(services.ErrRequiresEnterprise, "github enterprise server joining")
 		}
 	}
