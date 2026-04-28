@@ -1178,7 +1178,7 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 	// Scoped identities currently receive "special" handling. For now, we only
 	// support watching the cert_authority kind, with load_secrets=false.
 	//
-	// For this, we use AuthorizeUnpinnedRead to permit scoped identities to
+	// For this, we use RiskyAuthorizeUnpinnedRead to permit scoped identities to
 	// read an unscoped resource.
 	if kind.Kind != types.KindCertAuthority {
 		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
@@ -1187,7 +1187,7 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 		return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
 	}
 	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.AuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
+	return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.
@@ -2470,7 +2470,7 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.AuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -2493,7 +2493,7 @@ func (a *ServerWithRoles) ListAuthServers(ctx context.Context, pageSize int, pag
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.AuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
@@ -2532,7 +2532,7 @@ func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.AuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadProxies, &ruleCtx); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadProxies, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -2555,7 +2555,7 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.AuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 

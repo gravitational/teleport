@@ -120,11 +120,11 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 				return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, types.VerbRead)
 			})
 		}
-		// For read without secrets we use AuthorizeUnpinnedRead, this is to
+		// For read without secrets we use RiskyAuthorizeUnpinnedRead, this is to
 		// allow scoped identities (regardless of their pinned scope) to be
 		// able to fetch cert_authority resources (which are currently
 		// unscoped/treated as root scope).
-		return authCtx.CheckerContext.AuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, ruleCtx)
+		return authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, ruleCtx)
 	}
 
 	// Before looking up the requested CA perform RBAC on a dummy CA to
@@ -272,7 +272,7 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		// all scoped identities regardless of their current scope pinning. this pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := authCtx.CheckerContext.AuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthorities, &ruleCtx); err != nil {
+		if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthorities, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

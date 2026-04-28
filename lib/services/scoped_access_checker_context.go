@@ -310,13 +310,13 @@ func (c *ScopedAccessCheckerContext) CertParams() *CertificateParameterContext {
 	return &CertificateParameterContext{ctx: c}
 }
 
-// AuthorizeUnpinnedRead authorizes a read-only access check that bypasses
+// RiskyAuthorizeUnpinnedRead authorizes a read-only access check that bypasses
 // enforcement of the identity's pinned scope. This must only be used for
 // specific APIs that make an exception to pinning exclusion rules (e.g.
 // allowing read operations for resources at a parent scope). To avoid misuse,
 // a specific [UnpinnedReadAuthorization] must be provided that will encode the
 // effective scope of the access check and the allowed verbs.
-func (c *ScopedAccessCheckerContext) AuthorizeUnpinnedRead(
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedRead(
 	ctx context.Context,
 	authz UnpinnedReadAuthorization,
 	ruleCtx RuleContext,
