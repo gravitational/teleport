@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
@@ -816,25 +815,6 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		if isNetworkError(err) {
 			deleteKubeCredsLock = true
 		}
-		return trace.Wrap(err)
-	}
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	// This is a safety check in order to print a better message to the user even
-	// before hitting Teleport Kubernetes Proxy.
-	// We only enforce this check for root clusters, since we don't have knowledge
-	// of the RBAC role mappings for remote clusters.
-	rootClusterName, err := tc.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
-		rootClusterName,
-		c.teleportCluster,
-		c.kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
