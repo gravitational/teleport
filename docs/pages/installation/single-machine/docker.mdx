@@ -94,7 +94,7 @@ To execute Teleport commands on containers based on these images, run commands s
 
 ```code
 # in docker
-$ docker exec -i my-container tctl status
+$ docker exec -i ${TELEPORT_CONTAINER} tctl status
 
 # in Kubernetes
 $ kubectl exec -i my-pod -- tctl status
