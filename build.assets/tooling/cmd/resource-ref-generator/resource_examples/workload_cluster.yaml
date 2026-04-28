@@ -1,7 +1,7 @@
 kind: workload_cluster
 version: v1
 metadata:
-  name: child
+  name: company-organization
 spec:
   regions:
     - name: us-west-2
@@ -18,6 +18,6 @@ spec:
 # Status will be set by Teleport with status from Teleport Cloud.
 status:
   # The Teleport Proxy address of the child cluster.
-  domain: child.teleport.sh
+  domain: company-organization.teleport.sh
   # The current state of the child cluster in Teleport Cloud.
   state: active
