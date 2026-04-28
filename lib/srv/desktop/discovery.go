@@ -485,7 +485,6 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 						continue
 					}
 
-					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
 					nextDynamicDesktops[dynamicDesktop.GetName()] = desktop
 				}
 
