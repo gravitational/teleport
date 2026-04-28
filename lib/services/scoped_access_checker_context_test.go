@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
-func TestScopedAccessCheckerContextAuthorizeUnpinnedRead(t *testing.T) {
+func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	ctx := context.Background()
 	checkerContext, err := NewScopedAccessCheckerContext(ctx, &AccessInfo{
 		Username: "alice",
@@ -49,14 +49,14 @@ func TestScopedAccessCheckerContextAuthorizeUnpinnedRead(t *testing.T) {
 	})
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
 
-	// AuthorizeUnpinnedRead bypasses pin enforcement but still requires the
+	// RiskyAuthorizeUnpinnedRead bypasses pin enforcement but still requires the
 	// underlying RBAC permission. The default implicit role grants CA
 	// read_no_secrets, so this succeeds.
-	err = checkerContext.AuthorizeUnpinnedRead(ctx, UnpinnedReadCertAuthority, ruleCtx)
+	err = checkerContext.RiskyAuthorizeUnpinnedRead(ctx, UnpinnedReadCertAuthority, ruleCtx)
 	require.NoError(t, err)
 
 	// Using an empty UnpinnedReadAuthorization is not allowed.
-	err = checkerContext.AuthorizeUnpinnedRead(ctx, UnpinnedReadAuthorization{}, ruleCtx)
+	err = checkerContext.RiskyAuthorizeUnpinnedRead(ctx, UnpinnedReadAuthorization{}, ruleCtx)
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
 }
 

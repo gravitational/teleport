@@ -160,10 +160,10 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
-	// Use AuthorizeUnpinnedRead to allow scoped identities (regardless of their
+	// Use RiskyAuthorizeUnpinnedRead to allow scoped identities (regardless of their
 	// scope pin) to call GetAuthPreference.
 	ruleCtx := authzCtx.RuleContext()
-	if err := authzCtx.CheckerContext.AuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthPreference, &ruleCtx); err != nil {
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthPreference, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
