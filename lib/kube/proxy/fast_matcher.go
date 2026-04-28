@@ -207,8 +207,8 @@ func compileFieldMatcher(expression string, cache map[string]*regexp.Regexp) (fi
 	return fieldMatcher{re: re}, nil
 }
 
-// match checks if a resource with the given name and namespace is allowed by the precompiled RBAC rules.
-func (m *fastMatcher) match(name, namespace string) (bool, error) {
+// Match checks if a resource with the given name and namespace is allowed by the precompiled RBAC rules.
+func (m *fastMatcher) Match(name, namespace string) (bool, error) {
 	for i := range m.denyRules {
 		if m.denyRules[i].matches(name, namespace) {
 			return false, nil

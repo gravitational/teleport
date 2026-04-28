@@ -29,7 +29,7 @@ func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_
 			Metadata: types.Metadata153ToLegacy(desktop.Metadata),
 			Addr:     desktop.Spec.Addr,
 			Hostname: desktop.Spec.Hostname,
-			ProxyIDs: desktop.Spec.ProxyIds,
+			ProxyIds: desktop.Spec.ProxyIds,
 		},
 	}
 }
@@ -44,7 +44,7 @@ func UnpackLinuxDesktop(src *LinuxDesktop) types.ResourceWithLabels {
 		Spec: &linuxdesktopv1.LinuxDesktopSpec{
 			Addr:     src.Addr,
 			Hostname: src.Hostname,
-			ProxyIds: src.ProxyIDs,
+			ProxyIds: src.ProxyIds,
 		},
 	}
 	return types.ProtoResource153ToLegacy(dst)

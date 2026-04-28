@@ -659,6 +659,39 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 	}
 }
 
+// UIPageViewEvent is a UI event emitted when a user views a page.
+type UIPageViewEvent prehogv1a.UIPageViewEvent
+
+func (u *UIPageViewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiPageView{
+			UiPageView: &prehogv1a.UIPageViewEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				Path:        u.Path,
+				UtmSource:   u.UtmSource,
+				UtmCampaign: u.UtmCampaign,
+			},
+		},
+	}
+}
+
+// UIUsageReportingAlertCtaClickEvent is a UI event emitted when a user clicks the CTA
+// button in a usage reporting alert.
+type UIUsageReportingAlertCtaClickEvent prehogv1a.UIUsageReportingAlertCtaClickEvent
+
+func (u *UIUsageReportingAlertCtaClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiUsageReportingAlertCtaClick{
+			UiUsageReportingAlertCtaClick: &prehogv1a.UIUsageReportingAlertCtaClickEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				Alert:       u.Alert,
+				UtmSource:   u.UtmSource,
+				UtmCampaign: u.UtmCampaign,
+			},
+		},
+	}
+}
+
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
@@ -1691,6 +1724,22 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
 		}, nil
 
+	case *usageeventsv1.UsageEventOneOf_UiPageViewEvent:
+		return &UIPageViewEvent{
+			UserName:    userMD.Username,
+			Path:        e.UiPageViewEvent.Path,
+			UtmSource:   e.UiPageViewEvent.UtmSource,
+			UtmCampaign: e.UiPageViewEvent.UtmCampaign,
+		}, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiUsageReportingAlertCtaClickEvent:
+		return &UIUsageReportingAlertCtaClickEvent{
+			UserName:    userMD.Username,
+			Alert:       e.UiUsageReportingAlertCtaClickEvent.Alert,
+			UtmSource:   e.UiUsageReportingAlertCtaClickEvent.UtmSource,
+			UtmCampaign: e.UiUsageReportingAlertCtaClickEvent.UtmCampaign,
+		}, nil
+
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
 			Metadata:     discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
@@ -2197,6 +2246,24 @@ func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 				Success:             e.Success,
 				ResourceName:        a.AnonymizeString(e.ResourceName),
 				IsCloudDefaultModel: e.IsCloudDefaultModel,
+				HasStoredEmbeddings: e.HasStoredEmbeddings,
+			},
+		},
+	}
+}
+
+// SessionSummarySearchEvent is emitted when a user runs a session summary search.
+type SessionSummarySearchEvent prehogv1a.SessionSummarySearchEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummarySearchEvent{
+			SessionSummarySearchEvent: &prehogv1a.SessionSummarySearchEvent{
+				UserName:   a.AnonymizeString(e.UserName),
+				UserKind:   e.UserKind,
+				QueryCount: e.QueryCount,
+				HasFilters: e.HasFilters,
 			},
 		},
 	}

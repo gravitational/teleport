@@ -635,6 +635,10 @@ const (
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
 
+	// AzureRunEvent is emitted when a run of an install script
+	// completes on a discovered Azure VM
+	AzureRunEvent = "azure.run"
+
 	// DeviceEvent is the catch-all event for Device Trust events.
 	// Deprecated: Use one of the more specific event codes below.
 	DeviceEvent = "device"
@@ -1024,6 +1028,13 @@ const (
 	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
 	InferencePolicyDeleteEvent = "inference_policy.delete"
 
+	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
+	RetrievalModelCreateEvent = "retrieval_model.create"
+	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
+	RetrievalModelUpdateEvent = "retrieval_model.update"
+	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
+	RetrievalModelDeleteEvent = "retrieval_model.delete"
+
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
 
@@ -1122,6 +1133,18 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error)
+}
+
+// StreamerWithCallback extends [Streamer] to allow setting a callback that is
+// invoked when a session recording upload completes without a session end event.
+type StreamerWithCallback interface {
+	Streamer
+	// SetOnUploadComplete registers a callback invoked after a session
+	// recording upload completes without a session end event. The callback
+	// may return a session end event or nil if unavailable.
+	//
+	// MUST be called before any streams are created.
+	SetOnUploadComplete(func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error))
 }
 
 // StreamPart represents uploaded stream part

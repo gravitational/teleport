@@ -613,7 +613,7 @@ spec:
 
 The following example uses two policies to route shell and database sessions to
 two different models. It assumes that there are two `inference_model` resources
-created: `database-summary-model` and `shell-summary-model`.
+created: `db-summary-model` and `shell-summary-model`.
 
 ```yaml
 kind: inference_policy
@@ -670,7 +670,7 @@ session, and user.
 | resource                         | Resource that this session connects to (server, Kubernetes cluster, or database)                                                                                |                                                   |
 | resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node"`                         |
 | resource.metadata.labels         | Resource labels                                                                                                                                                 | `equals(resource.metadata.labels["env"], "prod")` |
-| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.name == "production-cluster"`           |
+| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.metadata.name == "production-cluster"`           |
 | resource.spec.addr               | Server address (SSH sessions only)                                                                                                                              | `resource.spec.addr == "123.123.123.123:3022"`    |
 | resource.spec.db_protocol        | Database protocol (database sessions only). See [DB resource reference](../reference/infrastructure-as-code/teleport-resources/db.mdx) for supported values.    | `resource.spec.db_protocol == "postgres"`            |
 | resource.spec.hostname           | Server hostname (SSH sessions only)                                                                                                                             | `resource.spec.hostname == "dummy-host"`          |
@@ -764,7 +764,7 @@ identifier is invalid."
 in the `inference_model` resource and available regions for the given model or
 inference profile. Make sure that the region is supported.
 
-### Amazon Bedrock denies access to a model or inference policy
+### Amazon Bedrock denies access to a model or inference profile
 
 **Problem:** Summarization fails with "AccessDeniedException: User: *[user]* is
 not authorized to perform: bedrock:InvokeModel on resource: *[resource-arn]*
@@ -772,7 +772,7 @@ because no identity-based policy allows the bedrock:InvokeModel action"
 
 **Solution:** First, make sure that the AWS IAM role used by Teleport has a
 policy attached that allows the `InvokeModel` action on the model or inference
-policy that you specified in Teleport configuration (`inference_model`
+profile that you specified in Teleport configuration (`inference_model`
 resource). Then make sure that if you're using an Amazon Bedrock inference
 profile, the policy references not only the inference profile itself, but also
 all Amazon Bedrock models that this inference profile is associated with. Use

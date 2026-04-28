@@ -113,6 +113,10 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 		return nil, trace.NotImplemented("filtering by assignable scope is not implemented for direct backend scoped role reads")
 	}
 
+	if req.GetNameFilter() != "" {
+		return nil, trace.NotImplemented("filtering by name is not implemented for direct backend scoped role reads")
+	}
+
 	if req.GetPageToken() != "" {
 		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped role reads")
 	}
@@ -268,7 +272,7 @@ func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopeda
 		if err := s.bk.Delete(ctx, scopedRoleKey(roleName)); err != nil {
 			if trace.IsNotFound(err) {
 				// generic condition failure keeps error handling simpler
-				return nil, trace.CompareFailed("scoped role %q not found", roleName)
+				return nil, trace.NotFound("scoped role %q not found", roleName)
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -622,7 +626,7 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 		if err := s.bk.Delete(ctx, key); err != nil {
 			if trace.IsNotFound(err) {
 				// generic condition failure keeps error handling simpler
-				return nil, trace.CompareFailed("scoped role assignment %q not found", assignmentName)
+				return nil, trace.NotFound("scoped role assignment %q not found", assignmentName)
 			}
 			return nil, trace.Wrap(err)
 		}

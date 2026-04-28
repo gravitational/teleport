@@ -1835,6 +1835,15 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails ca_override = 2;
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
@@ -2209,19 +2218,16 @@ message IdentityCenterAccountAssignment {
 // `linuxdesktop` package should be used for actual processing.
 message LinuxDesktop {
   // Kind is the Linux desktop resource kind.
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  string kind = 1;
   // SubKind is an optional resource subkind.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  string sub_kind = 2;
   // Version is the resource version.
-  string Version = 3 [(gogoproto.jsontag) = "version"];
+  string version = 3;
   // Metadata is the account metadata.
-  types.Metadata Metadata = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "metadata"
-  ];
-  string Addr = 5 [(gogoproto.jsontag) = "addr"];
-  string Hostname = 6 [(gogoproto.jsontag) = "hostname"];
-  repeated string ProxyIDs = 7 [(gogoproto.jsontag) = "proxy_ids"];
+  types.Metadata metadata = 4 [(gogoproto.nullable) = false];
+  string addr = 5;
+  string hostname = 6;
+  repeated string proxy_ids = 7;
 }
 
 message ListInstallersRequest {
@@ -2271,7 +2277,7 @@ message PaginatedResource {
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
     // LinuxDesktop represents LinuxDesktop resource
-    LinuxDesktop LinuxDesktop = 17 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
+    LinuxDesktop linux_desktop = 17;
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
@@ -3593,22 +3599,6 @@ service AuthService {
   // ResetSessionRecordingConfig resets session recording configuration to defaults.
   // Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
   rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
-
-  // GetAuthPreference gets cluster auth preference.
-  // Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
-  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2) {
-    option deprecated = true;
-  }
-  // SetAuthPreference sets cluster auth preference.
-  // Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
-  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
-  // ResetAuthPreference resets cluster auth preference to defaults.
-  // Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
-  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty) {
     option deprecated = true;
   }
 

@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestProxies tests proxies cache
@@ -47,8 +49,17 @@ func TestProxies(t *testing.T) {
 		list:      p.presenceS.ListProxyServers,
 		cacheList: p.cache.ListProxyServers,
 		update:    p.presenceS.UpsertProxy,
-		deleteAll: func(_ context.Context) error {
-			return p.presenceS.DeleteAllProxies()
+		deleteAll: func(ctx context.Context) error {
+			proxies, err := stream.Collect(clientutils.Resources(ctx, p.presenceS.ListProxyServers))
+			if err != nil {
+				return err
+			}
+			for _, proxy := range proxies {
+				if err := p.presenceS.DeleteProxy(ctx, proxy.GetName()); err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	})
 }

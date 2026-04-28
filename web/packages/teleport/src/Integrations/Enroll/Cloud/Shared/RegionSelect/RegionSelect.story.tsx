@@ -26,7 +26,7 @@ import {
   AzureRegion,
 } from 'teleport/services/integrations';
 
-import { awsRegionOptions } from '../../Aws/regions';
+import { awsRegionOptionGroups } from '../../Aws/regions';
 import { azureRegionOptions } from '../../Azure/regions';
 import { CloudRegion } from '../types';
 import { RegionSelect } from './RegionSelect';
@@ -73,7 +73,7 @@ export const Aws = () => {
         isMulti={true}
         value={selectedRegions}
         onChange={setSelectedRegions}
-        options={awsRegionOptions}
+        options={awsRegionOptionGroups}
         label="Select AWS regions"
         placeholder="Select AWS regions..."
         required={true}
@@ -84,7 +84,7 @@ export const Aws = () => {
         isMulti={false}
         value={selectedRegion}
         onChange={setSelectedRegion}
-        options={awsRegionOptions}
+        options={awsRegionOptionGroups}
         label="Select AWS region"
         placeholder="Select an AWS region..."
         required={true}

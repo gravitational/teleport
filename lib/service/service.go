@@ -82,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -2305,7 +2304,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	clusterConfig = recordingEncryptionManager
 	var emitter apievents.Emitter
-	var streamer events.Streamer
+	var streamer events.StreamerWithCallback
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
 	encryptedIO, err := recordingencryption.NewEncryptedIO(clusterConfig, recordingEncryptionManager)
@@ -2318,6 +2317,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
+	var localLog *events.AuditLog
 	if cfg.Auth.NoAudit {
 		// this is for teleconsole
 		process.auditLog = events.NewDiscardAuditLog()
@@ -2385,7 +2385,7 @@ func (process *TeleportProcess) initAuthService() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		localLog, err := events.NewAuditLog(auditServiceConfig)
+		localLog, err = events.NewAuditLog(auditServiceConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2531,7 +2531,12 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	authServer.EncryptedIO = encryptedIO
-
+	if streamer != nil {
+		streamer.SetOnUploadComplete(authServer.OnUploadComplete)
+	}
+	if localLog != nil {
+		localLog.SetOnUploadComplete(authServer.OnUploadComplete)
+	}
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
@@ -2627,6 +2632,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:                  hostUUID,
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingMetadataProvider: recordingMetadataProvider,
+			EnsureSessionEndEvent:     true,
 		})
 		if err != nil {
 			return trace.Wrap(err, "starting upload completer")
@@ -3959,7 +3965,7 @@ func (process *TeleportProcess) initUploaderService() error {
 
 		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
 		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
-		encryptedRecordingMaxUploadSize = grpcutils.MaxClientRecvMsgSize()
+		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default server-side gRPC max msg recv size
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
