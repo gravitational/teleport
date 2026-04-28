@@ -393,6 +393,12 @@ linters:
         - pattern: ^ssh\.(Dial|NewClientWithTimeout|NewClientConnWithTimeout)$
           pkg: ^github\.com/gravitational/teleport/api/observability/tracing/ssh$
           msg: Use api/ssh package to construct SSH clients with proper defaults
+        - pattern: ^rate\.Limiter\.(Allow|Reserve|Wait|WaitN|Tokens|SetLimit|SetBurst)$
+          pkg: ^golang\.org/x/time/rate$
+          msg: use explicit-time rate.Limiter APIs so clockwork.Clock is respected
+        - pattern: ^rate\.Reservation\.Cancel$
+          pkg: ^golang\.org/x/time/rate$
+          msg: use explicit-time rate.Reservation APIs so clockwork.Clock is respected
       analyze-types: true
     misspell:
       locale: US
@@ -563,6 +569,14 @@ linters:
           - forbidigo
         path: ^api/ssh/
         text: tracessh.NewClientConnWithTimeout
+
+      # Ban system-clock x/time/rate APIs in the ratelimit package.
+      # The ratelimit package uses clockwork.Clock, so it must call the
+      # explicit-time APIs.
+      - linters:
+          - forbidigo
+        path-except: ^lib/limiter/internal/ratelimit/
+        text: explicit-time rate
 
       # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
       # enforce this rule everywhere.

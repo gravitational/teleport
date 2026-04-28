@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -170,6 +171,12 @@ func NewRateSet() *RateSet {
 
 // Add adds a rate to the set. If there is a rate with the same period in the
 // set then the new rate overrides the old one.
+//
+// `burst` is rejected above math.MaxInt32. The bucket implementation
+// passes burst to rate.NewLimiter as `int`, which is platform-
+// dependent: on 32-bit ARM (which Teleport ships) values larger than
+// math.MaxInt32 silently truncate. Reject at config time so behavior
+// is identical on every platform.
 func (rs *RateSet) Add(period time.Duration, average int64, burst int64) error {
 	if period <= 0 {
 		return trace.BadParameter("Invalid period: %v", period)
@@ -179,6 +186,9 @@ func (rs *RateSet) Add(period time.Duration, average int64, burst int64) error {
 	}
 	if burst <= 0 {
 		return trace.BadParameter("Invalid burst: %v", burst)
+	}
+	if burst > math.MaxInt32 {
+		return trace.BadParameter("Invalid burst: %v exceeds math.MaxInt32", burst)
 	}
 	rs.m[period] = &rate{period, average, burst}
 	return nil
