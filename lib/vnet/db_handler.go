@@ -140,6 +140,12 @@ func (i *dbCertIssuer) CheckCert(cert *x509.Certificate) error {
 			"certificate subject is for database service %q, but need %q",
 			identity.RouteToDatabase.ServiceName, wantService)
 	}
+	wantProtocol := i.dbInfo.GetProtocol()
+	if identity.RouteToDatabase.Protocol != wantProtocol {
+		return trace.BadParameter(
+			"certificate subject is for database protocol %q, but need %q",
+			identity.RouteToDatabase.Protocol, wantProtocol)
+	}
 	if identity.RouteToDatabase.Username != "" {
 		return trace.BadParameter(
 			"VNet database certificate must have an empty subject username, got %q",

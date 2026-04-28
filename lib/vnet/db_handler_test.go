@@ -70,6 +70,13 @@ func TestDBCertIssuerCheckCert(t *testing.T) {
 			expectErrSubst: "database service",
 		},
 		{
+			name:           "mismatched protocol",
+			certServiceID:  dbName,
+			certProtocol:   "mysql",
+			certUsername:   "",
+			expectErrSubst: "database protocol",
+		},
+		{
 			name:           "non-empty subject username is rejected (H2 invariant)",
 			certServiceID:  dbName,
 			certProtocol:   protocol,
