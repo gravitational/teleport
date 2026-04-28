@@ -1065,7 +1065,7 @@ func TestAppV3PrioritizeHttp2RoundTrip(t *testing.T) {
 	raw, err := json.Marshal(app)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"prioritize_http2":true`,
-		"expected proto json tag prioritize_http2 in marshalled spec; raw=%s",
+		"expected proto json tag prioritize_http2 in marshaled spec; raw=%s",
 		string(raw))
 
 	var loaded AppV3

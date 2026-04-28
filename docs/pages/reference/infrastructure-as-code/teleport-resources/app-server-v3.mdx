@@ -177,6 +177,7 @@ tcp_ports:
 use_any_proxy_public_addr: true
 mcp: # [...]
 inference: # [...]
+prioritize_http2: true
 ```
 
 |Field Name|Description|Type|
@@ -191,6 +192,7 @@ inference: # [...]
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
 |integration|The integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|string|
 |mcp|Contains MCP server related configurations.|[MCP](#mcp)|
+|prioritize_http2|Advertises HTTP/2 ahead of HTTP/1.1 in the proxy's ALPN list for connections to this app. Default false keeps HTTP/1.1 first, which is required for WebSocket apps because Go's net/http does not implement RFC 8441 (HTTP/2 extended CONNECT for WebSockets); see https://github.com/golang/go/issues/49918. Set true only on apps that benefit from HTTP/2 multiplexing and have no WebSocket usage.|Boolean|
 |public_addr|The public address the application is accessible at.|string|
 |required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|[]string|
 |rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
