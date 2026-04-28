@@ -416,10 +416,26 @@ type BatchPutter interface {
 	PutBatch(context.Context, []Item) ([]string, error)
 }
 
+// BatchDeleter is an optional interface that backends can implement
+// to support batched DeleteBatch operations for improved performance when
+// deleting multiple items at once.
+type BatchDeleter interface {
+	// DeleteBatch deletes multiple keys from the backend in a single call, in a
+	// way that is equivalent to a loop around multiple invocations of
+	// [backend.Delete], but with the potential to be more efficient or faster,
+	// depending on the implementation. Keys that do not exist are silently
+	// ignored. If an error is returned, it's possible for some of the keys to
+	// have already been deleted.
+	DeleteBatch(context.Context, []Key) error
+}
+
 // PutBatch is an implementation of PutBatch that by default calls Put for each item.
 // Backends can overwrite this behavior providing optimized PutBatch implementation.
 //
 // WARNING: Make sure that items have unique keys when calling PutBatch.
+//
+// TODO(smallinsky): Move to backend interfaces and make required for backends to
+// implement batch deletes interfaces.
 func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
 	if v, hasDuplicate := hasDuplicateKeys(items); hasDuplicate {
 		return nil, trace.BadParameter("duplicate key detected in PutBatch: %q", v)
@@ -441,6 +457,29 @@ func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
 		revisions = append(revisions, rev.Revision)
 	}
 	return revisions, nil
+}
+
+// DeleteBatch deletes multiple keys from the backend. If the backend implements
+// [BatchDeleter], it delegates to the optimized batch implementation. Otherwise,
+// it falls back to calling [Backend.Delete] for each key individually.
+// Keys that do not exist are silently ignored.
+//
+// TODO(smallinsky): Move to backend interfaces and make required for backends to
+// implement batch deletes interfaces.
+func DeleteBatch(ctx context.Context, bk Backend, keys []Key) error {
+	if v, ok := bk.(BatchDeleter); ok {
+		return trace.Wrap(v.DeleteBatch(ctx, keys))
+	}
+
+	for _, key := range keys {
+		if err := bk.Delete(ctx, key); err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 func hasDuplicateKeys(items Items) (string, bool) {

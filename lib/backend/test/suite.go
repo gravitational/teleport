@@ -202,6 +202,10 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("PutBatch", func(t *testing.T) {
 		runPutBatch(t, newBackend)
 	})
+
+	t.Run("DeleteBatch", func(t *testing.T) {
+		runDeleteBatch(t, newBackend)
+	})
 }
 
 // RequireItems asserts that the supplied `actual` items collection matches
