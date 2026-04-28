@@ -2718,6 +2718,44 @@ app_service:
 	}
 }
 
+// TestAppsPrioritizeHttp2Plumbing checks that
+// `app_service.apps[].prioritize_http2: true` flows from the static
+// teleport.yaml file through fileconf -> servicecfg.App. Without this
+// plumbing, statically configured apps in teleport.yaml silently
+// ignore the flag while only dynamically registered apps (`tctl
+// create app.yaml`, `tsh apps register`) honour it. The assertion
+// runs on cfg.Apps.Apps[0].PrioritizeHttp2 from
+// applyAppsConfig (lib/config/configuration.go) so it pins the
+// fileconf.App -> servicecfg.App mapping specifically.
+func TestAppsPrioritizeHttp2Plumbing(t *testing.T) {
+	configYAML := `
+app_service:
+  enabled: true
+  apps:
+    - name: dumper
+      public_addr: "dumper.example.com"
+      uri: "http://127.0.0.1:8080"
+      prioritize_http2: true
+    - name: jupyter
+      public_addr: "jupyter.example.com"
+      uri: "http://127.0.0.1:8081"
+`
+	clf := CommandLineFlags{
+		ConfigString: base64.StdEncoding.EncodeToString([]byte(configYAML)),
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, Configure(&clf, cfg, false))
+
+	require.Len(t, cfg.Apps.Apps, 2)
+	require.Equal(t, "dumper", cfg.Apps.Apps[0].Name)
+	require.True(t, cfg.Apps.Apps[0].PrioritizeHttp2,
+		"app[0]=dumper: prioritize_http2 must survive fileconf -> servicecfg.App; got %+v",
+		cfg.Apps.Apps[0])
+	require.Equal(t, "jupyter", cfg.Apps.Apps[1].Name)
+	require.False(t, cfg.Apps.Apps[1].PrioritizeHttp2,
+		"app[1]=jupyter: default (false) must survive fileconf -> servicecfg.App")
+}
+
 // TestAppsCLF checks that validation runs on application configuration passed
 // in on the command line.
 func TestAppsCLF(t *testing.T) {

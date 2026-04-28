@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -1044,4 +1045,30 @@ func TestLLMConfiguration(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestAppV3PrioritizeHttp2RoundTrip pins the `prioritize_http2` JSON
+// tag on AppSpecV3 and verifies it survives a marshal / unmarshal
+// pair, so dynamically registered apps (`tctl create app.yaml`,
+// `tsh apps register`) can carry the flag.
+func TestAppV3PrioritizeHttp2RoundTrip(t *testing.T) {
+	app, err := NewAppV3(
+		Metadata{Name: "dumper"},
+		AppSpecV3{
+			URI:             "http://localhost:1234",
+			PublicAddr:      "dumper.example.com",
+			PrioritizeHttp2: true,
+		},
+	)
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(app)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"prioritize_http2":true`,
+		"expected proto json tag prioritize_http2 in marshalled spec; raw=%s",
+		string(raw))
+
+	var loaded AppV3
+	require.NoError(t, json.Unmarshal(raw, &loaded))
+	require.True(t, loaded.Spec.PrioritizeHttp2)
 }
