@@ -86,7 +86,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Panicf("failed to create client: %v", err)
+		log.Panicf("Failed to create client: %v", err)
 	}
 	defer parentClient.Close()
 
@@ -124,7 +124,7 @@ func main() {
 
 	// Create a workload_cluster resource within the parent Teleport Cloud cluster.
 	if _, err := parentClient.CreateWorkloadCluster(ctx, wc); err != nil {
-		log.Panicf("failed to create workload cluster: %v", err)
+		log.Panicf("Failed to create workload cluster: %v", err)
 	}
 
 	// Wait for the created workload cluster to reach an active state.
@@ -132,7 +132,7 @@ func main() {
 	defer cancel()
 	wc, err = waitForActiveWorkloadCluster(timeoutctx, parentClient, wc.Metadata.Name, 30*time.Second)
 	if err != nil {
-		log.Panicf("failed waiting for workload cluster to be active: %v", err)
+		log.Panicf("Failed waiting for workload cluster to be active: %v", err)
 	}
 
 	/************************************************
@@ -143,7 +143,7 @@ func main() {
 	// retrieved identity file for interacting with the child Teleport Cloud cluster.
 	tbotDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		log.Panicf("error creating directory for tbot: %v", err)
+		log.Panicf("Error creating directory for tbot: %v", err)
 	}
 	defer os.RemoveAll(tbotDir)
 
@@ -184,11 +184,11 @@ func main() {
 	// Write the tbot configuration to a `tbot.json` file.
 	tbotConfigContent, err := json.Marshal(tbotConfig)
 	if err != nil {
-		log.Panicf("error marshalling tbot configuration: %v", err)
+		log.Panicf("Error marshalling tbot configuration: %v", err)
 	}
 	tbotConfigPath := filepath.Join(tbotDir, "tbot.json")
 	if err := os.WriteFile(tbotConfigPath, tbotConfigContent, 0600); err != nil {
-		log.Panicf("error writing tbot configuration: %v", err)
+		log.Panicf("Error writing tbot configuration: %v", err)
 	}
 
 	// Run the tbot binary. Teleport does not expose programmatic access to
@@ -199,7 +199,7 @@ func main() {
 	tbotCmd := exec.Command("tbot", "start", "-c", tbotConfigPath)
 	tbotCmd.Stderr = &bufErr
 	if err := tbotCmd.Run(); err != nil {
-		log.Panicf("error running tbot: %v\n\n%s", err, bufErr.String())
+		log.Panicf("Error running tbot: %v\n\n%s", err, bufErr.String())
 	}
 
 	/*************************************************************
@@ -220,7 +220,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Panicf("failed to create client: %v", err)
+		log.Panicf("Failed to create client: %v", err)
 	}
 	defer childClient.Close()
 
@@ -248,7 +248,7 @@ func main() {
 		},
 	}
 	if _, err := childClient.CreateRole(ctx, &newRole); err != nil {
-		log.Panicf("error creating role: %v", err)
+		log.Panicf("Error creating role: %v", err)
 	}
 
 	// Create user named "example" that has the new "example" role assigned.
@@ -263,7 +263,7 @@ func main() {
 		},
 	}
 	if _, err := childClient.CreateUser(ctx, &newUser); err != nil {
-		log.Panicf("error creating user: %v", err)
+		log.Panicf("Error creating user: %v", err)
 	}
 
 	// create an invite URL for user to activate account and setup MFA
@@ -274,7 +274,7 @@ func main() {
 	}
 	resetToken, err := childClient.CreateResetPasswordToken(ctx, &resetPasswordToken)
 	if err != nil {
-		log.Panicf("error creating reset token: %v", err)
+		log.Panicf("Error creating reset token: %v", err)
 	}
 
 	ttl := resetToken.Expiry().Sub(time.Now().UTC())
@@ -287,7 +287,7 @@ func main() {
 	// Clean up the previously created workload_cluster resource in the parent
 	// Teleport Cloud cluster.
 	if err := parentClient.DeleteWorkloadCluster(ctx, wc.Metadata.Name); err != nil {
-		log.Panicf("error deleting cloud cluster: %v", err)
+		log.Panicf("Error deleting cloud cluster: %v", err)
 	}
 }
 
