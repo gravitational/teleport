@@ -321,9 +321,9 @@ Please follow the below steps to run the workload cluster Go example.
    $ cd ./teleport/examples/workload-clusters/
    ```
 
-4. Replace `parent.teleport.sh`, `account`, and
-`arn` with the parent Teleport Cloud cluster address, a valid AWS account ID,
-and a valid AWS ARN that `tbot` can use for IAM joining in `main.go`.
+4. Replace `parent.teleport.sh`, `company-organization`, `account`, and `arn`
+with the parent Teleport Cloud cluster address, desired workload cluster name, a valid AWS account ID, and
+a valid AWS ARN that `tbot` can use for IAM joining in `main.go`.
 
 5. Authenticate to AWS using the identity referenced in the
 `workload_cluster` resource, then run the Go program:

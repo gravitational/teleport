@@ -41,6 +41,8 @@ var (
 	awsARN = "arn"
 	// parentClusterProxyAddress is the parent Teleport Cloud cluster's proxy address
 	parentClusterProxyAddress = "parent.teleport.sh"
+	// workloadClusterName is the desired name for the new child Teleport Cloud cluster
+	workloadClusterName = "company-organization"
 )
 
 // TbotConfig defines a configuration for running tbot.
@@ -123,7 +125,7 @@ func main() {
 		Kind:    types.KindWorkloadCluster,
 		Version: "v1",
 		Metadata: &headerv1.Metadata{
-			Name: "example",
+			Name: workloadClusterName,
 		},
 		Spec: &workloadcluster.WorkloadClusterSpec{
 			Regions: []*workloadcluster.Region{
