@@ -34,7 +34,7 @@ resource "azurerm_user_assigned_identity" "teleport_discovery_service" {
 
 # Federated identity credential for the managed identity (trust Teleport proxy issuer)
 resource "azurerm_federated_identity_credential" "teleport_discovery_service" {
-  count = local.create_teleport_integration && local.create_azure_managed_identity ? 1 : 0
+  count = local.use_oidc_integration && local.create_azure_managed_identity ? 1 : 0
 
   audience = ["api://AzureADTokenExchange"]
   # Extract the host from proxy_addr (format: host:port) to construct the OIDC issuer URL

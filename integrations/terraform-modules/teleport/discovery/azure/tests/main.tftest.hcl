@@ -83,10 +83,9 @@ run "create" {
   }
 }
 
-run "teleport_integration_name_null" {
+run "use_oidc_integration_false" {
   variables {
-    create_teleport_integration = false
-    teleport_integration_name   = null
+    use_oidc_integration = false
   }
 
   assert {
@@ -111,30 +110,9 @@ run "teleport_integration_name_null" {
   }
 }
 
-run "teleport_integration_name_reference" {
+run "create_azure_managed_identity_false" {
   variables {
-    create_teleport_integration = false
-    teleport_integration_name   = "existing-integration"
-  }
-
-  assert {
-    condition     = length(teleport_integration.azure_oidc) == 0
-    error_message = "teleport_integration should not be created"
-  }
-  assert {
-    condition     = length(teleport_discovery_config.azure) == 1
-    error_message = "teleport_discovery_config should be created"
-  }
-  assert {
-    condition     = teleport_discovery_config.azure[0].spec.azure[0].integration == "existing-integration"
-    error_message = "discovery config should reference the existing integration by name"
-  }
-}
-
-run "azure_managed_identity_disabled" {
-  variables {
-    create_teleport_integration     = false
-    teleport_integration_name       = null
+    use_oidc_integration            = false
     create_azure_managed_identity   = false
     azure_resource_group_name       = null
     azure_managed_identity_location = null
@@ -162,22 +140,11 @@ run "azure_managed_identity_disabled" {
   }
 }
 
-run "teleport_integration_name_required_to_create" {
-  command = plan
-
-  variables {
-    create_teleport_integration = true
-    teleport_integration_name   = null
-  }
-
-  expect_failures = [teleport_integration.azure_oidc[0]]
-}
-
 run "teleport_integration_requires_azure_managed_identity" {
   command = plan
 
   variables {
-    create_teleport_integration   = true
+    use_oidc_integration          = true
     create_azure_managed_identity = false
   }
 

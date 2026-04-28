@@ -191,21 +191,21 @@ variable "teleport_installer_script_name" {
 }
 
 variable "teleport_integration_name" {
-  description = "Name for the `teleport_integration` resource. Required when `create_teleport_integration` is true. When `create_teleport_integration` is false, set to reference an existing integration or null to authenticate using ambient Azure credentials."
+  description = "Name for the `teleport_integration` resource."
   type        = string
   default     = "discovery"
-  nullable    = true
+  nullable    = false
 }
 
-variable "create_teleport_integration" {
-  description = "Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; set teleport_integration_name to `null` to not use an integration to authenticate, ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials."
+variable "use_oidc_integration" {
+  description = "Whether an Azure OIDC integration and federated identity credential are created and referenced by the Teleport discovery config (true) or not (false)."
   type        = bool
   default     = true
   nullable    = false
 }
 
 variable "create_azure_managed_identity" {
-  description = "Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `create_teleport_integration` is `true`."
+  description = "Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `use_oidc_integration` is `true`."
   type        = bool
   default     = true
   nullable    = false
@@ -219,7 +219,7 @@ variable "teleport_integration_use_name_prefix" {
 }
 
 variable "teleport_provision_token_allow_rules" {
-  description = "Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and `create_teleport_provision_token` is `true`."
+  description = "Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher."
   type = list(object({
     subscription    = optional(string)
     resource_groups = optional(list(string))
@@ -229,15 +229,8 @@ variable "teleport_provision_token_allow_rules" {
   nullable = true
 }
 
-variable "create_teleport_provision_token" {
-  description = "Whether a Teleport provision token is created (true) or not (false). Set `teleport_provision_token_name` to use an existing provision token."
-  type        = bool
-  default     = true
-  nullable    = false
-}
-
 variable "teleport_provision_token_name" {
-  description = "Name for the `teleport_provision_token` resource. When `create_teleport_provision_token` is false, set to use an existing provision token."
+  description = "Name for the `teleport_provision_token` resource."
   type        = string
   default     = "discovery"
   nullable    = false
