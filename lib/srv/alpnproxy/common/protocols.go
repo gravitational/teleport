@@ -130,7 +130,7 @@ var SupportedProtocols = WithPingProtocols(
 		// does not implement RFC 8441 (HTTP/2 extended CONNECT for
 		// WebSockets); see https://github.com/golang/go/issues/49918.
 		// Apps that benefit from HTTP/2 multiplexing and have no
-		// WebSocket usage can opt in via AppSpecV3.PrioritizeHttp2;
+		// WebSocket usage can opt in via AppSpecV3.HTTPProtocolPriority;
 		// see ReorderHTTPNextProtos.
 		ProtocolHTTP,
 		ProtocolHTTP2,

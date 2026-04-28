@@ -56,7 +56,7 @@ func TestProtocolToStringsWithPing(t *testing.T) {
 	require.Equal(t, []string{"teleport-mcp-ping", "teleport-mcp"}, ProtocolToStringsWithPing(ProtocolMCP))
 }
 
-// TestReorderHTTPNextProtos covers the per-app HTTP/2 prioritisation
+// TestReorderHTTPNextProtos covers the per-app HTTP/2 prioritization
 // helper. The function swaps `http/1.1` and `h2` according to the
 // flag and leaves all other entries (in particular `acme-tls/1`
 // carried for ACME TLS-ALPN-01 challenges) at their existing

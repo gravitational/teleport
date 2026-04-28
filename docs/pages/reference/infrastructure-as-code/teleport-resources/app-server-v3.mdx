@@ -177,7 +177,7 @@ tcp_ports:
 use_any_proxy_public_addr: true
 mcp: # [...]
 inference: # [...]
-prioritize_http2: true
+http_protocol_priority: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -187,12 +187,12 @@ prioritize_http2: true
 |cloud|Identifies the cloud instance the app represents.|string|
 |cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORS Policy](#cors-policy)|
 |dynamic_labels|The app's command labels.|map[string][Command Label V2](#command-label-v2)|
+|http_protocol_priority|Controls how the proxy orders `http/1.1` and `h2` in the ALPN list it advertises for this app. If unset, the server default applies. See HTTPProtocolPriority for details.|[HTTP Protocol Priority](#http-protocol-priority)|
 |identity_center|Encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
 |inference|Contains LLM inference endpoint related configurations.|[LLM](#llm)|
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
 |integration|The integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|string|
 |mcp|Contains MCP server related configurations.|[MCP](#mcp)|
-|prioritize_http2|Advertises HTTP/2 ahead of HTTP/1.1 in the proxy's ALPN list for connections to this app. Default false keeps HTTP/1.1 first, which is required for WebSocket apps because Go's net/http does not implement RFC 8441 (HTTP/2 extended CONNECT for WebSockets); see https://github.com/golang/go/issues/49918. Set true only on apps that benefit from HTTP/2 multiplexing and have no WebSocket usage.|Boolean|
 |public_addr|The public address the application is accessible at.|string|
 |required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|[]string|
 |rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
@@ -308,6 +308,11 @@ features:
 ## Duration
 
 A wrapper around duration to set up custom marshal/unmarshal
+
+
+## HTTP Protocol Priority
+
+Controls the ALPN preference order the proxy advertises to clients connecting to an app. ALPN negotiation always selects from the intersection of what the client and server support; this value only ranks `http/1.1` and `h2` against each other in the server's preference list.
 
 
 ## Header

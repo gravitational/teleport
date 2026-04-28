@@ -2718,16 +2718,16 @@ app_service:
 	}
 }
 
-// TestAppsPrioritizeHttp2Plumbing checks that
-// `app_service.apps[].prioritize_http2: true` flows from the static
-// teleport.yaml file through fileconf -> servicecfg.App. Without this
-// plumbing, statically configured apps in teleport.yaml silently
-// ignore the flag while only dynamically registered apps (`tctl
-// create app.yaml`, `tsh apps register`) honour it. The assertion
-// runs on cfg.Apps.Apps[0].PrioritizeHttp2 from
+// TestAppsHTTPProtocolPriorityPlumbing checks that
+// `app_service.apps[].http_protocol_priority: http2` flows from the
+// static teleport.yaml file through fileconf -> servicecfg.App.
+// Without this plumbing, statically configured apps in teleport.yaml
+// silently ignore the value while only dynamically registered apps
+// (`tctl create app.yaml`, `tsh apps register`) honor it. The
+// assertion runs on cfg.Apps.Apps[0].HTTPProtocolPriority from
 // applyAppsConfig (lib/config/configuration.go) so it pins the
 // fileconf.App -> servicecfg.App mapping specifically.
-func TestAppsPrioritizeHttp2Plumbing(t *testing.T) {
+func TestAppsHTTPProtocolPriorityPlumbing(t *testing.T) {
 	configYAML := `
 app_service:
   enabled: true
@@ -2735,7 +2735,7 @@ app_service:
     - name: dumper
       public_addr: "dumper.example.com"
       uri: "http://127.0.0.1:8080"
-      prioritize_http2: true
+      http_protocol_priority: http2
     - name: jupyter
       public_addr: "jupyter.example.com"
       uri: "http://127.0.0.1:8081"
@@ -2748,12 +2748,16 @@ app_service:
 
 	require.Len(t, cfg.Apps.Apps, 2)
 	require.Equal(t, "dumper", cfg.Apps.Apps[0].Name)
-	require.True(t, cfg.Apps.Apps[0].PrioritizeHttp2,
-		"app[0]=dumper: prioritize_http2 must survive fileconf -> servicecfg.App; got %+v",
+	require.Equal(t,
+		types.HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2,
+		cfg.Apps.Apps[0].HTTPProtocolPriority,
+		"app[0]=dumper: http_protocol_priority must survive fileconf -> servicecfg.App; got %+v",
 		cfg.Apps.Apps[0])
 	require.Equal(t, "jupyter", cfg.Apps.Apps[1].Name)
-	require.False(t, cfg.Apps.Apps[1].PrioritizeHttp2,
-		"app[1]=jupyter: default (false) must survive fileconf -> servicecfg.App")
+	require.Equal(t,
+		types.HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_UNSPECIFIED,
+		cfg.Apps.Apps[1].HTTPProtocolPriority,
+		"app[1]=jupyter: default (UNSPECIFIED) must survive fileconf -> servicecfg.App")
 }
 
 // TestAppsCLF checks that validation runs on application configuration passed

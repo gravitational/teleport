@@ -106,15 +106,13 @@ type App struct {
 	// setting this value to true will overwrite that public address in the web UI.
 	UseAnyProxyPublicAddr bool
 
-	// PrioritizeHttp2 advertises HTTP/2 ahead of HTTP/1.1 in the
-	// proxy's ALPN list for connections to this app. Default false
-	// keeps HTTP/1.1 first, which is required for WebSocket apps
-	// because Go's net/http does not implement RFC 8441 (HTTP/2
-	// extended CONNECT for WebSockets); see
-	// https://github.com/golang/go/issues/49918. Set true only on
-	// apps that benefit from HTTP/2 multiplexing and have no
-	// WebSocket usage.
-	PrioritizeHttp2 bool
+	// HTTPProtocolPriority controls how the proxy orders `http/1.1`
+	// and `h2` in the ALPN list it advertises for this app. If
+	// unset, the server default applies (currently HTTP/1.1 first,
+	// because Go's net/http does not implement RFC 8441; see
+	// https://github.com/golang/go/issues/49918). See
+	// types.HTTPProtocolPriority for details.
+	HTTPProtocolPriority types.HTTPProtocolPriority
 
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.

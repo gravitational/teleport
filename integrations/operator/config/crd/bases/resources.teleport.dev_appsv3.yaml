@@ -136,6 +136,11 @@ spec:
                   type: object
                 description: DynamicLabels are the app's command labels.
                 type: object
+              http_protocol_priority:
+                description: HTTPProtocolPriority controls how the proxy orders `http/1.1`
+                  and `h2` in the ALPN list it advertises for this app. If unset,
+                  the server default applies. See HTTPProtocolPriority for details.
+                x-kubernetes-int-or-string: true
               identity_center:
                 description: IdentityCenter encapsulates information specific to AWS
                   IAM Identity Center. Only valid for Identity Center account apps.
@@ -222,15 +227,6 @@ spec:
                       the command will be executed. Required for stdio-based MCP servers.
                     type: string
                 type: object
-              prioritize_http2:
-                description: PrioritizeHttp2 advertises HTTP/2 ahead of HTTP/1.1 in
-                  the proxy's ALPN list for connections to this app. Default false
-                  keeps HTTP/1.1 first, which is required for WebSocket apps because
-                  Go's net/http does not implement RFC 8441 (HTTP/2 extended CONNECT
-                  for WebSockets); see https://github.com/golang/go/issues/49918.
-                  Set true only on apps that benefit from HTTP/2 multiplexing and
-                  have no WebSocket usage.
-                type: boolean
               public_addr:
                 description: PublicAddr is the public address the application is accessible
                   at.

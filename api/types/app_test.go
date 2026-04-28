@@ -1047,28 +1047,29 @@ func TestLLMConfiguration(t *testing.T) {
 	})
 }
 
-// TestAppV3PrioritizeHttp2RoundTrip pins the `prioritize_http2` JSON
-// tag on AppSpecV3 and verifies it survives a marshal / unmarshal
-// pair, so dynamically registered apps (`tctl create app.yaml`,
-// `tsh apps register`) can carry the flag.
-func TestAppV3PrioritizeHttp2RoundTrip(t *testing.T) {
+// TestAppV3HTTPProtocolPriorityRoundTrip pins the
+// `http_protocol_priority` JSON tag on AppSpecV3 and verifies it
+// survives a marshal / unmarshal pair as the lowercase string form
+// (`http2`), so dynamically registered apps (`tctl create app.yaml`,
+// `tsh apps register`) can carry the value.
+func TestAppV3HTTPProtocolPriorityRoundTrip(t *testing.T) {
 	app, err := NewAppV3(
 		Metadata{Name: "dumper"},
 		AppSpecV3{
-			URI:             "http://localhost:1234",
-			PublicAddr:      "dumper.example.com",
-			PrioritizeHttp2: true,
+			URI:                  "http://localhost:1234",
+			PublicAddr:           "dumper.example.com",
+			HTTPProtocolPriority: HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2,
 		},
 	)
 	require.NoError(t, err)
 
 	raw, err := json.Marshal(app)
 	require.NoError(t, err)
-	require.Contains(t, string(raw), `"prioritize_http2":true`,
-		"expected proto json tag prioritize_http2 in marshaled spec; raw=%s",
+	require.Contains(t, string(raw), `"http_protocol_priority":"http2"`,
+		"expected proto json tag http_protocol_priority=http2 in marshaled spec; raw=%s",
 		string(raw))
 
 	var loaded AppV3
 	require.NoError(t, json.Unmarshal(raw, &loaded))
-	require.True(t, loaded.Spec.PrioritizeHttp2)
+	require.Equal(t, HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2, loaded.Spec.HTTPProtocolPriority)
 }
