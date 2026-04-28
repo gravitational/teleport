@@ -241,11 +241,17 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(eriktate/scopes): remove this validation once dynamic cluster registration supports scopes
+	if cfg.Scope != "" && len(cfg.ResourceMatchers) > 0 {
+		return nil, trace.BadParameter("dynamic cluster registration not supported for scoped kube_service, resource matchers must be empty")
+	}
 	cfg.ForwarderConfig.log = log
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	} else if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+	}
+
+	if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
 		len(cfg.ResourceMatchers) == 0 {
 		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
 		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
