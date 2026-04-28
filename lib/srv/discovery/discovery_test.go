@@ -3211,6 +3211,10 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 	return m.vms, nil
 }
 
+func (m *mockAzureClient) ListNonRunningVirtualMachineStates(_ context.Context) (map[string]azure.PowerState, error) {
+	return map[string]azure.PowerState{}, nil
+}
+
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()
 
