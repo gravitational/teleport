@@ -265,6 +265,10 @@ func ValidateRole(r types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	if err := validateSessionPolicies(r); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -487,6 +491,76 @@ func validateRoleWildcards(r types.Role) error {
 		}
 	}
 	return trace.NewAggregate(errs...)
+}
+
+// validateSessionPolicies validates fields (kinds, modes,
+// on_leave) on require_session_join join_sessions policies.
+func validateSessionPolicies(r types.Role) error {
+	var errs []error
+
+	// require_session_join
+	for i, p := range r.GetSessionRequirePolicies() {
+		if p == nil {
+			continue
+		}
+		if p.Count < 0 {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: count cannot be negative, got %d", i, p.Count))
+		}
+		if err := validateSessionKinds(p.Kinds); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: %v", i, err))
+		}
+		if err := validateSessionParticipantModes(p.Modes); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: %v", i, err))
+		}
+		switch types.OnSessionLeaveAction(p.OnLeave) {
+		case "", types.OnSessionLeaveTerminate, types.OnSessionLeavePause:
+		default:
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: invalid on_leave action %q, expected one of %q, %q",
+				i, p.OnLeave, types.OnSessionLeaveTerminate, types.OnSessionLeavePause))
+		}
+	}
+
+	// join_sessions
+	for i, p := range r.GetSessionJoinPolicies() {
+		if p == nil {
+			continue
+		}
+		if err := validateSessionKinds(p.Kinds); err != nil {
+			errs = append(errs, trace.BadParameter("join_sessions[%d]: %v", i, err))
+		}
+		if err := validateSessionParticipantModes(p.Modes); err != nil {
+			errs = append(errs, trace.BadParameter("join_sessions[%d]: %v", i, err))
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+func validateSessionKinds(kinds []string) error {
+	for _, kind := range kinds {
+		// "*" is accepted by SessionAccessEvaluator.matchesKind at runtime
+		if kind == types.Wildcard {
+			continue
+		}
+		switch types.SessionKind(kind) {
+		case types.SSHSessionKind, types.KubernetesSessionKind, types.DatabaseSessionKind,
+			types.AppSessionKind, types.WindowsDesktopSessionKind, types.GitSessionKind:
+		default:
+			return trace.BadParameter("invalid session kind %q", kind)
+		}
+	}
+	return nil
+}
+
+func validateSessionParticipantModes(modes []string) error {
+	for _, mode := range modes {
+		switch types.SessionParticipantMode(mode) {
+		case types.SessionObserverMode, types.SessionModeratorMode, types.SessionPeerMode:
+		default:
+			return trace.BadParameter("invalid participant mode %q", mode)
+		}
+	}
+	return nil
 }
 
 // validateRule parses the where and action fields to validate the rule.

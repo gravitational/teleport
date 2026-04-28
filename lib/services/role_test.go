@@ -1346,6 +1346,82 @@ func TestValidateRole(t *testing.T) {
 				"wildcard is not allowed in deny.review_requests.preview_as_roles",
 			},
 		},
+		{
+			name: "valid require_session_join",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Name:    "p",
+						Count:   2,
+						Kinds:   []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+						Modes:   []string{string(types.SessionModeratorMode)},
+						OnLeave: string(types.OnSessionLeavePause),
+					}},
+				},
+			},
+		},
+		{
+			name: "wildcard kind allowed in session policies",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Kinds: []string{types.Wildcard},
+						Modes: []string{string(types.SessionModeratorMode)},
+					}},
+					JoinSessions: []*types.SessionJoinPolicy{{
+						Kinds: []string{types.Wildcard},
+						Modes: []string{string(types.SessionObserverMode)},
+					}},
+				},
+			},
+		},
+		{
+			name: "invalid require_session_join fields",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Count:   -1,
+						Kinds:   []string{"random"},
+						Modes:   []string{"random"},
+						OnLeave: "Pause",
+					}},
+				},
+			},
+			expectErrorContains: []string{
+				"require_session_join[0]: count cannot be negative",
+				`require_session_join[0]: invalid session kind "random"`,
+				`require_session_join[0]: invalid participant mode "random"`,
+				`require_session_join[0]: invalid on_leave action "Pause"`,
+			},
+		},
+		{
+			name: "valid join_sessions",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					JoinSessions: []*types.SessionJoinPolicy{{
+						Name:  "p",
+						Roles: []string{"observer"},
+						Kinds: []string{string(types.SSHSessionKind)},
+						Modes: []string{string(types.SessionObserverMode)},
+					}},
+				},
+			},
+		},
+		{
+			name: "invalid join_sessions fields",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					JoinSessions: []*types.SessionJoinPolicy{{
+						Kinds: []string{"random"},
+						Modes: []string{"random"},
+					}},
+				},
+			},
+			expectErrorContains: []string{
+				`join_sessions[0]: invalid session kind "random"`,
+				`join_sessions[0]: invalid participant mode "random"`,
+			},
+		},
 	}
 
 	for _, tc := range tests {
