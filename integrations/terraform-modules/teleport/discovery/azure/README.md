@@ -30,7 +30,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | terraform | >= 1.5.7 |
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
@@ -40,7 +40,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
 | random | >= 3.0 |
@@ -53,7 +53,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [azurerm_federated_identity_credential.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/federated_identity_credential) | resource |
 | [azurerm_role_assignment.teleport_discovery](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment) | resource |
 | [azurerm_role_definition.teleport_discovery](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_definition) | resource |
@@ -68,7 +68,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | apply\_azure\_tags | Additional Azure tags to apply to all created Azure resources. | `map(string)` | `{}` | no |
 | apply\_teleport\_resource\_labels | Additional Teleport resource labels to apply to all created Teleport resources. | `map(string)` | `{}` | no |
 | azure\_federated\_identity\_credential\_name | Name of the Azure federated identity credential created for workload identity federation. | `string` | `"teleport-federation"` | no |
@@ -81,24 +81,23 @@ No modules.
 | azure\_role\_definition\_name | Name for the Azure custom role definition created for Teleport Discovery. | `string` | `"teleport-discovery"` | no |
 | azure\_role\_definition\_use\_name\_prefix | Whether `azure_role_definition_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
-| create\_azure\_managed\_identity | Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `create_teleport_integration` is `true`. | `bool` | `true` | no |
-| create\_teleport\_integration | Whether an Azure OIDC integration is created (true) or not (false). When false, no Azure federated identity credential is created; set teleport\_integration\_name to `null` to not use an integration to authenticate, ideal for self-hosted Teleport clusters running the Discovery Service with ambient Azure credentials. | `bool` | `true` | no |
-| create\_teleport\_provision\_token | Whether a Teleport provision token is created (true) or not (false). Set `teleport_provision_token_name` to use an existing provision token. | `bool` | `true` | no |
+| create\_azure\_managed\_identity | Whether Azure managed identity and role resources are created (true) or not (false). When false, no Azure resources are created. Must be set to `true` when `use_oidc_integration` is `true`. | `bool` | `true` | no |
 | teleport\_discovery\_config\_name | Name for the `teleport_discovery_config` resource. | `string` | `"discovery"` | no |
 | teleport\_discovery\_config\_use\_name\_prefix | Whether `teleport_discovery_config_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | teleport\_discovery\_group\_name | Teleport discovery group to use. For discovery configuration to apply, this name must match at least one Teleport Discovery Service instance's configured `discovery_group`. For Teleport Cloud clusters, use "cloud-discovery-group". | `string` | n/a | yes |
 | teleport\_installer\_script\_name | Name of an existing Teleport installer script to use. | `string` | `"default-installer"` | no |
-| teleport\_integration\_name | Name for the `teleport_integration` resource. Required when `create_teleport_integration` is true. When `create_teleport_integration` is false, set to reference an existing integration or null to authenticate using ambient Azure credentials. | `string` | `"discovery"` | no |
+| teleport\_integration\_name | Name for the `teleport_integration` resource. | `string` | `"discovery"` | no |
 | teleport\_integration\_use\_name\_prefix | Whether `teleport_integration_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
-| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher and `create_teleport_provision_token` is `true`. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
-| teleport\_provision\_token\_name | Name for the `teleport_provision_token` resource. When `create_teleport_provision_token` is false, set to use an existing provision token. | `string` | `"discovery"` | no |
+| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
+| teleport\_provision\_token\_name | Name for the `teleport_provision_token` resource. | `string` | `"discovery"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Whether `teleport_provision_token_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address in the form `host:port` (no URL scheme). | `string` | n/a | yes |
+| use\_oidc\_integration | Whether an Azure OIDC integration and federated identity credential are created and referenced by the Teleport discovery config (true) or not (false). | `bool` | `true` | no |
 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | azure\_discovery\_role\_definition | The Azure role definition for the Teleport Discovery Service. |
 | azure\_teleport\_discovery\_managed\_identity | Managed identity created for the Teleport Discovery Service. |
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |

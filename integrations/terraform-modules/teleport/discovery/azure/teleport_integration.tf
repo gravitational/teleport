@@ -3,10 +3,10 @@
 ################################################################################
 
 locals {
-  create_teleport_integration = local.create && var.create_teleport_integration
+  use_oidc_integration = local.create && var.use_oidc_integration
 
   teleport_integration_name = (
-    local.create_teleport_integration && var.teleport_integration_use_name_prefix
+    local.use_oidc_integration && var.teleport_integration_use_name_prefix
     ? join("-", compact([var.teleport_integration_name, local.teleport_resource_name_suffix]))
     : var.teleport_integration_name
   )
@@ -14,7 +14,7 @@ locals {
 
 # Teleport Azure OIDC integration using the selected identity
 resource "teleport_integration" "azure_oidc" {
-  count = local.create_teleport_integration ? 1 : 0
+  count = local.use_oidc_integration ? 1 : 0
 
   metadata = {
     description = "Azure OIDC integration for Azure discovery."
@@ -33,11 +33,7 @@ resource "teleport_integration" "azure_oidc" {
   lifecycle {
     precondition {
       condition     = var.create_azure_managed_identity
-      error_message = "create_teleport_integration requires create_azure_managed_identity to be true."
-    }
-    precondition {
-      condition     = !(local.create_teleport_integration && var.teleport_integration_name == null)
-      error_message = "teleport_integration_name must be set when create_teleport_integration is true."
+      error_message = "use_oidc_integration requires create_azure_managed_identity to be true."
     }
   }
 

@@ -15,7 +15,7 @@ output "teleport_discovery_config_name" {
 
 output "teleport_integration_name" {
   description = "Name of the Teleport `integration` resource. The integration resource configures Teleport Discovery Service instances to assume an Azure managed identity for discovery using Azure OIDC federation. Integration details can be viewed with `tctl get integrations/<name>` or by visiting the Teleport web UI under 'Zero Trust Access' > 'Integrations'."
-  value       = try(teleport_integration.azure_oidc[0].metadata.name, local.teleport_integration_name)
+  value       = try(teleport_integration.azure_oidc[0].metadata.name, null)
 }
 
 output "teleport_provision_token_name" {

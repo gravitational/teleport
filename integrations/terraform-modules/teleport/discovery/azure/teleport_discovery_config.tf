@@ -19,19 +19,23 @@ locals {
     for matcher in var.azure_matchers : merge(
       {
         types           = matcher.types
-        subscriptions   = compact(matcher.subscriptions)
+        subscriptions   = contains(matcher.subscriptions, "*") ? ["*"] : compact(matcher.subscriptions)
         resource_groups = compact(matcher.resource_groups)
         regions         = matcher.regions
         tags            = matcher.tags
       },
-      local.teleport_integration_name != null ? { integration = local.teleport_integration_name } : {},
+      local.use_oidc_integration ? { integration = local.teleport_integration_name } : {},
       contains(matcher.types, "vm") ? { install_params = local.vm_install_params } : {}
     )
   ]
 
-  azure_matcher_types         = distinct(flatten([for matcher in local.azure_matchers : matcher.types]))
-  azure_matcher_regions       = distinct(flatten([for matcher in local.azure_matchers : matcher.regions]))
-  azure_matcher_subscriptions = distinct(flatten([for matcher in local.azure_matchers : matcher.subscriptions]))
+  azure_matcher_types   = distinct(flatten([for matcher in local.azure_matchers : matcher.types]))
+  azure_matcher_regions = distinct(flatten([for matcher in local.azure_matchers : matcher.regions]))
+  azure_matcher_subscriptions = (
+    local.has_wildcard_subscription_matcher
+    ? ["*"]
+    : distinct(flatten([for matcher in local.azure_matchers : matcher.subscriptions]))
+  )
 }
 
 # Teleport discovery config
