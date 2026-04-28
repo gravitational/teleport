@@ -71,6 +71,20 @@ func NewEmbeddingProvider(ctx context.Context, cfg EmbeddingProviderConfig) (*Em
 	}, nil
 }
 
+// embeddingDimensions is the output dimension requested from MRL-capable models.
+// Requesting fewer dimensions at the API level is more accurate than post-hoc
+// truncation: the model packs the most useful information into the first N dims.
+const embeddingDimensions = 1024
+
+// mrlCapableModels is the set of OpenAI model IDs that support the Dimensions
+// parameter via Matryoshka Representation Learning. Models not in this set
+// (legacy models, custom fine-tunes, or third-party compatible endpoints) do
+// not accept the parameter and must use the default request shape.
+var mrlCapableModels = map[string]bool{
+	"text-embedding-3-small": true,
+	"text-embedding-3-large": true,
+}
+
 // GenerateEmbeddings generates vector embeddings for the given text using the
 // configured OpenAI embedding model.
 func (p *EmbeddingProvider) GenerateEmbeddings(ctx context.Context, text string) ([]float32, int, error) {
@@ -79,10 +93,15 @@ func (p *EmbeddingProvider) GenerateEmbeddings(ctx context.Context, text string)
 	}
 	p.logger.DebugContext(ctx, "Generating embeddings")
 
-	rsp, err := p.client.GenerateEmbeddings(ctx, openai.EmbeddingNewParams{
+	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{OfString: openai.String(text)},
 		Model: p.openAIModel,
-	})
+	}
+	if mrlCapableModels[p.openAIModel] {
+		params.Dimensions = openai.Int(embeddingDimensions)
+	}
+
+	rsp, err := p.client.GenerateEmbeddings(ctx, params)
 	if err != nil {
 		return nil, 0, trace.Wrap(err)
 	}

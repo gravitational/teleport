@@ -11,18 +11,20 @@ import (
 // ChunkerConfig holds configuration for text and command chunking.
 type ChunkerConfig struct {
 	// MaxTokensPerChunk is the target maximum number of tokens per chunk.
-	// Defaults to 800 to leave buffer room for most embedding models.
+	// Smaller chunks produce more precise embeddings; the parent-child retrieval
+	// pattern (+- neighbors stored as parent_chunk_text) provides callers with
+	// enough surrounding context for display. Defaults to 512.
 	MaxTokensPerChunk int
 	// OverlapTokens is the number of tokens to overlap between consecutive
-	// chunks for better context preservation. Defaults to 200.
+	// chunks for better context preservation. Defaults to 128 (~25% of chunk).
 	OverlapTokens int
 }
 
 // defaultChunkerConfig returns a chunkerConfig with sensible defaults for RAG.
 func defaultChunkerConfig() ChunkerConfig {
 	return ChunkerConfig{
-		MaxTokensPerChunk: 800,
-		OverlapTokens:     200,
+		MaxTokensPerChunk: 512,
+		OverlapTokens:     128,
 	}
 }
 
