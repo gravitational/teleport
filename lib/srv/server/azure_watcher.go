@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -274,7 +275,15 @@ type resourceGroupLocation struct {
 	location      string
 }
 
-// GetInstances fetches all Azure virtual machines matching configured filters.
+// GetInstances fetches Azure virtual machines, applies configured discovery filters,
+// drops known non-Linux VMs, and applies best-effort power-state filtering.
+//
+// OS filtering: VMs with a known non-Linux OS type (e.g. Windows) are excluded; VMs
+// with unknown OS type pass through.
+//
+// Power-state filtering is best-effort: VMs pass through unfiltered when the bulk
+// power-state fetch fails for non-cancellation reasons. Context cancellation
+// propagates as an error. Only VMs positively identified as non-running are excluded.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
 	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
 	if err != nil {
@@ -291,14 +300,38 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		return nil, trace.Wrap(err)
 	}
 
-	instancesByRegionAndResourceGroup := make(map[resourceGroupLocation][]*armcompute.VirtualMachine)
+	vms = f.filterEligible(ctx, vms)
+	vms = f.filterSupportedOS(ctx, vms)
+	vms, err = f.filterSupportedPowerState(ctx, client, vms)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
-	allowAllResourceGroups := f.ResourceGroup == types.Wildcard
+	return f.emit(ctx, vms), nil
+}
 
+// filterEligible returns VMs that satisfy local discovery requirements: non-empty resource ID,
+// configured region, matching labels, and for wildcard-RG fetchers, a parseable resource ID.
+func (f *azureInstanceFetcher) filterEligible(
+	ctx context.Context,
+	vms []*armcompute.VirtualMachine,
+) []*armcompute.VirtualMachine {
+	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
+	allowAllRGs := f.ResourceGroup == types.Wildcard
+
+	kept := make([]*armcompute.VirtualMachine, 0, len(vms))
 	for _, vm := range vms {
+		resourceID := azure.StringVal(vm.ID)
+		if resourceID == "" {
+			f.Logger.WarnContext(ctx, "Skipping Azure VM with empty resource ID",
+				"subscription_id", f.Subscription,
+				"integration", f.Integration,
+			)
+			continue
+		}
+
 		location := azure.StringVal(vm.Location)
-		if !slices.Contains(f.Regions, location) && !allowAllLocations {
+		if !allowAllRegions && !slices.Contains(f.Regions, location) {
 			continue
 		}
 
@@ -310,45 +343,193 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 			continue
 		}
 
-		resourceGroup := f.ResourceGroup
-		if allowAllResourceGroups {
-			resourceMetadata, err := arm.ParseResourceID(azure.StringVal(vm.ID))
-			if err != nil {
-				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
+		if allowAllRGs {
+			if _, err := arm.ParseResourceID(resourceID); err != nil {
+				f.Logger.WarnContext(ctx, "Skipping Azure VM because resource group could not be inferred from resource ID",
 					"subscription_id", f.Subscription,
-					"vm_id", azure.StringVal(vm.Properties.VMID),
-					"resource_id", azure.StringVal(vm.ID),
+					"vm_id", azure.VMID(vm),
+					"resource_id", resourceID,
 					"error", err,
 				)
 				continue
 			}
-			resourceGroup = resourceMetadata.ResourceGroupName
 		}
 
-		batchGroup := resourceGroupLocation{
-			resourceGroup: resourceGroup,
-			location:      location,
-		}
-
-		if _, ok := instancesByRegionAndResourceGroup[batchGroup]; !ok {
-			instancesByRegionAndResourceGroup[batchGroup] = make([]*armcompute.VirtualMachine, 0)
-		}
-
-		instancesByRegionAndResourceGroup[batchGroup] = append(instancesByRegionAndResourceGroup[batchGroup], vm)
+		kept = append(kept, vm)
 	}
 
-	var instances []*AzureInstances
-	for batchGroup, vms := range instancesByRegionAndResourceGroup {
-		instances = append(instances, &AzureInstances{
+	return kept
+}
+
+// filterSupportedOS removes VMs with a known unsupported OS. VMs with unknown
+// OS type are kept to avoid dropping Linux VMs due to incomplete metadata.
+func (f *azureInstanceFetcher) filterSupportedOS(
+	ctx context.Context,
+	vms []*armcompute.VirtualMachine,
+) []*armcompute.VirtualMachine {
+	kept, skipped := azure.FilterLinuxVMs(vms)
+	if len(skipped) == 0 {
+		return kept
+	}
+
+	f.Logger.InfoContext(ctx,
+		"Skipping Azure VMs with non-Linux OS type",
+		"subscription_id", f.Subscription,
+		"resource_group", f.ResourceGroup,
+		"integration", f.Integration,
+		"matched_vms", len(skipped)+len(kept),
+		"non_linux_vms", len(skipped),
+	)
+
+	for _, vm := range skipped {
+		f.Logger.DebugContext(ctx,
+			"Skipping Azure VM with non-Linux OS type",
+			"vm_name", azure.StringVal(vm.Name),
+			"resource_id", azure.StringVal(vm.ID),
+			"os_type", azure.VMOSType(vm),
+		)
+	}
+
+	return kept
+}
+
+// filterSupportedPowerState removes VMs positively identified as non-running.
+// On context cancellation it returns the cancellation error; any other lookup
+// failure fails open (all VMs kept).
+func (f *azureInstanceFetcher) filterSupportedPowerState(
+	ctx context.Context,
+	client azure.VirtualMachinesClient,
+	vms []*armcompute.VirtualMachine,
+) ([]*armcompute.VirtualMachine, error) {
+	if len(vms) == 0 {
+		return vms, nil
+	}
+
+	// ARM applies RBAC to the subscription-wide response. Scoped identities only
+	// see VMs within their scope; VMs omitted from the response are treated as
+	// running or indeterminate by the fail-open logic below.
+	rawNonRunning, err := client.ListNonRunningVirtualMachineStates(ctx)
+	if err != nil {
+		// Do not fail open on context cancellation; callers are shutting down or timed out.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, trace.Wrap(ctxErr)
+		}
+		f.logPowerFetchFailure(ctx, err)
+
+		return vms, nil
+	}
+
+	// Normalize keys for case-insensitive matching. ARM treats resource path segments as
+	// case-insensitive; implementations of VirtualMachinesClient may return any casing.
+	nonRunning := make(map[string]azure.PowerState, len(rawNonRunning))
+	for k, v := range rawNonRunning {
+		nonRunning[strings.ToLower(k)] = v
+	}
+
+	kept := make([]*armcompute.VirtualMachine, 0, len(vms))
+	for _, vm := range vms {
+		// VMs not present in the non-running map pass through as running or
+		// indeterminate. The method's contract returns only non-running entries.
+		state, isNonRunning := nonRunning[strings.ToLower(azure.StringVal(vm.ID))]
+		if !isNonRunning {
+			kept = append(kept, vm)
+			continue
+		}
+
+		f.Logger.DebugContext(ctx, "Skipping Azure VM that is not running",
+			"vm_name", azure.StringVal(vm.Name),
+			"resource_id", azure.StringVal(vm.ID),
+			"power_state", string(state),
+		)
+	}
+
+	f.logPowerFilterSummary(ctx, len(vms), len(nonRunning), len(vms)-len(kept))
+	return kept, nil
+}
+
+// emit buckets the VM list by (resourceGroup, region) and produces one *AzureInstances
+// per non-empty bucket. For wildcard-RG fetchers, the resource group is parsed from each
+// VM's resource ID; VMs with unparseable IDs are skipped with a warn log.
+func (f *azureInstanceFetcher) emit(ctx context.Context, vms []*armcompute.VirtualMachine) []*AzureInstances {
+	if len(vms) == 0 {
+		return nil
+	}
+
+	byGroup := map[resourceGroupLocation][]*armcompute.VirtualMachine{}
+	for _, vm := range vms {
+		rg := f.ResourceGroup
+		if rg == types.Wildcard {
+			resourceID := azure.StringVal(vm.ID)
+			meta, err := arm.ParseResourceID(resourceID)
+			if err != nil {
+				f.Logger.WarnContext(ctx,
+					"Skipping Azure VM because resource group could not be inferred during emit",
+					"subscription_id", f.Subscription,
+					"vm_id", azure.VMID(vm),
+					"resource_id", resourceID,
+					"error", err,
+				)
+				continue
+			}
+			rg = meta.ResourceGroupName
+		}
+
+		key := resourceGroupLocation{
+			resourceGroup: rg,
+			location:      azure.StringVal(vm.Location),
+		}
+
+		byGroup[key] = append(byGroup[key], vm)
+	}
+
+	out := make([]*AzureInstances, 0, len(byGroup))
+	for key, bucket := range byGroup {
+		out = append(out, &AzureInstances{
 			SubscriptionID:      f.Subscription,
-			Region:              batchGroup.location,
-			ResourceGroup:       batchGroup.resourceGroup,
-			Instances:           vms,
+			Region:              key.location,
+			ResourceGroup:       key.resourceGroup,
+			Instances:           bucket,
 			Integration:         f.Integration,
 			InstallerParams:     f.InstallerParams,
 			DiscoveryConfigName: f.DiscoveryConfigName,
 		})
 	}
 
-	return instances, nil
+	return out
+}
+
+// logPowerFetchFailure emits a warn-level log signaling that power-state filtering was
+// skipped because the bulk ARM call failed. AccessDenied errors get an actionable remediation message.
+func (f *azureInstanceFetcher) logPowerFetchFailure(ctx context.Context, err error) {
+	msg := "Failed to fetch VM power states; skipping power-state filtering"
+	if trace.IsAccessDenied(err) {
+		msg = "Identity lacks permission to fetch VM power states; skipping power-state filtering. " +
+			"Grant Microsoft.Compute/virtualMachines/read at the subscription scope to enable filtering"
+	}
+
+	f.Logger.WarnContext(ctx, msg,
+		"subscription_id", f.Subscription,
+		"resource_group", f.ResourceGroup,
+		"integration", f.Integration,
+		"error", err,
+	)
+}
+
+// logPowerFilterSummary emits one per-iteration summary log after power-state filtering.
+// The level is info when VMs were skipped, debug otherwise.
+func (f *azureInstanceFetcher) logPowerFilterSummary(ctx context.Context, linuxEligible, powerStateLookupEntries, filtered int) {
+	level := slog.LevelDebug
+	msg := "Azure VM power-state filtering summary"
+	if filtered > 0 {
+		level = slog.LevelInfo
+		msg = "Skipped Azure VMs that are not running"
+	}
+	f.Logger.LogAttrs(ctx, level, msg,
+		slog.String("subscription_id", f.Subscription),
+		slog.String("resource_group", f.ResourceGroup),
+		slog.String("integration", f.Integration),
+		slog.Int("linux_eligible_vms", linuxEligible),
+		slog.Int("power_state_lookup_entries", powerStateLookupEntries),
+		slog.Int("non_running_vms", filtered),
+	)
 }
