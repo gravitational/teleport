@@ -221,6 +221,12 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 	if uriPath == "." {
 		uriPath = "/"
 	}
+	// path.Clean strips trailing slashes, but administrators may configure
+	// URIs like http://backend:9000/dashboard/ where the trailing slash is
+	// significant. Preserve it when the original URI had one.
+	if uriPath != "/" && strings.HasSuffix(t.uri.Path, "/") {
+		uriPath += "/"
+	}
 	if uriPath == "/" {
 		return "", false
 	}
