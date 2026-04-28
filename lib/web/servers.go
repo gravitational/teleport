@@ -27,6 +27,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -259,12 +260,12 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 
 	uiDesktops := make([]webui.Desktop, 0, len(page.Resources))
 	for _, r := range page.Resources {
-		desktop, ok := r.ResourceWithLabels.(types.WindowsDesktop)
-		if !ok {
-			continue
+		switch desktop := r.ResourceWithLabels.(type) {
+		case types.WindowsDesktop:
+			uiDesktops = append(uiDesktops, webui.MakeWindowsDesktop(desktop, r.Logins, false /* requiresRequest */))
+		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+			uiDesktops = append(uiDesktops, webui.MakeLinuxDesktop(desktop.UnwrapT(), r.Logins, false /* requiresRequest */))
 		}
-
-		uiDesktops = append(uiDesktops, webui.MakeDesktop(desktop, r.Logins, false /* requiresRequest */))
 	}
 
 	return listResourcesGetResponse{
@@ -332,7 +333,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDesktop(desktop, logins, false /* requiresRequest */), nil
+	return webui.MakeWindowsDesktop(desktop, logins, false /* requiresRequest */), nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
