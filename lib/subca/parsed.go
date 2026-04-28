@@ -232,7 +232,6 @@ func validateCertificateOverride(
 	}
 
 	// Chain.
-
 	var chain []*x509.Certificate
 	if len(co.Chain) > 0 {
 		if cert == nil {
