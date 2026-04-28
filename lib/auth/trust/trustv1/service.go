@@ -268,10 +268,10 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		}
 
 	} else {
-		// for standard reads we do not enforce scope pinning. this ensures that CAs are readable for
-		// all scoped identities regardless of their current scope pinning. this pattern should not
+		// For standard reads we do not enforce scope pinning. This ensures that CAs are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
-		// teleport functionality.
+		// Teleport functionality.
 		if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthorities, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
