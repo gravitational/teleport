@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-prealpha.2
+VERSION=19.0.0-dev.erik.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -244,10 +244,10 @@ endif
 
 SESSIONHELPER_EMBED_TAG :=
 SESSIONHELPER_MESSAGE := without-session-helper
-ifeq ($(OS),linux)
-SESSIONHELPER_EMBED_TAG = sessionhelper_embed
-SESSIONHELPER_MESSAGE := with-session-helper
-endif
+# ifeq ($(OS),linux)
+# SESSIONHELPER_EMBED_TAG = sessionhelper_embed
+# SESSIONHELPER_MESSAGE := with-session-helper
+# endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
