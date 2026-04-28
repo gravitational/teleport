@@ -200,6 +200,7 @@ func TestSimplifyAzureMatchers(t *testing.T) {
 // SimplifyAzureMatchers normalized regions through an aliased input slice,
 // mutating the caller's matcher and racing with concurrent readers.
 func TestSimplifyAzureMatchersDoesNotMutateInput(t *testing.T) {
+    t.Parallel()
 	matchers := []types.AzureMatcher{
 		{
 			Subscriptions:  []string{"sub-1"},
