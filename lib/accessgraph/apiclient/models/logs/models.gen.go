@@ -6,9 +6,8 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/runtime"
 	"time"
-
-	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for EventSource.

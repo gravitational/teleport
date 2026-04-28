@@ -11,14 +11,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	externalRef0 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
 	externalRef1 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff"
 	externalRef2 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
-	"github.com/oapi-codegen/runtime"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for AccountAliasAccountType.
@@ -127,14 +127,14 @@ type AccessPathChangesSummary struct {
 type AccessPathDiff struct {
 	AffectedNode AccessPathSummaryItemNode `json:"affected_node"`
 	Base         GenericNodesList          `json:"base"`
-	ChangeId     openapi_types.UUID        `json:"change_id"`
+	ChangeId     uuid.UUID                 `json:"change_id"`
 	Diff         []externalRef1.Operation  `json:"diff"`
 }
 
 // AccessPathRoleTesterDiff defines model for AccessPathRoleTesterDiff.
 type AccessPathRoleTesterDiff struct {
 	Base     externalRef0.Graph       `json:"base"`
-	ChangeId openapi_types.UUID       `json:"change_id"`
+	ChangeId uuid.UUID                `json:"change_id"`
 	Diff     []externalRef1.Operation `json:"diff"`
 }
 
@@ -147,12 +147,12 @@ type AccessPathSummaryItem struct {
 
 // AccessPathSummaryItemNode defines model for AccessPathSummaryItemNode.
 type AccessPathSummaryItemNode struct {
-	Alias      string             `json:"alias"`
-	Id         openapi_types.UUID `json:"id"`
-	Kind       string             `json:"kind"`
-	Name       string             `json:"name"`
-	OriginType string             `json:"origin_type"`
-	Source     string             `json:"source"`
+	Alias      string    `json:"alias"`
+	Id         uuid.UUID `json:"id"`
+	Kind       string    `json:"kind"`
+	Name       string    `json:"name"`
+	OriginType string    `json:"origin_type"`
+	Source     string    `json:"source"`
 }
 
 // AccountAlias defines model for AccountAlias.
@@ -320,7 +320,7 @@ type SecurityAlert struct {
 	EndTime time.Time `json:"end_time"`
 
 	// Id Unique identifier for the security alert
-	Id openapi_types.UUID `json:"id"`
+	Id uuid.UUID `json:"id"`
 
 	// LogEntries Log entries associated with the alert
 	LogEntries *[]string `json:"log_entries,omitempty"`
@@ -582,15 +582,15 @@ type ClientInterface interface {
 	ListAlertsV1(ctx context.Context, params *ListAlertsV1Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAlertV1 request
-	GetAlertV1(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetAlertV1(ctx context.Context, id uuid.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateAlertStatusV1WithBody request with any body
-	UpdateAlertStatusV1WithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateAlertStatusV1WithBody(ctx context.Context, id uuid.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateAlertStatusV1(ctx context.Context, id openapi_types.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateAlertStatusV1(ctx context.Context, id uuid.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetNodeConnections request
-	GetNodeConnections(ctx context.Context, id openapi_types.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetNodeConnections(ctx context.Context, id uuid.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListCrownJewelAccessPaths request
 	ListCrownJewelAccessPaths(ctx context.Context, params *ListCrownJewelAccessPathsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -710,7 +710,7 @@ func (c *Client) ListAlertsV1(ctx context.Context, params *ListAlertsV1Params, r
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetAlertV1(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) GetAlertV1(ctx context.Context, id uuid.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAlertV1Request(c.Server, id)
 	if err != nil {
 		return nil, err
@@ -722,7 +722,7 @@ func (c *Client) GetAlertV1(ctx context.Context, id openapi_types.UUID, reqEdito
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateAlertStatusV1WithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) UpdateAlertStatusV1WithBody(ctx context.Context, id uuid.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateAlertStatusV1RequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
 		return nil, err
@@ -734,7 +734,7 @@ func (c *Client) UpdateAlertStatusV1WithBody(ctx context.Context, id openapi_typ
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateAlertStatusV1(ctx context.Context, id openapi_types.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) UpdateAlertStatusV1(ctx context.Context, id uuid.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateAlertStatusV1Request(c.Server, id, body)
 	if err != nil {
 		return nil, err
@@ -746,7 +746,7 @@ func (c *Client) UpdateAlertStatusV1(ctx context.Context, id openapi_types.UUID,
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetNodeConnections(ctx context.Context, id openapi_types.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) GetNodeConnections(ctx context.Context, id uuid.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetNodeConnectionsRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
@@ -1021,19 +1021,8 @@ func NewCreateAccountAliasRequestWithBody(server string, contentType string, bod
 func NewDeleteAccountAliasRequest(server string, accountType string, accountId string) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "account_type", accountType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(accountType)
+	pathParam1 := url.PathEscape(accountId)
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1081,50 +1070,17 @@ func NewListAlertStatsV1Request(server string, params *ListAlertStatsV1Params) (
 		queryValues := queryURL.Query()
 
 		if params.StartTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "start_time", *params.StartTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.EndTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "end_time", *params.EndTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("end_time", (*params.EndTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.Query != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", *params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("query", string(*params.Query))
 
 		}
 
@@ -1162,66 +1118,22 @@ func NewListAlertsV1Request(server string, params *ListAlertsV1Params) (*http.Re
 		queryValues := queryURL.Query()
 
 		if params.NextCursor != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "next_cursor", *params.NextCursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("next_cursor", string(*params.NextCursor))
 
 		}
 
 		if params.StartTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "start_time", *params.StartTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.EndTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "end_time", *params.EndTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("end_time", (*params.EndTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.Query != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", *params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("query", string(*params.Query))
 
 		}
 
@@ -1237,15 +1149,10 @@ func NewListAlertsV1Request(server string, params *ListAlertsV1Params) (*http.Re
 }
 
 // NewGetAlertV1Request generates requests for GetAlertV1
-func NewGetAlertV1Request(server string, id openapi_types.UUID) (*http.Request, error) {
+func NewGetAlertV1Request(server string, id uuid.UUID) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(id.String())
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1271,7 +1178,7 @@ func NewGetAlertV1Request(server string, id openapi_types.UUID) (*http.Request, 
 }
 
 // NewUpdateAlertStatusV1Request calls the generic UpdateAlertStatusV1 builder with application/json body
-func NewUpdateAlertStatusV1Request(server string, id openapi_types.UUID, body UpdateAlertStatusV1JSONRequestBody) (*http.Request, error) {
+func NewUpdateAlertStatusV1Request(server string, id uuid.UUID, body UpdateAlertStatusV1JSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
@@ -1282,15 +1189,10 @@ func NewUpdateAlertStatusV1Request(server string, id openapi_types.UUID, body Up
 }
 
 // NewUpdateAlertStatusV1RequestWithBody generates requests for UpdateAlertStatusV1 with any type of body
-func NewUpdateAlertStatusV1RequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateAlertStatusV1RequestWithBody(server string, id uuid.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(id.String())
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1318,15 +1220,10 @@ func NewUpdateAlertStatusV1RequestWithBody(server string, id openapi_types.UUID,
 }
 
 // NewGetNodeConnectionsRequest generates requests for GetNodeConnections
-func NewGetNodeConnectionsRequest(server string, id openapi_types.UUID, params *GetNodeConnectionsParams) (*http.Request, error) {
+func NewGetNodeConnectionsRequest(server string, id uuid.UUID, params *GetNodeConnectionsParams) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(id.String())
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1347,18 +1244,7 @@ func NewGetNodeConnectionsRequest(server string, id openapi_types.UUID, params *
 		queryValues := queryURL.Query()
 
 		if params.Depth != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "depth", *params.Depth, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("depth", strconv.Itoa(*params.Depth))
 
 		}
 
@@ -1396,66 +1282,22 @@ func NewListCrownJewelAccessPathsRequest(server string, params *ListCrownJewelAc
 		queryValues := queryURL.Query()
 
 		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("limit", strconv.Itoa(*params.Limit))
 
 		}
 
 		if params.Iterator != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "iterator", *params.Iterator, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("iterator", string(*params.Iterator))
 
 		}
 
 		if params.TypeFilter != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type_filter", *params.TypeFilter, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("type_filter", string(*params.TypeFilter))
 
 		}
 
 		if params.Search != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("search", string(*params.Search))
 
 		}
 
@@ -1474,12 +1316,7 @@ func NewListCrownJewelAccessPathsRequest(server string, params *ListCrownJewelAc
 func NewGetCrownJewelAccessPathsRequest(server string, id string) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(id)
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1527,34 +1364,12 @@ func NewIdentitySummaryRequest(server string, params *IdentitySummaryParams) (*h
 		queryValues := queryURL.Query()
 
 		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("limit", strconv.Itoa(*params.Limit))
 
 		}
 
 		if params.Iterator != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "iterator", *params.Iterator, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("iterator", string(*params.Iterator))
 
 		}
 
@@ -1640,12 +1455,7 @@ func NewCreateInvestigateViewRequestWithBody(server string, contentType string, 
 func NewDeleteInvestigateViewRequest(server string, viewId string) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "view_id", viewId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(viewId)
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1685,12 +1495,7 @@ func NewUpdateInvestigateViewRequest(server string, viewId string, body UpdateIn
 func NewUpdateInvestigateViewRequestWithBody(server string, viewId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "view_id", viewId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(viewId)
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -1740,146 +1545,47 @@ func NewExecuteLogsQueryV1Request(server string, params *ExecuteLogsQueryV1Param
 		queryValues := queryURL.Query()
 
 		if params.Query != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", *params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("query", string(*params.Query))
 
 		}
 
 		if params.Latitude != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "latitude", *params.Latitude, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "number", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("latitude", strconv.FormatFloat(float64(*params.Latitude), 'f', -1, 32))
 
 		}
 
 		if params.Longitude != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "longitude", *params.Longitude, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "number", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("longitude", strconv.FormatFloat(float64(*params.Longitude), 'f', -1, 32))
 
 		}
 
 		if params.Radius != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "radius", *params.Radius, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "number", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("radius", strconv.FormatFloat(float64(*params.Radius), 'f', -1, 32))
 
 		}
 
 		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("limit", strconv.Itoa(*params.Limit))
 
 		}
 
 		if params.Iterator != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "iterator", *params.Iterator, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("iterator", string(*params.Iterator))
 
 		}
 
 		if params.StartTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "start_time", *params.StartTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.EndTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "end_time", *params.EndTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("end_time", (*params.EndTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.Order != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("order", string(*params.Order))
 
 		}
 
@@ -1917,44 +1623,11 @@ func NewGetEventCountSinceRequest(server string, params *GetEventCountSinceParam
 		queryValues := queryURL.Query()
 
 		if params.Query != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", *params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("query", string(*params.Query))
 
 		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "last_event_time", params.LastEventTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "last_event_id", params.LastEventId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
+		queryValues.Add("last_event_time", params.LastEventTime.Format(time.RFC3339Nano))
+		queryValues.Add("last_event_id", string(params.LastEventId))
 
 		queryURL.RawQuery = queryValues.Encode()
 	}
@@ -1990,50 +1663,17 @@ func NewExecuteLogsStatsQueryV1Request(server string, params *ExecuteLogsStatsQu
 		queryValues := queryURL.Query()
 
 		if params.Query != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", *params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("query", string(*params.Query))
 
 		}
 
 		if params.StartTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "start_time", *params.StartTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
 
 		}
 
 		if params.EndTime != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "end_time", *params.EndTime, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
+			queryValues.Add("end_time", (*params.EndTime).Format(time.RFC3339Nano))
 
 		}
 
@@ -2052,12 +1692,7 @@ func NewExecuteLogsStatsQueryV1Request(server string, params *ExecuteLogsStatsQu
 func NewGetNodeByIDRequest(server string, id string) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
+	pathParam0 := url.PathEscape(id)
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
@@ -2103,18 +1738,7 @@ func NewExecuteQueryV1Request(server string, params *ExecuteQueryV1Params) (*htt
 
 	if params != nil {
 		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
+		queryValues.Add("query", string(params.Query))
 
 		queryURL.RawQuery = queryValues.Encode()
 	}
@@ -2228,15 +1852,15 @@ type ClientWithResponsesInterface interface {
 	ListAlertsV1WithResponse(ctx context.Context, params *ListAlertsV1Params, reqEditors ...RequestEditorFn) (*ListAlertsV1Response, error)
 
 	// GetAlertV1WithResponse request
-	GetAlertV1WithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetAlertV1Response, error)
+	GetAlertV1WithResponse(ctx context.Context, id uuid.UUID, reqEditors ...RequestEditorFn) (*GetAlertV1Response, error)
 
 	// UpdateAlertStatusV1WithBodyWithResponse request with any body
-	UpdateAlertStatusV1WithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error)
+	UpdateAlertStatusV1WithBodyWithResponse(ctx context.Context, id uuid.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error)
 
-	UpdateAlertStatusV1WithResponse(ctx context.Context, id openapi_types.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error)
+	UpdateAlertStatusV1WithResponse(ctx context.Context, id uuid.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error)
 
 	// GetNodeConnectionsWithResponse request
-	GetNodeConnectionsWithResponse(ctx context.Context, id openapi_types.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*GetNodeConnectionsResponse, error)
+	GetNodeConnectionsWithResponse(ctx context.Context, id uuid.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*GetNodeConnectionsResponse, error)
 
 	// ListCrownJewelAccessPathsWithResponse request
 	ListCrownJewelAccessPathsWithResponse(ctx context.Context, params *ListCrownJewelAccessPathsParams, reqEditors ...RequestEditorFn) (*ListCrownJewelAccessPathsResponse, error)
@@ -2934,7 +2558,7 @@ func (c *ClientWithResponses) ListAlertsV1WithResponse(ctx context.Context, para
 }
 
 // GetAlertV1WithResponse request returning *GetAlertV1Response
-func (c *ClientWithResponses) GetAlertV1WithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetAlertV1Response, error) {
+func (c *ClientWithResponses) GetAlertV1WithResponse(ctx context.Context, id uuid.UUID, reqEditors ...RequestEditorFn) (*GetAlertV1Response, error) {
 	rsp, err := c.GetAlertV1(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -2943,7 +2567,7 @@ func (c *ClientWithResponses) GetAlertV1WithResponse(ctx context.Context, id ope
 }
 
 // UpdateAlertStatusV1WithBodyWithResponse request with arbitrary body returning *UpdateAlertStatusV1Response
-func (c *ClientWithResponses) UpdateAlertStatusV1WithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error) {
+func (c *ClientWithResponses) UpdateAlertStatusV1WithBodyWithResponse(ctx context.Context, id uuid.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error) {
 	rsp, err := c.UpdateAlertStatusV1WithBody(ctx, id, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -2951,7 +2575,7 @@ func (c *ClientWithResponses) UpdateAlertStatusV1WithBodyWithResponse(ctx contex
 	return ParseUpdateAlertStatusV1Response(rsp)
 }
 
-func (c *ClientWithResponses) UpdateAlertStatusV1WithResponse(ctx context.Context, id openapi_types.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error) {
+func (c *ClientWithResponses) UpdateAlertStatusV1WithResponse(ctx context.Context, id uuid.UUID, body UpdateAlertStatusV1JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAlertStatusV1Response, error) {
 	rsp, err := c.UpdateAlertStatusV1(ctx, id, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -2960,7 +2584,7 @@ func (c *ClientWithResponses) UpdateAlertStatusV1WithResponse(ctx context.Contex
 }
 
 // GetNodeConnectionsWithResponse request returning *GetNodeConnectionsResponse
-func (c *ClientWithResponses) GetNodeConnectionsWithResponse(ctx context.Context, id openapi_types.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*GetNodeConnectionsResponse, error) {
+func (c *ClientWithResponses) GetNodeConnectionsWithResponse(ctx context.Context, id uuid.UUID, params *GetNodeConnectionsParams, reqEditors ...RequestEditorFn) (*GetNodeConnectionsResponse, error) {
 	rsp, err := c.GetNodeConnections(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err

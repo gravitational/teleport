@@ -186,7 +186,6 @@ require (
 	github.com/moby/moby/api v1.54.1
 	github.com/moby/moby/client v0.4.0
 	github.com/moby/term v0.5.2
-	github.com/oapi-codegen/runtime v1.4.0
 	github.com/ohler55/ojg v1.27.0
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/openai/openai-go/v3 v3.8.1
@@ -316,7 +315,6 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/arrow-go/v18 v18.4.0 // indirect
 	github.com/apache/thrift v0.22.0 // indirect
-	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
