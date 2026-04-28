@@ -145,6 +145,35 @@ var SupportedProtocols = WithPingProtocols(
 	}, DatabaseProtocols...),
 )
 
+// ReorderHTTPNextProtos returns a copy of next with `http/1.1` and
+// `h2` reordered according to prioritizeHTTP2. When prioritizeHTTP2
+// is true, `h2` precedes `http/1.1` in the result; otherwise the
+// default order is restored. All other protocols (in particular
+// `acme-tls/1` carried in NextProtos for ACME TLS-ALPN-01 challenges
+// on app FQDNs) keep their existing indices. If next does not
+// contain both HTTP entries, it is returned unchanged. The input
+// slice is never mutated.
+func ReorderHTTPNextProtos(next []string, prioritizeHTTP2 bool) []string {
+	httpIdx, http2Idx := -1, -1
+	for i, p := range next {
+		switch p {
+		case string(ProtocolHTTP):
+			httpIdx = i
+		case string(ProtocolHTTP2):
+			http2Idx = i
+		}
+	}
+	if httpIdx == -1 || http2Idx == -1 {
+		return append([]string(nil), next...)
+	}
+	out := append([]string(nil), next...)
+	if prioritizeHTTP2 == (http2Idx < httpIdx) {
+		return out
+	}
+	out[httpIdx], out[http2Idx] = out[http2Idx], out[httpIdx]
+	return out
+}
+
 // ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
 	out := make([]string, 0, len(protocols))
