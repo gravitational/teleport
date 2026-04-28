@@ -1117,7 +1117,7 @@ var (
 	userLoginAttempts = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
-			Name:      "user_login_attempts_total",
+			Name:      teleport.MetricUserLoginAttempts,
 			Help:      "Total number of user login attempts",
 		},
 	)
@@ -1125,8 +1125,8 @@ var (
 	userLoginLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
-			Name:      "user_login_seconds",
-			Help:      "Latency of user login attempts",
+			Name:      teleport.MetricUserLoginLatencies,
+			Help:      "Latency of successful user logins",
 			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
@@ -1240,7 +1240,7 @@ var (
 	userCertificatesRequested = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
-			Name:      "user_certificates_requested_total",
+			Name:      teleport.MetricUserCertificatesRequested,
 			Help:      "Total number of user certificate generation requests",
 		},
 	)
@@ -1248,8 +1248,8 @@ var (
 	userCertificatesLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
-			Name:      "user_certificates_seconds",
-			Help:      "Latency of user certificate generation",
+			Name:      teleport.MetricUserCertificatesLatencies,
+			Help:      "Latency of successful user certificate generation",
 			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
