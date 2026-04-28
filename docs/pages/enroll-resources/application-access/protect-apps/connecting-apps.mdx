@@ -197,12 +197,24 @@ Application Service:
 
 {/*
 Note: this section of the docs is linked to from error messages in the product.
-Please make sure to update lib/srv/servicecfg/app.go if you change this section
-header or move this page.
+Please make sure to update lib/service/servicecfg/app.go and lib/services/app.go
+if you change this section header or move this page.
 */}
 
-An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
-It should also be unique across root and leaf clusters if you are deploying in a trusted clusters environment.
+An application name must be unique across root and leaf clusters in a
+trusted clusters environment. Validation rules depend on where the app
+is registered:
+
+- **Static config (`app_service.apps` in YAML)**: lowercase
+  alphanumeric and `-`, max 63 characters, no dots, must start and end
+  with alphanumeric. Mixed-case names are rejected at startup, as is
+  a duplicate name.
+- **Dynamic resources (`tctl create app`, integrations, Kubernetes
+  operator)**: lowercase alphanumeric, `-`, or `.`, max 253
+  characters.
+
+`public_addr` (if set) must be a bare, lowercase DNS hostname. URI
+schemes, ports, IP addresses, and uppercase letters are rejected.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g

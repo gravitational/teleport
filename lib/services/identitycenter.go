@@ -19,6 +19,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -243,20 +245,37 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 		}
 	}
 
-	appServer := &types.AppServerV3{
+	// StartUrl is usually a full URL; reduce to a bare hostname.
+	publicAddr := acct.Spec.StartUrl
+	if u, err := url.Parse(publicAddr); err == nil && u.Hostname() != "" {
+		publicAddr = u.Hostname()
+	}
+	// ValidatePublicAddr requires lowercase.
+	publicAddr = strings.ToLower(publicAddr)
+
+	// Identity Center accounts can be mixed-case; lowercase so the
+	// resource passes ValidateApp. Applies to both outer and inner
+	// metadata so storage key and routing identity stay aligned.
+	metadata := types.Metadata153ToLegacy(acct.Metadata)
+	metadata.Name = strings.ToLower(metadata.Name)
+	metadata.Description = acct.Spec.Name
+
+	return &types.AppServerV3{
 		Kind:     types.KindAppServer,
 		SubKind:  types.KindIdentityCenterAccount,
 		Version:  types.V3,
-		Metadata: types.Metadata153ToLegacy(acct.Metadata),
+		Metadata: metadata,
 		Spec: types.AppServerSpecV3{
 			App: &types.AppV3{
 				Kind:     types.KindApp,
 				SubKind:  types.KindIdentityCenterAccount,
 				Version:  types.V3,
-				Metadata: types.Metadata153ToLegacy(acct.Metadata),
+				Metadata: metadata,
 				Spec: types.AppSpecV3{
+					// URI keeps the original StartUrl as the SSO
+					// redirect target; only PublicAddr is normalized.
 					URI:        acct.Spec.StartUrl,
-					PublicAddr: acct.Spec.StartUrl,
+					PublicAddr: publicAddr,
 					AWS: &types.AppAWS{
 						ExternalID: acct.Spec.Id,
 					},
@@ -268,8 +287,6 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 			},
 		},
 	}
-	appServer.Metadata.Description = acct.Spec.Name
-	return appServer
 }
 
 // NewIdentityCenterAppMatcher creates a new [RoleMatcher] configured to

@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,34 +77,64 @@ func TestValidateApp(t *testing.T) {
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
-			name: "public addr with trailing dot matches proxy host",
+			name: "public addr with trailing dot is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com."})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "public addr with multiple trailing dots matches proxy host",
+			name: "public addr with trailing dot is rejected, no proxy",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
+		},
+		{
+			name: "public addr with multiple trailing dots is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com..."})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "public addr with mixed casing matches proxy host",
+			name: "public addr with multiple trailing dots is rejected, no proxy",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com..."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
+		},
+		{
+			name: "public addr with mixed casing is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
+		},
+		{
+			name: "public addr with mixed casing is rejected, no proxy",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
 		},
 		{
 			name: "multiple proxy addrs, one matches",
@@ -116,42 +147,33 @@ func TestValidateApp(t *testing.T) {
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
-			name: "public addr with IDN matches proxy host",
+			name: "public addr IDN Unicode is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"xn--fsq.cn:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "public addr with IDN does not conflict with non-IDN proxy host",
+			name: "public addr IDN Unicode is rejected, no proxy",
 			app: func() types.Application {
-				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "münchen.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
 				require.NoError(t, err)
 				return app
 			}(),
-			proxyAddrs: []string{"example.com:443"},
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "IDN with mixed case matches proxy host",
+			name: "punycode IDN matches proxy host",
 			app: func() types.Application {
-				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "MünchEn.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "xn--fsq.cn"})
 				require.NoError(t, err)
 				return app
 			}(),
-			proxyAddrs: []string{"münchen.de:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
-		},
-		{
-			name: "IDN with subdomains matches proxy host",
-			app: func() types.Application {
-				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "sub.münchen.de"})
-				require.NoError(t, err)
-				return app
-			}(),
-			proxyAddrs: []string{"sub.xn--mnchen-3ya.de:443"},
+			proxyAddrs: []string{"xn--fsq.cn:443"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
@@ -183,6 +205,253 @@ func TestValidateApp(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestValidateAppServer(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	makeServer := func(t *testing.T, outerName, innerName string) types.AppServer {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		srv.Metadata.Name = outerName
+		return srv
+	}
+
+	t.Run("nil server rejected", func(t *testing.T) {
+		require.ErrorContains(t, ValidateAppServer(nil, proxyGetter), "nil app server")
+	})
+	t.Run("valid outer and inner", func(t *testing.T) {
+		require.NoError(t, ValidateAppServer(makeServer(t, "myapp", "myapp"), proxyGetter))
+	})
+	t.Run("mixed-case outer rejected", func(t *testing.T) {
+		err := ValidateAppServer(makeServer(t, "MyApp", "myapp"), proxyGetter)
+		require.ErrorContains(t, err, "app server name")
+		require.ErrorContains(t, err, "MyApp")
+	})
+	t.Run("underscore in outer rejected", func(t *testing.T) {
+		err := ValidateAppServer(makeServer(t, "bad_name", "good-name"), proxyGetter)
+		require.ErrorContains(t, err, "app server name")
+		require.ErrorContains(t, err, "bad_name")
+	})
+	t.Run("mixed-case inner rejected", func(t *testing.T) {
+		err := ValidateAppServer(makeServer(t, "myapp", "MyApp"), proxyGetter)
+		require.ErrorContains(t, err, "application name")
+	})
+}
+
+func TestValidateAppName(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	t.Run("nil app rejected", func(t *testing.T) {
+		err := ValidateApp(nil, proxyGetter)
+		require.ErrorContains(t, err, "nil application")
+	})
+
+	t.Run("required_apps mixed case rejected", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"MixedCase"},
+		})
+		require.NoError(t, err)
+		err = ValidateApp(app, proxyGetter)
+		require.ErrorContains(t, err, `references required_apps entry "MixedCase"`)
+	})
+
+	t.Run("required_apps valid entries accepted", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"other-app", "another.app"},
+		})
+		require.NoError(t, err)
+		require.NoError(t, ValidateApp(app, proxyGetter))
+	})
+
+	makeApp := func(t *testing.T, name string) types.Application {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		return app
+	}
+
+	tests := []struct {
+		name    string
+		appName string
+		wantErr string
+	}{
+		{name: "valid lowercase", appName: "myapp"},
+		{name: "valid with hyphen", appName: "my-app"},
+		{name: "valid leading digit", appName: "1stapp"},
+		{name: "valid all digits", appName: "123"},
+		{name: "valid dotted name", appName: "env.prod"},
+		{name: "reject uppercase", appName: "MyApp", wantErr: "must be a valid DNS name"},
+		{name: "reject underscore", appName: "my_app", wantErr: "must be a valid DNS name"},
+		{name: "reject trailing hyphen", appName: "foo-", wantErr: "must be a valid DNS name"},
+		{name: "accept 63-char label", appName: strings.Repeat("a", 63)},
+		{name: "reject too long", appName: strings.Repeat("a", 254), wantErr: "must be a valid DNS name"},
+		{name: "accept single char", appName: "a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := makeApp(t, tt.appName)
+			err := ValidateApp(app, proxyGetter)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			// ValidateApp must not rewrite GetName; UpdateApp would
+			// retarget the wrong record.
+			require.Equal(t, tt.appName, app.GetName())
+		})
+	}
+}
+
+func TestValidateAppPublicAddr(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	makeApp := func(t *testing.T, publicAddr string) types.Application {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: publicAddr})
+		require.NoError(t, err)
+		return app
+	}
+
+	tests := []struct {
+		name    string
+		addr    string
+		wantErr string
+	}{
+		{name: "bare hostname", addr: "app.example.com"},
+		{name: "reject mixed case", addr: "MyApp.example.com", wantErr: "must be a valid DNS name"},
+		{name: "reject all-upper", addr: "APP.EXAMPLE.COM", wantErr: "must be a valid DNS name"},
+		{name: "reject scheme http", addr: "http://foo.bar", wantErr: "must be a valid DNS name"},
+		{name: "reject scheme https with port", addr: "https://foo.bar:443", wantErr: "must be a valid DNS name"},
+		{name: "reject port", addr: "foo.bar:443", wantErr: "must be a valid DNS name"},
+		{name: "reject IPv4", addr: "192.168.1.1", wantErr: "must not be an IP address"},
+		{name: "reject bare IPv6", addr: "::1", wantErr: "must not be an IP address"},
+		{name: "reject bracketed IPv6", addr: "[::1]", wantErr: "must be a valid DNS name"},
+		{name: "reject bracketed IPv6 with port", addr: "[::1]:443", wantErr: "must be a valid DNS name"},
+		{name: "reject mailto opaque", addr: "mailto:victim@example.com", wantErr: "must be a valid DNS name"},
+		{name: "reject path", addr: "app.example.com/path", wantErr: "must be a valid DNS name"},
+		{name: "reject query", addr: "app.example.com?x=y", wantErr: "must be a valid DNS name"},
+		{name: "reject fragment", addr: "app.example.com#frag", wantErr: "must be a valid DNS name"},
+		{name: "reject userinfo", addr: "user@app.example.com", wantErr: "must be a valid DNS name"},
+		{name: "reject single trailing dot", addr: "app.example.com.", wantErr: "must be a valid DNS name"},
+		{name: "reject double trailing dot", addr: "app.example.com..", wantErr: "must be a valid DNS name"},
+		{name: "reject only dots", addr: "...", wantErr: "must be a valid DNS name"},
+		{name: "reject IDN unicode", addr: "münchen.de", wantErr: "must be a valid DNS name"},
+		{name: "accept punycode", addr: "xn--mnchen-3ya.de"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := makeApp(t, tt.addr)
+			err := ValidateApp(app, proxyGetter)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestNormalizeAppServerForHeartbeat(t *testing.T) {
+	makeServer := func(t *testing.T, outerName, innerName string) *types.AppServerV3 {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		srv.Metadata.Name = outerName
+		return srv
+	}
+
+	tests := []struct {
+		name          string
+		outerName     string
+		innerName     string
+		wantOuterName string
+		wantInnerName string
+	}{
+		{
+			name:          "both lowercase unchanged",
+			outerName:     "myapp",
+			innerName:     "myapp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "both mixed-case lowercased together",
+			outerName:     "MyApp",
+			innerName:     "MyApp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "outer mixed-case inner lowercase",
+			outerName:     "MyApp",
+			innerName:     "myapp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "true mismatch left unchanged",
+			outerName:     "different",
+			innerName:     "myapp",
+			wantOuterName: "different",
+			wantInnerName: "myapp",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := makeServer(t, tt.outerName, tt.innerName)
+			NormalizeAppServerForHeartbeat(srv)
+			require.Equal(t, tt.wantOuterName, srv.GetName())
+			require.Equal(t, tt.wantInnerName, srv.GetApp().GetName())
+		})
+	}
+
+	t.Run("required_apps lowercased", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"MixedCase", "Other.App"},
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		NormalizeAppServerForHeartbeat(srv)
+		require.Equal(t, []string{"mixedcase", "other.app"}, srv.GetApp().GetRequiredAppNames())
+	})
+}
+
+func TestNormalizeHeartbeatPublicAddr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty unchanged", input: "", want: ""},
+		{name: "bare hostname unchanged", input: "app.example.com", want: "app.example.com"},
+		{name: "scheme and path stripped", input: "https://app.example.com/start", want: "app.example.com"},
+		{name: "scheme path and port stripped", input: "https://app.example.com:443/path", want: "app.example.com"},
+		{name: "trailing port stripped", input: "app.example.com:443", want: "app.example.com"},
+		{name: "mixed case lowercased", input: "MyApp.Example.Com", want: "myapp.example.com"},
+		{name: "mixed case with scheme lowercased", input: "https://MyApp.Example.Com/start", want: "myapp.example.com"},
+		{name: "mixed case with port lowercased", input: "MyApp.Example.Com:443", want: "myapp.example.com"},
+		{name: "bare IPv6 returned as-is", input: "::1", want: "::1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, normalizeHeartbeatPublicAddr(tt.input))
 		})
 	}
 }
@@ -338,6 +607,19 @@ func TestGetAppName(t *testing.T) {
 			portName:    "http",
 			annotation:  "overridden*name",
 			wantErr:     "s",
+		},
+		{
+			serviceName: "service4",
+			namespace:   "ns4",
+			clusterName: "cluster4",
+			annotation:  "1stapp",
+			expected:    "1stapp",
+		},
+		{
+			serviceName: "service5",
+			namespace:   "ns5",
+			clusterName: "MyGroup",
+			expected:    "service5-ns5-mygroup",
 		},
 	}
 

@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,6 +140,8 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindAppServer,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
+				// Shared name generator emits underscores; DNS-1123 rejects.
+				name = strings.ReplaceAll(name, "_", "-")
 				app, err := types.NewAppV3(
 					types.Metadata{
 						Name: name,
@@ -343,6 +346,43 @@ func TestHandlers(t *testing.T) {
 			})
 		})
 	}
+
+	// Shared kind table above generates DNS-1123 valid names; the
+	// two cases below cover the admin-path rejection of mixed-case.
+	t.Run("KindApp/rejects mixed-case name on Create", func(t *testing.T) {
+		handler := Handlers()[types.KindApp]
+		require.NotNil(t, handler)
+
+		app, err := types.NewAppV3(
+			types.Metadata{Name: "MyApp"},
+			types.AppSpecV3{URI: "http://localhost:12345"},
+		)
+		require.NoError(t, err)
+		raw := mustMakeUnknownResource(t, app)
+		err = handler.Create(t.Context(), clt, raw, CreateOpts{})
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("KindApp/rejects mixed-case name on Update", func(t *testing.T) {
+		handler := Handlers()[types.KindApp]
+		require.NotNil(t, handler)
+
+		// Seed a valid record so Update has something to target.
+		seeded, err := types.NewAppV3(
+			types.Metadata{Name: "valid-app-for-update"},
+			types.AppSpecV3{URI: "http://localhost:12345"},
+		)
+		require.NoError(t, err)
+		require.NoError(t, handler.Create(t.Context(), clt, mustMakeUnknownResource(t, seeded), CreateOpts{}))
+
+		bad, err := types.NewAppV3(
+			types.Metadata{Name: "MyApp"},
+			types.AppSpecV3{URI: "http://localhost:12345"},
+		)
+		require.NoError(t, err)
+		err = handler.Update(t.Context(), clt, mustMakeUnknownResource(t, bad), CreateOpts{})
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
 }
 
 func mustMakeUnknownResource(t *testing.T, r types.Resource) services.UnknownResource {

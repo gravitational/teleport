@@ -894,10 +894,12 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 		case types.OpDelete:
 			switch event.Resource.GetKind() {
 			case types.KindIdentityCenterAccount:
+				// Match the lowercased name IdentityCenterAccountToAppServer
+				// uses on insert; otherwise the delete misses the key.
 				c.deleteLocked(&types.ResourceHeader{
 					Kind: types.KindAppServer,
 					Metadata: types.Metadata{
-						Name: event.Resource.GetName(),
+						Name: strings.ToLower(event.Resource.GetName()),
 					},
 				})
 			default:

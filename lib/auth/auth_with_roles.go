@@ -6925,6 +6925,12 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// Validate before the label-matching access check so callers with
+	// the correct role see input errors rather than access-denied from
+	// a label mismatch on a malformed app.
+	if err := services.ValidateApp(app, a.authServer); err != nil {
+		return trace.Wrap(err)
+	}
 	// Don't allow users create apps they wouldn't have access to (e.g.
 	// non-matching labels).
 	if err := a.checkAccessToApp(app); err != nil {
@@ -6936,6 +6942,11 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 // UpdateApp updates existing application resource.
 func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Validate before the GetApp existence check so a malformed name
+	// returns the input error rather than "doesn't exist".
+	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow users update apps they don't have access to (e.g.

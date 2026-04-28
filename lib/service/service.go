@@ -2990,7 +2990,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Cache:             authServer.Cache,
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,
-			AppServerUpserter: authServer.Services,
+			AppServerUpserter: authServer,
 			HostUUID:          hostUUID,
 		}))
 	})

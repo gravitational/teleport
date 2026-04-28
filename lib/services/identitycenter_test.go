@@ -21,6 +21,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -314,6 +316,70 @@ func TestIdentityCenterAccountAssignmentMatcher(t *testing.T) {
 			require.NoError(t, err)
 
 			testCase.expectMatch(t, match)
+		})
+	}
+}
+
+func TestIdentityCenterAccountToAppServer(t *testing.T) {
+	tests := []struct {
+		name           string
+		acctName       string
+		startURL       string
+		wantAppName    string
+		wantPublicAddr string
+	}{
+		{
+			name:           "strips scheme and path",
+			acctName:       "test-account",
+			startURL:       "https://start.example.com/start",
+			wantAppName:    "test-account",
+			wantPublicAddr: "start.example.com",
+		},
+		{
+			name:           "strips scheme and port",
+			acctName:       "test-account",
+			startURL:       "https://start.example.com:8443/start",
+			wantAppName:    "test-account",
+			wantPublicAddr: "start.example.com",
+		},
+		{
+			name:           "bare hostname unchanged",
+			acctName:       "test-account",
+			startURL:       "start.example.com",
+			wantAppName:    "test-account",
+			wantPublicAddr: "start.example.com",
+		},
+		{
+			name:           "lowercases mixed-case name and host",
+			acctName:       "Mixed-Case-Account",
+			startURL:       "https://Start.Example.COM/start",
+			wantAppName:    "mixed-case-account",
+			wantPublicAddr: "start.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acct := &identitycenterv1.Account{
+				Kind:    types.KindIdentityCenterAccount,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: tt.acctName,
+				},
+				Spec: &identitycenterv1.AccountSpec{
+					Id:       "123456789012",
+					StartUrl: tt.startURL,
+				},
+			}
+
+			srv := IdentityCenterAccountToAppServer(acct)
+			require.Equal(t, tt.wantAppName, srv.GetApp().GetName())
+			require.Equal(t, tt.wantAppName, srv.GetName())
+			require.Equal(t, tt.wantPublicAddr, srv.GetApp().GetPublicAddr())
+			require.Equal(t, tt.startURL, srv.GetApp().GetURI())
+			// Round-trip through ValidateApp catches future write-path
+			// tightening.
+			require.NoError(t, ValidateApp(srv.GetApp(), &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}))
 		})
 	}
 }
