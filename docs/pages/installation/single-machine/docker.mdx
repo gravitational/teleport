@@ -15,11 +15,8 @@ Teleport publishes a pre-built Docker image for every release. Images are hosted
 ### Image suffixes
 
 You can specify attributes of an image by appending a suffix to the repository name or tag.
-
 Images with the `-distroless` suffix include only the `teleport` binary and its runtime dependencies, with no shell or utility applications. An example is `public.ecr.aws/gravitational/teleport-distroless` for Teleport Community Edition.
-
 Images with the `-distroless-debug` suffix include a Busybox shell and tool suite in addition to Teleport, and are intended for troubleshooting deployments only. They are not intended for production use. An example is `public.ecr.aws/gravitational/teleport-distroless-debug`.
-
 `-distroless` and `-distroless-debug` images support multiple architectures natively, and do not require (or support) image suffixes. You can specify an architecture using the `--platform` flag of `docker pull` to pull the `arm`, `arm64`, or `amd64` version of an image.
 
 ### Version tags
@@ -28,6 +25,7 @@ Images point to a static version of Teleport. Use the image's tag to specify eit
 
 - The major, minor, and patch version (e.g., `(=teleport.version=)` for the latest version of Teleport Community Edition).
 - The major version only, which implies the latest minor and patch numbers for that major version. For example, `(=teleport.major_version=)` implies `(=teleport.version=)`.
+- Before upgrading, take a snapshot or backup of the data directory.
 
 <Tabs>
 <TabItem label="Teleport Enterprise (Managed)" scope={["team", "cloud"]}>
@@ -80,9 +78,10 @@ We also provide a slimmed-down distroless image that contains only the `tbot` bi
 
 The version tagging follows the same pattern as the main `teleport-distroless` image.
 
-While the `teleport-distroless` image also includes `tbot`, prefer the `tbot`-specific image for Machine & Workload Identity deployments. This image is smaller, which improves pull times, and has a smaller attack surface. The image is also customized to improve the experience of running `tbot` in a container environment.
+While the `teleport-distroless` image also includes `tbot`, prefer the `tbot`-specific image for Machine & Workload Identity deployments. 
+This image is smaller, which improves pull times, and has a smaller attack surface. The image is also customized to improve the experience of running `tbot` in a container environment.
 
-To learn more, read the [Deploying Machine & Workload Identity on Kubernetes](../machine-workload-identity/deployment/kubernetes.mdx) guide.
+To learn more, read the [Deploying Machine & Workload Identity on Kubernetes](../../machine-workload-identity/deployment/kubernetes.mdx) guide.
 
 ### Interacting with distroless images
 
@@ -120,25 +119,31 @@ $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busy
 
 ## Running Teleport on Docker
 
-When running a container from one of the images listed above, consider the container equivalent to running the `teleport` binary. The Teleport container requires access to a file system and network ports.
+When running a container from one of the images listed above, consider the container equivalent to running the `teleport` binary. 
+The Teleport container requires access to a file system and network ports.
 
 ### Configuration
 
-Teleport processes read their configuration from a local file path, which is `/etc/teleport.yaml` by default. Make sure this file path is mounted to your Teleport container.
+Teleport processes read their configuration from a local file path, which is `/etc/teleport.yaml` by default. 
+Make sure this file path is mounted to your Teleport container.
 
 ### Data directory
 
-All Teleport processes read from and write to a data directory, which by default is `/var/lib/teleport`. Make sure the data directory is mounted to your Teleport container.
+All Teleport processes read from and write to a data directory, which by default is `/var/lib/teleport`. 
+Make sure the data directory is mounted to your Teleport container.
 
 ### License file
 
-If your Teleport Enterprise container runs the Auth Service, you will need to give it access to a license file at the path named in the configuration, which is `/var/lib/teleport/license.pem` by default. Make sure a license exists at this location in the Teleport container's data directory.
+If your Teleport Enterprise container runs the Auth Service, you will need to give it access to a license file at the path named in the configuration, 
+which is `/var/lib/teleport/license.pem` by default. Make sure a license exists at this location in the Teleport container's data directory.
 
 ### Other file paths
 
-Depending on the configuration settings you assign on your Teleport container, you will need to make sure that any file paths you name are mounted on the container.
+Depending on the configuration settings you assign on your Teleport container, you will need to make sure that any 
+file paths you name are mounted on the container.
 
-For example, if you are running the Teleport Proxy Service on a container, mount the directory containing TLS credentials to your Teleport container, then assign the following fields in the container's configuration file to the appropriate paths:
+For example, if you are running the Teleport Proxy Service on a container, mount the directory containing TLS credentials 
+to your Teleport container, then assign the following fields in the container's configuration file to the appropriate paths:
 
 ```yaml
 proxy_service:
@@ -147,11 +152,13 @@ proxy_service:
     cert_file: /my/path/cert.pem
 ```
 
-See the Teleport [Configuration Reference](../reference/deployment/config.mdx) for whether a field you would like to assign requires a file path.
+See the Teleport [Configuration Reference](../../reference/deployment/config.mdx) for whether a field you would like to assign 
+requires a file path.
 
 ### Ports
 
-A single Teleport process can run multiple services, each of which listens on a specific set of ports depending on your configuration. See our [Networking Reference](../reference/deployment/networking.mdx#ports) for the ports on your Teleport container to expose.
+A single Teleport process can run multiple services, each of which listens on a specific set of ports depending on your configuration. 
+See our [Networking Reference](../../reference/deployment/networking.mdx#ports) for the ports on your Teleport container to expose.
 
 <Checkpoint
   title="Troubleshoot common Docker setup issues"
@@ -161,35 +168,26 @@ A single Teleport process can run multiple services, each of which listens on a 
 **Image pull**
 
 - If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
-- For network timeouts, check your internet connection and any proxy settings configured in Docker. Behind a corporate proxy, verify Docker is configured to trust the proxy's CA.
-- If you see `no matching manifest for linux/arm64`, specify the platform explicitly with `docker pull --platform linux/amd64`. On Apple Silicon, try `--platform linux/arm64`.
-- For rate-limiting errors from ECR Public, wait a few minutes and try again, or authenticate with an AWS account.
+- If you see architecture errors such as no matching manifest, specify the platform explicitly with --platform.
+
 
 **Container startup**
 
 - If you see `docker: Error response from daemon: OCI runtime create failed`, verify Docker is running and your user has permission to use it (you may need to add your user to the `docker` group).
 - If the container is not listed in `docker ps`, check whether it exited with `docker ps -a --filter name=teleport`, then view logs with `docker logs teleport`.
-- If you see `Error response from daemon: Conflict. The container name "/teleport" is already in use`, remove the existing container with `docker rm teleport` or choose a different name.
 - If you see `bind: address already in use` for ports 3025 or 3080, another process is using those ports. Find it with `lsof -i :3080` (macOS/Linux), or choose different host ports (e.g., `-p 3081:3080`).
-- Depending on your configuration, you may need to expose additional ports (for example, 3022 - 3025) as described in the Networking Reference.
 
 **File mounts and permissions**
 
 - If you see `failed to read configuration` or `no such file or directory` for `/etc/teleport.yaml`, verify the configuration file path on the host exists and is mounted to `/etc/teleport` in the container.
 - If you see `permission denied` writing to `/var/lib/teleport`, ensure the data directory on the host is writable by the container's user. For distroless images, check `runAsUser` and `fsGroup` settings, or adjust host directory permissions with `chmod`.
-- For Teleport Enterprise Auth deployments, if you see `license file not found` or `failed to read license`, verify the license file is mounted at the path specified in the configuration (`/var/lib/teleport/license.pem` by default) and is readable by the container.
 - If you see TLS errors referencing a missing key or certificate file, verify that any paths assigned in `proxy_service.https_keypairs` are mounted to the container.
-- On SELinux-enabled systems, append `:z` to your volume mounts (e.g., `-v ~/teleport/config:/etc/teleport:z`).
-- On Docker Desktop, ensure the host directory is shared with Docker (Settings → Resources → File Sharing).
 
 **On upgrade**
 
-- Before upgrading, take a snapshot or backup of the data directory.
 - If the container fails to start after upgrade, check logs with `docker logs teleport` for migration or compatibility errors.
 - If you see database migration errors, ensure you're not skipping major versions. Teleport supports upgrades from one major version to the next; it does not support skipping versions.
-- If the cluster state seems incorrect, verify the data directory mount is pointing to the same location as before the upgrade.
 - To roll back, stop the new container and start a container with the previous image version using the same data directory.
-- For Enterprise Auth deployments, ensure the license file is still mounted after upgrade.
 
 </Checkpoint>
 
@@ -199,7 +197,8 @@ Extracting certificates created with `tctl auth sign` from a container running a
 
 Where possible, log into the Teleport cluster using `tsh` and use `tctl auth sign` locally to generate certificates. This way the action is logged against your Teleport user and is subject to all of the usual Teleport RBAC policies in your cluster.
 
-If this is not possible, use `tctl auth sign --tar` to collect all the files generated by `tctl auth sign` into a `tar` archive, which is streamed directly to `stdout`. The resulting certificates are never stored on the container filesystem. You can either pipe this output directly to `tar`, or redirect it to a local file for later use.
+If this is not possible, use `tctl auth sign --tar` to collect all the files generated by `tctl auth sign` into a `tar` archive, which is streamed directly to `stdout`. The resulting certificates are never stored on the container filesystem. 
+You can either pipe this output directly to `tar`, or redirect it to a local file for later use.
 
 For example:
 
@@ -217,11 +216,8 @@ x alice.local.cas
 >
 
 - If you see `Error: No such container`, verify the container is running with `docker ps` and that `${TELEPORT_CONTAINER}` is set to the correct container name or ID.
-- If you see `user "alice" not found`, create the user first with `tctl users add alice` (run from inside the container or via a separate `docker exec`).
 - If `tar xv` produces no output and no files appear locally, the `tctl auth sign` call may have failed silently. Run the command without the `| tar xv` pipe to see the raw output and any error messages.
 - If you see `tar: This does not look like a tar archive`, the command output likely contains an error message instead of archive data. Run `tctl auth sign` without `--tar` first to confirm the user and parameters are valid.
-- If extracted files have unexpected permissions, note that `tctl auth sign --tar` writes files with the permissions of the container's user; adjust with `chmod` after extraction if needed.
-- If you need to extract to a specific directory rather than the current working directory, pipe to `tar xv -C /path/to/destination`.
 
 </Checkpoint>
 
@@ -229,7 +225,8 @@ x alice.local.cas
 
 In this example, you will run the Teleport Auth Service and Proxy Service on a local Docker container using Teleport Community Edition.
 
-Since this container uses a self-signed certificate, we do not recommend using this configuration to protect any infrastructure outside your workstation. You can, however, join other local Docker containers to it using the [token method](../enroll-resources/agents/join-token.mdx).
+Since this container uses a self-signed certificate, we do not recommend using this configuration to protect any infrastructure outside your workstation. 
+You can, however, join other local Docker containers to it using the [token method](../../installation/agents/join-token.mdx).
 
 1. Pull the Teleport image:
 
@@ -237,7 +234,7 @@ Since this container uses a self-signed certificate, we do not recommend using t
    $ docker pull (=teleport.latest_oss_docker_image=)
    ```
 
-   You should see output indicating the image layers are being downloaded, ending with a success message like `Status: Downloaded newer image`.
+   The output should indicate the image layers are being downloaded, ending with a success message like `Status: Downloaded newer image`.
 
 1. Create directories in your home directory to mount to the container. The Teleport container will write its configuration and data to these directories:
 
@@ -245,7 +242,8 @@ Since this container uses a self-signed certificate, we do not recommend using t
    $ mkdir -p ~/teleport/config ~/teleport/data
    ```
 
-1. Run `teleport configure` from the Teleport container to generate a configuration file. This sets the container's name to `localhost` so your browser can trust the Proxy Service's self-signed TLS certificate:
+1. Run `teleport configure` from the Teleport container to generate a configuration file. This sets the container's name to `localhost` 
+   so your browser can trust the Proxy Service's self-signed TLS certificate:
 
    ```code
    $ docker run --hostname localhost --rm \
@@ -259,9 +257,9 @@ Since this container uses a self-signed certificate, we do not recommend using t
    $ cat ~/teleport/config/teleport.yaml | head -20
    ```
 
-   You should see YAML configuration output beginning with `version:` and `teleport:` sections.
+   The command prints YAML configuration beginning with `version:` and `teleport:` sections.
 
-1. Start Teleport on your container:
+1. Start Teleport on your container. This container runs both the Auth Service and Proxy Service in a single process for local testing:
 
    ```code
    $ docker run --hostname localhost --name teleport \
@@ -277,7 +275,7 @@ Since this container uses a self-signed certificate, we do not recommend using t
    $ docker ps --filter name=teleport
    ```
 
-   You should see the `teleport` container listed with a status of `Up`.
+   The `teleport` container should be listed with a status of `Up`.
 
 1. Confirm that the Teleport container's web API is functioning as intended:
 
@@ -285,7 +283,7 @@ Since this container uses a self-signed certificate, we do not recommend using t
    $ curl --insecure https://localhost:3080/webapi/ping | jq
    ```
 
-   You should see JSON output similar to the following (the version values shown are illustrative):
+   The command returns JSON similar to the following (the version values shown are illustrative):
 
    ```json
    {
@@ -323,7 +321,8 @@ Since this container uses a self-signed certificate, we do not recommend using t
    }
    ```
 
-   The `--insecure` flag is required because Teleport is using a self-signed certificate. In production, provision TLS credentials to the Proxy Service from a trusted CA, e.g., Let's Encrypt.
+   The `--insecure` flag is required because Teleport is using a self-signed certificate. 
+   In production, provision TLS credentials to the Proxy Service from a trusted CA, e.g., Let's Encrypt.
 
    <Checkpoint
      title="Troubleshoot Teleport connectivity issues"
@@ -334,14 +333,13 @@ Since this container uses a self-signed certificate, we do not recommend using t
    - If you see `curl: (35) SSL connect error` or certificate errors, ensure you're using the `--insecure` flag for self-signed certificates.
    - If the response is empty or malformed, check container logs with `docker logs teleport` for startup errors.
    - If you see `connection refused`, the Teleport process may still be initializing. Wait a few seconds and try again.
-   - On macOS, if Docker Desktop is using a VM, ensure the ports are correctly forwarded from the VM to your host.
-   - If connections fail after startup, verify the container hostname and certificate SANs match how you access the proxy.
 
    </Checkpoint>
 
 ## Verifying Teleport on Kubernetes
 
-When running Teleport in a Kubernetes pod, you can use the same images described above. The verification steps and troubleshooting differ from a standalone Docker container.
+When running Teleport in a Kubernetes pod, you can use the same images described above. 
+The verification steps and troubleshooting differ from a standalone Docker container.
 
 ### Verify pod status
 
@@ -352,7 +350,7 @@ $ kubectl get pods -l app=teleport -o wide
 $ kubectl describe pod <pod-name>
 ```
 
-You should see the pod listed with a status of `Running` and no recent restarts.
+The pod will be listed with a status of `Running` and no recent restarts.
 
 ### Verify Teleport is responding
 
@@ -362,7 +360,7 @@ Check Teleport cluster status from inside the pod:
 $ kubectl exec -i <pod-name> -- tctl status
 ```
 
-You should see output showing the cluster name, version, and CA pin.
+The output will show the cluster name, version, and CA pin.
 
 To test the web API locally, port-forward and query the endpoint:
 
@@ -371,7 +369,7 @@ $ kubectl port-forward <pod-name> 3080:3080
 $ curl --insecure https://localhost:3080/webapi/ping
 ```
 
-You should see JSON output containing `cluster_name`, `server_version`, and configuration details.
+The endpoint should return JSON containing cluster and proxy information.
 
 ### Verify deployment and upgrades
 
@@ -381,7 +379,7 @@ Check rollout status during an upgrade:
 $ kubectl rollout status deployment/teleport
 ```
 
-You should see a message indicating the rollout completed successfully.
+A message will indicate the rollout completed successfully.
 
 Verify the running image version:
 
@@ -409,7 +407,6 @@ You should see the expected image tag matching the version you deployed.
 - If `tctl status` fails due to authentication or RBAC, use `/webapi/ping` as the primary health check.
 - If `kubectl port-forward` fails, ensure the pod is running and the container port is correct.
 - View pod logs for startup errors with `kubectl logs -f <pod-name>` and recent events with `kubectl get events --field-selector involvedObject.name=<pod-name>`.
-- Verify the mounted configuration with `kubectl exec -i <pod-name> -- cat /etc/teleport.yaml`.
 
 **Rollouts and upgrades**
 
@@ -417,8 +414,6 @@ You should see the expected image tag matching the version you deployed.
 - If pods fail after an upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
 - To restart pods without changing configuration, run `kubectl rollout restart deployment/teleport`.
 - Check resource usage during upgrades with `kubectl top pod -l app=teleport`.
-- Verify advertised addresses (`proxy_service.public_addr`, `cluster_name`) match how you access the proxy from outside the container.
-- Ensure system time is synchronized on the host; clock skew can cause certificate validation failures.
 
 </Checkpoint>
 
@@ -448,6 +443,6 @@ To upgrade a Teleport container running on Docker:
    $ curl --insecure https://localhost:3080/webapi/ping | jq '.server_version'
    ```
 
-   You should see the new version number in the output.
+   The output displays the new version number.
 
-If the upgrade fails or the container doesn't start, see the **On upgrade** section of the [Docker setup troubleshooting checkpoint](#troubleshoot-common-docker-setup-issues) earlier in this guide.
+If the upgrade fails or the container doesn't start, see the **On upgrade** section of the Docker setup troubleshooting checkpoint earlier in this guide.
