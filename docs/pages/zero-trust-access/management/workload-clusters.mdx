@@ -307,94 +307,28 @@ The following example does the following:
    $ tsh login --proxy parent.teleport.sh
    ```
 
-2. Set up a Go project:
+2. Clone the Teleport repository:
 
    ```code
-   $ mkdir workload-cluster-demo
-   $ cd workload-cluster-demo
-   $ go mod init workload-cluster-demo
-   $ go get github.com/gravitational/teleport/api/client
+   $ git clone --depth=1 https://github.com/gravitational/teleport
    ```
 
-3. Add the imports and helper types used by the example:
+3. Navigate to the workload clusters example:
 
-   ```go
-   (!docs/pages/includes/workload-clusters/go-imports-and-types.go!)
+   ```code
+   $ cd examples/workload-clusters/
    ```
 
-   These imports bring in the Teleport API client, the generated workload cluster
-   protobuf types, and the standard-library packages needed to write the tbot
-   configuration, run `tbot`, and wait for the provisioned Teleport Cloud cluster
-   to become active.
-
-   The helper types model the `tbot` configuration that the example writes to
-   disk before invoking `tbot start`.
-
-4. Add the helper function that waits for the provisioned Teleport Cloud
-cluster to become active:
-
-   ```go
-   (!docs/pages/includes/workload-clusters/go-helper-function.go!)
-   ```
-
-   This helper polls the parent Teleport Cloud cluster until the
-   `workload_cluster` status reports `active`.
-
-5. Connect to the parent Teleport Cloud cluster and create the
-`workload_cluster` resource. Replace `parent.teleport.sh`, `account`, and
+4. Replace `parent.teleport.sh`, `account`, and
 `arn` with the parent Teleport Cloud cluster address, a valid AWS account ID,
-and a valid AWS ARN that `tbot` can use for IAM joining:
+and a valid AWS ARN that `tbot` can use for IAM joining in `main.go`.
 
-   ```go
-   (!docs/pages/includes/workload-clusters/go-parent-client-and-resource.go!)
-   ```
-
-   This part of the program creates a Teleport API client authenticated with the
-   existing `tsh` profile, then submits a `workload_cluster` resource to the
-   parent Teleport Cloud cluster.
-
-6. Wait for Teleport Cloud to finish provisioning the new Teleport Cloud
-cluster:
-
-   ```go
-   (!docs/pages/includes/workload-clusters/go-wait-for-active.go!)
-   ```
-
-7. Configure and run `tbot` for the provisioned Teleport Cloud cluster:
-
-   ```go
-   (!docs/pages/includes/workload-clusters/go-run-tbot.go!)
-   ```
-
-   This section writes a temporary `tbot` configuration, runs `tbot`, and
-   produces an identity file for the child Teleport Cloud cluster.
-
-8. Use the generated identity to create a role and user in the child Teleport
-Cloud cluster:
-
-   ```go
-   (!docs/pages/includes/workload-clusters/go-manage-child-cluster.go!)
-   ```
-
-   This part creates a second Teleport API client using the identity file that
-   `tbot` generated, then uses that client to create a role, create a user, and
-   generate an invite link.
-
-9. Delete the `workload_cluster` resource when the workflow is complete:
-
-   ```go
-   (!docs/pages/includes/workload-clusters/go-delete-resource.go!)
-   ```
-
-   This final section removes the `workload_cluster` resource from the parent
-   Teleport Cloud cluster.
-
-10. Authenticate to AWS using the identity referenced in the
+5. Authenticate to AWS using the identity referenced in the
 `workload_cluster` resource, then run the Go program:
 
-    ```code
-    $ go run ./
-    ```
+   ```code
+   $ go run ./
+   ```
 
 ## Next steps
 
