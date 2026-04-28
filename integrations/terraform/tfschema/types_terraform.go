@@ -1099,6 +1099,11 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "MCP contains MCP server related configurations.",
 					Optional:    true,
 				},
+				"prioritize_http2": {
+					Description: "PrioritizeHttp2 advertises HTTP/2 ahead of HTTP/1.1 in the proxy's ALPN list for connections to this app. Default false keeps HTTP/1.1 first, which is required for WebSocket apps because Go's net/http does not implement RFC 8441 (HTTP/2 extended CONNECT for WebSockets); see https://github.com/golang/go/issues/49918. Set true only on apps that benefit from HTTP/2 multiplexing and have no WebSocket usage.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
 				"public_addr": {
 					Description: "PublicAddr is the public address the application is accessible at.",
 					Optional:    true,
@@ -13975,6 +13980,23 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["prioritize_http2"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.PrioritizeHttp2"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.PrioritizeHttp2", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.PrioritizeHttp2 = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -15897,6 +15919,28 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								v.Unknown = false
 								tf.Attrs["inference"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["prioritize_http2"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.PrioritizeHttp2"})
+						} else {
+							v, ok := tf.Attrs["prioritize_http2"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"AppV3.Spec.PrioritizeHttp2", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.PrioritizeHttp2", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.PrioritizeHttp2) == false
+							}
+							v.Value = bool(obj.PrioritizeHttp2)
+							v.Unknown = false
+							tf.Attrs["prioritize_http2"] = v
 						}
 					}
 				}
