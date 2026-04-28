@@ -4860,6 +4860,7 @@ func TestSerializeDatabases(t *testing.T) {
       },
       "mysql": {},
       "oracle": {},
+      "orphaned_resource_owner": "",
       "gcp": {
         "alloydb": {}
       },

@@ -2216,6 +2216,20 @@ type Database struct {
 	AdminUser DatabaseAdminUser `yaml:"admin_user"`
 	// Oracle is Database Oracle settings
 	Oracle DatabaseOracle `yaml:"oracle,omitempty"`
+	// When user auto-provisioning is active, and create_db_user_mode is set to
+	// best_effort_drop, Teleport attempts to DROP the user once their session ends.
+	// If the user owns any objects, the DROP fails, and Teleport falls back to
+	// deactivating the user (i.e. create_db_user_mode: keep).
+	//
+	// OrphanedResourceOwner specifies a database user to which Teleport transfers
+	// ownership of objects owned by the auto-provisioned user immediately prior
+	// to dropping the user. This prevents the DROP from failing, and thus falling
+	// back to deactivating the user. If OrphanedResourceOwner is not specified,
+	// Teleport does not attempt to transfer object ownership.
+	//
+	// OrphanedResourceOwner is ignored when user auto-provisioning is disabled, or
+	// create_db_user_mode has a value other than best_effort_drop.
+	OrphanedResourceOwner string `yaml:"orphaned_resource_owner"`
 }
 
 // DatabaseAdminUser describes database privileged user for auto-provisioning.

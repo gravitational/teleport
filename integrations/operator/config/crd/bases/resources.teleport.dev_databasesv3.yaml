@@ -375,6 +375,20 @@ spec:
                       of hosts to connect to from the provided list.
                     type: boolean
                 type: object
+              orphaned_resource_owner:
+                description: 'When user auto-provisioning is active, and create_db_user_mode
+                  is set to best_effort_drop, Teleport attempts to DROP the user once
+                  their session ends. If the user owns any objects, the DROP fails,
+                  and Teleport falls back to deactivating the user (i.e. create_db_user_mode:
+                  keep).  OrphanedResourceOwner specifies a database user to which
+                  Teleport transfers ownership of objects owned by the auto-provisioned
+                  user immediately prior to dropping the user. This prevents the DROP
+                  from failing, and thus falling back to deactivating the user. If
+                  OrphanedResourceOwner is not specified, Teleport does not attempt
+                  to transfer object ownership.  OrphanedResourceOwner is ignored
+                  when user auto-provisioning is disabled, or create_db_user_mode
+                  has a value other than best_effort_drop.'
+                type: string
               protocol:
                 description: 'Protocol is the database protocol. Valid options are:
                   "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb"

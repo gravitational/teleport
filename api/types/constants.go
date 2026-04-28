@@ -954,6 +954,11 @@ const (
 	// the admin user logs into by default.
 	DatabaseAdminDefaultDatabaseLabel = TeleportNamespace + "/db-admin-default-database"
 
+	// DatabaseOrphanedResourceOwnerLabel is the database user to transfer
+	// resource ownership to at the end of a session where the database user
+	// is auto-provisioned and create_db_user_mode is set to best_effort_drop.
+	DatabaseOrphanedResourceOwnerLabel = TeleportNamespace + "/db-orphaned-resource-owner"
+
 	// cloudKubeClusterNameOverrideLabel is a cloud agnostic label key for
 	// overriding kubernetes cluster name in discovered cloud kube clusters.
 	// It's used for AWS, GCP, and Azure, but not exported to decouple the

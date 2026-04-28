@@ -71,6 +71,9 @@ type Database struct {
 	AdminUser DatabaseAdminUser
 	// Oracle are additional Oracle database options.
 	Oracle OracleOptions
+	// OrphanedResourceOwner is the database user to optionally transfer database resource
+	// ownership to at the end of a session where the database user was auto-provisioned.
+	OrphanedResourceOwner string
 }
 
 // DatabaseAdminUser contains information about database admin user.
@@ -142,7 +145,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			Name:            d.AdminUser.Name,
 			DefaultDatabase: d.AdminUser.DefaultDatabase,
 		},
-		Oracle: convOracleOptions(d.Oracle),
+		OrphanedResourceOwner: d.OrphanedResourceOwner,
+		Oracle:                convOracleOptions(d.Oracle),
 		AWS: types.AWS{
 			AccountID:     d.AWS.AccountID,
 			AssumeRoleARN: d.AWS.AssumeRoleARN,

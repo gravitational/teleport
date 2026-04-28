@@ -1935,7 +1935,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Name:            database.AdminUser.Name,
 				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
-			Oracle: convOracleOptions(database.Oracle),
+			OrphanedResourceOwner: database.OrphanedResourceOwner,
+			Oracle:                convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
 				AccountID:     database.AWS.AccountID,
 				AssumeRoleARN: database.AWS.AssumeRoleARN,

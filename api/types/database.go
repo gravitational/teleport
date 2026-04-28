@@ -144,6 +144,9 @@ type Database interface {
 	Copy() *DatabaseV3
 	// GetAdminUser returns database privileged user information.
 	GetAdminUser() DatabaseAdminUser
+	// GetOrphanedResourceOwner returns the database user to optionally transfer database resource
+	// ownership to at the end of a session where the database user was auto-provisioned.
+	GetOrphanedResourceOwner() string
 	// SupportsAutoUsers returns true if this database supports automatic
 	// user provisioning.
 	SupportsAutoUsers() bool
@@ -319,6 +322,13 @@ func (d *DatabaseV3) GetAdminUser() (ret DatabaseAdminUser) {
 		ret.DefaultDatabase = d.Metadata.Labels[DatabaseAdminDefaultDatabaseLabel]
 	}
 	return
+}
+
+func (d *DatabaseV3) GetOrphanedResourceOwner() string {
+	if d.Spec.OrphanedResourceOwner != "" {
+		return d.Spec.OrphanedResourceOwner
+	}
+	return d.Metadata.Labels[DatabaseOrphanedResourceOwnerLabel]
 }
 
 // GetOracle returns the Oracle options from spec.

@@ -1447,6 +1447,57 @@ func TestGetAdminUser(t *testing.T) {
 	}
 }
 
+func TestGetOrphanedResourceOwner(t *testing.T) {
+	testCases := []struct {
+		desc                      string
+		specOrphanedResourceOwner string
+		labels                    map[string]string
+		want                      string
+	}{
+		{
+			desc: "no OrphanedResourceOwner",
+			want: "",
+		},
+		{
+			desc:                      "OrphanedResourceOwner from spec",
+			specOrphanedResourceOwner: "example1",
+			labels:                    map[string]string{},
+			want:                      "example1",
+		},
+		{
+			desc: "OrphanedResourceOwner from label",
+			labels: map[string]string{
+				DatabaseOrphanedResourceOwnerLabel: "example2",
+			},
+			want: "example2",
+		},
+		{
+			desc:                      "OrphanedResourceOwner specified in both spec and label",
+			specOrphanedResourceOwner: "example3",
+			labels: map[string]string{
+				DatabaseOrphanedResourceOwnerLabel: "example4",
+			},
+			want: "example3",
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			meta := Metadata{
+				Name:   "example",
+				Labels: test.labels,
+			}
+			spec := DatabaseSpecV3{
+				Protocol:              "postgres",
+				URI:                   "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+				OrphanedResourceOwner: test.specOrphanedResourceOwner,
+			}
+			d, err := NewDatabaseV3(meta, spec)
+			require.NoError(t, err)
+			require.Equal(t, test.want, d.GetOrphanedResourceOwner())
+		})
+	}
+}
+
 func TestDatabaseOracleRDS(t *testing.T) {
 	database, err := NewDatabaseV3(Metadata{
 		Name: "my-oracle",

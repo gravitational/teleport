@@ -541,6 +541,11 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Description: "Oracle is an additional Oracle configuration options.",
 					Optional:    true,
 				},
+				"orphaned_resource_owner": {
+					Description: "When user auto-provisioning is active, and create_db_user_mode is set to best_effort_drop, Teleport attempts to DROP the user once their session ends. If the user owns any objects, the DROP fails, and Teleport falls back to deactivating the user (i.e. create_db_user_mode: keep).  OrphanedResourceOwner specifies a database user to which Teleport transfers ownership of objects owned by the auto-provisioned user immediately prior to dropping the user. This prevents the DROP from failing, and thus falling back to deactivating the user. If OrphanedResourceOwner is not specified, Teleport does not attempt to transfer object ownership.  OrphanedResourceOwner is ignored when user auto-provisioning is disabled, or create_db_user_mode has a value other than best_effort_drop.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 				"protocol": {
 					Description: "Protocol is the database protocol. Valid options are: \"cassandra\" \"clickhouse\" \"clickhouse-http\" \"cockroachdb\" \"dynamodb\" \"elasticsearch\" \"mongodb\" \"mysql\" \"oracle\" \"postgres\" \"redis\" \"snowflake\" \"spanner\" \"sqlserver\"",
 					Required:    true,
@@ -8118,6 +8123,23 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["orphaned_resource_owner"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.OrphanedResourceOwner"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.OrphanedResourceOwner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.OrphanedResourceOwner = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -10793,6 +10815,28 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 								v.Unknown = false
 								tf.Attrs["oracle"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["orphaned_resource_owner"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.OrphanedResourceOwner"})
+						} else {
+							v, ok := tf.Attrs["orphaned_resource_owner"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.OrphanedResourceOwner", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.OrphanedResourceOwner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.OrphanedResourceOwner) == ""
+							}
+							v.Value = string(obj.OrphanedResourceOwner)
+							v.Unknown = false
+							tf.Attrs["orphaned_resource_owner"] = v
 						}
 					}
 				}
