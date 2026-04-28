@@ -94,8 +94,7 @@ func (p SAMLEntraIDGroupsProvider) MaybeFetchEntraIDGroups(ctx context.Context) 
 		return nil
 	}
 
-	// Only need fetch if "groups.link" attribute is present.
-	if _, ok := p.AssertionInfo.Values[entraIDAttrGroupsOverageLink]; !ok {
+	if !HasSAMLGroupsOverage(p.AssertionInfo) {
 		return nil
 	}
 
@@ -154,4 +153,11 @@ func (p SAMLEntraIDGroupsProvider) userObjectID() (string, error) {
 	}
 
 	return oidAttr.Values[0].Value, nil
+}
+
+// HasSAMLGroupsOverage checks if the assertion contains the "groups.link" attribute
+// which signals groups overage.
+func HasSAMLGroupsOverage(assertionInfo *saml2.AssertionInfo) bool {
+	_, ok := assertionInfo.Values[entraIDAttrGroupsOverageLink]
+	return ok
 }

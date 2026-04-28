@@ -5,11 +5,15 @@ import (
 	"compress/flate"
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/crewjam/saml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -59,12 +65,14 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -2050,12 +2058,159 @@ func TestSAMLRequestSubjectInjection(t *testing.T) {
 	}
 }
 
+func TestSAMLEntraIDGroupsOverage(t *testing.T) {
+	t.Parallel()
+
+	// "vegetarian" and "scouser" roles are not mapped to any group to verify they're not assigned.
+	roles := []string{"amateur", "pro", "quartet", "walrus", "bass-player", "vegetarian", "scouser", "quintet"}
+	groups := []string{"quarrymen", "beatles", "bass"}
+
+	attributesToRoles := []types.AttributeMapping{
+		{
+			Name:  "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+			Value: groups[0],
+			Roles: []string{"amateur", "quintet"},
+		}, {
+			Name:  "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+			Value: groups[1],
+			Roles: []string{"pro", "quartet", "walrus"},
+		}, {
+			Name:  "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+			Value: groups[2],
+			Roles: []string{"bass-player", "pro"},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		withCredentials bool
+		assertErr       require.ErrorAssertionFunc
+		assertRoles     []string
+	}{
+		{
+			name:            "successfully fetch groups overage and map to roles",
+			withCredentials: true,
+			assertErr:       require.NoError,
+			assertRoles:     []string{"amateur", "quintet", "pro", "quartet", "walrus", "bass-player"},
+		},
+		{
+			name: "fail to fetch groups overage",
+			assertErr: func(tt require.TestingT, err error, msgAndArgs ...any) {
+				require.ErrorIs(tt, err, ErrSAMLEntraIDGroupsOverage)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newSAMLTestFixture(t)
+			f.samlService.newEntraIDGraphClient = newTestGraphClient(t, groups)
+
+			idp := NewFakeSAMLIdP(t, f.clock)
+			idp.Session = newOverageSession()
+
+			for _, role := range roles {
+				r, err := types.NewRole(role, types.RoleSpecV6{})
+				require.NoError(t, err)
+
+				_, err = f.authServer.CreateRole(f.testContext, r)
+				require.NoError(t, err)
+			}
+
+			connectorSpec := types.SAMLConnectorSpecV2{
+				Issuer:                   idp.MetadataURL.String(),
+				SSO:                      idp.SSOURL.String(),
+				AssertionConsumerService: "https://localhost:65535/acs", // Not called.
+				Cert:                     idp.CertPEM,
+				AttributesToRoles:        attributesToRoles,
+			}
+
+			if tt.withCredentials {
+				connectorSpec.Credentials = &types.SAMLConnectorCredentials{
+					Oauth: &types.OAuthClientCredentials{
+						ClientId:     "test-client-id",
+						ClientSecret: "test-client-secret",
+					},
+				}
+			}
+
+			connector, err := types.NewSAMLConnector("test-connector", connectorSpec)
+			require.NoError(t, err)
+
+			ctx := t.Context()
+
+			_, err = f.authServer.CreateSAMLConnector(ctx, connector)
+			require.NoError(t, err)
+
+			req, err := f.samlService.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{ConnectorID: connector.GetName()})
+			require.NoError(t, err)
+
+			ssoResp, err := idp.ServeSSO(req.RedirectURL)
+			require.NoError(t, err)
+
+			diagCtx := auth.NewSSODiagContext(types.KindSAML, f.authServer)
+			_, _, err = f.samlService.validateSAMLResponse(ctx, diagCtx, ssoResp, connector.GetName(), "")
+			tt.assertErr(t, err)
+
+			if len(tt.assertRoles) > 0 {
+				user, err := f.authServer.GetUser(ctx, "paul", false)
+				require.NoError(t, err)
+				require.ElementsMatch(t, tt.assertRoles, user.GetRoles())
+			}
+		})
+	}
+}
+
+// newTestGraphClient creates an MS Graph client.
+// It uses a fake token provider and calls a test server that returns a Graph response containing the provided groups.
+func newTestGraphClient(t *testing.T, groups []string) func(tokenProvider azcore.TokenCredential, graphEndpoint string) (*msgraph.Client, error) {
+	t.Helper()
+
+	type group struct {
+		ID string `json:"id"`
+	}
+
+	groupsJSON, err := json.Marshal(sliceutils.Map(groups, func(g string) group {
+		return group{ID: g}
+	}))
+	require.NoError(t, err)
+
+	userGroups := `{
+			"@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects",
+			"@odata.nextLink": "",
+			"value": %s
+	}`
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, fmt.Sprintf(userGroups, groupsJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	client := server.Client()
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return net.Dial("tcp", server.Listener.Addr().String())
+		},
+	}
+
+	return func(tokenProvider azcore.TokenCredential, graphEndpoint string) (*msgraph.Client, error) {
+		return msgraph.NewClient(msgraph.Config{
+			TokenProvider: &fakeTokenProvider{},
+			HTTPClient:    client,
+		})
+	}
+}
+
 // FakeSAMLIdP is a fully-functional SAML IdP that can be used to serve SSO
 // requests and respond with signed assertions in tests.
 type FakeSAMLIdP struct {
 	SSOURL      url.URL
 	MetadataURL url.URL
 	CertPEM     string
+	Session     *saml.Session
 
 	idp *saml.IdentityProvider
 }
@@ -2135,9 +2290,14 @@ func (f *FakeSAMLIdP) GetServiceProvider(r *http.Request, serviceProviderID stri
 	}, nil
 }
 
-// GetSession implements [saml.SessionProvider] and always returns a valid
-// session for a user named "alice".
-func (f *FakeSAMLIdP) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
+// GetSession implements [saml.SessionProvider] and returns a valid
+// session for a user named "alice", unless f.Session is defined, in which case
+// that session is returned instead.
+func (f *FakeSAMLIdP) GetSession(w http.ResponseWriter, _ *http.Request, _ *saml.IdpAuthnRequest) *saml.Session {
+	if f.Session != nil {
+		return f.Session
+	}
+
 	return &saml.Session{
 		NameID:    "alice",
 		UserEmail: "alice@example.com",
@@ -2159,4 +2319,34 @@ func (f *FakeSAMLIdP) Write(w http.ResponseWriter, req *saml.IdpAuthnRequest) er
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// fakeTokenProvider is used to provide a fake token.
+type fakeTokenProvider struct{}
+
+// GetToken returns a fake token.
+func (p *fakeTokenProvider) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "fake-token"}, nil
+}
+
+// newOverageSession returns a SAML session with the "groups.link" attribute to signal Entra groups overage.
+func newOverageSession() *saml.Session {
+	return &saml.Session{
+		NameID:    "paul",
+		UserEmail: "paul@example.com",
+		CustomAttributes: []saml.Attribute{
+			{
+				Name:   "http://schemas.microsoft.com/claims/groups.link",
+				Values: []saml.AttributeValue{{Value: "https://graph.microsoft.com/v1.0/users/test-oid/memberOf"}},
+			},
+			{
+				Name:   "http://schemas.microsoft.com/identity/claims/objectidentifier",
+				Values: []saml.AttributeValue{{Value: "paul@example.com"}},
+			},
+			{
+				Name:   "http://schemas.microsoft.com/identity/claims/tenantid",
+				Values: []saml.AttributeValue{{Value: "test-tenant"}},
+			},
+		},
+	}
 }

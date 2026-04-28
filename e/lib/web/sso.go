@@ -381,6 +381,10 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 
+		if errors.Is(err, eauth.ErrSAMLEntraIDGroupsOverage) {
+			return sso.LoginFailedEntraIDGroupsOverageRedirectURL
+		}
+
 		if errors.Is(err, types.ErrNonExistingRoleAssigned) {
 			return sso.LoginFailedBadCallbackMissingRoleRedirectURL
 		}
