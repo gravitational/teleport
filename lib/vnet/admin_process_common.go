@@ -35,6 +35,7 @@ func newNetworkStackConfig(ctx context.Context, tun tunDevice, clt *clientApplic
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:         clt,
 		appProvider: newAppProvider(clt),
+		dbProvider:  newDBProvider(clt),
 		sshProvider: sshProvider,
 		clock:       clock,
 	})

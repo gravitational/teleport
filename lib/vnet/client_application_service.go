@@ -67,6 +67,12 @@ type clientApplicationService struct {
 	// previously associated with the same session, it is not some Teleport
 	// session identifier.
 	sshSigners *utils.FnCache
+
+	// dbSignerMu protects dbSignerCache.
+	dbSignerMu sync.RWMutex
+	// dbSignerCache caches the crypto.Signer for each certificate issued by
+	// ReissueDBCert so that SignForDB can later use that signer.
+	dbSignerCache map[dbKey]crypto.Signer
 }
 
 type clientApplicationServiceConfig struct {
@@ -89,6 +95,7 @@ func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientAp
 		cfg:              cfg,
 		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
+		dbSignerCache:    make(map[dbKey]crypto.Signer),
 		sshSigners:       sshSigners,
 	}, nil
 }
@@ -443,4 +450,120 @@ func checkAppKey(key *vnetv1.AppKey) error {
 		return trace.BadParameter("app key name must be set")
 	}
 	return nil
+}
+
+// dbKey is a clone of [vnetv1.DatabaseKey] plus username that is not a protobuf
+// type so it can be used as a key in maps. Username is included because
+// different database users connecting to the same database resource get
+// different certs with different RouteToDatabase subjects.
+type dbKey struct {
+	profile, leafCluster, name, username string
+}
+
+func newDBKeyFromInfo(dbInfo *vnetv1.DatabaseInfo) dbKey {
+	return dbKey{
+		profile:     dbInfo.GetDatabaseKey().GetProfile(),
+		leafCluster: dbInfo.GetDatabaseKey().GetLeafCluster(),
+		name:        dbInfo.GetDatabaseKey().GetName(),
+		username:    dbInfo.GetUsername(),
+	}
+}
+
+func newDBKeyFromSignReq(req *vnetv1.SignForDBRequest) dbKey {
+	return dbKey{
+		profile:     req.GetDatabaseKey().GetProfile(),
+		leafCluster: req.GetDatabaseKey().GetLeafCluster(),
+		name:        req.GetDatabaseKey().GetName(),
+		username:    req.GetUsername(),
+	}
+}
+
+func (s *clientApplicationService) setSignerForDB(dbInfo *vnetv1.DatabaseInfo, signer crypto.Signer) {
+	s.dbSignerMu.Lock()
+	defer s.dbSignerMu.Unlock()
+	s.dbSignerCache[newDBKeyFromInfo(dbInfo)] = signer
+}
+
+func (s *clientApplicationService) getSignerForDB(req *vnetv1.SignForDBRequest) (crypto.Signer, bool) {
+	s.dbSignerMu.RLock()
+	defer s.dbSignerMu.RUnlock()
+	signer, ok := s.dbSignerCache[newDBKeyFromSignReq(req)]
+	return signer, ok
+}
+
+// checkDBKey checks that at least the database profile and name are set, which
+// are necessary to disambiguate databases. LeafCluster is expected to be empty
+// if the database is in a root cluster.
+func checkDBKey(key *vnetv1.DatabaseKey) error {
+	switch {
+	case key == nil:
+		return trace.BadParameter("database key must not be nil")
+	case key.GetProfile() == "":
+		return trace.BadParameter("database key profile must be set")
+	case key.GetName() == "":
+		return trace.BadParameter("database key name must be set")
+	}
+	return nil
+}
+
+// ReissueDBCert implements [vnetv1.ClientApplicationServiceServer.ReissueDBCert].
+// It caches the signer issued for each database so that it can later be used to
+// issue signatures in [clientApplicationService.SignForDB].
+func (s *clientApplicationService) ReissueDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest) (*vnetv1.ReissueDBCertResponse, error) {
+	dbInfo := req.GetDatabaseInfo()
+	if dbInfo == nil {
+		return nil, trace.BadParameter("missing DatabaseInfo")
+	}
+	dbKey := dbInfo.GetDatabaseKey()
+	if err := checkDBKey(dbKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := s.cfg.clientApplication.ReissueDBCert(ctx, dbInfo)
+	if err != nil {
+		return nil, trace.Wrap(err, "reissuing database certificate")
+	}
+	s.setSignerForDB(dbInfo, cert.PrivateKey.(crypto.Signer))
+	return &vnetv1.ReissueDBCertResponse{
+		Cert: cert.Certificate[0],
+	}, nil
+}
+
+// SignForDB implements [vnetv1.ClientApplicationServiceServer.SignForDB].
+// It uses a cached signer for the requested database, which must have previously
+// been issued a certificate via [clientApplicationService.ReissueDBCert].
+func (s *clientApplicationService) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest) (*vnetv1.SignForDBResponse, error) {
+	signReq := req.GetSign()
+	log.DebugContext(ctx, "Got SignForDB request",
+		"db", req.GetDatabaseKey(),
+		"hash", signReq.GetHash(),
+		"is_rsa_pss", signReq.PssSaltLength != nil,
+		"pss_salt_len", signReq.GetPssSaltLength(),
+		"digest_len", len(signReq.GetDigest()),
+	)
+
+	dbKey := req.GetDatabaseKey()
+	if err := checkDBKey(dbKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, ok := s.getSignerForDB(req)
+	if !ok {
+		return nil, trace.BadParameter("no signer for database %v (username %s)", dbKey, req.GetUsername())
+	}
+
+	signature, err := sign(signer, signReq)
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for database %v", dbKey)
+	}
+	return &vnetv1.SignForDBResponse{
+		Signature: signature,
+	}, nil
+}
+
+// OnNewDBConnection gets called whenever a new database connection is about to
+// be established through VNet for observability.
+func (s *clientApplicationService) OnNewDBConnection(ctx context.Context, req *vnetv1.OnNewDBConnectionRequest) (*vnetv1.OnNewDBConnectionResponse, error) {
+	if err := s.cfg.clientApplication.OnNewDBConnection(ctx, req.GetDatabaseKey()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.OnNewDBConnectionResponse{}, nil
 }
