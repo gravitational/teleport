@@ -32,12 +32,14 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -96,6 +98,7 @@ type collections struct {
 	windowsDesktops                    *collection[types.WindowsDesktop, windowsDesktopIndex]
 	windowsDesktopServices             *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
 	dynamicWindowsDesktops             *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
+	linuxDesktops                      *collection[*linuxdesktopv1.LinuxDesktop, linuxDesktopIndex]
 	userGroups                         *collection[types.UserGroup, userGroupIndex]
 	identityCenterAccounts             *collection[*identitycenterv1.Account, identityCenterAccountIndex]
 	identityCenterAccountAssignments   *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
@@ -157,6 +160,7 @@ type collections struct {
 	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
 	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
+	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -362,6 +366,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.dynamicWindowsDesktops = collect
 			out.byKind[resourceKind] = out.dynamicWindowsDesktops
+		case types.KindLinuxDesktop:
+			collect, err := newLinuxDesktopCollection(c.LinuxDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.linuxDesktops = collect
+			out.byKind[resourceKind] = out.linuxDesktops
 		case types.KindUserGroup:
 			collect, err := newUserGroupCollection(c.UserGroups, watch)
 			if err != nil {
@@ -844,6 +856,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.retrievalModels = collect
 			out.byKind[resourceKind] = out.retrievalModels
+		case types.KindCertAuthorityOverride:
+			collect, err := newCertAuthorityOverrideCollection(c.SubCAService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.certAuthorityOverrides = collect
+			out.byKind[resourceKind] = out.certAuthorityOverrides
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

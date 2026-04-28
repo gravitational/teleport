@@ -51,10 +51,18 @@ relying on it for day-to-day usage:
    Tools](https://goteleport.com/download/client-tools/), select your platform,
    and choose "CLI Client Tools" in the **Download Type** menu.
 
+1. Sign in to your Teleport cluster from the command line so you can perform
+   administrative actions in your shell. Replace 
+   <Var name="example.teleport.sh" /> with the address of your Teleport cluster:
+
+   ```code
+   $ tsh login --proxy=<Var name="example.teleport.sh" /> --user=teleport-admin
+   ```
+
 1. On your workstation, run the following command:
 
    ```code
-   $ sudo tctl users add teleport-admin-backup --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
+   $ tctl users add teleport-admin-backup --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
    ```
 
    The command prints a message similar to the following:

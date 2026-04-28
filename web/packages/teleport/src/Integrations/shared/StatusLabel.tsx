@@ -35,6 +35,7 @@ import {
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
+import { getAwsIcErrorMessage } from '../helpers';
 import { IntegrationLike } from '../IntegrationList';
 import { Status } from '../types';
 
@@ -164,10 +165,15 @@ export function getStatus(item: IntegrationLike): {
       return ISSUES(
         'The Slack integration must be invited to the default channel in order to receive access request notifications.'
       );
-    case IntegrationStatusCode.Unauthorized:
+    case IntegrationStatusCode.Unauthorized: {
+      const awsIcErrorMessage = getAwsIcErrorMessage(item);
+      if (awsIcErrorMessage) {
+        return FAILED(awsIcErrorMessage);
+      }
       return FAILED(
         'Integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
       );
+    }
     case IntegrationStatusCode.OktaConfigError:
       return FAILED(
         `There was an error with the integration's configuration.${item.status?.errorMessage ? ` ${item.status.errorMessage}` : ''}`

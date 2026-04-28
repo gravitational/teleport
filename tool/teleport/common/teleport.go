@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -52,6 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -115,7 +118,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	exec := app.Command(reexecconstants.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	networking := app.Command(reexecconstants.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
 	checkHomeDir := app.Command(reexecconstants.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
-	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing, forever.").Hidden()
+	trueCmd := app.Command(reexecconstants.TrueSubCommand, "Used internally by Teleport to re-exec itself to do nothing, successfully.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -631,6 +635,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
 	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")
+	checkSessionHelperCmd := debugCmd.Command("check-session-helper", "Checks if the embedded session helper is working, if available in this build.")
+	requireSessionHelperCmd := debugCmd.Command("require-session-helper", "Checks if the embedded session helper is working, failing if not available in this build.")
 
 	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
 	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
@@ -746,20 +752,13 @@ Examples:
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 
-	// TODO(espadolini): replace these after enterprise calls reexec.MaybeReexec
-	// in main with an error message ("invalid format for reexec subcommand")
-	// because if we got here it's because MaybeReexec didn't find the correct
-	// first argument
-	case exec.FullCommand():
-		reexec.RunAndExit(reexecconstants.ExecSubCommand)
-	case networking.FullCommand():
-		reexec.RunAndExit(reexecconstants.NetworkingSubCommand)
-	case checkHomeDir.FullCommand():
-		reexec.RunAndExit(reexecconstants.CheckHomeDirSubCommand)
-	case park.FullCommand():
-		reexec.RunAndExit(reexecconstants.ParkSubCommand)
-	case sftp.FullCommand():
-		reexec.RunAndExit(reexecconstants.SFTPSubCommand)
+	case exec.FullCommand(),
+		networking.FullCommand(),
+		checkHomeDir.FullCommand(),
+		park.FullCommand(),
+		trueCmd.FullCommand(),
+		sftp.FullCommand():
+		err = trace.BadParameter("invalid command line format for internal reexecution command (this is a bug)")
 
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
@@ -787,7 +786,13 @@ Examples:
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
-		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
+		// Join failures use a specific exit code so that SSM can classify the failure for the user task.
+		// The normal utils.FatalError path always exits with code 1, so we handle this case separately.
+		var joinErr *installer.JoinFailureError
+		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.As(err, &joinErr) {
+			writeInstallJoinFailureError(os.Stderr, joinErr)
+			os.Exit(int(installstatus.JoinFailure))
+		}
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
@@ -836,6 +841,22 @@ Examples:
 		err = onReadyz(ctx, ccf.ConfigFile)
 	case metricsCmd.FullCommand():
 		err = onMetrics(ctx, ccf.ConfigFile)
+	case checkSessionHelperCmd.FullCommand():
+		var ok bool
+		ok, err = reexec.InitEmbeddedReexec()
+		if err == nil {
+			if ok {
+				fmt.Println("The embedded session helper is available in this build.")
+			} else {
+				fmt.Println("The embedded session helper is not available in this build.")
+			}
+		}
+	case requireSessionHelperCmd.FullCommand():
+		var ok bool
+		ok, err = reexec.InitEmbeddedReexec()
+		if err == nil && !ok {
+			err = errors.New("the embedded session helper is not available in this build")
+		}
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break
@@ -895,6 +916,23 @@ Examples:
 	}
 
 	return app, command, conf
+}
+
+// writeInstallJoinFailureError writes a user-facing join-failure error
+// message to w, with each diagnostic section on its own line for
+// readability.
+func writeInstallJoinFailureError(w io.Writer, joinErr *installer.JoinFailureError) {
+	fmt.Fprintln(w, "ERROR: agent failed to join the cluster")
+	fmt.Fprintf(w, "%s\n", joinErr.Message)
+	if joinErr.ServiceDiagnostics != "" {
+		fmt.Fprintf(w, "%s\n", joinErr.ServiceDiagnostics)
+	}
+	if joinErr.LastError != "" {
+		fmt.Fprintf(w, "Last readyz error: %s\n", joinErr.LastError)
+	}
+	if joinErr.JournalOutput != "" {
+		fmt.Fprintf(w, "Journal output:\n%s\n", joinErr.JournalOutput)
+	}
 }
 
 // OnStart is the handler for "start" CLI command

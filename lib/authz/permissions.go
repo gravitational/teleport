@@ -66,6 +66,15 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	return authContext, nil
 }
 
+// NewUnauthenticatedRoleContext create auth context for the provided unauthenticated role.
+func NewUnauthenticatedRoleContext(role types.UnauthenticatedRole) (*Context, error) {
+	authContext, err := ContextForUnauthenticatedRole(UnauthenticatedRole{Role: role, Username: string(role)})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authContext, nil
+}
+
 // DeviceAuthorizationOpts captures Device Trust options for [AuthorizerOpts].
 type DeviceAuthorizationOpts struct {
 	// DisableGlobalMode disables the global device_trust.mode toggle.
@@ -296,6 +305,9 @@ func (c *Context) GetUserMetadata() apievents.UserMetadata {
 // LockTargets returns a list of LockTargets inferred from the context's
 // Identity and UnmappedIdentity.
 func (c *Context) LockTargets() []types.LockTarget {
+	if _, ok := c.Identity.(UnauthenticatedRole); ok {
+		return nil
+	}
 	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
 Loop:
 	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
@@ -485,6 +497,9 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	case BuiltinRole, RemoteBuiltinRole:
 		// built in roles do not need to pass private key policies
 		return nil
+	case UnauthenticatedRole:
+		// UnauthenticatedRole won't have the private key policies.
+		return nil
 	}
 
 	// Check that the required private key policy, defined by roles and auth pref,
@@ -511,6 +526,8 @@ func (a *authorizer) fromUser(ctx context.Context, userI any) (*Context, error) 
 		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
 		return a.authorizeRemoteBuiltinRole(user)
+	case UnauthenticatedRole:
+		return ContextForUnauthenticatedRole(user)
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
@@ -518,24 +535,36 @@ func (a *authorizer) fromUser(ctx context.Context, userI any) (*Context, error) 
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	required, err := a.isAdminActionAuthorizationRequired(ctx, authContext)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !required {
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		// Builtin roles bypass MFA
 		authContext.AdminActionAuthState = AdminActionAuthNotRequired
 		return nil
-	}
+	case UnauthenticatedRole:
+		// UnauthenticatedRole is unauthenticated client by default.
+		// Mark the AdminActionAuthState as AdminActionAuthUnauthorized.
+		authContext.AdminActionAuthState = AdminActionAuthUnauthorized
+		return nil
+	default:
+		required, err := a.isAdminActionAuthorizationRequiredForUsers(ctx, authContext)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
-		return trace.Wrap(err)
-	}
+		if !required {
+			authContext.AdminActionAuthState = AdminActionAuthNotRequired
+			return nil
+		}
 
-	return nil
+		if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
 }
 
-func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, authContext *Context) (bool, error) {
+func (a *authorizer) isAdminActionAuthorizationRequiredForUsers(ctx context.Context, authContext *Context) (bool, error) {
 	// Provide a way to turn off admin MFA requirements in case expected functionality
 	// is disrupted by this requirement, such as for integrations essential to a user
 	// which do not yet make use of a machine ID / AdminRole impersonated identity.
@@ -543,12 +572,6 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 	// TODO(Joerger): once we have fully transitioned to requiring machine ID for
 	// integrations and ironed out any bugs with admin MFA, this env var should be removed.
 	if os.Getenv("TELEPORT_UNSTABLE_DISABLE_MFA_ADMIN_ACTIONS") == "yes" {
-		return false, nil
-	}
-
-	// Builtin roles do not require MFA to perform admin actions.
-	switch authContext.Identity.(type) {
-	case BuiltinRole, RemoteBuiltinRole:
 		return false, nil
 	}
 
@@ -914,8 +937,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
 				types.NewRule(types.KindSSHSession, services.RW()),
-				types.NewRule(types.KindSession, services.RO()),
-				types.NewRule(types.KindEvent, services.RW()),
+				types.NewRule(types.KindEvent, services.WO()),
 				types.NewRule(types.KindSAMLRequest, services.RW()),
 				types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
 				types.NewRule(types.KindSAML, services.ReadNoSecrets()),
@@ -949,6 +971,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindLinuxDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),
@@ -1002,11 +1025,36 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 	}
 }
 
-// RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
-func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
+// RoleSetForUnauthenticatedRoles returns a RoleSet for unauthenticated roles.
+func RoleSetForUnauthenticatedRoles(clusterName string, roles ...types.UnauthenticatedRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {
-		rd, err := definitionForBuiltinRole(clusterName, recConfig, role)
+		switch role {
+		case types.RoleNop:
+			rd, err := services.RoleFromSpec(
+				string(role),
+				types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces: []string{},
+						Rules:      []types.Rule{},
+					},
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			definitions = append(definitions, rd)
+		default:
+			return nil, trace.NotFound("unauthenticated role %q is not recognized", role)
+		}
+	}
+	return services.NewRoleSet(definitions...), nil
+}
+
+// RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
+func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
+	var definitions []types.Role
+	for _, role := range roles {
+		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1015,8 +1063,51 @@ func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecord
 	return services.NewRoleSet(definitions...), nil
 }
 
-// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role.
-func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role with
+// consideration for whether the definition be will be used in a scoped context.
+func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole, isScoped bool) (types.Role, error) {
+	if isScoped {
+		return scopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+	}
+	return unscopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+}
+
+// scopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in a scoped context.
+func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+	switch role {
+	case types.RoleNode:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleNode)
+	case types.RoleKube:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+					},
+				},
+			},
+		)
+	}
+
+	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
+}
+
+// unscopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in an unscoped context.
+func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
 	switch role {
 	case types.RoleAuth:
 		return services.RoleFromSpec(
@@ -1041,8 +1132,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
-						types.NewRule(types.KindSession, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1078,7 +1168,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1107,7 +1197,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindUser, services.RO()),
@@ -1169,7 +1259,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
@@ -1221,15 +1311,6 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
-	case types.RoleNop:
-		return services.RoleFromSpec(
-			role.String(),
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Namespaces: []string{},
-					Rules:      []types.Rule{},
-				},
-			})
 	case types.RoleKube:
 		return services.RoleFromSpec(
 			role.String(),
@@ -1240,7 +1321,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1265,7 +1346,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1289,7 +1370,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
@@ -1322,7 +1403,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindSemaphore, services.RW()),
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindAppServer, services.RW()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindUser, services.RW()),
@@ -1382,8 +1463,34 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				},
 			})
 	}
-
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
+}
+
+// ContextForUnauthenticatedRole returns a context with the unauthenticated role information embedded.
+func ContextForUnauthenticatedRole(r UnauthenticatedRole) (*Context, error) {
+	roleSet, err := RoleSetForUnauthenticatedRoles(r.ClusterName, r.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := types.NewUser(r.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles := []string{string(r.Role)}
+	user.SetRoles(roles)
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Roles:                    roles,
+		Traits:                   nil,
+		AllowedResourceAccessIDs: nil,
+	}, r.ClusterName, roleSet)
+	return &Context{
+		User:                  user,
+		Checker:               checker,
+		Identity:              r,
+		UnmappedIdentity:      r,
+		disableDeviceRoleMode: true,                        // Unauthenticated roles skip device trust.
+		AdminActionAuthState:  AdminActionAuthUnauthorized, // Unauthenticated won't be able to do admin actions.
+	}, nil
 }
 
 // ContextForBuiltinRole returns a context with the builtin role information embedded.
@@ -1401,7 +1508,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 		// all other certs encode a single system role
 		systemRoles = []types.SystemRole{r.Role}
 	}
-	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, systemRoles...)
+	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, r.GetIdentity().AgentScope != "", systemRoles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1711,6 +1818,26 @@ func (i WrapIdentity) GetIdentity() tlsca.Identity {
 	return tlsca.Identity(i)
 }
 
+// UnauthenticatedRole is the role given to a client that doesn't present
+// a certificate.
+// It's used for actions that are already using external authz mechanisms
+// e.g. tokens or passwords
+type UnauthenticatedRole struct {
+	// Role is the primary role this username is associated with
+	Role types.UnauthenticatedRole
+
+	// Username is for authentication tracking purposes
+	Username string
+
+	// ClusterName is the name of the local cluster
+	ClusterName string
+}
+
+// GetIdentity returns client identity
+func (r UnauthenticatedRole) GetIdentity() tlsca.Identity {
+	return tlsca.Identity{}
+}
+
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
 	// Role is the primary builtin role this username is associated with
@@ -1913,6 +2040,19 @@ func UserFromContext(ctx context.Context) (IdentityGetter, error) {
 // name.
 func HasBuiltinRole(authContext Context, name string) bool {
 	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+		return false
+	}
+	if !authContext.Checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
+
+// HasUnauthenticatedRole checks if the identity is a unauthenticated role with the matching
+// name.
+func HasUnauthenticatedRole(authContext Context, name string) bool {
+	if _, ok := authContext.Identity.(UnauthenticatedRole); !ok {
 		return false
 	}
 	if !authContext.Checker.HasRole(name) {

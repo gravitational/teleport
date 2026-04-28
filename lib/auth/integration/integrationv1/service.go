@@ -109,6 +109,7 @@ type ServiceConfig struct {
 	Logger          *slog.Logger
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
+	Modules         modules.Modules
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -140,6 +141,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("emitter is required")
 	}
 
+	if s.Modules == nil {
+		return trace.BadParameter("modules is required")
+	}
 	if s.Logger == nil {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.service")
 	}
@@ -161,6 +165,7 @@ type Service struct {
 	logger          *slog.Logger
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
+	modules         modules.Modules
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
@@ -179,6 +184,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		backend:         cfg.Backend,
 		clock:           cfg.Clock,
 		emitter:         cfg.Emitter,
+		modules:         cfg.Modules,
 
 		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
 	}, nil
@@ -256,7 +262,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	switch req.Integration.GetSubKind() {
 	case types.IntegrationSubKindGitHub:
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		if s.modules.BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
 		}
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {

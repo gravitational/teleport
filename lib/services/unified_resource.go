@@ -421,6 +421,8 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return true
 		}
 
+		// TODO(gabrielcorado): support LLM subkind.
+
 		_, ok := kinds[types.KindIdentityCenterAccount]
 		return ok
 	case types.KindKubeServer:
@@ -463,6 +465,8 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 				return true
 			}
 		}
+
+		// TODO(gabrielcorado): support LLM subkind.
 		return false
 	default:
 		return false

@@ -48,10 +48,10 @@ type sessionAuth struct {
 	authClient appcommon.AppTokenGenerator
 	clock      clockwork.Clock
 
-	mu         sync.Mutex
-	jwt        string
-	traits     wrappers.Traits
-	lastUpdate time.Time
+	mu            sync.Mutex
+	jwt           string
+	rewriteTraits wrappers.Traits
+	lastUpdate    time.Time
 }
 
 func (a *sessionAuth) generateJWTAndTraits(ctx context.Context) (string, wrappers.Traits, error) {
@@ -59,7 +59,7 @@ func (a *sessionAuth) generateJWTAndTraits(ctx context.Context) (string, wrapper
 	defer a.mu.Unlock()
 
 	if a.clock.Now().Before(a.lastUpdate.Add(maxTokenDuration)) {
-		return a.jwt, a.traits, nil
+		return a.jwt, a.rewriteTraits, nil
 	}
 
 	// Note that token validation on server side usually has some leeway like a
@@ -70,7 +70,7 @@ func (a *sessionAuth) generateJWTAndTraits(ctx context.Context) (string, wrapper
 		expires = maxExpires
 	}
 
-	jwt, traitsForRewriteHeaders, err := appcommon.GenerateJWTAndTraits(ctx, &a.Identity, a.App, a.authClient, expires)
+	jwt, rewriteTraits, err := appcommon.GenerateJWTAndTraits(ctx, &a.Identity, a.App, a.authClient, expires)
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
@@ -80,13 +80,13 @@ func (a *sessionAuth) generateJWTAndTraits(ctx context.Context) (string, wrapper
 		if err != nil {
 			return "", nil, trace.Wrap(err)
 		}
-		traitsForRewriteHeaders[constants.TraitIDToken] = []string{idToken}
+		rewriteTraits[constants.TraitIDToken] = []string{idToken}
 	}
 
 	a.jwt = jwt
-	a.traits = traitsForRewriteHeaders
+	a.rewriteTraits = rewriteTraits
 	a.lastUpdate = now
-	return jwt, traitsForRewriteHeaders, nil
+	return jwt, rewriteTraits, nil
 }
 
 type rewriteAuthDetails struct {

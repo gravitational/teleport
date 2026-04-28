@@ -406,9 +406,14 @@ func (i *Identity) LogValue() slog.Value {
 		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
 	}
 
+	scopePin := ""
+	if tlsIdent.ScopePin != nil {
+		scopePin = tlsIdent.ScopePin.Scope
+	}
+
 	duration := cert.NotAfter.Sub(cert.NotBefore)
 	description := fmt.Sprintf(
-		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v, scopePin=%v",
 		tlsIdent.BotName,
 		botDesc,
 		cert.NotBefore.Format(time.RFC3339),
@@ -419,6 +424,7 @@ func (i *Identity) LogValue() slog.Value {
 		tlsIdent.Groups,
 		principals,
 		tlsIdent.Generation,
+		scopePin,
 	)
 	return slog.StringValue(description)
 }

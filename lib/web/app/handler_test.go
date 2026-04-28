@@ -165,6 +165,10 @@ func TestAuthPOST(t *testing.T) {
 							User:  "unknown",
 							Login: "testuser",
 						},
+						AppMetadata: apievents.AppMetadata{
+							AppName:       "testapp",
+							AppPublicAddr: publicAddr,
+						},
 						Status: apievents.Status{
 							Success: false,
 							Error:   "Failed app access authentication: subject session token is not set",
@@ -194,6 +198,10 @@ func TestAuthPOST(t *testing.T) {
 						UserMetadata: apievents.UserMetadata{
 							Login: appSession.GetUser(),
 							User:  "unknown",
+						},
+						AppMetadata: apievents.AppMetadata{
+							AppName:       "testapp",
+							AppPublicAddr: publicAddr,
 						},
 						Status: apievents.Status{
 							Success: false,
@@ -525,6 +533,15 @@ func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	defer c.mtx.Unlock()
 	c.emittedEvents = append(c.emittedEvents, event)
 	return nil
+}
+
+func (c *mockAuthClient) lastEmittedEvent() apievents.AuditEvent {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if len(c.emittedEvents) == 0 {
+		return nil
+	}
+	return c.emittedEvents[len(c.emittedEvents)-1]
 }
 
 func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteAppSessionRequest) error {
@@ -893,6 +910,23 @@ func TestHandlerAuthenticate(t *testing.T) {
 		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("with cookie subject mismatch", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.AddCookie(&http.Cookie{Name: CookieName, Value: authClient.appSession.GetName()})
+		request.AddCookie(&http.Cookie{Name: SubjectCookieName, Value: "wrong-token"})
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		event := authClient.lastEmittedEvent()
+		require.NotNil(t, event)
+		attempt, ok := event.(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, "unknown", attempt.UserMetadata.User)
+		require.Equal(t, "testuser", attempt.UserMetadata.Login)
 	})
 
 	t.Run("session expired", func(t *testing.T) {

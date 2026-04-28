@@ -115,7 +115,7 @@ All beam operations are performed through the `tsh beams` subcommand.
 | `tsh beams add` | Create a new beam instance. |
 | `tsh beams ssh <name>` | Start an interactive shell in a beam. |
 | `tsh beams rm <name>` | Delete a running beam instance. |
-| `tsh beams exec <name> -- <cmd>` | Run a command on an existing beam. |
+| `tsh beams exec <name> <cmd>` | Run a command on an existing beam. |
 | `tsh beams publish <name>` | Publish an HTTP or TCP service running in a beam. |
 | `tsh beams scp <src> <dst>` | Copy files into or out of beams. |
 
@@ -158,7 +158,7 @@ nimble-signal -                                        2027-02-06 12:15 UTC
 Run a one-off command inside a running beam:
 
 ```code
-$ tsh beams exec warm-orbit -- python /home/beam-user/agent.py
+$ tsh beams exec warm-orbit python /home/beams/agent.py
 ```
 
 Or start an interactive shell:
@@ -190,7 +190,7 @@ $ tsh beams scp ./example.txt warm-orbit:/tmp/example.txt
 Copied successfully.
 
 # Copy a file from the beam to your local machine
-$ tsh beams scp warm-orbit:/home/beam-user/output.csv ./output.csv
+$ tsh beams scp warm-orbit:/home/beams/output.csv ./output.csv
 Copied successfully.
 ```
 

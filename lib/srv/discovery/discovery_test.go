@@ -30,6 +30,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -107,6 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -135,13 +137,32 @@ type mockEmitter struct {
 	eventHandler func(*testing.T, events.AuditEvent, *Server)
 	server       *Server
 	t            *testing.T
+
+	mu      sync.Mutex
+	emitted []events.AuditEvent
 }
 
 func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	me.mu.Lock()
+	me.emitted = append(me.emitted, event)
+	me.mu.Unlock()
 	if me.eventHandler != nil {
 		me.eventHandler(me.t, event, me.server)
 	}
 	return nil
+}
+
+// emittedEventsOfType returns a snapshot of emitted audit events whose type matches eventType.
+func (me *mockEmitter) emittedEventsOfType(eventType string) []events.AuditEvent {
+	me.mu.Lock()
+	defer me.mu.Unlock()
+	var out []events.AuditEvent
+	for _, e := range me.emitted {
+		if e.GetType() == eventType {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 type mockUsageReporter struct {
@@ -1453,7 +1474,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					require.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k]))
+					require.True(t, a1[k].IsEqual(a2[k]))
 				}
 			})
 		})
@@ -1874,9 +1895,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
 				c2 := types.KubeClusters(kubeClusters).ToMap()
 				for k := range c1 {
-					if services.CompareResources(c1[k], c2[k]) != services.Equal {
-						require.Equal(t, c1[k], c2[k], "expected no differences")
-					}
+					require.True(t, c1[k].IsEqual(c2[k]), "expected no differences")
 				}
 			case <-time.After(10 * time.Second):
 				require.FailNow(t, "Didn't receive reconcile event after 10s")
@@ -1945,7 +1964,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 			},
 		},
 		{
-			desc:         "EKS fetcher is skipped on initialization error (missing region)",
+			desc:         "EKS fetcher surfaces initialization error (missing region)",
 			cloudClients: &mockFetchersClients{},
 			matchers: Matchers{
 				AWS: []types.AWSMatcher{
@@ -1969,12 +1988,9 @@ func TestDiscoveryServer_New(t *testing.T) {
 					},
 				},
 			},
-			errAssertion: require.NoError,
+			errAssertion: require.Error,
 			discServerAssertion: func(t require.TestingT, i any, i2 ...any) {
-				require.NotNil(t, i)
-				val, ok := i.(*Server)
-				require.True(t, ok)
-				require.Len(t, val.kubeFetchers, 1, "unexpected amount of kube fetchers")
+				require.Nil(t, i)
 			},
 		},
 	}
@@ -3125,29 +3141,56 @@ func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV
 	return database
 }
 
+const azureApiErrorPrefix = "bad-api"
+const azureInstallErrorPrefix = "bad-install"
+
 type mockAzureRunCommandClient struct {
-	mu                 sync.Mutex
-	installedInstances map[string]struct{}
-	runErr             error
+	mu           sync.Mutex
+	attemptedVMs map[string]struct{}
 }
 
-func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) error {
+func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.runErr != nil {
-		return m.runErr
+	if m.attemptedVMs == nil {
+		m.attemptedVMs = make(map[string]struct{})
 	}
-	if m.installedInstances == nil {
-		m.installedInstances = make(map[string]struct{})
+	m.attemptedVMs[req.VMName] = struct{}{}
+
+	if strings.HasPrefix(req.VMName, azureApiErrorPrefix) {
+		const statusCode = 403
+		const errorCode = "AuthorizationFailed"
+		const message = "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"
+
+		resp := &http.Response{
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(message)),
+			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
+		}
+		return nil, azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
 	}
-	m.installedInstances[req.VMName] = struct{}{}
-	return nil
+
+	if strings.HasPrefix(req.VMName, azureInstallErrorPrefix) {
+		return &azure.RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateFailed),
+			StdErr:         "This is failure stderr",
+			StdOut:         "This is failure stdout",
+			ExitCode:       int32(installstatus.InsufficientDiskSpace),
+		}, nil
+	}
+
+	return &azure.RunCommandResult{
+		ExecutionState: string(armcompute.ExecutionStateSucceeded),
+		StdErr:         "This is success stderr",
+		StdOut:         "This is success stdout",
+		ExitCode:       0,
+	}, nil
 }
 
-func (m *mockAzureRunCommandClient) getInstalled() []string {
+func (m *mockAzureRunCommandClient) getAttempted() []string {
 	m.mu.Lock()
-	elems := slices.Sorted(maps.Keys(m.installedInstances))
+	elems := slices.Sorted(maps.Keys(m.attemptedVMs))
 	m.mu.Unlock()
 	return elems
 }
@@ -3176,6 +3219,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 	const noIntegration = ""
 	const dummyIntegration = "dummy"
 
+	const noIntegrationLabel = "teleport"
+	const integrationLabel = "teleport-integration"
+
 	vmMatcherFn := func() Matchers {
 		return Matchers{
 			Azure: []types.AzureMatcher{
@@ -3184,7 +3230,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Subscriptions:  []string{"testsub"},
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
-					ResourceTags:   types.Labels{"teleport": {"yes"}},
+					ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
 					Params:         &types.InstallerParams{},
 					Integration:    noIntegration,
 				},
@@ -3193,7 +3239,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Subscriptions:  []string{"testsub"},
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
-					ResourceTags:   types.Labels{"teleport-integration": {"yes"}},
+					ResourceTags:   types.Labels{integrationLabel: {"yes"}},
 					Params:         &types.InstallerParams{},
 					Integration:    dummyIntegration,
 				},
@@ -3219,38 +3265,47 @@ func TestAzureVMDiscovery(t *testing.T) {
 		return cfg.Clone()
 	}
 
+	makeVM := func(name string, integration bool) *armcompute.VirtualMachine {
+		label := noIntegrationLabel
+		if integration {
+			label = integrationLabel
+		}
+		return &armcompute.VirtualMachine{
+			ID: aws.String((&arm.ResourceID{
+				SubscriptionID:    "testsub",
+				ResourceGroupName: "rg",
+				Name:              name,
+			}).String()),
+			Name:     aws.String(name),
+			Location: aws.String("westcentralus"),
+			Tags: map[string]*string{
+				label: aws.String("yes"),
+			},
+			Properties: &armcompute.VirtualMachineProperties{
+				VMID: aws.String(name + "-vmid"),
+			},
+		}
+	}
+
+	const testVMName = "testvm"
+	const testVMNameIntegration = "testvm-integration"
+
+	makeFaultyVM := func(apiError bool, count int) []*armcompute.VirtualMachine {
+		var out []*armcompute.VirtualMachine
+		for index := range count {
+			if apiError {
+				out = append(out, makeVM(azureApiErrorPrefix+strconv.Itoa(index), true))
+			} else {
+				out = append(out, makeVM(azureInstallErrorPrefix+strconv.Itoa(index), true))
+			}
+		}
+		return out
+	}
+
 	foundAzureVMs := func() []*armcompute.VirtualMachine {
 		return []*armcompute.VirtualMachine{
-			{
-				ID: aws.String((&arm.ResourceID{
-					SubscriptionID:    "testsub",
-					ResourceGroupName: "rg",
-					Name:              "testvm",
-				}).String()),
-				Name:     aws.String("testvm"),
-				Location: aws.String("westcentralus"),
-				Tags: map[string]*string{
-					"teleport": aws.String("yes"),
-				},
-				Properties: &armcompute.VirtualMachineProperties{
-					VMID: aws.String("test-vmid"),
-				},
-			},
-			{
-				ID: aws.String((&arm.ResourceID{
-					SubscriptionID:    "testsub",
-					ResourceGroupName: "rg",
-					Name:              "testvm-integration",
-				}).String()),
-				Name:     aws.String("testvm-integration"),
-				Location: aws.String("westcentralus"),
-				Tags: map[string]*string{
-					"teleport-integration": aws.String("yes"),
-				},
-				Properties: &armcompute.VirtualMachineProperties{
-					VMID: aws.String("test-vmid-integration"),
-				},
-			},
+			makeVM(testVMName, false),
+			makeVM(testVMNameIntegration, true),
 		}
 	}
 
@@ -3260,7 +3315,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			Name: "name",
 			Labels: map[string]string{
 				"teleport.internal/subscription-id": "testsub",
-				"teleport.internal/vm-id":           "test-vmid",
+				"teleport.internal/vm-id":           "testvm-vmid",
 			},
 			Namespace: defaults.Namespace,
 		},
@@ -3269,57 +3324,73 @@ func TestAzureVMDiscovery(t *testing.T) {
 	presentNodeAlt := presentNode.DeepCopy().(*types.ServerV2)
 	presentNodeAlt.Metadata.Labels["teleport.internal/vm-id"] = "alternate-vmid"
 
-	azureError := func(statusCode int, errorCode, message string) error {
-		resp := &http.Response{
-			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader(message)),
-			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
-		}
-		return azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
-	}
-
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
+		foundVMS                 []*armcompute.VirtualMachine
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
-		wantInstalledInstances   []string
+		wantInstances            []string
+		wantResources            int
 		expectedIntegrationNames []string
-		runError                 error
 		userTasksCheck           func(*testing.T, UserTaskLister)
 	}{
 		{
-			name:                   "no nodes present, 1 found",
-			presentVMs:             []types.Server{},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+			name:           "no nodes present, 1 found",
+			presentVMs:     []types.Server{},
+			staticMatchers: vmMatcherFn(),
+			foundVMS:       foundAzureVMs(),
+			wantInstances:  []string{testVMName, testVMNameIntegration},
+			wantResources:  1,
 		},
 		{
-			name:                   "nodes present, instance filtered",
-			presentVMs:             []types.Server{presentNode},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm-integration"},
+			name:           "nodes present, instance filtered",
+			presentVMs:     []types.Server{presentNode},
+			staticMatchers: vmMatcherFn(),
+			foundVMS:       foundAzureVMs(),
+			wantInstances:  []string{testVMNameIntegration},
+			wantResources:  1,
 		},
 		{
-			name:                   "nodes present, instance not filtered",
-			presentVMs:             []types.Server{presentNodeAlt},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+			name:           "nodes present, instance not filtered",
+			presentVMs:     []types.Server{presentNodeAlt},
+			staticMatchers: vmMatcherFn(),
+			foundVMS:       foundAzureVMs(),
+			wantInstances:  []string{testVMName, testVMNameIntegration},
+			wantResources:  1,
 		},
 		{
-			name:                   "no nodes present, 1 found using dynamic matchers",
-			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig(),
-			staticMatchers:         Matchers{},
-			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+			name:            "no nodes present, 1 found using dynamic matchers",
+			presentVMs:      []types.Server{},
+			discoveryConfig: defaultDiscoveryConfig(),
+			staticMatchers:  Matchers{},
+			foundVMS:        foundAzureVMs(),
+			wantInstances:   []string{testVMName, testVMNameIntegration},
+			wantResources:   1,
 		},
 		{
-			name:                   "installation failure creates user task",
-			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig(),
-			staticMatchers:         Matchers{},
-			wantInstalledInstances: []string{},
-			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			name:            "multiple failures",
+			presentVMs:      []types.Server{},
+			foundVMS:        makeFaultyVM(false, 20),
+			discoveryConfig: defaultDiscoveryConfig(),
+			staticMatchers:  Matchers{},
+			wantInstances: func() []string {
+				var out []string
+				for ix := range 20 {
+					out = append(out, fmt.Sprintf("%s%d", azureInstallErrorPrefix, ix))
+				}
+				return out
+			}(),
+			wantResources: 0,
+		},
+		{
+			name:            "installation failure creates user task",
+			presentVMs:      []types.Server{},
+			discoveryConfig: defaultDiscoveryConfig(),
+			staticMatchers:  Matchers{},
+			wantInstances:   []string{"bad-api0"},
+			wantResources:   0,
+			foundVMS:        makeFaultyVM(true, 1),
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				var tasks []*usertasksv1.UserTask
 				var err error
@@ -3340,9 +3411,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 						State:       usertasks.TaskStateOpen,
 						DiscoverAzureVm: &usertasksv1.DiscoverAzureVM{
 							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-								"test-vmid-integration": {
-									VmId:            "test-vmid-integration",
-									Name:            "testvm-integration",
+								"bad-api0-vmid": {
+									VmId:            "bad-api0-vmid",
+									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
 								},
@@ -3363,11 +3434,12 @@ func TestAzureVMDiscovery(t *testing.T) {
 			},
 		},
 		{
-			name:                   "static matcher failure does not create user task",
-			presentVMs:             []types.Server{},
-			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{},
-			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			name:           "static matcher failure does not create user task",
+			presentVMs:     []types.Server{},
+			staticMatchers: vmMatcherFn(),
+			wantInstances:  []string{"bad-api0"},
+			wantResources:  0,
+			foundVMS:       makeFaultyVM(true, 1),
 			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
 				tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
@@ -3381,13 +3453,13 @@ func TestAzureVMDiscovery(t *testing.T) {
 			t.Parallel()
 
 			runClient := &mockAzureRunCommandClient{
-				runErr: tc.runError,
+				attemptedVMs: make(map[string]struct{}),
 			}
 
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
-						vms: foundAzureVMs(),
+						vms: tc.foundVMS,
 					},
 					AzureRunCommand: runClient,
 				}, nil
@@ -3456,17 +3528,33 @@ func TestAzureVMDiscovery(t *testing.T) {
 				t.Cleanup(server.Stop)
 
 				synctest.Wait()
-				if len(tc.wantInstalledInstances) == 0 {
-					require.Empty(t, runClient.getInstalled())
-				} else {
-					require.Equal(t, tc.wantInstalledInstances, runClient.getInstalled())
-				}
-				expectedEvents := 1
-				if tc.runError != nil {
-					expectedEvents = 0
-				}
-				require.Equal(t, expectedEvents, reporter.ResourceCreateEventCount())
 
+				// verify expected amount of "resource created" events
+				require.Equal(t, tc.wantResources, reporter.ResourceCreateEventCount())
+
+				// verify installation for matched VMs have been attempted
+				require.ElementsMatch(t, tc.wantInstances, runClient.getAttempted())
+
+				// verify proper events are emitted.
+				// we verify expected events are there, but there may be duplicates, which we ignore.
+				// Watcher.Run()'s initial fetch races the dynamic-config trigger, so startup
+				// emits 1 or 2 cycles non-deterministically. Likely affects the real service
+				// on startup too. Proper fix requires re-evaluating the Run() inner loop or
+				// deduplicating installation attempts within a short window.
+				seenVMs := map[string]struct{}{}
+				for _, ae := range emitter.emittedEventsOfType(libevents.AzureRunEvent) {
+					event := ae.(*events.AzureRun)
+					seenVMs[event.VMName] = struct{}{}
+
+					wantCode := libevents.AzureRunSuccessCode
+					if strings.HasPrefix(event.VMName, azureInstallErrorPrefix) || strings.HasPrefix(event.VMName, azureApiErrorPrefix) {
+						wantCode = libevents.AzureRunFailCode
+					}
+					require.Equal(t, wantCode, ae.GetCode())
+				}
+				require.ElementsMatch(t, tc.wantInstances, slices.Collect(maps.Keys(seenVMs)))
+
+				// verify user tasks state
 				if tc.userTasksCheck != nil {
 					tc.userTasksCheck(t, tlsServer.Auth())
 				}
@@ -4043,17 +4131,38 @@ type fakeAccessPoint struct {
 	app                 types.Application
 	upsertedServerInfos chan types.ServerInfo
 	reports             map[string][]discoveryconfig.Status
+	discoveryConfigsMu  sync.RWMutex
+	discoveryConfigs    map[string]*discoveryconfig.DiscoveryConfig
+
+	mtx sync.Mutex
 }
 
 func (f *fakeAccessPoint) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	f.reports[name] = append(f.reports[name], status)
-	return nil, nil
+
+	f.discoveryConfigsMu.Lock()
+	defer f.discoveryConfigsMu.Unlock()
+	if _, ok := f.discoveryConfigs[name]; !ok {
+		f.discoveryConfigs[name] = &discoveryconfig.DiscoveryConfig{}
+	}
+	f.discoveryConfigs[name].Status = status
+	return f.discoveryConfigs[name], nil
+}
+
+func (f *fakeAccessPoint) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	f.discoveryConfigsMu.RLock()
+	defer f.discoveryConfigsMu.RUnlock()
+	if config, ok := f.discoveryConfigs[name]; ok {
+		return config, nil
+	}
+	return nil, trace.NotFound("not found")
 }
 
 func newFakeAccessPoint() *fakeAccessPoint {
 	return &fakeAccessPoint{
 		upsertedServerInfos: make(chan types.ServerInfo),
 		reports:             make(map[string][]discoveryconfig.Status),
+		discoveryConfigs:    make(map[string]*discoveryconfig.DiscoveryConfig),
 	}
 }
 
@@ -4124,6 +4233,18 @@ func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		return f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
 	}
 	return newFakeWatcher(), nil
+}
+
+func (m *fakeAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	if !m.mtx.TryLock() {
+		return nil, trace.LimitExceeded("semaphore is already locked")
+	}
+	return &types.SemaphoreLease{Expires: params.Expires}, nil
+}
+
+func (m *fakeAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	m.mtx.Unlock()
+	return nil
 }
 
 type fakeWatcher struct{}

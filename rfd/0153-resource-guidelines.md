@@ -83,11 +83,17 @@ detail about what is needed to complete a particular item.
 
 A resource MUST include a kind, version, `teleport.header.v1.Metadata`, a `spec` and a `status` message. While the kind and version may seem like they would be easy to derive from the message definition itself, they need to be defined so that anything processing a generic resource can identify which resource is being processed. For example, `tctl` interacts with resources in their in raw yaml text form and leverages `services.UnknownResource` to identify the resource and act appropriately.
 
-All properties defined in the `spec` of a resource MUST only be modified by the
+All properties defined in the `spec` and `metadata` of a resource MUST only be modified by the
 owner/creator of the resource. For example, if a resource is created via
 `tctl create`, then any fields within the `spec` MUST not be altered dynamically
 by the Teleport process. When Teleport automatically modifies the `spec` during
-runtime it causes drift between what is in the Teleport backend and the state stored by external IaC tools. If a resource has properties that are required to be modified dynamically by Teleport, a separate `status` field should be added to the resource to contain them. These fields will be ignored by IaC tools during their reconciliation.
+runtime it causes drift between what is in the Teleport backend and the state stored by external IaC tools.
+If a resource has properties that must be modified by Teleport, a separate `status` field should
+be added to the resource to contain them. These fields will be ignored by IaC tools during their reconciliation.
+
+The `CheckAndSetDefaults()` pattern is not compatible with the above property because the
+function edits the `spec`, and might run client-side. Adding logic in `CheckAndSetDefaults()`
+for existing resources MUST be avoided.
 
 ```protobuf
 import "teleport/header/v1/metadata.proto";

@@ -826,7 +826,7 @@ func RunNetworking() (code int, err error) {
 	// Create a minimal default environment for the user.
 	workingDir := rootDirectory
 
-	hasAccess, err := CheckHomeDir(localUser)
+	hasAccess, err := checkHomeDir(localUser)
 	if hasAccess && err == nil {
 		workingDir = localUser.HomeDir
 	}
@@ -1123,6 +1123,8 @@ func RunAndExit(commandType string) {
 		code = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
 		code = runPark()
+	case reexecconstants.TrueSubCommand:
+		// nothing to do
 	case reexecconstants.SFTPSubCommand:
 		initLogger("sftp", os.Stderr, ExecLogConfig{})
 		err = reexecsftp.RunSFTP(slog.Default())
@@ -1176,6 +1178,7 @@ func IsReexec() bool {
 		reexecconstants.NetworkingSubCommand,
 		reexecconstants.CheckHomeDirSubCommand,
 		reexecconstants.ParkSubCommand,
+		reexecconstants.TrueSubCommand,
 		reexecconstants.SFTPSubCommand:
 		return true
 	default:
@@ -1356,7 +1359,7 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	hasAccess, err := CheckHomeDir(localUser)
+	hasAccess, err := checkHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1457,10 +1460,10 @@ func hasAccessibleHomeDir() error {
 	return nil
 }
 
-// CheckHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
+// checkHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
 // errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
 // in a return of (false, nil)
-func CheckHomeDir(localUser *user.User) (bool, error) {
+func checkHomeDir(localUser *user.User) (bool, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return false, trace.Wrap(err)
