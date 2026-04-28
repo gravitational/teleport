@@ -145,7 +145,11 @@ func main() {
 	if err != nil {
 		log.Panicf("Error creating directory for tbot: %v", err)
 	}
-	defer os.RemoveAll(tbotDir)
+	defer func() {
+		if err := os.RemoveAll(tbotDir); err != nil {
+			log.Printf("Error removing tbot directory %s: %v", tbotDir, err)
+		}
+	}()
 
 	// Create the tbot configuration.
 	tbotConfig := TbotConfig{
