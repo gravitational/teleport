@@ -128,9 +128,9 @@ func main() {
 	}
 
 	// Wait for the created workload cluster to reach an active state.
-	timeoutctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	wc, err = waitForActiveWorkloadCluster(timeoutctx, parentClient, wc.Metadata.Name, 30*time.Second)
+	wc, err = waitForActiveWorkloadCluster(timeoutCtx, parentClient, wc.Metadata.Name, 30*time.Second)
 	if err != nil {
 		log.Panicf("Failed waiting for workload cluster to be active: %v", err)
 	}
