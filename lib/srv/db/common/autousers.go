@@ -111,6 +111,8 @@ func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) err
 		err = a.deactivate(ctx, sessionCtx)
 	case types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
 		err = a.delete(ctx, sessionCtx)
+	case types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP:
+		err = a.delete(ctx, sessionCtx)
 	}
 
 	return trace.Wrap(err)
