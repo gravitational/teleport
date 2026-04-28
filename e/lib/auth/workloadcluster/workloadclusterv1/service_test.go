@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
@@ -75,6 +76,65 @@ func TestCreateWorkloadCluster(t *testing.T) {
 		{
 			description:   "missing cluster configuration",
 			expectedError: "name is required",
+		},
+		{
+			description: "missing regions",
+			request: &workloadclusterv1.CreateWorkloadClusterRequest{
+				Cluster: &workloadclusterv1.WorkloadCluster{
+					Metadata: &headerv1.Metadata{
+						Name: "test",
+					},
+				},
+			},
+			expectedError: "regions is required",
+		},
+		{
+			description: "metadata.expires provided",
+			request: &workloadclusterv1.CreateWorkloadClusterRequest{
+				Cluster: &workloadclusterv1.WorkloadCluster{
+					Metadata: &headerv1.Metadata{
+						Name:    "test",
+						Expires: timestamppb.Now(),
+					},
+				},
+			},
+			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
+		},
+		{
+			description: "metadata.description provided",
+			request: &workloadclusterv1.CreateWorkloadClusterRequest{
+				Cluster: &workloadclusterv1.WorkloadCluster{
+					Metadata: &headerv1.Metadata{
+						Name:        "test",
+						Description: "description",
+					},
+				},
+			},
+			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
+		},
+		{
+			description: "metadata.namespace provided",
+			request: &workloadclusterv1.CreateWorkloadClusterRequest{
+				Cluster: &workloadclusterv1.WorkloadCluster{
+					Metadata: &headerv1.Metadata{
+						Name:      "test",
+						Namespace: "namespace",
+					},
+				},
+			},
+			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
+		},
+		{
+			description: "metadata.labels provided",
+			request: &workloadclusterv1.CreateWorkloadClusterRequest{
+				Cluster: &workloadclusterv1.WorkloadCluster{
+					Metadata: &headerv1.Metadata{
+						Name:   "test",
+						Labels: map[string]string{},
+					},
+				},
+			},
+			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
 		},
 		{
 			description: "error response from ChildCluster RPC",

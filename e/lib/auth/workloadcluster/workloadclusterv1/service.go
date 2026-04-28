@@ -515,6 +515,17 @@ func validateWorkloadCluster(wc *workloadcluster.WorkloadCluster) error {
 		return trace.BadParameter("name is required")
 	}
 
+	// Reject all metadata fields besides name and revision since Teleport Cloud does not support other
+	// metadata fields. This service does not use Teleport's backend.
+	// TODO(dustin.specker): allow labels to be set when/if Teleport Cloud supports providing labels
+	switch {
+	case wc.GetMetadata().GetDescription() != "",
+		wc.GetMetadata().GetExpires() != nil,
+		wc.GetMetadata().GetLabels() != nil,
+		wc.GetMetadata().GetNamespace() != "":
+		return trace.BadParameter("only name and revision fields are supported on metadata for workload_cluster resources")
+	}
+
 	if len(wc.GetSpec().GetRegions()) == 0 {
 		return trace.BadParameter("regions is required")
 	}
