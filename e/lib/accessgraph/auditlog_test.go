@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -159,6 +160,49 @@ func Test_AuditLogExport_Search_Backfill(t *testing.T) {
 
 		<-ctx.Done() // wait for server mock to terminate, after 2 requests received
 	})
+}
+
+func Test_AuditLogExport_ConnectedMetric(t *testing.T) {
+	setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clientStream, serverStream := newTestStreams(ctx)
+	server := newTAGServerMock(t, newConfigAndState(), 1, cancel)
+	serverErrC := make(chan error, 1)
+	go func() {
+		serverErrC <- server.AuditLogStream(serverStream)
+	}()
+
+	mock := &searchEventsMock{
+		batches: []testEventBatch{newTestEventBatch("")},
+	}
+	exporter := newTestAuditLogExporter(clientStream, mock)
+	exporterErrC := make(chan error, 1)
+	go func() {
+		exporterErrC <- exporter.start(ctx, AuditLogConfig{Enabled: true})
+	}()
+
+	require.Eventually(t, func() bool {
+		return testutil.ToFloat64(accessGraphConnected.WithLabelValues(accessGraphMetricStreamAuditLog)) == 1
+	}, 10*time.Second, 100*time.Millisecond, "expected audit log connected metric to be set")
+
+	cancel()
+	require.Eventually(t, func() bool {
+		return testutil.ToFloat64(accessGraphConnected.WithLabelValues(accessGraphMetricStreamAuditLog)) == 0
+	}, 10*time.Second, 100*time.Millisecond, "expected audit log connected metric to be reset")
+
+	select {
+	case <-serverErrC:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for audit log server stream to stop")
+	}
+	select {
+	case <-exporterErrC:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for audit log exporter to stop")
+	}
 }
 
 func Test_AuditLogExport_Search_OneWait(t *testing.T) {

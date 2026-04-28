@@ -237,6 +237,13 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 			AuditLog: AuditLogConfig(cfg.AccessGraph.AuditLog),
 		}
 
+		if err := registerAccessGraphMetrics(
+			process.MetricsRegistry(),
+			config.AuditLog.Enabled,
+		); err != nil {
+			return trace.Wrap(err, "registering access graph metrics")
+		}
+
 		// TODO(jakule): Very excessive retrying, but we need to make sure that
 		// the access graph is initialized before we start serving requests.
 

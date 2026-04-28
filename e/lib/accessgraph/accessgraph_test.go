@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -309,6 +310,9 @@ func TestProcessTAGMessageUsageEvents(t *testing.T) {
 }
 
 func TestTeleportAccessGraphSync(t *testing.T) {
+	setAccessGraphConnected(accessGraphMetricStreamEvent, false)
+	setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -321,8 +325,9 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 	_, err = svc.authServer.CreateAccessGraphSettings(ctx, accessGraphSettings)
 	require.NoError(t, err)
 
+	errC := make(chan error, 1)
 	go func() {
-		err := initializeAndWatchAccessGraph(
+		errC <- initializeAndWatchAccessGraph(
 			ctx,
 			slog.Default(),
 			ServiceClientConfig{
@@ -335,7 +340,6 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 			svc.authServer,
 			svc.bk,
 		)
-		assert.NoError(t, err)
 	}()
 
 	require.Eventually(t, func() bool {
@@ -351,6 +355,24 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 		actions := svc.accessGraphService.getSupportedActions()
 		return slices.Contains(actions, supportedActionUsageEvent)
 	}, 10*time.Second, 100*time.Millisecond, "expected supported-actions metadata to be sent")
+
+	require.Eventually(t, func() bool {
+		return testutil.ToFloat64(accessGraphConnected.WithLabelValues(accessGraphMetricStreamEvent)) == 1
+	}, 10*time.Second, 100*time.Millisecond, "expected access graph connected metric to be set")
+
+	cancel()
+	require.Eventually(t, func() bool {
+		return testutil.ToFloat64(accessGraphConnected.WithLabelValues(accessGraphMetricStreamEvent)) == 0
+	}, 10*time.Second, 100*time.Millisecond, "expected access graph connected metric to be reset")
+
+	select {
+	case err := <-errC:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			require.NoError(t, err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for access graph sync to stop")
+	}
 }
 
 func newAccessGraphFakeService(t *testing.T, lis net.Listener) *accessGraphService {

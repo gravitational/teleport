@@ -57,6 +57,15 @@ type auditLogStream grpc.BidiStreamingClient[accessgraphv1.AuditLogStreamRequest
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
 // events to the access graph service at a time.
 func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config ServiceClientConfig, getCreds ClientCredentialsGetter, authServer *auth.Server, bk backend.Backend) error {
+	// The gauges are process-wide, so clear any stale healthy state before
+	// attempting a stream handshake and again when this sync loop exits.
+	setAccessGraphConnected(accessGraphMetricStreamEvent, false)
+	defer setAccessGraphConnected(accessGraphMetricStreamEvent, false)
+	if config.AuditLog.Enabled {
+		setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+		defer setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+	}
+
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -113,6 +122,10 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 				if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
 					log.InfoContext(ctx, "access graph service connection was closed")
 				}
+				setAccessGraphConnected(accessGraphMetricStreamEvent, false)
+				if config.AuditLog.Enabled {
+					setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+				}
 			}()
 
 			g, egCtx := errgroup.WithContext(ctx)
@@ -140,11 +153,12 @@ func processEventStream(ctx context.Context, log *slog.Logger, stream eventStrea
 		log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
 		return trace.Wrap(err)
 	}
-
 	supportedKinds := header.Get(supportedKindsKey)
 	if len(supportedKinds) == 0 {
 		return trace.BadParameter("access graph service did not return supported kinds")
 	}
+	setAccessGraphConnected(accessGraphMetricStreamEvent, true)
+	defer setAccessGraphConnected(accessGraphMetricStreamEvent, false)
 
 	newCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

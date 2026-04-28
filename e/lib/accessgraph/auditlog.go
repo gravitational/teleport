@@ -63,6 +63,9 @@ type auditLogExporter struct {
 }
 
 func (a *auditLogExporter) start(ctx context.Context, config AuditLogConfig) error {
+	setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+	defer setAccessGraphConnected(accessGraphMetricStreamAuditLog, false)
+
 	a.log.DebugContext(ctx, "Starting stream processing")
 	isBulkExporter, err := a.isBulkExporter(ctx)
 	if err != nil {
@@ -80,6 +83,8 @@ func (a *auditLogExporter) start(ctx context.Context, config AuditLogConfig) err
 	if err != nil {
 		return trace.Wrap(err, "Failed to retrieve audit log resume state")
 	}
+	setAccessGraphConnected(accessGraphMetricStreamAuditLog, true)
+
 	if isBulkExporter {
 		err = a.exportBulk(ctx, startDate, resumeState)
 	} else {
