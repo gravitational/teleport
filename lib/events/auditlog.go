@@ -263,6 +263,10 @@ type AuditLogConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider provides recording metadata service
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an encrypted upload completes to find or
+	// recover the session end event for post-processing. If nil, no
+	// post-processing is performed.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -680,7 +684,10 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "completing upload")
 	}
 
-	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
+	if l.OnUploadComplete == nil {
+		return nil
+	}
+	sessionEnd, err := l.OnUploadComplete(ctx, upload.SessionID)
 	if err != nil || sessionEnd == nil {
 		return nil
 	}
@@ -696,6 +703,12 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
 	}
 	return nil
+}
+
+// SetOnUploadComplete sets the callback to be invoked after an encrypted upload
+// completes. It must be called before any uploads are processed.
+func (l *AuditLog) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	l.OnUploadComplete = fn
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

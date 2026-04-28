@@ -23,9 +23,10 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"text/template"
 	"unicode"
 	"unicode/utf8"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/teleport/gen/go/eventschema"
 )
@@ -81,6 +82,7 @@ func main() {
 		template.FuncMap{
 			"ColNameList":        colNameList,
 			"PrepareDescription": prepareDescription,
+			"NameSQL":            func(c *eventschema.ColumnSchemaDetails) string { return c.NameSQL() },
 		},
 	).Parse(docTempl)).Execute(os.Stdout, data)
 }

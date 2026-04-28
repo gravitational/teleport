@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"

@@ -132,17 +132,30 @@ func NewKubernetesClusterV3WithoutSecrets(cluster KubeCluster) (*KubernetesClust
 		KubernetesClusterSpecV3{
 			DynamicLabels: LabelsToV2(copiedCluster.GetDynamicLabels()),
 		},
+		KubeClusterWithScope(copiedCluster.GetScope()),
 	)
 	return clusterWithoutCreds, trace.Wrap(err)
 }
 
+type kubeClusterOpt func(*KubernetesClusterV3)
+
+// KubeClusterWithScope is an option that sets the scope when building a [KubernetesClusterV3].
+func KubeClusterWithScope(scope string) kubeClusterOpt {
+	return func(k *KubernetesClusterV3) {
+		k.Scope = scope
+	}
+}
+
 // NewKubernetesClusterV3 creates a new Kubernetes cluster resource.
-func NewKubernetesClusterV3(meta Metadata, spec KubernetesClusterSpecV3) (*KubernetesClusterV3, error) {
+func NewKubernetesClusterV3(meta Metadata, spec KubernetesClusterSpecV3, opts ...kubeClusterOpt) (*KubernetesClusterV3, error) {
 	k := &KubernetesClusterV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
 
+	for _, opt := range opts {
+		opt(k)
+	}
 	if err := k.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

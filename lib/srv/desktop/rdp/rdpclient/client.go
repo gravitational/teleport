@@ -170,9 +170,9 @@ type Client struct {
 	mouseX, mouseY uint32
 }
 
-// reads in handshake messages and optionally wraps the connection in a translation layer
+// PrepareConnecton reads in handshake messages and optionally wraps the connection in a translation layer
 // based on the client protocol.
-func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
+func PrepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
 	// Read Hello either from tdpb or tdp.
 	if clientProtocol == tdpb.ProtocolName {
 		hello, err := readClientHello(conn, logger)
@@ -184,7 +184,7 @@ func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger
 }
 
 // New creates and connects a new Client based on cfg.
-func New(conn *tdp.Conn, cfg Config) (*Client, error) {
+func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -193,13 +193,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	// read the client hello and wrap the connection with a translation layer (if needed)
-	wrappedConn, hello, err := prepareConnecton(cfg.ClientProtocol, conn, cfg.Logger)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.conn = wrappedConn
+	c.conn = conn
 	c.username = hello.Username
 	c.keyboardLayout = hello.KeyboardLayout
 

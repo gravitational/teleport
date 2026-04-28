@@ -1717,7 +1717,116 @@ func TestGoodbye(t *testing.T) {
 func TestKubernetesServerBasics(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, testKubernetesServerBasics)
+	// happy path, scopes always match
+	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/test"))
+	// server scope differs from scope given during control stream registration
+	synctest.Test(t, testKubernetesServerScoped("/test", "/other", "/test"))
+	// cluster scope differs from the server scope
+	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/other"))
 }
+
+func testKubernetesServerScoped(initialScope, serverScope, clusterScope string) func(t *testing.T) {
+	return func(t *testing.T) {
+		const serverID = "test-server"
+
+		ctx := t.Context()
+
+		events := make(chan testEvent, 1024)
+
+		auth := &fakeAuth{}
+
+		rc := &resourceCounter{}
+		controller := NewController(
+			auth,
+			usagereporter.DiscardUsageReporter{},
+			withServerKeepAlive(time.Millisecond*200),
+			withTestEventsChannel(events),
+			WithOnConnect(rc.onConnect),
+			WithOnDisconnect(rc.onDisconnect),
+		)
+		defer controller.Close()
+
+		// set up fake in-memory control stream
+		upstream, downstream := client.InventoryControlStreamPipe()
+		// launch goroutine to respond to ping requests
+		go func() {
+			for {
+				select {
+				case msg := <-downstream.Recv():
+					downstream.Send(ctx, &proto.UpstreamInventoryPong{
+						ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+					})
+				case <-downstream.Done():
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+			ServerID: serverID,
+			Version:  teleport.Version,
+			Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+			Scope:    initialScope,
+		})
+
+		// verify that control stream handle is now accessible
+		_, ok := controller.GetControlStream(serverID)
+		require.True(t, ok)
+
+		// verify that hb counter has been incremented
+		require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+		// send server heartbeat with scopes applied
+		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+			KubernetesServer: &types.KubernetesServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Scope: serverScope,
+				Spec: types.KubernetesServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Cluster: &types.KubernetesClusterV3{
+						Kind:    types.KindKubernetesCluster,
+						Version: types.V3,
+						Scope:   clusterScope,
+						Metadata: types.Metadata{
+							Name: "cluster",
+						},
+						Spec: types.KubernetesClusterSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		if serverScope != initialScope {
+			// scope mismatch between server scope and initial scope should close
+			// the stream
+			awaitEvents(t, events,
+				expect(handlerClose),
+				deny(kubeKeepAliveErr, kubeUpsertErr),
+			)
+			return
+		}
+		if clusterScope != serverScope {
+			// scope mismatch between server scope and cluster scope should close
+			// the stream
+			awaitEvents(t, events,
+				expect(handlerClose),
+				deny(kubeKeepAliveErr, kubeUpsertErr),
+			)
+			return
+		}
+		awaitEvents(t, events,
+			expect(kubeUpsertOk, kubeKeepAliveOk),
+			deny(kubeKeepAliveErr, kubeUpsertErr, handlerClose),
+		)
+	}
+}
+
 func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const kubeCount = 3

@@ -117,6 +117,7 @@ func (p *CheckIDTokenParams) checkAndSetDefaults() error {
 // rules in the provided provision token.
 func CheckIDToken(
 	ctx context.Context,
+	m modules.Modules,
 	params *CheckIDTokenParams,
 ) (*IDTokenClaims, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
@@ -129,7 +130,7 @@ func CheckIDToken(
 	}
 
 	hostnameOverride := token.Spec.TerraformCloud.Hostname
-	if hostnameOverride != "" && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if hostnameOverride != "" && m.BuildType() != modules.BuildEnterprise {
 		return nil, trace.Wrap(
 			services.ErrRequiresEnterprise,
 			"terraform_cloud joining for Terraform Enterprise",

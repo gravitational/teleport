@@ -1856,11 +1856,20 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 		return nil, trace.Wrap(err)
 	}
 
+	// Build env for `teleport exec`.
+	env := &envutils.SafeEnv{}
+	env.AddExecEnvironment()
+
 	// The channel/request type determines the subcommand to execute.
 	var subCommand string
 	switch execType {
 	case reexecconstants.NetworkingSubCommand:
 		subCommand = reexecconstants.NetworkingSubCommand
+
+		// Unset XAUTHORITY for the networking command as the SSH session
+		// process given to the user will not have it set which can cause
+		// issues with the X11 forwarding.
+		env.Remove(x11.XAuthFileEnvVar)
 	default:
 		subCommand = reexecconstants.ExecSubCommand
 	}
@@ -1868,10 +1877,6 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
-
-	// build env for `teleport exec`
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
 
 	executor.bpfEnabled = command.RecordWithBPF
 
