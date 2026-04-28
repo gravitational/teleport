@@ -261,6 +261,10 @@ func ValidateRole(r types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	if err := validateRoleWildcards(r); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -458,6 +462,31 @@ func (sessionFilterValidationContext) GetResource() (types.Resource, error) {
 
 func (sessionFilterValidationContext) GetAccessChecker() (AccessChecker, error) {
 	return nil, trace.NotFound("access checker is not used in session filter validation")
+}
+
+// validateRoleWildcards rejects wildcards in fields that don't support them.
+func validateRoleWildcards(r types.Role) error {
+	var errs []error
+	for _, side := range []struct {
+		name string
+		rct  types.RoleConditionType
+	}{
+		{"allow", types.Allow},
+		{"deny", types.Deny},
+	} {
+		for _, field := range []struct {
+			name   string
+			values []string
+		}{
+			{"request.search_as_roles", r.GetSearchAsRoles(side.rct)},
+			{"review_requests.preview_as_roles", r.GetPreviewAsRoles(side.rct)},
+		} {
+			if slices.Contains(field.values, types.Wildcard) {
+				errs = append(errs, trace.BadParameter("wildcard is not allowed in %s.%s", side.name, field.name))
+			}
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // validateRule parses the where and action fields to validate the rule.

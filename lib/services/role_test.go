@@ -1319,6 +1319,33 @@ func TestValidateRole(t *testing.T) {
 				"unsupported function: email.localz",
 			},
 		},
+		{
+			name: "wildcard not allowed in role-list fields",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: []string{types.Wildcard},
+					},
+					ReviewRequests: &types.AccessReviewConditions{
+						PreviewAsRoles: []string{types.Wildcard},
+					},
+				},
+				Deny: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: []string{types.Wildcard},
+					},
+					ReviewRequests: &types.AccessReviewConditions{
+						PreviewAsRoles: []string{types.Wildcard},
+					},
+				},
+			},
+			expectErrorContains: []string{
+				"wildcard is not allowed in allow.request.search_as_roles",
+				"wildcard is not allowed in allow.review_requests.preview_as_roles",
+				"wildcard is not allowed in deny.request.search_as_roles",
+				"wildcard is not allowed in deny.review_requests.preview_as_roles",
+			},
+		},
 	}
 
 	for _, tc := range tests {
