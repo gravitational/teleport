@@ -667,17 +667,23 @@ func resourceLabel(event types.Event) string {
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := validateUserCertsRequest(auth, req); err != nil {
+
+	// deny access to scoped bots
+	if ident := auth.getIdentity(); ident.IsBot() && ident.ScopePin != nil {
+		return nil, trace.AccessDenied("scoped bots can not generate user certs")
+	}
+
+	if err := validateUserCertsRequest(auth.ServerWithRoles, req); err != nil {
 		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-		certs, err := g.generateUserSingleUseCerts(ctx, auth, req)
+		certs, err := g.generateUserSingleUseCerts(ctx, auth.ServerWithRoles, req)
 		return certs, trace.Wrap(err)
 	}
 
@@ -688,7 +694,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	return certs, nil
 }
 
-func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
+func validateUserCertsRequest(srv *ServerWithRoles, req *authpb.UserCertsRequest) error {
 	switch req.Usage {
 	case authpb.UserCertsRequest_All:
 		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
@@ -738,7 +744,7 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 	}
 
 	// Single-use certs require current user.
-	if err := actx.currentUserAction(req.Username); err != nil {
+	if err := srv.scopedCurrentUserAction(req.Username); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -746,8 +752,8 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 }
 
 // generateUserSingleUseCerts issues single-use user certificates.
-func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	setUserSingleUseCertsTTL(actx, req)
+func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *ServerWithRoles, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+	setUserSingleUseCertsTTL(srv, req)
 
 	// We don't do MFA requirement validations here.
 	// Callers are supposed to use either use
@@ -760,7 +766,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcC
 	// Generate the cert
 	singleUseCert, err := userSingleUseCertsGenerate(
 		ctx,
-		actx,
+		srv,
 		*req)
 	if err != nil {
 		g.logger.WarnContext(ctx, "Failed to generate single-use cert", "error", err)
@@ -2784,7 +2790,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	return trace.NotImplemented("method GenerateUserSingleUseCerts is deprecated, use GenerateUserCerts instead")
 }
 
-func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
+func setUserSingleUseCertsTTL(srv *ServerWithRoles, req *authpb.UserCertsRequest) {
 	if !isCertWrittenToDiskFlow(req) {
 		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
 		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
@@ -2792,7 +2798,7 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 		return
 	}
 
-	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
+	maxExpiry := srv.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
@@ -2825,7 +2831,7 @@ func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
 	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
+func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2839,13 +2845,13 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
 	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
-		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
+		certRequestPreviousIdentityExpires(srv.getIdentity().Expires),
 		certRequestLoginIP(clientIP),
-		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
+		certRequestDeviceExtensions(srv.getIdentity().DeviceExtensions),
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, opts...)
+	certs, err := srv.generateUserCerts(ctx, req, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2865,7 +2871,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 }
 
 func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequiredRequest) (*authpb.IsMFARequiredResponse, error) {
-	actx, err := g.authenticate(ctx)
+	actx, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
