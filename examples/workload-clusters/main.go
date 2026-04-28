@@ -18,6 +18,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+var (
+	// awsAccount is the AWS account to allow tbot to use for joining
+	awsAccount = "account"
+	// awsARN is the AWS ARN to allow tbot to use for joining
+	awsARN = "arn"
+	// parentClusterProxyAddress is the parent Teleport Cloud cluster's proxy address
+	parentClusterProxyAddress = "parent.teleport.sh"
+)
+
 // TbotConfig defines a configuration for running tbot.
 type TbotConfig struct {
 	// Version is the configuration version.
@@ -76,8 +85,7 @@ func main() {
 	// workload_cluster resources.
 	parentClient, err := client.New(ctx, client.Config{
 		Addrs: []string{
-			// This is the parent Teleport Cloud cluster's proxy address, such as:
-			"parent.teleport.sh",
+			parentClusterProxyAddress,
 			// Note: port is optional.
 		},
 		Credentials: []client.Credentials{
@@ -114,8 +122,8 @@ func main() {
 				JoinMethod: "iam",
 				Allow: []*workloadcluster.Allow{
 					{
-						AwsAccount: "account",
-						AwsArn:     "arn",
+						AwsAccount: awsAccount,
+						AwsArn:     awsARN,
 					},
 				},
 			},
