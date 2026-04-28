@@ -21,6 +21,7 @@ package azure
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -53,6 +54,79 @@ type scaleSet interface {
 	Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error)
 }
 
+// PowerState represents the power state of an Azure virtual machine. Named constants cover
+// states with explicit behavior; other values are verbatim PowerState/* suffixes returned
+// by ARM, such as "starting", "stopping", or "deallocating".
+type PowerState string
+
+const (
+	// PowerStateUnknown indicates that no PowerState/* status entry was present.
+	PowerStateUnknown PowerState = ""
+	// PowerStateRunning indicates the VM is running.
+	PowerStateRunning PowerState = "running"
+	// PowerStateDeallocated indicates the VM is deallocated.
+	PowerStateDeallocated PowerState = "deallocated"
+	// PowerStateStopped indicates the VM is stopped but still allocated.
+	PowerStateStopped PowerState = "stopped"
+)
+
+// ParsePowerState extracts the first PowerState/* status from an InstanceView status list
+// and returns its suffix as a PowerState. Returns PowerStateUnknown when no PowerState/*
+// entry is present. Suffixes other than the named constants are returned verbatim
+// (e.g. PowerState("starting")) so transient states remain visible in logs.
+func ParsePowerState(statuses []*armcompute.InstanceViewStatus) PowerState {
+	for _, status := range statuses {
+		if status == nil || status.Code == nil {
+			continue
+		}
+		if suffix, ok := strings.CutPrefix(*status.Code, "PowerState/"); ok {
+			return PowerState(suffix)
+		}
+	}
+	return PowerStateUnknown
+}
+
+// FilterLinuxVMs ignores nil entries and partitions the remaining VMs into Linux-compatible
+// (Linux + unknown OS) and skipped (known non-Linux OS like Windows). VMs with unknown OS type
+// are allowed through because missing metadata should not silently prevent discovery of legitimate
+// Linux VMs. Callers needing the OS type for a skipped VM can use VMOSType to extract it nil-safely.
+func FilterLinuxVMs(vms []*armcompute.VirtualMachine) (linux, skipped []*armcompute.VirtualMachine) {
+	for _, vm := range vms {
+		if vm == nil {
+			continue
+		}
+		switch VMOSType(vm) {
+		case "", string(armcompute.OperatingSystemTypesLinux):
+			linux = append(linux, vm)
+		default:
+			skipped = append(skipped, vm)
+		}
+	}
+
+	return linux, skipped
+}
+
+// VMOSType nil-safely extracts the OS type string from a VM. Returns empty string if any pointer in the chain is nil.
+func VMOSType(vm *armcompute.VirtualMachine) string {
+	if vm == nil ||
+		vm.Properties == nil ||
+		vm.Properties.StorageProfile == nil ||
+		vm.Properties.StorageProfile.OSDisk == nil ||
+		vm.Properties.StorageProfile.OSDisk.OSType == nil {
+		return ""
+	}
+	return string(*vm.Properties.StorageProfile.OSDisk.OSType)
+}
+
+// VMID nil-safely extracts the VM ID (Properties.VMID) from a VM.
+// Returns empty string if any pointer in the chain is nil.
+func VMID(vm *armcompute.VirtualMachine) string {
+	if vm == nil || vm.Properties == nil || vm.Properties.VMID == nil {
+		return ""
+	}
+	return *vm.Properties.VMID
+}
+
 // VirtualMachinesClient is a client for Azure virtual machines.
 type VirtualMachinesClient interface {
 	// Get returns the virtual machine (including scale set VMs) for the given
@@ -61,7 +135,20 @@ type VirtualMachinesClient interface {
 	// GetByVMID returns the virtual machine for a given VM ID.
 	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
+	// If resourceGroup is "*", it lists all virtual machines in any resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
+	// ListNonRunningVirtualMachineStates returns known non-running VM power states
+	// keyed by resource ID. Issues one subscription-wide ARM call.
+	//
+	// Resource ID casing is not normalized. Callers reconciling these IDs with
+	// other ARM responses should normalize before matching, because ARM treats
+	// resource path segments as case-insensitive.
+	//
+	// Inclusion policy: any PowerState/* suffix other than "running" classifies
+	// the VM as non-running, including transient suffixes (starting, stopping,
+	// deallocating). VMs without a PowerState/* entry or without an instance view
+	// are omitted: missing data is treated as running or indeterminate.
+	ListNonRunningVirtualMachineStates(ctx context.Context) (map[string]PowerState, error)
 }
 
 // VirtualMachine represents an Azure virtual machine.
@@ -175,13 +262,6 @@ func parseVirtualMachine[T vmTypes](vm T) (*VirtualMachine, error) {
 
 // Get returns the virtual machine (including scale set VMs) for the given
 // resource ID.
-//
-// The virtual machine scale set (VMSS) supports two types of orchestration
-// modes: uniform and flexible. Both have different resource ID format from the
-// instance metadata API. A VM from a uniform VMSS has a different resource ID
-// and requires a different API to retrieve its information. Flexible VMSS VMs
-// use the same resource ID format as regular VMs and don't require special
-// handling.
 func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine, error) {
 	parsedResourceID, err := arm.ParseResourceID(resourceID)
 	if err != nil {
@@ -259,9 +339,8 @@ func newListAllPager(azurePager *runtime.Pager[armcompute.VirtualMachinesClientL
 	}
 }
 
-// ListVirtualMachines lists all virtual machines in a given resource group
-// using the Azure virtual machines API. If resourceGroup is "*", it lists
-// all virtual machines in any resource group.
+// ListVirtualMachines lists all virtual machines in a given resource group.
+// If resourceGroup is "*", it lists all virtual machines in any resource group.
 func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error) {
 	var pager vmPager
 	if resourceGroup == types.Wildcard {
@@ -279,6 +358,47 @@ func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string
 	}
 
 	return virtualMachines, nil
+}
+
+// ListNonRunningVirtualMachineStates returns known non-running VM power states
+// keyed by resource ID. Issues one subscription-wide ARM call.
+//
+// Resource ID casing is not normalized. Callers reconciling these IDs with other ARM responses
+// should normalize before matching, because ARM treats resource path segments as case-insensitive.
+//
+// Inclusion policy: any PowerState/* suffix other than "running" classifies the VM as non-running,
+// including transient suffixes (starting, stopping, deallocating). VMs without a PowerState/* entry
+// or without an instance view are omitted: missing data is treated as running or indeterminate.
+func (c *vmClient) ListNonRunningVirtualMachineStates(ctx context.Context) (map[string]PowerState, error) {
+	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{
+		StatusOnly: to.Ptr("true"),
+	}))
+
+	nonRunning := map[string]PowerState{}
+	for pager.more() {
+		res, err := pager.nextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+
+		for _, vm := range res {
+			resourceID := StringVal(vm.ID)
+			if resourceID == "" {
+				continue
+			}
+			if vm.Properties == nil || vm.Properties.InstanceView == nil {
+				// No InstanceView; skip VM. Caller treats "not in map" as "running or indeterminate."
+				continue
+			}
+			state := ParsePowerState(vm.Properties.InstanceView.Statuses)
+			if state == PowerStateUnknown || state == PowerStateRunning {
+				continue
+			}
+			nonRunning[resourceID] = state
+		}
+	}
+
+	return nonRunning, nil
 }
 
 // RunCommandRequest combines parameters for running a command on an Azure virtual machine.
