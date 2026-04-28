@@ -6,7 +6,8 @@ tags:
 - platform-wide
 ---
 
-This guide shows you how to install and run Teleport using the official Docker images. It covers selecting an image, configuring the container, running Teleport services, and upgrading.
+This guide shows you how to install and run Teleport using the official Docker images. 
+It covers selecting an image, configuring the container, running Teleport services, and upgrading.
 
 ## Images
 
@@ -15,8 +16,11 @@ Teleport publishes a pre-built Docker image for every release. Images are hosted
 ### Image suffixes
 
 You can specify attributes of an image by appending a suffix to the repository name or tag.
+
 Images with the `-distroless` suffix include only the `teleport` binary and its runtime dependencies, with no shell or utility applications. An example is `public.ecr.aws/gravitational/teleport-distroless` for Teleport Community Edition.
+
 Images with the `-distroless-debug` suffix include a Busybox shell and tool suite in addition to Teleport, and are intended for troubleshooting deployments only. They are not intended for production use. An example is `public.ecr.aws/gravitational/teleport-distroless-debug`.
+
 `-distroless` and `-distroless-debug` images support multiple architectures natively, and do not require (or support) image suffixes. You can specify an architecture using the `--platform` flag of `docker pull` to pull the `arm`, `arm64`, or `amd64` version of an image.
 
 ### Version tags
@@ -25,7 +29,6 @@ Images point to a static version of Teleport. Use the image's tag to specify eit
 
 - The major, minor, and patch version (e.g., `(=teleport.version=)` for the latest version of Teleport Community Edition).
 - The major version only, which implies the latest minor and patch numbers for that major version. For example, `(=teleport.major_version=)` implies `(=teleport.version=)`.
-- Before upgrading, take a snapshot or backup of the data directory.
 
 <Tabs>
 <TabItem label="Teleport Enterprise (Managed)" scope={["team", "cloud"]}>
@@ -160,37 +163,6 @@ requires a file path.
 A single Teleport process can run multiple services, each of which listens on a specific set of ports depending on your configuration. 
 See our [Networking Reference](../../reference/deployment/networking.mdx#ports) for the ports on your Teleport container to expose.
 
-<Checkpoint
-  title="Troubleshoot common Docker setup issues"
-  description="If image pull, container startup, file mounts, or upgrade steps fail, try these steps."
->
-
-**Image pull**
-
-- If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
-- If you see architecture errors such as no matching manifest, specify the platform explicitly with --platform.
-
-
-**Container startup**
-
-- If you see `docker: Error response from daemon: OCI runtime create failed`, verify Docker is running and your user has permission to use it (you may need to add your user to the `docker` group).
-- If the container is not listed in `docker ps`, check whether it exited with `docker ps -a --filter name=teleport`, then view logs with `docker logs teleport`.
-- If you see `bind: address already in use` for ports 3025 or 3080, another process is using those ports. Find it with `lsof -i :3080` (macOS/Linux), or choose different host ports (e.g., `-p 3081:3080`).
-
-**File mounts and permissions**
-
-- If you see `failed to read configuration` or `no such file or directory` for `/etc/teleport.yaml`, verify the configuration file path on the host exists and is mounted to `/etc/teleport` in the container.
-- If you see `permission denied` writing to `/var/lib/teleport`, ensure the data directory on the host is writable by the container's user. For distroless images, check `runAsUser` and `fsGroup` settings, or adjust host directory permissions with `chmod`.
-- If you see TLS errors referencing a missing key or certificate file, verify that any paths assigned in `proxy_service.https_keypairs` are mounted to the container.
-
-**On upgrade**
-
-- If the container fails to start after upgrade, check logs with `docker logs teleport` for migration or compatibility errors.
-- If you see database migration errors, ensure you're not skipping major versions. Teleport supports upgrades from one major version to the next; it does not support skipping versions.
-- To roll back, stop the new container and start a container with the previous image version using the same data directory.
-
-</Checkpoint>
-
 ### Extracting certificates from distroless images
 
 Extracting certificates created with `tctl auth sign` from a container running a distroless image can be tricky due to the absence of a shell and other OS tools.
@@ -209,17 +181,6 @@ x alice.local.crt
 x alice.local.key
 x alice.local.cas
 ```
-
-<Checkpoint
-  title="Troubleshoot certificate extraction issues"
-  description="If `tctl auth sign` fails or no files are extracted, try these steps."
->
-
-- If you see `Error: No such container`, verify the container is running with `docker ps` and that `${TELEPORT_CONTAINER}` is set to the correct container name or ID.
-- If `tar xv` produces no output and no files appear locally, the `tctl auth sign` call may have failed silently. Run the command without the `| tar xv` pipe to see the raw output and any error messages.
-- If you see `tar: This does not look like a tar archive`, the command output likely contains an error message instead of archive data. Run `tctl auth sign` without `--tar` first to confirm the user and parameters are valid.
-
-</Checkpoint>
 
 ## Example: running a Teleport container locally
 
@@ -387,35 +348,7 @@ Verify the running image version:
 $ kubectl get pod <pod-name> -o jsonpath='{.spec.containers[0].image}'
 ```
 
-You should see the expected image tag matching the version you deployed.
-
-<Checkpoint
-  title="Troubleshoot common Kubernetes issues"
-  description="If pods fail to start, Teleport doesn't respond, or rollouts stall, try these steps."
->
-
-**Pod issues**
-
-- Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions allow the container to write to it. For distroless images, ensure `fsGroup` and `runAsUser` settings allow write access.
-- If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <pod-name>`.
-- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with `kubectl logs <pod-name> --previous`.
-- If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check whether pull secrets are required.
-- If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <pod-name>` and review the `lastState` section.
-
-**Teleport not responding**
-
-- If `tctl status` fails due to authentication or RBAC, use `/webapi/ping` as the primary health check.
-- If `kubectl port-forward` fails, ensure the pod is running and the container port is correct.
-- View pod logs for startup errors with `kubectl logs -f <pod-name>` and recent events with `kubectl get events --field-selector involvedObject.name=<pod-name>`.
-
-**Rollouts and upgrades**
-
-- If a rollout is stuck, view rollout history with `kubectl rollout history deployment/teleport`. To roll back, run `kubectl rollout undo deployment/teleport`.
-- If pods fail after an upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
-- To restart pods without changing configuration, run `kubectl rollout restart deployment/teleport`.
-- Check resource usage during upgrades with `kubectl top pod -l app=teleport`.
-
-</Checkpoint>
+The output displays the expected image tag matching the version you deployed.
 
 ## Upgrading Teleport on Docker
 
@@ -445,4 +378,68 @@ To upgrade a Teleport container running on Docker:
 
    The output displays the new version number.
 
-If the upgrade fails or the container doesn't start, see the **On upgrade** section of the Docker setup troubleshooting checkpoint earlier in this guide.
+If the upgrade fails or the container doesn't start, see [Docker setup](#docker-setup) in the Troubleshooting section below.
+
+## Troubleshooting
+
+If you run into problems installing, running, or upgrading Teleport on Docker or Kubernetes, the sections below cover the most common failure modes.
+
+### Docker setup
+
+Common issues encountered when pulling images, starting containers, mounting files, and upgrading.
+
+**Image pull**
+
+- If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
+- If you see architecture errors such as no matching manifest, specify the platform explicitly with `--platform`.
+
+**Container startup**
+
+- If you see `docker: Error response from daemon: OCI runtime create failed`, verify Docker is running and your user has permission to use it (you may need to add your user to the `docker` group).
+- If the container is not listed in `docker ps`, check whether it exited with `docker ps -a --filter name=teleport`, then view logs with `docker logs teleport`.
+- If you see `bind: address already in use` for ports 3025 or 3080, another process is using those ports. Find it with `lsof -i :3080` (macOS/Linux), or choose different host ports (e.g., `-p 3081:3080`).
+
+**File mounts and permissions**
+
+- If you see `failed to read configuration` or `no such file or directory` for `/etc/teleport.yaml`, verify the configuration file path on the host exists and is mounted to `/etc/teleport` in the container.
+- If you see `permission denied` writing to `/var/lib/teleport`, ensure the data directory on the host is writable by the container's user. For distroless images, check `runAsUser` and `fsGroup` settings, or adjust host directory permissions with `chmod`.
+- If you see TLS errors referencing a missing key or certificate file, verify that any paths assigned in `proxy_service.https_keypairs` are mounted to the container.
+
+**Upgrades**
+
+- If the container fails to start after upgrade, check logs with `docker logs teleport` for migration or compatibility errors.
+- If you see database migration errors, ensure you're not skipping major versions. Teleport supports upgrades from one major version to the next; it does not support skipping versions.
+- To roll back, stop the new container and start a container with the previous image version using the same data directory.
+
+### Certificate extraction
+
+If `tctl auth sign` fails or no files are extracted from a distroless image:
+
+- If you see `Error: No such container`, verify the container is running with `docker ps` and that `${TELEPORT_CONTAINER}` is set to the correct container name or ID.
+- If `tar xv` produces no output and no files appear locally, the `tctl auth sign` call may have failed silently. Run the command without the `| tar xv` pipe to see the raw output and any error messages.
+- If you see `tar: This does not look like a tar archive`, the command output likely contains an error message instead of archive data. Run `tctl auth sign` without `--tar` first to confirm the user and parameters are valid.
+
+### Kubernetes
+
+Common issues encountered when running Teleport in a Kubernetes pod.
+
+**Pod issues**
+
+- Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions allow the container to write to it. For distroless images, ensure `fsGroup` and `runAsUser` settings allow write access.
+- If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <pod-name>`.
+- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with `kubectl logs <pod-name> --previous`.
+- If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check whether pull secrets are required.
+- If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <pod-name>` and review the `lastState` section.
+
+**Teleport not responding**
+
+- If `tctl status` fails due to authentication or RBAC, use `/webapi/ping` as the primary health check.
+- If `kubectl port-forward` fails, ensure the pod is running and the container port is correct.
+- View pod logs for startup errors with `kubectl logs -f <pod-name>` and recent events with `kubectl get events --field-selector involvedObject.name=<pod-name>`.
+
+**Rollouts and upgrades**
+
+- If a rollout is stuck, view rollout history with `kubectl rollout history deployment/teleport`. To roll back, run `kubectl rollout undo deployment/teleport`.
+- If pods fail after an upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
+- To restart pods without changing configuration, run `kubectl rollout restart deployment/teleport`.
+- Check resource usage during upgrades with `kubectl top pod -l app=teleport`.
