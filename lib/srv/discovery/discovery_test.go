@@ -3195,7 +3195,8 @@ func (m *mockAzureRunCommandClient) getAttempted() []string {
 }
 
 type mockAzureClient struct {
-	vms []*armcompute.VirtualMachine
+	vms              []*armcompute.VirtualMachine
+	nonRunningStates map[string]azure.PowerState
 }
 
 func (m *mockAzureClient) Get(_ context.Context, _ string) (*azure.VirtualMachine, error) {
@@ -3211,7 +3212,10 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 }
 
 func (m *mockAzureClient) ListNonRunningVirtualMachineStates(_ context.Context) (map[string]azure.PowerState, error) {
-	return map[string]azure.PowerState{}, nil
+	if m.nonRunningStates == nil {
+		return map[string]azure.PowerState{}, nil
+	}
+	return maps.Clone(m.nonRunningStates), nil
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -3312,6 +3316,32 @@ func TestAzureVMDiscovery(t *testing.T) {
 		}
 	}
 
+	// mixedFleetAzureVMs returns a representative Azure subscription where
+	// power-state and OS-type filtering must work in combination with the
+	// rest of the discovery pipeline. The returned states map is the shape
+	// ListNonRunningVirtualMachineStates would produce for that fleet.
+	mixedFleetAzureVMs := func() ([]*armcompute.VirtualMachine, map[string]azure.PowerState) {
+		mkVM := func(name string, osType *armcompute.OperatingSystemTypes) *armcompute.VirtualMachine {
+			vm := makeVM(name, false)
+			if osType != nil {
+				vm.Properties.StorageProfile = &armcompute.StorageProfile{
+					OSDisk: &armcompute.OSDisk{OSType: osType},
+				}
+			}
+			return vm
+		}
+		runningLinux := mkVM("fleet-running-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
+		deallocatedLinux := mkVM("fleet-deallocated-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
+		stoppedLinux := mkVM("fleet-stopped-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
+		runningWindows := mkVM("fleet-running-windows", to.Ptr(armcompute.OperatingSystemTypesWindows))
+		vms := []*armcompute.VirtualMachine{runningLinux, deallocatedLinux, stoppedLinux, runningWindows}
+		nonRunningStates := map[string]azure.PowerState{
+			aws.ToString(deallocatedLinux.ID): azure.PowerStateDeallocated,
+			aws.ToString(stoppedLinux.ID):     azure.PowerStateStopped,
+		}
+		return vms, nonRunningStates
+	}
+
 	presentNode := &types.ServerV2{
 		Kind: types.KindNode,
 		Metadata: types.Metadata{
@@ -3331,6 +3361,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		name                     string
 		presentVMs               []types.Server
 		foundVMS                 []*armcompute.VirtualMachine
+		nonRunningStates         map[string]azure.PowerState
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
 		wantInstances            []string
@@ -3370,6 +3401,33 @@ func TestAzureVMDiscovery(t *testing.T) {
 			foundVMS:        foundAzureVMs(),
 			wantInstances:   []string{testVMName, testVMNameIntegration},
 			wantResources:   2,
+		},
+		{
+			// Mixed fleet: running Linux + non-running Linux + running Windows.
+			// Power-state filter drops the deallocated/stopped Linux; OS filter
+			// drops the running Windows; only the running Linux VM is installed.
+			// Exercises the full discovery -> fetcher -> installer chain end-to-end.
+			name:       "mixed fleet wildcard matcher only installs running Linux",
+			presentVMs: []types.Server{},
+			staticMatchers: Matchers{Azure: []types.AzureMatcher{{
+				Types:          []string{"vm"},
+				Subscriptions:  []string{"testsub"},
+				ResourceGroups: []string{types.Wildcard},
+				Regions:        []string{"westcentralus"},
+				ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
+				Params:         &types.InstallerParams{},
+				Integration:    noIntegration,
+			}}},
+			foundVMS: func() []*armcompute.VirtualMachine {
+				vms, _ := mixedFleetAzureVMs()
+				return vms
+			}(),
+			nonRunningStates: func() map[string]azure.PowerState {
+				_, states := mixedFleetAzureVMs()
+				return states
+			}(),
+			wantInstances: []string{"fleet-running-linux"},
+			wantResources: 1,
 		},
 		{
 			name:            "multiple failures",
@@ -3463,7 +3521,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
-						vms: tc.foundVMS,
+						vms:              tc.foundVMS,
+						nonRunningStates: tc.nonRunningStates,
 					},
 					AzureRunCommand: runClient,
 				}, nil
