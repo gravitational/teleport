@@ -2284,36 +2284,40 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
 
 ## Teleport AWS Identity Center Integration
 - [ ] Verify **CLI Enrollment Flow**
-  - [ ] Verify plugin enrollment via CLI.
-  - [ ] AWS account and group filters can be updated using and change are elected by AWS IC Sync.
+  - [ ] Setup [Full hand-off Mode](https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/#step-34-switch-teleport-to-full-hand-off-mode).
+    - When configuring SAML IdP in AWS SCIM is reset. The new SCIM base URL can be configured with `tctl edit plugin/aws-identity-center` and the new token can be rotated with `tctl plugins rotate awsic "$scim_token"`.
+  - [ ] Check if Teleport local users are pushed to AWS (those are later called SSO users)
+  - [ ] AWS `aws_accounts_filters` and `group_sync_filters` [can be updated](https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/#extending-the-integration) and changes are applied by AWS IC Sync.
     - `tctl edit plugin/aws-identity-center`
 - [ ] Verify **Access List Synchronization**
   - [ ] Moving users in/out of Teleport Access Lists updates AWS IC groups accordingly.
   - [ ] Updating role assignments in Teleport Access Lists updates AWS IC group assignments.
   - [ ] Creating a new Access List in Teleport creates a corresponding group in AWS IC.
-  - For a new Access List:
-    - [ ] Role updates or deletions are synced to AWS IC.
-    - [ ] Member assignments/unassignments are reflected in AWS IC.
+    - NOTE: An Access List is synced to AWS IC if it grants at least one AWS IC role.
+    - For a new Access List:
+      - [ ] Role updates or deletions are synced to AWS IC.
+      - [ ] Member assignments/unassignments are reflected in AWS IC.
 - [ ] Verify AWS IC Access Request flow
   - [ ] SSO user without permissions can request access to AWS IC resources.
-  - [ ] Access List owner can approve/reject AWS IC access requests.
+  - [ ] Access List owner is a suggested reviewer for AWS IC access requests.
   - [ ] When approved, user gains access to AWS IC resource.
   - [ ] When request expires, user loses access to AWS IC resource.
   - [ ] When a user is locked, permissions are revoked in AWS IC.
-- [ ] Verify that when a user is Locked the permissions are revoked in AWS IC
+    - This is handled by disabling the user on AWS side (look for "Disabled" status in the user listing). The permissions are still assigned to the user for the duration of the request. The active AWS session will be valid and this is a known limitation (see [issue #62578](https://github.com/gravitational/teleport/issues/62578)).
+- [ ] Verify that when a user is Locked the user is disabled on the AWS IC side and then enabled when the Lock is removed
 - [ ] Verify **Direct Role Assignment in AWS IC**
   - [ ] Assigning/removing roles with AWS IC permissions updates the user’s permissions in AWS IC.
-  - [ ] Locked roles result in permission de-provisioning from AWS IC:
-    - [ ] Teleport role locks are reflected in AWS IC.
-    - [ ] User lock leads to removal of AWS permissions and is reflected in the Access List.
+  - [ ] Locked roles result in permission de-provisioning from AWS IC
+    - [ ] Verify AWS users permissions when role is assigned to a Teleport user.
+    - [ ] Verify AWS groups permissions when role is granted by an Access List.
 - [ ] Verify **Access List**.
   - [ ] Membership expiration in Teleport Access Lists is reflected in AWS IC.
   - [ ] Renaming an Access List title in Teleport is reflected in AWS IC without breaking sync.
   - [ ] **Nested Access List**
     - [ ] Nested Access Lists are provisioned as a combination of all included Access Lists.
     - [ ] Adding/removing users from a child list updates the parent Access List accordingly.
-    - [ ] Deleting a child Access List removes users from the parent.
     - [ ] Verify behavior when users are moved between overlapping Access Lists with different permissions.
+    - [ ] Deleting a child Access List removes users from the parent.
 
 ## Teleport Entra ID integration
   - [ ] Docs (including screenshots) are up to date.

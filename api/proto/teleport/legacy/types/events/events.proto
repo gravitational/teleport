@@ -3809,6 +3809,16 @@ message WindowsDesktopSessionStart {
   bool NLA = 13 [(gogoproto.jsontag) = "nla"];
 
   WindowsCertificateMetadata CertMetadata = 14 [(gogoproto.jsontag) = "certificate"];
+
+  // CA override details. Optional.
+  CAOverrideCertificateDetails CAOverride = 15 [(gogoproto.jsontag) = "ca_override,omitempty"];
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  bool active = 1 [(gogoproto.jsontag) = "active"];
+  string public_key_hash = 2 [(gogoproto.jsontag) = "public_key_hash"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.

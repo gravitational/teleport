@@ -9050,7 +9050,7 @@ message JamfSpecV1 {
   // Defaults to a random delay (a few minutes max).
   int64 sync_delay = 3 [
     (gogoproto.jsontag) = "sync_delay,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // Jamf Pro API endpoint.
   // Example: "https://yourtenant.jamfcloud.com/api".
@@ -9075,7 +9075,7 @@ message JamfInventoryEntry {
   // Set to zero or negative to disable PARTIAL syncs.
   int64 sync_period_partial = 2 [
     (gogoproto.jsontag) = "sync_period_partial,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // Sync period for FULL syncs.
   // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
@@ -9083,7 +9083,7 @@ message JamfInventoryEntry {
   // Set to zero or negative to disable FULL syncs.
   int64 sync_period_full = 3 [
     (gogoproto.jsontag) = "sync_period_full,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // on_missing is the trigger used on devices missing from the MDM view in a
   // FULL sync.

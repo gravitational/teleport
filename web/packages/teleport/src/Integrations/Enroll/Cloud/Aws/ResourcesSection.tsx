@@ -63,17 +63,6 @@ const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
   };
 };
 
-const requiredRegions =
-  (allowAll: boolean) => (options: readonly Option<AwsRegion>[]) => () => {
-    if (allowAll || (options && options.length > 0)) {
-      return { valid: true };
-    }
-    return {
-      valid: false,
-      message: 'At least one region must be selected',
-    };
-  };
-
 const fieldWidth = 400;
 // tags needs additional room for the close X on the right.
 const tagsWidth = fieldWidth + 32;
@@ -115,7 +104,6 @@ export function ResourcesSection({
         label="EC2 Instances"
         config={configs.ec2}
         onUpdate={patch => onConfigChange('ec2', patch)}
-        allowAllRegions={true}
         tagTooltip="Match EC2 instances by their tags. If no tags are added, Teleport will match and enroll all EC2 instances."
       />
 
@@ -124,7 +112,6 @@ export function ResourcesSection({
           label="EKS Clusters"
           config={configs.eks}
           onUpdate={patch => onConfigChange('eks', patch)}
-          allowAllRegions={false}
           tagTooltip="Match EKS clusters by their tags. If no tags are added, Teleport will match and enroll all EKS clusters."
         >
           <Box mt={2}>
@@ -158,14 +145,12 @@ function AwsService({
   label,
   config,
   onUpdate,
-  allowAllRegions,
   tagTooltip,
   children,
 }: {
   label: string;
   config: ServiceConfig;
   onUpdate: (update: Partial<ServiceConfig>) => void;
-  allowAllRegions: boolean;
   tagTooltip: string;
   children?: React.ReactNode;
 }) {
@@ -197,12 +182,7 @@ function AwsService({
                   regions: options.map(opt => opt.value),
                 })
               }
-              isDisabled={false}
-              required={!allowAllRegions}
-              rule={requiredRegions(allowAllRegions)}
-              placeholder={
-                allowAllRegions ? 'All regions' : 'Select regions...'
-              }
+              placeholder="All regions"
             />
           </Box>
           <TagsButton onClick={() => setTagsExpanded(prev => !prev)}>

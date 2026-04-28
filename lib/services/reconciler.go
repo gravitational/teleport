@@ -333,7 +333,7 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 	}
 	if r.cfg.CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
-			r.logger.InfoContext(ctx, "Existing resource updated, updating", "name", key)
+			r.logger.InfoContext(ctx, "Existing resource updated, updating", "kind", kind, "name", key)
 			start := time.Now()
 			err := r.cfg.OnUpdate(ctx, newT, registered)
 			r.metrics.reconciliationDuration.With(prometheus.Labels{
@@ -355,7 +355,7 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 			}).Inc()
 			return nil
 		}
-		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
+		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "kind", kind, "name", key)
 		start := time.Now()
 		err := r.cfg.OnDelete(ctx, registered)
 		r.metrics.reconciliationDuration.With(prometheus.Labels{
@@ -387,7 +387,7 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 		return nil
 	}
 
-	r.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "name", key)
+	r.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "kind", kind, "name", key)
 	return nil
 }
 

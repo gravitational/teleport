@@ -57,6 +57,11 @@ locals {
           join_token       = local.teleport_provision_token_name
           script_name      = "default-installer"
           sshd_config      = "/etc/ssh/sshd_config"
+          suffix = (
+            var.teleport_discovery_config_install_suffix != ""
+            ? var.teleport_discovery_config_install_suffix
+            : null
+          )
         }
         ssm = {
           document_name = "AWS-RunShellScript"

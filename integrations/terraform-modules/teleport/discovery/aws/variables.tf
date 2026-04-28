@@ -74,14 +74,6 @@ variable "aws_matchers" {
   validation {
     condition = !anytrue([
       for matcher in var.aws_matchers :
-      contains(matcher.types, "eks") && contains(matcher.regions, "*")
-    ])
-    error_message = "EKS discovery does not support wildcard regions. Specify explicit regions for EKS matchers."
-  }
-
-  validation {
-    condition = !anytrue([
-      for matcher in var.aws_matchers :
       matcher.setup_access_for_arn != "" && !contains(matcher.types, "eks")
     ])
     error_message = "setup_access_for_arn is only supported for EKS matchers."
@@ -166,6 +158,13 @@ variable "aws_iam_role_use_name_prefix" {
   description = "Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix."
   type        = bool
   default     = true
+  nullable    = false
+}
+
+variable "teleport_discovery_config_install_suffix" {
+  description = "An optional installation suffix to use in the Teleport discovery_config. A suffix can be used to allow multiple Teleport installations on the same EC2 instance, which allows the instance to join multiple Teleport clusters. If specified, agent managed updates must be enabled on the cluster. See https://goteleport.com/docs/upgrading/agent-managed-updates/"
+  type        = string
+  default     = ""
   nullable    = false
 }
 

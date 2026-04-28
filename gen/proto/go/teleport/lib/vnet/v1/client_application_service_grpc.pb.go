@@ -35,20 +35,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClientApplicationService_AuthenticateProcess_FullMethodName      = "/teleport.lib.vnet.v1.ClientApplicationService/AuthenticateProcess"
-	ClientApplicationService_ReportNetworkStackInfo_FullMethodName   = "/teleport.lib.vnet.v1.ClientApplicationService/ReportNetworkStackInfo"
-	ClientApplicationService_Ping_FullMethodName                     = "/teleport.lib.vnet.v1.ClientApplicationService/Ping"
-	ClientApplicationService_ResolveFQDN_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveFQDN"
-	ClientApplicationService_ReissueAppCert_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
-	ClientApplicationService_SignForApp_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
-	ClientApplicationService_OnNewAppConnection_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewAppConnection"
-	ClientApplicationService_OnInvalidLocalPort_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
-	ClientApplicationService_GetTargetOSConfiguration_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
-	ClientApplicationService_UserTLSCert_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/UserTLSCert"
-	ClientApplicationService_SignForUserTLS_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/SignForUserTLS"
-	ClientApplicationService_SessionSSHConfig_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/SessionSSHConfig"
-	ClientApplicationService_SignForSSHSession_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/SignForSSHSession"
-	ClientApplicationService_ExchangeSSHKeys_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/ExchangeSSHKeys"
+	ClientApplicationService_AuthenticateProcess_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/AuthenticateProcess"
+	ClientApplicationService_ReportNetworkStackInfo_FullMethodName    = "/teleport.lib.vnet.v1.ClientApplicationService/ReportNetworkStackInfo"
+	ClientApplicationService_Ping_FullMethodName                      = "/teleport.lib.vnet.v1.ClientApplicationService/Ping"
+	ClientApplicationService_ResolveFQDN_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveFQDN"
+	ClientApplicationService_ReissueAppCert_FullMethodName            = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
+	ClientApplicationService_SignForApp_FullMethodName                = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
+	ClientApplicationService_OnNewAppConnection_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewAppConnection"
+	ClientApplicationService_OnInvalidLocalPort_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
+	ClientApplicationService_GetTargetOSConfiguration_FullMethodName  = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
+	ClientApplicationService_UserTLSCert_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/UserTLSCert"
+	ClientApplicationService_SignForUserTLS_FullMethodName            = "/teleport.lib.vnet.v1.ClientApplicationService/SignForUserTLS"
+	ClientApplicationService_SessionSSHConfig_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/SessionSSHConfig"
+	ClientApplicationService_SignForSSHSession_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/SignForSSHSession"
+	ClientApplicationService_ExchangeSSHKeys_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ExchangeSSHKeys"
+	ClientApplicationService_PerformSessionMFACeremony_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/PerformSessionMFACeremony"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -98,6 +99,8 @@ type ClientApplicationServiceClient interface {
 	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
 	// returns the user public key.
 	ExchangeSSHKeys(ctx context.Context, in *ExchangeSSHKeysRequest, opts ...grpc.CallOption) (*ExchangeSSHKeysResponse, error)
+	// PerformSessionMFACeremony performs a session-bound MFA ceremony for a session being established through VNet.
+	PerformSessionMFACeremony(ctx context.Context, in *PerformSessionMFACeremonyRequest, opts ...grpc.CallOption) (*PerformSessionMFACeremonyResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -248,6 +251,16 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, in
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) PerformSessionMFACeremony(ctx context.Context, in *PerformSessionMFACeremonyRequest, opts ...grpc.CallOption) (*PerformSessionMFACeremonyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PerformSessionMFACeremonyResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_PerformSessionMFACeremony_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -295,6 +308,8 @@ type ClientApplicationServiceServer interface {
 	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
 	// returns the user public key.
 	ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error)
+	// PerformSessionMFACeremony performs a session-bound MFA ceremony for a session being established through VNet.
+	PerformSessionMFACeremony(context.Context, *PerformSessionMFACeremonyRequest) (*PerformSessionMFACeremonyResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -346,6 +361,9 @@ func (UnimplementedClientApplicationServiceServer) SignForSSHSession(context.Con
 }
 func (UnimplementedClientApplicationServiceServer) ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExchangeSSHKeys not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) PerformSessionMFACeremony(context.Context, *PerformSessionMFACeremonyRequest) (*PerformSessionMFACeremonyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PerformSessionMFACeremony not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -621,6 +639,24 @@ func _ClientApplicationService_ExchangeSSHKeys_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_PerformSessionMFACeremony_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PerformSessionMFACeremonyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).PerformSessionMFACeremony(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_PerformSessionMFACeremony_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).PerformSessionMFACeremony(ctx, req.(*PerformSessionMFACeremonyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -683,6 +719,10 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExchangeSSHKeys",
 			Handler:    _ClientApplicationService_ExchangeSSHKeys_Handler,
+		},
+		{
+			MethodName: "PerformSessionMFACeremony",
+			Handler:    _ClientApplicationService_PerformSessionMFACeremony_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

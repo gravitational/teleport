@@ -26,8 +26,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/service/account"
-	accounttypes "github.com/aws/aws-sdk-go-v2/service/account/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
@@ -35,6 +33,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/utils/aws/organizations"
@@ -171,9 +170,6 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 // EC2ClientGetter gets an AWS EC2 client for the given region.
 type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
 
-// RegionsListerGetter gets a list of AWS regions.
-type RegionsListerGetter func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error)
-
 // AWSOrganizationsGetter gets an AWS Organizations client used for listing accounts.
 type AWSOrganizationsGetter func(ctx context.Context, opts ...awsconfig.OptionsFn) (organizations.OrganizationsClient, error)
 
@@ -185,7 +181,7 @@ type MatcherToEC2FetcherParams struct {
 	// EC2ClientGetter gets an AWS EC2.
 	EC2ClientGetter EC2ClientGetter
 	// RegionsListerGetter gets a client that is capable of listing AWS regions.
-	RegionsListerGetter RegionsListerGetter
+	RegionsListerGetter awsregions.ListerGetter
 	// AWSOrganizationsGetter gets a client that is capable of listing AWS organizations.
 	AWSOrganizationsGetter AWSOrganizationsGetter
 	// DiscoveryConfigName is the name of the DiscoveryConfig that contains the matchers.
@@ -224,7 +220,7 @@ type ec2FetcherConfig struct {
 	// Example: proxy.example.com:3080 or proxy.example.com
 	ProxyPublicAddrGetter  func(ctx context.Context) (string, error)
 	EC2ClientGetter        EC2ClientGetter
-	RegionsListerGetter    RegionsListerGetter
+	RegionsListerGetter    awsregions.ListerGetter
 	AWSOrganizationsGetter AWSOrganizationsGetter
 	DiscoveryConfigName    string
 	Logger                 *slog.Logger
@@ -449,43 +445,6 @@ func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
 	return instColl
 }
 
-func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsconfig.OptionsFn) ([]string, error) {
-	if !f.Matcher.IsRegionWildcard() {
-		return f.Matcher.Regions, nil
-	}
-
-	regionsListerClient, err := f.RegionsListerGetter(ctx, awsOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	paginator := account.NewListRegionsPaginator(regionsListerClient, &account.ListRegionsInput{
-		RegionOptStatusContains: []accounttypes.RegionOptStatus{
-			accounttypes.RegionOptStatusEnabled,
-			accounttypes.RegionOptStatusEnabledByDefault,
-		},
-	})
-
-	var enabledRegions []string
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			convertedErr := libcloudaws.ConvertRequestFailureError(err)
-			if trace.IsAccessDenied(convertedErr) {
-				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
-					"Add this permission to the IAM Role, or enumerate all the regions in the AWS matcher.")
-			}
-			return nil, convertedErr
-		}
-
-		for _, region := range page.Regions {
-			enabledRegions = append(enabledRegions, aws.ToString(region.RegionName))
-		}
-	}
-
-	return enabledRegions, nil
-}
-
 func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Context) ([]string, error) {
 	awsOpts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
@@ -595,13 +554,16 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 			awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID),
 		}
 
-		regions, err := f.matcherRegions(ctx, awsOpts)
-		if err != nil {
-			f.Logger.WarnContext(ctx, "Failed to get regions for EC2 discovery",
-				"assume_role_arn", assumeRole.RoleARN,
-				"error", err,
-			)
-			continue
+		regions := f.Matcher.Regions
+		if f.Matcher.IsRegionWildcard() {
+			regions, err = awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, awsOpts...)
+			if err != nil {
+				f.Logger.WarnContext(ctx, "Failed to get regions for EC2 discovery",
+					"assume_role_arn", assumeRole.RoleARN,
+					"error", err,
+				)
+				continue
+			}
 		}
 
 		for _, region := range regions {
