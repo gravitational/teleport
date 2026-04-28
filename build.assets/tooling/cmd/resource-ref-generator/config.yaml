@@ -53,10 +53,62 @@ resources:
       registered with your Teleport cluster. It is possible to read and list
       `bot_instance` resources with `tctl` but not to create, modify, or delete
       them.
+  - type: DatabaseV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: db
+    yaml_version: v3
+    introduction: |
+      The `db` resource represents a database that is dynamically registered
+      with Teleport.
+
+      If you configure the Teleport Database Service with **dynamic resource
+      watchers**, the service queries the Teleport backend for `db` resources
+      that match their configured filters. For each matching `db`, the Database
+      Service creates a `db_server` resource configured to proxy the target
+      database.
+
+      To learn more about using the `db` resource, see [Dynamic Database
+      Registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx).
+
+      To learn more about the `db_server` resource, see the [reference
+      guide](database-server-v3.mdx).
   - type: DatabaseServerV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: db_server
     yaml_version: v3
+    introduction: |
+      The `db_server` resource represents a database that has been registered
+      with Teleport.
+
+      The Teleport Database Service creates a `db_server` in two situations:
+
+        1. It reads information about the target database in its
+           configuration file when it first starts.
+        1. It fetches a dynamically registered `db` resource from the Teleport
+           backend that matches its dynamic resource watchers.
+
+      There can be multiple instances of a `db_server` for a single database,
+      each corresponding to a different Teleport Database Service instance that
+      proxies the database. Read more about [High
+      Availability](../../../installation/agents/high-availability.mdx) for
+      the Teleport Database Service. Read the [reference guide](./database-v3.mdx) for
+      the `db` resource.
+  - type: DatabaseServiceV1
+    package: github.com/gravitational/teleport/api/types
+    yaml_version: v1
+    yaml_kind: db_service
+    introduction: |
+      The `db_service` resource represents an instance of the Teleport Database
+      Service. When the Database Service starts, it registers a `db_service`
+      resource. You can query this resource to see a list of Database Service
+      instances and the dynamic resource matchers they are configured to use in
+      order to proxy databases configured via the dynamic `db` resource.
+
+      To learn more about using the `db_service` and `db` resources, see
+      [Dynamic Database
+      Registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx).
+
+      Read the [reference guide](./database-v3.mdx) for the `db` resource.
   - type: DiscoveryConfig
     package: github.com/gravitational/teleport/api/types/discoveryconfig
     yaml_kind: discovery_config

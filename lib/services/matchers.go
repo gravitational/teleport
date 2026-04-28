@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -82,7 +83,6 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 	for _, m := range matchers {
 		subs := apiutils.Deduplicate(m.Subscriptions)
 		groups := apiutils.Deduplicate(m.ResourceGroups)
-		regions := apiutils.Deduplicate(m.Regions)
 		ts := apiutils.Deduplicate(m.Types)
 		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
 			subs = []string{types.Wildcard}
@@ -90,12 +90,13 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
 			groups = []string{types.Wildcard}
 		}
-		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
+		var regions []string
+		if len(m.Regions) == 0 || slices.Contains(m.Regions, types.Wildcard) {
 			regions = []string{types.Wildcard}
 		} else {
-			for i, region := range regions {
-				regions[i] = azureutils.NormalizeLocation(region)
-			}
+			// Normalize before dedup so case-variant inputs ("East US", "eastus") collapse.
+			// The fresh slice also keeps m.Regions safe from the watcher's concurrent IsEqual reads.
+			regions = apiutils.Deduplicate(libslices.Map(m.Regions, azureutils.NormalizeLocation))
 		}
 		elem := m
 		elem.Subscriptions = subs
