@@ -282,7 +282,7 @@ func main() {
 	}
 
 	ttl := resetToken.Expiry().Sub(time.Now().UTC())
-	log.Printf("User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n", newUser.Metadata.Name, ttl, resetToken.GetURL())
+	fmt.Printf("User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n", newUser.Metadata.Name, ttl, resetToken.GetURL())
 
 	/****************************
 	* Delete a workload cluster *
