@@ -203,7 +203,8 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		return trace.AccessDenied("access denied")
 	}
 
-	// TODO(greedy52) add support browser access
+	// TODO(greedy52) add browser support by validating the subject token
+	// against the outer mTLS identity
 	if IsHTTPSTunnelConn(r) {
 		return trace.AccessDenied("access denied")
 	}

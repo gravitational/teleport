@@ -503,6 +503,13 @@ func (h *Handler) getAppSessionFromHTTPSTunnelConn(r *http.Request) (types.WebSe
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(greedy52) add browser support by replacing this with a
+	// Sec-Fetch-Site CSRF check (reject cross-site and same-site)
+	if isBrowserRequest(r) {
+		h.logger.DebugContext(r.Context(), "Browser access through the HTTPS tunnel is not supported", "user", ws.GetUser())
+		return nil, trace.NotImplemented("browser access not supported")
+	}
+
 	// Double-check for dual credentials.
 	switch {
 	case HasClientCert(r):
@@ -531,9 +538,10 @@ func (h *Handler) getAppSessionFromHTTPSTunnelConn(r *http.Request) (types.WebSe
 		return innerWS, nil
 
 	case HasSessionCookie(r):
-		// TODO(greedy52) add support for browser access
-		h.logger.WarnContext(r.Context(), "Browser access through the HTTPS tunnel is not yet supported", "user", ws.GetUser())
-		return nil, trace.NotImplemented("session cookie not yet supported")
+		// TODO(greedy52) add browser support by mirroring the inner cert
+		// branch above against the cookie's WebSession
+		h.logger.DebugContext(r.Context(), "Cookie auth is not supported through the HTTPS tunnel", "user", ws.GetUser())
+		return nil, trace.NotImplemented("cookie auth not supported")
 
 	default:
 		h.logger.DebugContext(r.Context(), "Using outer identity from HTTPS tunnel connection", "user", ws.GetUser())
@@ -606,6 +614,13 @@ func HasSessionCookie(r *http.Request) bool {
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
+// isBrowserRequest reports whether the request originated from a browser.
+// Sec-Fetch-Site is sent on every request by all modern browsers, and
+// non-browser clients (curl, SDKs) do not send it.
+func isBrowserRequest(r *http.Request) bool {
+	return r.Header.Get("Sec-Fetch-Site") != ""
 }
 
 // HasName checks if the client is attempting to connect to a

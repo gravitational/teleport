@@ -930,6 +930,17 @@ func TestHandlerAuthenticate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("with HTTPS tunnel conn from browser is rejected", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
 	t.Run("with HTTPS tunnel conn and mismatched client cert", func(t *testing.T) {
 		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
 		require.NoError(t, err)
