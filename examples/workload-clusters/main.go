@@ -304,11 +304,12 @@ func main() {
 }
 
 func waitForActiveWorkloadCluster(ctx context.Context, client *client.Client, workloadClusterName string, pollingInterval time.Duration) (*workloadcluster.WorkloadCluster, error) {
-	for {
-		timer := time.NewTimer(pollingInterval)
+	ticker := time.NewTicker(pollingInterval)
+	defer ticker.Stop()
 
+	for {
 		select {
-		case <-timer.C:
+		case <-ticker.C:
 			wc, err := client.GetWorkloadCluster(ctx, workloadClusterName)
 			if err != nil {
 				return nil, fmt.Errorf("error getting workload cluster: %w", err)
