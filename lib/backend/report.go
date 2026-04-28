@@ -545,6 +545,32 @@ func (s *Reporter) AtomicWrite(ctx context.Context, condacts []ConditionalAction
 	return
 }
 
+// DeleteBatch deletes multiple keys from the backend.
+func (s *Reporter) DeleteBatch(ctx context.Context, keys []Key) error {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/DeleteBatch",
+		oteltrace.WithAttributes(
+			attribute.Int("batch_size", len(keys)),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	err := DeleteBatch(ctx, s.Backend, keys)
+	s.batchWriteLatencies.Observe(s.Clock().Since(start).Seconds())
+	s.batchWriteRequests.Inc()
+	if err != nil {
+		s.batchWriteRequestsFailed.Inc()
+	} else {
+		s.writes.Add(float64(len(keys)))
+	}
+	for _, key := range keys {
+		s.trackRequest(ctx, types.OpDelete, key, Key{})
+	}
+	return err
+}
+
 // DeleteRange deletes range of items
 func (s *Reporter) DeleteRange(ctx context.Context, startKey, endKey Key) error {
 	ctx, span := s.Tracer.Start(
