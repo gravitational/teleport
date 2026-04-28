@@ -57,6 +57,7 @@ import (
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -1967,4 +1968,7 @@ type ClientI interface {
 	// DelegationSessionServiceClient returns a client for the delegation
 	// session service.
 	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+	// SessionSearchServiceClient returns a client for the session search
+	// service.
+	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
 }
