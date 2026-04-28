@@ -38,7 +38,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -3275,11 +3274,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 			label = integrationLabel
 		}
 		return &armcompute.VirtualMachine{
-			ID: aws.String((&arm.ResourceID{
-				SubscriptionID:    "testsub",
-				ResourceGroupName: "rg",
-				Name:              name,
-			}).String()),
+			// Build the ARM resource ID via fmt.Sprintf rather than &arm.ResourceID{}.String():
+			// the SDK's ResourceID.String() returns its stringValue field, which is only
+			// populated by ParseResourceID — direct struct construction yields an empty
+			// string, which filterEligible (correctly) drops as malformed.
+			ID:       aws.String(fmt.Sprintf("/subscriptions/testsub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/%s", name)),
 			Name:     aws.String(name),
 			Location: aws.String("westcentralus"),
 			Tags: map[string]*string{
@@ -3345,7 +3344,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			staticMatchers: vmMatcherFn(),
 			foundVMS:       foundAzureVMs(),
 			wantInstances:  []string{testVMName, testVMNameIntegration},
-			wantResources:  1,
+			wantResources:  2,
 		},
 		{
 			name:           "nodes present, instance filtered",
@@ -3361,7 +3360,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			staticMatchers: vmMatcherFn(),
 			foundVMS:       foundAzureVMs(),
 			wantInstances:  []string{testVMName, testVMNameIntegration},
-			wantResources:  1,
+			wantResources:  2,
 		},
 		{
 			name:            "no nodes present, 1 found using dynamic matchers",
@@ -3370,7 +3369,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			staticMatchers:  Matchers{},
 			foundVMS:        foundAzureVMs(),
 			wantInstances:   []string{testVMName, testVMNameIntegration},
-			wantResources:   1,
+			wantResources:   2,
 		},
 		{
 			name:            "multiple failures",
@@ -3417,6 +3416,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
 								"bad-api0-vmid": {
 									VmId:            "bad-api0-vmid",
+									ResourceId:      "/subscriptions/testsub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/bad-api0",
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
