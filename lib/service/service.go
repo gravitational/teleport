@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -127,6 +128,7 @@ import (
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
+	devicetrustgrpcproxy "github.com/gravitational/teleport/lib/devicetrust/grpcproxy"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/events/azsessions"
@@ -7401,8 +7403,16 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
+
+	publicDeviceTrustProxySvc, err := devicetrustgrpcproxy.New(devicetrustgrpcproxy.ServiceConfig{
+		AuthClient: conn.Client,
+		Log:        process.logger.With(teleport.ComponentKey, teleport.Component("dtproxy")),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	publicdevicepb.RegisterDeviceTrustServiceServer(server, publicDeviceTrustProxySvc)
 
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())
