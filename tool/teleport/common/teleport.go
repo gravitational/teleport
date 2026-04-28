@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
 )
@@ -634,6 +635,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
 	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")
+	checkSessionHelperCmd := debugCmd.Command("check-session-helper", "Checks if the embedded session helper is working, if available in this build.")
+	requireSessionHelperCmd := debugCmd.Command("require-session-helper", "Checks if the embedded session helper is working, failing if not available in this build.")
 
 	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
 	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
@@ -838,6 +841,22 @@ Examples:
 		err = onReadyz(ctx, ccf.ConfigFile)
 	case metricsCmd.FullCommand():
 		err = onMetrics(ctx, ccf.ConfigFile)
+	case checkSessionHelperCmd.FullCommand():
+		var ok bool
+		ok, err = reexec.InitEmbeddedReexec()
+		if err == nil {
+			if ok {
+				fmt.Println("The embedded session helper is available in this build.")
+			} else {
+				fmt.Println("The embedded session helper is not available in this build.")
+			}
+		}
+	case requireSessionHelperCmd.FullCommand():
+		var ok bool
+		ok, err = reexec.InitEmbeddedReexec()
+		if err == nil && !ok {
+			err = errors.New("the embedded session helper is not available in this build")
+		}
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break

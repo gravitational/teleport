@@ -33,7 +33,13 @@ import (
 // TestMainImplementation will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMainImplementation(m *testing.M) {
-	reexec.MaybeReexec()
+	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
+		panic(err)
+	} else if !ok {
+		reexec.MaybeReexec()
+	} else if reexec.IsReexec() {
+		panic("reexec attempted when embedded reexec was supposed to be available")
+	}
 
 	logtest.InitLogger(testing.Verbose)
 

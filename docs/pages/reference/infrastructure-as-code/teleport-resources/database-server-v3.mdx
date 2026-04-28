@@ -313,6 +313,7 @@ managed_users:
   - "string"
   - "string"
 azure: # [...]
+vnet_dns_name: "string"
 ```
 
 |Field Name|Description|Type|
@@ -322,6 +323,7 @@ azure: # [...]
 |ca_cert|The auto-downloaded cloud database CA certificate.|string|
 |managed_users|A list of database users that are managed by Teleport.|[]string|
 |mysql|An additional section with MySQL runtime database information.|[MySQL Options](#mysql-options)|
+|vnet_dns_name|A DNS-safe, deterministic hash of the database name used by VNet for database FQDN resolution.|string|
 
 ## Database TLS
 

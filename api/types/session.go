@@ -82,6 +82,13 @@ type WebSession interface {
 	GetBearerTokenExpiryTime() time.Time
 	// GetExpiryTime - absolute time when web session expires
 	GetExpiryTime() time.Time
+	// GetEarliestExpiry returns the time after which the session should be
+	// considered dead by the system. For standard sessions this is the
+	// earliest of BearerTokenExpires and Expires (treating zero as infinity);
+	// for ACCESS_GRAPH_API sessions, which authenticate via client TLS
+	// certificate and carry no bearer token, it is Expires. See
+	// [WebSessionV2.GetEarliestExpiry] for the full rationale.
+	GetEarliestExpiry() time.Time
 	// GetLoginTime returns the time this user recently logged in.
 	GetLoginTime() time.Time
 	// SetLoginTime sets when this user logged in.
@@ -385,6 +392,47 @@ func (ws *WebSessionV2) GetBearerTokenExpiryTime() time.Time {
 // GetExpiryTime - absolute time when web session expires
 func (ws *WebSessionV2) GetExpiryTime() time.Time {
 	return ws.Spec.Expires
+}
+
+// GetEarliestExpiry returns the time after which the session should be considered
+// dead by the system. The choice depends on which credential authenticates
+// requests for that session's [WebSessionUsage]:
+//
+//   - WEB_SESSION_USAGE_UNSPECIFIED: requests are authenticated with the
+//     bearer token (cookie + Authorization header). Returns the earliest of
+//     BearerTokenExpires and Expires so the session dies as soon as either
+//     the bearer token or the session itself expires. In practice the auth
+//     server caps the bearer-token TTL at the session TTL, so the
+//     bearer-token expiry is the typical winner; the session-expiry cap
+//     guards against externally-constructed sessions that violate that
+//     invariant.
+//
+//   - WEB_SESSION_USAGE_ACCESS_GRAPH_API: requests are authenticated with a
+//     client TLS certificate. There is no bearer token (BearerToken is empty
+//     and BearerTokenExpires is zero), so the session lives until the
+//     certificate / session itself expires. Returns Expires.
+//
+// Callers that compute a backend item TTL or fall back to a session-local
+// expiry decision when a backend lookup is inconclusive should prefer this
+// method over reading the bearer/session expiries directly, so the
+// usage-specific choice stays in one place.
+func (ws *WebSessionV2) GetEarliestExpiry() time.Time {
+	if ws.Spec.Usage == WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+		return ws.Spec.Expires
+	}
+	// Return the earlier of the two expiries, treating a zero time as "no
+	// expiry" rather than the epoch.
+	bearer, sess := ws.Spec.BearerTokenExpires, ws.Spec.Expires
+	switch {
+	case bearer.IsZero():
+		return sess
+	case sess.IsZero():
+		return bearer
+	case bearer.Before(sess):
+		return bearer
+	default:
+		return sess
+	}
 }
 
 // GetLoginTime returns the time this user recently logged in.

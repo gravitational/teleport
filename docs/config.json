@@ -286,6 +286,21 @@
       "permanent": true
     },
     {
+      "source": "/enroll-resources/auto-discovery/kubernetes/aws/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes/eks-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/azure/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes/aks-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/google-cloud/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes/gke-discovery/",
+      "permanent": true
+    },
+    {
       "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
       "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-trustedclustersv2/",
       "permanent": true

@@ -189,7 +189,10 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.Glo
 // or returns match=false if 'cmd' does not belong to it
 func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if a.subCACommand != nil {
-		if match, err := a.subCACommand.TryRun(ctx, cmd, clientFunc); match || err != nil {
+		cf := func(ctx context.Context) (_ subcacmd.SubCAClientSource, closeFn func(context.Context), _ error) {
+			return clientFunc(ctx)
+		}
+		if match, err := a.subCACommand.TryRun(ctx, cmd, cf); match || err != nil {
 			return match, trace.Wrap(err)
 		}
 	}

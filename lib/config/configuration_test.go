@@ -3883,13 +3883,13 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					Name:        "jamf2",
-					SyncDelay:   types.Duration(1 * time.Minute),
+					SyncDelay:   types.DurationStringForJamfSpecV1(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
-							SyncPeriodPartial: types.Duration(4 * time.Hour),
-							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+							SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 							OnMissing:         "NOOP",
 							PageSize:          10,
 						},

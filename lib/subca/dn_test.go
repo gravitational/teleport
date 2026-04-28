@@ -19,6 +19,7 @@ package subca_test
 import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -64,19 +65,62 @@ func TestRDNSequenceToDistinguishedNameProto(t *testing.T) {
 		}
 	})
 
-	t.Run("non-string value", func(t *testing.T) {
+	t.Run("OID component is MaxInt32", func(t *testing.T) {
 		t.Parallel()
 
-		rdns := (pkix.Name{
-			ExtraNames: []pkix.AttributeTypeAndValue{
-				{Type: asn1.ObjectIdentifier{1, 2, 3, 4}, Value: "ok"}, // OK
-				{Type: asn1.ObjectIdentifier{1, 2, 3, 5}, Value: 42},   // NOK
-			},
-		}).ToRDNSequence()
+		val := "llama"
+		got, err := subca.RDNSequenceToDistinguishedNameProto(pkix.RDNSequence{
+			{{Type: asn1.ObjectIdentifier{99, 1, 2, math.MaxInt32}, Value: val}},
+		})
+		require.NoError(t, err)
 
-		_, err := subca.RDNSequenceToDistinguishedNameProto(rdns)
-		assert.ErrorContains(t, err, "not a string", "error mismatch")
+		want := &subcav1.DistinguishedName{
+			Names: []*subcav1.AttributeTypeAndValue{
+				{Oid: []int32{99, 1, 2, int32(math.MaxInt32)}, Value: &val},
+			},
+		}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("DistinguishedName mismatch (-want +got)\n%s", diff)
+		}
 	})
+
+	tests := []struct {
+		name    string
+		rdns    pkix.RDNSequence
+		wantErr string
+	}{
+		{
+			name: "OID negative",
+			rdns: pkix.RDNSequence{
+				{{Type: asn1.ObjectIdentifier{99, 1, 2, -1}, Value: "llama"}},
+			},
+			wantErr: "OID component out of bounds",
+		},
+		{
+			name: "OID out of bounds",
+			rdns: pkix.RDNSequence{
+				{{Type: asn1.ObjectIdentifier{99, 1, 2, math.MaxInt32 + 1}, Value: "llama"}},
+			},
+			wantErr: "OID component out of bounds",
+		},
+		{
+			name: "non-string value",
+			rdns: pkix.RDNSequence{
+				{
+					{Type: asn1.ObjectIdentifier{1, 2, 3, 4}, Value: "ok"}, // OK
+					{Type: asn1.ObjectIdentifier{1, 2, 3, 5}, Value: 42},   // NOK
+				},
+			},
+			wantErr: "not a string",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := subca.RDNSequenceToDistinguishedNameProto(test.rdns)
+			assert.ErrorContains(t, err, test.wantErr, "error mismatch")
+		})
+	}
 }
 
 func TestDistinguishedNameProtoToRDNSequence(t *testing.T) {
@@ -117,6 +161,15 @@ func TestDistinguishedNameProtoToRDNSequence(t *testing.T) {
 				},
 			},
 			wantErr: "empty OID",
+		},
+		{
+			name: "ATV.OID negative",
+			dn: &subcav1.DistinguishedName{
+				Names: []*subcav1.AttributeTypeAndValue{
+					{Oid: []int32{1, 2, 3, -1}, Value: &exampleValue},
+				},
+			},
+			wantErr: "OID component out of bounds",
 		},
 		{
 			name: "ATV.Value nil",

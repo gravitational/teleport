@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -51,6 +52,12 @@ type MFACeremonyConstructor func(ctx context.Context) (CallbackCeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+
+// CreateSessionChallengeFunc is a function that creates a session-bound MFA challenge.
+type CreateSessionChallengeFunc func(ctx context.Context, req *mfav1.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error)
+
+// ValidateSessionChallengeFunc is a function that validates a session-bound MFA challenge.
+type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav1.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error)
 
 // Run the MFA ceremony.
 //

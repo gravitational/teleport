@@ -319,11 +319,10 @@ func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sessionMetadata := session.GetMetadata()
 	item := backend.Item{
 		Key:      webSessionKey(session.GetName()),
 		Value:    value,
-		Expires:  backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Expires:  session.GetEarliestExpiry(),
 		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)

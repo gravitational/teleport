@@ -8,6 +8,10 @@ tags:
 
 import Button from '@site/src/components/Button';
 
+<EnterpriseFeatureWidget title="Did you know?">
+   You can try out Teleport Enterprise capabilities like SSO, session recording summaries, and just-in-time Access Requests for free. No payment information required.
+</EnterpriseFeatureWidget>
+
 This guide will walk you through deploying Teleport Community Edition. 
 
 You'll spin up a single-instance Teleport cluster on a Linux server, ideal for small-scale demos or home lab environments. Once deployed, you can move ahead in the guide to connecting your infrastructure, setting up role-based access control (RBAC), and auditing your access.
@@ -300,7 +304,8 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 
 1. Visit the provided URL in order to create your Teleport user.
 
-   The signup flow creates a local Teleport user with the following preset roles:
+   The `tctl` command you ran earlier created a local Teleport user with the
+   following preset roles:
    
    |Role|Permissions|
    |---|---|
@@ -362,7 +367,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin
   Cluster:            teleport.example.com
-  Roles:              access, editor
+  Roles:              access, auditor, editor
   Logins:             root, ubuntu, ec2-user
   Kubernetes:         enabled
   Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]

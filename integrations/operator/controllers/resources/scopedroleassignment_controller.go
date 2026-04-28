@@ -46,9 +46,6 @@ func (s *scopedRoleAssignmentClient) Delete(ctx context.Context, name string) er
 		Name:    name,
 		SubKind: scopedaccess.SubKindDynamic,
 	})
-	if err != nil && trace.IsCompareFailed(err) {
-		return trace.NotFound("scoped role assignment %q not found: %v", name, err)
-	}
 	return trace.Wrap(err)
 }
 

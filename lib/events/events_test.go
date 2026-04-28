@@ -166,6 +166,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	UpgradeWindowStartUpdateEvent:                 &apievents.UpgradeWindowStartUpdate{},
 	SessionRecordingAccessEvent:                   &apievents.SessionRecordingAccess{},
 	SSMRunEvent:                                   &apievents.SSMRun{},
+	AzureRunEvent:                                 &apievents.AzureRun{},
 	KubernetesClusterCreateEvent:                  &apievents.KubernetesClusterCreate{},
 	KubernetesClusterUpdateEvent:                  &apievents.KubernetesClusterUpdate{},
 	KubernetesClusterDeleteEvent:                  &apievents.KubernetesClusterDelete{},

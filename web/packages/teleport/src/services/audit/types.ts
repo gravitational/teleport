@@ -203,6 +203,8 @@ export const eventCodes = {
   SESSION_RECORDING_ACCESS: 'T2012I',
   SSMRUN_FAIL: 'TDS00W',
   SSMRUN_SUCCESS: 'TDS00I',
+  AZURERUN_FAIL: 'TDA00W',
+  AZURERUN_SUCCESS: 'TDA00I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -1402,6 +1404,40 @@ export type RawEvents = {
       region: string;
       status: string;
       exit_code: number;
+    }
+  >;
+  [eventCodes.AZURERUN_SUCCESS]: RawEvent<
+    typeof eventCodes.AZURERUN_SUCCESS,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
+  [eventCodes.AZURERUN_FAIL]: RawEvent<
+    typeof eventCodes.AZURERUN_FAIL,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
     }
   >;
   [eventCodes.BOT_JOIN]: RawEvent<
