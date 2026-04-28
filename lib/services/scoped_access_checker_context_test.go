@@ -47,7 +47,7 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	err = checkerContext.Decision(ctx, scopes.Root, func(checker *ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, types.VerbReadNoSecrets)
 	})
-	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
 	// RiskyAuthorizeUnpinnedRead bypasses pin enforcement but still requires the
 	// underlying RBAC permission. The default implicit role grants CA
@@ -57,7 +57,7 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 
 	// Using an empty UnpinnedReadAuthorization is not allowed.
 	err = checkerContext.RiskyAuthorizeUnpinnedRead(ctx, UnpinnedReadAuthorization{}, ruleCtx)
-	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
 
 type emptyScopedRoleReader struct{}
