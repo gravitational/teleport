@@ -501,35 +501,37 @@ func (f *azureInstanceFetcher) emit(ctx context.Context, vms []*armcompute.Virtu
 // logPowerFetchFailure emits a warn-level log signaling that power-state filtering was
 // skipped because the bulk ARM call failed. AccessDenied errors get an actionable remediation message.
 func (f *azureInstanceFetcher) logPowerFetchFailure(ctx context.Context, err error) {
-	msg := "Failed to fetch VM power states; skipping power-state filtering"
-	if trace.IsAccessDenied(err) {
-		msg = "Identity lacks permission to fetch VM power states; skipping power-state filtering. " +
-			"Grant Microsoft.Compute/virtualMachines/read at the subscription scope to enable filtering"
-	}
-
-	f.Logger.WarnContext(ctx, msg,
+	attrs := []any{
 		"subscription_id", f.Subscription,
 		"resource_group", f.ResourceGroup,
 		"integration", f.Integration,
 		"error", err,
-	)
+	}
+	if trace.IsAccessDenied(err) {
+		f.Logger.WarnContext(ctx,
+			"Identity lacks permission to fetch VM power states; skipping power-state filtering. "+
+				"Grant Microsoft.Compute/virtualMachines/read at the subscription scope to enable filtering",
+			attrs...,
+		)
+		return
+	}
+	f.Logger.WarnContext(ctx, "Failed to fetch VM power states; skipping power-state filtering", attrs...)
 }
 
 // logPowerFilterSummary emits one per-iteration summary log after power-state filtering.
 // The level is info when VMs were skipped, debug otherwise.
 func (f *azureInstanceFetcher) logPowerFilterSummary(ctx context.Context, linuxEligible, powerStateLookupEntries, filtered int) {
-	level := slog.LevelDebug
-	msg := "Azure VM power-state filtering summary"
-	if filtered > 0 {
-		level = slog.LevelInfo
-		msg = "Skipped Azure VMs that are not running"
-	}
-	f.Logger.LogAttrs(ctx, level, msg,
+	attrs := []slog.Attr{
 		slog.String("subscription_id", f.Subscription),
 		slog.String("resource_group", f.ResourceGroup),
 		slog.String("integration", f.Integration),
 		slog.Int("linux_eligible_vms", linuxEligible),
 		slog.Int("power_state_lookup_entries", powerStateLookupEntries),
 		slog.Int("non_running_vms", filtered),
-	)
+	}
+	if filtered > 0 {
+		f.Logger.LogAttrs(ctx, slog.LevelInfo, "Skipped Azure VMs that are not running", attrs...)
+		return
+	}
+	f.Logger.LogAttrs(ctx, slog.LevelDebug, "Azure VM power-state filtering summary", attrs...)
 }
