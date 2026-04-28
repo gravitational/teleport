@@ -2385,6 +2385,7 @@ Verify SAML IdP service provider resource management.
   - [ ] `tsh ssh`
   - [ ] Web UI
   - [ ] Teleport Connect
+  - [ ] VNet
   - [ ] Any client <= v18 should get an access denied error due to lack of support for in-band MFA
 
 ### OIDC SSO
