@@ -115,7 +115,7 @@ Create a file called `workload-cluster.yaml`:
    kind: workload_cluster
    version: v1
    metadata:
-     name: child
+     name: company-organization
    spec:
      regions:
        - name: us-west-2
@@ -130,7 +130,7 @@ Create a file called `workload-cluster.yaml`:
 
 Replace:
 
-- `child` with the name of the Teleport Cloud cluster that Teleport Cloud
+- `company-organization` with the name of the Teleport Cloud cluster that Teleport Cloud
   should create.
 - `us-west-2` with the Teleport Cloud region for the child Teleport Cloud
   cluster. See [Teleport Cloud architecture](../../reference/architecture/teleport-cloud-architecture.mdx#auth-service)
@@ -151,14 +151,14 @@ After creation, workload cluster configuration cannot be modified.
 
 The Teleport Cloud cluster domain is derived from the resource name. In this
 example, the child Teleport Cloud cluster will use the domain
-`child.teleport.sh`.
+`company-organization.teleport.sh`.
 
 ## Step 3/5. Wait for the child Teleport Cloud cluster to become active
 
 Retrieve the resource until the `status.state` field is `active`:
 
    ```code
-   $ tctl --auth-server parent.teleport.sh:443 get workload_cluster/child
+   $ tctl --auth-server parent.teleport.sh:443 get workload_cluster/company-organization
    ```
 
 Example output:
@@ -167,7 +167,7 @@ Example output:
    kind: workload_cluster
    version: v1
    metadata:
-     name: child
+     name: company-organization
    spec:
      regions:
        - name: us-west-2
@@ -179,7 +179,7 @@ Example output:
          - aws_account: "123456789012"
            aws_arn: "arn:aws:sts::123456789012:assumed-role/example-tbot-role/session-name"
    status:
-     domain: child.teleport.sh
+     domain: company-organization.teleport.sh
      state: active
    ```
 
@@ -193,7 +193,7 @@ Create a file called `tbot.yaml`:
    ```yaml
    version: v2
    oneshot: true
-   proxy_server: child.teleport.sh:443
+   proxy_server: company-organization.teleport.sh:443
    onboarding:
      join_method: iam
      token: example-iam
@@ -208,7 +208,7 @@ Create a file called `tbot.yaml`:
 
 Replace:
 
-- `child.teleport.sh:443` with the child Teleport Cloud cluster's proxy
+- `company-organization.teleport.sh:443` with the child Teleport Cloud cluster's proxy
   address from
   `status.domain`.
 - `example-iam` with the Bot name from `spec.bot.name`.
@@ -251,19 +251,19 @@ Create the role in the child Teleport Cloud cluster using the identity
 produced by `tbot`:
 
    ```code
-   $ tctl --auth-server child.teleport.sh:443 -i ./tbot-output/identity create -f child-role.yaml
+   $ tctl --auth-server company-organization.teleport.sh:443 -i ./tbot-output/identity create -f child-role.yaml
    ```
 
 Now create a user in the child Teleport Cloud cluster and assign the new role:
 
    ```code
-   $ tctl --auth-server child.teleport.sh:443 -i ./tbot-output/identity users add --roles child-auditor example-user
+   $ tctl --auth-server company-organization.teleport.sh:443 -i ./tbot-output/identity users add --roles child-auditor example-user
    ```
 
 The same identity can also inspect roles in the child Teleport Cloud cluster:
 
    ```code
-   $ tctl --auth-server child.teleport.sh:443 -i ./tbot-output/identity get role/child-auditor
+   $ tctl --auth-server company-organization.teleport.sh:443 -i ./tbot-output/identity get role/child-auditor
    ```
 
 ## Delete the workload cluster
@@ -272,7 +272,7 @@ When the child Teleport Cloud cluster is no longer needed, remove the
 `workload_cluster` resource from the parent cluster:
 
    ```code
-   $ tctl --auth-server parent.teleport.sh:443 rm workload_cluster/child
+   $ tctl --auth-server parent.teleport.sh:443 rm workload_cluster/company-organization
    ```
 
 After the `workload_cluster` resource is deleted, Teleport Cloud keeps the
