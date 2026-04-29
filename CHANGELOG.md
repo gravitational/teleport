@@ -1,7 +1,30 @@
 # Changelog
 
 # 17.7.23 (04/29/26)
+### Security fixes
 
+This patch includes some security fixes.
+These issues are present in previous v17 releases.
+Impacted users are recommended to upgrade their auth and database services to the latest version.
+For Teleport Cloud customers, your control plane has already been upgraded to a patched release.
+
+#### [High] Cross-node session recording access
+
+When checking system service access to session recordings and audit logs, Teleport did not
+perform sufficient authorization. This could allow a compromised Teleport SSH node service to
+access audit events and session recordings from other nodes in the cluster.
+All users are advised to upgrade their Auth services to the patched v17 release.
+
+#### [Medium] SSRF via AWS database access endpoint
+
+Teleport did not sufficiently validate the connection endpoint for AWS database access
+(DynamoDB, OpenSearch, Keyspaces). This could allow a malicious actor with access to Teleport
+configuration to steal database access credentials by crafting a connection endpoint pointing to
+their domain.
+All users that use Teleport to access AWS-hosted databases (DynamoDB, OpenSearch, Keyspaces)
+are advised to upgrade their auth and database services to the patched v17 release
+
+### Other fixes and improvements
 Changelog:
 * Initialize keystore sign and decrypt metrics at startup. [#66109](https://github.com/gravitational/teleport/pull/66109)
 * Updated `jackc/pgx` packages to fix CVE-2026-4427/CVE-2026-32286, CVE-2026-33815, CVE-2026-33816, GHSA-j88v-2chj-qfwx. [#66093](https://github.com/gravitational/teleport/pull/66093)
