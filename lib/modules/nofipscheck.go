@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,22 +14,24 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build boringcrypto
+//go:build !fips
 
 package modules
 
 import (
-	"crypto/boring"
-	_ "crypto/tls/fipsonly"
+	"crypto/fips140"
+	"fmt"
+	"os"
 )
 
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-//
-// It's possible to enable the boringcrypto GOEXPERIMENT (which will enable the
-// boringcrypto build tag) even on platforms that don't support the boringcrypto
-// module, which results in crypto packages being available and working, but not
-// actually using a certified cryptographic module, so we have to check
-// [boring.Enabled] even if this is compiled in.
-func IsFIPSBuild() bool {
-	return boring.Enabled()
+func init() {
+	// This guards against a user running teleport with `GODEBUG=fips140=on` set
+	// in their environment. They may be expecting this would enable FIPS140 mode
+	// with Teleport, but for that they need the fips build, as there is also a
+	// rust component that needs to have FIPS140 enabled too.
+	if fips140.Enabled() {
+		fmt.Fprintln(os.Stderr, "FIPS140 mode is active in a non-FIPS build (GODEBUG=fips140=on).")
+		fmt.Fprintln(os.Stderr, "Install the Teleport Enterprise FIPS edition to use FIPS140 mode.")
+		os.Exit(1)
+	}
 }
