@@ -55,7 +55,12 @@ jobs:
             pnpm-lock.yaml
             docs/cspell.json
           sparse-checkout-cone-mode: false
-      - uses: pnpm/action-setup@v4
+      - name: Install Node
+        uses: actions/setup-node@dda4788290998366da86b6a4f497909644397bb2 # v6.0.0
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable
       - name: Install cspell
         run: pnpm install --frozen-lockfile
       - name: Spellcheck changelog
