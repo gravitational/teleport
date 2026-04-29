@@ -27,7 +27,7 @@ patched v18 release.
 When checking system service access to session recordings and audit logs, Teleport did not
 perform sufficient authorization. This could allow a compromised Teleport SSH node service to
 access audit events and session recordings from other nodes in the cluster.
-All users are advised to upgrade their Auth services to the patched v18 or v17 release.
+All users are advised to upgrade their Auth services to the patched v18 release.
 
 #### [Medium] SSRF via AWS database access endpoint
 
@@ -36,7 +36,7 @@ Teleport did not sufficiently validate the connection endpoint for AWS database 
 configuration to steal database access credentials by crafting a connection endpoint pointing to
 their domain.
 All users that use Teleport to access AWS-hosted databases (DynamoDB, OpenSearch, Keyspaces)
-are advised to upgrade their auth and database services to the patched v18 or v17 release
+are advised to upgrade their auth and database services to the patched v18 release
 
 ### Other fixes and improvements
 
