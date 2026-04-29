@@ -31,6 +31,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestBeam(t *testing.T) {
@@ -56,20 +58,24 @@ func TestBeam(t *testing.T) {
 		create: func(ctx context.Context, beam *beamsv1.Beam) error {
 			return createBeamForCacheTest(ctx, p, beam)
 		},
-		list: p.beams.ListBeams,
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
+			return p.beams.ListBeams(ctx, pageSize, pageToken, nil)
+		},
 		delete: func(ctx context.Context, name string) error {
 			return deleteBeamForCacheTest(ctx, p, name)
 		},
 		deleteAll: func(ctx context.Context) error {
-			beams, _, err := p.beams.ListBeams(ctx, 0, "")
+			beams, _, err := p.beams.ListBeams(ctx, 0, "", nil)
 			require.NoError(t, err)
 			for _, beam := range beams {
 				require.NoError(t, deleteBeamForCacheTest(ctx, p, beam.GetMetadata().GetName()))
 			}
 			return nil
 		},
-		cacheList: p.cache.ListBeams,
-		cacheGet:  p.cache.GetBeam,
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
+			return p.cache.ListBeams(ctx, pageSize, pageToken, nil)
+		},
+		cacheGet: p.cache.GetBeam,
 	})
 }
 
@@ -93,6 +99,172 @@ func TestBeam_GetBeamByAlias(t *testing.T) {
 		_, err := p.cache.GetBeamByAlias(t.Context(), "tepid-spin")
 		return !trace.IsNotFound(err)
 	}, 2*time.Second, 100*time.Millisecond)
+}
+
+func TestBeamCacheSorting(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	beams := []*beamsv1.Beam{
+		newBeamResourceWithUser("beam-3", "copper-meadow", "bob", time.Unix(300, 0)),
+		newBeamResourceWithUser("beam-1", "amber-forest", "alice", time.Unix(100, 0)),
+		newBeamResourceWithUser("beam-2", "brisk-harbor", "carol", time.Unix(200, 0)),
+	}
+
+	for _, beam := range beams {
+		require.NoError(t, createBeamForCacheTest(ctx, p, beam))
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	t.Run("sort ascending by name", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, "beam-1", results[0].GetMetadata().GetName())
+		assert.Equal(t, "beam-2", results[1].GetMetadata().GetName())
+		assert.Equal(t, "beam-3", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort descending by name", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortField: "name",
+			SortDesc:  true,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, "beam-3", results[0].GetMetadata().GetName())
+		assert.Equal(t, "beam-2", results[1].GetMetadata().GetName())
+		assert.Equal(t, "beam-1", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort ascending by alias", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortField: "alias",
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, "amber-forest", results[0].GetStatus().GetAlias())
+		assert.Equal(t, "brisk-harbor", results[1].GetStatus().GetAlias())
+		assert.Equal(t, "copper-meadow", results[2].GetStatus().GetAlias())
+	})
+
+	t.Run("sort ascending by user", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortField: "user",
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, "alice", results[0].GetStatus().GetUser())
+		assert.Equal(t, "bob", results[1].GetStatus().GetUser())
+		assert.Equal(t, "carol", results[2].GetStatus().GetUser())
+	})
+
+	t.Run("sort ascending by expires", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortField: "expires",
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, "beam-1", results[0].GetMetadata().GetName())
+		assert.Equal(t, "beam-2", results[1].GetMetadata().GetName())
+		assert.Equal(t, "beam-3", results[2].GetMetadata().GetName())
+	})
+}
+
+func TestBeamCacheFilterByUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-1", "amber-forest", "alice", time.Now().Add(time.Hour))))
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-2", "brisk-harbor", "bob", time.Now().Add(2*time.Hour))))
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-3", "copper-meadow", "alice", time.Now().Add(3*time.Hour))))
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		FilterUsers: set.New("alice"),
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	assert.Equal(t, "beam-1", results[0].GetMetadata().GetName())
+	assert.Equal(t, "beam-3", results[1].GetMetadata().GetName())
+
+	results, _, err = p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		FilterUsers: set.New("bob"),
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "beam-2", results[0].GetMetadata().GetName())
+}
+
+func TestBeamCacheFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, func(cfg Config) Config {
+		cfg.neverOK = true
+		return ForAuth(cfg)
+	})
+	t.Cleanup(p.Close)
+
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-1", "amber-forest", "alice", time.Now().Add(time.Hour))))
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-2", "brisk-harbor", "bob", time.Now().Add(2*time.Hour))))
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	t.Run("supported sort", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortField: "name",
+			SortDesc:  false,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+	})
+
+	t.Run("filter by user", func(t *testing.T) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			FilterUsers: set.New("bob"),
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "beam-2", results[0].GetMetadata().GetName())
+	})
+
+	t.Run("unsupported sort field", func(t *testing.T) {
+		_, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortField: "expires",
+		})
+		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "expires"`)
+	})
+
+	t.Run("unsupported sort dir", func(t *testing.T) {
+		_, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+			SortDesc: true,
+		})
+		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
+	})
 }
 
 func newBeamResource(name, alias string, expires time.Time) *beamsv1.Beam {
@@ -123,6 +295,12 @@ func newBeamResource(name, alias string, expires time.Time) *beamsv1.Beam {
 			ComputeStatus:        beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING,
 		},
 	}
+}
+
+func newBeamResourceWithUser(name, alias, user string, expires time.Time) *beamsv1.Beam {
+	beam := newBeamResource(name, alias, expires)
+	beam.Status.User = user
+	return beam
 }
 
 func beamAliasGenerator(t *testing.T, aliases ...string) func() string {

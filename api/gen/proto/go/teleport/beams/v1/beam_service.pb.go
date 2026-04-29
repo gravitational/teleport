@@ -417,7 +417,13 @@ type ListBeamsRequest struct {
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// Filters that will be applied to filter the list of results.
-	Filters       *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
+	Filters *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
+	// The sort field to use for the results. If empty, the default sort field is
+	// used.
+	SortField string `protobuf:"bytes,4,opt,name=sort_field,json=sortField,proto3" json:"sort_field,omitempty"`
+	// The sort order to use for the results. If empty, the default sort order is
+	// used.
+	SortDesc      bool `protobuf:"varint,5,opt,name=sort_desc,json=sortDesc,proto3" json:"sort_desc,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -471,6 +477,20 @@ func (x *ListBeamsRequest) GetFilters() *ListBeamsRequest_Filters {
 		return x.Filters
 	}
 	return nil
+}
+
+func (x *ListBeamsRequest) GetSortField() string {
+	if x != nil {
+		return x.SortField
+	}
+	return ""
+}
+
+func (x *ListBeamsRequest) GetSortDesc() bool {
+	if x != nil {
+		return x.SortDesc
+	}
+	return false
 }
 
 // ListBeamsResponse contains the results of the ListBeams RPC.
@@ -598,12 +618,15 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x05alias\x18\x02 \x01(\tH\x00R\x05aliasB\x04\n" +
 	"\x02id\">\n" +
 	"\x0fGetBeamResponse\x12+\n" +
-	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xb6\x01\n" +
+	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xf2\x01\n" +
 	"\x10ListBeamsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12E\n" +
-	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x1a\x1f\n" +
+	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x12\x1d\n" +
+	"\n" +
+	"sort_field\x18\x04 \x01(\tR\tsortField\x12\x1b\n" +
+	"\tsort_desc\x18\x05 \x01(\bR\bsortDesc\x1a\x1f\n" +
 	"\aFilters\x12\x14\n" +
 	"\x05users\x18\x01 \x03(\tR\x05users\"j\n" +
 	"\x11ListBeamsResponse\x12-\n" +

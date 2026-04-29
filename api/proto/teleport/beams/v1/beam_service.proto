@@ -122,6 +122,14 @@ message ListBeamsRequest {
     // users.
     repeated string users = 1;
   }
+
+  // The sort field to use for the results. If empty, the default sort field is
+  // used.
+  string sort_field = 4;
+
+  // The sort order to use for the results. If empty, the default sort order is
+  // used.
+  bool sort_desc = 5;
 }
 
 // ListBeamsResponse contains the results of the ListBeams RPC.

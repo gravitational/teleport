@@ -22,7 +22,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"rsc.io/ordered"
 
+	"github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -34,8 +36,10 @@ import (
 type beamIndex string
 
 const (
-	beamNameIndex  beamIndex = "name"
-	beamAliasIndex beamIndex = "alias"
+	beamNameIndex    beamIndex = "name"
+	beamAliasIndex   beamIndex = "alias"
+	beamUserIndex    beamIndex = "user"
+	beamExpiresIndex beamIndex = "expires"
 )
 
 func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collection[*beamsv1.Beam, beamIndex], error) {
@@ -48,12 +52,16 @@ func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collec
 			types.KindBeam,
 			proto.CloneOf[*beamsv1.Beam],
 			map[beamIndex]func(*beamsv1.Beam) string{
-				beamNameIndex:  keyForBeamNameIndex,
-				beamAliasIndex: keyForBeamAliasIndex,
+				beamNameIndex:    keyForBeamNameIndex,
+				beamAliasIndex:   keyForBeamAliasIndex,
+				beamUserIndex:    keyForBeamUserIndex,
+				beamExpiresIndex: keyForBeamExpiresIndex,
 			},
 		),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*beamsv1.Beam, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListBeams))
+			out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
+				return upstream.ListBeams(ctx, limit, startKey, nil)
+			}))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *beamsv1.Beam {
@@ -99,30 +107,91 @@ func (c *Cache) GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam
 	return out, trace.Wrap(err)
 }
 
-// ListBeams returns a page of beam resources ordered by metadata.name.
-func (c *Cache) ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
+// ListBeams returns a sorted and filtered page of beam resources.
+func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBeams")
 	defer span.End()
 
-	lister := genericLister[*beamsv1.Beam, beamIndex]{
-		cache:        c,
-		collection:   c.collections.beams,
-		index:        beamNameIndex,
-		upstreamList: c.Config.Beams.ListBeams,
-		nextToken:    keyForBeamNameIndex,
+	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
+		pageSize = defaults.DefaultChunkSize
 	}
-	out, next, err := lister.list(ctx, limit, startKey)
-	return out, next, trace.Wrap(err)
+
+	keyFn := keyForBeamNameIndex
+	switch options.GetSortField() {
+	case "name":
+		keyFn = keyForBeamNameIndex
+	case "alias":
+		keyFn = keyForBeamAliasIndex
+	case "user":
+		keyFn = keyForBeamUserIndex
+	case "expires":
+		keyFn = keyForBeamExpiresIndex
+	case "":
+	// default ordering as defined above
+	default:
+		return nil, "", trace.CompareFailed("unsupported sort %q but expected name, alias, user or expires", options.GetSortField())
+	}
+
+	var (
+		results   []*beamsv1.Beam
+		nextToken string
+	)
+	for beam, err := range c.IterateBeams(ctx, pageToken, options) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// Read one more than pageSize results, so we can point nextToken at the
+		// next result in the set.
+		if len(results) == pageSize {
+			nextToken = keyFn(beam)
+			break
+		}
+
+		results = append(results, beam)
+	}
+
+	return results, nextToken, nil
 }
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
-func (c *Cache) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+func (c *Cache) IterateBeams(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
+	index := beamNameIndex
+	keyFn := keyForBeamNameIndex
+	isDesc := options.GetSortDesc()
+	switch options.GetSortField() {
+	case "name":
+		index = beamNameIndex
+		keyFn = keyForBeamNameIndex
+	case "alias":
+		index = beamAliasIndex
+		keyFn = keyForBeamAliasIndex
+	case "user":
+		index = beamUserIndex
+		keyFn = keyForBeamUserIndex
+	case "expires":
+		index = beamExpiresIndex
+		keyFn = keyForBeamExpiresIndex
+	case "":
+		// default ordering as defined above
+	default:
+		return func(yield func(*beamsv1.Beam, error) bool) {
+			yield(nil, trace.CompareFailed("unsupported sort %q but expected name, alias, user or expires", options.GetSortField()))
+		}
+	}
+
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
-		cache:        c,
-		collection:   c.collections.beams,
-		index:        beamNameIndex,
-		upstreamList: c.Config.Beams.ListBeams,
-		nextToken:    keyForBeamNameIndex,
+		cache:      c,
+		collection: c.collections.beams,
+		index:      index,
+		isDesc:     isDesc,
+		upstreamList: func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
+			return c.Config.Beams.ListBeams(ctx, limit, startKey, options)
+		},
+		filter: services.MakeBeamFilterFunc(options),
+		nextToken: func(t *beamsv1.Beam) string {
+			return keyFn(t)
+		},
 	}
 	return lister.Range(ctx, pageToken, "")
 }
@@ -133,4 +202,16 @@ func keyForBeamNameIndex(beam *beamsv1.Beam) string {
 
 func keyForBeamAliasIndex(beam *beamsv1.Beam) string {
 	return beam.GetStatus().GetAlias()
+}
+
+func keyForBeamUserIndex(r *beamsv1.Beam) string {
+	user := r.GetStatus().GetUser()
+	name := r.GetMetadata().GetName()
+	return string(ordered.Encode(user, name))
+}
+
+func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
+	expires := r.GetMetadata().GetExpires().AsTime().UnixMilli()
+	name := r.GetMetadata().GetName()
+	return string(ordered.Encode(expires, name))
 }

@@ -30,6 +30,7 @@ import (
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 var beamAliasRegexp = regexp.MustCompile(`^[a-z]+-[a-z]+$`)
@@ -43,10 +44,10 @@ type BeamReader interface {
 	GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam, error)
 
 	// ListBeams lists beams with pagination.
-	ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error)
+	ListBeams(ctx context.Context, limit int, startKey string, options *ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error)
 
 	// IterateBeams returns a sequence of beams starting from the given pageToken.
-	IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error]
+	IterateBeams(ctx context.Context, pageToken string, options *ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error]
 }
 
 // BeamWriter defines methods for writing beam resources. We always write beams
@@ -148,4 +149,48 @@ func ValidateBeamAlias(alias string) error {
 		return nil
 	}
 	return trace.BadParameter("beam alias must be a hyphen-separated pair of two lowercase words")
+}
+
+func MakeBeamFilterFunc(options *ListBeamsRequestOptions) func(beam *beamsv1.Beam) bool {
+	return func(b *beamsv1.Beam) bool {
+		if options != nil && len(options.FilterUsers) > 0 {
+			return options.FilterUsers.Contains(b.GetStatus().GetUser())
+		}
+		return true
+	}
+}
+
+type ListBeamsRequestOptions struct {
+	// The sort field to use for the results. If empty, the default sort field
+	// is used.
+	SortField string
+	// The sort order to use for the results. If empty, the default sort order
+	// is used.
+	SortDesc bool
+	// FilterUsers filters the results to only include beams owned by the provided users.
+	FilterUsers set.Set[string]
+}
+
+// GetSortField is a nil-safe getter for SortField
+func (o *ListBeamsRequestOptions) GetSortField() string {
+	if o == nil {
+		return ""
+	}
+	return o.SortField
+}
+
+// GetSortDesc is a nil-safe getter for SortDesc
+func (o *ListBeamsRequestOptions) GetSortDesc() bool {
+	if o == nil {
+		return false
+	}
+	return o.SortDesc
+}
+
+// GetFilterOwners is a nil-safe getter for FilterOwners
+func (o *ListBeamsRequestOptions) GetFilterOwners() set.Set[string] {
+	if o == nil {
+		return set.Set[string]{}
+	}
+	return o.FilterUsers
 }
