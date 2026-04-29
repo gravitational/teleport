@@ -181,9 +181,10 @@ Service validates the name of the server against the following pattern:
 ^[a-zA-Z0-9]+[a-zA-Z0-9\.-]*$
 ```
 
-In other words, each server's name must begin with an alphanumeric character and
-contain only alphanumeric characters, dots, and hyphens. If a node name violates
-this pattern, the Auth Service replaces it with a UUID.
+Each server's name must begin with an alphanumeric character and contain only
+alphanumeric characters, dots, and hyphens. If a node name violates this
+pattern, or exceeds 256 characters in length, the Auth Service replaces it with
+a UUID (the server's Teleport resource ID).
 
 You can check whether any host names are invalid by adding the `-v` flag when
 listing servers:

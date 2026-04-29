@@ -1632,3 +1632,297 @@ func isOKNetworkError(err error) bool {
 	}
 	return errors.Is(err, io.EOF) || isUseOfClosedNetworkError(err) || isFailedToSendCloseNotifyError(err)
 }
+
+// CommandExecutor is wrapper around *exec.Cmd that handles creating and closing pipes
+// used to communicate with child process when reexecuting teleport
+type CommandExecutor struct {
+	*exec.Cmd
+
+	ctx context.Context
+
+	// cont is used to send the continue signal from the parent process
+	// to the child process.
+	cont *os.File
+
+	// ready is used to send the ready signal from the child process
+	// to the parent process. If ESR is enabled, the child signals after
+	// the audit session login ID (auid) is received.
+	ready *os.File
+
+	// killShell is used to send kill signal to the child process
+	// to terminate the shell.
+	killShell *os.File
+
+	childFiles  []*os.File
+	parentFiles []io.Closer
+
+	bpfEnabled bool
+	logger     *slog.Logger
+}
+
+func (e *CommandExecutor) childToParentPipe(fd FileFD) (*os.File, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if e.childFiles, err = addFile(e.childFiles, w, fd); err != nil {
+		r.Close()
+		w.Close()
+		return nil, trace.Wrap(err)
+	}
+	e.parentFiles = append(e.parentFiles, r)
+	return r, nil
+}
+
+func (e *CommandExecutor) parentToChildPipe(fd FileFD) (*os.File, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if e.childFiles, err = addFile(e.childFiles, r, fd); err != nil {
+		r.Close()
+		w.Close()
+		return nil, trace.Wrap(err)
+	}
+	e.parentFiles = append(e.parentFiles, w)
+	return w, nil
+}
+
+func addFile(slice []*os.File, file *os.File, fd FileFD) ([]*os.File, error) {
+	idx := int(fd)
+	if idx >= len(slice) {
+		slice = slices.Grow(slice, idx+1-len(slice))
+		clear(slice[len(slice) : idx+1])
+		slice = slice[:idx+1]
+	}
+	if slice[idx] != nil {
+		return nil, trace.BadParameter("file already exists")
+	}
+	slice[idx] = file
+	return slice, nil
+}
+
+func (e *CommandExecutor) Close() error {
+	var errs []error
+	for _, closer := range e.parentFiles {
+		if err := closer.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			errs = append(errs, err)
+		}
+	}
+	for _, closer := range e.childFiles {
+		if closer == nil {
+			continue
+		}
+		if err := closer.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
+func (e *CommandExecutor) Start() error {
+	if err := e.Cmd.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for i, file := range e.childFiles {
+		if file == nil {
+			continue
+		}
+		if err := file.Close(); err != nil {
+			e.logger.WarnContext(e.ctx, "Failed to close child fd", "error", err, "fd", i)
+		}
+	}
+	e.childFiles = nil
+	return nil
+}
+
+// The child does not signal until it completes PAM setup, which can take an arbitrary
+// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+const childReadyWaitTimeout = 3 * time.Minute
+
+func (e *CommandExecutor) WaitForChild() error {
+	if e.ready == nil {
+		return nil
+	}
+	var waitErr error
+	if e.bpfEnabled {
+		if waitErr = WaitForSignal(e.ctx, e.ready, childReadyWaitTimeout); waitErr != nil {
+			e.logger.ErrorContext(e.ctx, "Child process never became ready.", "error", waitErr)
+		}
+	}
+
+	closeErr := e.ready.Close()
+	e.ready = nil
+
+	return trace.NewAggregate(waitErr, closeErr)
+}
+
+// Continue will resume execution of the process after it completes its
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
+func (e *CommandExecutor) Continue() error {
+	if e.cont == nil {
+		return nil
+	}
+	err := e.cont.Close()
+	e.cont = nil
+	return trace.Wrap(err)
+}
+
+// Kill will send signal to the child process that it should terminate the command
+func (e *CommandExecutor) Kill() error {
+	if e.killShell == nil {
+		return nil
+	}
+	err := e.killShell.Close()
+	e.killShell = nil
+	return trace.Wrap(err)
+}
+
+// ConfigureCommand creates a command fully configured to execute. This
+// function is used by Teleport to re-execute itself and pass whatever data
+// is need to the child to actually execute the shell.
+// Context passed to this function is used only for logging and waiting for
+// the ready signal from child, the returned command will not be terminated
+// when it's done
+func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles map[FileFD]*os.File) (_ *CommandExecutor, err error) {
+	executor := &CommandExecutor{
+		ctx:    ctx,
+		logger: logger,
+	}
+	defer func() {
+		if err != nil {
+			if closeErr := executor.Close(); closeErr != nil {
+				err = trace.NewAggregate(err, closeErr)
+			}
+			executor = nil
+		}
+	}()
+
+	logFileWriter, canReuseLogWriter := childLogWriter.(*os.File)
+	if !canReuseLogWriter {
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, err := executor.childToParentPipe(LogFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(childLogWriter, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.ErrorContext(ctx, "Failed to copy logs over pipe", "error", err)
+			}
+		}()
+	}
+	cmd, err := executor.parentToChildPipe(CommandFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if executor.cont, err = executor.parentToChildPipe(ContinueFile); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if executor.killShell, err = executor.parentToChildPipe(TerminateFile); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if executor.ready, err = executor.childToParentPipe(ReadyFile); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a os.Pipe and start copying over the payload to execute. While the
+	// pipe buffer is quite large (64k) some users have run into the pipe
+	// blocking writes on much smaller buffers (7k) leading to Teleport being
+	// unable to run some exec commands.
+	//
+	// To not depend on the OS implementation of a pipe, instead the copy should
+	// be non-blocking. The io.Copy will be closed when either when the child
+	// process has fully read in the payload or the process exits with an error
+	// (and closes all child file descriptors).
+	//
+	// See the below for details.
+	//
+	//   https://man7.org/linux/man-pages/man7/pipe.7.html
+	buffer := &bytes.Buffer{}
+	if err := json.NewEncoder(buffer).Encode(command); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go copyCommand(ctx, cmd, buffer)
+
+	// Find the Teleport executable and its directory on disk.
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Build env for `teleport exec`.
+	env := &envutils.SafeEnv{}
+	env.AddExecEnvironment()
+
+	// The channel/request type determines the subcommand to execute.
+	var subCommand string
+	switch execType {
+	case reexecconstants.NetworkingSubCommand:
+		subCommand = reexecconstants.NetworkingSubCommand
+
+		// Unset XAUTHORITY for the networking command as the SSH session
+		// process given to the user will not have it set which can cause
+		// issues with the X11 forwarding.
+		env.Remove(x11.XAuthFileEnvVar)
+	default:
+		subCommand = reexecconstants.ExecSubCommand
+	}
+
+	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
+	// is appended if Teleport is running in debug mode.
+	args := []string{executable, subCommand}
+
+	executor.bpfEnabled = command.RecordWithBPF
+
+	childFiles := slices.Clone(executor.childFiles)
+
+	if canReuseLogWriter {
+		childFiles, err = addFile(childFiles, logFileWriter, LogFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	for fd, file := range extraFiles {
+		childFiles, err = addFile(childFiles, file, fd)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Build the "teleport exec" command.
+	executor.Cmd = &exec.Cmd{
+		Stdin:      childFiles[0],
+		Stdout:     childFiles[1],
+		Stderr:     childFiles[2],
+		Path:       executable,
+		Args:       args,
+		Env:        *env,
+		ExtraFiles: childFiles[3:],
+	}
+
+	// Perform OS-specific tweaks to the command.
+	CommandOSTweaks(executor.Cmd)
+
+	return executor, nil
+}
+
+// copyCommand will copy the provided command to the child process over the
+// pipe attached to the context.
+func copyCommand(ctx context.Context, cmdw *os.File, buffer *bytes.Buffer) {
+	// Write command bytes to pipe. The child process will read the command
+	// to execute from this pipe.
+	if _, err := io.Copy(cmdw, buffer); err != nil {
+		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
+	}
+
+	if err := cmdw.Close(); err != nil {
+		slog.ErrorContext(ctx, "Failed to close command pipe", "error", err)
+	}
+}

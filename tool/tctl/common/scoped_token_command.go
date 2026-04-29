@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"time"
 
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes/joining"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -52,8 +50,6 @@ import (
 
 // ScopedTokensCommand implements `tctl scoped tokens` group of commands
 type ScopedTokensCommand struct {
-	config *servicecfg.Config
-
 	withSecrets bool
 
 	// format is the output format, e.g. text or json
@@ -98,11 +94,10 @@ type ScopedTokensCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *servicecfg.Config) {
-	c.config = config
-	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
+func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io.Writer) {
+	c.Stdout = stdout
 
-	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
+	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
 
 	// tctl scoped tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a scoped invitation token.")
@@ -112,7 +107,8 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 		int(defaults.ProvisioningTokenTTL/time.Minute))).
 		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
-	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenAdd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		EnumVar(&c.format, defaults.DefaultFormats...)
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
 	c.tokenAdd.Flag("mode", "Usage mode of a token (default: unlimited, single_use)").StringVar(&c.mode)
@@ -124,12 +120,10 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 
 	// "tctl scoped tokens ls"
 	c.tokenList = tokens.Command("ls", "List invitation tokens.")
-	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		Short('f').
+		EnumVar(&c.format, defaults.DefaultFormats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
-
-	if c.Stdout == nil {
-		c.Stdout = os.Stdout
-	}
 }
 
 // TryRun attempts to run subcommands like like "scoped tokens ls".

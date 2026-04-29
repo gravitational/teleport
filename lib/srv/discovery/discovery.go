@@ -1590,7 +1590,7 @@ func (s *Server) startAzureServerDiscovery() {
 		// in case of API calls, e.g., to expand subscription wildcard.
 		dynamicConfigs := make(map[string][]types.AzureMatcher, len(s.dynamicDiscoveryConfig))
 		for _, config := range s.dynamicDiscoveryConfig {
-			dynamicConfigs[config.GetName()] = config.Spec.Azure
+			dynamicConfigs[config.GetName()] = services.SimplifyAzureMatchers(config.Spec.Azure)
 		}
 		s.dynamicDiscoveryConfigMu.RUnlock()
 

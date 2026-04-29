@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
+	sessionreexec "github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
@@ -141,16 +142,12 @@ type terminal struct {
 
 	log *slog.Logger
 
-	cmd           *exec.Cmd
+	cmd           *sessionreexec.CommandExecutor
 	serverContext *ServerContext
 
 	pty     *os.File
 	tty     *os.File
 	ttyName string
-
-	// terminateFD when closed informs the terminal that
-	// the process running in the shell should be killed.
-	terminateFD *os.File
 
 	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
 	// reexec and shell processes. This is necessary due to the use of custom pipes,
@@ -180,7 +177,6 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	t := &terminal{
 		log:           logger,
 		serverContext: ctx,
-		terminateFD:   ctx.killShellw,
 		pty:           pty,
 		tty:           tty,
 		ttyName:       tty.Name(),
@@ -223,7 +219,9 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 
 	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.serverContext, tty)
+	t.cmd, err = t.serverContext.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.TTYFile: tty,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -266,12 +264,6 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := t.serverContext.readyw.Close(); err != nil {
-		t.log.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
-	}
-	t.serverContext.readyw = nil
 
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
@@ -318,7 +310,7 @@ func (t *terminal) ReadAuditSessionID() (uint32, error) {
 		return 0, nil
 	}
 
-	if err := t.serverContext.WaitForChild(t.serverContext.cancelContext); err != nil {
+	if err := t.cmd.WaitForChild(); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -329,16 +321,18 @@ func (t *terminal) ReadAuditSessionID() (uint32, error) {
 // pre-processing routine if Enhanced Session Recording is enabled.
 // Otherwise, this method is a no-op.
 func (t *terminal) Continue() {
-	if err := t.serverContext.contw.Close(); err != nil {
+	if err := t.cmd.Continue(); err != nil {
 		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")
 	}
 }
 
 // KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if err := t.terminateFD.Close(); err != nil {
-		if !errors.Is(err, os.ErrClosed) {
-			t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
+	if t.cmd != nil {
+		if err := t.cmd.Kill(); err != nil {
+			if !errors.Is(err, os.ErrClosed) {
+				t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
+			}
 		}
 	}
 
