@@ -417,47 +417,47 @@
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/",
-      "destination": "/enroll-resources/agents/aws-ec2/",
+      "destination": "/installation/agents/aws-ec2/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-iam/",
-      "destination": "/enroll-resources/agents/aws-iam/",
+      "destination": "/installation/agents/aws-iam/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/azure/",
-      "destination": "/enroll-resources/agents/azure/",
+      "destination": "/installation/agents/azure/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/gcp/",
-      "destination": "/enroll-resources/agents/gcp/",
+      "destination": "/installation/agents/gcp/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
-      "destination": "/enroll-resources/agents/join-token/",
+      "destination": "/installation/agents/join-token/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/kubernetes/",
-      "destination": "/enroll-resources/agents/kubernetes/",
+      "destination": "/installation/agents/kubernetes/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/oracle/",
-      "destination": "/enroll-resources/agents/oracle/",
+      "destination": "/installation/agents/oracle/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/introduction/",
-      "destination": "/enroll-resources/agents/",
+      "destination": "/installation/agents/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/",
-      "destination": "/enroll-resources/agents/",
+      "destination": "/installation/agents/",
       "permanent": true
     },
     {
@@ -1813,6 +1813,86 @@
     {
       "source": "/enroll-resources/application-access/introduction/",
       "destination": "/enroll-resources/application-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/add-service-to-agent/",
+      "destination": "/installation/agents/add-service-to-agent/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/",
+      "destination": "/installation/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/aws-ec2/",
+      "destination": "/installation/agents/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/aws-iam/",
+      "destination": "/installation/agents/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/azure/",
+      "destination": "/installation/agents/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/gcp/",
+      "destination": "/installation/agents/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-token/",
+      "destination": "/installation/agents/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/kubernetes/",
+      "destination": "/installation/agents/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/oracle/",
+      "destination": "/installation/agents/oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/docker/",
+      "destination": "/installation/single-machine/docker/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/helm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/linux/",
+      "destination": "/installation/single-machine/linux/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/macos/",
+      "destination": "/installation/single-machine/macos/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/source/",
+      "destination": "/installation/single-machine/source/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/windows/",
+      "destination": "/installation/single-machine/windows/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/amazon-ec2/",
+      "destination": "/installation/single-machine/amazon-ec2/",
       "permanent": true
     }
   ]
