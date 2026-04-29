@@ -27,10 +27,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-type isLeaderGetter interface {
-	IsLeader() bool
-}
-
 const (
 	// The amount of time that must pass before a failed assignment can be retried.
 	timeBeforeFailedRetry time.Duration = 5 * time.Minute
@@ -67,7 +63,6 @@ type accessListService interface {
 
 // assignmentProcessor will process an Okta assignment, updating its status along the way.
 type assignmentProcessor struct {
-	leader      isLeaderGetter
 	logger      *slog.Logger
 	clock       clockwork.Clock
 	oktaOrgURL  string
@@ -99,7 +94,6 @@ type assignmentProcessor struct {
 
 func newAssignmentProcessor(svc *Service) *assignmentProcessor {
 	return &assignmentProcessor{
-		leader:     svc.leader,
 		logger:     svc.logger,
 		clock:      svc.clock,
 		oktaOrgURL: svc.orgURL,
@@ -141,10 +135,7 @@ func (a *assignmentProcessor) loop(ctx context.Context) {
 			return
 		}
 
-		// If the parent Okta service is not the leader, skip processing.
-		if a.leader.IsLeader() {
-			a.processTimerEvent(ctx)
-		}
+		a.processTimerEvent(ctx)
 
 		timer.Reset(a.timeBetweenAssignmentProcessLoops)
 	}
@@ -236,11 +227,6 @@ const (
 // eventually removed from the backend.
 // NOTE: This should not be used directly. [processTimerEvent] or [processWatcherEvent] should be used instead.
 func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
-	// Skip processing if the leadership has not been acquired.
-	if !a.leader.IsLeader() {
-		return processAssignmentSkipped
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
 

@@ -74,7 +74,9 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]factory.Factory{
 			types.PluginTypeDiscord: factory.Discord,
-			types.PluginTypeOkta:    factory.Okta,
+			// For backward compatibility Okta needs to use dedicated withOktaLock handler to use the same
+			// semaphore configuration as the old leader package.
+			types.PluginTypeOkta: withOktaLock(factory.Okta),
 			// We added the leader lock in slack to mitigate an issue in Cloud where several slack
 			// instances might race when refreshing tokens.
 			// TODO(hugoShaka): remove this once we have a better idea of what's going on

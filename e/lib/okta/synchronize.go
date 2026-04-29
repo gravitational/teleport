@@ -29,14 +29,8 @@ const (
 	syncJitter = 10 * time.Second
 )
 
-var (
-	// SyncRetryAfterLeadershipFailure we will wait for this amount of time before synchronization starts if
-	// this Okta service is not the leader.
-	SyncRetryAfterLeadershipFailure = time.Minute
-)
-
 // synchronizeLoop will synchronize Okta with the backend periodically until the process is
-// terminated. It won't do any calls to Okta until it becomes the leader.
+// terminated.
 func (s *Service) synchronizeLoop(ctx context.Context) {
 	waitTimeFn := func() time.Duration {
 		interval := s.getSynchronizerInterval(ctx)
@@ -50,11 +44,6 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 		"user_sync_enabled", s.userReconciler != nil,
 		"apps_groups_sync_enabled", s.appsReconciler != nil && s.groupsReconciler != nil,
 	)
-	if shouldStop := s.waitIfNotLeader(ctx); shouldStop {
-		s.logger.InfoContext(ctx, "Not a leader, stopping synchronizer")
-		return
-	}
-
 	defer func() {
 		s.logger.InfoContext(ctx, "Synchronizer stopped")
 		s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
@@ -76,25 +65,6 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-// waitIfNotLeader will wait for this service to become the leader. It will return true if the service should stop.
-func (s *Service) waitIfNotLeader(ctx context.Context) bool {
-	// Don't start the loop until we acquire leadership.
-	s.logger.InfoContext(ctx, "Waiting for leadership to be acquired before starting synchronizer")
-	waitForLeadershipTicker := s.clock.NewTicker(SyncRetryAfterLeadershipFailure)
-	defer waitForLeadershipTicker.Stop()
-	for !s.leader.IsLeader() {
-		select {
-		case <-waitForLeadershipTicker.Chan():
-		case <-s.stopCh:
-			return true
-		case <-ctx.Done():
-			return true
-		}
-	}
-
-	return false
 }
 
 // emitSyncError will emit a sync error event to the Teleport audit log.
@@ -137,11 +107,6 @@ func (s *Service) getSynchronizerInterval(ctx context.Context) time.Duration {
 // synchronizeAndEmitEvents will run synchronization, emit events on success or failure, and mark the synchronization
 // successful if no errors were encountered.
 func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
-	// If the parent Okta service is not the leader, skip synchronizing.
-	if !s.leader.IsLeader() {
-		return
-	}
-
 	err := s.synchronize(ctx)
 
 	s.serviceStatus.UpdateAppGroupSync(ctx, s.clock.Now(), s.appServers.Len(), s.groups.Len(), err)

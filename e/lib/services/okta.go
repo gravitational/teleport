@@ -2,11 +2,9 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/leader"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -41,11 +38,6 @@ type oktaSettings struct {
 	syncSettings     types.PluginOktaSyncSettings
 	scimEnabled      bool
 	plugin           types.Plugin
-}
-
-func (s *oktaSettings) orgURLBase64() string {
-	orgURL := strings.TrimSuffix(s.orgUrl, "/")
-	return base64.RawURLEncoding.EncodeToString([]byte(orgURL))
 }
 
 // OktaPluginPrams holds the parameters needed to initialize the Okta plugin.
@@ -167,18 +159,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
-	oktaLeader, err := leader.New(leader.Config{
-		SemaphoreKind: okta.OktaServiceSemaphoreKind,
-		SemaphoreName: settings.orgURLBase64(),
-		HostIDHolder:  conn.HostUUID(),
-		Clock:         process.Clock,
-		Semaphores:    accessPoint,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	oktaLeader.Start(ctx)
-
 	timeBetweenImports, err := oktaplugin.GetTimeBetweenImports(&settings.syncSettings)
 	if err != nil {
 		return trace.Wrap(err)
@@ -195,7 +175,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Leader:                            oktaLeader,
 		ConnectorService:                  conn.Client,
 		Logger:                            process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
 		Clock:                             process.Clock,
@@ -230,9 +209,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 			logger.WarnContext(ctx, "Error while closing connection", "error", err)
 		}
 		logger.InfoContext(process.ExitContext(), "Shutting down.")
-		if err := oktaLeader.Close(); err != nil {
-			logger.WarnContext(process.ExitContext(), "Error closing Okta leader", "error", err)
-		}
 
 		closeCtx := context.Background()
 		if payload != nil {

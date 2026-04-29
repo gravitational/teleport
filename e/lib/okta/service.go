@@ -41,7 +41,8 @@ const (
 	APICallsPerSecond     = 4
 	RequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
 
-	// OktaServiceSemaphoreKind is the name of the semaphore to acquire.
+	// OktaServiceSemaphoreKind is the kind of the semaphore used to elect a
+	// single Okta plugin instance across all Auth servers.
 	OktaServiceSemaphoreKind = "okta-service"
 
 	// oktaAppServerHostID is a fake fixed host ID used for app servers created by Okta
@@ -57,7 +58,6 @@ type ProxyGetter interface {
 
 // Config is the configuration for the Okta service.
 type Config struct {
-	Leader isLeaderGetter
 	// Log is the logger for the Okta config.
 	Logger *slog.Logger
 
@@ -247,7 +247,6 @@ func (c *Config) CheckAndSetDefaults() error {
 // Service is the core data for the Okta integration service. The running
 // service synchronizes data with an upstream Okta IdP.
 type Service struct {
-	leader     isLeaderGetter
 	logger     *slog.Logger
 	clock      clockwork.Clock
 	tlsConfig  *tls.Config
@@ -462,7 +461,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	}
 
 	s := &Service{
-		leader:                            config.Leader,
 		connectorService:                  config.ConnectorService,
 		logger:                            config.Logger,
 		clock:                             config.Clock,

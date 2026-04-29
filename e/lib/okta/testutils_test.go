@@ -266,7 +266,6 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 
 	config := Config{
 		Logger:                            slog.Default(),
-		Leader:                            &mockIsLeader{true},
 		TLSConfig:                         generateTestTLSConfig(t, testHostID, nil),
 		Authorizer:                        authorizer,
 		ClusterName:                       testClusterName,

@@ -1013,11 +1013,3 @@ func TestLockUser(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, lock)
 }
-
-type mockIsLeader struct {
-	isLeader bool
-}
-
-func (m *mockIsLeader) IsLeader() bool {
-	return m.isLeader
-}
