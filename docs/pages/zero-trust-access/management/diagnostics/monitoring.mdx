@@ -14,44 +14,7 @@ Kubernetes probes to monitor the health of a Teleport process.
 
 Teleport's diagnostic HTTP endpoints are disabled by default. You can enable them via:
 
-<Tabs>
-<TabItem label="Command line">
-
-Start a `teleport` instance with the `--diag-addr` flag set to the local
-address where the diagnostic endpoint will listen:
-
-```code
-$ sudo teleport start  --diag-addr=127.0.0.1:3000
-```
-
-</TabItem>
-<TabItem label="Config file">
-
-Edit a `teleport` instance's configuration file (`/etc/teleport.yaml` by
-default) to include the following:
-
-```yaml
-teleport:
-    diag_addr: 127.0.0.1:3000
-```
-
-To enable debug logs:
-
-```yaml
-log:
-    severity: DEBUG
-```
-
-</TabItem>
-</Tabs>
-
-<Admonition type="tip" title="Ensure you can connect to the diagnostic endpoint">
-Verify that Teleport is now serving the diagnostics endpoint:
-
-```code
-$ curl http://127.0.0.1:3000/healthz
-```
-</Admonition>
+(!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
 
 Now you can collect monitoring information from several endpoints.
 
@@ -93,6 +56,9 @@ approximately every 5 seconds after a failure. Depending on heartbeat timing,
 it can take 60-70 seconds after connectivity is restored for `/readyz` to
 report OK again. Note that custom intervals may apply if `health_check_config` is defined in the configuration file.
 
+The same state information is also available via the `process_state` metric
+under the `/metrics` endpoint.
+
 <Admonition type="warning" title="Known limitations of /readyz">
 `/readyz` reports the result of the agent's most recent heartbeat with the
 Auth Service. It does not currently reflect:
@@ -113,35 +79,6 @@ Auth Service. It does not currently reflect:
 For higher-confidence monitoring, combine `/readyz` with the cluster-side
 checks described in [Monitoring agent join from the control plane](#monitoring-agent-join-from-the-control-plane).
 </Admonition>
-
-### `/readyz` and heartbeats
-
-If a Teleport component fails to execute its heartbeat procedure, it will enter
-a degraded state. Teleport will begin recovering from this state when a
-heartbeat completes successfully.
-
-The first successful heartbeat will transition Teleport into a recovering state.
-
-A second consecutive successful heartbeat will cause Teleport to transition to
-the OK state.
-
-Teleport heartbeats run approximately every 60 seconds when healthy, and failed
-heartbeats are retried approximately every 5 seconds. This means that depending
-on the timing of heartbeats, it can take 60-70 seconds after connectivity is
-restored for `/readyz` to start reporting healthy again.
-
-### Status codes
-
-The status code of the response can be one of:
-
-- HTTP 200 OK: Teleport is operating normally
-- HTTP 503 Service Unavailable: Teleport has encountered a connection error and
-  is running in a degraded state. This happens when a Teleport heartbeat fails.
-- HTTP 400 Bad Request: Teleport is either entering its initial startup phase or
-  has begun recovering from a degraded state.
-
-The same state information is also available via the `process_state` metric
-under the `/metrics` endpoint.
 
 ### Querying `/readyz` from inside a running agent
 
@@ -179,7 +116,7 @@ upgrader configuration:
 $ tctl inventory ls
 Server ID                            Hostname                   Services Agent Version Upgrader Upgrader Version Update Group
 ------------------------------------ -------------------------- -------- ------------- -------- ---------------- ------------
-671f3c6b-f9ef-4821-a895-1ce7193be3aa maries-MacBook-Pro-2.local Node     v18.7.3       none     none
+671f3c6b-f9ef-4821-a895-1ce7193be3aa teleport-node-1 Node     v18.7.3       none     none
 dac31781-af88-46a0-9f18-01f3c2af7152 macos-node                 Node     v18.6.4       none     none
 ```
 
