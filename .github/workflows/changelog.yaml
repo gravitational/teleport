@@ -44,7 +44,7 @@ jobs:
         run: |
           {
             echo 'entries<<EOF'
-            grep -iE '^changelog: ' <<< "$BODY" | sed 's/^[Cc]hangelog: //'
+            printf '%s' "$BODY" | tr -d '\r' | grep -iE '^[[:space:]]*changelog: ' | sed -E 's/^[[:space:]]*[Cc]hangelog: //'
             echo EOF
           } >> "$GITHUB_OUTPUT"
       - name: Checkout cspell dependencies
