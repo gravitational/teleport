@@ -142,6 +142,8 @@ type UserACL struct {
 	AutoUpdateAgentRollout ResourceAccess `json:"autoUpdateAgentRollout"`
 	// AutoUpdateAgentReport defines access to autoupdate agent reports.
 	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
+	// Beam defines access to Beams
+	Beam ResourceAccess `json:"beam"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -259,6 +261,8 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
 	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
 
+	beam := newAccess(userRoles, ctx, types.KindBeam)
+
 	return UserACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
@@ -313,5 +317,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AutoUpdateVersion:       autoUpdateVersion,
 		AutoUpdateAgentRollout:  autoUpdateAgentRollout,
 		AutoUpdateAgentReport:   autoUpdateAgentReport,
+		Beam:                    beam,
 	}
 }

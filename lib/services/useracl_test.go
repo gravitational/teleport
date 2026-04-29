@@ -71,6 +71,10 @@ func TestNewUserACL(t *testing.T) {
 			Resources: []string{types.KindInferenceSecret},
 			Verbs:     RW(),
 		},
+		{
+			Resources: []string{types.KindBeam},
+			Verbs:     RW(),
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies Access
@@ -132,6 +136,8 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.InferenceModel, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.InferencePolicy, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.InferenceSecret, allowedRW))
+
+	require.Empty(t, cmp.Diff(userContext.Beam, allowedRW))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
