@@ -238,7 +238,7 @@ export default class AppContext implements IAppContext {
             return this.resourceRefreshListener(uri);
           case 'will-logout':
             return cleanUpBeforeLogout(this, uri, { removeWorkspace: false });
-          case 'will-logout-and-remove':
+          case 'will-forget-cluster':
             return cleanUpBeforeLogout(this, uri, { removeWorkspace: true });
           default:
             op satisfies never;

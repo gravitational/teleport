@@ -53,15 +53,16 @@ export interface ClusterLifecycleEvent {
    * * did-add-cluster - A cluster has been successfully added.
    * * did-change-access - The logged-in user has changed, or their roles,
    * or access requests have been updated.
-   * * will-logout - The user is about to be logged out.
-   * * will-logout-and-remove - The user is about to be logged out
-   * and their profile (cluster) will be removed.
+   * * will-logout - The user is about to be logged out, but Connect should
+   * keep the workspace as remembered cluster state.
+   * * will-forget-cluster - The user is about to forget the cluster in
+   * Connect. Its workspace and profile will be removed.
    */
   op:
     | 'did-add-cluster'
     | 'did-change-access'
     | 'will-logout'
-    | 'will-logout-and-remove';
+    | 'will-forget-cluster';
 }
 
 export interface ProfileWatcherError {
@@ -131,10 +132,25 @@ export class ClusterLifecycleManager {
     return cluster;
   }
 
-  async logoutAndRemoveCluster(uri: RootClusterUri): Promise<void> {
-    await this.rendererEventHandler.send({ op: 'will-logout-and-remove', uri });
+  /**
+   * Logs out from the cluster without removing the tsh profile.
+   * Session credentials are cleared, but the cluster remains visible in both
+   * Connect and tsh.
+   */
+  async logoutCluster(uri: RootClusterUri): Promise<void> {
+    await this.rendererEventHandler.send({ op: 'will-logout', uri });
     this.onBeforeRemove(uri);
-    await this.clusterStore.logoutAndRemove(uri);
+    await this.clusterStore.logout(uri, { removeProfile: false });
+  }
+
+  /**
+   * Forgets the cluster in Connect and removes the tsh profile.
+   * This removes it from both the remembered Connect state and tsh.
+   */
+  async forgetCluster(uri: RootClusterUri): Promise<void> {
+    await this.rendererEventHandler.send({ op: 'will-forget-cluster', uri });
+    this.onBeforeRemove(uri);
+    await this.clusterStore.logout(uri, { removeProfile: true });
   }
 
   async syncCluster(uri: RootClusterUri): Promise<void> {
@@ -269,12 +285,14 @@ export class ClusterLifecycleManager {
   }
 
   private async handleClusterRemoved(cluster: Cluster): Promise<void> {
+    // When a profile disappears externally (for example by running tsh logout),
+    // keep the workspace as Connect's remembered cluster state.
     await this.rendererEventHandler.send({
-      op: 'will-logout-and-remove',
+      op: 'will-logout',
       uri: cluster.uri,
     });
     this.onBeforeRemove(cluster.uri);
-    await this.clusterStore.logoutAndRemove(cluster.uri);
+    await this.clusterStore.logout(cluster.uri, { removeProfile: true });
   }
 
   private async handleClusterLogout(cluster: Cluster): Promise<void> {

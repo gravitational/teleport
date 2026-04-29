@@ -113,7 +113,7 @@ const tests: {
         removeProfile: true,
       });
       expect(rendererHandler.send).toHaveBeenCalledWith({
-        op: 'will-logout-and-remove',
+        op: 'will-logout',
         uri: cluster.uri,
       });
     },

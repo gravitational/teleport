@@ -22,6 +22,7 @@ import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import Logger from 'teleterm/logger';
 import { TshdClient } from 'teleterm/services/tshd';
@@ -76,16 +77,28 @@ export class ClusterStore {
   }
 
   /**
-   * Logs out of the cluster and removes its profile.
+   * Logs out of the cluster and optionally removes its profile.
    * Should only be called via ClusterLifecycleManager.
    */
-  async logoutAndRemove(uri: RootClusterUri): Promise<void> {
+  async logout(
+    uri: RootClusterUri,
+    { removeProfile = false }: { removeProfile?: boolean } = {}
+  ): Promise<void> {
     const client = await this.getTshdClient();
-    await client.logout({ clusterUri: uri, removeProfile: true });
+    await client.logout({ clusterUri: uri, removeProfile });
     await this.update(draft => {
       for (let d of draft.values()) {
-        if (routing.belongsToProfile(uri, d.uri)) {
+        if (!routing.belongsToProfile(uri, d.uri)) {
+          continue;
+        }
+
+        // Always remove leaf clusters.
+        if (removeProfile || d.leaf) {
           draft.delete(d.uri);
+        } else {
+          // TODO(gzdunek): This should be fetched by getCluster
+          d.connected = false;
+          d.loggedInUser = LoggedInUser.create();
         }
       }
     });

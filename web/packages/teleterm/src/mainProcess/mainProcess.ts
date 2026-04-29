@@ -712,9 +712,11 @@ export default class MainProcess {
     );
 
     ipcHandle(MainProcessIpc.Logout, async (_, args) => {
-      await this.clusterLifecycleManager.logoutAndRemoveCluster(
-        args.clusterUri
-      );
+      await this.clusterLifecycleManager.logoutCluster(args.clusterUri);
+    });
+
+    ipcHandle(MainProcessIpc.ForgetCluster, async (_, args) => {
+      await this.clusterLifecycleManager.forgetCluster(args.clusterUri);
     });
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
