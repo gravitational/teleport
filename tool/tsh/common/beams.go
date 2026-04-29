@@ -19,300 +19,129 @@
 package common
 
 import (
+	"context"
 	"fmt"
-	"strings"
+	"net"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+const beamsLogin = "beams"
 
 type beamsCommands struct {
 	ls        *beamsLSCommand
 	add       *beamsAddCommand
 	rm        *beamsRMCommand
-	console   *beamsConsoleCommand
+	ssh       *beamsSSHCommand
 	exec      *beamsExecCommand
 	publish   *beamsPublishCommand
 	unpublish *beamsUnpublishCommand
-	cp        *beamsCPCommand
-	allow     *beamsAllowCommand
-	deny      *beamsDenyCommand
+	scp       *beamsSCPCommand
 }
 
 func newBeamsCommands(app *kingpin.Application) beamsCommands {
-	beams := app.Command("beams", "View, manage and run beam instances. Beams are convenient, sandboxed environments for experimenting with AI agents.").Alias("beam")
+	beams := app.Command("beams", "View, manage and run beams. Beams are ephemeral, sandbox VMs built for agentic workloads").Alias("beam")
 	return beamsCommands{
 		ls:        newBeamsLSCommand(beams),
 		add:       newBeamsAddCommand(beams),
 		rm:        newBeamsRMCommand(beams),
-		console:   newBeamsConsoleCommand(beams),
+		ssh:       newBeamsSSHCommand(beams),
 		exec:      newBeamsExecCommand(beams),
 		publish:   newBeamsPublishCommand(beams),
 		unpublish: newBeamsUnpublishCommand(beams),
-		cp:        newBeamsCPCommand(beams),
-		allow:     newBeamsAllowCommand(beams),
-		deny:      newBeamsDenyCommand(beams),
+		scp:       newBeamsSCPCommand(beams),
 	}
 }
 
-type beamsLSCommand struct {
-	*kingpin.CmdClause
-	all    bool
-	format string
-}
-
-func newBeamsLSCommand(parent *kingpin.CmdClause) *beamsLSCommand {
-	cmd := &beamsLSCommand{
-		CmdClause: parent.Command("ls", "List beam instances.").Alias("list"),
+func formatBeam(beam *beamsv1.Beam, proxyAddr string) formattedBeam {
+	return formattedBeam{
+		ID:      beam.GetStatus().GetAlias(),
+		UUID:    beam.GetMetadata().GetName(),
+		Owner:   beam.GetStatus().GetUser(),
+		Expires: beam.GetSpec().GetExpires().AsTime(),
+		URL:     beamPublishURL(beam, proxyAddr),
 	}
-	cmd.Flag("all", "List beams for all users.").BoolVar(&cmd.all)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	return cmd
 }
 
-func (c *beamsLSCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams ls: all=%t format=%q\n", c.all, c.format)
-	return trace.NotImplemented("tsh beams ls is not implemented yet")
-}
-
-type beamsAddCommand struct {
-	*kingpin.CmdClause
-	console bool
-	format  string
-}
-
-func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
-	cmd := &beamsAddCommand{
-		CmdClause: parent.Command("add", "Start a new beam instance."),
-	}
-	cmd.Flag("console", "Connect to the beam after creation.").Default("true").BoolVar(&cmd.console)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	return cmd
-}
-
-func (c *beamsAddCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams add: console=%t format=%q\n", c.console, c.format)
-	return trace.NotImplemented("tsh beams add is not implemented yet")
-}
-
-type beamsRMCommand struct {
-	*kingpin.CmdClause
-	name   string
-	format string
-}
-
-func newBeamsRMCommand(parent *kingpin.CmdClause) *beamsRMCommand {
-	cmd := &beamsRMCommand{
-		CmdClause: parent.Command("rm", "Delete a beam instance."),
-	}
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	cmd.Arg("name", "Name (or alias) of the beam to delete.").Required().StringVar(&cmd.name)
-	return cmd
-}
-
-func (c *beamsRMCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams rm: name=%q format=%q\n", c.name, c.format)
-	return trace.NotImplemented("tsh beams rm is not implemented yet")
-}
-
-type beamsConsoleCommand struct {
-	*kingpin.CmdClause
-	name string
-}
-
-func newBeamsConsoleCommand(parent *kingpin.CmdClause) *beamsConsoleCommand {
-	cmd := &beamsConsoleCommand{
-		CmdClause: parent.Command("console", "Start an interactive shell in a beam instance."),
-	}
-	cmd.Arg("name", "Name (or alias) of the beam to connect to.").Required().StringVar(&cmd.name)
-	return cmd
-}
-
-func (c *beamsConsoleCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams console: name=%q\n", c.name)
-	return trace.NotImplemented("tsh beams console is not implemented yet")
-}
-
-type beamsExecCommand struct {
-	*kingpin.CmdClause
-	name    string
-	command []string
-}
-
-func newBeamsExecCommand(parent *kingpin.CmdClause) *beamsExecCommand {
-	cmd := &beamsExecCommand{
-		CmdClause: parent.Command("exec", "Run a command in a beam instance."),
-	}
-	cmd.Arg("name", "Name (or alias) of the beam to target.").Required().StringVar(&cmd.name)
-	cmd.Arg("command", "Command to execute in the instance.").Required().StringsVar(&cmd.command)
-	return cmd
-}
-
-func (c *beamsExecCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams exec: name=%q command=%q\n", c.name, c.command)
-	return trace.NotImplemented("tsh beams exec is not implemented yet")
-}
-
-type beamsPublishCommand struct {
-	*kingpin.CmdClause
-	name   string
-	tcp    bool
-	format string
-}
-
-func newBeamsPublishCommand(parent *kingpin.CmdClause) *beamsPublishCommand {
-	cmd := &beamsPublishCommand{
-		CmdClause: parent.Command("publish", "Serve an HTTP or TCP service in a beam instance."),
-	}
-	cmd.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cmd.tcp)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	cmd.Arg("name", "Name (or alias) of the beam to target.").Required().StringVar(&cmd.name)
-	return cmd
-}
-
-func (c *beamsPublishCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams publish: name=%q tcp=%t format=%q\n", c.name, c.tcp, c.format)
-	return trace.NotImplemented("tsh beams publish is not implemented yet")
-}
-
-type beamsUnpublishCommand struct {
-	*kingpin.CmdClause
-	name   string
-	format string
-}
-
-func newBeamsUnpublishCommand(parent *kingpin.CmdClause) *beamsUnpublishCommand {
-	cmd := &beamsUnpublishCommand{
-		CmdClause: parent.Command("unpublish", "Remove a previously served service in a beam instance."),
-	}
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	cmd.Arg("name", "Name (or alias) of the beam to target.").Required().StringVar(&cmd.name)
-	return cmd
-}
-
-func (c *beamsUnpublishCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams unpublish: name=%q format=%q\n", c.name, c.format)
-	return trace.NotImplemented("tsh beams unpublish is not implemented yet")
-}
-
-type beamsCPCommand struct {
-	*kingpin.CmdClause
-	recursive bool
-	quiet     bool
-	src       string
-	dest      string
-	format    string
-}
-
-func newBeamsCPCommand(parent *kingpin.CmdClause) *beamsCPCommand {
-	cmd := &beamsCPCommand{
-		CmdClause: parent.Command("cp", "Copy files between a beam instance and the local filesystem."),
-	}
-	cmd.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cmd.recursive)
-	cmd.Flag("quiet", "Quiet mode.").Short('q').BoolVar(&cmd.quiet)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	cmd.Arg("src", "Source path to copy.").Required().StringVar(&cmd.src)
-	cmd.Arg("dest", "Destination path to copy.").Required().StringVar(&cmd.dest)
-	return cmd
-}
-
-func (c *beamsCPCommand) run(*CLIConf) error {
-	if err := c.validate(); err != nil {
-		return err
-	}
-	fmt.Printf("tsh beams cp: src=%q dest=%q recursive=%t quiet=%t format=%q\n", c.src, c.dest, c.recursive, c.quiet, c.format)
-	return trace.NotImplemented("tsh beams cp is not implemented yet")
-}
-
-func (c *beamsCPCommand) validate() error {
-	paths := []string{c.src, c.dest}
-
-	var beamPaths int
-	for _, path := range paths {
-		if isBeamCopyPath(path) {
-			beamPaths++
-		}
+func beamPublishURL(beam *beamsv1.Beam, proxyAddr string) string {
+	publish := beam.GetSpec().GetPublish()
+	if publish == nil {
+		return ""
 	}
 
-	if beamPaths != 1 {
-		return trace.BadParameter("exactly one path must use the form BEAM_ID:PATH")
+	// We discard the port because in Teleport Cloud proxies are always listening
+	// on :443. For TCP apps, the address can only be dialed via VNet anyway (and
+	// the port doesn't need to match the proxy port).
+	proxyHost, _, err := net.SplitHostPort(proxyAddr)
+	if err != nil {
+		proxyHost = proxyAddr
 	}
 
-	return nil
-}
-
-func isBeamCopyPath(path string) bool {
-	beamID, beamPath, ok := strings.Cut(path, ":")
-	return ok && beamID != "" && beamPath != ""
-}
-
-type beamsAllowCommand struct {
-	*kingpin.CmdClause
-	name   string
-	domain string
-	format string
-}
-
-func newBeamsAllowCommand(parent *kingpin.CmdClause) *beamsAllowCommand {
-	cmd := &beamsAllowCommand{
-		CmdClause: parent.Command("allow", "Grant access to an external domain."),
+	hostname := utils.DefaultAppPublicAddr(beam.GetStatus().GetAppName(), proxyHost)
+	switch publish.GetProtocol() {
+	case beamsv1.Protocol_PROTOCOL_HTTP:
+		return fmt.Sprintf("https://%s", hostname)
+	case beamsv1.Protocol_PROTOCOL_TCP:
+		return fmt.Sprintf("tcp://%s:%d", hostname, publish.GetPort())
+	default:
+		return hostname
 	}
-	cmd.Flag("domain", "FQDN of a domain to allow access to.").Required().StringVar(&cmd.domain)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	cmd.Arg("name", "Name (or alias) of the beam to target.").Required().StringVar(&cmd.name)
-	return cmd
 }
 
-func (c *beamsAllowCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams allow: name=%q domain=%q format=%q\n", c.name, c.domain, c.format)
-	return trace.NotImplemented("tsh beams allow is not implemented yet")
+// formattedBeam contains only the useful parts of the beam resource for scripting
+// or automating with an AI Agent.
+type formattedBeam struct {
+	// ID is the human-friendly name of the beam (taken from `status.alias`).
+	//
+	// As there is a limited number of possible word pairs, eventual reuse is
+	// likely but it will uniquely point to this beam for as long as the beam
+	// is alive.
+	ID string `json:"id"`
+
+	// UUID is the stable/globally-unique identifier for the beam (taken from
+	// `metadata.name`).
+	UUID string `json:"uuid"`
+
+	// Owner of this beam (taken from `status.user`).
+	Owner string `json:"owner"`
+
+	// Expires is the time at which this beam will expire and be automatically
+	// deleted (taken from `spec.expires`).
+	Expires time.Time `json:"expires"`
+
+	// URL is the address at which the beam's published application can be
+	// reached.
+	//
+	// For HTTP applications, it will be in the form: `https://<host>`.
+	//
+	// For TCP applications, it will be in the form: `tcp://<host>:<port>` but
+	// this address can only be dialed via VNet, otherwise you'll need to start
+	// a local proxy.
+	URL string `json:"url,omitempty"`
 }
 
-type beamsDenyCommand struct {
-	*kingpin.CmdClause
-	name   string
-	domain string
-	format string
-}
-
-func newBeamsDenyCommand(parent *kingpin.CmdClause) *beamsDenyCommand {
-	cmd := &beamsDenyCommand{
-		CmdClause: parent.Command("deny", "Remove access to an external domain."),
+// getBeam reads a beam by UUID or human-friendly name depending on the format
+// of the given string.
+func getBeam(ctx context.Context, client authclient.ClientI, ref string) (*beamsv1.Beam, error) {
+	req := &beamsv1.GetBeamRequest{}
+	if _, err := uuid.Parse(ref); err == nil {
+		req.Id = &beamsv1.GetBeamRequest_Name{Name: ref}
+	} else {
+		req.Id = &beamsv1.GetBeamRequest_Alias{Alias: ref}
 	}
-	cmd.Flag("domain", "FQDN of a domain to deny access to.").Required().StringVar(&cmd.domain)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	cmd.Arg("name", "Name (or alias) of the beam to target.").Required().StringVar(&cmd.name)
-	return cmd
-}
 
-func (c *beamsDenyCommand) run(*CLIConf) error {
-	fmt.Printf("tsh beams deny: name=%q domain=%q format=%q\n", c.name, c.domain, c.format)
-	return trace.NotImplemented("tsh beams deny is not implemented yet")
+	rsp, err := client.
+		BeamServiceClient().
+		GetBeam(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp.GetBeam(), nil
 }
