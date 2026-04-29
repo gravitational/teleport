@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/json"
+	"math"
 
 	"github.com/gravitational/trace"
 )
@@ -105,19 +106,34 @@ func (h *HTTPProtocolPriority) decode(val any) error {
 	case int32:
 		return trace.Wrap(h.setFromEnum(v))
 	case int64:
-		return trace.Wrap(h.setFromEnum(int32(v)))
+		return trace.Wrap(h.setFromNumeric(float64(v)))
 	case int:
-		return trace.Wrap(h.setFromEnum(int32(v)))
+		return trace.Wrap(h.setFromNumeric(float64(v)))
 	case float64:
-		return trace.Wrap(h.setFromEnum(int32(v)))
+		return trace.Wrap(h.setFromNumeric(v))
 	case float32:
-		return trace.Wrap(h.setFromEnum(int32(v)))
+		return trace.Wrap(h.setFromNumeric(float64(v)))
 	case nil:
 		*h = HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_UNSPECIFIED
 		return nil
 	default:
 		return trace.BadParameter("invalid HTTPProtocolPriority type %T", val)
 	}
+}
+
+// setFromNumeric validates that v is a whole number in int32 range
+// before mapping it to a proto enum value. Without this guard,
+// JSON/YAML inputs that decode to a non-integer float (e.g. 1.9) or
+// to an out-of-range integer (e.g. 2^33) would silently truncate or
+// wrap into a valid enum and apply an unintended ALPN priority.
+func (h *HTTPProtocolPriority) setFromNumeric(v float64) error {
+	if math.IsNaN(v) || v != math.Trunc(v) {
+		return trace.BadParameter("invalid HTTPProtocolPriority numeric value %v: not a whole number", v)
+	}
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return trace.BadParameter("invalid HTTPProtocolPriority numeric value %v: out of int32 range", v)
+	}
+	return h.setFromEnum(int32(v))
 }
 
 func (h *HTTPProtocolPriority) setFromEnum(val int32) error {
