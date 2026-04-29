@@ -80,7 +80,7 @@ const (
 	//
 	// https://github.com/gravitational/teleport/blob/master/rfd/0239-windows-ca-split.md
 	WindowsCA CertAuthType = "windows"
-	// AppClientCA is the certificate authority used to issu app access client
+	// AppClientCA is the certificate authority used to issue app access client
 	// certificates.
 	AppClientCA CertAuthType = "app_client"
 )
