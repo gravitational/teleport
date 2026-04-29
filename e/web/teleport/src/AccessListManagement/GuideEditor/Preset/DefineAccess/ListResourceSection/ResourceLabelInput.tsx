@@ -117,9 +117,19 @@ export function ResourceLabelInput({
     if (existingLabelIndex > -1) {
       const existingLabel = newLabels[existingLabelIndex];
       if (existingLabel.value.labelVals.includes(label.value)) {
-        setError(
-          `Label "${newOption.label}", value "${label.value}" is already selected`
+        // Deselect: remove this value from the existing label.
+        const updatedVals = existingLabel.value.labelVals.filter(
+          v => v !== label.value
         );
+        if (updatedVals.length === 0) {
+          newLabels.splice(existingLabelIndex, 1);
+        } else {
+          newLabels[existingLabelIndex] = makeLabelOption(
+            label.name,
+            updatedVals
+          );
+        }
+        updateLabels(newLabels);
         return;
       }
       newLabels[existingLabelIndex] = makeLabelOption(label.name, [

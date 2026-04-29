@@ -1,5 +1,6 @@
 import { act, within } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import selectEvent from 'react-select-event';
 
 import {
   enableMswServer,
@@ -103,4 +104,73 @@ test(`clicking labels for all label based resources`, async () => {
         field satisfies never;
     }
   }
+});
+
+test(`clicking a label then clicking the same label deselects it`, async () => {
+  const user = userEvent.setup();
+
+  render(
+    <ProviderWithQuery>
+      <DefineAccess />
+    </ProviderWithQuery>
+  );
+
+  await screen.findByText(/define application access/i);
+  act(mio.enterAll);
+  await screen.findByText(/no access defined/i);
+
+  // Click a label to select it.
+  await user.click(
+    within(screen.getByTestId('AppTestRow')).getByTitle(/env: test/i)
+  );
+  act(mio.enterAll);
+  await screen.findByText(/AppTestRow3/i);
+
+  const inputWrapper = screen.getByTestId('resource-label-input');
+  expect(within(inputWrapper).getByText(/env: test/i)).toBeInTheDocument();
+
+  // Click the same label again — should deselect it.
+  await user.click(
+    within(screen.getByTestId('AppTestRow')).getByTitle(/env: test/i)
+  );
+  act(mio.enterAll);
+  await screen.findByText(/no access defined/i);
+
+  expect(
+    within(inputWrapper).queryByText(/env: test/i)
+  ).not.toBeInTheDocument();
+});
+
+test(`clicking a label then typing the same label deselects it`, async () => {
+  const user = userEvent.setup();
+
+  render(
+    <ProviderWithQuery>
+      <DefineAccess />
+    </ProviderWithQuery>
+  );
+
+  await screen.findByText(/define application access/i);
+  act(mio.enterAll);
+  await screen.findByText(/no access defined/i);
+
+  // Click a label to select it.
+  await user.click(
+    within(screen.getByTestId('AppTestRow')).getByTitle(/env: test/i)
+  );
+  act(mio.enterAll);
+  await screen.findByText(/AppTestRow3/i);
+
+  const inputWrapper = screen.getByTestId('resource-label-input');
+  expect(within(inputWrapper).getByText(/env: test/i)).toBeInTheDocument();
+
+  // Type the same label — should deselect it.
+  await user.type(inputWrapper, 'env: test');
+  await selectEvent.select(inputWrapper, 'env: test');
+  act(mio.enterAll);
+  await screen.findByText(/no access defined/i);
+
+  expect(
+    within(inputWrapper).queryByText(/env: test/i)
+  ).not.toBeInTheDocument();
 });

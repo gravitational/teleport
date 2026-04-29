@@ -38,7 +38,7 @@ afterEach(async () => {
 // Does focus testing on applications, since other "label" based resources
 // uses the same label input box.
 test(`typing, clicking, and deleting labels`, async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   render(
     <ProviderWithQuery>
@@ -243,13 +243,6 @@ test(`typing, clicking, and deleting labels`, async () => {
   );
   spiedUnifiedResource.mockClear();
 
-  /**
-   * Typing a label that was already selected should result in error
-   */
-  await user.type(inputWrapper, 'env: test3');
-  await selectEvent.select(inputWrapper, 'env: test3');
-
-  screen.getByText(/label "env: test3", value "test3" is already selected/i);
   expect(
     within(inputWrapper).getByText(/env: test OR test2 OR test3/i)
   ).toBeInTheDocument();

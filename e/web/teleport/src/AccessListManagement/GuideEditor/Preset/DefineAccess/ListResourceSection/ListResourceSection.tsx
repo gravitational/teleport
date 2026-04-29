@@ -87,9 +87,10 @@ export function ListResourceSection({
   }
 
   /**
-   * Adds dynamic styling to labels when clicked upon.
+   * Returns true if a single label matches the user's defined
+   * role conditions for the selected resource tab.
    */
-  function processLabel(label: ResourceLabel): ProcessedLabel {
+  function isLabelSelected(label: ResourceLabel): boolean {
     switch (selectedResourceTab) {
       case 'app_labels':
       case 'db_labels':
@@ -102,19 +103,26 @@ export function ListResourceSection({
           if (!Array.isArray(labelVal)) {
             labelVal = [labelVal];
           }
-          if (labelVal.includes(label.value)) {
-            return { kind: 'primary' };
-          }
+          return labelVal.includes(label.value);
         }
-
-        break;
+        return false;
 
       case 'github_permissions':
         // git servers do not handle labels
-        break;
+        return false;
 
       default:
         selectedResourceTab satisfies never;
+        return false;
+    }
+  }
+
+  /**
+   * Adds dynamic styling to labels when clicked upon.
+   */
+  function processLabel(label: ResourceLabel): ProcessedLabel {
+    if (isLabelSelected(label)) {
+      return { kind: 'primary' };
     }
     return { kind: 'outline-primary' };
   }
