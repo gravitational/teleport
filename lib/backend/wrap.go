@@ -123,6 +123,11 @@ func (s *Wrapper) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
 }
 
+// DeleteBatch deletes multiple items from the backend.
+func (s *Wrapper) DeleteBatch(ctx context.Context, keys []Key) error {
+	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
+}
+
 // ConditionalDelete deletes item by key if revisions match.
 func (s *Wrapper) ConditionalDelete(ctx context.Context, key Key, revision string) error {
 	return s.backend.ConditionalDelete(ctx, key, revision)
