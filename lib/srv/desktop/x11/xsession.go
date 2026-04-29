@@ -159,7 +159,11 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		outr.Close()
 	}()
 
-	cmd, err := reexec.ConfigureCommand(ctx, cfg.Logger, cfg.ChildLogConfig.Writer, cmdmsg, reexecconstants.ExecSubCommand, inr, outw, outw)
+	cmd, err := reexec.ConfigureCommand(ctx, cfg.Logger, cfg.ChildLogConfig.Writer, cmdmsg, reexecconstants.ExecSubCommand, map[reexec.FileFD]*os.File{
+		reexec.StdinFile:  inr,
+		reexec.StdoutFile: outw,
+		reexec.StderrFile: outw,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

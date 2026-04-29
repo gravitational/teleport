@@ -40,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/dns"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/winpki"
 )
@@ -883,8 +885,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	// Set the send and receive auditors prior to initializing the
 	// client so that we capture all relevant data in the session recording.
 	delay := timer()
-	sendInterceptor := asInterceptor(s.makeTDPSendAuditor(ctx, recorder, delay, audit))
-	receiveInterceptor := asInterceptor(s.makeTDPReceiveAuditor(ctx, recorder, delay, audit))
+	sendInterceptor := asInterceptor(makeTDPSendAuditor(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, audit))
+	receiveInterceptor := asInterceptor(makeTDPReceiveAuditor(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, audit))
 
 	// These hooks snoop for TDPB messages (ignoring legacy TDP) to create necessary audit events.
 	// The client emits only TDPB messages natively, so as long as we run these hooks *above* the translation
@@ -1050,89 +1052,6 @@ func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int
 		if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
 			s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
 		}
-	}
-}
-
-func (s *WindowsService) makeTDPSendAuditor(
-	ctx context.Context,
-	recorder libevents.SessionPreparerRecorder,
-	delay func() int64,
-	audit *desktopSessionAuditor,
-) func(m tdp.Message) error {
-	return func(msg tdp.Message) error {
-		switch m := msg.(type) {
-		case *tdpb.ServerHello, *tdpb.FastPathPDU, *tdpb.PNGFrame, *tdpb.Alert:
-			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, recorder)
-		case *tdpb.ClipboardData:
-			// the TDP send handler emits a clipboard receive event, because we
-			// received clipboard data from the remote desktop and are sending
-			// it on the TDP connection
-			rxEvent := audit.makeClipboardReceive(int32(len(m.Data)))
-			s.emit(ctx, rxEvent)
-		case *tdpb.SharedDirectoryAcknowledge:
-			s.emit(ctx, audit.makeSharedDirectoryStart(m))
-		case *tdpb.SharedDirectoryRequest:
-			switch req := m.Operation.(type) {
-			case *tdpbv1.SharedDirectoryRequest_Write_:
-				errorEvent := audit.onSharedDirectoryWriteRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Write)
-				if errorEvent != nil {
-					// if we can't audit due to a full cache, abort the connection
-					// as a security measure
-					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
-					s.emit(ctx, errorEvent)
-					return err
-				}
-			case *tdpbv1.SharedDirectoryRequest_Read_:
-				errorEvent := audit.onSharedDirectoryReadRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Read)
-				if errorEvent != nil {
-					// if we can't audit due to a full cache, abort the connection
-					// as a security measure
-					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
-					s.emit(ctx, errorEvent)
-					return err
-				}
-			}
-		}
-		return nil
-	}
-}
-
-func (s *WindowsService) makeTDPReceiveAuditor(
-	ctx context.Context,
-	recorder libevents.SessionPreparerRecorder,
-	delay func() int64,
-	audit *desktopSessionAuditor,
-) func(m tdp.Message) error {
-	return func(m tdp.Message) error {
-		switch msg := m.(type) {
-		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
-			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, recorder)
-		case *tdpb.ClipboardData:
-			// the TDP receive handler emits a clipboard send event, because we
-			// received clipboard data from the user (over TDP) and are sending
-			// it to the remote desktop
-			sendEvent := audit.makeClipboardSend(int32(len(msg.Data)))
-			s.emit(ctx, sendEvent)
-		case *tdpb.SharedDirectoryAnnounce:
-			errorEvent := audit.onSharedDirectoryAnnounce(m.(*tdpb.SharedDirectoryAnnounce))
-			if errorEvent != nil {
-				// if we can't audit due to a full cache, abort the connection
-				// as a security measure
-				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
-				s.emit(ctx, errorEvent)
-				return err
-			}
-		case *tdpb.SharedDirectoryResponse:
-			// shared directory audit events can be noisy, so we use a compactor
-			// to retain and delay them in an attempt to coalesce contiguous events
-			switch op := msg.Operation.(type) {
-			case *tdpbv1.SharedDirectoryResponse_Read_:
-				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Read))
-			case *tdpbv1.SharedDirectoryResponse_Write_:
-				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
-			}
-		}
-		return nil
 	}
 }
 

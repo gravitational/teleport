@@ -645,11 +645,16 @@ type emitter interface {
 	emit(ctx context.Context, event events.AuditEvent)
 }
 
-func recordEvent(ctx context.Context, clock clockwork.Clock, logger *slog.Logger, delay int64, m tdp.Message, data []byte, recorder libevents.SessionPreparerRecorder) {
+func recordEvent(ctx context.Context, clock clockwork.Clock, logger *slog.Logger, delay int64, m tdp.Message, recorder libevents.SessionPreparerRecorder) {
+	data, err := m.Encode()
+	if err != nil {
+		logger.ErrorContext(ctx, "could not record message due to encoding error", "error", err, "type", logutils.TypeAttr(m))
+		return
+	}
 	e := &events.DesktopRecording{
 		Metadata: events.Metadata{
 			Type: libevents.DesktopRecordingEvent,
-			Time: clock.Now().Round(time.Millisecond),
+			Time: clock.Now().UTC().Round(time.Millisecond),
 		},
 		TDPBMessage:       data,
 		DelayMilliseconds: delay,
@@ -669,20 +674,19 @@ func recordEvent(ctx context.Context, clock clockwork.Clock, logger *slog.Logger
 	}
 }
 
-func makeTDPSendHandler(
+func makeTDPSendAuditor(
 	ctx context.Context,
 	s emitter,
 	clock clockwork.Clock,
 	logger *slog.Logger,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
-	tdpConn *tdp.Conn,
 	audit *desktopSessionAuditor,
-) func(m tdp.Message, b []byte) {
-	return func(msg tdp.Message, data []byte) {
+) func(m tdp.Message) error {
+	return func(msg tdp.Message) error {
 		switch m := msg.(type) {
 		case *tdpb.ServerHello, *tdpb.FastPathPDU, *tdpb.PNGFrame, *tdpb.Alert:
-			recordEvent(ctx, clock, logger, delay(), m, data, recorder)
+			recordEvent(ctx, clock, logger, delay(), m, recorder)
 		case *tdpb.ClipboardData:
 			// the TDP send handler emits a clipboard receive event, because we
 			// received clipboard data from the remote desktop and are sending
@@ -698,45 +702,38 @@ func makeTDPSendHandler(
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
-					if err := tdpConn.Close(); err != nil {
-						logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation", "session_id", audit.sessionID)
-					}
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
 					s.emit(ctx, errorEvent)
+					return err
 				}
 			case *tdpbv1.SharedDirectoryRequest_Read_:
 				errorEvent := audit.onSharedDirectoryReadRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Read)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
-					if err := tdpConn.Close(); err != nil {
-						logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation", "session_id", audit.sessionID)
-					}
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
 					s.emit(ctx, errorEvent)
+					return err
 				}
 			}
 		}
+		return nil
 	}
 }
 
-func makeTDPReceiveHandler(
+func makeTDPReceiveAuditor(
 	ctx context.Context,
 	s emitter,
 	clock clockwork.Clock,
 	logger *slog.Logger,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
-	tdpConn *tdp.Conn,
 	audit *desktopSessionAuditor,
-) func(m tdp.Message) {
-	return func(m tdp.Message) {
+) func(m tdp.Message) error {
+	return func(m tdp.Message) error {
 		switch msg := m.(type) {
 		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
-			b, err := m.Encode()
-			if err != nil {
-				logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
-			}
-
-			recordEvent(ctx, clock, logger, delay(), m, b, recorder)
+			recordEvent(ctx, clock, logger, delay(), m, recorder)
 		case *tdpb.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
@@ -748,11 +745,9 @@ func makeTDPReceiveHandler(
 			if errorEvent != nil {
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
-				if err := tdpConn.Close(); err != nil {
-					logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation",
-						"session_id", audit.sessionID, "error", err)
-				}
+				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
 				s.emit(ctx, errorEvent)
+				return err
 			}
 		case *tdpb.SharedDirectoryResponse:
 			// shared directory audit events can be noisy, so we use a compactor
@@ -764,5 +759,6 @@ func makeTDPReceiveHandler(
 				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
 			}
 		}
+		return nil
 	}
 }

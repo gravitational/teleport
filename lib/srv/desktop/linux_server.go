@@ -22,12 +22,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"os"
 	"os/user"
 	"regexp"
-	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -271,17 +269,18 @@ func (t *tracker) UpdateClientActivity() {
 
 // linuxSession encapsulates all state for a single Linux desktop session.
 type linuxSession struct {
-	service   *LinuxService
-	log       *slog.Logger
-	ctx       context.Context
-	cancel    context.CancelFunc
-	tdpConn   *tdp.Conn
-	sessionID session.ID
-	authCtx   *authz.Context
-	identity  tlsca.Identity
-	desktop   *linuxdesktopv1pb.LinuxDesktop
-	netConfig types.ClusterNetworkingConfig
-	authPref  types.AuthPreference
+	service     *LinuxService
+	log         *slog.Logger
+	ctx         context.Context
+	cancel      context.CancelFunc
+	tdpConn     *tdp.Conn
+	auditedConn tdp.MessageReadWriteCloser
+	sessionID   session.ID
+	authCtx     *authz.Context
+	identity    tlsca.Identity
+	desktop     *linuxdesktopv1pb.LinuxDesktop
+	netConfig   types.ClusterNetworkingConfig
+	authPref    types.AuthPreference
 
 	backend       *x11.Backend
 	screenSize    atomic.Pointer[xproto.Rectangle]
@@ -297,19 +296,19 @@ type linuxSession struct {
 }
 
 func (sess *linuxSession) sendTDPError(message string) {
-	if err := sess.tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+	if err := sess.auditedConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
 		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
 	}
 }
 
 func (sess *linuxSession) sendTDPWarning(message string) {
-	if err := sess.tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}); err != nil {
+	if err := sess.auditedConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}); err != nil {
 		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
 	}
 }
 
 func (sess *linuxSession) handleClipboardData(data []byte) {
-	sess.tdpConn.WriteMessage(&tdpb.ClipboardData{
+	sess.auditedConn.WriteMessage(&tdpb.ClipboardData{
 		Data: data,
 	})
 }
@@ -415,17 +414,18 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	}
 
 	sess := &linuxSession{
-		service:   s,
-		log:       log,
-		ctx:       ctx,
-		cancel:    cancel,
-		tdpConn:   tdpConn,
-		sessionID: sessionID,
-		authCtx:   authCtx,
-		identity:  authCtx.Identity.GetIdentity(),
-		desktop:   desktop,
-		netConfig: netConfig,
-		authPref:  authPref,
+		service:     s,
+		log:         log,
+		ctx:         ctx,
+		cancel:      cancel,
+		tdpConn:     tdpConn,
+		auditedConn: tdpConn,
+		sessionID:   sessionID,
+		authCtx:     authCtx,
+		identity:    authCtx.Identity.GetIdentity(),
+		desktop:     desktop,
+		netConfig:   netConfig,
+		authPref:    authPref,
 	}
 
 	if err := sess.run(); err != nil {
@@ -477,9 +477,17 @@ func (sess *linuxSession) run() error {
 
 	sess.audit = s.newSessionAuditor(string(sess.sessionID), &sess.identity, "", sess.desktop)
 
+	// Adapt send /receive handlers to run as Interceptors.
+	asInterceptor := func(handler func(tdp.Message) error) tdp.Interceptor {
+		return func(message tdp.Message) ([]tdp.Message, error) {
+			return []tdp.Message{message}, handler(message)
+		}
+	}
+
 	delay := timer()
-	sess.tdpConn.OnSend = makeTDPSendHandler(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.tdpConn, sess.audit)
-	sess.tdpConn.OnRecv = makeTDPReceiveHandler(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.tdpConn, sess.audit)
+	sendInterceptor := asInterceptor(makeTDPSendAuditor(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.audit))
+	receiveInterceptor := asInterceptor(makeTDPReceiveAuditor(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.audit))
+	sess.auditedConn = tdp.NewReadWriteInterceptor(sess.tdpConn, receiveInterceptor, sendInterceptor)
 
 	sess.track = tracker{clock: s.cfg.Clock}
 	sess.track.UpdateClientActivity()
@@ -546,7 +554,7 @@ func (sess *linuxSession) startMonitor() error {
 
 func (sess *linuxSession) messageLoop() error {
 	for {
-		msg, err := sess.tdpConn.ReadMessage()
+		msg, err := sess.auditedConn.ReadMessage()
 		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 			return nil
 		}
@@ -601,7 +609,7 @@ func (sess *linuxSession) messageLoop() error {
 				return trace.Wrap(err)
 			}
 		case *tdpb.Ping:
-			if err := sess.tdpConn.WriteMessage(m); err != nil {
+			if err := sess.auditedConn.WriteMessage(m); err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to send ping message", "error", err)
 				return trace.Wrap(err)
 			}
@@ -679,7 +687,13 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		sess.sendTDPError("Couldn't resize backend.")
 		return trace.Wrap(err)
 	}
-	if err := sess.tdpConn.WriteMessage(&tdpb.ServerHello{
+	sessions := make([]*tdpbv1.SessionIdentifier, 0, len(sess.xsessions))
+	for s := range sess.xsessions {
+		sessions = append(sessions, &tdpbv1.SessionIdentifier{
+			Name: s,
+		})
+	}
+	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			IoChannelId:   0,
 			UserChannelId: 0,
@@ -687,7 +701,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 			ScreenHeight:  m.ScreenSpec.Height,
 		},
 		ClipboardEnabled: true,
-		Sessions:         slices.Collect(maps.Keys(sess.xsessions)),
+		Sessions:         sessions,
 	}); err != nil {
 		sess.log.WarnContext(sess.ctx, "failed to send server hello", "error", err)
 		return trace.Wrap(err)
@@ -738,11 +752,11 @@ func (sess *linuxSession) handleSessionSelection(m *tdpb.SessionSelection) error
 		sess.sendTDPWarning("Received session selection message but session is already started")
 		return nil
 	}
-	xsession, ok := sess.xsessions[m.Name]
+	xsession, ok := sess.xsessions[m.Session.Name]
 	if !ok {
-		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", m.Name)
-		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Name))
-		return trace.NotFound("xsession %s not found", m.Name)
+		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", m.Session.Name)
+		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Session.Name))
+		return trace.NotFound("xsession %s not found", m.Session.Name)
 	}
 	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
 		Logger:         sess.log,
@@ -789,7 +803,7 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 		sess.sendTDPError("Couldn't resize backend.")
 		return trace.Wrap(err)
 	}
-	if err := sess.tdpConn.WriteMessage(&tdpb.ServerHello{
+	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			ScreenWidth:  m.Width,
 			ScreenHeight: m.Height,
@@ -847,7 +861,7 @@ func (sess *linuxSession) processScreenChanges() {
 				return
 			}
 			for _, frame := range frames {
-				if err := sess.tdpConn.WriteMessage(frame); err != nil {
+				if err := sess.auditedConn.WriteMessage(frame); err != nil {
 					sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
 					return
 				}

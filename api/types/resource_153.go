@@ -426,8 +426,3 @@ type ClonableResourceWithLabels interface {
 	ResourceWithLabels
 	CloneResource() ResourceWithLabels
 }
-
-type ClonableResourceWithLabels interface {
-	ResourceWithLabels
-	CloneResource() ResourceWithLabels
-}

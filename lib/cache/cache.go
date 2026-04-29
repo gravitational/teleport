@@ -457,33 +457,6 @@ func ForLinuxDesktop(cfg Config) Config {
 		if err == nil {
 			caFilter = types.CertAuthorityFilter{
 				types.HostCA: clusterName.GetClusterName(),
-			}.IntoMap()
-		}
-	}
-	cfg.target = "linux_desktop"
-	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: caFilter},
-		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterAuditConfig},
-		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
-		{Kind: types.KindRole},
-		{Kind: types.KindLinuxDesktop},
-	}
-	cfg.QueueSize = defaults.LinuxDesktopQueueSize
-	return cfg
-}
-
-// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
-func ForLinuxDesktop(cfg Config) Config {
-	var caFilter map[string]string
-	if cfg.ClusterConfig != nil {
-		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
-		if err == nil {
-			caFilter = types.CertAuthorityFilter{
-				types.HostCA: clusterName.GetClusterName(),
 				types.UserCA: types.Wildcard,
 			}.IntoMap()
 		}
