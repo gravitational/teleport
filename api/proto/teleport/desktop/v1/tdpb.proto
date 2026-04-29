@@ -36,9 +36,20 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
-  // Field number 5 matches master. v18 doesn't use fields 3 and 4
-  // (directory_remove_supported and sessions on master).
+  // Field number 4 and 5 matches master. v18 doesn't use fields 3
+  // (directory_remove_supported on master).
+  repeated SessionIdentifier sessions = 4;
   bool hidpi_supported = 5;
+}
+
+// Used to identify sessions available to and selected by users
+message SessionIdentifier {
+  string name = 1;
+}
+
+// Sent by client to select one of available sessions
+message SessionSelection {
+  SessionIdentifier session = 1;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -348,5 +359,8 @@ message Envelope {
     SharedDirectoryResponse shared_directory_response = 18;
     LatencyStats latency_stats = 19;
     Ping ping = 20;
+    // Field number 22 matches master, v18 doesn't use 21
+    // (shared_directory_remove on master)
+    SessionSelection session_selection = 22;
   }
 }
