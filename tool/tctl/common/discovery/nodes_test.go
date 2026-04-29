@@ -23,70 +23,139 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	usertaskstypes "github.com/gravitational/teleport/api/types/usertasks"
 )
 
-func TestCorrelate(t *testing.T) {
+func makeEC2Task(t *testing.T, issueType string, instanceIDs ...string) *usertasksv1.UserTask {
+	t.Helper()
+	instances := make(map[string]*usertasksv1.DiscoverEC2Instance, len(instanceIDs))
+	for _, id := range instanceIDs {
+		instances[id] = &usertasksv1.DiscoverEC2Instance{
+			InstanceId:      id,
+			DiscoveryConfig: "dc01",
+			DiscoveryGroup:  "dg01",
+		}
+	}
+	task, err := usertaskstypes.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		Integration: "my-integration",
+		TaskType:    "discover-ec2",
+		IssueType:   issueType,
+		State:       "OPEN",
+		DiscoverEc2: &usertasksv1.DiscoverEC2{
+			AccountId: "111",
+			Region:    "us-east-1",
+			Instances: instances,
+		},
+	})
+	require.NoError(t, err)
+	return task
+}
+
+func makeAzureVMTask(t *testing.T, issueType string, vmIDs ...string) *usertasksv1.UserTask {
+	t.Helper()
+	instances := make(map[string]*usertasksv1.DiscoverAzureVMInstance, len(vmIDs))
+	for _, id := range vmIDs {
+		instances[id] = &usertasksv1.DiscoverAzureVMInstance{
+			VmId:            id,
+			DiscoveryConfig: "dc01",
+			DiscoveryGroup:  "dg01",
+		}
+	}
+	task, err := usertaskstypes.NewDiscoverAzureVMUserTask(usertaskstypes.TaskGroup{
+		Integration: "my-integration",
+		IssueType:   issueType,
+	}, time.Now().Add(time.Hour), &usertasksv1.DiscoverAzureVM{
+		SubscriptionId: "sub-1",
+		ResourceGroup:  "rg-1",
+		Region:         "eastus",
+		Instances:      instances,
+	})
+	require.NoError(t, err)
+	return task
+}
+
+func TestCloudNodes(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	tests := []struct {
 		desc      string
-		ssmEvents []*apievents.SSMRun
-		nodes     []types.Server
+		instances map[string]instanceInfo
+		tasks     []*usertasksv1.UserTask
+		keyFn     func(*usertasksv1.UserTask) []string
 		want      []instanceInfo
 	}{
 		{
-			desc: "empty input returns empty result",
-			want: nil,
+			desc:  "empty input returns empty result",
+			keyFn: awsTaskInstanceKeys,
+			want:  nil,
 		},
 		{
-			desc: "online marking from matching nodes",
-			ssmEvents: []*apievents.SSMRun{
-				makeSSMRun("i-aaa", "111", "us-east-1", "Failed", 1, "err", now),
+			desc: "AWS instance with matching task gets task ID and issue type",
+			instances: map[string]instanceInfo{
+				"i-aaa": {AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}, Region: "us-east-1"},
 			},
-			nodes: []types.Server{makeNode("node-1", "i-aaa", "111", "us-east-1", time.Time{})},
+			tasks: []*usertasksv1.UserTask{
+				makeEC2Task(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
+			},
+			keyFn: awsTaskInstanceKeys,
 			want: []instanceInfo{
 				{
-					AWS:       &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
-					Region:    "us-east-1",
-					IsOnline:  true,
-					RunResult: &runResult{ExitCode: 1, Output: "err", Time: now, IsFailure: true},
+					AWS:           &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
+					Region:        "us-east-1",
+					UserTaskID:    "07cccc8f-bb13-5f93-99d8-0ba51ca1da92",
+					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
 				},
 			},
 		},
 		{
-			desc:  "online node without events enriches region and account",
-			nodes: []types.Server{makeNode("node-1", "i-aaa", "111", "us-east-1", now.Add(10*time.Minute))},
+			desc: "task referencing unknown instance is ignored",
+			instances: map[string]instanceInfo{
+				"i-aaa": {AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}, Region: "us-east-1"},
+			},
+			tasks: []*usertasksv1.UserTask{
+				makeEC2Task(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-other"),
+			},
+			keyFn: awsTaskInstanceKeys,
 			want: []instanceInfo{
-				{
-					AWS:      &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
-					Region:   "us-east-1",
-					IsOnline: true,
-					Expiry:   now.Add(10 * time.Minute),
-				},
+				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}, Region: "us-east-1"},
 			},
 		},
 		{
-			desc: "node enriches account for event-only instance",
-			ssmEvents: []*apievents.SSMRun{
-				makeSSMRun("i-aaa", "", "us-east-1", "Failed", 1, "err", now),
+			desc: "multiple AWS instances sorted by account, region, descending time",
+			instances: map[string]instanceInfo{
+				"i-old": {
+					AWS: &awsInfo{InstanceID: "i-old", AccountID: "111"}, Region: "us-east-1",
+					RunResult: &runResult{Time: now.Add(-time.Hour)},
+				},
+				"i-new": {
+					AWS: &awsInfo{InstanceID: "i-new", AccountID: "111"}, Region: "us-east-1",
+					RunResult: &runResult{Time: now},
+				},
+				"i-other-region": {
+					AWS: &awsInfo{InstanceID: "i-other-region", AccountID: "111"}, Region: "us-west-2",
+				},
+				"i-other-account": {
+					AWS: &awsInfo{InstanceID: "i-other-account", AccountID: "222"}, Region: "us-east-1",
+				},
 			},
-			nodes: []types.Server{makeNode("node-1", "i-aaa", "111", "", time.Time{})},
+			keyFn: awsTaskInstanceKeys,
 			want: []instanceInfo{
 				{
-					AWS:       &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
-					Region:    "us-east-1",
-					IsOnline:  true,
-					RunResult: &runResult{ExitCode: 1, Output: "err", Time: now, IsFailure: true},
+					AWS: &awsInfo{InstanceID: "i-new", AccountID: "111"}, Region: "us-east-1",
+					RunResult: &runResult{Time: now},
 				},
+				{
+					AWS: &awsInfo{InstanceID: "i-old", AccountID: "111"}, Region: "us-east-1",
+					RunResult: &runResult{Time: now.Add(-time.Hour)},
+				},
+				{AWS: &awsInfo{InstanceID: "i-other-region", AccountID: "111"}, Region: "us-west-2"},
+				{AWS: &awsInfo{InstanceID: "i-other-account", AccountID: "222"}, Region: "us-east-1"},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got := correlate(tt.ssmEvents, tt.nodes)
+			got := cloudNodes(tt.instances, tt.tasks, tt.keyFn)
 			if tt.want == nil {
 				require.Empty(t, got)
 			} else {
@@ -105,7 +174,7 @@ func TestInstanceInfo_Status(t *testing.T) {
 		{
 			desc: "no run result, offline",
 			fi:   instanceInfo{},
-			want: "",
+			want: "Unknown",
 		},
 		{
 			desc: "no run result, online",
@@ -113,8 +182,8 @@ func TestInstanceInfo_Status(t *testing.T) {
 			want: "Online",
 		},
 		{
-			desc: "success and online",
-			fi:   instanceInfo{RunResult: &runResult{ExitCode: 0}, IsOnline: true},
+			desc: "success, online",
+			fi:   instanceInfo{IsOnline: true, RunResult: &runResult{ExitCode: 0}},
 			want: "Online",
 		},
 		{
@@ -132,10 +201,68 @@ func TestInstanceInfo_Status(t *testing.T) {
 			fi:   instanceInfo{RunResult: &runResult{ExitCode: 1, IsFailure: true}, IsOnline: true},
 			want: "Online, exit code=1",
 		},
+		{
+			desc: "API error, offline",
+			fi:   instanceInfo{RunResult: &runResult{APIError: "throttled", IsFailure: true}},
+			want: "Failed (API error)",
+		},
+		{
+			desc: "API error, online",
+			fi:   instanceInfo{RunResult: &runResult{APIError: "throttled", IsFailure: true}, IsOnline: true},
+			want: "Online, API error",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			require.Equal(t, tt.want, tt.fi.status())
+		})
+	}
+}
+
+func TestInstanceInfo_UserTaskTitle(t *testing.T) {
+	tests := []struct {
+		desc string
+		fi   instanceInfo
+		want string
+	}{
+		{
+			desc: "empty issue returns empty",
+			fi:   instanceInfo{},
+			want: "",
+		},
+		{
+			desc: "no cloud info falls back to issue string",
+			fi:   instanceInfo{UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure},
+			want: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
+		},
+		{
+			desc: "AWS known issue resolves to title",
+			fi: instanceInfo{
+				AWS:           &awsInfo{InstanceID: "i-aaa"},
+				UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
+			},
+			want: "SSM Script failure",
+		},
+		{
+			desc: "AWS unknown issue falls back to issue string",
+			fi: instanceInfo{
+				AWS:           &awsInfo{InstanceID: "i-aaa"},
+				UserTaskIssue: "ec2-not-a-real-issue",
+			},
+			want: "ec2-not-a-real-issue",
+		},
+		{
+			desc: "Azure known issue resolves to title",
+			fi: instanceInfo{
+				Azure:         &azureInfo{VMID: "vm-aaa"},
+				UserTaskIssue: usertaskstypes.AutoDiscoverAzureVMIssueEnrollmentError,
+			},
+			want: "Enrollment failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.fi.userTaskTitle())
 		})
 	}
 }
@@ -178,41 +305,41 @@ func TestInstanceInfo_LastTime(t *testing.T) {
 	}
 }
 
-func TestInstanceInfo_RunOutput(t *testing.T) {
+func TestTrimEscape(t *testing.T) {
 	tests := []struct {
 		desc string
-		fi   instanceInfo
+		in   string
 		want string
 	}{
 		{
-			desc: "no run result",
-			fi:   instanceInfo{},
+			desc: "empty input",
+			in:   "",
 			want: "",
 		},
 		{
 			desc: "simple output",
-			fi:   instanceInfo{RunResult: &runResult{Output: "install failed"}},
+			in:   "install failed",
 			want: `"install failed"`,
 		},
 		{
 			desc: "newlines escaped",
-			fi:   instanceInfo{RunResult: &runResult{Output: "line1\nline2\nline3"}},
+			in:   "line1\nline2\nline3",
 			want: `"line1\nline2\nline3"`,
 		},
 		{
 			desc: "long output truncated",
-			fi:   instanceInfo{RunResult: &runResult{Output: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
-			want: `"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa..."`,
+			in:   "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc",
+			want: `"abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca..."`,
 		},
 		{
 			desc: "whitespace trimmed",
-			fi:   instanceInfo{RunResult: &runResult{Output: "  output  "}},
+			in:   "  output  ",
 			want: `"output"`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			require.Equal(t, tt.want, tt.fi.runOutput())
+			require.Equal(t, tt.want, trimEscape(tt.in))
 		})
 	}
 }
@@ -254,133 +381,6 @@ func TestCombineOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			require.Equal(t, tt.want, combineOutput(tt.stdout, tt.stderr))
-		})
-	}
-}
-
-// TestMatchUserTasks verifies that matchUserTasks correctly populates the
-// UserTaskID and UserTaskIssue fields on instances by looking up their
-// cloud instance ID in the DiscoverEC2 instance maps carried by user tasks.
-func TestMatchUserTasks(t *testing.T) {
-	makeTask := func(t *testing.T, issueType string, instanceIDs ...string) *usertasksv1.UserTask {
-		t.Helper()
-		instances := make(map[string]*usertasksv1.DiscoverEC2Instance, len(instanceIDs))
-		for _, id := range instanceIDs {
-			instances[id] = &usertasksv1.DiscoverEC2Instance{
-				InstanceId:      id,
-				DiscoveryConfig: "dc01",
-				DiscoveryGroup:  "dg01",
-			}
-		}
-		task, err := usertaskstypes.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
-			Integration: "my-integration",
-			TaskType:    "discover-ec2",
-			IssueType:   issueType,
-			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{
-				AccountId: "111",
-				Region:    "us-east-1",
-				Instances: instances,
-			},
-		})
-		require.NoError(t, err)
-		return task
-	}
-
-	tests := []struct {
-		desc      string
-		instances []instanceInfo
-		tasks     []*usertasksv1.UserTask
-		want      []instanceInfo
-	}{
-		{
-			desc: "matched instance gets task ID and issue type",
-			instances: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}},
-			},
-			tasks: []*usertasksv1.UserTask{
-				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
-			},
-			want: []instanceInfo{
-				{
-					AWS:           &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
-					UserTaskID:    "07cccc8f-bb13-5f93-99d8-0ba51ca1da92",
-					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
-				},
-			},
-		},
-		{
-			desc: "non-matching instance is unchanged",
-			instances: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-other", AccountID: "111"}},
-			},
-			tasks: []*usertasksv1.UserTask{
-				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
-			},
-			want: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-other", AccountID: "111"}},
-			},
-		},
-		{
-			desc: "instance without cloud info is skipped",
-			instances: []instanceInfo{
-				{Region: "us-east-1"},
-			},
-			tasks: []*usertasksv1.UserTask{
-				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
-			},
-			want: []instanceInfo{
-				{Region: "us-east-1"},
-			},
-		},
-		{
-			desc: "task with nil spec is skipped",
-			instances: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}},
-			},
-			tasks: []*usertasksv1.UserTask{
-				{Spec: nil},
-			},
-			want: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}},
-			},
-		},
-		{
-			desc: "multiple tasks match multiple instances",
-			instances: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}},
-				{AWS: &awsInfo{InstanceID: "i-bbb", AccountID: "111"}},
-				{AWS: &awsInfo{InstanceID: "i-ccc", AccountID: "111"}},
-			},
-			tasks: []*usertasksv1.UserTask{
-				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
-				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMInstanceNotRegistered, "i-bbb"),
-			},
-			want: []instanceInfo{
-				{
-					AWS:           &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
-					UserTaskID:    "07cccc8f-bb13-5f93-99d8-0ba51ca1da92",
-					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
-				},
-				{
-					AWS:           &awsInfo{InstanceID: "i-bbb", AccountID: "111"},
-					UserTaskID:    "a08ac321-89b2-57bc-a10e-f2cf7e6e5901",
-					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
-				},
-				{AWS: &awsInfo{InstanceID: "i-ccc", AccountID: "111"}},
-			},
-		},
-		{
-			desc:      "empty tasks and instances",
-			instances: nil,
-			tasks:     nil,
-			want:      nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			matchUserTasks(tt.instances, tt.tasks)
-			require.Equal(t, tt.want, tt.instances)
 		})
 	}
 }
