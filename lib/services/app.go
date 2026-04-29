@@ -100,6 +100,12 @@ type ApplicationsInternal interface {
 
 // ValidateApp validates the Application resource.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
+	if app.GetTLS() != nil {
+		if err := validateAppTLS(app); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// If no public address is set, there's nothing to validate.
 	if app.GetPublicAddr() == "" {
 		return nil
@@ -155,12 +161,6 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 					app.GetPublicAddr(),
 				)
 			}
-		}
-	}
-
-	if app.GetTLS() != nil {
-		if err := validateAppTLS(app); err != nil {
-			return trace.Wrap(err)
 		}
 	}
 

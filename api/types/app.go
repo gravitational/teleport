@@ -523,7 +523,6 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
 	}
-
 	return nil
 }
 
