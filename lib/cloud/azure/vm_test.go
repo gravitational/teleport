@@ -519,105 +519,88 @@ func TestFilterLinuxVMs(t *testing.T) {
 	}
 }
 
-func TestListNonRunningVirtualMachineStates(t *testing.T) {
+func TestGetPowerState(t *testing.T) {
 	t.Parallel()
 
-	mockAPI := &ARMComputeMock{
-		RequireStatusOnly: true,
-		VirtualMachines: map[string][]*armcompute.VirtualMachine{
-			"rg1": {
-				{
-					ID: to.Ptr("/sub/rg1/vm1"),
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-1"),
-						InstanceView: &armcompute.VirtualMachineInstanceView{
-							Statuses: []*armcompute.InstanceViewStatus{
-								{Code: to.Ptr("PowerState/running")},
-							},
-						},
-					},
-				},
-				{
-					ID: to.Ptr("/sub/rg1/vm2"),
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-2"),
-						InstanceView: &armcompute.VirtualMachineInstanceView{
-							Statuses: []*armcompute.InstanceViewStatus{
-								{Code: to.Ptr("PowerState/deallocated")},
-							},
-						},
-					},
-				},
-				{
-					ID: to.Ptr("/sub/rg1/vm3"),
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-3"),
-						// nil InstanceView; VM should be excluded from the status map.
-					},
-				},
-				{
-					ID: to.Ptr("/sub/rg1/vm4"),
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-4"),
-						InstanceView: &armcompute.VirtualMachineInstanceView{
-							Statuses: []*armcompute.InstanceViewStatus{
-								{Code: to.Ptr("PowerState/starting")},
-							},
-						},
-					},
-				},
-				{
-					ID: nil,
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-5"),
-						InstanceView: &armcompute.VirtualMachineInstanceView{
-							Statuses: []*armcompute.InstanceViewStatus{
-								{Code: to.Ptr("PowerState/running")},
-							},
-						},
-					},
-				},
-				{
-					ID: to.Ptr("/sub/rg1/vm6"),
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-6"),
-						InstanceView: &armcompute.VirtualMachineInstanceView{
-							Statuses: []*armcompute.InstanceViewStatus{
-								{Code: to.Ptr("ProvisioningState/succeeded")},
-							},
-						},
-					},
-				},
-				{
-					ID: to.Ptr("/sub/rg1/vm7"),
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: to.Ptr("vmid-7"),
-						InstanceView: &armcompute.VirtualMachineInstanceView{
-							Statuses: []*armcompute.InstanceViewStatus{
-								{Code: to.Ptr("PowerState/stopped")},
-							},
+	tests := []struct {
+		name       string
+		getResult  armcompute.VirtualMachine
+		getErr     error
+		wantState  PowerState
+		wantErrStr string
+	}{
+		{
+			name: "running",
+			getResult: armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{
+					InstanceView: &armcompute.VirtualMachineInstanceView{
+						Statuses: []*armcompute.InstanceViewStatus{
+							{Code: to.Ptr("ProvisioningState/succeeded")},
+							{Code: to.Ptr("PowerState/running")},
 						},
 					},
 				},
 			},
+			wantState: PowerStateRunning,
+		},
+		{
+			name: "deallocated",
+			getResult: armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{
+					InstanceView: &armcompute.VirtualMachineInstanceView{
+						Statuses: []*armcompute.InstanceViewStatus{
+							{Code: to.Ptr("PowerState/deallocated")},
+						},
+					},
+				},
+			},
+			wantState: PowerStateDeallocated,
+		},
+		{
+			name: "transient suffix returned verbatim",
+			getResult: armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{
+					InstanceView: &armcompute.VirtualMachineInstanceView{
+						Statuses: []*armcompute.InstanceViewStatus{
+							{Code: to.Ptr("PowerState/starting")},
+						},
+					},
+				},
+			},
+			wantState: PowerState("starting"),
+		},
+		{
+			name: "no instance view returns unknown",
+			getResult: armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{},
+			},
+			wantState: PowerStateUnknown,
+		},
+		{
+			name:      "nil properties returns unknown",
+			getResult: armcompute.VirtualMachine{},
+			wantState: PowerStateUnknown,
+		},
+		{
+			name:       "ARM error propagates",
+			getErr:     fmt.Errorf("arm boom"),
+			wantState:  PowerStateUnknown,
+			wantErrStr: "arm boom",
 		},
 	}
-
-	client := NewVirtualMachinesClientByAPI(mockAPI, nil)
-
-	nonRunning, err := client.ListNonRunningVirtualMachineStates(t.Context())
-	require.NoError(t, err)
-	// vm1 is running → excluded.
-	// vm2 is deallocated → included as PowerStateDeallocated.
-	// vm3 has nil InstanceView → excluded.
-	// vm4 has transient "starting" → included as PowerState("starting") so the
-	// raw suffix surfaces in logs instead of an opaque "other" classification.
-	// vm5 has nil ID → excluded.
-	// vm6 has no PowerState/* entry → excluded.
-	// vm7 is stopped → included as PowerStateStopped.
-	require.Equal(t, map[string]PowerState{
-		"/sub/rg1/vm2": PowerStateDeallocated,
-		"/sub/rg1/vm4": PowerState("starting"),
-		"/sub/rg1/vm7": PowerStateStopped,
-	}, nonRunning)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := NewVirtualMachinesClientByAPI(&ARMComputeMock{
+				GetResult: tc.getResult,
+				GetErr:    tc.getErr,
+			}, nil)
+			state, err := client.GetPowerState(t.Context(), "rg", "vm")
+			if tc.wantErrStr != "" {
+				require.ErrorContains(t, err, tc.wantErrStr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantState, state)
+		})
+	}
 }

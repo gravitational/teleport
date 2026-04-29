@@ -3195,8 +3195,11 @@ func (m *mockAzureRunCommandClient) getAttempted() []string {
 }
 
 type mockAzureClient struct {
-	vms              []*armcompute.VirtualMachine
-	nonRunningStates map[string]azure.PowerState
+	vms []*armcompute.VirtualMachine
+	// powerStates maps VM resource ID to a power state. VMs not in the map are
+	// reported as PowerStateRunning. This drives the per-VM GetPowerState check
+	// done in azure_installer.go right before each Run Command.
+	powerStates map[string]azure.PowerState
 }
 
 func (m *mockAzureClient) Get(_ context.Context, _ string) (*azure.VirtualMachine, error) {
@@ -3211,11 +3214,18 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 	return m.vms, nil
 }
 
-func (m *mockAzureClient) ListNonRunningVirtualMachineStates(_ context.Context) (map[string]azure.PowerState, error) {
-	if m.nonRunningStates == nil {
-		return map[string]azure.PowerState{}, nil
+func (m *mockAzureClient) GetPowerState(_ context.Context, _, vmName string) (azure.PowerState, error) {
+	for _, vm := range m.vms {
+		if azure.StringVal(vm.Name) != vmName {
+			continue
+		}
+		id := azure.StringVal(vm.ID)
+		if state, ok := m.powerStates[id]; ok {
+			return state, nil
+		}
+		break
 	}
-	return maps.Clone(m.nonRunningStates), nil
+	return azure.PowerStateRunning, nil
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -3317,9 +3327,10 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 
 	// mixedFleetAzureVMs returns a representative Azure subscription where
-	// power-state and OS-type filtering must work in combination with the
-	// rest of the discovery pipeline. The returned states map is the shape
-	// ListNonRunningVirtualMachineStates would produce for that fleet.
+	// OS filtering (in the fetcher) and power-state filtering (per-VM, just
+	// before Run Command) must work in combination with the rest of the
+	// discovery pipeline. The returned map keys VM resource ID to power state;
+	// the test feeds it to mockAzureClient.GetPowerState.
 	mixedFleetAzureVMs := func() ([]*armcompute.VirtualMachine, map[string]azure.PowerState) {
 		mkVM := func(name string, osType *armcompute.OperatingSystemTypes) *armcompute.VirtualMachine {
 			vm := makeVM(name, false)
@@ -3335,11 +3346,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 		stoppedLinux := mkVM("fleet-stopped-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
 		runningWindows := mkVM("fleet-running-windows", to.Ptr(armcompute.OperatingSystemTypesWindows))
 		vms := []*armcompute.VirtualMachine{runningLinux, deallocatedLinux, stoppedLinux, runningWindows}
-		nonRunningStates := map[string]azure.PowerState{
+		powerStates := map[string]azure.PowerState{
 			aws.ToString(deallocatedLinux.ID): azure.PowerStateDeallocated,
 			aws.ToString(stoppedLinux.ID):     azure.PowerStateStopped,
 		}
-		return vms, nonRunningStates
+		return vms, powerStates
 	}
 
 	presentNode := &types.ServerV2{
@@ -3361,7 +3372,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		name                     string
 		presentVMs               []types.Server
 		foundVMS                 []*armcompute.VirtualMachine
-		nonRunningStates         map[string]azure.PowerState
+		powerStates              map[string]azure.PowerState
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
 		wantInstances            []string
@@ -3422,7 +3433,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				vms, _ := mixedFleetAzureVMs()
 				return vms
 			}(),
-			nonRunningStates: func() map[string]azure.PowerState {
+			powerStates: func() map[string]azure.PowerState {
 				_, states := mixedFleetAzureVMs()
 				return states
 			}(),
@@ -3521,8 +3532,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
-						vms:              tc.foundVMS,
-						nonRunningStates: tc.nonRunningStates,
+						vms:         tc.foundVMS,
+						powerStates: tc.powerStates,
 					},
 					AzureRunCommand: runClient,
 				}, nil

@@ -136,18 +136,11 @@ type VirtualMachinesClient interface {
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
 	// If resourceGroup is "*", it lists all virtual machines in any resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
-	// ListNonRunningVirtualMachineStates returns known non-running VM power states
-	// keyed by resource ID. Issues one subscription-wide ARM call.
-	//
-	// Resource ID casing is not normalized. Callers reconciling these IDs with
-	// other ARM responses should normalize before matching, because ARM treats
-	// resource path segments as case-insensitive.
-	//
-	// Inclusion policy: any PowerState/* suffix other than "running" classifies
-	// the VM as non-running, including transient suffixes (starting, stopping,
-	// deallocating). VMs without a PowerState/* entry or without an instance view
-	// are omitted: missing data is treated as running or indeterminate.
-	ListNonRunningVirtualMachineStates(ctx context.Context) (map[string]PowerState, error)
+	// GetPowerState returns the current power state of a single VM via one
+	// armcompute Get with $expand=instanceView. Returns PowerStateUnknown when
+	// the VM has no PowerState/* status entry or no instance view; callers
+	// should treat that as "indeterminate" and apply their own default policy.
+	GetPowerState(ctx context.Context, resourceGroup, vmName string) (PowerState, error)
 }
 
 // VirtualMachine represents an Azure virtual machine.
@@ -359,45 +352,22 @@ func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string
 	return virtualMachines, nil
 }
 
-// ListNonRunningVirtualMachineStates returns known non-running VM power states
-// keyed by resource ID. Issues one subscription-wide ARM call.
-//
-// Resource ID casing is not normalized. Callers reconciling these IDs with other ARM responses
-// should normalize before matching, because ARM treats resource path segments as case-insensitive.
-//
-// Inclusion policy: any PowerState/* suffix other than "running" classifies the VM as non-running,
-// including transient suffixes (starting, stopping, deallocating). VMs without a PowerState/* entry
-// or without an instance view are omitted: missing data is treated as running or indeterminate.
-func (c *vmClient) ListNonRunningVirtualMachineStates(ctx context.Context) (map[string]PowerState, error) {
-	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{
-		StatusOnly: to.Ptr("true"),
-	}))
-
-	nonRunning := map[string]PowerState{}
-	for pager.more() {
-		res, err := pager.nextPage(ctx)
-		if err != nil {
-			return nil, trace.Wrap(ConvertResponseError(err))
-		}
-
-		for _, vm := range res {
-			resourceID := StringVal(vm.ID)
-			if resourceID == "" {
-				continue
-			}
-			if vm.Properties == nil || vm.Properties.InstanceView == nil {
-				// No InstanceView; skip VM. Caller treats "not in map" as "running or indeterminate."
-				continue
-			}
-			state := ParsePowerState(vm.Properties.InstanceView.Statuses)
-			if state == PowerStateUnknown || state == PowerStateRunning {
-				continue
-			}
-			nonRunning[resourceID] = state
-		}
+// GetPowerState returns the current power state of a VM. Issues one ARM Get
+// with $expand=instanceView. Returns PowerStateUnknown when the VM exists but
+// has no PowerState/* entry, or when the response carries no instance view at
+// all. Callers should treat unknown as indeterminate and decide their own
+// default policy (typically: attempt the operation anyway).
+func (c *vmClient) GetPowerState(ctx context.Context, resourceGroup, vmName string) (PowerState, error) {
+	resp, err := c.api.Get(ctx, resourceGroup, vmName, &armcompute.VirtualMachinesClientGetOptions{
+		Expand: to.Ptr(armcompute.InstanceViewTypesInstanceView),
+	})
+	if err != nil {
+		return PowerStateUnknown, trace.Wrap(ConvertResponseError(err))
 	}
-
-	return nonRunning, nil
+	if resp.Properties == nil || resp.Properties.InstanceView == nil {
+		return PowerStateUnknown, nil
+	}
+	return ParsePowerState(resp.Properties.InstanceView.Statuses), nil
 }
 
 // RunCommandRequest combines parameters for running a command on an Azure virtual machine.

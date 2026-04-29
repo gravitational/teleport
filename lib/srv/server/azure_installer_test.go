@@ -48,6 +48,20 @@ func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequ
 	}, nil
 }
 
+// stubVMClient implements just enough of azure.VirtualMachinesClient to
+// satisfy AzureInstallRequest.Run. By default it reports every VM as running.
+type stubVMClient struct {
+	azure.VirtualMachinesClient
+	state azure.PowerState
+}
+
+func (s *stubVMClient) GetPowerState(_ context.Context, _, _ string) (azure.PowerState, error) {
+	if s.state == "" {
+		return azure.PowerStateRunning, nil
+	}
+	return s.state, nil
+}
+
 func TestAzureInstallRequestRun(t *testing.T) {
 	makeVM := func(name string) *armcompute.VirtualMachine {
 		return &armcompute.VirtualMachine{
@@ -134,7 +148,7 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				},
 			}
 
-			err := req.Run(t.Context(), client)
+			err := req.Run(t.Context(), client, &stubVMClient{})
 
 			slices.Sort(failed)
 			slices.Sort(good)

@@ -22,7 +22,6 @@ import (
 	"context"
 	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -275,15 +274,19 @@ type resourceGroupLocation struct {
 	location      string
 }
 
-// GetInstances fetches Azure virtual machines, applies configured discovery filters,
-// drops known non-Linux VMs, and applies best-effort power-state filtering.
+// GetInstances fetches Azure virtual machines and applies configured discovery
+// filters and OS filtering.
 //
-// OS filtering: VMs with a known non-Linux OS type (e.g. Windows) are excluded; VMs
-// with unknown OS type pass through.
+// OS filtering: VMs with a known non-Linux OS type (e.g. Windows) are excluded;
+// VMs with unknown OS type pass through. The OS field is already populated in
+// the standard ListVirtualMachines response, so this filter incurs no extra
+// API calls.
 //
-// Power-state filtering is best-effort: VMs pass through unfiltered when the bulk
-// power-state fetch fails for non-cancellation reasons. Context cancellation
-// propagates as an error. Only VMs positively identified as non-running are excluded.
+// Power-state filtering is intentionally not performed here. It happens at
+// install time (lib/srv/server/azure_installer.go) via a per-VM Get with
+// $expand=instanceView issued immediately before the Run Command. That places
+// the check next to the action it gates, avoids a subscription-wide bulk call
+// per fetcher per poll cycle, and respects the caller's RBAC scope naturally.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
 	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
 	if err != nil {
@@ -302,10 +305,6 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 	vms = f.filterEligible(ctx, vms)
 	vms = f.filterSupportedOS(ctx, vms)
-	vms, err = f.filterSupportedPowerState(ctx, client, vms)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	return f.emit(ctx, vms), nil
 }
@@ -393,69 +392,6 @@ func (f *azureInstanceFetcher) filterSupportedOS(
 	return kept
 }
 
-// filterSupportedPowerState removes VMs positively identified as non-running.
-// On context cancellation it returns the cancellation error; any other lookup
-// failure fails open (all VMs kept).
-func (f *azureInstanceFetcher) filterSupportedPowerState(
-	ctx context.Context,
-	client azure.VirtualMachinesClient,
-	vms []*armcompute.VirtualMachine,
-) ([]*armcompute.VirtualMachine, error) {
-	if len(vms) == 0 {
-		return vms, nil
-	}
-
-	// ARM applies RBAC to the subscription-wide response. Scoped identities only
-	// see VMs within their scope; VMs omitted from the response are treated as
-	// running or indeterminate by the fail-open logic below.
-	rawNonRunning, err := client.ListNonRunningVirtualMachineStates(ctx)
-	if err != nil {
-		// This is the only step in GetInstances that swallows lookup errors
-		// (fail-open below). Surface ctx cancellation explicitly so a shutdown
-		// or deadline does not get reshaped into a successful "all VMs eligible"
-		// result and logged as a spurious power-fetch failure. Every other
-		// ctx-aware call in GetInstances propagates errors directly, so this
-		// guard is unique to this function, not a missing pattern elsewhere.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, trace.Wrap(ctxErr)
-		}
-		f.logPowerFetchFailure(ctx, err)
-
-		// Fail open: when power state cannot be determined, keep every VM so
-		// installation is still attempted. Skipping VMs here would silently
-		// drop legitimately running hosts on transient ARM errors or partial
-		// RBAC scopes.
-		return vms, nil
-	}
-
-	// Normalize keys for case-insensitive matching. ARM treats resource path segments as
-	// case-insensitive; implementations of VirtualMachinesClient may return any casing.
-	nonRunning := make(map[string]azure.PowerState, len(rawNonRunning))
-	for k, v := range rawNonRunning {
-		nonRunning[strings.ToLower(k)] = v
-	}
-
-	kept := make([]*armcompute.VirtualMachine, 0, len(vms))
-	for _, vm := range vms {
-		// VMs not present in the non-running map pass through as running or
-		// indeterminate. The method's contract returns only non-running entries.
-		state, isNonRunning := nonRunning[strings.ToLower(azure.StringVal(vm.ID))]
-		if !isNonRunning {
-			kept = append(kept, vm)
-			continue
-		}
-
-		f.Logger.DebugContext(ctx, "Skipping Azure VM that is not running",
-			"vm_name", azure.StringVal(vm.Name),
-			"resource_id", azure.StringVal(vm.ID),
-			"power_state", string(state),
-		)
-	}
-
-	f.logPowerFilterSummary(ctx, len(vms), len(nonRunning), len(vms)-len(kept))
-	return kept, nil
-}
-
 // emit buckets the VM list by (resourceGroup, region) and produces one *AzureInstances
 // per non-empty bucket. For wildcard-RG fetchers, the resource group is parsed from each
 // VM's resource ID; VMs with unparseable IDs are skipped with a warn log.
@@ -507,40 +443,3 @@ func (f *azureInstanceFetcher) emit(ctx context.Context, vms []*armcompute.Virtu
 	return out
 }
 
-// logPowerFetchFailure emits a warn-level log signaling that power-state filtering was
-// skipped because the bulk ARM call failed. AccessDenied errors get an actionable remediation message.
-func (f *azureInstanceFetcher) logPowerFetchFailure(ctx context.Context, err error) {
-	attrs := []any{
-		"subscription_id", f.Subscription,
-		"resource_group", f.ResourceGroup,
-		"integration", f.Integration,
-		"error", err,
-	}
-	if trace.IsAccessDenied(err) {
-		f.Logger.WarnContext(ctx,
-			"Identity lacks permission to fetch VM power states; skipping power-state filtering. "+
-				"Grant Microsoft.Compute/virtualMachines/read at the subscription scope to enable filtering",
-			attrs...,
-		)
-		return
-	}
-	f.Logger.WarnContext(ctx, "Failed to fetch VM power states; skipping power-state filtering", attrs...)
-}
-
-// logPowerFilterSummary emits one per-iteration summary log after power-state filtering.
-// The level is info when VMs were skipped, debug otherwise.
-func (f *azureInstanceFetcher) logPowerFilterSummary(ctx context.Context, linuxEligible, powerStateLookupEntries, filtered int) {
-	attrs := []slog.Attr{
-		slog.String("subscription_id", f.Subscription),
-		slog.String("resource_group", f.ResourceGroup),
-		slog.String("integration", f.Integration),
-		slog.Int("linux_eligible_vms", linuxEligible),
-		slog.Int("power_state_lookup_entries", powerStateLookupEntries),
-		slog.Int("non_running_vms", filtered),
-	}
-	if filtered > 0 {
-		f.Logger.LogAttrs(ctx, slog.LevelInfo, "Skipped Azure VMs that are not running", attrs...)
-		return
-	}
-	f.Logger.LogAttrs(ctx, slog.LevelDebug, "Azure VM power-state filtering summary", attrs...)
-}

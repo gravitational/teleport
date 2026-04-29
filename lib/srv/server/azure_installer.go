@@ -20,6 +20,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -38,6 +40,9 @@ type AzureInstallRequest struct {
 	Region               string
 	ResourceGroup        string
 	OnRunCommandFinished func(result AzureInstallResult)
+	// Logger is used for ancillary diagnostics (e.g. power-state lookup errors
+	// that fail open). When nil, slog.Default() is used.
+	Logger *slog.Logger
 }
 
 // AzureInstallResult stores installation results for particular VM instance.
@@ -48,16 +53,41 @@ type AzureInstallResult struct {
 	APIError error
 	// CommandResult is the result of run command: execution status, exit code, stdout, stderr.
 	CommandResult *azure.RunCommandResult
+	// SkipReason is set when the install was intentionally not attempted
+	// (e.g. VM not running). When non-empty, APIError and CommandResult are
+	// nil and the result must not be counted as a failure or audited.
+	SkipReason string
+}
+
+// Skipped reports whether the install was intentionally not attempted.
+func (r AzureInstallResult) Skipped() bool {
+	return r.SkipReason != ""
 }
 
 // Failure returns true if the installation result is considered a failure.
+// Skipped results are not failures.
 func (r AzureInstallResult) Failure() bool {
+	if r.Skipped() {
+		return false
+	}
 	return r.APIError != nil || (r.CommandResult != nil && r.CommandResult.Failure())
 }
 
 // Run initiates Teleport installation on a set of virtual machines and then blocks until the
-// commands have completed.
-func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) error {
+// commands have completed. Immediately before each Run Command, it issues a per-VM Get
+// with $expand=instanceView to verify the VM is running. Non-running VMs are reported as
+// skipped (not failed) via OnRunCommandFinished. A power-state lookup error fails open:
+// the install is attempted anyway and any genuine ARM error surfaces through Run Command.
+func (req *AzureInstallRequest) Run(
+	ctx context.Context,
+	runClient azure.RunCommandClient,
+	vmClient azure.VirtualMachinesClient,
+) error {
+	logger := req.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -82,14 +112,40 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 				return err
 			}
 
+			vmName := azure.StringVal(inst.Name)
+
+			// Pre-flight power-state check. Skipping this and letting Run
+			// Command fail on a stopped VM would generate per-cycle 409s,
+			// spurious audit events, and user tasks. Fail open on lookup
+			// error so a flaky ARM read never drops a legitimately running VM.
+			if vmClient != nil {
+				state, stateErr := vmClient.GetPowerState(ctx, req.ResourceGroup, vmName)
+				switch {
+				case stateErr != nil:
+					logger.DebugContext(ctx, "Power-state lookup failed; proceeding with install attempt",
+						"vm_name", vmName,
+						"resource_id", azure.StringVal(inst.ID),
+						"error", stateErr,
+					)
+				case state != azure.PowerStateRunning && state != azure.PowerStateUnknown:
+					if req.OnRunCommandFinished != nil {
+						req.OnRunCommandFinished(AzureInstallResult{
+							Instance:   inst,
+							SkipReason: fmt.Sprintf("VM not running (power state: %s)", state),
+						})
+					}
+					return nil
+				}
+			}
+
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,
 				ResourceGroup: req.ResourceGroup,
-				VMName:        azure.StringVal(inst.Name),
+				VMName:        vmName,
 				Script:        script,
 			}
 
-			commandResult, apiError := client.Run(ctx, runRequest)
+			commandResult, apiError := runClient.Run(ctx, runRequest)
 			if req.OnRunCommandFinished != nil {
 				req.OnRunCommandFinished(AzureInstallResult{
 					Instance:      inst,

@@ -1526,6 +1526,10 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	vmClient, err := azureClients.GetVirtualMachinesClient(s.ctx, instances.SubscriptionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	const maxReportedErrors = 10
 	reporter := &limitedErrorReporter{
@@ -1535,6 +1539,7 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 
 	var mu sync.Mutex
 	var failedInstances []server.AzureInstallResult
+	var skippedCount int
 
 	req := server.AzureInstallRequest{
 		Instances:       instances.Instances,
@@ -1542,7 +1547,19 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		ResourceGroup:   instances.ResourceGroup,
 		InstallerParams: instances.InstallerParams,
 		ProxyAddrGetter: s.publicProxyAddress,
+		Logger:          log,
 		OnRunCommandFinished: func(result server.AzureInstallResult) {
+			if result.Skipped() {
+				log.DebugContext(s.ctx, "Skipped Azure VM install",
+					"vm_name", azure.StringVal(result.Instance.Name),
+					"resource_id", azure.StringVal(result.Instance.ID),
+					"reason", result.SkipReason,
+				)
+				mu.Lock()
+				skippedCount++
+				mu.Unlock()
+				return
+			}
 			s.emitAzureInstallEvents(log, instances, result)
 			if result.Failure() {
 				reporter.report(s.ctx, result)
@@ -1555,13 +1572,14 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		},
 	}
 
-	err = req.Run(s.ctx, runClient)
+	err = req.Run(s.ctx, runClient, vmClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	log.InfoContext(s.ctx, "Finished installation batch",
 		"total_instances", len(instances.Instances),
+		"skipped", skippedCount,
 		"failures", len(failedInstances))
 	reporter.summary(s.ctx)
 

@@ -489,14 +489,9 @@ func (m *ARMKubernetesMock) BeginRunCommand(ctx context.Context, resourceGroupNa
 
 // ARMComputeMock mocks armcompute.VirtualMachinesClient.
 type ARMComputeMock struct {
-	VirtualMachines   map[string][]*armcompute.VirtualMachine
-	GetResult         armcompute.VirtualMachine
-	GetErr            error
-	RequireStatusOnly bool
-	StatusOnlyErr     error
-	// StatusOnlyCalls counts subscription-wide ListAll invocations made with
-	// StatusOnly=true (i.e. the bulk power-state fetch path).
-	StatusOnlyCalls int
+	VirtualMachines map[string][]*armcompute.VirtualMachine
+	GetResult       armcompute.VirtualMachine
+	GetErr          error
 }
 
 func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse] {
@@ -506,8 +501,6 @@ func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.Virtua
 	}
 	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListResponse]{
 		More: func(_ armcompute.VirtualMachinesClientListResponse) bool {
-			// Single-page mock: never advertise additional pages. The Fetcher
-			// returns its full payload on the first call and never sets NextLink.
 			return false
 		},
 		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListResponse) (armcompute.VirtualMachinesClientListResponse, error) {
@@ -520,68 +513,23 @@ func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.Virtua
 	})
 }
 
-func (m *ARMComputeMock) NewListAllPager(opts *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse] {
+func (m *ARMComputeMock) NewListAllPager(_ *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse] {
 	var vms []*armcompute.VirtualMachine
 	for _, resourceGroupVMs := range m.VirtualMachines {
 		vms = append(vms, resourceGroupVMs...)
 	}
 	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListAllResponse]{
 		More: func(_ armcompute.VirtualMachinesClientListAllResponse) bool {
-			// Single-page mock: never advertise additional pages. The Fetcher
-			// returns its full payload on the first call and never sets NextLink.
 			return false
 		},
 		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListAllResponse) (armcompute.VirtualMachinesClientListAllResponse, error) {
-			statusOnly := opts != nil && opts.StatusOnly != nil && *opts.StatusOnly == "true"
-			if m.RequireStatusOnly && !statusOnly {
-				return armcompute.VirtualMachinesClientListAllResponse{}, trace.BadParameter("StatusOnly=true required")
-			}
-			response := vms
-			if statusOnly {
-				m.StatusOnlyCalls++
-				if m.StatusOnlyErr != nil {
-					return armcompute.VirtualMachinesClientListAllResponse{}, m.StatusOnlyErr
-				}
-				// Mimic ARM's reduced response shape for statusOnly=true so tests catch
-				// accidental reads of full VM configuration fields.
-				response = stripVMsToStatusOnly(vms)
-			}
 			return armcompute.VirtualMachinesClientListAllResponse{
 				VirtualMachineListResult: armcompute.VirtualMachineListResult{
-					Value: response,
+					Value: vms,
 				},
 			}, nil
 		},
 	})
-}
-
-// stripVMsToStatusOnly mimics ARM's reduced response shape when the bulk VM list is called
-// with statusOnly=true: instance-view data only, no full VM configuration (Tags, Location,
-// StorageProfile, NetworkProfile, Identity, VMID, etc.).
-//
-// Preserves only ID and Properties.InstanceView, the fields production reads from this path.
-// Tests fail if production reads any other field. To add a field, verify ARM populates it under statusOnly=true.
-func stripVMsToStatusOnly(vms []*armcompute.VirtualMachine) []*armcompute.VirtualMachine {
-	if vms == nil {
-		return nil
-	}
-	out := make([]*armcompute.VirtualMachine, 0, len(vms))
-	for _, vm := range vms {
-		if vm == nil {
-			out = append(out, nil)
-			continue
-		}
-		stripped := &armcompute.VirtualMachine{
-			ID: vm.ID,
-		}
-		if vm.Properties != nil && vm.Properties.InstanceView != nil {
-			stripped.Properties = &armcompute.VirtualMachineProperties{
-				InstanceView: vm.Properties.InstanceView,
-			}
-		}
-		out = append(out, stripped)
-	}
-	return out
 }
 
 func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
