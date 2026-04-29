@@ -87,7 +87,7 @@ func TestCorrelateSSMEvents(t *testing.T) {
 	tests := []struct {
 		desc   string
 		events []*apievents.SSMRun
-		want   map[string]*instanceInfo
+		want   map[string]instanceInfo
 	}{
 		{
 			desc: "failures and successes both included",
@@ -95,7 +95,7 @@ func TestCorrelateSSMEvents(t *testing.T) {
 				makeSSMRun("i-aaa", "111", "us-east-1", awsStatusFailed, 1, "install failed", now),
 				makeSSMRun("i-bbb", "222", "us-west-2", awsStatusSuccess, 0, "", now),
 			},
-			want: map[string]*instanceInfo{
+			want: map[string]instanceInfo{
 				"i-aaa": {
 					AWS:       &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
 					Region:    "us-east-1",
@@ -113,7 +113,7 @@ func TestCorrelateSSMEvents(t *testing.T) {
 			events: []*apievents.SSMRun{
 				makeSSMRun("", "", "", awsStatusFailed, 1, "", now),
 			},
-			want: map[string]*instanceInfo{},
+			want: map[string]instanceInfo{},
 		},
 		{
 			desc: "dedup keeps most recent",
@@ -121,7 +121,7 @@ func TestCorrelateSSMEvents(t *testing.T) {
 				makeSSMRun("i-aaa", "111", "us-east-1", awsStatusFailed, 1, "newest error", now),
 				makeSSMRun("i-aaa", "111", "us-east-1", awsStatusFailed, 2, "older error", now.Add(-10*time.Minute)),
 			},
-			want: map[string]*instanceInfo{
+			want: map[string]instanceInfo{
 				"i-aaa": {
 					AWS:       &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
 					Region:    "us-east-1",
@@ -132,8 +132,41 @@ func TestCorrelateSSMEvents(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got := make(map[string]*instanceInfo)
-			correlateSSMEvents(got, tt.events)
+			got := correlateSSMEvents(tt.events)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCorrelateAWSNodes(t *testing.T) {
+	expiry := time.Now().UTC().Truncate(time.Second).Add(time.Hour)
+
+	tests := []struct {
+		desc  string
+		nodes []types.Server
+		want  map[string]instanceInfo
+	}{
+		{
+			desc:  "node with expiry propagates",
+			nodes: []types.Server{makeNode("node-1", "i-aaa", "111", "us-east-1", expiry)},
+			want: map[string]instanceInfo{
+				"i-aaa": {
+					IsOnline: true,
+					Region:   "us-east-1",
+					Expiry:   expiry,
+					AWS:      &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
+				},
+			},
+		},
+		{
+			desc:  "node without AWS instance ID is skipped",
+			nodes: []types.Server{makeAzureNode("node-1", "vm-aaa", "sub-1", "rg-1", "eastus", time.Time{})},
+			want:  map[string]instanceInfo{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got := correlateAWSNodes(tt.nodes)
 			require.Equal(t, tt.want, got)
 		})
 	}
