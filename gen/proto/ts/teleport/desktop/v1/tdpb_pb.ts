@@ -557,9 +557,9 @@ export interface SharedDirectoryRequest_Truncate {
      */
     path: string;
     /**
-     * @generated from protobuf field: uint32 end_of_file = 2;
+     * @generated from protobuf field: int64 end_of_file = 2;
      */
-    endOfFile: number;
+    endOfFile: bigint;
 }
 /**
  * Shared directory operation responses.
@@ -2700,13 +2700,13 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryRequest.Truncate", [
             { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "end_of_file", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "end_of_file", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<SharedDirectoryRequest_Truncate>): SharedDirectoryRequest_Truncate {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.path = "";
-        message.endOfFile = 0;
+        message.endOfFile = 0n;
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryRequest_Truncate>(this, message, value);
         return message;
@@ -2719,8 +2719,8 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
                 case /* string path */ 1:
                     message.path = reader.string();
                     break;
-                case /* uint32 end_of_file */ 2:
-                    message.endOfFile = reader.uint32();
+                case /* int64 end_of_file */ 2:
+                    message.endOfFile = reader.int64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2737,9 +2737,9 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
         /* string path = 1; */
         if (message.path !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.path);
-        /* uint32 end_of_file = 2; */
-        if (message.endOfFile !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.endOfFile);
+        /* int64 end_of_file = 2; */
+        if (message.endOfFile !== 0n)
+            writer.tag(2, WireType.Varint).int64(message.endOfFile);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -243,7 +243,7 @@ message SharedDirectoryRequest {
   // Truncate Request.
   message Truncate {
     string path = 1;
-    uint32 end_of_file = 2;
+    int64 end_of_file = 2;
   }
 
   // operation is the particular operation type being requested.

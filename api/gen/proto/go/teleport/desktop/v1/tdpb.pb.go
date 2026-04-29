@@ -2750,7 +2750,7 @@ func (x *SharedDirectoryRequest_Move) GetNewPath() string {
 type SharedDirectoryRequest_Truncate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	EndOfFile     uint32                 `protobuf:"varint,2,opt,name=end_of_file,json=endOfFile,proto3" json:"end_of_file,omitempty"`
+	EndOfFile     int64                  `protobuf:"varint,2,opt,name=end_of_file,json=endOfFile,proto3" json:"end_of_file,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2792,7 +2792,7 @@ func (x *SharedDirectoryRequest_Truncate) GetPath() string {
 	return ""
 }
 
-func (x *SharedDirectoryRequest_Truncate) GetEndOfFile() uint32 {
+func (x *SharedDirectoryRequest_Truncate) GetEndOfFile() int64 {
 	if x != nil {
 		return x.EndOfFile
 	}
@@ -3246,7 +3246,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\bnew_path\x18\x02 \x01(\tR\anewPath\x1a>\n" +
 	"\bTruncate\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1e\n" +
-	"\vend_of_file\x18\x02 \x01(\rR\tendOfFileB\v\n" +
+	"\vend_of_file\x18\x02 \x01(\x03R\tendOfFileB\v\n" +
 	"\toperation\"\x83\b\n" +
 	"\x17SharedDirectoryResponse\x12#\n" +
 	"\rcompletion_id\x18\x01 \x01(\rR\fcompletionId\x12\x1d\n" +
