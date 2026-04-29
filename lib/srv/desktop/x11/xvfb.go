@@ -254,8 +254,10 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	display = ":" + strings.TrimPrefix(display, ":")
 
 	cookie := make([]byte, 16)
-	rand.Read(cookie)
-
+	if _, err := rand.Read(cookie); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	
 	entry, err := generateXauthorityEntry(display, cookie)
 	if err != nil {
 		return nil, trace.Wrap(err)
