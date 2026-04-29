@@ -31,8 +31,7 @@ import (
 
 type beamsUnpublishCommand struct {
 	*kingpin.CmdClause
-	name   string
-	format string
+	name string
 
 	// These helper functions can be overridden in tests.
 	getFn    func(context.Context, *client.TeleportClient, string) (*beamsv1.Beam, error)
