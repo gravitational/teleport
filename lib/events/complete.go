@@ -368,7 +368,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 
 	// For PTY and Desktop sessions, process recording metadata.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if duration, sessionType := isPTYSession(sessionEndEvent); duration > 0 {
+	if duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
 		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
@@ -400,11 +400,14 @@ func transformedUsername(u apievents.UserMetadata, localCluster string) string {
 	)
 }
 
-// isPTYSession returns the session duration and true if the event is an
-// interactive (PTY) SSH session end. Returns (0, false) for non-SSH sessions.
-// Returns (-1, true) if the event is a PTY session but the start or end time
-// is missing.
-func isPTYSession(sessionEnd apievents.AuditEvent) (time.Duration, recordingmetadata.SessionType) {
+// metadataParamsForSessionEnd returns the duration and session type used to
+// gate and parameterize recording metadata generation for a session end event.
+// Returns (>0, sessionType) for sessions whose recordings should be processed
+// (SSH/PTY and Windows Desktop). Returns (-1, sessionType) when the session is
+// eligible but its start or end time is missing, signaling the caller to warn.
+// Returns (0, SessionTypeUnspecified) for session types that don't produce
+// recording metadata.
+func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Duration, recordingmetadata.SessionType) {
 	switch evt := sessionEnd.(type) {
 	case *apievents.SessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
