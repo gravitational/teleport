@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -147,7 +148,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 	if exists {
 		debugLog.Info("Resource already exists")
-		newOwnershipCondition, isOwned := r.checkOwnership(existingResource)
+		newOwnershipCondition, isOwned := r.checkOwnership(k8sResource, existingResource)
 		debugLog.Info("Resource is owned")
 		if updateErr = updateStatus(updateStatusConfig{
 			ctx:         ctx,
@@ -176,8 +177,12 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	teleportLabels := make(map[string]string, len(kubeLabels)+1) // +1 because we'll add the origin label
 	maps.Copy(teleportLabels, kubeLabels)
 	teleportLabels[types.OriginLabel] = types.OriginKubernetes
-	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
-	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
+	noLabels, err := strconv.ParseBool(k8sResource.GetAnnotations()["teleport.dev/no-labels"])
+	skipAddingLabels := err == nil && noLabels
+	if !skipAddingLabels {
+		r.adapter.SetResourceLabels(teleportResource, teleportLabels)
+		debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
+	}
 
 	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
 		debugLog.Info("Mutating resource")
@@ -231,7 +236,7 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 		return trace.Wrap(err)
 	}
 
-	_, isOwned := r.checkOwnership(resource)
+	_, isOwned := r.checkOwnership(obj, resource)
 	if !isOwned {
 		// The Resource doesn't belong to us, we bail out but unblock the CR deletion
 		return nil
@@ -368,8 +373,11 @@ func (r resourceReconciler[T, K]) isResourceOriginKubernetes(resource T) bool {
 // checkOwnership takes an existing Resource and validates the operator owns it.
 // It returns an ownership condition and a boolean representing if the Resource is
 // owned by the operator. The ownedResource must be non-nil.
-func (r resourceReconciler[T, K]) checkOwnership(existingResource T) (metav1.Condition, bool) {
-	if !r.isResourceOriginKubernetes(existingResource) {
+func (r resourceReconciler[T, K]) checkOwnership(k8sResource kclient.Object, existingResource T) (metav1.Condition, bool) {
+	noLabels, err := strconv.ParseBool(k8sResource.GetAnnotations()["teleport.dev/no-labels"])
+	skipOwnerCheck := err == nil && noLabels
+
+	if !skipOwnerCheck && !r.isResourceOriginKubernetes(existingResource) {
 		// Existing Teleport Resource does not belong to us, bailing out
 
 		condition := metav1.Condition{

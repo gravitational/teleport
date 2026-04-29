@@ -175,6 +175,35 @@ func (f fakeResourceAdapter[T]) SetResourceLabels(res T, labels map[string]strin
 	res.SetMetadata(metadata)
 }
 
+func TestTeleportResourceReconciler_Upsert(t *testing.T) {
+	tests := []struct {
+		name                     string
+		store                    map[string]types.Metadata
+		expectedTeleportResource *fakeTeleportResource
+	}{
+		{
+			name: "adds owner label",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resourceClient := &fakeTeleportResourceClient{
+				store: tt.store,
+			}
+
+			reconciler := resourceReconciler[*fakeTeleportResource, *fakeTeleportKubernetesResource]{
+				resourceClient: resourceClient,
+				adapter:        fakeResourceAdapter[*fakeTeleportResource]{},
+			}
+
+			require.NoError(t, reconciler.Upsert(t.Context(), &unstructured.Unstructured{}))
+
+			// require.Equal(t, tt.resourceExists, resourceClient.resourceExists(resourceName))
+		})
+	}
+}
+
 func TestTeleportResourceReconciler_Delete(t *testing.T) {
 	ctx := context.Background()
 	resourceName := "test"
@@ -239,14 +268,16 @@ func TestCheckOwnership(t *testing.T) {
 		adapter:        fakeResourceAdapter[*fakeTeleportResource]{},
 	}
 	tests := []struct {
-		name                    string
-		existingResource        *fakeTeleportResource
-		expectedConditionStatus metav1.ConditionStatus
-		expectedConditionReason string
-		isOwned                 bool
+		name                       string
+		existingKubernetesResource kclient.Object
+		existingResource           *fakeTeleportResource
+		expectedConditionStatus    metav1.ConditionStatus
+		expectedConditionReason    string
+		isOwned                    bool
 	}{
 		{
-			name: "existing owned Resource",
+			name:                       "existing owned Resource",
+			existingKubernetesResource: &unstructured.Unstructured{},
 			existingResource: &fakeTeleportResource{
 				metadata: types.Metadata{
 					Name:   "existing owned user",
@@ -258,7 +289,8 @@ func TestCheckOwnership(t *testing.T) {
 			isOwned:                 true,
 		},
 		{
-			name: "existing unowned Resource (no label)",
+			name:                       "existing unowned Resource (no label)",
+			existingKubernetesResource: &unstructured.Unstructured{},
 			existingResource: &fakeTeleportResource{
 				metadata: types.Metadata{
 					Name: "existing unowned user without label",
@@ -269,7 +301,8 @@ func TestCheckOwnership(t *testing.T) {
 			isOwned:                 false,
 		},
 		{
-			name: "existing unowned Resource (bad origin)",
+			name:                       "existing unowned Resource (bad origin)",
+			existingKubernetesResource: &unstructured.Unstructured{},
 			existingResource: &fakeTeleportResource{
 				metadata: types.Metadata{
 					Name:   "existing owned user without origin label",
@@ -281,7 +314,8 @@ func TestCheckOwnership(t *testing.T) {
 			isOwned:                 false,
 		},
 		{
-			name: "existing unowned Resource (no origin)",
+			name:                       "existing unowned Resource (no origin)",
+			existingKubernetesResource: &unstructured.Unstructured{},
 			existingResource: &fakeTeleportResource{
 				metadata: types.Metadata{
 					Name:   "existing owned user without origin label",
@@ -292,11 +326,29 @@ func TestCheckOwnership(t *testing.T) {
 			expectedConditionReason: ConditionReasonOriginLabelNotMatching,
 			isOwned:                 false,
 		},
+		{
+			name: "skip labels annotation always reports as owned",
+			existingKubernetesResource: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"teleport.dev/no-labels": "true",
+					},
+				},
+			},
+			existingResource: &fakeTeleportResource{
+				metadata: types.Metadata{
+					Name: "existing owned user without origin label",
+				},
+			},
+			expectedConditionStatus: metav1.ConditionTrue,
+			expectedConditionReason: ConditionReasonOriginLabelMatching,
+			isOwned:                 true,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 
-			condition, isOwned := reconciler.checkOwnership(tc.existingResource)
+			condition, isOwned := reconciler.checkOwnership(tc.existingKubernetesResource, tc.existingResource)
 
 			require.Equal(t, tc.isOwned, isOwned)
 			require.Equal(t, ConditionTypeTeleportResourceOwned, condition.Type)
