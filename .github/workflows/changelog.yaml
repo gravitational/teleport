@@ -47,6 +47,14 @@ jobs:
             grep -iE '^changelog: ' <<< "$BODY" | sed 's/^[Cc]hangelog: //'
             echo EOF
           } >> "$GITHUB_OUTPUT"
+      - name: Checkout dictionary
+        uses: actions/checkout@v6
+        with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+          fetch-depth: 1
+          sparse-checkout: docs/cspell.json
+          sparse-checkout-cone-mode: false
       - name: Spellcheck changelog
-        working-directory: '../docs'
+        working-directory: 'docs'
         run: yarn spellcheck <<< "${{ steps.changelog.outputs.entries }}"
