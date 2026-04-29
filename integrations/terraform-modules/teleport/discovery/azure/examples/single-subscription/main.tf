@@ -5,6 +5,13 @@ locals {
 
 data "azurerm_client_config" "current" {}
 
+# Resource group for the Azure resources created by the module.
+resource "azurerm_resource_group" "example" {
+  name     = "teleport-discovery"
+  location = "eastus"
+  tags     = local.apply_azure_tags
+}
+
 module "azure_discovery" {
   source = "../.."
 
@@ -29,6 +36,7 @@ module "azure_discovery" {
       }
     }
   ]
+
   # Apply the additional Azure tag "origin=example" to all Azure resources created by this module
   apply_azure_tags = local.apply_azure_tags
   # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
@@ -36,13 +44,6 @@ module "azure_discovery" {
   # Using a custom installer script on discovered VMs instead of the default installer script.
   teleport_installer_script_name = teleport_installer.example.metadata.name
 }
-
-resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
-  location = "westus"
-  tags     = local.apply_azure_tags
-}
-
 
 resource "teleport_installer" "example" {
   version = "v1"
