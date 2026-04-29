@@ -37,7 +37,7 @@ const (
 	Name = "teleport_pick_healthy"
 
 	// reconnect defaults.
-	reconnectBaseBackoff = 1 * time.Second
+	reconnectBaseBackoff = 2 * time.Second
 	reconnectMaxBackoff  = 16 * time.Second
 	connectTimeout       = 30 * time.Second
 )
@@ -268,6 +268,7 @@ func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 
 	backup := b.backup.State()
 	if backup.Ready() {
+		b.resetReconnectSerial()
 		bm := b.active
 		b.active = b.backup
 		b.backup = nil
@@ -283,6 +284,7 @@ func (b *Balancer) updateHandlerSerial(bm *internal.BalancerManager) {
 	}
 
 	if backup.Connecting() {
+		b.scheduleConnectSerial()
 		return
 	}
 
