@@ -404,7 +404,7 @@ const (
 	// ScopedTokenUseCode is the event code for using a scoped token to provision a resource.
 	ScopedTokenUseCode = "TST004I"
 	// ScopedTokenFailCode is the event code for failing to provision a resource with a scoped token.
-	ScopedTokenFailCode = "TST04E"
+	ScopedTokenFailCode = "TST004E"
 
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"

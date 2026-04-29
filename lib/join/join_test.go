@@ -233,8 +233,12 @@ func TestJoinToken(t *testing.T) {
 			func(s string) bool { return s == types.RoleInstance.String() },
 		)
 		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
-
 		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.AgentScope)
+		// Make sure the scoped_token.use audit event is emitted
+		lastEvent, err := authService.lastEvent(t.Context(), events.ScopedTokenUseEvent)
+		require.NoError(t, err)
+		require.Equal(t, events.ScopedTokenUseCode, lastEvent.GetCode())
+
 		// Build an auth client with the new identity.
 		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
 		require.NoError(t, err)
@@ -378,6 +382,11 @@ func TestJoinToken(t *testing.T) {
 			proxyListener.Addr(),
 		)
 		require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
+
+		// Make sure the scoped_token.fail audit event is emitted
+		lastEvent, err := authService.lastEvent(t.Context(), events.ScopedTokenFailEvent)
+		require.NoError(t, err)
+		require.Equal(t, events.ScopedTokenFailCode, lastEvent.GetCode())
 	})
 
 	for i, tc := range []struct {
