@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -52,13 +52,13 @@ const (
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
-	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
+	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.CreatedTime}}.
 {{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
 {{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
 `,
 ))
 var reviewNoteTemplate = template.Must(template.New("review note").Parse(
-	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
+	`{{.Author}} reviewed the request at {{.CreatedTime}}.
 Resolution: {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -356,12 +356,12 @@ func buildAlertBody(webProxyURL *url.URL, reqID string, reqData RequestData) (st
 	var builder strings.Builder
 	err := alertBodyTemplate.Execute(&builder, struct {
 		ID          string
-		TimeFormat  string
+		CreatedTime string
 		RequestLink string
 		RequestData
 	}{
 		ID:          reqID,
-		TimeFormat:  time.RFC822,
+		CreatedTime: reqData.Created.Format(time.RFC822),
 		RequestLink: requestLink,
 		RequestData: reqData,
 	})
@@ -376,11 +376,11 @@ func buildReviewNoteBody(review types.AccessReview) (string, error) {
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
 		ProposedState string
-		TimeFormat    string
+		CreatedTime   string
 	}{
 		review,
 		review.ProposedState.String(),
-		time.RFC822,
+		review.Created.Format(time.RFC822),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

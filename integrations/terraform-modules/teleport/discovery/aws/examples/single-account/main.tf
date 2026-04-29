@@ -4,20 +4,20 @@ module "aws_discovery" {
   teleport_proxy_public_addr    = "example.teleport.sh:443"
   teleport_discovery_group_name = "cloud-discovery-group"
 
-  # Discover EC2 instances and EKS clusters with separate matching rules
+  # Discover EC2 instances and EKS clusters with separate matching rules.
+  # Both types accept "*" to discover across all enabled regions. The module
+  # adds account:ListRegions to the IAM policy automatically when "*" is used.
   aws_matchers = [
     {
-      types = ["ec2"]
-      # EC2 discovery supports a wildcard to find instances in all regions.
+      types   = ["ec2"]
       regions = ["*"]
       tags = {
         env = ["prod"]
       }
     },
     {
-      types = ["eks"]
-      # EKS requires region selection.
-      regions = ["us-east-1"]
+      types   = ["eks"]
+      regions = ["*"]
       tags = {
         team = ["platform"]
       }

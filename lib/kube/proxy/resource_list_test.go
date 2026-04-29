@@ -25,8 +25,8 @@ import (
 	"io"
 	"log/slog"
 	"testing"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 

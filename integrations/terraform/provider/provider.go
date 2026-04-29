@@ -582,8 +582,12 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
+		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
+		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
+		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
+		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
 	}, nil
 }
 
@@ -625,6 +629,9 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
 		"teleport_scoped_token":               dataSourceTeleportScopedTokenType{},
+		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
+		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
+		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting

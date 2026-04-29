@@ -412,9 +412,9 @@ func getClusterDomain() string {
 
 // RewriteHeadersAndApplyValueTraits rewrites the provided request's headers
 // while applying value traits to them.
-func RewriteHeadersAndApplyValueTraits(r *http.Request, rewrites iter.Seq[*types.Header], traits wrappers.Traits, log *slog.Logger) {
+func RewriteHeadersAndApplyValueTraits(r *http.Request, rewrites iter.Seq[*types.Header], rewriteTraits wrappers.Traits, log *slog.Logger) {
 	for header := range rewrites {
-		values, err := ApplyValueTraits(header.Value, traits)
+		values, err := ApplyValueTraits(header.Value, rewriteTraits)
 		if err != nil {
 			log.DebugContext(r.Context(), "Failed to apply traits",
 				"header_value", header.Value,

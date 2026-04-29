@@ -411,6 +411,14 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.ProxySSHAddr,
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableProxy())
 	ctx := context.Background()

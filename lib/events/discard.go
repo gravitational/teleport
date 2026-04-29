@@ -186,6 +186,10 @@ func (*DiscardStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 	return NewDiscardRecorder(), nil
 }
 
+func (*DiscardStreamer) SetOnUploadComplete(func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	// no-op
+}
+
 // NoOpPreparer is a SessionEventPreparer that doesn't change events
 type NoOpPreparer struct{}
 

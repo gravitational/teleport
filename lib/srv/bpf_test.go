@@ -1067,9 +1067,10 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	var wg sync.WaitGroup
 	cmdDone := make(chan error, 1)
 
+	require.IsType(t, (*localExec)(nil), scx.execRequest)
+	execReq := scx.execRequest.(*localExec)
+
 	wg.Go(func() {
-		execReq, ok := scx.execRequest.(*localExec)
-		require.True(t, ok)
 		cmdDone <- execReq.Cmd.Wait()
 	})
 
@@ -1104,7 +1105,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	case <-ctx.Done():
 		// We're not interested in the error, we just want to clean up the
 		// process.
-		_ = scx.killShellw.Close()
+		_ = execReq.Cmd.Kill()
 		if !errors.Is(ctx.Err(), context.Canceled) {
 			t.Fatal("Timed out waiting for process to finish.")
 		}

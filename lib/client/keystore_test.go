@@ -132,6 +132,58 @@ func TestKeyStore(t *testing.T) {
 	}
 }
 
+func TestKeyStore_accessGraphCert(t *testing.T) {
+	t.Parallel()
+	a := newTestAuthority(t)
+
+	t.Run("round trip", func(t *testing.T) {
+		t.Parallel()
+		testEachKeyStore(t, func(t *testing.T, keyStore KeyStore) {
+			idx := KeyRingIndex{"host.a", "bob", "root"}
+			keyRing := a.makeSignedKeyRing(t, idx, false)
+			keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
+			require.NotEqual(t, keyRing.TLSCert, keyRing.AccessGraphTLSCert,
+				"AccessGraph cert must be distinct from the main TLS cert for this test to be meaningful")
+
+			require.NoError(t, keyStore.AddKeyRing(keyRing))
+
+			retrieved, err := keyStore.GetKeyRing(idx, nil /*hwks*/, WithAllCerts...)
+			require.NoError(t, err)
+			keyRing.TrustedCerts = nil
+			assertEqualKeyRings(t, keyRing, retrieved)
+		})
+	})
+
+	t.Run("fs delete removes cert file when present", func(t *testing.T) {
+		t.Parallel()
+		keyStore := newTestFSKeyStore(t)
+		idx := KeyRingIndex{"host.a", "bob", "root"}
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+		keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
+		require.NoError(t, keyStore.AddKeyRing(keyRing))
+
+		certPath := keyStore.accessGraphTLSCertPath(idx)
+		require.FileExists(t, certPath)
+
+		require.NoError(t, keyStore.DeleteKeyRing(idx))
+		_, err := os.Stat(certPath)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("fs delete succeeds when cert absent", func(t *testing.T) {
+		t.Parallel()
+		keyStore := newTestFSKeyStore(t)
+		idx := KeyRingIndex{"host.a", "bob", "root"}
+		// AddKeyRing without setting AccessGraphTLSCert → file is never created.
+		require.NoError(t, keyStore.AddKeyRing(a.makeSignedKeyRing(t, idx, false)))
+
+		_, err := os.Stat(keyStore.accessGraphTLSCertPath(idx))
+		require.ErrorIs(t, err, os.ErrNotExist)
+
+		require.NoError(t, keyStore.DeleteKeyRing(idx))
+	})
+}
+
 func TestListKeys(t *testing.T) {
 	t.Parallel()
 	auth := newTestAuthority(t)

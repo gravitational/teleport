@@ -87,6 +87,10 @@ message ListScopedRolesRequest {
 
   // AssignableScope filters roles by their assignable scope if specified.
   teleport.scopes.v1.Filter assignable_scope = 4;
+
+  // NameFilter filters roles by their name using a case-insensitive substring
+  // match if specified.
+  string name_filter = 5;
 }
 
 // ListScopedRolesResponse is the response to list scoped roles.

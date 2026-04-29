@@ -2,8 +2,11 @@ module github.com/gravitational/teleport/build.assets/tooling
 
 go 1.25.9
 
+tool github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
+
 require (
 	buf.build/go/bufplugin v0.9.0
+	github.com/DataDog/datadog-agent/pkg/template v0.77.2
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/awalterschulze/goderive v0.5.1
@@ -24,6 +27,8 @@ require (
 	howett.net/plist v1.0.1
 	k8s.io/apiextensions-apiserver v0.35.1
 )
+
+require github.com/google/go-cmp v0.7.0
 
 require (
 	buf.build/gen/go/bufbuild/bufplugin/protocolbuffers/go v1.36.3-20250121211742-6d880cc6cc8d.1 // indirect
@@ -146,7 +151,6 @@ require (
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-attestation v0.6.0 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.21.4 // indirect
 	github.com/google/go-github/v70 v70.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
@@ -173,7 +177,7 @@ require (
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.9.1 // indirect
+	github.com/jackc/pgx/v5 v5.9.2 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
@@ -295,7 +299,7 @@ require (
 )
 
 replace (
-	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
+	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20260417152838-9efcbe7e5d61
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.3
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4

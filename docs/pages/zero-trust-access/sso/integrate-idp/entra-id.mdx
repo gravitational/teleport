@@ -36,7 +36,7 @@ An OIDC-based Entra ID IdP configuration version is available in this [guide](en
 
 ## Prerequisites
 
-Before you get started, you’ll need:
+Before you get started, you'll need:
 
 - A Microsoft Entra ID admin account with access to creating non-gallery
   applications (P2 License).
@@ -142,14 +142,34 @@ Entra ID and issue certificates to users.
 
 ### Assign a role mapping
 
-(!docs/pages/includes/sso/role-mapping.mdx fieldType="attribute"!)
+When a user authenticates to Teleport, the Teleport Auth Service issues SSH and
+TLS certificates to the user that contain the user's Teleport roles.
 
-Make sure that, in your role mapping, each attribute begins with the following
+For SSO authentication connectors, the Auth Service determines which roles to
+encode in the certificate by reading the authentication connector's **role
+mapping**. The role mapping indicates which Teleport roles to assign based on
+data that your identity provider stores about the user.
+
+For this guide you will configure a mapping that, given an Entra ID security
+group (identified by its object ID), assigns one or more Teleport roles to any
+user who is a member of that group. Make sure that, in your role mapping, each attribute begins with the following
 namespace prefix:
 
 ```
 http://schemas.microsoft.com/ws/2008/06/identity/claims/
 ```
+
+You will use two separate mappings so that different groups can receive
+different levels of Teleport access:
+
+- A more permissive mapping — for example, a `teleport-admins` group that
+  receives the `auditor` and `editor` roles.
+- A more restrictive mapping — for example, a `teleport-developers` group
+  that receives only the `access` role.
+
+Before continuing, gather the object IDs of the two Entra ID groups you want
+to map, and decide which Teleport roles each group should receive. Both values
+go into the `tctl` command in the next section.
 
 ### Configure a SAML connector
 
@@ -157,18 +177,25 @@ Now, create a SAML connector resource using `tctl`.
 
 ```code
 $ tctl sso configure saml --preset ad \
---entity-descriptor https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml\?appid\=b8d06e01... \
---attributes-to-roles <Var name="mapping_1" /> \
---attributes-to-roles <Var name="mapping_2" /> / > azure-connector.yaml
+  --entity-descriptor "https://login.microsoftonline.com/<Var name="tenant-id"/>/federationmetadata/2007-06/federationmetadata.xml?appid=<Var name="app-id"/>" \
+  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<Var name="group-1-object-id"/>,<Var name="group-1-roles"/>" \
+  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<Var name="group-2-object-id"/>,<Var name="group-2-roles"/>" \
+  > azure-connector.yaml
 ```
 
-In the example above:
+Replace the following values in the example above:
 
-- `--entity-descriptor` specifies the app federation metadata URL saved in the
-  previous step.
-- Each `--attributes-to-roles` specifies the name of the schema definition for groups,
-  groups, the UUID of an AD group, and the Teleport role that members of the group
-  will be assigned.
+| Placeholder | Description |
+|-------------|-------------|
+| <Var name="tenant-id"/> | Your Microsoft Entra ID tenant (directory) ID. |
+| <Var name="app-id"/> | The application ID of the Microsoft Entra ID enterprise app. The `--entity-descriptor` flag specifies the app federation metadata URL saved in the previous step. |
+| <Var name="group-1-object-id"/> | Object ID of the first Entra ID group to map. |
+| <Var name="group-1-roles"/> | Comma-separated Teleport roles to assign to members of the first group (for example, `auditor,editor`). |
+| <Var name="group-2-object-id"/> | Object ID of the second Entra ID group to map. |
+| <Var name="group-2-roles"/> | Comma-separated Teleport roles to assign to members of the second group (for example, `access`). |
+
+Add or remove `--attributes-to-roles` flags as needed for each group you want to
+map.
 
 The file `azure-connector.yaml` should now resemble the following:
 
@@ -230,7 +257,7 @@ $ tctl create -f azure-connector.yaml
 Entra ID's SAML token encryption encrypts the SAML assertions sent to Teleport
 during SSO redirect.
 
-Token encryption is an Microsoft Entra ID premium feature and requires a
+Token encryption is a Microsoft Entra ID premium feature and requires a
 separate license. Since traffic between Entra ID and the Teleport Proxy Service
 already uses HTTPS, token encryption is optional. To determine whether you
 should enable token encryption, read the Entra ID
@@ -435,18 +462,23 @@ the attribute.
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-### Failed to process SAML callback
+<Checkpoint
+  title="Verify SSO login works"
+  description="Log in to Teleport using the Entra ID connector you just created. The Teleport Web UI should redirect you to Entra ID, accept your credentials, and return you to Teleport authenticated as your user."
+>
 
-If you encounter a "Failed to process SAML callback" error, take a look at the audit log.
+If login fails, check the Teleport audit log for a `Failed to process SAML callback` error. The message resembles:
 
 ```text
 Special characters are not allowed in resource names. Use a name composed only from
 alphanumeric characters, hyphens, and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
 ```
 
-The error above is caused by a Name ID format that is not compatible with Teleport's naming conventions.
+This error means the Name ID returned by Entra ID contains characters that Teleport does not allow in resource names. 
+Teleport maps each external SSO identity to an internal user resource, and those resources must use only alphanumeric characters (`a-z`, `A-Z`, `0-9`), hyphens (`-`), and dots (`.`).
 
-Change the Name ID format to use email instead:
+To resolve this, change the Name ID format in the Entra ID application's **Single sign-on** settings to **Email address** so the assertion contains a clean user identifier:
 
 ![Change NameID format to use email](../../../../img/azuread/azuread-nameid.png)
 
+</Checkpoint>

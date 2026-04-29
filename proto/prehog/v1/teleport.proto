@@ -153,6 +153,8 @@ message UserActivityRecord {
   // counter of free-text session summary search queries submitted by this user
   // where the request included filters.
   uint64 session_summary_search_queries_with_filters = 28;
+  // counter of linux.desktop.session.start events
+  uint64 linux_desktop_sessions = 29;
 }
 
 // UserOrigin is the origin of a user account.

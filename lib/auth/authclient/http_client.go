@@ -394,20 +394,6 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// UpsertAuthServer is used by auth servers to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
-func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error {
-	data, err := services.MarshalServer(s)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertServerRawReq{
-		Server: data,
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authservers"), args)
-	return trace.Wrap(err)
-}
-
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
 func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
@@ -420,15 +406,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	}
 	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
-}
-
-// DeleteAllProxies deletes all proxies
-func (c *HTTPClient) DeleteAllProxies() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // DeleteProxy deletes proxy by name
@@ -497,24 +474,6 @@ func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSS
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
-// it is valid, or error otherwise.
-func (c *HTTPClient) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	out, err := c.Get(
-		ctx,
-		c.Endpoint("users", url.PathEscape(user), "web", "sessions", sessionID), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
-// DeleteWebSession deletes the web session specified with sid for the given user
-func (c *HTTPClient) DeleteWebSession(ctx context.Context, user string, sid string) error {
-	_, err := c.Delete(ctx, c.Endpoint("users", url.PathEscape(user), "web", "sessions", sid))
-	return trace.Wrap(err)
 }
 
 // ValidateOIDCAuthCallbackReq is the request made by the proxy to validate

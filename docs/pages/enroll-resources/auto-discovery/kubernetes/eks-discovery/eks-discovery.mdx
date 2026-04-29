@@ -1,0 +1,33 @@
+---
+title: Kubernetes Auto-Discovery for Amazon EKS
+sidebar_label: Amazon EKS
+description: How to configure Teleport to automatically enroll EKS clusters.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
+---
+
+This guide shows you how to configure Teleport to automatically enroll EKS
+clusters in your Teleport cluster.
+
+## How it works
+
+The Teleport Discovery Service queries the AWS API for EKS clusters that match
+configured regions and tags, and creates a `kube_cluster` resource in Teleport
+for each matching cluster. The Teleport Kubernetes Service watches those
+resources and forwards user traffic to the underlying EKS clusters.
+
+## Choosing manual or Terraform EKS auto-discovery configuration
+
+In the manual EKS auto-discovery configuration process, you create the required
+IAM policies, EKS cluster access, and Teleport configuration yourself.
+
+In the Terraform process, the [teleport-discovery-aws](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx)
+module creates the AWS and Teleport resources for you.
+
+## Guides
+
+- [Manual EKS Auto-Discovery Configuration](eks-discovery-manual.mdx)
+- [Terraform EKS Auto-Discovery Configuration](eks-discovery-terraform.mdx)

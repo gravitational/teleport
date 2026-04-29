@@ -353,14 +353,14 @@ func TestSessions(t *testing.T) {
 			tlsCert, _ := parseX509PEMAndIdentity(t, ws.GetTLSCert())
 			assert.Equal(t, tc.expectTLSPubKeyAlgo, tlsCert.PublicKeyAlgorithm)
 
-			// GetWebSessionInfo and make sure it matches, with private keys removed.
-			out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
+			// GetWebSession and make sure it matches
+			out, err := s.a.GetWebSession(ctx, types.GetWebSessionRequest{
+				User:      user,
+				SessionID: ws.GetName(),
+			})
 			require.NoError(t, err)
-			assert.Empty(t, out.GetSSHPriv())
-			assert.Empty(t, out.GetTLSPriv())
 			assert.Empty(t, gocmp.Diff(ws, out,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-				cmpopts.IgnoreFields(types.WebSessionSpecV2{}, "Priv", "TLSPriv")))
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 				User:      user,
@@ -1385,8 +1385,13 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
-	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
-	s := newAuthSuite(t)
+	t.Parallel()
+	s, err := newTestPack(t.Context(), testPackOptions{
+		DataDir: t.TempDir(),
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.a.Close()) })
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
