@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/e/lib/subca/subcav1"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/subca"
@@ -104,6 +106,34 @@ func TestService_authz(t *testing.T) {
 				return err
 			},
 			want: []*authorizeAttempt{
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbCreate},
+			},
+		},
+		{
+			name: "UpdateCertAuthorityOverride",
+			doRPC: func(t *testing.T) error {
+				_, err := subCA.UpdateCertAuthorityOverride(
+					t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+						CaOverride: validLookingCAOverride,
+					})
+				return err
+			},
+			want: []*authorizeAttempt{
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbUpdate},
+			},
+		},
+		{
+			name: "UpsertCertAuthorityOverride",
+			doRPC: func(t *testing.T) error {
+				_, err := subCA.UpsertCertAuthorityOverride(
+					t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+						CaOverride: validLookingCAOverride,
+					})
+				return err
+			},
+			want: []*authorizeAttempt{
+				// Order is deterministic.
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbUpdate},
 				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbCreate},
 			},
 		},
@@ -729,46 +759,6 @@ func TestService_Create(t *testing.T) {
 	})
 	subCA := env.SubCAClient
 
-	t.Run("nil resource", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{})
-		assert.ErrorContains(t, err, "name required")
-	})
-
-	t.Run("invalid cluster name", func(t *testing.T) {
-		t.Parallel()
-
-		// Fetch the certificate we want to override.
-		const loadKeys = false
-		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
-			Type:       caType1,
-			DomainName: env.ClusterName,
-		}, loadKeys)
-		require.NoError(t, err)
-		require.Len(t, ca.GetActiveKeys().TLS, 1, "Unexpected number of CA active keys")
-		kp := ca.GetActiveKeys().TLS[0]
-		caCert, err := tlsutils.ParseCertificatePEM(kp.Cert)
-		require.NoError(t, err)
-
-		// Replace the cluster name in the cert with a bad name.
-		const badClusterName = "badclustername"
-		caCert.Subject.Organization = []string{badClusterName}
-
-		// Create the badly-named override.
-		ca.SetActiveKeys(types.CAKeySet{}) // No keyset = no overrides.
-		caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
-		caOverride.Metadata.Name = badClusterName
-		caOverride.Spec.CertificateOverrides = []*subcapb.CertificateOverride{
-			env.NewDisabledCertificateOverride(t, caCert, nil /* externalRoot */),
-		}
-
-		_, err = subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
-			CaOverride: caOverride,
-		})
-		assert.ErrorContains(t, err, `only "`+env.ClusterName+`" is allowed`)
-	})
-
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
 
@@ -870,6 +860,355 @@ func TestService_Create_fromCSR(t *testing.T) {
 			CaOverride: caOverride,
 		})
 	require.NoError(t, err, "Create errored")
+}
+
+func TestService_Update(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	subCA := env.SubCAClient
+	emitter := env.MockEmitter
+
+	// Prepare CA override to update.
+	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		CaOverride: env.NewOverrideForCAType(t, caType),
+	})
+	require.NoError(t, err, "CreateCertAuthorityOverride errored")
+	created := createResp.CaOverride
+
+	t.Run("ok", func(t *testing.T) {
+		ctx := t.Context()
+		caOverride := created
+
+		// Enable all overrides.
+		require.NotEmpty(t,
+			created.Spec.CertificateOverrides, "Expected at least one certificate override")
+		for _, override := range caOverride.Spec.CertificateOverrides {
+			override.Disabled = false
+		}
+
+		emitter.Reset()
+		updateResp, err := subCA.UpdateCertAuthorityOverride(ctx, &subcapb.UpdateCertAuthorityOverrideRequest{
+			CaOverride: caOverride,
+		})
+		require.NoError(t, err, "UpdateCertAuthorityOverride errored")
+		updated := updateResp.CaOverride
+
+		// Verify response.
+		want := caOverride
+		want.Metadata.Revision = updated.GetMetadata().GetRevision()
+		if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
+			t.Fatalf("Update mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify stored override.
+		getResp, err := subCA.GetCertAuthorityOverride(ctx, &subcapb.GetCertAuthorityOverrideRequest{
+			CaId: &subcapb.CertAuthorityOverrideID{
+				CaType: string(caType),
+			},
+		})
+		require.NoError(t, err, "GetCertAuthorityOverride errored")
+		if diff := cmp.Diff(want, getResp.CaOverride, protocmp.Transform()); diff != "" {
+			t.Errorf("Get mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify audit.
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Code:    events.CertAuthOverrideUpdateCode,
+			Type:    events.CertAuthOverrideUpdateEvent,
+			Success: true,
+		})
+	})
+}
+
+// TestService_Update_errors tests errors exclusive to Update.
+// See TestService_Write_errors.
+func TestService_Update_errors(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	const caTypeOther = types.DatabaseClientCA
+
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	subCA := env.SubCAClient
+
+	// Prepare CA override to update.
+	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		CaOverride: env.NewOverrideForCAType(t, caType),
+	})
+	require.NoError(t, err, "CreateCertAuthorityOverride errored")
+
+	// Cloned by tests.
+	baseCAOverride := createResp.CaOverride
+
+	tests := []struct {
+		name      string
+		makeReq   func(caOverride *subcapb.CertAuthorityOverride) *subcapb.UpdateCertAuthorityOverrideRequest
+		assertErr func(t *testing.T, err error) // takes precedence over wantErr
+		wantErr   string
+	}{
+		{
+			name: "not found",
+			makeReq: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.UpdateCertAuthorityOverrideRequest {
+				caOverride.SubKind = string(caTypeOther)
+				caOverride.Spec.CertificateOverrides = nil // Valid, it can be empty.
+				return &subcapb.UpdateCertAuthorityOverrideRequest{
+					CaOverride: caOverride,
+				}
+			},
+			assertErr: func(t *testing.T, err error) {
+				// Backend returns ErrIncorrectRevision for both NotFound and revision
+				// mismatch. The RPC layer doesn't control that.
+				assert.ErrorIs(t, err, backend.ErrIncorrectRevision, "revision error mismatch")
+			},
+		},
+		{
+			name: "wrong revision",
+			makeReq: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.UpdateCertAuthorityOverrideRequest {
+				caOverride.Metadata.Revision = "llamabanana"
+				return &subcapb.UpdateCertAuthorityOverrideRequest{
+					CaOverride: caOverride,
+				}
+			},
+			assertErr: func(t *testing.T, err error) {
+				assert.ErrorIs(t, err, backend.ErrIncorrectRevision, "revision error mismatch")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			caOverride := proto.Clone(baseCAOverride).(*subcapb.CertAuthorityOverride)
+			req := test.makeReq(caOverride)
+
+			_, err := subCA.UpdateCertAuthorityOverride(t.Context(), req)
+			if test.assertErr != nil {
+				test.assertErr(t, err)
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "Update error mismatch")
+			}
+		})
+	}
+}
+
+func TestService_Upsert(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	subCA := env.SubCAClient
+	emitter := env.MockEmitter
+
+	assertStored := func(t *testing.T, want *subcapb.CertAuthorityOverride) {
+		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
+			CaId: &subcapb.CertAuthorityOverrideID{
+				CaType: want.SubKind,
+			},
+		})
+		require.NoError(t, err, "GetCertAuthorityOverride errored")
+		if diff := cmp.Diff(want, getResp.CaOverride, protocmp.Transform()); diff != "" {
+			t.Errorf("Get mismatch (-want +got)\n%s", diff)
+		}
+	}
+
+	assertUpsertAudit := func(t *testing.T, evs []apievents.AuditEvent) {
+		assertCAOverrideEvent(t, evs, &wantEvent{
+			Type:    events.CertAuthOverrideUpsertEvent,
+			Code:    events.CertAuthOverrideUpsertCode,
+			Success: true,
+		})
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		caOverride := env.NewOverrideForCAType(t, caType)
+
+		// Create via Upsert.
+		upsertResp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+			CaOverride: caOverride,
+		})
+		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
+		created := upsertResp.CaOverride
+
+		// Verify response.
+		want := caOverride
+		want.Metadata.Revision = created.GetMetadata().GetRevision()
+		if diff := cmp.Diff(want, created, protocmp.Transform()); diff != "" {
+			t.Fatalf("Upsert mismatch (-want +got)\n%s", diff)
+		}
+
+		assertStored(t, want)
+
+		assertUpsertAudit(t, emitter.Events())
+
+		t.Run("update", func(t *testing.T) {
+			caOverride := created
+
+			// Enable all overrides.
+			require.NotEmpty(t,
+				caOverride.Spec.CertificateOverrides, "Expected at least one certificate override")
+			for _, override := range caOverride.Spec.CertificateOverrides {
+				override.Disabled = false
+			}
+
+			// Update via Upsert.
+			emitter.Reset()
+			upsertResp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+				CaOverride: caOverride,
+			})
+			require.NoError(t, err, "UpsertCertAuthorityOverride errored")
+			updated := upsertResp.CaOverride
+
+			// Verify response.
+			want := caOverride
+			want.Metadata.Revision = updated.GetMetadata().GetRevision()
+			if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
+				t.Fatalf("Upsert mismatch (-want +got)\n%s", diff)
+			}
+
+			assertStored(t, want)
+
+			assertUpsertAudit(t, emitter.Events())
+		})
+	})
+}
+
+// TestService_Write_errors tests error conditions common to multiple CA
+// override write methods.
+// Namely: Create, Update and Upsert.
+func TestService_Write_errors(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	subCA := env.SubCAClient
+
+	// Cloned by tests. Note that it doesn't exist on storage.
+	baseCAOverride := env.NewOverrideForCAType(t, caType)
+
+	type testCase struct {
+		name           string
+		makeCAOverride func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride
+		assertErr      func(t *testing.T, err error) // takes precedence over wantErr
+		wantErr        string
+	}
+
+	assertTestCae := func(t *testing.T, tc *testCase, err error) {
+		t.Helper()
+		if tc.assertErr != nil {
+			tc.assertErr(t, err)
+		} else {
+			assert.ErrorContains(t, err, tc.wantErr, "error mismatch")
+		}
+	}
+
+	runTestCase := func(t *testing.T, tc *testCase, baseCAOverride *subcapb.CertAuthorityOverride) {
+		caOverride := proto.Clone(baseCAOverride).(*subcapb.CertAuthorityOverride)
+		if tc.makeCAOverride != nil {
+			caOverride = tc.makeCAOverride(caOverride)
+		}
+
+		t.Run("create", func(t *testing.T) {
+			_, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+				CaOverride: caOverride,
+			})
+			assertTestCae(t, tc, err)
+		})
+		t.Run("update", func(t *testing.T) {
+			_, err := subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+				CaOverride: caOverride,
+			})
+			assertTestCae(t, tc, err)
+		})
+		t.Run("upsert", func(t *testing.T) {
+			_, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+				CaOverride: caOverride,
+			})
+			assertTestCae(t, tc, err)
+		})
+	}
+
+	t.Run("invalid cluster name", func(t *testing.T) {
+		t.Parallel()
+
+		// Fetch the certificate we want to override.
+		const loadKeys = false
+		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       caType,
+			DomainName: env.ClusterName,
+		}, loadKeys)
+		require.NoError(t, err)
+		require.Len(t, ca.GetActiveKeys().TLS, 1, "Unexpected number of CA active keys")
+		kp := ca.GetActiveKeys().TLS[0]
+		caCert, err := tlsutils.ParseCertificatePEM(kp.Cert)
+		require.NoError(t, err)
+
+		// Replace the cluster name in the cert with a bad name.
+		const badClusterName = "badclustername"
+		caCert.Subject.Organization = []string{badClusterName}
+
+		// Create the badly-named override.
+		ca.SetActiveKeys(types.CAKeySet{}) // No keyset = no overrides.
+		caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
+		caOverride.Metadata.Name = badClusterName
+		caOverride.Spec.CertificateOverrides = []*subcapb.CertificateOverride{
+			env.NewDisabledCertificateOverride(t, caCert, nil /* externalRoot */),
+		}
+
+		runTestCase(t, &testCase{
+			name:    badClusterName,
+			wantErr: `only "` + env.ClusterName + `" is allowed`,
+		}, caOverride)
+	})
+
+	tests := []testCase{
+		{
+			name: "nil ca_override",
+			makeCAOverride: func(_ *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+				return nil
+			},
+			wantErr: "name required",
+		},
+		{
+			name: "ca_override.metadata.name empty",
+			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+				caOverride.Metadata.Name = ""
+				return caOverride
+			},
+			wantErr: "name required",
+		},
+		{
+			name: "ca_override.sub_kind empty",
+			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+				caOverride.SubKind = ""
+				return caOverride
+			},
+			wantErr: "sub_kind required",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			runTestCase(t, &test, baseCAOverride)
+		})
+	}
 }
 
 func TestService_List(t *testing.T) {

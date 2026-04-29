@@ -24,6 +24,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -60,6 +61,14 @@ type CachedSubCAStorage interface {
 // See lib/services/local.SubCAService.
 type SubCAStorage interface {
 	CreateCertAuthorityOverride(
+		ctx context.Context,
+		resource *subcav1.CertAuthorityOverride,
+	) (*subcav1.CertAuthorityOverride, error)
+	UpdateCertAuthorityOverride(
+		ctx context.Context,
+		resource *subcav1.CertAuthorityOverride,
+	) (*subcav1.CertAuthorityOverride, error)
+	UpsertCertAuthorityOverride(
 		ctx context.Context,
 		resource *subcav1.CertAuthorityOverride,
 	) (*subcav1.CertAuthorityOverride, error)
@@ -331,17 +340,105 @@ func (s *Service) CreateCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.CreateCertAuthorityOverrideRequest,
 ) (*subcav1.CreateCertAuthorityOverrideResponse, error) {
-	switch {
-	case req.CaOverride.GetMetadata().GetName() == "":
-		return nil, trace.BadParameter("ca_override.metadata.name required")
-	case req.CaOverride.GetSubKind() == "":
-		return nil, trace.BadParameter("ca_override.sub_kind required")
-	}
-	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbCreate); err != nil {
+	const forceImmediateDisable = false
+	created, err := s.writeCAOverride(
+		ctx,
+		req.CaOverride,
+		forceImmediateDisable,
+		writeCreate,
+	)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	parsed, err := subca.ValidateAndParseCAOverride(req.CaOverride)
+	return &subcav1.CreateCertAuthorityOverrideResponse{
+		CaOverride: created,
+	}, nil
+}
+
+func (s *Service) UpdateCertAuthorityOverride(
+	ctx context.Context,
+	req *subcav1.UpdateCertAuthorityOverrideRequest,
+) (*subcav1.UpdateCertAuthorityOverrideResponse, error) {
+	updated, err := s.writeCAOverride(
+		ctx,
+		req.CaOverride,
+		req.ForceImmediateDisable,
+		writeUpdate,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &subcav1.UpdateCertAuthorityOverrideResponse{
+		CaOverride: updated,
+	}, nil
+}
+
+func (s *Service) UpsertCertAuthorityOverride(
+	ctx context.Context,
+	req *subcav1.UpsertCertAuthorityOverrideRequest,
+) (*subcav1.UpsertCertAuthorityOverrideResponse, error) {
+	updated, err := s.writeCAOverride(
+		ctx,
+		req.CaOverride,
+		req.ForceImmediateDisable,
+		writeUpsert,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &subcav1.UpsertCertAuthorityOverrideResponse{
+		CaOverride: updated,
+	}, nil
+}
+
+type writeMode int
+
+const (
+	writeCreate writeMode = iota + 1
+	writeUpdate
+	writeUpsert
+)
+
+func (s *Service) writeCAOverride(
+	ctx context.Context,
+	caOverride *subcav1.CertAuthorityOverride,
+	forceImmediateDisable bool,
+	mode writeMode,
+) (*subcav1.CertAuthorityOverride, error) {
+	switch {
+	case caOverride.GetMetadata().GetName() == "":
+		return nil, trace.BadParameter("ca_override.metadata.name required")
+	case caOverride.GetSubKind() == "":
+		return nil, trace.BadParameter("ca_override.sub_kind required")
+	}
+
+	// Decide authz verbs and audit event type/code.
+	var verbs []string
+	var eventType, eventCode string
+	switch mode {
+	case writeCreate:
+		verbs = []string{types.VerbCreate}
+		eventType = events.CertAuthOverrideCreateEvent
+		eventCode = events.CertAuthOverrideCreateCode
+	case writeUpdate:
+		verbs = []string{types.VerbUpdate}
+		eventType = events.CertAuthOverrideUpdateEvent
+		eventCode = events.CertAuthOverrideUpdateCode
+	case writeUpsert:
+		verbs = []string{types.VerbCreate, types.VerbUpdate}
+		eventType = events.CertAuthOverrideUpsertEvent
+		eventCode = events.CertAuthOverrideUpsertCode
+	default:
+		return nil, trace.Wrap(fmt.Errorf("unknown write mode: %d", mode))
+	}
+	if err := s.authorizeCAOverride(ctx, adminActionYes, verbs[0], verbs[1:]...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parsed, err := subca.ValidateAndParseCAOverride(caOverride)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -358,24 +455,33 @@ func (s *Service) CreateCertAuthorityOverride(
 		)
 	}
 
-	// TODO(codingllama): Validate against CA resource.
+	// TODO(codingllama): Cross-validation (CA and certs, existing override).
 
 	// TODO(codingllama): Create CRLs.
 
-	created, err := s.subCA.CreateCertAuthorityOverride(ctx, parsed.CAOverride)
+	var updated *subcav1.CertAuthorityOverride
+	switch mode {
+	case writeCreate:
+		s.logger.DebugContext(ctx, "CA override write in Create mode")
+		updated, err = s.subCA.CreateCertAuthorityOverride(ctx, parsed.CAOverride)
+	case writeUpdate:
+		s.logger.DebugContext(ctx, "CA override write in Update mode")
+		updated, err = s.subCA.UpdateCertAuthorityOverride(ctx, parsed.CAOverride)
+	case writeUpsert:
+		s.logger.DebugContext(ctx, "CA override write in Upsert mode")
+		updated, err = s.subCA.UpsertCertAuthorityOverride(ctx, parsed.CAOverride)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	s.emitCAOverrideEvent(ctx,
 		parsed,
 		nil, // err
-		events.CertAuthOverrideCreateEvent,
-		events.CertAuthOverrideCreateCode,
+		eventType,
+		eventCode,
 	)
 
-	return &subcav1.CreateCertAuthorityOverrideResponse{
-		CaOverride: created,
-	}, nil
+	return updated, nil
 }
 
 func (s *Service) GetCertAuthorityOverride(
