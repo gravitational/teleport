@@ -2942,7 +2942,7 @@ func (s *LinuxDesktopService) Enabled() bool {
 }
 
 type XSessions struct {
-	Included string `yaml:"enabled,omitempty"`
+	Included string `yaml:"included,omitempty"`
 	Excluded string `yaml:"excluded,omitempty"`
 }
 

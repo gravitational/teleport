@@ -1371,7 +1371,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Namespaces:         []string{types.Wildcard},
 					LinuxDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
