@@ -69,8 +69,17 @@ Optional:
 - `aws_account` (String) AWSAccount is the AWS account ID.
 - `aws_arn` (String) AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".
 - `aws_organization_id` (String) AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.
+- `aws_organizational_units` (Attributes) AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units. Requires AWS Organization ID to be specified. The account's root ID is considered an Organizational Unit when validating the rule. (see [below for nested schema](#nested-schema-for-specallowaws_organizational_units))
 - `aws_regions` (List of String) AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.
 - `aws_role` (String) AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.
+
+### Nested Schema for `spec.allow.aws_organizational_units`
+
+Optional:
+
+- `exclude` (List of String) Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.
+- `include` (List of String) Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.
+
 
 
 ### Nested Schema for `spec.azure`

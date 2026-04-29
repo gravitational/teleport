@@ -75,12 +75,12 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// set up the cluster
 	srv := &server{
-		ctx:              ctx,
-		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalClusterClient{},
-		logger:           logtest.NewLogger(),
-		offlineThreshold: time.Second,
-		proxyWatcher:     watcher,
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         &mockLocalClusterClient{},
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        time.Second,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -147,11 +147,26 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 func TestLocalClusterOverlap(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	clt := &mockLocalClusterClient{}
+	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Logger:    logtest.NewLogger(),
+			Clock:     clock,
+			Client:    clt,
+		},
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
+	})
+	require.NoError(t, err)
 
 	srv := &server{
-		Config:          Config{Clock: clockwork.NewFakeClock()},
-		ctx:             context.Background(),
-		localAuthClient: &mockLocalClusterClient{},
+		Config:                  Config{Clock: clockwork.NewFakeClock()},
+		ctx:                     context.Background(),
+		localAuthClient:         &mockLocalClusterClient{},
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -270,12 +285,12 @@ func TestProxyResync(t *testing.T) {
 
 	// set up the cluster
 	srv := &server{
-		ctx:              ctx,
-		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalClusterClient{},
-		logger:           logtest.NewLogger(),
-		offlineThreshold: 24 * time.Hour,
-		proxyWatcher:     watcher,
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         &mockLocalClusterClient{},
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        24 * time.Hour,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),

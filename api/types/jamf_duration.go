@@ -14,13 +14,57 @@
 
 package types
 
-// DurationStringForJamfSpecV1 is a transitional type alias for Duration.
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed to implement JSONPBUnmarshaler
+)
+
+var (
+	// json.Marshaler is what both gogo's jsonpb marshal (via json.Marshal) and
+	// ghodss/yaml call for fields of this type.
+	_ json.Marshaler = DurationStringForJamfSpecV1(0)
+	// json.Unmarshaler is called by encoding/json (e.g. via ghodss/yaml in tctl edit).
+	_ json.Unmarshaler = (*DurationStringForJamfSpecV1)(nil)
+	// jsonpb.JSONPBUnmarshaler is what makes this type's existence worthwhile:
+	// gogo's jsonpb checks it before the int64 quote-stripping path that breaks
+	// [Duration] roundtripping.
+	_ jsonpb.JSONPBUnmarshaler = (*DurationStringForJamfSpecV1)(nil)
+)
+
+// DurationStringForJamfSpecV1 is a [Duration]-like casttype used only by the
+// JamfSpecV1 and JamfInventoryEntry proto fields. It exists to work around a
+// bug in gogoproto's jsonpb where int64 casttype fields with a custom
+// MarshalJSON can't be roundtripped: marshal produces a quoted duration
+// string, but unmarshal strips the quotes for int64 fields before passing the
+// value to encoding/json, which then fails because the bare duration string
+// (e.g. `6h0m0s`) is not valid JSON.
 //
-// It exists so that enterprise call sites can switch to this name before the
-// proto casttype for the JamfSpecV1 / JamfInventoryEntry duration fields
-// changes in a follow-up PR. Once the casttype is switched, this alias will
-// be replaced by a distinct named type that implements jsonpb.JSONPBUnmarshaler
-// to work around a serialization bug in gogo's jsonpb.
+// Implementing JSONPBUnmarshaler bypasses the broken path because gogo's
+// jsonpb checks that interface before the int64 quote-stripping.
 //
 // See https://github.com/gravitational/teleport/issues/57747.
-type DurationStringForJamfSpecV1 = Duration
+type DurationStringForJamfSpecV1 time.Duration
+
+// MarshalJSON delegates to [Duration.MarshalJSON]. Called by encoding/json,
+// which is used by both gogo's jsonpb marshal (via json.Marshal) and
+// ghodss/yaml in tctl edit.
+func (d DurationStringForJamfSpecV1) MarshalJSON() ([]byte, error) {
+	return Duration(d).MarshalJSON()
+}
+
+// UnmarshalJSON delegates to [Duration.UnmarshalJSON]. Called by encoding/json
+// (e.g. when ghodss/yaml is used by tctl edit).
+func (d *DurationStringForJamfSpecV1) UnmarshalJSON(data []byte) error {
+	return (*Duration)(d).UnmarshalJSON(data)
+}
+
+// UnmarshalJSONPB intercepts gogo's jsonpb unmarshal before it strips quotes
+// from the string value of int64 fields, delegating to [Duration.UnmarshalJSON]
+// which correctly parses the properly quoted JSON string. We only need this
+// special handling during the unmarshaling, because marshaling will consistently
+// use [json.Marshaler.MarshalJSON] if available.
+func (d *DurationStringForJamfSpecV1) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, data []byte) error {
+	return d.UnmarshalJSON(data)
+}

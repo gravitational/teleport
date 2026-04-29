@@ -165,7 +165,7 @@ func TestConfigureCommand(t *testing.T) {
 	// environment values in the server context should not be forwarded
 	scx.SetEnv(unexpectedKey, unexpectedValue)
 
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand(nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -187,8 +187,18 @@ func TestContinue(t *testing.T) {
 	require.NoError(t, err)
 	scx.execRequest.SetCommand(lsPath)
 
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	defer r.Close()
+	defer w.Close()
+
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.StdinFile:  r,
+		reexec.StdoutFile: w,
+		reexec.StderrFile: w,
+	})
 	require.NoError(t, err)
 
 	// Create a channel that will be used to signal that execution is complete.
@@ -205,7 +215,8 @@ func TestContinue(t *testing.T) {
 	}()
 
 	// Signal to child that it may execute the requested program.
-	scx.execRequest.Continue()
+	err = cmd.Continue()
+	require.NoError(t, err)
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.

@@ -120,15 +120,17 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	// For read without secrets, we use RiskyUnpinnedDecision, this is to allow
-	// scoped identities (regardless of their pinned scope) to be able to fetch
-	// cert_authority resources (which are currently unscoped/treated as root
-	// scope).
-	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
-	readVerb := types.VerbReadNoSecrets
-	if req.IncludeKey {
-		readVerb = types.VerbRead
-		decisionFn = authCtx.CheckerContext.Decision
+	checkAccess := func(ruleCtx services.RuleContext) error {
+		if req.IncludeKey {
+			return authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+				return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, types.VerbRead)
+			})
+		}
+		// For read without secrets we use RiskyAuthorizeUnpinnedRead, this is to
+		// allow scoped identities (regardless of their pinned scope) to be
+		// able to fetch cert_authority resources (which are currently
+		// unscoped/treated as root scope).
+		return authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, ruleCtx)
 	}
 
 	// Before looking up the requested CA perform RBAC on a dummy CA to
@@ -144,13 +146,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	}
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource = contextCA
-	if err := decisionFn(
-		ctx,
-		scopes.Root,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
-		},
-	); err != nil {
+	if err := checkAccess(&ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -176,12 +172,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	}
 
 	ruleCtx.Resource = ca
-	if err := decisionFn(
-		ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(
-				&ruleCtx, types.KindCertAuthority, readVerb)
-		},
-	); err != nil {
+	if err := checkAccess(&ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -253,22 +244,25 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		return nil, trace.Wrap(err)
 	}
 
-	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
-	// for standard reads we do not enforce scope pinning. this ensures that CAs are readable for
-	// all scoped identities regardless of their current scope pinning. this pattern should not
-	// be used for any checks save essential global configuration reads that are necessary for basic
-	// teleport functionality.
-	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
+	// Build rule context for where-clause evaluation once to avoid re-creation
+	// on each decision invocation.
+	ruleCtx := authCtx.RuleContext()
 
 	if req.IncludeKey {
-		verbs = append(verbs, types.VerbRead)
-
-		// for queries that include secrets we must enforce standard scope pinning rules.
+		// For queries that include secrets we must enforce standard scope pinning rules.
+		//
 		// NOTE: technically we have no plans to introduce scoped CA secrets. as of the time of writing,
 		// attempts to read CA secrets by scoped identities are always denied by virtue of the scoped
 		// role verb limits enforced in scopes/access. this, however, would be the correct pattern should
 		// we choose to introduce scoped CA secrets in the future.
-		decisionFn = authCtx.CheckerContext.Decision
+		//
+		// All cert authorities can be considered as being "root" resources from
+		// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
+		if err := authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		// Require admin MFA to read secrets (admin MFA is currently only supported for unscoped identities).
 		if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
@@ -278,18 +272,15 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		} else {
 			return nil, trace.AccessDenied("cannot perform admin action %s:%s as scoped identity", types.KindCertAuthority, types.VerbRead)
 		}
-	}
 
-	// build rule context for where-clause evaluation once to avoid re-creation
-	// on each decision invocation.
-	ruleCtx := authCtx.RuleContext()
-
-	// perform access-control decision. all cert authorities can be considered as being "root" resources from
-	// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
-	if err := decisionFn(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
-	}); err != nil {
-		return nil, trace.Wrap(err)
+	} else {
+		// For standard reads we do not enforce scope pinning. This ensures that CAs are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// Teleport functionality.
+		if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthorities, &ruleCtx); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	cas, err := s.cache.GetCertAuthorities(ctx, types.CertAuthType(req.Type), req.IncludeKey)

@@ -283,7 +283,7 @@ jobs:
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
-        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.3 && make terraform-resources-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.1.0 && make terraform-resources-up-to-date
 
       - name: Check if Terraform module reference docs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
