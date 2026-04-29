@@ -1,4 +1,4 @@
-.version: &version "17.7.23-rc.1"
+.version: &version "17.7.23"
 
 apiVersion: v2
 name: teleport-plugin-msteams
