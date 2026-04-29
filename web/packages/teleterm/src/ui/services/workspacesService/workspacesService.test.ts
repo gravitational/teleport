@@ -91,6 +91,7 @@ describe('restoring workspace', () => {
           isBarCollapsed: false,
         },
         color: 'purple',
+        proxyHost: cluster.proxyHost,
         localClusterUri: testWorkspace.localClusterUri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
@@ -128,6 +129,7 @@ describe('restoring workspace', () => {
           },
         },
         color: 'purple',
+        proxyHost: cluster.proxyHost,
         localClusterUri: cluster.uri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
@@ -142,6 +144,57 @@ describe('restoring workspace', () => {
       },
     });
     expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
+  });
+
+  it('keeps restored workspaces even when no matching cluster exists', () => {
+    const cluster = makeRootCluster();
+    const orphanClusterUri = '/clusters/orphan';
+    const orphanWorkspace: PersistedWorkspace = {
+      color: 'blue',
+      localClusterUri: orphanClusterUri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/some_orphan_doc',
+          title: '/Users/alice/Downloads',
+        },
+      ],
+      location: '/docs/some_orphan_doc',
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: {
+        [orphanClusterUri]: orphanWorkspace,
+      },
+    });
+
+    workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(orphanClusterUri)).toBeDefined();
+  });
+
+  it('keeps proxy host for restored workspaces without matching clusters', () => {
+    const orphanClusterUri = '/clusters/orphan';
+    const orphanWorkspace: PersistedWorkspace = {
+      proxyHost: 'orphan.example.com:443',
+      localClusterUri: orphanClusterUri,
+      documents: [],
+      location: undefined,
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster: undefined,
+      persistedWorkspaces: {
+        [orphanClusterUri]: orphanWorkspace,
+      },
+    });
+
+    workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(orphanClusterUri).proxyHost).toBe(
+      orphanWorkspace.proxyHost
+    );
   });
 
   it('restores workspace color from state or assigns if empty', async () => {
@@ -381,6 +434,57 @@ describe('setActiveWorkspace', () => {
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
   });
 
+  it('recreates a missing cluster from workspace proxy host before connecting', async () => {
+    const clusterUri = '/clusters/foo.example.com';
+    const proxyHost = 'foo.example.com:443';
+    const { workspacesService, modalsService, clustersService } = getTestSetup({
+      cluster: undefined,
+      persistedWorkspaces: {
+        [clusterUri]: {
+          proxyHost,
+          localClusterUri: clusterUri,
+          documents: [],
+          location: undefined,
+        },
+      },
+    });
+    workspacesService.restorePersistedState();
+    expect(clustersService.findCluster(clusterUri)).toBeUndefined();
+
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'cluster-connect') {
+          dialog.onCancel();
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
+
+        return {
+          closeDialog: () => {},
+        };
+      });
+
+    const result = await workspacesService.setActiveWorkspace(clusterUri);
+
+    expect(clustersService.addCluster).toHaveBeenCalledWith(proxyHost);
+    expect(clustersService.findCluster(clusterUri)).toEqual(
+      expect.objectContaining({
+        uri: clusterUri,
+        proxyHost,
+        connected: false,
+      })
+    );
+    expect(modalsService.openRegularDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'cluster-connect',
+        clusterUri,
+      }),
+      expect.any(AbortSignal)
+    );
+    expect(result.isAtDesiredWorkspace).toBe(false);
+  });
+
   it('does not switch the workspace if the login modal gets closed', async () => {
     const cluster = makeRootCluster({
       connected: false,
@@ -585,6 +689,37 @@ describe('setActiveWorkspace', () => {
   });
 });
 
+describe('clearWorkspace', () => {
+  it('preserves remembered workspace state while clearing session state', () => {
+    const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
+    const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
+    const { workspacesService } = getTestSetup({
+      cluster: [clusterFoo, clusterBar],
+      persistedWorkspaces: {},
+    });
+
+    workspacesService.restorePersistedState();
+    workspacesService.changeWorkspaceColor(clusterFoo.uri, 'red');
+    const previousProxyHost = workspacesService.getWorkspace(
+      clusterFoo.uri
+    ).proxyHost;
+    const previousLocation = workspacesService.getWorkspace(
+      clusterFoo.uri
+    ).location;
+
+    workspacesService.clearWorkspace(clusterFoo.uri);
+
+    const workspace = workspacesService.getWorkspace(clusterFoo.uri);
+    expect(workspace.color).toBe('red');
+    expect(workspace.proxyHost).toBe(previousProxyHost);
+    expect(workspace.documents).toHaveLength(1);
+    expect(workspace.documents[0]).toEqual(
+      expect.objectContaining({ kind: 'doc.cluster' })
+    );
+    expect(workspace.location).not.toEqual(previousLocation);
+  });
+});
+
 function getTestSetup(options: {
   cluster: tshd.Cluster | tshd.Cluster[] | undefined;
   persistedWorkspaces: WorkspacesPersistedState['workspaces'];
@@ -620,6 +755,16 @@ function getTestSetup(options: {
     ),
     getRootClusters: () => normalizedClusters,
     syncRootClustersAndCatchErrors: async () => {},
+    addCluster: jest.fn(async proxy => {
+      normalizedClusters.push(
+        makeRootCluster({
+          uri: `/clusters/${proxy.replace(/:\d+$/, '')}`,
+          proxyHost: proxy,
+          connected: false,
+          loggedInUser: undefined,
+        })
+      );
+    }),
   };
 
   let clusterDocument: DocumentCluster;
@@ -647,6 +792,7 @@ function getTestSetup(options: {
   return {
     workspacesService,
     modalsService,
+    clustersService,
     notificationsService,
     statePersistenceService,
   };

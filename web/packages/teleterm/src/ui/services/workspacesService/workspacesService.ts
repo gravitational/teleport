@@ -27,6 +27,7 @@ import {
   UnifiedResourcePreferences,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { getErrorMessage } from 'shared/utils/error';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
@@ -112,6 +113,11 @@ export interface Workspace {
    * This field is not persisted to disk.
    */
   hasDocumentsToReopen?: boolean;
+  /**
+   * The proxy address used to add this root cluster. It lets Connect reconnect
+   * a remembered workspace even if the tsh profile is no longer available.
+   */
+  proxyHost?: string;
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
@@ -341,10 +347,24 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     let cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
-      this.notificationsService.notifyError({
-        title: 'Could not set cluster as active',
-        description: `Cluster with URI ${clusterUri} does not exist`,
-      });
+      const proxyHost = this.state.workspaces[clusterUri]?.proxyHost;
+      if (proxyHost) {
+        try {
+          await this.clustersService.addCluster(proxyHost);
+        } catch (err) {
+          this.logger.error('Failed to add cluster', err);
+          this.notificationsService.notifyError({
+            title:
+              'Could not reconnect to the cluster. Check that the proxy is reachable and try again.',
+            description: getErrorMessage(err),
+          });
+          return { isAtDesiredWorkspace: false };
+        }
+      }
+      cluster = this.clustersService.findCluster(clusterUri);
+    }
+
+    if (!cluster) {
       this.logger.warn(
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
@@ -399,7 +419,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       if (!draftState.workspaces[clusterUri]) {
         draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
           clusterUri,
-          draftState.workspaces
+          draftState.workspaces,
+          { proxyHost: cluster.proxyHost }
         );
       }
       draftState.rootClusterUri = clusterUri;
@@ -449,10 +470,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     if (this.state.workspaces[clusterUri]) {
       return;
     }
+    const cluster = this.clustersService.findCluster(clusterUri);
     this.setState(draftState => {
       draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
         clusterUri,
-        draftState.workspaces
+        draftState.workspaces,
+        { proxyHost: cluster?.proxyHost }
       );
     });
   }
@@ -468,9 +491,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
   clearWorkspace(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
-      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+      const currentWorkspace = draftState.workspaces[clusterUri];
+      draftState.workspaces[clusterUri] = getClearedWorkspaceState(
         clusterUri,
-        draftState.workspaces
+        draftState.workspaces,
+        currentWorkspace
       );
     });
     this.restoredState = produce(this.restoredState, draftState => {
@@ -524,22 +549,41 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     // Make the restored state immutable.
     this.restoredState = produce(restoredState, () => {});
-    const restoredWorkspaces = this.clustersService
-      .getRootClusters()
-      // Start restoring clusters from the ones that already have a workspace.
-      // The algorithm that assigns a color in getWorkspaceDefaultState needs
-      // to know all used colors.
+    const restoredWorkspaceUris = Object.keys(this.restoredState.workspaces);
+    const workspaceUris = Array.from(
+      new Set([
+        ...restoredWorkspaceUris,
+        ...this.clustersService.getRootClusters().map(cluster => cluster.uri),
+      ])
+    );
+
+    const restoredWorkspaces = workspaceUris
+      // Restore persisted workspaces first, so their colors are reserved before
+      // assigning colors to newly discovered clusters.
       .toSorted((a, b) => {
-        const hasA = !!this.restoredState.workspaces[a.uri];
-        const hasB = !!this.restoredState.workspaces[b.uri];
+        const hasA = !!this.restoredState.workspaces[a];
+        const hasB = !!this.restoredState.workspaces[b];
         return hasB === hasA ? 0 : hasA ? -1 : 1;
       })
-      .reduce((workspaces, cluster) => {
-        const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
-        workspaces[cluster.uri] = getWorkspaceDefaultState(
-          cluster.uri,
+      .reduce<Record<string, Workspace>>((workspaces, rootClusterUri) => {
+        const restoredWorkspace = this.restoredState.workspaces[rootClusterUri];
+        const cluster = this.clustersService.findCluster(rootClusterUri);
+        const proxyHost = cluster?.proxyHost ?? restoredWorkspace?.proxyHost;
+        const overrides = { ...restoredWorkspace, proxyHost };
+
+        if (!cluster) {
+          workspaces[rootClusterUri] = getClearedWorkspaceState(
+            rootClusterUri,
+            workspaces,
+            overrides
+          );
+          return workspaces;
+        }
+
+        workspaces[rootClusterUri] = getWorkspaceDefaultState(
+          rootClusterUri,
           workspaces,
-          restoredWorkspace
+          overrides
         );
         return workspaces;
       }, {});
@@ -646,6 +690,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       const documentsToPersist = getDocumentsToPersist(workspace.documents);
 
       stateToSave.workspaces[w] = {
+        proxyHost: workspace.proxyHost,
         localClusterUri: workspace.localClusterUri,
         location: workspace.location,
         color: workspace.color,
@@ -745,10 +790,11 @@ function getLocationToRestore(
 function getWorkspaceDefaultState(
   rootClusterUri: RootClusterUri,
   workspaces: Record<string, Workspace>,
-  restoredWorkspace?: Immutable<PersistedWorkspace>
+  overrides?: Partial<Immutable<PersistedWorkspace>>
 ): Workspace {
   const defaultDocument = createClusterDocument({ clusterUri: rootClusterUri });
   const defaultWorkspace: Workspace = {
+    proxyHost: '',
     accessRequests: {
       pending: getEmptyPendingAccessRequest(),
       isBarCollapsed: false,
@@ -761,25 +807,57 @@ function getWorkspaceDefaultState(
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
     color: parseWorkspaceColor(undefined, workspaces),
   };
-  if (!restoredWorkspace) {
+  if (!overrides) {
     return defaultWorkspace;
   }
 
-  defaultWorkspace.localClusterUri = restoredWorkspace.localClusterUri;
-  defaultWorkspace.unifiedResourcePreferences = parseUnifiedResourcePreferences(
-    restoredWorkspace.unifiedResourcePreferences
-  );
-  defaultWorkspace.color = parseWorkspaceColor(
-    restoredWorkspace.color,
-    workspaces
-  );
-  defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
+  if (overrides.localClusterUri) {
+    defaultWorkspace.localClusterUri = overrides.localClusterUri;
+  }
+
+  if (overrides.unifiedResourcePreferences) {
+    defaultWorkspace.unifiedResourcePreferences =
+      parseUnifiedResourcePreferences(overrides.unifiedResourcePreferences);
+  }
+
+  if (overrides.color) {
+    defaultWorkspace.color = parseWorkspaceColor(overrides.color, workspaces);
+  }
+
+  if (overrides.proxyHost) {
+    defaultWorkspace.proxyHost = overrides.proxyHost;
+  }
+
+  if (overrides.connectMyComputer) {
+    defaultWorkspace.connectMyComputer = overrides.connectMyComputer;
+  }
+
   defaultWorkspace.hasDocumentsToReopen = hasDocumentsToReopen({
-    previousDocuments: restoredWorkspace.documents,
+    previousDocuments: overrides.documents,
     currentDocuments: defaultWorkspace.documents,
   });
 
   return defaultWorkspace;
+}
+
+/**
+ * Returns a cleared workspace state while preserving stable workspace metadata.
+ * This is used after logout, so session-related state is discarded, but `color`
+ * and `proxyHost` are kept for the remembered cluster.
+ */
+function getClearedWorkspaceState(
+  rootClusterUri: RootClusterUri,
+  workspaces: Record<string, Workspace>,
+  currentWorkspaceState: Partial<Immutable<PersistedWorkspace>> | undefined
+) {
+  return getWorkspaceDefaultState(
+    rootClusterUri,
+    workspaces,
+    currentWorkspaceState && {
+      proxyHost: currentWorkspaceState.proxyHost,
+      color: currentWorkspaceState.color,
+    }
+  );
 }
 
 // TODO(gzdunek): Parse the entire workspace state read from disk like below.

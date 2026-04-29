@@ -17,6 +17,7 @@
  */
 
 import { MutableRefObject, useMemo } from 'react';
+import { useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
@@ -42,6 +43,7 @@ import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
   DocumentsService,
@@ -59,6 +61,10 @@ export function DocumentsRenderer(props: {
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
+  const clusters = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters, [])
+  );
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
@@ -69,17 +75,17 @@ export function DocumentsRenderer(props: {
 
   const workspaces = useMemo(
     () =>
-      Object.entries(workspacesService.getWorkspaces()).map(
-        ([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
+      Object.entries(workspacesService.getWorkspaces())
+        .filter(([clusterUri]) => clusters.has(clusterUri))
+        .map(([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
           rootClusterUri: clusterUri,
           localClusterUri: workspace.localClusterUri,
           documentsService:
             workspacesService.getWorkspaceDocumentService(clusterUri),
           accessRequestsService:
             workspacesService.getWorkspaceAccessRequestsService(clusterUri),
-        })
-      ),
-    [workspacesService.getWorkspaces()]
+        })),
+    [workspacesService.getWorkspaces(), clusters]
   );
 
   return (
