@@ -356,6 +356,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
 		}
+	case *LinuxDesktopSessionStart:
+		out.Event = &OneOf_LinuxDesktopSessionStart{
+			LinuxDesktopSessionStart: e,
+		}
+	case *LinuxDesktopSessionEnd:
+		out.Event = &OneOf_LinuxDesktopSessionEnd{
+			LinuxDesktopSessionEnd: e,
+		}
 	case *SessionConnect:
 		out.Event = &OneOf_SessionConnect{
 			SessionConnect: e,

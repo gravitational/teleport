@@ -138,6 +138,10 @@ type ProtoStreamerConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -164,16 +168,18 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool:        utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		onUploadComplete: cfg.OnUploadComplete,
 	}, nil
 }
 
 // ProtoStreamer creates protobuf-based streams uploaded to the storage
 // backends, for example S3 or GCS
 type ProtoStreamer struct {
-	cfg        ProtoStreamerConfig
-	bufferPool *utils.BufferSyncPool
-	slicePool  *utils.SliceSyncPool
+	cfg              ProtoStreamerConfig
+	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
+	bufferPool       *utils.BufferSyncPool
+	slicePool        *utils.SliceSyncPool
 }
 
 // CreateAuditStreamForUpload creates audit stream for existing upload,
@@ -191,7 +197,16 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		OnUploadComplete:          s.onUploadComplete,
 	})
+}
+
+// SetOnUploadComplete sets a callback to be invoked after an upload completes
+// when no session end event was observed in the stream. This allows callers to
+// recover or synthesize the session end event from an external source (e.g.
+// the audit log). It must be called before any streams are created.
+func (s *ProtoStreamer) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	s.onUploadComplete = fn
 }
 
 // CreateAuditStream creates audit stream and upload
@@ -223,6 +238,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		OnUploadComplete:          s.onUploadComplete,
 	})
 }
 
@@ -263,6 +279,10 @@ type ProtoStreamConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -589,6 +609,9 @@ type sliceWriter struct {
 	// point where the session end event has already been uploaded. If captured,
 	// it will be passed to the summarizer.
 	dbSessionEndEvent *apievents.DatabaseSessionEnd
+
+	// hasSessionEnd indicates if the session end event is present.
+	hasSessionEnd bool
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -708,9 +731,17 @@ func (w *sliceWriter) receiveAndUpload() error {
 			case *apievents.OneOf_SessionEnd:
 				w.sshSessionEndEvent = e.SessionEnd
 				w.sessionEndTime = e.SessionEnd.Time
+				w.hasSessionEnd = true
 
 			case *apievents.OneOf_DatabaseSessionEnd:
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
+				w.hasSessionEnd = true
+			case *apievents.OneOf_WindowsDesktopSessionEnd:
+				w.hasSessionEnd = true
+			case *apievents.OneOf_AppSessionEnd:
+				w.hasSessionEnd = true
+			case *apievents.OneOf_MCPSessionEnd:
+				w.hasSessionEnd = true
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -837,6 +868,22 @@ func (w *sliceWriter) completeStream() {
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
 			return
+		}
+
+		if !w.hasSessionEnd && w.proto.cfg.OnUploadComplete != nil {
+			sessionEndEvent, err := w.proto.cfg.OnUploadComplete(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+				return
+			}
+			switch o := sessionEndEvent.(type) {
+			case *apievents.SessionEnd:
+				w.sshSessionEndEvent = o
+				w.shouldProcessSession = true
+				w.sessionEndTime = o.EndTime
+			case *apievents.DatabaseSessionEnd:
+				w.dbSessionEndEvent = o
+			}
 		}
 
 		if w.proto.cfg.RecordingMetadataProvider != nil {

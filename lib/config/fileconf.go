@@ -3169,8 +3169,8 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
 		}
@@ -3178,7 +3178,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
+		SyncDelay:   types.DurationStringForJamfSpecV1(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
 	}

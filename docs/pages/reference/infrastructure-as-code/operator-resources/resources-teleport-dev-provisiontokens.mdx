@@ -59,8 +59,16 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |aws_account|string|AWSAccount is the AWS account ID.|
 |aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
 |aws_organization_id|string|AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.|
+|aws_organizational_units|[object](#specallow-itemsaws_organizational_units)|AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units. Requires AWS Organization ID to be specified. The account's root ID is considered an Organizational Unit when validating the rule.|
 |aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
 |aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.|
+
+### spec.allow items.aws_organizational_units
+
+|Field|Type|Description|
+|---|---|---|
+|exclude|[]string|Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.|
+|include|[]string|Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.|
 
 ### spec.azure
 

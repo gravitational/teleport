@@ -237,6 +237,14 @@ data:
               - update
               - delete
           - resources:
+              - retrieval_model
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
               - access_monitoring_rule
             verbs:
               - list

@@ -37,6 +37,17 @@ message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
   bool directory_remove_supported = 3;
+  repeated SessionIdentifier sessions = 4;
+}
+
+// Used to identify sessions available to and selected by users
+message SessionIdentifier {
+  string name = 1;
+}
+
+// Sent by client to select one of available sessions
+message SessionSelection {
+  SessionIdentifier session = 1;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -348,5 +359,6 @@ message Envelope {
     LatencyStats latency_stats = 19;
     Ping ping = 20;
     SharedDirectoryRemove shared_directory_remove = 21;
+    SessionSelection session_selection = 22;
   }
 }

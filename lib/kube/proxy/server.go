@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -539,6 +540,9 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 			RelayGroup: relayGroup,
 			RelayIds:   relayIDs,
 		},
+		// getKubeClusterWithServiceLabels already ensures that the cluster has the correct scope and that scope
+		// is usable by this forwarder. We only need to make sure that the kube server we build shares the same scope
+		types.KubeServerWithScope(cluster.GetScope()),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -638,6 +642,17 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 	clusterWithoutCreds, err := types.NewKubernetesClusterV3WithoutSecrets(details.kubeCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// The Proxy Service forwarder will always be unscoped and needs to be able to forward
+	// to scoped clusters as well.
+	if t.Scope != "" {
+		if scopes.Compare(t.Scope, details.kubeCluster.GetScope()) != scopes.Equivalent {
+			// This should only happen if there's a bug in scoped access checking for KubernetesCluster resources.
+			// The kube proxy should never have access to clusters from orthogonal scopes. We also block access
+			// to clusters in child scopes but this may be relaxed in the future.
+			return nil, trace.AccessDenied("kube forwarder found kube cluster from different scope, this is a bug")
+		}
 	}
 
 	if details.dynamicLabels != nil {
