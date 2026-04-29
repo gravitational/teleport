@@ -1,5 +1,48 @@
 # Changelog
 
+# 17.7.23 (04/29/26)
+
+Changelog:
+* Initialize keystore sign and decrypt metrics at startup. [#66109](https://github.com/gravitational/teleport/pull/66109)
+* Updated `jackc/pgx` packages to fix CVE-2026-4427/CVE-2026-32286, CVE-2026-33815, CVE-2026-33816, GHSA-j88v-2chj-qfwx. [#66093](https://github.com/gravitational/teleport/pull/66093)
+* Added `teleport_app_active_sessions` Prometheus gauge with `app` label for app access agent autoscaling. [#66049](https://github.com/gravitational/teleport/pull/66049)
+* Fixed a "No such process" error that could happen on the very first launch of VNet on macOS. [#65968](https://github.com/gravitational/teleport/pull/65968)
+* Fixed a Teleport Connect issue on Windows where startup could fail when `HTTPS_PROXY` is set. [#65925](https://github.com/gravitational/teleport/pull/65925)
+* Initialize backend read and requests metrics to zero at startup. [#65901](https://github.com/gravitational/teleport/pull/65901)
+* Fixed Teleport not taking over an existing unmanaged host user when configured to. [#65837](https://github.com/gravitational/teleport/pull/65837)
+* Fixes potential race condition in dynamoDB backend which can lead to missed events, resulting in a inconsistent cache state. [#65822](https://github.com/gravitational/teleport/pull/65822)
+* Fixed an issue in Teleport Connect on macOS where selecting "Open Teleport Connect" from the menu bar would not reliably open the app. [#65773](https://github.com/gravitational/teleport/pull/65773)
+* Updated github.com/go-git/go-git/v5 to resolve CVE-2026-34165. [#65649](https://github.com/gravitational/teleport/pull/65649)
+* Updated OpenTelemetry dependencies to address CVE-2026-24051. [#65647](https://github.com/gravitational/teleport/pull/65647)
+* Update Go to v1.25.9. [#65587](https://github.com/gravitational/teleport/pull/65587)
+* Fixed "tctl edit" bugs when editing multiple resources, or resources with sub_kinds (for example, CAs). [#65343](https://github.com/gravitational/teleport/pull/65343)
+* Removed expired Baltimore CyberTrust Root CA used for Azure databases. [#65328](https://github.com/gravitational/teleport/pull/65328)
+* Reimplemented how Teleport Connect handles deep links for Device Trust auth and launching VNet from the Web UI. [#65317](https://github.com/gravitational/teleport/pull/65317)
+* Fixed minor bug in Web UI and Connect where static and dynamic labels with the same key are duplicated. [#65295](https://github.com/gravitational/teleport/pull/65295)
+* Fixed a goroutine leak in the Teleport Connect MFA prompt when both SSO MFA and Webauthn are available second factors. [#65230](https://github.com/gravitational/teleport/pull/65230)
+* Fixed an issue that allowed bypassing Resource Access Requests' AllowedResourceIDs when creating app sessions. [#65117](https://github.com/gravitational/teleport/pull/65117)
+* Fixed an issue that allowed IP Pinning protections to be bypassed via direct dial to a Teleport Node. [#65095](https://github.com/gravitational/teleport/pull/65095)
+* Fixed an issue that allowed IP Pinning protections to be bypassed via the WebUI. Also fix an issue with sporadic WebUI connection errors when the Proxy sees an unexpected client IP even though IP Pinning is not enforced. [#65093](https://github.com/gravitational/teleport/pull/65093)
+* Fixed intermittent issues with VNet on Windows with NRPT rules being wiped after Group Policy refresh. [#65018](https://github.com/gravitational/teleport/pull/65018)
+* Device Trust is now accessible under Zero Trust Access in the web UI. [#65006](https://github.com/gravitational/teleport/pull/65006)
+* Fixed an issue with desktop directory sharing in Teleport Connect that caused file modification times not to be displayed. [#64920](https://github.com/gravitational/teleport/pull/64920)
+* Fixed an issue preventing Teleport Connect from launching on Windows when the OS username contains non-ASCII characters. [#64886](https://github.com/gravitational/teleport/pull/64886)
+* API rate limiting for authenticated per-session MFA requests now follows the regular API rate limits, making the limit unlikely to be hit during parallel SSH operations. [#64776](https://github.com/gravitational/teleport/pull/64776)
+* Print a message indicating that `tctl recordings download <session_id>` completed successfully. [#64722](https://github.com/gravitational/teleport/pull/64722)
+* Updated github.com/docker/cli to v29.2.0+incompatible (addresses CVE-2025-15558). [#64608](https://github.com/gravitational/teleport/pull/64608)
+* Teleport Connect now displays the Message of the Day (MOTD) before login. [#64550](https://github.com/gravitational/teleport/pull/64550)
+* Fixed bug that causes Windows desktop connection errors on EC2 joined nodes. [#64546](https://github.com/gravitational/teleport/pull/64546)
+* Fixed `tsh login --request-id` to display up to date profile information including the assumed access request and roles. [#64537](https://github.com/gravitational/teleport/pull/64537)
+* Fixed error handling around empty uploads to ensure upload resources are consistently cleaned up. [#64501](https://github.com/gravitational/teleport/pull/64501)
+* Update Go to v1.25.8. [#64435](https://github.com/gravitational/teleport/pull/64435)
+* Fixed failures to record extra large session events in synchronous recording modes. [#64344](https://github.com/gravitational/teleport/pull/64344)
+* Fixed a rare race condition causing initial node heartbeats to be missing an address. [#64331](https://github.com/gravitational/teleport/pull/64331)
+
+Enterprise:
+* Fix Okta assignment reconciliation failing for applications with large user lists where the API response time exceeded the 30s HTTP client timeout by increase the Okta http connection Timeout to 5 min.
+* Device Trust is now accessible under Zero Trust Access in the web UI.
+* Fixed an error log and a memory leak when manually deleting an okta_assignment resource.
+
 ## 17.7.22 (04/06/26)
 
 This is a private security release. Changelog will be publicly announced in a later version.
