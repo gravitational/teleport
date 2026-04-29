@@ -26,11 +26,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/stretchr/testify/require"
 )
 
 // mockKubeServerWatcherGetter is a testify mock for the [services.KubernetesServerWatcherGetter] interface.
