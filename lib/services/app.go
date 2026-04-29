@@ -19,7 +19,6 @@
 package services
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"crypto/x509"
@@ -35,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -253,9 +253,9 @@ func validateAppTLS(a types.Application) error {
 		if slices.Contains(types.AppSupportedAllowedInternalCAs, allowedCA) {
 			continue
 		}
-		if err := isValidSingleCertificatePEM(allowedCA); err != nil {
+		if err := isValidCACertificatePEM(allowedCA); err != nil {
 			return trace.BadParameter(
-				"App %q 'tls.allowed_cas' values must each be a single PEM-encoded certificate or a Teleport CA alias (%s): %s",
+				"App %q 'tls.allowed_cas' values must include valid PEM-encoded CA certificates or a Teleport CA alias (%s): %s",
 				a.GetName(),
 				quoteAndJoin(types.AppSupportedAllowedInternalCAs),
 				err,
@@ -550,19 +550,35 @@ func isValidSpiffeID(s string) error {
 	return err
 }
 
-// isValidSingleCertificatePEM validates that s contains exactly one
-// PEM-encoded certificate.
-func isValidSingleCertificatePEM(s string) error {
-	block, rest := pem.Decode([]byte(s))
-	if block == nil {
-		return trace.BadParameter("expected a PEM-encoded certificate")
+// isValidCACertificatePEM validates that s contains valid PEM-encoded CA
+// certificates.
+func isValidCACertificatePEM(s string) error {
+	if len(s) == 0 {
+		return trace.BadParameter("contains no valid PEM-encoded certificates")
 	}
-	if _, err := x509.ParseCertificate(block.Bytes); err != nil {
-		return trace.BadParameter("invalid certificate: %s", err)
+
+	now := time.Now()
+	data := []byte(s)
+	for len(data) > 0 {
+		var block *pem.Block
+		block, data = pem.Decode(data)
+		if block == nil {
+			return trace.BadParameter("expected a PEM-encoded certificate")
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return trace.BadParameter("invalid certificate: %s", err)
+		}
+		switch {
+		case !cert.BasicConstraintsValid || !cert.IsCA:
+			return trace.BadParameter("certificate %q is not a CA", cert.Subject.String())
+		case cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0:
+			return trace.BadParameter("CA certificate %q does not allow certificate signing", cert.Subject.String())
+		case now.After(cert.NotAfter) || now.Before(cert.NotBefore):
+			return trace.BadParameter("CA certificate %q is no longer valid", cert.Subject.String())
+		}
 	}
-	if len(bytes.TrimSpace(rest)) > 0 {
-		return trace.BadParameter("expected exactly one PEM-encoded certificate")
-	}
+
 	return nil
 }
 

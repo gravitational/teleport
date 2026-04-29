@@ -19,12 +19,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +34,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tlscatest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -602,7 +607,7 @@ func TestValidateAppTLS(t *testing.T) {
 				Mode:           types.AppTLSModeVerifyFull,
 				ServerName:     "example.com",
 				ServerSpiffeId: "spiffe://mycluster/svc/example",
-				AllowedCas:     []string{"workload_identity", appExternalAllowedCA},
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
 				ClientCertMode: types.AppClientCertModeManaged,
 			},
 			expectErr: require.NoError,
@@ -661,13 +666,6 @@ func TestValidateAppTLS(t *testing.T) {
 			tls: &types.AppTLS{
 				Mode:       types.AppTLSModeVerifyFull,
 				AllowedCas: []string{"workload_identity", "malformed cert"},
-			},
-			expectErr: require.Error,
-		},
-		"allowed CA with multiple certificates per entry": {
-			tls: &types.AppTLS{
-				Mode:       types.AppTLSModeVerifyFull,
-				AllowedCas: []string{appExternalAllowedCA + "\n" + appExternalAllowedCA},
 			},
 			expectErr: require.Error,
 		},
@@ -736,17 +734,10 @@ func TestValidateAppTLS(t *testing.T) {
 			},
 			expectErr: require.Error,
 		},
-		"allowed cas with non-certificate PEM block": {
-			tls: &types.AppTLS{
-				Mode:       types.AppTLSModeVerifyServerName,
-				AllowedCas: []string{appPrivateKeyPEM},
-			},
-			expectErr: require.Error,
-		},
 		"insecure mode with allowed cas": {
 			tls: &types.AppTLS{
 				Mode:       types.AppTLSModeInsecure,
-				AllowedCas: []string{appExternalAllowedCA},
+				AllowedCas: []string{types.AppTLSInternalCAWorkloadIdentity},
 			},
 			expectErr: require.Error,
 		},
@@ -791,22 +782,88 @@ func TestValidateAppTLS(t *testing.T) {
 	}
 }
 
-const (
-	appExternalAllowedCA = `-----BEGIN CERTIFICATE-----
-MIICFjCCAbugAwIBAgIRAIoq9H5/Uxz1oJS17hjFjKEwCgYIKoZIzj0EAwIwajEa
-MBgGA1UEChMRcm9vdC50ZWxlcG9ydC5kZXYxGjAYBgNVBAMTEXJvb3QudGVsZXBv
-cnQuZGV2MTAwLgYDVQQFEycxODM2NTY0OTg4MTY0NzM2OTQ4NzM2MzczNjQ4MTU2
-NjQzNTI0MTcwHhcNMjYwNDE2MjEwOTA4WhcNMzYwNDEzMjEwOTA4WjBqMRowGAYD
-VQQKExFyb290LnRlbGVwb3J0LmRldjEaMBgGA1UEAxMRcm9vdC50ZWxlcG9ydC5k
-ZXYxMDAuBgNVBAUTJzE4MzY1NjQ5ODgxNjQ3MzY5NDg3MzYzNzM2NDgxNTY2NDM1
-MjQxNzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABDW7XPEplPkWWAZuQX6V/kqn
-T3iGcib+nYPFEOtWYZae3deF7wxcfyRTH4vsVOQhe9+TwJ92WwVnBCT/2U4QzgSj
-QjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSF
-51FfpZdVovLDB7CJg6BcU8MiFzAKBggqhkjOPQQDAgNJADBGAiEAh4qZv2xmwTM0
-TLezizSVzQRvrtY6t3lBqzSPUVx4JWcCIQDwBW5pscq6hxYBRpDRJxVghSobJiHk
-VdH2u/w+t7dV5g==
------END CERTIFICATE-----`
-	appPrivateKeyPEM = `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIGp7zs9vCvGUPmVXFbgpppCQ5Tv7KFqGkV9vWzS1WInS
------END PRIVATE KEY-----`
-)
+func TestValidateAppAllowedCAsContents(t *testing.T) {
+	caKeyPEM, caCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
+	require.NoError(t, err)
+
+	_, caCertPEM2, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
+	require.NoError(t, err)
+
+	identity := &tlsca.Identity{Username: "test-user"}
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromKeys(caCertPEM, caKeyPEM)
+	require.NoError(t, err)
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  time.Now().Add(time.Hour),
+		DNSNames:  []string{"localhost", "*.localhost"},
+	})
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		contents  []byte
+		expectErr require.ErrorAssertionFunc
+	}{
+		"single valid ca": {
+			contents:  caCertPEM,
+			expectErr: require.NoError,
+		},
+		"multiple valid ca": {
+			contents:  bytes.Join([][]byte{caCertPEM, caCertPEM2}, []byte("\n")),
+			expectErr: require.NoError,
+		},
+		"no CA certificate": {
+			contents:  bytes.Join([][]byte{caCertPEM, tlsCert}, []byte("\n")),
+			expectErr: require.Error,
+		},
+		"no certificate contents": {
+			contents:  []byte("hello"),
+			expectErr: require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc.expectErr(t, isValidCACertificatePEM(string(tc.contents)))
+		})
+	}
+
+	t.Run("expired certificates", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			notBefore time.Duration
+			notAfter  time.Duration
+			expectErr require.ErrorAssertionFunc
+		}{
+			"valid": {
+				notBefore: 0,              // Valid starting now.
+				notAfter:  24 * time.Hour, // Expires after 24h
+				expectErr: require.NoError,
+			},
+			"not valid": {
+				notBefore: time.Hour,      // Valid starting in 1 hour.
+				notAfter:  24 * time.Hour, // Expires after 24h
+				expectErr: require.Error,
+			},
+			"expired": {
+				notBefore: -2 * time.Hour, // Valid 2 hours ago.
+				notAfter:  -1 * time.Hour, // Expired 1 hour ago.
+				expectErr: require.Error,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				now := time.Now()
+				_, caPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+					ClusterName: "example.com",
+					NotBefore:   now.Add(tc.notBefore),
+					NotAfter:    now.Add(tc.notAfter),
+				})
+				require.NoError(t, err)
+				tc.expectErr(t, isValidCACertificatePEM(string(caPEM)))
+			})
+		}
+	})
+}
