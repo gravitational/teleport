@@ -879,6 +879,28 @@ func TestRecordingMetadataProcessing(t *testing.T) {
 			expectedDuration: 45 * time.Minute,
 		},
 		{
+			name: "sessionEndTime from OnUploadComplete recovered WindowsDesktopSessionEnd",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.WindowsDesktopSessionStart{
+						Metadata:        apievents.Metadata{Type: events.WindowsDesktopSessionStartEvent, Code: events.DesktopSessionStartCode, Time: startTime, ClusterName: "cluster"},
+						SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+					},
+				}
+			},
+			onUploadComplete: func(_ context.Context, gotSID session.ID) (apievents.AuditEvent, error) {
+				return &apievents.WindowsDesktopSessionEnd{
+					Metadata:        apievents.Metadata{Type: events.WindowsDesktopSessionEndEvent, Code: events.DesktopSessionEndCode},
+					SessionMetadata: apievents.SessionMetadata{SessionID: gotSID.String()},
+					StartTime:       startTime,
+					EndTime:         startTime.Add(20 * time.Minute),
+				}, nil
+			},
+			// sessionEndTime is set from the recovered WindowsDesktopSessionEnd.EndTime.
+			expectProcess:    true,
+			expectedDuration: 20 * time.Minute,
+		},
+		{
 			name: "processing error does not cause panic",
 			buildEvents: func(sid session.ID) []apievents.AuditEvent {
 				return []apievents.AuditEvent{

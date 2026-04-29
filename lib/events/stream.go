@@ -896,6 +896,11 @@ func (w *sliceWriter) completeStream() {
 				w.sessionEndTime = o.EndTime
 			case *apievents.DatabaseSessionEnd:
 				w.dbSessionEndEvent = o
+			case *apievents.WindowsDesktopSessionEnd:
+				w.shouldProcessMetadata = true
+				w.shouldSkipSummarize = true
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				w.sessionEndTime = o.EndTime
 			}
 		}
 
