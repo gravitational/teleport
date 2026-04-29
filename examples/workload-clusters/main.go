@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -92,6 +93,12 @@ type Destination struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalf("Failed running workload_cluster lifecycle %v", err)
+	}
+}
+
+func run() (err error) {
 	ctx := context.Background()
 
 	/**********************************************
@@ -112,7 +119,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Panicf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 	defer parentClient.Close()
 
@@ -150,7 +157,7 @@ func main() {
 
 	// Create a workload_cluster resource within the parent Teleport Cloud cluster.
 	if _, err := parentClient.CreateWorkloadCluster(ctx, wc); err != nil {
-		log.Panicf("Failed to create workload cluster: %v", err)
+		return fmt.Errorf("failed to create workload cluster: %w", err)
 	}
 
 	defer func() {
@@ -163,8 +170,8 @@ func main() {
 
 		// Clean up the previously created workload_cluster resource in the parent
 		// Teleport Cloud cluster.
-		if err := parentClient.DeleteWorkloadCluster(ctx, wc.Metadata.Name); err != nil {
-			log.Panicf("Error deleting cloud cluster: %v", err)
+		if deleteErr := parentClient.DeleteWorkloadCluster(ctx, wc.Metadata.Name); deleteErr != nil {
+			err = errors.Join(err, fmt.Errorf("error deleting workload cluster: %w", deleteErr))
 		}
 	}()
 
@@ -173,7 +180,7 @@ func main() {
 	defer cancel()
 	wc, err = waitForActiveWorkloadCluster(timeoutCtx, parentClient, wc.Metadata.Name, 30*time.Second)
 	if err != nil {
-		log.Panicf("Failed waiting for workload cluster to be active: %v", err)
+		return fmt.Errorf("failed waiting for workload cluster to be active: %w", err)
 	}
 
 	/************************************************
@@ -184,7 +191,7 @@ func main() {
 	// retrieved identity file for interacting with the child Teleport Cloud cluster.
 	tbotDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		log.Panicf("Error creating directory for tbot: %v", err)
+		return fmt.Errorf("error creating directory for tbot: %w", err)
 	}
 	defer func() {
 		if err := os.RemoveAll(tbotDir); err != nil {
@@ -229,11 +236,11 @@ func main() {
 	// Write the tbot configuration to a `tbot.json` file.
 	tbotConfigContent, err := json.Marshal(tbotConfig)
 	if err != nil {
-		log.Panicf("Error marshalling tbot configuration: %v", err)
+		return fmt.Errorf("error marshalling tbot configuration: %w", err)
 	}
 	tbotConfigPath := filepath.Join(tbotDir, "tbot.json")
 	if err := os.WriteFile(tbotConfigPath, tbotConfigContent, 0600); err != nil {
-		log.Panicf("Error writing tbot configuration: %v", err)
+		return fmt.Errorf("error writing tbot configuration: %w", err)
 	}
 
 	// Run the tbot binary. Teleport does not expose programmatic access to
@@ -244,7 +251,7 @@ func main() {
 	tbotCmd := exec.Command("tbot", "start", "-c", tbotConfigPath)
 	tbotCmd.Stderr = &bufErr
 	if err := tbotCmd.Run(); err != nil {
-		log.Panicf("Error running tbot: %v\n\n%s", err, bufErr.String())
+		return fmt.Errorf("error running tbot: %w\n\n%s", err, bufErr.String())
 	}
 
 	/*************************************************************
@@ -265,7 +272,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Panicf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 	defer childClient.Close()
 
@@ -293,7 +300,7 @@ func main() {
 		},
 	}
 	if _, err := childClient.CreateRole(ctx, &newRole); err != nil {
-		log.Panicf("Error creating role: %v", err)
+		return fmt.Errorf("error creating role: %w", err)
 	}
 
 	// Create user named "example" that has the new "example" role assigned.
@@ -308,7 +315,7 @@ func main() {
 		},
 	}
 	if _, err := childClient.CreateUser(ctx, &newUser); err != nil {
-		log.Panicf("Error creating user: %v", err)
+		return fmt.Errorf("error creating user: %w", err)
 	}
 
 	// create an invite URL for user to activate account and setup MFA
@@ -319,7 +326,7 @@ func main() {
 	}
 	resetToken, err := childClient.CreateResetPasswordToken(ctx, &resetPasswordToken)
 	if err != nil {
-		log.Panicf("Error creating reset token: %v", err)
+		return fmt.Errorf("error creating reset token: %w", err)
 	}
 
 	ttl := resetToken.Expiry().Sub(time.Now().UTC())
@@ -330,6 +337,8 @@ func main() {
 	****************************/
 	// Deferred function above will execute and delete the workload_cluster resource in the parent
 	// Teleport Cloud cluster.
+
+	return nil
 }
 
 func waitForActiveWorkloadCluster(ctx context.Context, client *client.Client, workloadClusterName string, pollingInterval time.Duration) (*workloadclusterv1.WorkloadCluster, error) {
