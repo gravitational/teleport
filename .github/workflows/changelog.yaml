@@ -36,3 +36,17 @@ jobs:
           go-version: 'stable'
       - name: Validate the changelog entry
         run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+      # Extract changelog using intermediate variables to avoid injection attacks.
+      # https://docs.github.com/en/actions/reference/security/secure-use#use-an-intermediate-environment-variable
+      - name: Extract changelog entries
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          {
+            echo 'entries<<EOF'
+            grep -iE '^changelog: ' <<< "$BODY" | sed 's/^[Cc]hangelog: //'
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+      - name: Spellcheck changelog
+        working-directory: 'docs'
+        run: yarn spellcheck <<< "${{ steps.changelog.outputs.entries }}"
