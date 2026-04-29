@@ -1,5 +1,6 @@
 ---
 title: Installing Teleport on Amazon ECS using Terraform
+sidebar_label: Amazon ECS
 description: How to install and run Teleport Agents on Amazon ECS
 tags:
  - platform-wide
@@ -26,7 +27,7 @@ You can customize the Agent configuration and re-deploy it as needed.
 The following set up is required:
 - Install [`terraform`](https://developer.hashicorp.com/terraform/install)
 - [Configure AWS credentials](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration)
-- Create Teleport [IAM Join Token](../reference/deployment/join-methods.mdx#aws-iam-role-iam) so that your agent can securely join the Teleport cluster
+- Create Teleport [IAM Join Token](../../reference/deployment/join-methods.mdx#aws-iam-role-iam) so that your agent can securely join the Teleport cluster
 
 ## Step 1/3. Download the Terraform module
 
@@ -264,5 +265,5 @@ Navigate to the [Amazon ECS console](https://console.aws.amazon.com/ecs/v2/clust
 
 ## Next steps
 Use this guide as a starting point for implementing Auto Discovery for AWS resources:
-- [EKS clusters](../enroll-resources/auto-discovery/kubernetes/aws.mdx)
-- [AWS databases](../enroll-resources/database-access/enrollment/aws/aws.mdx)
+- [EKS clusters](../../enroll-resources/auto-discovery/kubernetes/aws.mdx)
+- [AWS databases](../../enroll-resources/database-access/enrollment/aws/aws.mdx)
