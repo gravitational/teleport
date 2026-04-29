@@ -1759,7 +1759,7 @@ func TestDeleteProxy(t *testing.T) {
 		proxy := newProxy("proxy-grpc")
 		require.NoError(t, clt.UpsertProxy(ctx, proxy))
 
-		require.NoError(t, clt.APIClient.DeleteProxy(ctx, proxy.GetName()))
+		require.NoError(t, clt.APIClient.DeleteProxyServer(ctx, proxy.GetName()))
 
 		require.NotContains(t, proxyNames(t), proxy.GetName())
 	})
@@ -1827,7 +1827,7 @@ func TestUpsertProxy(t *testing.T) {
 
 	t.Run("direct gRPC RPC", func(t *testing.T) {
 		proxy := newProxy("proxy-grpc")
-		require.NoError(t, clt.APIClient.UpsertProxy(ctx, proxy))
+		require.NoError(t, clt.APIClient.UpsertProxyServer(ctx, proxy))
 
 		require.Contains(t, proxyNames(t), proxy.GetName())
 	})
