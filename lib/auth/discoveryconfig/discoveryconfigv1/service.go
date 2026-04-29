@@ -428,7 +428,7 @@ func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action pre
 	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
 
 	creationMethod := CreationMethodGuided
-	if _, ok := dc.GetMetadata().Labels[types.DiscoveryIACToolLabel]; ok {
+	if _, ok := dc.GetMetadata().Labels[types.IACToolLabel]; ok {
 		creationMethod = CreationMethodIAC
 	}
 

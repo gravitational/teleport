@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"regexp"
 	"strings"
 
@@ -43,6 +44,9 @@ type BeamReader interface {
 
 	// ListBeams lists beams with pagination.
 	ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error)
+
+	// IterateBeams returns a sequence of beams starting from the given pageToken.
+	IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error]
 }
 
 // BeamWriter defines methods for writing beam resources. We always write beams

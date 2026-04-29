@@ -106,6 +106,66 @@ func TestCreateWebSession(t *testing.T) {
 	}
 }
 
+func TestCreateWebSession_accessGraphAPIUsage(t *testing.T) {
+	t.Parallel()
+
+	const userLlama = "llama"
+
+	fakeclock := clockwork.NewFakeClock()
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Clock: fakeclock,
+		Dir:   t.TempDir(),
+	})
+	require.NoError(t, err, "NewAuthServer failed")
+	t.Cleanup(func() {
+		assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
+	})
+
+	authServer := testAuthServer.AuthServer
+	ctx := context.Background()
+
+	_, _, err = authtest.CreateUserAndRole(authServer, userLlama, []string{userLlama}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	tests := []struct {
+		name  string
+		usage types.WebSessionUsage
+	}{
+		{name: "unspecified usage keeps bearer token", usage: types.WebSessionUsage_WEB_SESSION_USAGE_UNSPECIFIED},
+		{name: "access graph usage omits bearer token", usage: types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
+				User:       userLlama,
+				SessionTTL: time.Hour,
+				Usage:      tc.usage,
+			})
+			require.NoError(t, err, "CreateWebSessionFromReq failed")
+
+			if tc.usage == types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+				require.Empty(t, session.GetBearerToken(), "bearer token should be empty for access graph sessions")
+				require.True(t, session.GetBearerTokenExpiryTime().IsZero(), "bearer token expiry should be zero for access graph sessions")
+				// No explicit GetWebToken check: types.NewWebToken rejects an
+				// empty Token (api/types/session.go), so if upsertWebSession
+				// did not skip UpsertWebToken here, CreateWebSessionFromReq
+				// would have returned an error above.
+				return
+			}
+
+			require.NotEmpty(t, session.GetBearerToken(), "bearer token should be populated for standard sessions")
+			require.False(t, session.GetBearerTokenExpiryTime().IsZero(), "bearer token expiry should be set for standard sessions")
+			got, err := authServer.GetWebToken(ctx, types.GetWebTokenRequest{
+				User:  userLlama,
+				Token: session.GetBearerToken(),
+			})
+			require.NoError(t, err, "GetWebToken failed")
+			require.Equal(t, session.GetBearerToken(), got.GetToken())
+		})
+	}
+}
+
 func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	t.Parallel()
 

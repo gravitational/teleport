@@ -148,7 +148,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/session"
+	libsession "github.com/gravitational/teleport/lib/session"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -341,6 +342,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.DatabaseServices == nil {
 		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
+	}
+	if cfg.DelegationSessions == nil {
+		cfg.DelegationSessions, err = local.NewDelegationSessionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
@@ -656,6 +663,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+
+	if cfg.SubCAService == nil {
+		var err error
+		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+			Backend: cfg.Backend,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -670,6 +694,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
+		DelegationSessions:              cfg.DelegationSessions,
 		AuditLogSessionStreamer:         cfg.AuditLog,
 		Events:                          cfg.Events,
 		WindowsDesktops:                 cfg.WindowsDesktops,
@@ -719,6 +744,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
+		Beams:                           cfg.Beams,
+		SubCAService:                    cfg.SubCAService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -915,6 +942,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
+		Cloud:       cfg.Modules.Features().Cloud,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2526,6 +2554,32 @@ func (a *Server) GetClock() clockwork.Clock {
 	return a.clock
 }
 
+// OnUploadComplete is called after a session recording upload completes. It
+// streams the session events to find the existing session end event, or
+// reconstructs and emits one from the session start event if none is found.
+// It is the canonical OnUploadComplete callback used by the ProtoStreamer,
+// AuditLog, and recording encryption service.
+//
+// TODO(tigrato): this check is not 100% correct. Instead of streaming the file,
+// one should query the audit log to ensure the event exists. The file can contain
+// the session end event but for some reason the the audit log event was lost.
+// There are many reasons for that to happen such as audit queue in the agent being
+// full, audit backend being down, agent restarting after writing the session complete.
+func (a *Server) OnUploadComplete(ctx context.Context, sessionID libsession.ID) (apievents.AuditEvent, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events.FindOrRecoverSessionEnd(ctx, events.FindOrRecoverSessionEndConfig{
+		ClusterName: clusterName.GetClusterName(),
+		Streamer:    a,
+		SessionID:   sessionID,
+		AuditLog:    a,
+		Log:         a.logger,
+		Clock:       a.clock,
+	})
+}
+
 // SetBcryptCost sets bcryptCostOverride, used in tests
 func (a *Server) SetBcryptCost(cost int) {
 	a.lock.Lock()
@@ -2811,7 +2865,10 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
-		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		roles[i], err = services.ApplyTraitsWithContext(req.Roles[i], services.RoleTemplateContext{
+			Username: req.User.GetName(),
+			Traits:   req.User.GetTraits(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3697,7 +3754,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	if req.RouteToCluster != clusterName {
 		unscoped := certParams.UnscopedCertParams()
 		if unscoped == nil {
-			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
+			return nil, trace.WrapWithMessage(services.ErrScopedIdentity, "cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
 		}
 
 		// Authorize access to a remote cluster.
@@ -3796,6 +3853,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
 				AllowedResourceAccessIDs: allowedResourceAccessIDs,
@@ -3843,8 +3901,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		gcpAccounts           []string
 	)
 
-	// only unscoped identities currently support kube groups/users.
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
+		// only unscoped identities need to include the kube groups/users.
 		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
@@ -3940,6 +3998,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
 		BotInternal:              req.BotInternal,
+		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
@@ -4347,12 +4406,14 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	}
 
 	// If a BrowserMFARequestID is provided, look up the request and apply its challenge extensions.
+	var browserMFAReq *services.MFASessionData
 	if req.BrowserMFARequestID != "" {
 		if req.ChallengeExtensions != nil {
 			return nil, trace.BadParameter("challenge extensions must not be set when a browser MFA request ID is provided")
 		}
 
-		browserMFAReq, err := a.GetMFASession(ctx, req.BrowserMFARequestID)
+		var err error
+		browserMFAReq, err = a.GetMFASession(ctx, req.BrowserMFARequestID)
 		if err != nil {
 			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
 			return nil, trace.AccessDenied("invalid browser MFA request")
@@ -4364,12 +4425,12 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.BadParameter("stored session lacks challenge extensions")
 		}
 
-		// Replace the challenge extensions with the ones found in the SSO MFA object.
+		// Replace the challenge extensions with the ones found in the MFA object.
 		// These are the ones from the original tsh request.
 		challengeExtensions = mfatypes.ChallengeExtensionsToProto(chalExts)
 
 		// Used for testing. If observer function is set, call it with
-		// challenge extensions from SSO MFA session.
+		// challenge extensions from MFA session.
 		if a.ObserveBrowserMFAChallengeExtensionsForTesting != nil {
 			a.ObserveBrowserMFAChallengeExtensionsForTesting(challengeExtensions)
 		}
@@ -4431,6 +4492,17 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if browserMFAReq != nil && browserMFAReq.Username != username {
+		a.logger.WarnContext(
+			ctx,
+			"Username stored in MFA session does not match requester's username",
+			"request_id", req.BrowserMFARequestID,
+			"session_username", browserMFAReq.Username,
+			"requestor_username", username,
+		)
+		return nil, trace.AccessDenied("invalid browser MFA request")
 	}
 
 	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
@@ -5100,7 +5172,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		allowedResourceAccessIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
+		roleSet, err := services.FetchRolesForUser(userState, a)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5284,6 +5356,8 @@ type HostCertsParams struct {
 	AgentScope string
 	// The ImmutableLabelHash that should be encoded into the resulting certificates.
 	ImmutableLabelHash string
+	// JoinToken is the name of the join token that was used to join this host.
+	JoinToken string
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -5448,6 +5522,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		SystemRoles:        systemRoles,
 		AgentScope:         params.AgentScope,
 		ImmutableLabelHash: params.ImmutableLabelHash,
+		JoinToken:          params.JoinToken,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5766,17 +5841,6 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tok)
 	}
 	return tokens, nil
-}
-
-// GetWebSessionInfo returns the web session specified with sessionID for the given user.
-// The session is stripped of any authentication details.
-// Implements auth.WebUIService
-func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	sess, err := a.GetWebSession(ctx, types.GetWebSessionRequest{User: user, SessionID: sessionID})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess.WithoutSecrets(), nil
 }
 
 // IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
@@ -6699,6 +6763,14 @@ func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, serve
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	// TODO(nibrasohin): DELETE IN v21.0.0 - db agents set this themselves in
+	// getServerInfo starting in v20, so this block only remains to populate
+	// the field for older agents that haven't been upgraded yet. If this
+	// change is backported to v18, we can drop it on the v20
+	if db := server.GetDatabase(); db != nil && db.GetStatusVNetDNSName() == "" {
+		db.SetStatusVNetDNSName(dbvnet.DNSName(db.GetName()))
+	}
+
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7778,7 +7850,28 @@ func MFARequiredToBool(m proto.MFARequired) (required bool) {
 	}
 }
 
-func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+// getMFARequiredForScopedCtx returns the [services.MFARequired] decision for the given scoped auth context.
+// When unscoped, it returns the MFA requirement as defined by the context's role set.
+// When scoped, it always returns [services.MFARequiredNever] unless the cluster auth preferences dictate that
+// per-session MFA is required. This always results in an error until scopes support MFA.
+func (a *Server) getMFARequiredForScopedCtx(ctx context.Context, scopedCtx *authz.ScopedContext) (services.MFARequired, error) {
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return services.MFARequiredAlways, trace.Wrap(err)
+	}
+
+	if unscopedCtx, isUnscoped := scopedCtx.UnscopedContext(); isUnscoped {
+		return unscopedCtx.Checker.GetAccessState(authPref).MFARequired, nil
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO (eriktate/scopes): implement scoped MFA
+		return services.MFARequiredAlways, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+	return services.MFARequiredNever, nil
+}
+
+func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedContext, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
 	// Assign Required as a function of MFARequired.
 	defer func() {
 		if resp != nil {
@@ -7786,12 +7879,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 	}()
 
-	authPref, err := a.GetAuthPreference(ctx)
+	mfaRequired, err := a.getMFARequiredForScopedCtx(ctx, scopedCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch state := checker.GetAccessState(authPref); state.MFARequired {
+	switch mfaRequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{
 			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
@@ -7802,6 +7894,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		// This should be an impossible state because if this were a scoped identity we would have either returned
+		// an error due to cluster-level per-session MFA being enabled or returned MFARequiredNever due to scoped
+		// identities not supporting it. We return an error here to prevent progressing in an unpredictable state
+		return nil, trace.AccessDenied("scoped identities must not require per-session MFA")
+	}
+	checker := unscopedCtx.Checker
 	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
@@ -8135,7 +8235,6 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 			mfatypes.BeginBrowserMFAChallengeParams{
 				User:                     user,
 				BrowserMFATSHRedirectURL: clientRedirectURL,
-				ProxyAddress:             proxyAddress,
 				Ext:                      challengeExtensions,
 			},
 		); err != nil {
@@ -8865,7 +8964,7 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 }
 
 // TODO(tigrato): remove Download* methods once e no longer references them.
-func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+func (s *Server) DownloadSummary(ctx context.Context, sessionID libsession.ID, writer io.Writer) error {
 	reader, err := s.StreamSessionSummary(ctx, sessionID)
 	if err != nil {
 		return trace.Wrap(err)

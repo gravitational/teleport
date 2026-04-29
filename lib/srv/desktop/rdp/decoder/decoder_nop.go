@@ -25,6 +25,10 @@ import (
 )
 
 type Decoder struct{}
+type CursorState struct {
+	Visible bool
+	X, Y    uint16
+}
 
 func New(width, height uint16) (*Decoder, error) {
 	return nil, trace.NotImplemented("the RDP decoder is not included in this build")
@@ -35,3 +39,4 @@ func (d *Decoder) Resize(w, h uint16)             {}
 func (d *Decoder) Process([]byte)                 {}
 func (d *Decoder) Image() *image.RGBA             { return nil }
 func (d *Decoder) Thumbnail(w, h int) *image.RGBA { return nil }
+func (d *Decoder) CursorState() CursorState       { return CursorState{} }

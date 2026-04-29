@@ -1692,7 +1692,7 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			require.Equal(t, tt.desktop.Metadata.Name, wireDesktop.Metadata.Name)
 			require.Equal(t, tt.desktop.Spec.Addr, wireDesktop.Addr)
 			require.Equal(t, tt.desktop.Spec.Hostname, wireDesktop.Hostname)
-			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIDs)
+			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIds)
 			require.Equal(t, tt.requiresRequest, paginated.RequiresRequest)
 
 			// Test unpacking

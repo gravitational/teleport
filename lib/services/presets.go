@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -223,12 +223,14 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
-					types.NewRule(scopedaccess.KindScopedRole, RW()),
-					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
+					types.NewRule(types.KindRecordingEncryption, RW()),
 				},
 			},
 		},
@@ -821,6 +823,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindInstaller, RW()),
@@ -838,8 +841,11 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(access.KindScopedRoleAssignment, RW()),
 				},
 			},
 		},
@@ -1333,12 +1339,12 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalGitHubOrgs},
 	}
 }
 
 func defaultMCPTools() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalMCPTools},
 	}
 }

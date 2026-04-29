@@ -65,7 +65,16 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := a.createUserWebSession(ctx, user, req.LoginIP)
+	// Compute a UserLoginState to include Access List grants in the session.
+	// We intentionally do not persist the ULS here (unlike the normal login
+	// path) to avoid leaving stale state if the user's roles are modified
+	// after the reset.
+	userState, err := a.ulsGenerator.GeneratePureULS(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webSession, err := a.createUserWebSession(ctx, userState, req.LoginIP)
 	if err != nil {
 		if keys.IsPrivateKeyPolicyError(err) {
 			// Do not return an error, otherwise

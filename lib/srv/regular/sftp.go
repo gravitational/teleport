@@ -19,18 +19,15 @@
 package regular
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -39,15 +36,18 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
+	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	sessionreexec "github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
+	sessionsftputils "github.com/gravitational/teleport/session/sftputils"
 )
 
 type sftpSubsys struct {
 	logger *slog.Logger
 
-	fileTransferReq *srv.FileTransferRequest
+	fileTransferReq *reexecsftp.FileTransferRequest
 	sftpCmd         *sessionreexec.CommandExecutor
 	serverCtx       *srv.ServerContext
 
@@ -57,9 +57,9 @@ type sftpSubsys struct {
 	waitForOutputStreams sync.WaitGroup
 }
 
-func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
+func newSFTPSubsys(fileTransferReq *reexecsftp.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
-		logger:          slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP),
+		logger:          slog.With(teleport.ComponentKey, "subsystem:sftp"),
 		fileTransferReq: fileTransferReq,
 	}, nil
 }
@@ -119,8 +119,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err := serverCtx.SetSSHRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
-
-	s.sftpCmd, err = serverCtx.ConfigureCommand(chReadPipeOut, chWritePipeIn, auditPipeIn)
+	s.sftpCmd, err = serverCtx.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.StdinFile:  chReadPipeOut,
+		sessionreexec.StdoutFile: chWritePipeIn,
+		sessionreexec.StderrFile: auditPipeIn,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,44 +212,40 @@ func (s *sftpSubsys) Start(ctx context.Context,
 			LocalAddr:  serverConn.LocalAddr().String(),
 		}
 
-		r := bufio.NewReader(auditPipeOut)
+		dec := json.NewDecoder(auditPipeOut)
 		for {
-			// Read up to a NULL byte, the child process uses this to
-			// delimit audit events
-			eventStr, err := r.ReadString(0x0)
-			if err != nil {
+			var ev sessionsftputils.Event
+			if err := dec.Decode(&ev); err != nil {
 				if !errors.Is(err, io.EOF) {
 					s.logger.WarnContext(ctx, "Failed to read SFTP event", "error", err)
 				}
 				return
 			}
 
-			var oneOfEvent apievents.OneOf
-			err = (&jsonpb.Unmarshaler{}).Unmarshal(strings.NewReader(eventStr[:len(eventStr)-1]), &oneOfEvent)
-			if err != nil {
-				s.logger.WarnContext(ctx, "Failed to unmarshal SFTP event", "error", err)
-				continue
-			}
-			event, err := apievents.FromOneOf(oneOfEvent)
-			if err != nil {
-				s.logger.WarnContext(ctx, "Failed to convert SFTP event from OneOf", "error", err)
-				continue
-			}
-
-			event.SetClusterName(serverCtx.ClusterName)
-			switch e := event.(type) {
-			case *apievents.SFTP:
+			var event apievents.AuditEvent
+			if ev.SFTP != nil {
+				e, err := sftputils.SFTPEventToProto(ev.SFTP)
+				if err != nil {
+					s.logger.WarnContext(ctx, "Failed to convert SFTP event", "error", err)
+					continue
+				}
+				e.SetClusterName(serverCtx.ClusterName)
 				e.ServerMetadata = serverMeta
 				e.SessionMetadata = sessionMeta
 				e.UserMetadata = userMeta
 				e.ConnectionMetadata = connectionMeta
-			case *apievents.SFTPSummary:
+				event = e
+			} else if ev.Summary != nil {
+				e := sftputils.SFTPSummaryEventToProto(ev.Summary)
+				e.SetClusterName(serverCtx.ClusterName)
 				e.ServerMetadata = serverMeta
 				e.SessionMetadata = sessionMeta
 				e.UserMetadata = userMeta
 				e.ConnectionMetadata = connectionMeta
-			default:
-				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
+				event = e
+			} else {
+				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process")
+				continue
 			}
 
 			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {

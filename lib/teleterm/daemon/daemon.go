@@ -40,7 +40,6 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -353,7 +352,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri uri.ResourceURI, remove
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.ClearCachedClientsForRoot(uri))
+	return trace.Wrap(s.ClearStaleCachedClientsForRoot(uri))
 }
 
 // CreateGateway creates a gateway to given targetURI
@@ -875,7 +874,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	}
 
 	// We have to reconnect using the updated cert.
-	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
+	return trace.Wrap(s.ClearStaleCachedClientsForRoot(cluster.URI))
 }
 
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
@@ -1277,18 +1276,11 @@ func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceU
 	return clt, trace.Wrap(err)
 }
 
-// ClearCachedClientsForRoot closes and removes clients from the cache
-// for the root cluster and its leaf clusters.
-func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	profileName := clusterURI.GetProfileName()
-	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
-}
-
 // ClearStaleCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters, if their cert is outdated.
 func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	profileName := clusterURI.GetProfileName()
-	err := s.clientCache.ClearForRoot(profileName, clientcache.WithClearingOnlyClientsWithStaleCert())
+	err := s.clientCache.ClearStaleClientsForRoot(profileName)
 	return trace.Wrap(err)
 }
 

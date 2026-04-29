@@ -277,6 +277,15 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 }
 
 func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+	const skipNotSupported = false
+	return trace.Wrap(rc.getMany(ctx, client, skipNotSupported))
+}
+
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -285,6 +294,9 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
+		if skipNotSupported && errors.As(err, new(*errNotSupported)) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -307,7 +319,12 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported)
 }
 
 // Create updates or inserts one or many resources
@@ -842,7 +859,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		coll, err := handler.Get(ctx, client, rc.ref, resources.GetOpts{WithSecrets: rc.withSecrets})
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+				return nil, &errNotSupported{trace.BadParameter("getting %q is not supported", rc.ref.String())}
 			}
 			return nil, trace.Wrap(err, "getting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
 		}
@@ -1152,6 +1169,20 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &healthCheckConfigCollection{items: items}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+}
+
+// errNotSupported is used to mark NotImplemented errors that were transformed
+// into BadParameter, so they can later be identified.
+type errNotSupported struct {
+	cause error
+}
+
+func (e *errNotSupported) Error() string {
+	return e.cause.Error()
+}
+
+func (e *errNotSupported) Unwrap() error {
+	return e.cause
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken

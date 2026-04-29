@@ -61,15 +61,6 @@ type Conn struct {
 	decode    Decoder
 	closeOnce sync.Once
 
-	// OnSend is an optional callback that is invoked when a TDP message
-	// is sent on the wire. It is passed both the raw bytes and the encoded
-	// message.
-	OnSend func(m Message, b []byte)
-
-	// OnRecv is an optional callback that is invoked when a TDP message
-	// is received on the wire.
-	OnRecv func(m Message)
-
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
 	localAddr  net.Addr
@@ -145,9 +136,6 @@ func (c *Conn) PeekNextByte() (byte, error) {
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
 	m, err := c.decode(c.bufr)
-	if c.OnRecv != nil {
-		c.OnRecv(m)
-	}
 	return m, trace.Wrap(err)
 }
 
@@ -162,9 +150,6 @@ func (c *Conn) WriteMessage(m Message) error {
 	_, err = c.rwc.Write(buf)
 	c.writeMu.Unlock()
 
-	if c.OnSend != nil {
-		c.OnSend(m, buf)
-	}
 	return trace.Wrap(err)
 }
 

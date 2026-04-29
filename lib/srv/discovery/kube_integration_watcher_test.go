@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -57,22 +56,28 @@ import (
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
+		Matcher: types.AWSMatcher{
+			Regions: []string{"region1"},
+			Tags:    types.Labels{"l1": []string{"v1"}},
+		},
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
-		Integration:  "aws1",
+		Matcher: types.AWSMatcher{
+			Regions:     []string{"region1"},
+			Tags:        types.Labels{"l1": []string{"v1"}},
+			Integration: "aws1",
+		},
 	})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
-		Integration:  "aws1",
+		Matcher: types.AWSMatcher{
+			Regions:     []string{"region1"},
+			Tags:        types.Labels{"l1": []string{"v1"}},
+			Integration: "aws1",
+		},
 	})
 	require.NoError(t, err)
 
@@ -282,6 +287,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -312,6 +318,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -342,6 +349,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -449,7 +457,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				k1 := types.KubeServers(kubeServers).ToMap()
 				k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
 				for k := range k1 {
-					require.Equal(t, services.Equal, services.CompareResources(k1[k], k2[k]), "kube server in auth server does not match expected")
+					require.True(t, k1[k].IsEqual(k2[k]), "kube server in auth server does not match expected")
 				}
 			})
 		})

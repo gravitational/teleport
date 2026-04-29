@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
@@ -698,6 +699,7 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// Some of the new resources got introduced, but not all
 									types.KindBot,
@@ -750,6 +752,7 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// The resources that already got into the main rule are still present.
 									types.KindBot,
@@ -774,7 +777,10 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
+							types.NewRule(types.KindRetrievalModel, RW()),
 							types.NewRule(types.KindScopedToken, RW()),
+							types.NewRule(access.KindScopedRole, RW()),
+							types.NewRule(access.KindScopedRoleAssignment, RW()),
 						},
 					},
 				},

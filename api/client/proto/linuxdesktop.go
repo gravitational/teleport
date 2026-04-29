@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// PackLinuxDesktop packs Linux desktop in to its wire format.
+// PackLinuxDesktop packs Linux desktop into its wire format.
 func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_Resource {
 	return &PaginatedResource_LinuxDesktop{
 		LinuxDesktop: &LinuxDesktop{
@@ -29,7 +29,7 @@ func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_
 			Metadata: types.Metadata153ToLegacy(desktop.GetMetadata()),
 			Addr:     desktop.GetSpec().GetAddr(),
 			Hostname: desktop.GetSpec().GetHostname(),
-			ProxyIDs: desktop.GetSpec().GetProxyIds(),
+			ProxyIds: desktop.GetSpec().GetProxyIds(),
 		},
 	}
 }
@@ -44,7 +44,7 @@ func UnpackLinuxDesktop(src *LinuxDesktop) types.ResourceWithLabels {
 		Spec: &linuxdesktopv1.LinuxDesktopSpec{
 			Addr:     src.Addr,
 			Hostname: src.Hostname,
-			ProxyIds: src.ProxyIDs,
+			ProxyIds: src.ProxyIds,
 		},
 	}
 	return types.ProtoResource153ToLegacy(dst)

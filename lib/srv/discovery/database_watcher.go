@@ -51,6 +51,9 @@ func (s *Server) startDatabaseWatchers() error {
 		services.ReconcilerConfig[types.Database]{
 			Matcher:             func(database types.Database) bool { return true },
 			GetCurrentResources: s.getCurrentDatabases,
+			CompareResources: func(d1, d2 types.Database) int {
+				return services.EqualFromBool(d1.IsEqual(d2))
+			},
 			GetNewResources: func() map[string]types.Database {
 				mu.RLock()
 				defer mu.RUnlock()
@@ -248,16 +251,14 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 		}
 		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
-		databaseEventPrefix + database.GetName(): {
-			ResourceType:        types.DiscoveredResourceDatabase,
-			ResourceOrigin:      types.OriginCloud,
-			CloudProvider:       database.GetCloud(),
-			DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
-			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
-				DbType:     database.GetType(),
-				DbProtocol: database.GetProtocol(),
-			},
+	err = s.emitUsageEvent(databaseEventPrefix+database.GetName(), &usageeventsv1.ResourceCreateEvent{
+		ResourceType:        types.DiscoveredResourceDatabase,
+		ResourceOrigin:      types.OriginCloud,
+		CloudProvider:       database.GetCloud(),
+		DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
+		Database: &usageeventsv1.DiscoveredDatabaseMetadata{
+			DbType:     database.GetType(),
+			DbProtocol: database.GetProtocol(),
 		},
 	})
 	if err != nil {

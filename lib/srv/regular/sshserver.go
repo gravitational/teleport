@@ -1314,7 +1314,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	// Create command to re-exec Teleport which will handle networking requests. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
-	cmd, err := nsctx.ConfigureCommand()
+	cmd, err := nsctx.ConfigureCommand(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2545,9 +2545,6 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 	}
 
 	switch r.Name {
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {

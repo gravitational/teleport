@@ -110,13 +110,17 @@ func TestJoinGHA(t *testing.T) {
 				Actor:           "octocat",
 				Ref:             "refs/heads/main",
 				RefType:         "branch",
+				Enterprise:      "my-enterprise",
+				EnterpriseID:    "123456",
 			},
 		},
 	}
 
+	testModules := modulestest.OSSModules()
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:     t.TempDir(),
+			Modules: testModules,
 		},
 	})
 	require.NoError(t, err)
@@ -150,6 +154,8 @@ func TestJoinGHA(t *testing.T) {
 			Actor:           "octocat",
 			Ref:             "refs/heads/main",
 			RefType:         "branch",
+			Enterprise:      "my-enterprise",
+			EnterpriseID:    "123456",
 		}
 		if modifier != nil {
 			modifier(rule)
@@ -651,15 +657,46 @@ func TestJoinGHA(t *testing.T) {
 			request:     newRequest(validIDToken),
 			assertError: allowRulesNotMatched,
 		},
+		{
+			name: "incorrect-enterprise",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Enterprise = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise-id",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.EnterpriseID = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(idTokenValidator.reset)
 			if tt.setEnterprise {
-				modulestest.SetTestModules(
-					t,
-					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
-				)
+				testModules.TestBuildType = modules.BuildEnterprise
+			} else {
+				testModules.TestBuildType = modules.BuildOSS
 			}
 			token, err := types.NewProvisionTokenFromSpec(
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,

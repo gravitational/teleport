@@ -22,8 +22,9 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"text/template"
+	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,8 +37,9 @@ import (
 // databaseConfigTemplateFunc list of template functions used on the database
 // config template.
 var databaseConfigTemplateFuncs = template.FuncMap{
-	"quote": quote,
-	"join":  strings.Join,
+	"quote":    quote,
+	"join":     strings.Join,
+	"duration": func(d types.Duration) time.Duration { return d.Duration() },
 }
 
 // databaseAgentConfigurationTemplate database configuration template.
@@ -457,7 +459,7 @@ db_service:
     dynamic_labels:
     {{- range $name, $label := .StaticDatabaseDynamicLabels }}
     - name: "{{ $name }}"
-      period: "{{ $label.Period.Duration }}"
+      period: "{{ duration $label.Period }}"
       command:
       {{- range $command := $label.Command }}
       - {{ $command | quote }}

@@ -42,7 +42,7 @@ If you want to configure Redis Cluster, please read [Database Access with Redis 
 
 - A host where you will run the Teleport Database Service.
 
-  See [Installation](../../../../installation/installation.mdx) for details.
+  See [Installation](../../../../installation/single-machine/single-machine.mdx) for details.
 
 - Optional: a certificate authority that issues certificates for
   your self-hosted database.
@@ -102,7 +102,7 @@ tls-protocols "TLSv1.2 TLSv1.3"
 ```
 
 Once mutual TLS has been enabled, you will no longer be able to connect to
-the cluster without providing a valid client certificate. You can use the
+the database  without providing a valid client certificate. You can use the
 `tls-auth-clients optional` setting to allow connections
 from clients that do not present a certificate.
 

@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -829,7 +830,7 @@ func RunNetworking() (code int, err error) {
 	// Create a minimal default environment for the user.
 	workingDir := rootDirectory
 
-	hasAccess, err := CheckHomeDir(localUser)
+	hasAccess, err := checkHomeDir(localUser)
 	if hasAccess && err == nil {
 		workingDir = localUser.HomeDir
 	}
@@ -1126,6 +1127,14 @@ func RunAndExit(commandType string) {
 		code = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
 		code = runPark()
+	case reexecconstants.TrueSubCommand:
+		// nothing to do
+	case reexecconstants.SFTPSubCommand:
+		initLogger("sftp", os.Stderr, ExecLogConfig{})
+		err = reexecsftp.RunSFTP(slog.Default())
+		if err != nil {
+			code = 1
+		}
 	default:
 		code, err = reexecconstants.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -1148,19 +1157,37 @@ func RunAndExit(commandType string) {
 	os.Exit(code)
 }
 
+// MaybeReexec checks if the command-line arguments are those of a Teleport
+// reexec command, and if so, runs the logic for the command (terminating the
+// process at the end). Should be the first thing called in the main function
+// for the Teleport binary or in the TestMain for packages that rely on
+// reexecution.
+func MaybeReexec() {
+	if IsReexec() {
+		RunAndExit(os.Args[1])
+	}
+}
+
+// TODO(espadolini): remove IsReexec and RunAndExit in favor of requiring MaybeReexec, after enterprise is updated
+
 // IsReexec determines if the current process is a teleport reexec command.
 // Used by tests to reroute the execution to RunAndExit.
 func IsReexec() bool {
-	if len(os.Args) >= 2 {
-		switch os.Args[1] {
-		case reexecconstants.ExecSubCommand, reexecconstants.NetworkingSubCommand,
-			reexecconstants.CheckHomeDirSubCommand,
-			reexecconstants.ParkSubCommand, reexecconstants.SFTPSubCommand:
-			return true
-		}
+	if len(os.Args) < 2 {
+		return false
 	}
 
-	return false
+	switch os.Args[1] {
+	case reexecconstants.ExecSubCommand,
+		reexecconstants.NetworkingSubCommand,
+		reexecconstants.CheckHomeDirSubCommand,
+		reexecconstants.ParkSubCommand,
+		reexecconstants.TrueSubCommand,
+		reexecconstants.SFTPSubCommand:
+		return true
+	default:
+		return false
+	}
 }
 
 // openFileAsUser opens a file as the given user to ensure proper access checks. This is unsafe and should not be used outside of
@@ -1341,7 +1368,7 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	hasAccess, err := CheckHomeDir(localUser)
+	hasAccess, err := checkHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1442,10 +1469,10 @@ func hasAccessibleHomeDir() error {
 	return nil
 }
 
-// CheckHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
+// checkHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
 // errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
 // in a return of (false, nil)
-func CheckHomeDir(localUser *user.User) (bool, error) {
+func checkHomeDir(localUser *user.User) (bool, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1647,10 +1674,12 @@ func (e *CommandExecutor) childToParentPipe(fd FileFD) (*os.File, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.parentFiles = append(e.parentFiles, r)
 	if e.childFiles, err = addFile(e.childFiles, w, fd); err != nil {
+		r.Close()
+		w.Close()
 		return nil, trace.Wrap(err)
 	}
+	e.parentFiles = append(e.parentFiles, r)
 	return r, nil
 }
 
@@ -1659,10 +1688,12 @@ func (e *CommandExecutor) parentToChildPipe(fd FileFD) (*os.File, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.parentFiles = append(e.parentFiles, w)
 	if e.childFiles, err = addFile(e.childFiles, r, fd); err != nil {
+		r.Close()
+		w.Close()
 		return nil, trace.Wrap(err)
 	}
+	e.parentFiles = append(e.parentFiles, w)
 	return w, nil
 }
 
@@ -1670,6 +1701,7 @@ func addFile(slice []*os.File, file *os.File, fd FileFD) ([]*os.File, error) {
 	idx := int(fd)
 	if idx >= len(slice) {
 		slice = slices.Grow(slice, idx+1-len(slice))
+		clear(slice[len(slice) : idx+1])
 		slice = slice[:idx+1]
 	}
 	if slice[idx] != nil {
@@ -1687,6 +1719,9 @@ func (e *CommandExecutor) Close() error {
 		}
 	}
 	for _, closer := range e.childFiles {
+		if closer == nil {
+			continue
+		}
 		if err := closer.Close(); err != nil {
 			errs = append(errs, err)
 		}
@@ -1716,6 +1751,9 @@ func (e *CommandExecutor) Start() error {
 const childReadyWaitTimeout = 3 * time.Minute
 
 func (e *CommandExecutor) WaitForChild() error {
+	if e.ready == nil {
+		return nil
+	}
 	var waitErr error
 	if e.bpfEnabled {
 		if waitErr = WaitForSignal(e.ctx, e.ready, childReadyWaitTimeout); waitErr != nil {
@@ -1733,6 +1771,9 @@ func (e *CommandExecutor) WaitForChild() error {
 // pre-processing routine if Enhanced Session Recording is enabled.
 // Otherwise, this method is a no-op.
 func (e *CommandExecutor) Continue() error {
+	if e.cont == nil {
+		return nil
+	}
 	err := e.cont.Close()
 	e.cont = nil
 	return trace.Wrap(err)
@@ -1740,6 +1781,9 @@ func (e *CommandExecutor) Continue() error {
 
 // Kill will send signal to the child process that it should terminate the command
 func (e *CommandExecutor) Kill() error {
+	if e.killShell == nil {
+		return nil
+	}
 	err := e.killShell.Close()
 	e.killShell = nil
 	return trace.Wrap(err)
@@ -1748,8 +1792,11 @@ func (e *CommandExecutor) Kill() error {
 // ConfigureCommand creates a command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
-func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles ...*os.File) (executor *CommandExecutor, err error) {
-	executor = &CommandExecutor{
+// Context passed to this function is used only for logging and waiting for
+// the ready signal from child, the returned command will not be terminated
+// when it's done
+func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter io.Writer, command *ExecCommand, execType string, extraFiles map[FileFD]*os.File) (_ *CommandExecutor, err error) {
+	executor := &CommandExecutor{
 		ctx:    ctx,
 		logger: logger,
 	}
@@ -1806,7 +1853,11 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	// See the below for details.
 	//
 	//   https://man7.org/linux/man-pages/man7/pipe.7.html
-	go copyCommand(ctx, cmd, command)
+	buffer := &bytes.Buffer{}
+	if err := json.NewEncoder(buffer).Encode(command); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go copyCommand(ctx, cmd, buffer)
 
 	// Find the Teleport executable and its directory on disk.
 	executable, err := os.Executable()
@@ -1814,11 +1865,20 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 		return nil, trace.Wrap(err)
 	}
 
+	// Build env for `teleport exec`.
+	env := &envutils.SafeEnv{}
+	env.AddExecEnvironment()
+
 	// The channel/request type determines the subcommand to execute.
 	var subCommand string
 	switch execType {
 	case reexecconstants.NetworkingSubCommand:
 		subCommand = reexecconstants.NetworkingSubCommand
+
+		// Unset XAUTHORITY for the networking command as the SSH session
+		// process given to the user will not have it set which can cause
+		// issues with the X11 forwarding.
+		env.Remove(x11.XAuthFileEnvVar)
 	default:
 		subCommand = reexecconstants.ExecSubCommand
 	}
@@ -1827,29 +1887,33 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
 
-	// build env for `teleport exec`
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
-
 	executor.bpfEnabled = command.RecordWithBPF
 
 	childFiles := slices.Clone(executor.childFiles)
 
 	if canReuseLogWriter {
-		addFile(childFiles, logFileWriter, LogFile)
+		childFiles, err = addFile(childFiles, logFileWriter, LogFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	for fd, file := range extraFiles {
+		childFiles, err = addFile(childFiles, file, fd)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Build the "teleport exec" command.
 	executor.Cmd = &exec.Cmd{
+		Stdin:      childFiles[0],
+		Stdout:     childFiles[1],
+		Stderr:     childFiles[2],
 		Path:       executable,
 		Args:       args,
 		Env:        *env,
-		ExtraFiles: childFiles[3:], // first 3 file descriptors are for stdin, stdout and stderr and we handle that separately
-	}
-
-	// Add extra files if applicable.
-	if len(extraFiles) > 0 {
-		executor.ExtraFiles = append(executor.ExtraFiles, extraFiles...)
+		ExtraFiles: childFiles[3:],
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1860,10 +1924,10 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 
 // copyCommand will copy the provided command to the child process over the
 // pipe attached to the context.
-func copyCommand(ctx context.Context, cmdw *os.File, cmdmsg *ExecCommand) {
+func copyCommand(ctx context.Context, cmdw *os.File, buffer *bytes.Buffer) {
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
-	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
+	if _, err := io.Copy(cmdw, buffer); err != nil {
 		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
 	}
 

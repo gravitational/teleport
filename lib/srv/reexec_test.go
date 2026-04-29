@@ -96,7 +96,7 @@ func testNetworkingCommand(t *testing.T, login string) {
 	}
 
 	// Start networking subprocess.
-	command, err := scx.ConfigureCommand()
+	command, err := scx.ConfigureCommand(nil)
 	require.NoError(t, err)
 	proc, err := networking.NewProcess(ctx, command.Cmd)
 	require.NoError(t, err)

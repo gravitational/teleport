@@ -28,7 +28,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"log/slog"
 	"math/rand/v2"
@@ -44,6 +43,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
@@ -1814,17 +1814,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
+	authSettings.Scopes = scopes.ScopesStatusToString(pr.ScopesStatus)
+
 	return webclient.PingResponse{
-		Auth:                   authSettings,
-		Proxy:                  *proxyConfig,
-		ServerVersion:          teleport.Version,
-		MinClientVersion:       teleport.MinClientSemVer().String(),
-		ClusterName:            h.auth.clusterName,
-		AutomaticUpgrades:      pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:             h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:                h.cfg.Modules.BuildType(),
-		FIPS:                   h.cfg.Modules.IsBoringBinary(),
-		AuthServerScopesStatus: scopes.ScopesStatusToString(pr.ScopesStatus),
+		Auth:              authSettings,
+		Proxy:             *proxyConfig,
+		ServerVersion:     teleport.Version,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
+		ClusterName:       h.auth.clusterName,
+		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
+		Edition:           h.cfg.Modules.BuildType(),
+		FIPS:              h.cfg.Modules.IsBoringBinary(),
 	}, nil
 }
 

@@ -189,14 +189,9 @@ type WebSuite struct {
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if reexec.IsReexec() {
-		reexec.RunAndExit(os.Args[1])
-		return
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cryptosuitestest.PrecomputeRSAKeys(ctx)
@@ -2585,6 +2580,48 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			require.NoError(t, waitForOutput(term, "teleport"))
 		})
 	}
+}
+
+func TestTerminalRequireSessionMFANoRegisteredDevice(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	const username = "alice"
+
+	pack := proxy.authPack(t, username, nil)
+
+	ap, err := types.NewAuthPreference(
+		types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorWebauthn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAuthPreference(t.Context(), ap)
+	require.NoError(t, err)
+
+	term, err := connectToHost(
+		t.Context(),
+		connectConfig{
+			pack:  pack,
+			host:  proxy.node.ID(),
+			proxy: proxy.webURL.Host,
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := term.Close(); err != nil {
+			t.Logf("failed to close terminal: %v", err)
+		}
+	})
+
+	require.NoError(t, waitForOutput(term, "no supported MFA devices enrolled"))
 }
 
 type windowsDesktopServiceMock struct {

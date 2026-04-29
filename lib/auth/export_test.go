@@ -282,6 +282,14 @@ func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzC
 	}
 }
 
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
+	return &ServerWithRoles{
+		authServer:    srv,
+		alog:          alog,
+		scopedContext: scopedContext,
+	}
+}
+
 func NewKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	return newKeySet(ctx, keyStore, caID)
 }

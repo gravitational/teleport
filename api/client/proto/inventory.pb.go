@@ -1314,9 +1314,9 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 	// DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
 	DatabaseHeartbeatGracefulStop bool `protobuf:"varint,20,opt,name=database_heartbeat_graceful_stop,json=databaseHeartbeatGracefulStop,proto3" json:"database_heartbeat_graceful_stop,omitempty"`
 	// LinuxDesktopHeartbeats indicates the ICS supports heartbeating linux desktops.
-	LinuxDesktopHeartbeats bool `protobuf:"varint,21,opt,name=LinuxDesktopHeartbeats,proto3" json:"LinuxDesktopHeartbeats,omitempty"`
+	LinuxDesktopHeartbeats bool `protobuf:"varint,21,opt,name=linux_desktop_heartbeats,json=linuxDesktopHeartbeats,proto3" json:"linux_desktop_heartbeats,omitempty"`
 	// LinuxDesktopCleanup indicates the ICS supports deleting linux desktops when UpstreamInventoryGoodbye.DeleteResources is set.
-	LinuxDesktopCleanup bool `protobuf:"varint,22,opt,name=LinuxDesktopCleanup,proto3" json:"LinuxDesktopCleanup,omitempty"`
+	LinuxDesktopCleanup bool `protobuf:"varint,22,opt,name=linux_desktop_cleanup,json=linuxDesktopCleanup,proto3" json:"linux_desktop_cleanup,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1547,12 +1547,12 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x0eInstallMethods\x18\x05 \x03(\tR\x0eInstallMethods\x12*\n" +
 	"\x10ContainerRuntime\x18\x06 \x01(\tR\x10ContainerRuntime\x124\n" +
 	"\x15ContainerOrchestrator\x18\a \x01(\tR\x15ContainerOrchestrator\x12*\n" +
-	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\x99\n" +
+	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\x9d\n" +
 	"\n" +
 	"\x18DownstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12Y\n" +
-	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\xeb\b\n" +
+	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\xef\b\n" +
 	"\x15SupportedCapabilities\x12(\n" +
 	"\x0fProxyHeartbeats\x18\x01 \x01(\bR\x0fProxyHeartbeats\x12\"\n" +
 	"\fProxyCleanup\x18\x02 \x01(\bR\fProxyCleanup\x12&\n" +
@@ -1576,9 +1576,9 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x14KubernetesHeartbeats\x18\x11 \x01(\bR\x14KubernetesHeartbeats\x12,\n" +
 	"\x11KubernetesCleanup\x18\x12 \x01(\bR\x11KubernetesCleanup\x12E\n" +
 	"\x1frelay_server_heartbeats_cleanup\x18\x13 \x01(\bR\x1crelayServerHeartbeatsCleanup\x12G\n" +
-	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\x126\n" +
-	"\x16LinuxDesktopHeartbeats\x18\x15 \x01(\bR\x16LinuxDesktopHeartbeats\x120\n" +
-	"\x13LinuxDesktopCleanup\x18\x16 \x01(\bR\x13LinuxDesktopCleanup\"\xea\x01\n" +
+	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\x128\n" +
+	"\x18linux_desktop_heartbeats\x18\x15 \x01(\bR\x16linuxDesktopHeartbeats\x122\n" +
+	"\x15linux_desktop_cleanup\x18\x16 \x01(\bR\x13linuxDesktopCleanup\"\xea\x01\n" +
 	"\x1cInventoryUpdateLabelsRequest\x12\x1a\n" +
 	"\bServerID\x18\x01 \x01(\tR\bServerID\x12*\n" +
 	"\x04Kind\x18\x02 \x01(\x0e2\x16.proto.LabelUpdateKindR\x04Kind\x12G\n" +

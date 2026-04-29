@@ -40,9 +40,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

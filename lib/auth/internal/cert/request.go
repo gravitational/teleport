@@ -173,6 +173,9 @@ type Request struct {
 	// a valid web session so that we can properly report access graph usage
 	// and reuse the same handlers.
 	WebSessionID string
+	// DelegationSessionID is the ID of the Delegation Session this certificate
+	// is being generated for.
+	DelegationSessionID string
 }
 
 // Check verifies the cert request is valid.

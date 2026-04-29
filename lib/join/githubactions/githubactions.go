@@ -105,6 +105,12 @@ type IDTokenClaims struct {
 	RepositoryOwner string `json:"repository_owner"`
 	// The ID of the organization in which the repository is stored.
 	RepositoryOwnerID string `json:"repository_owner_id"`
+	// The name of the enterprise that owns the repository.
+	// Can be empty if enterprise does not own org/repo.
+	Enterprise string `json:"enterprise"`
+	// The ID of the enterprise that owns the repository.
+	// Can be empty if enterprise does not own org/repo.
+	EnterpriseID string `json:"enterprise_id"`
 	// The ID of the workflow run that triggered the workflow.
 	RunID string `json:"run_id"`
 	// The number of times this workflow has been run.
@@ -137,6 +143,8 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
 		EventName:       c.EventName,
 		Sha:             c.SHA,
 		RunId:           c.RunID,
+		Enterprise:      c.Enterprise,
+		EnterpriseId:    c.EnterpriseID,
 	}
 
 	return attrs
@@ -182,7 +190,7 @@ func (p *CheckGithubIDTokenParams) checkAndSetDefaults() error {
 // CheckGithubIDToken checks a Github OIDC token against a provision token.
 // If the token is valid and its claims match at least one allow rule, the
 // claims are returned.
-func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (*IDTokenClaims, error) {
+func CheckGithubIDToken(ctx context.Context, m modules.Modules, params *CheckGithubIDTokenParams) (*IDTokenClaims, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
@@ -197,7 +205,7 @@ func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (
 	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
 	enterpriseSlug := token.Spec.GitHub.EnterpriseSlug
 	if enterpriseOverride != "" || enterpriseSlug != "" {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		if m.BuildType() != modules.BuildEnterprise {
 			return nil, trace.Wrap(services.ErrRequiresEnterprise, "github enterprise server joining")
 		}
 	}
@@ -285,6 +293,12 @@ func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims)
 			continue
 		}
 		if rule.RefType != "" && claims.RefType != rule.RefType {
+			continue
+		}
+		if rule.Enterprise != "" && claims.Enterprise != rule.Enterprise {
+			continue
+		}
+		if rule.EnterpriseID != "" && claims.EnterpriseID != rule.EnterpriseID {
 			continue
 		}
 

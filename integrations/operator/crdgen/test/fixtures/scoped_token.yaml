@@ -1,0 +1,21 @@
+apiVersion: resources.teleport.dev/v1
+kind: TeleportScopedTokenV1
+metadata:
+  name: test-token-4
+  namespace: test
+  labels:
+    env: production
+    team: platform
+scope: "/test"
+spec:
+  roles:
+    - "Node"
+  assigned_scope: "/test/stag"
+  join_method: "token"
+  usage_mode: "unlimited"
+  immutable_labels:
+    ssh:
+      env: prod
+      color: blue
+      animal: dog
+      test: test

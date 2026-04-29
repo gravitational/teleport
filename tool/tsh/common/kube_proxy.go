@@ -28,9 +28,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -642,23 +641,6 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		},
 	)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	rootClusterName, err := tc.RootClusterName(ctx)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
-		result.KeyRing,
-		rootClusterName,
-		teleportCluster,
-		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 

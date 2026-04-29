@@ -117,10 +117,6 @@ type server struct {
 	// logger specifies the logger
 	logger *slog.Logger
 
-	// proxyWatcher monitors changes to the proxies
-	// and broadcasts updates
-	proxyWatcher *services.GenericWatcher[types.Server, readonly.Server]
-
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
@@ -130,6 +126,9 @@ type server struct {
 
 	// gitKeyManager manages keys for git proxies.
 	gitKeyManager *git.KeyManager
+
+	// proxyDiscoveryPublisher publishes proxy discovery events to subscribers.
+	proxyDiscoveryPublisher *proxyDiscoveryPublisher
 }
 
 // EICESigner is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
@@ -366,18 +365,18 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 	}
 
 	srv := &server{
-		Config:               cfg,
-		localAuthClient:      cfg.LocalAuthClient,
-		localAccessPoint:     cfg.LocalAccessPoint,
-		limiter:              cfg.Limiter,
-		ctx:                  ctx,
-		cancel:               cancel,
-		proxyWatcher:         proxyWatcher,
-		expectedLeafClusters: make(map[string]*expectedLeafClusters),
-		logger:               cfg.Logger,
-		offlineThreshold:     offlineThreshold,
-		proxySigner:          cfg.PROXYSigner,
-		gitKeyManager:        gitKeyManager,
+		Config:                  cfg,
+		localAuthClient:         cfg.LocalAuthClient,
+		localAccessPoint:        cfg.LocalAccessPoint,
+		limiter:                 cfg.Limiter,
+		ctx:                     ctx,
+		cancel:                  cancel,
+		expectedLeafClusters:    make(map[string]*expectedLeafClusters),
+		logger:                  cfg.Logger,
+		offlineThreshold:        offlineThreshold,
+		proxySigner:             cfg.PROXYSigner,
+		gitKeyManager:           gitKeyManager,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, proxyWatcher, cfg.Logger),
 	}
 
 	srv.localCluster, err = newLocalCluster(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
@@ -464,9 +463,6 @@ func (s *server) periodicFunctions() {
 		case <-s.ctx.Done():
 			s.logger.DebugContext(s.ctx, "Closing")
 			return
-		// Proxies have been updated, notify connected agents about the update.
-		case proxies := <-s.proxyWatcher.ResourcesC:
-			s.fanOutProxies(proxies)
 		case <-ticker.C:
 			if err := s.fetchExpectedLeafClusters(); err != nil {
 				s.logger.WarnContext(s.ctx, "Failed to fetch expected leaf clusters", "error", err)
@@ -667,7 +663,7 @@ func (s *server) Start() error {
 
 func (s *server) Close() error {
 	s.cancel()
-	s.proxyWatcher.Close()
+	s.proxyDiscoveryPublisher.Close()
 	return s.srv.Close()
 }
 
@@ -693,7 +689,7 @@ func (s *server) DrainConnections(ctx context.Context) error {
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
 
-	s.proxyWatcher.Close()
+	s.proxyDiscoveryPublisher.Close()
 	s.cancel()
 
 	return trace.Wrap(err)
@@ -1201,18 +1197,6 @@ func (s *server) onClusterTunnelClose(cluster clusterCloser) error {
 	return trace.NotFound("cluster %q is not found", cluster.GetName())
 }
 
-// fanOutProxies is a non-blocking call that updated the watches proxies
-// list and notifies all clusters about the proxy list change
-func (s *server) fanOutProxies(proxies []types.Server) {
-	s.Lock()
-	defer s.Unlock()
-	s.localCluster.fanOutProxies(proxies)
-
-	for _, cluster := range s.leafClusters {
-		cluster.fanOutProxies(proxies)
-	}
-}
-
 func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 	if err := ch.Reject(reason, msg); err != nil {
 		s.logger.WarnContext(s.ctx, "Failed rejecting new channel request", "error", err)
@@ -1372,6 +1356,47 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 	}
 
 	go leaf.updateLocks(lockRetry)
+
+	mfaRetry := retryutils.LinearConfig{
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
+		Step:   srv.Config.PollingPeriod / 5,
+		Max:    srv.Config.PollingPeriod,
+		Jitter: retryutils.HalfJitter,
+		Clock:  srv.Clock,
+	}
+
+	validatedMFAChallengeWatcher, err := NewValidatedMFAChallengeWatcher(
+		closeContext,
+		ValidatedMFAChallengeWatcherConfig{
+			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClient(),
+			ClusterName:                 leaf.GetName(),
+			ResourceWatcherConfig: &services.ResourceWatcherConfig{
+				Clock:     srv.Clock,
+				Component: srv.Component,
+				Logger:    srv.Logger.With("leaf_cluster", leaf.GetName()),
+				Client:    leaf.localClient,
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	leaf.validatedMFAChallengeWatcher = validatedMFAChallengeWatcher
+
+	go func() {
+		if err := leaf.runValidatedMFAChallengeSync(closeContext, mfaRetry); err != nil {
+			if err := srv.onClusterTunnelClose(&alwaysClose{Cluster: leaf}); err != nil {
+				srv.Logger.ErrorContext(
+					closeContext,
+					"Failed to clean up leaf cluster resources after runValidatedMFAChallengeSync loop exited",
+					"leaf_cluster", leaf.GetName(),
+					"error", err,
+				)
+			}
+		}
+	}()
+
 	return leaf, nil
 }
 

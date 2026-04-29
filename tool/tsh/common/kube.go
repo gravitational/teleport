@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
@@ -371,6 +370,21 @@ type ExecOptions struct {
 	reason string
 }
 
+// termSizeQueueAdapter adapts term.TerminalSizeQueue to
+// remotecommand.TerminalSizeQueue.
+type termSizeQueueAdapter struct {
+	q term.TerminalSizeQueue
+}
+
+func (a *termSizeQueueAdapter) Next() *remotecommand.TerminalSize {
+	s := a.q.Next()
+	if s == nil {
+		return nil
+	}
+
+	return &remotecommand.TerminalSize{Width: s.Width, Height: s.Height}
+}
+
 // Run executes a validated remote execution against a pod.
 func (p *ExecOptions) Run(ctx context.Context) error {
 	var err error
@@ -420,7 +434,9 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 	var sizeQueue remotecommand.TerminalSizeQueue
 	if t.Raw {
 		// this call spawns a goroutine to monitor/update the terminal size
-		sizeQueue = t.MonitorSize(t.GetSize())
+		if q := t.MonitorSize(t.GetSize()); q != nil {
+			sizeQueue = &termSizeQueueAdapter{q: q}
+		}
 
 		// unset p.Err if it was previously set because both stdout and stderr go over p.Out when tty is
 		// true
@@ -799,25 +815,6 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		if isNetworkError(err) {
 			deleteKubeCredsLock = true
 		}
-		return trace.Wrap(err)
-	}
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	// This is a safety check in order to print a better message to the user even
-	// before hitting Teleport Kubernetes Proxy.
-	// We only enforce this check for root clusters, since we don't have knowledge
-	// of the RBAC role mappings for remote clusters.
-	rootClusterName, err := tc.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
-		rootClusterName,
-		c.teleportCluster,
-		c.kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.

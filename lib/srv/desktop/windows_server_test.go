@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -316,12 +315,12 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := makeTDPSendHandler(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
 	encoded, err := msg.Encode()
 	require.NoError(t, err)
-	handler(msg, encoded)
+	require.NoError(t, handler(msg))
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)
@@ -345,13 +344,10 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	maliciousPNG := make([]byte, constants.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	png := &tdpb.PNGFrame{Data: maliciousPNG}
-	encoded, err := png.Encode()
-	require.NoError(t, err)
 
 	delay := func() int64 { return 0 }
-	handler := makeTDPSendHandler(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* conn */, nil /* auditor */)
-
-	handler(png, encoded)
+	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	require.NoError(t, handler(png))
 
 	require.Nil(t, emitter.LastEvent())
 }
@@ -367,7 +363,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := makeTDPReceiveHandler(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := s.makeTDPReceiveAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.MouseButton{
 		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
@@ -394,14 +390,13 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		},
 	}
 
-	handler := makeTDPReceiveHandler(
+	handler := s.makeTDPReceiveAuditor(
 		context.Background(),
 		s,
 		s.cfg.Clock,
 		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdp.Conn{},
 		audit,
 	)
 
@@ -435,14 +430,13 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		},
 	}
 
-	handler := makeTDPSendHandler(
+	handler := s.makeTDPSendAuditor(
 		context.Background(),
 		s,
 		s.cfg.Clock,
 		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdp.Conn{},
 		audit,
 	)
 
@@ -451,9 +445,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 
 	start := s.cfg.Clock.Now().UTC()
 	msg := &tdpb.ClipboardData{Data: fakeClipboardData}
-	encoded, err := msg.Encode()
-	require.NoError(t, err)
-	handler(msg, encoded)
+	require.NoError(t, handler(msg))
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)

@@ -523,6 +523,30 @@ func TestCreateAuthenticateChallenge_BrowserMFARequestID(t *testing.T) {
 				assert.ErrorContains(t, err, "stored session lacks challenge extensions")
 			},
 		},
+		{
+			name: "NOK username mismatch",
+			setup: func(t *testing.T) {
+				session := &services.MFASessionData{
+					RequestID:     "test-request-3",
+					Username:      "mismatch",
+					ConnectorID:   constants.BrowserMFA,
+					ConnectorType: constants.BrowserMFA,
+					ChallengeExtensions: &mfatypes.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
+				}
+				err := a.UpsertMFASessionData(ctx, session)
+				require.NoError(t, err)
+			},
+			request: &proto.CreateAuthenticateChallengeRequest{
+				Request:             userCredsRequest,
+				BrowserMFARequestID: "test-request-3",
+			},
+			checkError: func(t *testing.T, err error) {
+				assert.ErrorAs(t, err, new(*trace.AccessDeniedError), "CreateAuthenticateChallenge error mismatch")
+				assert.ErrorContains(t, err, "invalid browser MFA request")
+			},
+		},
 	}
 
 	for _, tt := range tests {

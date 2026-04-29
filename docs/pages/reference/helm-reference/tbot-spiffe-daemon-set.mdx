@@ -1,0 +1,80 @@
+---
+title: tbot-spiffe-daemon-set Chart Reference
+sidebar_label: tbot-spiffe-daemon-set
+description: Values that can be set using the tbot-spiffe-daemon-set Helm chart
+tags:
+ - reference
+ - mwi
+ - infrastructure-identity
+---
+
+This chart deploys a daemon set of the [Machine & Workload Identity](../../machine-workload-identity/introduction.mdx) agent,
+tbot, into your Kubernetes cluster to provide SPIFFE identities to workloads in
+the cluster. This is the recommended way of deploying MWI for SPIFFE into
+Kubernetes clusters.
+
+To use it, you will need to know:
+
+- The address of your Teleport Proxy Service or Auth Service
+- The name of your Teleport cluster
+- The name of a join token configured for Machine & Workload Identity and your Kubernetes cluster
+as described in the [Machine & Workload Identity on Kubernetes guide](../../machine-workload-identity/deployment/kubernetes.mdx)
+- A configured WorkloadIdentity resource for your cluster
+
+By default, this chart is designed to use the `kubernetes` join method but it
+can be customized to use any delegated join method. We do not recommend that
+you use the `token` join method with this chart. Visit the
+[join method reference](../deployment/join-methods.mdx) for more information
+about alternatives to the `kubernetes` join method.
+
+## Minimal configuration
+
+Follow steps 1 and 2 from the
+[Deploying `tbot` on Kubernetes guide](../../machine-workload-identity/deployment/kubernetes.mdx)
+to create a Bot and Join Token for your `tbot` daemon set to use for
+authentication.
+
+You must have also created a WorkloadIdentity resource to be used when issuing
+a SPIFFE SVID. For example, the following configuration would produce a SPIFFE
+ID including the namespace and service account of the pod:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /k8s/{{ workload.kubernetes.namespace }}/{{ workload.kubernetes.service_account }}
+```
+
+Ensure that your Bot has been granted access to issue this WorkloadIdentity
+via a role. See the [WorkloadIdentity reference](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)
+to learn more about customizing the structure of the SPIFFE IDs issued to your
+workloads.
+
+The following are the minimal values you must set on the chart for it to
+function correctly:
+
+```yaml
+# Set to the name of your Teleport cluster.
+clusterName: example.teleport.sh
+# Set to the name of the token you created.
+token: example-token
+# Set to the address of your Teleport Proxy Service.
+teleportProxyAddress: example.teleport.sh:443
+workloadIdentitySelector:
+  # Set to the name of the WorkloadIdentity resource you'd like to use when
+  # issuing SVIDs.
+  name: example-workload-identity
+```
+
+After deploying the chart, you will need to make the SPIFFE Workload API
+available to your workloads. You can manually mount the SPIFFE Workload API into
+your pods via hostPath, or you can deploy the
+[SPIFFE CSI Driver](https://github.com/spiffe/spiffe-csi) to simplify this
+process.
+
+## Full reference
+
+(!docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx!)

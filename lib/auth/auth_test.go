@@ -353,14 +353,14 @@ func TestSessions(t *testing.T) {
 			tlsCert, _ := parseX509PEMAndIdentity(t, ws.GetTLSCert())
 			assert.Equal(t, tc.expectTLSPubKeyAlgo, tlsCert.PublicKeyAlgorithm)
 
-			// GetWebSessionInfo and make sure it matches, with private keys removed.
-			out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
+			// GetWebSession and make sure it matches
+			out, err := s.a.GetWebSession(ctx, types.GetWebSessionRequest{
+				User:      user,
+				SessionID: ws.GetName(),
+			})
 			require.NoError(t, err)
-			assert.Empty(t, out.GetSSHPriv())
-			assert.Empty(t, out.GetTLSPriv())
 			assert.Empty(t, gocmp.Diff(ws, out,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-				cmpopts.IgnoreFields(types.WebSessionSpecV2{}, "Priv", "TLSPriv")))
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 				User:      user,
@@ -1385,8 +1385,13 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
-	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
-	s := newAuthSuite(t)
+	t.Parallel()
+	s, err := newTestPack(t.Context(), testPackOptions{
+		DataDir: t.TempDir(),
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.a.Close()) })
 
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
@@ -1579,6 +1584,156 @@ func TestSAMLConnector(t *testing.T) {
 		saml.SetName(strings.Repeat("abc", 300))
 		_, err = s.a.UpdateSAMLConnector(ctx, saml)
 		require.ErrorContains(t, err, "exceeds maximum length")
+	})
+
+	t.Run("signing key pair", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector("test-signing-key", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
+			},
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
+
+		saml.SetSigningKeyPair(&types.AsymmetricKeyPair{
+			Cert:       "test-cert",
+			PrivateKey: "",
+		})
+
+		// Create without private key fails
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required private_key")
+
+		// Upsert new without private key fails.
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required private_key")
+
+		// Created connector has specified cert and private key.
+		saml.SetSigningKeyPair(&types.AsymmetricKeyPair{
+			Cert:       "test-cert",
+			PrivateKey: "test-private-key",
+		})
+
+		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+
+		createdSKP := createdConnector.GetSigningKeyPair()
+		require.NotNil(t, createdSKP)
+		require.Equal(t, "test-cert", createdSKP.Cert)
+		require.Equal(t, "test-private-key", createdSKP.PrivateKey)
+
+		// Connector without secrets has private key stripped.
+		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
+		require.NoError(t, err)
+
+		withoutSecretsSKP := connectorWithoutSecrets.GetSigningKeyPair()
+		require.NotNil(t, withoutSecretsSKP)
+		require.Equal(t, "test-cert", withoutSecretsSKP.Cert)
+		require.Empty(t, withoutSecretsSKP.PrivateKey)
+
+		// Upserted connector with empty private key doesn't overwrite existing.
+		_, err = s.a.UpsertSAMLConnector(ctx, connectorWithoutSecrets)
+		require.NoError(t, err)
+
+		upsertedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
+		require.NoError(t, err)
+		upsertedSKP := upsertedConnector.GetSigningKeyPair()
+		require.NotNil(t, upsertedSKP)
+		require.Equal(t, "test-cert", upsertedSKP.Cert)
+		require.Equal(t, "test-private-key", upsertedSKP.PrivateKey)
+
+		// Updated connector with empty private key doesn't overwrite existing.
+		_, err = s.a.UpdateSAMLConnector(ctx, connectorWithoutSecrets)
+		require.NoError(t, err)
+
+		updatedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
+		require.NoError(t, err)
+		updatedSKP := updatedConnector.GetSigningKeyPair()
+		require.NotNil(t, updatedSKP)
+		require.Equal(t, "test-cert", updatedSKP.Cert)
+		require.Equal(t, "test-private-key", updatedSKP.PrivateKey)
+	})
+
+	t.Run("OAuth credentials", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector("test-oauth", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
+			},
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
+
+		saml.SetOAuthClientCredentials(&types.OAuthClientCredentials{
+			ClientId:     "test-client-id",
+			ClientSecret: "",
+		})
+
+		// Create without client secret fails.
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required client_secret")
+
+		// Upsert new without client secret fails.
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "missing required client_secret")
+
+		// Created connector has specified client ID and client secret.
+		saml.SetOAuthClientCredentials(&types.OAuthClientCredentials{
+			ClientId:     "test-client-id",
+			ClientSecret: "test-client-secret",
+		})
+
+		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+
+		createdCreds := createdConnector.GetOAuthClientCredentials()
+		require.NotNil(t, createdCreds)
+		require.Equal(t, "test-client-id", createdCreds.ClientId)
+		require.Equal(t, "test-client-secret", createdCreds.ClientSecret)
+
+		// Connector without secrets has client secret stripped.
+		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
+		require.NoError(t, err)
+
+		withoutSecretsCreds := connectorWithoutSecrets.GetOAuthClientCredentials()
+		require.NotNil(t, withoutSecretsCreds)
+		require.Equal(t, "test-client-id", withoutSecretsCreds.ClientId)
+		require.Empty(t, withoutSecretsCreds.ClientSecret)
+
+		// Upserted connector with empty client secret doesn't overwrite existing.
+		_, err = s.a.UpsertSAMLConnector(ctx, connectorWithoutSecrets)
+		require.NoError(t, err)
+
+		upsertedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
+		require.NoError(t, err)
+		upsertedCreds := upsertedConnector.GetOAuthClientCredentials()
+		require.NotNil(t, upsertedCreds)
+		require.Equal(t, "test-client-id", upsertedCreds.ClientId)
+		require.Equal(t, "test-client-secret", upsertedCreds.ClientSecret)
+
+		// Updated connector with empty client secret doesn't overwrite existing.
+		_, err = s.a.UpdateSAMLConnector(ctx, connectorWithoutSecrets)
+		require.NoError(t, err)
+
+		updatedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
+		require.NoError(t, err)
+		updatedCreds := updatedConnector.GetOAuthClientCredentials()
+		require.NotNil(t, updatedCreds)
+		require.Equal(t, "test-client-id", updatedCreds.ClientId)
+		require.Equal(t, "test-client-secret", updatedCreds.ClientSecret)
 	})
 
 	t.Run("events", func(t *testing.T) {
@@ -2799,6 +2954,42 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	// verify that user's logins are present in cert
 	logins = append(logins, teleport.SSHSessionJoinPrincipal)
 	require.Equal(t, logins, signedCert.ValidPrincipals)
+
+	t.Run("user name login template", func(t *testing.T) {
+		u, r, err := authtest.CreateUserAndRole(
+			p.a,
+			"templated-user",
+			nil,
+			nil,
+			authtest.WithRoleMutator(func(role types.Role) {
+				role.SetLogins(types.Allow, []string{"{{user.metadata.name}}"})
+			}),
+		)
+		require.NoError(t, err)
+
+		user, ok := u.(*types.UserV2)
+		require.True(t, ok)
+
+		role, ok := r.(*types.RoleV6)
+		require.True(t, ok)
+
+		priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
+		require.NoError(t, err)
+
+		reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      user,
+			Roles:     []*types.RoleV6{role},
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(time.Hour),
+			Cluster:   p.clusterName.GetClusterName(),
+		})
+		require.NoError(t, err)
+
+		signedCert, err := sshutils.ParseCertificate(reply.Cert)
+		require.NoError(t, err)
+		require.Contains(t, signedCert.ValidPrincipals, user.GetName())
+		require.Contains(t, signedCert.ValidPrincipals, teleport.SSHSessionJoinPrincipal)
+	})
 }
 
 func TestGenerateUserCertWithLocks(t *testing.T) {
@@ -3282,6 +3473,28 @@ func TestNewWebSession(t *testing.T) {
 	require.NotEmpty(t, ws.GetTLSPriv())
 	require.NotEmpty(t, ws.GetPub())
 	require.NotEmpty(t, ws.GetTLSCert())
+
+	t.Run("expands user metadata name in logins", func(t *testing.T) {
+		user, _, err := authtest.CreateUserAndRole(p.a, "templated-web-user", nil, nil, authtest.WithRoleMutator(func(role types.Role) {
+			role.SetLogins(types.Allow, []string{"{{user.metadata.name}}"})
+		}))
+		require.NoError(t, err)
+
+		req := auth.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			LoginTime:  p.a.GetClock().Now().UTC(),
+			SessionTTL: apidefaults.CertDuration,
+		}
+
+		_, checker, err := p.a.NewWebSession(ctx, req, nil /* opts */)
+		require.NoError(t, err)
+
+		logins, err := checker.CheckLoginDuration(0)
+		require.NoError(t, err)
+		require.Contains(t, logins, user.GetName())
+	})
 }
 
 func TestDeleteMFADeviceSync(t *testing.T) {

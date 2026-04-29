@@ -31,7 +31,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -161,18 +160,10 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
-	// Use RiskyUnpinnedDecision to allow scoped identities (regardless of their
+	// Use RiskyAuthorizeUnpinnedRead to allow scoped identities (regardless of their
 	// scope pin) to call GetAuthPreference.
 	ruleCtx := authzCtx.RuleContext()
-	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
-		ctx,
-		scopes.Root,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(
-				&ruleCtx, types.KindClusterAuthPreference, types.VerbRead,
-			)
-		},
-	); err != nil {
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthPreference, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -295,7 +286,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), s.modules); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

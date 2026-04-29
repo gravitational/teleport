@@ -113,7 +113,10 @@ func (o *Config) Init(ctx context.Context) error {
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityAWSRAService values and sets any defaults.
-func (o *Config) CheckAndSetDefaults() error {
+func (o *Config) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", ServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

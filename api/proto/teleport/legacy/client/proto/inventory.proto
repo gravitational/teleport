@@ -183,9 +183,9 @@ message DownstreamInventoryHello {
     // DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
     bool database_heartbeat_graceful_stop = 20;
     // LinuxDesktopHeartbeats indicates the ICS supports heartbeating linux desktops.
-    bool LinuxDesktopHeartbeats = 21;
+    bool linux_desktop_heartbeats = 21;
     // LinuxDesktopCleanup indicates the ICS supports deleting linux desktops when UpstreamInventoryGoodbye.DeleteResources is set.
-    bool LinuxDesktopCleanup = 22;
+    bool linux_desktop_cleanup = 22;
   }
 
   // SupportedCapabilities advertises the supported features of the auth server.

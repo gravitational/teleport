@@ -236,6 +236,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionDynamoDBRequest{
 			AppSessionDynamoDBRequest: e,
 		}
+	case *AppSessionLLMRequest:
+		out.Event = &OneOf_AppSessionLLMRequest{
+			AppSessionLLMRequest: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,
@@ -479,6 +483,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SSMRun:
 		out.Event = &OneOf_SSMRun{
 			SSMRun: e,
+		}
+	case *AzureRun:
+		out.Event = &OneOf_AzureRun{
+			AzureRun: e,
 		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
@@ -1011,6 +1019,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *InferencePolicyDelete:
 		out.Event = &OneOf_InferencePolicyDelete{
 			InferencePolicyDelete: e,
+		}
+	case *RetrievalModelCreate:
+		out.Event = &OneOf_RetrievalModelCreate{
+			RetrievalModelCreate: e,
+		}
+	case *RetrievalModelUpdate:
+		out.Event = &OneOf_RetrievalModelUpdate{
+			RetrievalModelUpdate: e,
+		}
+	case *RetrievalModelDelete:
+		out.Event = &OneOf_RetrievalModelDelete{
+			RetrievalModelDelete: e,
 		}
 	case *SessionSummarized:
 		out.Event = &OneOf_SessionSummarized{
