@@ -463,7 +463,7 @@ func (f *azureInstanceFetcher) emit(ctx context.Context, vms []*armcompute.Virtu
 			meta, err := arm.ParseResourceID(resourceID)
 			if err != nil {
 				f.Logger.WarnContext(ctx,
-					"Skipping Azure VM because resource group could not be inferred during emit",
+					"Skipping Azure VM because resource group could not be inferred",
 					"subscription_id", f.Subscription,
 					"vm_id", azure.VMID(vm),
 					"resource_id", resourceID,
