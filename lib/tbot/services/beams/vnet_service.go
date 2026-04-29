@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/dbfqdn"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
@@ -308,6 +309,15 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		return nil, trace.NotFound("no matches for FQDN: %s", fqdn)
 	}
 
+	// Try resolving as a database FQDN first. The DB FQDN format is
+	// <vnet_dns_name>.db.<zone>, which is more specific than the app
+	// public_addr space, so a successful DB parse is unambiguous.
+	if dbResp, err := v.resolveDatabaseFQDN(ctx, fqdn, osConfig); err != nil {
+		return nil, trace.Wrap(err)
+	} else if dbResp != nil {
+		return dbResp, nil
+	}
+
 	expr := fmt.Sprintf(
 		`resource.spec.public_addr == %+q || resource.spec.public_addr == %+q`,
 		fqdn,
@@ -418,6 +428,106 @@ func (v *vnetApplicationService) GetAppCert(ctx context.Context, key *vnetv1.App
 // GetAppSigner returns the private key for the given application's TLS certificate.
 func (v *vnetApplicationService) GetAppSigner(context.Context, *vnetv1.AppKey, uint16) (crypto.Signer, error) {
 	return v.privateKey, nil
+}
+
+// resolveDatabaseFQDN attempts to resolve fqdn as a VNet database FQDN. It
+// returns (nil, nil) if fqdn is not DB-shaped for the configured zones, so
+// the caller can fall through to app resolution. A non-nil error is reserved
+// for unexpected failures (e.g. backend errors).
+func (v *vnetApplicationService) resolveDatabaseFQDN(
+	ctx context.Context,
+	fqdn string,
+	osConfig *vnetOSConfiguration,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	proxyHost := hostname(osConfig.pong.GetProxyPublicAddr())
+	if !dbfqdn.HasZoneSuffix(fqdn, proxyHost) {
+		return nil, nil
+	}
+	vnetDNSName, err := dbfqdn.Parse(fqdn, proxyHost)
+	if err != nil {
+		// FQDN looked DB-shaped but the prefix isn't a valid vnet_dns_name.
+		// Treat as no-match and let the caller decide (here it'll fall
+		// through to app resolution and ultimately NotFound).
+		v.logger.DebugContext(ctx, "DB-shaped FQDN has malformed vnet_dns_name",
+			"fqdn", fqdn, "error", err)
+		return nil, nil
+	}
+
+	expr := fmt.Sprintf(`resource.status.vnet_dns_name == %+q`, vnetDNSName)
+	rsp, err := client.GetResourcePage[types.DatabaseServer](ctx, v.client, &proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: expr,
+		Limit:               1,
+	})
+	if err != nil {
+		v.logger.ErrorContext(ctx, "Failed to list database servers",
+			"fqdn", fqdn, "vnet_dns_name", vnetDNSName, "error", err)
+		return nil, trace.Wrap(err, "listing database servers")
+	}
+	if len(rsp.Resources) == 0 {
+		v.logger.DebugContext(ctx, "No matching database servers for FQDN",
+			"fqdn", fqdn, "vnet_dns_name", vnetDNSName)
+		return nil, nil
+	}
+
+	db := rsp.Resources[0].GetDatabase()
+	protocol := db.GetProtocol()
+	if !dbfqdn.IsSupportedProtocol(protocol) {
+		v.logger.DebugContext(ctx, "Database protocol not supported by VNet",
+			"fqdn", fqdn, "db_name", db.GetName(), "protocol", protocol)
+		return nil, nil
+	}
+
+	proxyAddr := osConfig.pong.GetProxyPublicAddr()
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+			MatchedDatabase: &vnetv1.MatchedDatabase{
+				DatabaseInfo: &vnetv1.DatabaseInfo{
+					DatabaseKey: &vnetv1.DatabaseKey{
+						Profile: proxyAddr,
+						Name:    db.GetName(),
+					},
+					Cluster:       osConfig.pong.GetClusterName(),
+					Protocol:      protocol,
+					Ipv4CidrRange: osConfig.config.GetIpv4CidrRanges()[0],
+					DialOptions: &vnetv1.DialOptions{
+						WebProxyAddr:            proxyAddr,
+						AlpnConnUpgradeRequired: false,
+						InsecureSkipVerify:      v.insecure,
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+// GetDBCert issues a TLS certificate for the given database. It uses tbot's
+// identity generator with the bot-bound private key and a delegation session
+// id, mirroring the app-cert path.
+func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (*tls.Certificate, error) {
+	id, err := v.identityGenerator.Generate(ctx,
+		identity.WithPrivateKey(v.privateKey),
+		identity.WithRouteToDatabase(*vnet.RouteToDatabase(dbInfo)),
+		identity.WithLifetime(v.credentialLifetime.TTL, v.credentialLifetime.RenewalInterval),
+		identity.WithDelegation(v.delegationSessionID),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return id.TLSCert, nil
+}
+
+// GetDBSigner returns the bot-bound private key. The key is shared across all
+// VNet-issued certs in this service (see the comment on identity.Generator's
+// privateKey-reuse path).
+func (v *vnetApplicationService) GetDBSigner(context.Context, *vnetv1.DatabaseKey) (crypto.Signer, error) {
+	return v.privateKey, nil
+}
+
+// OnNewDBConnection is invoked for each new VNet database connection. tbot
+// has no per-connection observability hook today, so this is a no-op.
+func (v *vnetApplicationService) OnNewDBConnection(context.Context, *vnetv1.DatabaseKey) error {
+	return nil
 }
 
 func isDescendantSubdomain(fqdn, zone string) bool {
