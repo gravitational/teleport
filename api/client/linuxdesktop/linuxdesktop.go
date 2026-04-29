@@ -36,22 +36,22 @@ func NewClient(grpcClient linuxdesktopv1.LinuxDesktopServiceClient) *Client {
 
 // ListLinuxDesktops returns a list of Linux Desktops.
 func (c *Client) ListLinuxDesktops(ctx context.Context, pageSize int, nextToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error) {
-	resp, err := c.grpcClient.ListLinuxDesktops(ctx, &linuxdesktopv1.ListLinuxDesktopsRequest{
-		PageSize:  int32(pageSize),
-		PageToken: nextToken,
-	})
+	req := &linuxdesktopv1.ListLinuxDesktopsRequest{}
+	req.SetPageSize(int32(pageSize))
+	req.SetPageToken(nextToken)
+	resp, err := c.grpcClient.ListLinuxDesktops(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return resp.LinuxDesktops, resp.NextPageToken, nil
+	return resp.GetLinuxDesktops(), resp.GetNextPageToken(), nil
 }
 
 // CreateLinuxDesktop creates a new Linux Desktop.
 func (c *Client) CreateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
-	rsp, err := c.grpcClient.CreateLinuxDesktop(ctx, &linuxdesktopv1.CreateLinuxDesktopRequest{
-		LinuxDesktop: req,
-	})
+	r := &linuxdesktopv1.CreateLinuxDesktopRequest{}
+	r.SetLinuxDesktop(req)
+	rsp, err := c.grpcClient.CreateLinuxDesktop(ctx, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,9 +60,9 @@ func (c *Client) CreateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Lin
 
 // GetLinuxDesktop returns a Linux Desktop by name.
 func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error) {
-	rsp, err := c.grpcClient.GetLinuxDesktop(ctx, &linuxdesktopv1.GetLinuxDesktopRequest{
-		Name: name,
-	})
+	req := &linuxdesktopv1.GetLinuxDesktopRequest{}
+	req.SetName(name)
+	rsp, err := c.grpcClient.GetLinuxDesktop(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,9 +71,9 @@ func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdeskto
 
 // UpdateLinuxDesktop updates an existing Linux Desktop.
 func (c *Client) UpdateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
-	rsp, err := c.grpcClient.UpdateLinuxDesktop(ctx, &linuxdesktopv1.UpdateLinuxDesktopRequest{
-		LinuxDesktop: req,
-	})
+	r := &linuxdesktopv1.UpdateLinuxDesktopRequest{}
+	r.SetLinuxDesktop(req)
+	rsp, err := c.grpcClient.UpdateLinuxDesktop(ctx, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,9 +82,9 @@ func (c *Client) UpdateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Lin
 
 // UpsertLinuxDesktop updates an existing Linux Desktop or creates one.
 func (c *Client) UpsertLinuxDesktop(ctx context.Context, req *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
-	rsp, err := c.grpcClient.UpsertLinuxDesktop(ctx, &linuxdesktopv1.UpsertLinuxDesktopRequest{
-		LinuxDesktop: req,
-	})
+	r := &linuxdesktopv1.UpsertLinuxDesktopRequest{}
+	r.SetLinuxDesktop(req)
+	rsp, err := c.grpcClient.UpsertLinuxDesktop(ctx, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,8 +93,8 @@ func (c *Client) UpsertLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Lin
 
 // DeleteLinuxDesktop deletes a Linux Desktop.
 func (c *Client) DeleteLinuxDesktop(ctx context.Context, name string) error {
-	_, err := c.grpcClient.DeleteLinuxDesktop(ctx, &linuxdesktopv1.DeleteLinuxDesktopRequest{
-		Name: name,
-	})
+	req := &linuxdesktopv1.DeleteLinuxDesktopRequest{}
+	req.SetName(name)
+	_, err := c.grpcClient.DeleteLinuxDesktop(ctx, req)
 	return trace.Wrap(err)
 }

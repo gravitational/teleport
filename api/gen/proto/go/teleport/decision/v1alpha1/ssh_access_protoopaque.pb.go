@@ -984,6 +984,7 @@ type LockTarget struct {
 	xxx_hidden_ServerId       string                 `protobuf:"bytes,8,opt,name=server_id,json=serverId,proto3"`
 	xxx_hidden_BotInstanceId  string                 `protobuf:"bytes,9,opt,name=bot_instance_id,json=botInstanceId,proto3"`
 	xxx_hidden_JoinToken      string                 `protobuf:"bytes,10,opt,name=join_token,json=joinToken,proto3"`
+	xxx_hidden_LinuxDesktop   string                 `protobuf:"bytes,11,opt,name=linux_desktop,json=linuxDesktop,proto3"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -1083,6 +1084,13 @@ func (x *LockTarget) GetJoinToken() string {
 	return ""
 }
 
+func (x *LockTarget) GetLinuxDesktop() string {
+	if x != nil {
+		return x.xxx_hidden_LinuxDesktop
+	}
+	return ""
+}
+
 func (x *LockTarget) SetUser(v string) {
 	x.xxx_hidden_User = v
 }
@@ -1123,6 +1131,10 @@ func (x *LockTarget) SetJoinToken(v string) {
 	x.xxx_hidden_JoinToken = v
 }
 
+func (x *LockTarget) SetLinuxDesktop(v string) {
+	x.xxx_hidden_LinuxDesktop = v
+}
+
 type LockTarget_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1150,6 +1162,8 @@ type LockTarget_builder struct {
 	// joined. This only applies to bot identities, and cannot be used to target
 	// bots that joined via the `token` join method.
 	JoinToken string
+	// LinuxDesktop specifies the name of a Linux desktop.
+	LinuxDesktop string
 }
 
 func (b0 LockTarget_builder) Build() *LockTarget {
@@ -1166,6 +1180,7 @@ func (b0 LockTarget_builder) Build() *LockTarget {
 	x.xxx_hidden_ServerId = b.ServerId
 	x.xxx_hidden_BotInstanceId = b.BotInstanceId
 	x.xxx_hidden_JoinToken = b.JoinToken
+	x.xxx_hidden_LinuxDesktop = b.LinuxDesktop
 	return m0
 }
 
@@ -1386,7 +1401,7 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfo\x12N\n" +
 	"\rpreconditions\x18\x1a \x03(\v2(.teleport.decision.v1alpha1.PreconditionR\rpreconditionsJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
-	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xb5\x02\n" +
+	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xda\x02\n" +
 	"\n" +
 	"LockTarget\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x12\n" +
@@ -1401,7 +1416,8 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x0fbot_instance_id\x18\t \x01(\tR\rbotInstanceId\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\n" +
-	" \x01(\tR\tjoinToken\"\x9f\x01\n" +
+	" \x01(\tR\tjoinToken\x12#\n" +
+	"\rlinux_desktop\x18\v \x01(\tR\flinuxDesktop\"\x9f\x01\n" +
 	"\rHostUsersInfo\x12\x16\n" +
 	"\x06groups\x18\x01 \x03(\tR\x06groups\x12<\n" +
 	"\x04mode\x18\x02 \x01(\x0e2(.teleport.decision.v1alpha1.HostUserModeR\x04mode\x12\x10\n" +

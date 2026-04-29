@@ -23,29 +23,29 @@ import (
 func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_Resource {
 	return &PaginatedResource_LinuxDesktop{
 		LinuxDesktop: &LinuxDesktop{
-			Kind:     desktop.Kind,
-			SubKind:  desktop.SubKind,
-			Version:  desktop.Version,
-			Metadata: types.Metadata153ToLegacy(desktop.Metadata),
-			Addr:     desktop.Spec.Addr,
-			Hostname: desktop.Spec.Hostname,
-			ProxyIds: desktop.Spec.ProxyIds,
+			Kind:     desktop.GetKind(),
+			SubKind:  desktop.GetSubKind(),
+			Version:  desktop.GetVersion(),
+			Metadata: types.Metadata153ToLegacy(desktop.GetMetadata()),
+			Addr:     desktop.GetSpec().GetAddr(),
+			Hostname: desktop.GetSpec().GetHostname(),
+			ProxyIds: desktop.GetSpec().GetProxyIds(),
 		},
 	}
 }
 
 // UnpackLinuxDesktop converts a wire-format LinuxDesktop resource back into an  linuxdesktopv1.LinuxDesktop instance.
 func UnpackLinuxDesktop(src *LinuxDesktop) types.ResourceWithLabels {
-	dst := &linuxdesktopv1.LinuxDesktop{
-		Kind:     src.Kind,
-		SubKind:  src.SubKind,
-		Version:  src.Version,
-		Metadata: types.LegacyTo153Metadata(src.Metadata),
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
-			Addr:     src.Addr,
-			Hostname: src.Hostname,
-			ProxyIds: src.ProxyIds,
-		},
-	}
+	spec := &linuxdesktopv1.LinuxDesktopSpec{}
+	spec.SetAddr(src.Addr)
+	spec.SetHostname(src.Hostname)
+	spec.SetProxyIds(src.ProxyIds)
+
+	dst := &linuxdesktopv1.LinuxDesktop{}
+	dst.SetKind(src.Kind)
+	dst.SetSubKind(src.SubKind)
+	dst.SetVersion(src.Version)
+	dst.SetMetadata(types.LegacyTo153Metadata(src.Metadata))
+	dst.SetSpec(spec)
 	return types.ProtoResource153ToLegacy(dst)
 }
