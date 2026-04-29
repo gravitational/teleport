@@ -470,6 +470,9 @@ const (
 	// This constrains other identities' access to the agent itself as well as the agent's
 	// access to other resources based on scoping rules.
 	CertExtensionAgentScope = "agent-scope@goteleport.com"
+	// CertExtensionAgentScopePin encodes an agent's scope pin, including the pinned scope and system roles.
+	// Supersedes CertExtensionAgentScope for scoped agents.
+	CertExtensionAgentScopePin = "agent-scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate

@@ -1096,6 +1096,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			"/aa":       {"/aa": {"role-a"}},

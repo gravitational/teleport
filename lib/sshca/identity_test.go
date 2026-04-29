@@ -49,7 +49,12 @@ func TestIdentityConversion(t *testing.T) {
 		SystemRole:  types.RoleNode,
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    "node",
+				Additional: []string{"proxy"},
+			},
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"role1", "role2"}},
 			}),

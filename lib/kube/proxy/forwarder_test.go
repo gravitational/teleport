@@ -1652,7 +1652,7 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 		role: role,
 	}
 
-	pin := &scopesv1.Pin{Scope: scopedTestScope}
+	pin := &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}
 	pin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 		"/": {
 			scopedTestScope: {scopedTestRole},

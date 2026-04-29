@@ -3058,7 +3058,7 @@ func TestGenerateOpenSSHCertScoped(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	pin := &scopesv1pb.Pin{Scope: "/staging"}
+	pin := &scopesv1pb.Pin{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/staging"}
 
 	// Wait for scoped access cache to see the assignment.
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
