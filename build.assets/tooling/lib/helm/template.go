@@ -1,5 +1,3 @@
-package helm
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -17,6 +15,8 @@ package helm
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+package helm
 
 import (
 	"bytes"
