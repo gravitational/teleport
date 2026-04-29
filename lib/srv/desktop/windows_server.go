@@ -1026,35 +1026,6 @@ func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x50
 	metadata.EnhancedKeyUsage = enhancedKeyUsages
 }
 
-func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int64, m tdp.Message, recorder libevents.SessionPreparerRecorder) {
-	data, err := m.Encode()
-	if err != nil {
-		s.cfg.Logger.ErrorContext(ctx, "could not record message due to encoding error", "error", err, "type", logutils.TypeAttr(m))
-		return
-	}
-	e := &events.DesktopRecording{
-		Metadata: events.Metadata{
-			Type: libevents.DesktopRecordingEvent,
-			Time: t,
-		},
-		TDPBMessage:       data,
-		DelayMilliseconds: delay,
-	}
-
-	if len(data) > constants.MaxProtoMessageSizeBytes {
-		// Technically a PNG frame is unbounded and could be too big for a single protobuf.
-		// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
-		// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
-		// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
-		// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
-		s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(data), "type", logutils.TypeAttr(m))
-	} else {
-		if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-			s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
-		}
-	}
-}
-
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 	srv, err := types.NewWindowsDesktopServiceV3(
 		types.Metadata{
