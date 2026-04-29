@@ -34,7 +34,14 @@ response includes information about the state of the process.
 The response body is a JSON object of the form:
 
 ```
-{ "status": "a status message here"}
+{"status": "a status message here"}
+```
+
+Example:
+
+```code
+% curl http://127.0.0.1:3000/readyz
+{"status":"ok","pid":47092}
 ```
 
 ### Agent lifecycle states
