@@ -19,8 +19,11 @@
 package services
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -28,11 +31,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"golang.org/x/net/idna"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -150,6 +155,111 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 					app.GetPublicAddr(),
 				)
 			}
+		}
+	}
+
+	if app.GetTLS() != nil {
+		if err := validateAppTLS(app); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// validateAppTLS validates application TLS options.
+func validateAppTLS(a types.Application) error {
+	if !types.AppSupportsTLSConfig(a.GetURI()) {
+		return trace.BadParameter(
+			"App %q can only specify 'tls' settings for URI schemes that use upstream TLS. Supported schemes are: %s",
+			a.GetName(),
+			quoteAndJoin(types.AppSchemesWithTLSSupport),
+		)
+	}
+
+	tls := a.GetTLS()
+	var mode types.AppTLSMode
+	switch tls.Mode {
+	case types.AppTLSModeInsecure,
+		types.AppTLSModeVerifyFull,
+		types.AppTLSModeVerifyServerName,
+		types.AppTLSModeVerifySpiffeID:
+		mode = tls.Mode
+	case "":
+		// When not specified, use the evaluated mode.
+		mode = a.GetTLSMode()
+	default:
+		return trace.BadParameter(
+			"App %q has invalid 'tls.mode' %q. Supported values are: %s",
+			a.GetName(),
+			tls.Mode,
+			quoteAndJoin([]string{
+				types.AppTLSModeInsecure,
+				types.AppTLSModeVerifyFull,
+				types.AppTLSModeVerifyServerName,
+				types.AppTLSModeVerifySpiffeID,
+			}),
+		)
+	}
+
+	if a.GetInsecureSkipVerify() && mode != types.AppTLSModeInsecure {
+		return trace.BadParameter(
+			"App %q cannot specify 'insecure_skip_verify: true' (deprecated) and 'tls.mode: %q'. Drop 'insecure_skip_verify', and if you want the app to use insecure connections set 'tls.mode: %q'",
+			a.GetName(),
+			mode,
+			types.AppTLSModeInsecure,
+		)
+	}
+
+	switch tls.ClientCertMode {
+	case types.AppClientCertModeManaged:
+		if mode == types.AppTLSModeInsecure {
+			return trace.BadParameter("App %q can only enable 'tls.client_cert_mode' when 'tls.mode' is %q", a.GetName(), types.AppTLSModeVerifyFull)
+		}
+	case types.AppClientCertModeDisabled, "":
+	default:
+		return trace.BadParameter(
+			"App %q has invalid 'tls.client_cert_mode'. Supported values are: %s",
+			a.GetName(),
+			quoteAndJoin([]string{"", types.AppClientCertModeDisabled, types.AppClientCertModeManaged}),
+		)
+	}
+
+	switch mode {
+	case types.AppTLSModeVerifyFull:
+		// Note: tls.ServerName is optional and doesn't require any specific validation.
+		if err := isValidSpiffeID(tls.ServerSpiffeId); err != nil {
+			return trace.BadParameter("App %q has invalid `tls.server_spiffe_id`. The SPIFFE ID must be complete (trust domain and path) and start with 'spiffe://': %v", a.GetName(), err)
+		}
+	case types.AppTLSModeVerifyServerName:
+		// Note: tls.ServerName is optional and doesn't require any specific validation.
+		if tls.ServerSpiffeId != "" {
+			return trace.BadParameter("App %q 'tls.server_spiffe_id' is not used when mode is set to %q. To perform both, server name and SPIFFE ID verifications use %q mode", a.GetName(), mode, types.AppTLSModeVerifyFull)
+		}
+	case types.AppTLSModeVerifySpiffeID:
+		if err := isValidSpiffeID(tls.ServerSpiffeId); err != nil {
+			return trace.BadParameter("App %q has invalid `tls.server_spiffe_id`. The SPIFFE ID must be complete (trust domain and path) and start with 'spiffe://': %v", a.GetName(), err)
+		}
+		if tls.ServerName != "" {
+			return trace.BadParameter("App %q 'tls.server_name' is not used when mode is set to %q. To perform both, server name and SPIFFE ID verifications use %q mode", a.GetName(), mode, types.AppTLSModeVerifyFull)
+		}
+	case types.AppTLSModeInsecure:
+		if tls.ServerName != "" || tls.ServerSpiffeId != "" || len(tls.AllowedCas) > 0 {
+			return trace.BadParameter("App %q 'tls' are not in use since mode is set to %q", a.GetName(), mode)
+		}
+	}
+
+	for _, allowedCA := range tls.AllowedCas {
+		if slices.Contains(types.AppSupportedAllowedInternalCAs, allowedCA) {
+			continue
+		}
+		if err := isValidSingleCertificatePEM(allowedCA); err != nil {
+			return trace.BadParameter(
+				"App %q 'tls.allowed_cas' values must each be a single PEM-encoded certificate or a Teleport CA alias (%s): %s",
+				a.GetName(),
+				quoteAndJoin(types.AppSupportedAllowedInternalCAs),
+				err,
+			)
 		}
 	}
 
@@ -432,4 +542,39 @@ func RewriteHeadersAndApplyValueTraits(r *http.Request, rewrites iter.Seq[*types
 			}
 		}
 	}
+}
+
+// isValidSpiffeID validates that s contains a valid SPIFFE ID.
+func isValidSpiffeID(s string) error {
+	_, err := spiffeid.FromString(s)
+	return err
+}
+
+// isValidSingleCertificatePEM validates that s contains exactly one
+// PEM-encoded certificate.
+func isValidSingleCertificatePEM(s string) error {
+	block, rest := pem.Decode([]byte(s))
+	if block == nil {
+		return trace.BadParameter("expected a PEM-encoded certificate")
+	}
+	if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+		return trace.BadParameter("invalid certificate: %s", err)
+	}
+	if len(bytes.TrimSpace(rest)) > 0 {
+		return trace.BadParameter("expected exactly one PEM-encoded certificate")
+	}
+	return nil
+}
+
+// quoteAndJoin takes a slice of strings and returns them quoted and
+// comma-separated.
+func quoteAndJoin(items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	quotedItems := make([]string, len(items))
+	for i, item := range items {
+		quotedItems[i] = `"` + item + `"`
+	}
+	return strings.Join(quotedItems, ", ")
 }

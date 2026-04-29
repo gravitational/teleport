@@ -589,3 +589,224 @@ func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
 	wantHeaders.Add("x-no-rewrite", "no-rewrite")
 	assert.Equal(t, wantHeaders, r.Header)
 }
+
+func TestValidateAppTLS(t *testing.T) {
+	for name, tc := range map[string]struct {
+		uri          string
+		tls          *types.AppTLS
+		insecureSkip bool
+		expectErr    require.ErrorAssertionFunc
+	}{
+		"full valid configuration": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{"workload_identity", appExternalAllowedCA},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"mcp https valid configuration": {
+			uri: "mcp+https://localhost",
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerSpiffeId: "spiffe://mycluster/svc/mcp",
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"minimal": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifyServerName,
+			},
+			expectErr: require.NoError,
+		},
+		"insecure with client cert mode": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"conflicting insecure skip verify and tls mode": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifyServerName,
+			},
+			insecureSkip: true,
+			expectErr:    require.Error,
+		},
+		"incomplete server spiffe id": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerSpiffeId: "/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe id mode and with server name": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid mode": {
+			tls: &types.AppTLS{
+				Mode: "invalid",
+			},
+			expectErr: require.Error,
+		},
+		"invalid allowed CA": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyFull,
+				AllowedCas: []string{"workload_identity", "malformed cert"},
+			},
+			expectErr: require.Error,
+		},
+		"allowed CA with multiple certificates per entry": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyFull,
+				AllowedCas: []string{appExternalAllowedCA + "\n" + appExternalAllowedCA},
+			},
+			expectErr: require.Error,
+		},
+		"server name with insecure mode": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeInsecure,
+				ServerName: "example.com",
+			},
+			expectErr: require.Error,
+		},
+		"server spiffe id with insecure mode": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe missing server spiffe": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifySpiffeID,
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe missing server spiffe trust domain": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerSpiffeId: "spiffe:///svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid client cert mode value": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyServerName,
+				ClientCertMode: "foo",
+			},
+			expectErr: require.Error,
+		},
+		"client cert mode with insecure": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"insecure skip verify compatible with mode insecure": {
+			tls:          &types.AppTLS{Mode: types.AppTLSModeInsecure},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"insecure skip verify with empty mode defaults to insecure": {
+			tls:          &types.AppTLS{},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"allowed cas with only internal alias": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{types.AppTLSInternalCAWorkloadIdentity},
+			},
+			expectErr: require.NoError,
+		},
+		"allowed cas with empty string entry": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{""},
+			},
+			expectErr: require.Error,
+		},
+		"allowed cas with non-certificate PEM block": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{appPrivateKeyPEM},
+			},
+			expectErr: require.Error,
+		},
+		"insecure mode with allowed cas": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeInsecure,
+				AllowedCas: []string{appExternalAllowedCA},
+			},
+			expectErr: require.Error,
+		},
+		"cloud app with tls block": {
+			uri: "cloud://aws",
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeInsecure,
+			},
+			expectErr: require.Error,
+		},
+		"unsupported protocol with tls block": {
+			uri: "http://localhost",
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeInsecure,
+			},
+			expectErr: require.Error,
+		},
+		"unsupported protocol with empty tls config": {
+			uri:       "http://localhost",
+			tls:       &types.AppTLS{},
+			expectErr: require.Error,
+		},
+		"empty": {
+			tls:       &types.AppTLS{},
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			uri := tc.uri
+			if uri == "" {
+				uri = "https://localhost"
+			}
+
+			app, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
+				URI:                uri,
+				InsecureSkipVerify: tc.insecureSkip,
+				TLS:                tc.tls,
+			})
+			require.NoError(t, err)
+			tc.expectErr(t, validateAppTLS(app))
+		})
+	}
+}
+
+const (
+	appExternalAllowedCA = `-----BEGIN CERTIFICATE-----
+MIICFjCCAbugAwIBAgIRAIoq9H5/Uxz1oJS17hjFjKEwCgYIKoZIzj0EAwIwajEa
+MBgGA1UEChMRcm9vdC50ZWxlcG9ydC5kZXYxGjAYBgNVBAMTEXJvb3QudGVsZXBv
+cnQuZGV2MTAwLgYDVQQFEycxODM2NTY0OTg4MTY0NzM2OTQ4NzM2MzczNjQ4MTU2
+NjQzNTI0MTcwHhcNMjYwNDE2MjEwOTA4WhcNMzYwNDEzMjEwOTA4WjBqMRowGAYD
+VQQKExFyb290LnRlbGVwb3J0LmRldjEaMBgGA1UEAxMRcm9vdC50ZWxlcG9ydC5k
+ZXYxMDAuBgNVBAUTJzE4MzY1NjQ5ODgxNjQ3MzY5NDg3MzYzNzM2NDgxNTY2NDM1
+MjQxNzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABDW7XPEplPkWWAZuQX6V/kqn
+T3iGcib+nYPFEOtWYZae3deF7wxcfyRTH4vsVOQhe9+TwJ92WwVnBCT/2U4QzgSj
+QjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSF
+51FfpZdVovLDB7CJg6BcU8MiFzAKBggqhkjOPQQDAgNJADBGAiEAh4qZv2xmwTM0
+TLezizSVzQRvrtY6t3lBqzSPUVx4JWcCIQDwBW5pscq6hxYBRpDRJxVghSobJiHk
+VdH2u/w+t7dV5g==
+-----END CERTIFICATE-----`
+	appPrivateKeyPEM = `-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIGp7zs9vCvGUPmVXFbgpppCQ5Tv7KFqGkV9vWzS1WInS
+-----END PRIVATE KEY-----`
+)
