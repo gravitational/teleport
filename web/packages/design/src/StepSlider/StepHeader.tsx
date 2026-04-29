@@ -16,24 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Box from 'design/Box';
+import Box, { BoxProps } from 'design/Box';
 import Text, { H2 } from 'design/Text';
 
 /**
  * Renders a header with an optional step counter that appears if there's more
  * than one step. Useful inside a StepSlider, but can be used independently.
  */
-export function StepHeader({
-  stepIndex,
-  flowLength,
-  title,
-}: {
-  stepIndex: number;
-  flowLength: number;
-  title: string;
-}) {
+export function StepHeader(
+  props: {
+    stepIndex: number;
+    flowLength: number;
+    title: string;
+  } & BoxProps
+) {
+  const { stepIndex, flowLength, title, ...boxProps } = props;
   return (
-    <Box>
+    <Box {...boxProps}>
       {flowLength > 1 && (
         <Text typography="body2" color="text.slightlyMuted">
           Step {stepIndex + 1} of {flowLength}
