@@ -29,10 +29,13 @@ import (
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 const azureEventPrefix = "azure/"
@@ -57,35 +60,77 @@ type AzureInstances struct {
 	Instances []*armcompute.VirtualMachine
 }
 
-// MakeEvents generates MakeEvents for these instances.
-func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[string]*usageeventsv1.ResourceCreateEvent {
-	resourceType := types.DiscoveredResourceNode
+func (instances *AzureInstances) resourceType() string {
 	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
-		resourceType = types.DiscoveredResourceAgentlessNode
+		return types.DiscoveredResourceAgentlessNode
+	}
+	return types.DiscoveredResourceNode
+}
+
+// MakeUsageEvent builds usage event for a single installation result.
+func (instances *AzureInstances) MakeUsageEvent(instance *armcompute.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
+	return azureEventPrefix + azure.StringVal(instance.ID), &usageeventsv1.ResourceCreateEvent{
+		ResourceType:        instances.resourceType(),
+		ResourceOrigin:      types.OriginCloud,
+		CloudProvider:       types.CloudAzure,
+		DiscoveryConfigName: instances.DiscoveryConfigName,
+	}
+}
+
+// MakeRunEvent builds run event for a single command run.
+func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apievents.AzureRun {
+	eventCode := libevents.AzureRunSuccessCode
+
+	if result.Failure() {
+		eventCode = libevents.AzureRunFailCode
 	}
 
-	failed := map[string]struct{}{}
-	for _, failure := range failures {
-		id := azure.StringVal(failure.Instance.ID)
-		failed[id] = struct{}{}
+	var vmID, vmName, resourceID string
+	if result.Instance != nil {
+		vmName = azure.StringVal(result.Instance.Name)
+		resourceID = azure.StringVal(result.Instance.ID)
+		if result.Instance.Properties != nil {
+			vmID = azure.StringVal(result.Instance.Properties.VMID)
+		}
 	}
 
-	expectedSize := len(instances.Instances) - len(failures)
-	events := make(map[string]*usageeventsv1.ResourceCreateEvent, expectedSize)
-	for _, inst := range instances.Instances {
-		id := azure.StringVal(inst.ID)
-		// skip failed
-		if _, found := failed[id]; found {
-			continue
-		}
-		events[azureEventPrefix+id] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:        resourceType,
-			ResourceOrigin:      types.OriginCloud,
-			CloudProvider:       types.CloudAzure,
-			DiscoveryConfigName: instances.DiscoveryConfigName,
+	evt := &apievents.AzureRun{
+		Metadata: apievents.Metadata{
+			Type: libevents.AzureRunEvent,
+			Code: eventCode,
+		},
+		AzureMetadata: apievents.AzureMetadata{
+			SubscriptionID: instances.SubscriptionID,
+			ResourceGroup:  instances.ResourceGroup,
+			ResourceID:     resourceID,
+			Region:         instances.Region,
+		},
+		AzureVMMetadata: apievents.AzureVMMetadata{
+			VMID:   vmID,
+			VMName: vmName,
+		},
+	}
+
+	if result.APIError != nil {
+		evt.APIError = result.APIError.Error()
+		evt.Status = "API call failed"
+	}
+
+	if result.CommandResult != nil {
+		evt.ExecutionState = result.CommandResult.ExecutionState
+		evt.StandardError = result.CommandResult.StdErr
+		evt.StandardOutput = result.CommandResult.StdOut
+		evt.ExitCode = result.CommandResult.ExitCode
+		if result.CommandResult.Failure() {
+			evt.Status = installstatus.ExitCode(result.CommandResult.ExitCode).String()
+		} else {
+			// TODO(Tener): Consider extending installstatus.ExitCode to handle exit code 0,
+			// so the success status message comes from the same place as failures.
+			evt.Status = "Installation completed successfully."
 		}
 	}
-	return events
+
+	return evt
 }
 
 // FilterExistingNodes removes instances matching existing nodes in place.

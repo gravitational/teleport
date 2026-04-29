@@ -97,6 +97,8 @@ spec:
                           type: array
                         subscription:
                           type: string
+                        tenant:
+                          type: string
                       type: object
                     nullable: true
                     type: array

@@ -256,9 +256,22 @@ export interface UserActivityRecord {
      */
     accessGraphQueries: bigint;
     /**
+     * counter of free-text session summary search queries submitted by this user.
+     *
+     * @generated from protobuf field: uint64 session_summary_search_queries = 27;
+     */
+    sessionSummarySearchQueries: bigint;
+    /**
+     * counter of free-text session summary search queries submitted by this user
+     * where the request included filters.
+     *
+     * @generated from protobuf field: uint64 session_summary_search_queries_with_filters = 28;
+     */
+    sessionSummarySearchQueriesWithFilters: bigint;
+    /**
      * counter of linux.desktop.session.start events
      *
-     * @generated from protobuf field: uint64 linux_desktop_sessions = 27;
+     * @generated from protobuf field: uint64 linux_desktop_sessions = 29;
      */
     linuxDesktopSessions: bigint;
 }
@@ -955,7 +968,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 24, name: "saml_idp_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord },
             { no: 26, name: "access_graph_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 27, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 27, name: "session_summary_search_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 28, name: "session_summary_search_queries_with_filters", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 29, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -986,6 +1001,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.samlIdpSessions = 0n;
         message.sessionSummariesAccessed = [];
         message.accessGraphQueries = 0n;
+        message.sessionSummarySearchQueries = 0n;
+        message.sessionSummarySearchQueriesWithFilters = 0n;
         message.linuxDesktopSessions = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
@@ -1074,7 +1091,13 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                 case /* uint64 access_graph_queries */ 26:
                     message.accessGraphQueries = reader.uint64().toBigInt();
                     break;
-                case /* uint64 linux_desktop_sessions */ 27:
+                case /* uint64 session_summary_search_queries */ 27:
+                    message.sessionSummarySearchQueries = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 session_summary_search_queries_with_filters */ 28:
+                    message.sessionSummarySearchQueriesWithFilters = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 linux_desktop_sessions */ 29:
                     message.linuxDesktopSessions = reader.uint64().toBigInt();
                     break;
                 default:
@@ -1167,9 +1190,15 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 access_graph_queries = 26; */
         if (message.accessGraphQueries !== 0n)
             writer.tag(26, WireType.Varint).uint64(message.accessGraphQueries);
-        /* uint64 linux_desktop_sessions = 27; */
+        /* uint64 session_summary_search_queries = 27; */
+        if (message.sessionSummarySearchQueries !== 0n)
+            writer.tag(27, WireType.Varint).uint64(message.sessionSummarySearchQueries);
+        /* uint64 session_summary_search_queries_with_filters = 28; */
+        if (message.sessionSummarySearchQueriesWithFilters !== 0n)
+            writer.tag(28, WireType.Varint).uint64(message.sessionSummarySearchQueriesWithFilters);
+        /* uint64 linux_desktop_sessions = 29; */
         if (message.linuxDesktopSessions !== 0n)
-            writer.tag(27, WireType.Varint).uint64(message.linuxDesktopSessions);
+            writer.tag(29, WireType.Varint).uint64(message.linuxDesktopSessions);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

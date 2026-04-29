@@ -564,6 +564,7 @@ func (t *Token) GetAzure() *types.ProvisionTokenSpecV2Azure {
 	allow := make([]*types.ProvisionTokenSpecV2Azure_Rule, len(t.scoped.GetSpec().GetAzure().GetAllow()))
 	for i, rule := range t.scoped.GetSpec().GetAzure().GetAllow() {
 		allow[i] = &types.ProvisionTokenSpecV2Azure_Rule{
+			Tenant:         rule.GetTenant(),
 			Subscription:   rule.GetSubscription(),
 			ResourceGroups: rule.GetResourceGroups(),
 		}

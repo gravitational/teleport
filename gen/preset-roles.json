@@ -1260,6 +1260,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },

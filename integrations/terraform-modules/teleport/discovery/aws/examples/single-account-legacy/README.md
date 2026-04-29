@@ -8,7 +8,7 @@ In addition, the example uses a custom AWS IAM policy to narrow the scope of per
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | terraform | >= 1.0 |
 | aws | >= 5.0 |
 | teleport | >= 18.5.1 |
@@ -17,19 +17,19 @@ In addition, the example uses a custom AWS IAM policy to narrow the scope of per
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | aws | >= 5.0 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | aws\_discovery | ../.. | n/a |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_iam_policy_document.teleport_discovery_service_single_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
@@ -39,6 +39,6 @@ No inputs.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | aws\_discovery | n/a |
 <!-- END_TF_DOCS -->

@@ -107,7 +107,7 @@ func TestPackUnpackLinuxDesktop(t *testing.T) {
 			require.Equal(t, tt.desktop.Metadata.Labels, wireDesktop.Metadata.Labels)
 			require.Equal(t, tt.desktop.Spec.Addr, wireDesktop.Addr)
 			require.Equal(t, tt.desktop.Spec.Hostname, wireDesktop.Hostname)
-			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIDs)
+			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIds)
 
 			// Unpack the desktop
 			unpacked := UnpackLinuxDesktop(wireDesktop)

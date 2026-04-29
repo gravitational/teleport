@@ -1314,12 +1314,12 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	// Create command to re-exec Teleport which will handle networking requests. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
-	cmd, err := srv.ConfigureCommand(nsctx)
+	cmd, err := nsctx.ConfigureCommand(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
+	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd.Cmd)
 	return proc, trace.Wrap(err)
 }
 

@@ -37,18 +37,18 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
+// needsFiltering returns true if RBAC filtering is required for the given rules.
+func needsFiltering(allowedResources, deniedResources []types.KubernetesResource) bool {
+	return !containsWildcard(allowedResources) || len(deniedResources) != 0
+}
+
 // newResourceFilterer creates a wrapper function that once executed creates
 // a runtime filter for kubernetes resources.
 // The filter exclusion criteria is:
 // - deniedResources: excluded if (namespace,name) matches an entry even if it matches
 // the allowedResources's list.
 // - allowedResources: excluded if (namespace,name) not match a single entry.
-func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
-	// If the list of allowed resources contains a wildcard and no deniedResources, then we
-	// don't need to filter anything.
-	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
-		return nil
-	}
+func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, matcher resourceMatcher, log *slog.Logger) responsewriters.FilterWrapper {
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
 		negotiator := newClientNegotiator(codecs)
 		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
@@ -63,7 +63,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 			negotiator:   negotiator,
 			log:          log,
 			metaResource: mr,
-			matcher:      newMatcher(mr, allowedResources, deniedResources, log),
+			matcher:      matcher,
 		}, nil
 	}
 }
@@ -120,7 +120,7 @@ type resourceFilterer struct {
 // The rest are constant for the entire request (determined by the URL and HTTP method),
 // so can be resolved once when the matcher is constructed.
 type resourceMatcher interface {
-	match(name, namespace string) (bool, error)
+	Match(name, namespace string) (bool, error)
 }
 
 func newMatcher(mr metaResource, allowed, denied []types.KubernetesResource, log *slog.Logger) resourceMatcher {
@@ -194,7 +194,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
-		result, err := d.matcher.match(o.GetName(), o.GetNamespace())
+		result, err := d.matcher.Match(o.GetName(), o.GetNamespace())
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -302,7 +302,7 @@ type kubeObjectInterface interface {
 
 // filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
-	return d.matcher.match(resource.GetName(), resource.GetNamespace())
+	return d.matcher.Match(resource.GetName(), resource.GetNamespace())
 }
 
 func getKubeResource(kind, group, verb string, obj kubeObjectInterface) types.KubernetesResource {
@@ -328,7 +328,7 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table) (*metav1.Table
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if result, err := d.matcher.match(resource.Name, resource.Namespace); err != nil {
+		if result, err := d.matcher.Match(resource.Name, resource.Namespace); err != nil {
 			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
 		} else if result {
 			resources = append(resources, *row)
@@ -460,7 +460,7 @@ func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
-		if result, err := d.matcher.match(resource.GetName(), resource.GetNamespace()); err != nil {
+		if result, err := d.matcher.Match(resource.GetName(), resource.GetNamespace()); err != nil {
 			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		} else if result {
 			filteredList = append(filteredList, resource.Object)
@@ -480,7 +480,7 @@ type defaultMatcher struct {
 	deniedResources  []types.KubernetesResource
 }
 
-func (m *defaultMatcher) match(name, namespace string) (bool, error) {
+func (m *defaultMatcher) Match(name, namespace string) (bool, error) {
 	resource := types.KubernetesResource{
 		Kind:      m.kind,
 		Namespace: namespace,

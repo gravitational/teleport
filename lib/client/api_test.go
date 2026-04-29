@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -1924,4 +1925,50 @@ func newTestLocalAgent(t *testing.T, proxyHost, username, siteName string) *Loca
 	require.NoError(t, err)
 
 	return localAgent
+}
+
+func TestKeyRing_accessGraphHelpers(t *testing.T) {
+	t.Parallel()
+	a := newTestAuthority(t)
+	idx := KeyRingIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: a.trustedCerts.ClusterName,
+		Username:    "alice",
+	}
+
+	t.Run("missing cert returns NotFound", func(t *testing.T) {
+		t.Parallel()
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+
+		_, err := keyRing.AccessGraphTLSCertificate()
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = keyRing.AccessGraphTLSCertValidBefore()
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = keyRing.AccessGraphClientTLSConfig(nil)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("present cert parses and builds TLS config", func(t *testing.T) {
+		t.Parallel()
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+		keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
+
+		parsed, err := keyRing.AccessGraphTLSCertificate()
+		require.NoError(t, err)
+		require.Equal(t, "alice", parsed.Subject.CommonName)
+
+		notAfter, err := keyRing.AccessGraphTLSCertValidBefore()
+		require.NoError(t, err)
+		require.Equal(t, parsed.NotAfter, notAfter)
+
+		tlsConfig, err := keyRing.AccessGraphClientTLSConfig(nil)
+		require.NoError(t, err)
+		require.Len(t, tlsConfig.Certificates, 1)
+		require.Equal(t, keyRing.ProxyHost, tlsConfig.ServerName)
+		// AccessGraph config talks directly to the public proxy; it relies on system CAs.
+		require.Nil(t, tlsConfig.RootCAs)
+		require.GreaterOrEqual(t, tlsConfig.MinVersion, uint16(tls.VersionTLS12))
+	})
 }

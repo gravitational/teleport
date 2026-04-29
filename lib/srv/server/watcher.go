@@ -208,6 +208,9 @@ func (w *Watcher[Instances]) Run() {
 	pollTimer := w.clock.NewTimer(w.pollInterval)
 	defer pollTimer.Stop()
 
+	// TODO(Tener): races pending triggerFetchC on startup. Fix by draining the
+	// trigger first, seeding pollTimer with a short initial delay, or per-instance
+	// dedup.
 	w.fetchAndSubmit()
 
 	for {

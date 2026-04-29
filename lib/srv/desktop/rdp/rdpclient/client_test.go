@@ -58,7 +58,7 @@ func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
 	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
-	_, err := New(conn, createConfig())
+	_, _, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
 	require.ErrorIs(t, err, io.EOF)
 }
 
@@ -69,7 +69,10 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 
 	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
-	_, err = New(conn, createConfig())
+	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+
+	_, err = New(wrappedConn, hello, createConfig())
 	require.NoError(t, err)
 }
 
@@ -79,20 +82,20 @@ func TestClientNew_KeyboardLayout(t *testing.T) {
 	require.NoError(t, err)
 
 	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
-
-	_, err = New(conn, createConfig())
+	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 
+	_, err = New(wrappedConn, hello, createConfig())
+	require.NoError(t, err)
 }
 
 func createConfig() Config {
 	return Config{
-		Addr:           "example.com",
-		AuthorizeFn:    func(login string) error { return nil },
-		Logger:         slog.Default(),
-		Width:          1,
-		Height:         1,
-		ClientProtocol: tdpb.ProtocolName,
+		Addr:        "example.com",
+		AuthorizeFn: func(login string) error { return nil },
+		Logger:      slog.Default(),
+		Width:       1,
+		Height:      1,
 	}
 }
 

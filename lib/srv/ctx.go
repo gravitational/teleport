@@ -21,7 +21,6 @@ package srv
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -412,30 +411,6 @@ type ServerContext struct {
 	// set this field directly, use (Get|Set)SSHRequest instead.
 	sshRequest *ssh.Request
 
-	// cmd{r,w} are used to send the command from the parent process to the
-	// child process.
-	cmdr *os.File
-	cmdw *os.File
-
-	// logw is used to send logs from the child process to the parent process.
-	logw *os.File
-
-	// cont{r,w} is used to send the continue signal from the parent process
-	// to the child process.
-	contr *os.File
-	contw *os.File
-
-	// ready{r,w} is used to send the ready signal from the child process
-	// to the parent process. If ESR is enabled, the child signals after
-	// the audit session login ID (auid) is received.
-	readyr *os.File
-	readyw *os.File
-
-	// killShell{r,w} are used to send kill signal to the child process
-	// to terminate the shell.
-	killShellr *os.File
-	killShellw *os.File
-
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ExecType string
@@ -572,78 +547,21 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, trace.NewAggregate(err, childErr)
 	}
 
-	// Create pipe used to send command to child process.
-	child.cmdr, child.cmdw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.cmdr)
-	child.AddCloser(child.cmdw)
-
-	// Create pipe used to signal continue to child process.
-	child.contr, child.contw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.contr)
-	child.AddCloser(child.contw)
-
-	// Create pipe used to signal continue to parent process.
-	child.readyr, child.readyw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.readyr)
-	child.AddCloser(child.readyw)
-
-	child.killShellr, child.killShellw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.killShellr)
-	child.AddCloser(child.killShellw)
-
-	// If the log writer is a file, we can pass it directly to the child
-	// process to write to. Otherwise, we need to create a pipe to the child
-	// process and stream the logs to the log writer.
-	logCfg := child.srv.ChildLogConfig()
-	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
-		child.logw = fileWriter
-	} else {
-		if err := child.streamChildLogs(logCfg.Writer); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	return child, nil
 }
 
-func (c *ServerContext) streamChildLogs(logCfgWriter io.Writer) error {
-	// Create a pipe so we can pass the writing side as an *os.File to the child process.
-	// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
-	r, w, err := os.Pipe()
+func (c *ServerContext) ConfigureCommand(extraFiles map[reexec.FileFD]*os.File) (*reexec.CommandExecutor, error) {
+	command, err := c.ExecCommand()
 	if err != nil {
-		childErr := c.Close()
-		return trace.NewAggregate(err, childErr)
+		return nil, trace.Wrap(err)
+	}
+	executor, err := reexec.ConfigureCommand(c.CancelContext(), c.Logger, c.srv.ChildLogConfig().Writer, command, c.ExecType, extraFiles)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	c.logw = w
-	c.AddCloser(r)
-	c.AddCloser(w)
-
-	// Copy logs from the child process to the parent process over
-	// the pipe until it is closed by the child context.
-	go func() {
-		if _, err := io.Copy(logCfgWriter, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-			slog.ErrorContext(c.CancelContext(), "Failed to copy logs over pipe", "error", err)
-		}
-	}()
-
-	return nil
+	c.AddCloser(executor)
+	return executor, nil
 }
 
 // Parent grants access to the connection-level context of which this
@@ -1393,32 +1311,6 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *reexecsftp.FileTra
 	c.approvedFileReq = nil
 
 	return req
-}
-
-// The child does not signal until it completes PAM setup, which can take an arbitrary
-// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
-const childReadyWaitTimeout = 3 * time.Minute
-
-// WaitForChild waits for the child process to signal ready through the named pipe.
-func (c *ServerContext) WaitForChild(ctx context.Context) error {
-	bpfService := c.srv.GetBPF()
-
-	// Only wait for the child to be "ready" if BPF is enabled. This is required
-	// because if BPF is enabled the child process will need to change its audit
-	// login session ID, and the we (the parent) need to wait for the session ID
-	// to change on the child so we can read it and use it to correlate Enhanced
-	// Session Recording events to the SSH session.
-	var waitErr error
-	if bpfService.Enabled() {
-		if waitErr = reexec.WaitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
-			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
-		}
-	}
-
-	closeErr := c.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	c.readyr = nil
-	return trace.NewAggregate(waitErr, closeErr)
 }
 
 // ServerMetadata returns ServerMetadata for this server context.

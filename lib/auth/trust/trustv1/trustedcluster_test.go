@@ -28,33 +28,31 @@ import (
 	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // TestCloudProhibited verifies that Trusted Clusters cannot be created or updated
 // in a Cloud hosted environment.
-// Tests cannot be run in parallel because it relies on environment variables.
 func TestCloudProhibited(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p := newTestPack(t)
 
 	trust := local.NewCAService(p.mem)
+	modules := modulestest.OSSModules()
+	modules.TestFeatures.Cloud = true
 	cfg := &ServiceConfig{
 		Cache:            trust,
 		Backend:          trust,
 		Authorizer:       &fakeAuthorizer{},
 		ScopedAuthorizer: &fakeAuthorizer{},
 		AuthServer:       &fakeAuthServer{},
+		Modules:          modules,
 	}
 
 	service, err := NewService(cfg)
 	require.NoError(t, err)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{Cloud: true},
-	})
 
 	tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
 		RoleMap: []types.RoleMapping{
@@ -310,6 +308,7 @@ func TestTrustedClusterRBAC(t *testing.T) {
 				Authorizer:       &test.authorizer,
 				ScopedAuthorizer: &test.authorizer,
 				AuthServer:       &fakeAuthServer{},
+				Modules:          modulestest.OSSModules(),
 			}
 
 			service, err := NewService(cfg)

@@ -766,6 +766,8 @@ type JoinAttrsAzure struct {
 	Subscription string `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
 	// The resource group of the Azure account that the joining entity is a part of.
 	ResourceGroup string `protobuf:"bytes,2,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
+	// The tenant ID of the Azure account that the joining entity is a part of.
+	Tenant        string `protobuf:"bytes,3,opt,name=tenant,proto3" json:"tenant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -810,6 +812,13 @@ func (x *JoinAttrsAzure) GetSubscription() string {
 func (x *JoinAttrsAzure) GetResourceGroup() string {
 	if x != nil {
 		return x.ResourceGroup
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzure) GetTenant() string {
+	if x != nil {
+		return x.Tenant
 	}
 	return ""
 }
@@ -1985,10 +1994,11 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\fJoinAttrsTPM\x12\x1e\n" +
 	"\vek_pub_hash\x18\x01 \x01(\tR\tekPubHash\x12$\n" +
 	"\x0eek_cert_serial\x18\x02 \x01(\tR\fekCertSerial\x12(\n" +
-	"\x10ek_cert_verified\x18\x03 \x01(\bR\x0eekCertVerified\"[\n" +
+	"\x10ek_cert_verified\x18\x03 \x01(\bR\x0eekCertVerified\"s\n" +
 	"\x0eJoinAttrsAzure\x12\"\n" +
 	"\fsubscription\x18\x01 \x01(\tR\fsubscription\x12%\n" +
-	"\x0eresource_group\x18\x02 \x01(\tR\rresourceGroup\"e\n" +
+	"\x0eresource_group\x18\x02 \x01(\tR\rresourceGroup\x12\x16\n" +
+	"\x06tenant\x18\x03 \x01(\tR\x06tenant\"e\n" +
 	"\x11JoinAttrsCircleCI\x12\x10\n" +
 	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x1f\n" +
 	"\vcontext_ids\x18\x02 \x03(\tR\n" +

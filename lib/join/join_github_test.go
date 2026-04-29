@@ -116,9 +116,11 @@ func TestJoinGHA(t *testing.T) {
 		},
 	}
 
+	testModules := modulestest.OSSModules()
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:     t.TempDir(),
+			Modules: testModules,
 		},
 	})
 	require.NoError(t, err)
@@ -692,10 +694,9 @@ func TestJoinGHA(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(idTokenValidator.reset)
 			if tt.setEnterprise {
-				modulestest.SetTestModules(
-					t,
-					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
-				)
+				testModules.TestBuildType = modules.BuildEnterprise
+			} else {
+				testModules.TestBuildType = modules.BuildOSS
 			}
 			token, err := types.NewProvisionTokenFromSpec(
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,

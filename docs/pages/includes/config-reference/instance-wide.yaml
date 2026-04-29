@@ -10,8 +10,11 @@ teleport:
   # reached by. By default it's equal to hostname.
   #
   # For Teleport-protected SSH servers, nodename must begin with an alphanumeric
-  # character and contain only alphanumeric characters, dots, and hyphens.
-  # Teleport replaces servers with invalid hostnames with random UUIDs.
+  # character, contain only alphanumeric characters, dots, and hyphens, and be
+  # no more than 256 characters in length.
+  #
+  # If a Teleport-protected server has an invalid nodename, Teleport replaces
+  # the nodename with the resource ID.
   nodename: graviton
 
   # Data directory where Teleport daemon keeps its data.
