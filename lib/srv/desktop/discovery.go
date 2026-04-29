@@ -485,6 +485,16 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 						continue
 					}
 
+					// Preserve the expiry time if the desktop already exists.
+					// This avoids issuing backend writes for all the desktops we
+					// already know about, while making sure that new desktops get
+					// a reasonable expiry.
+					if previous, ok := allDesktops[desktop.GetName()]; ok {
+						desktop.SetExpiry(previous.Expiry())
+					} else {
+						desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
+					}
+
 					nextDynamicDesktops[dynamicDesktop.GetName()] = desktop
 				}
 
