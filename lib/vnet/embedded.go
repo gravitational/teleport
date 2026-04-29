@@ -75,6 +75,20 @@ type EmbeddedApplicationService interface {
 
 	// GetAppSigner returns the private key for the given application's TLS certificate.
 	GetAppSigner(ctx context.Context, key *vnetv1.AppKey, port uint16) (crypto.Signer, error)
+
+	// GetDBCert issues a TLS certificate for the given database. VNet only
+	// supports protocols whose db_service extracts the database username from
+	// the wire protocol; the FQDN does not carry a username.
+	GetDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (*tls.Certificate, error)
+
+	// GetDBSigner returns the private key for the database certificate
+	// previously issued via GetDBCert.
+	GetDBSigner(ctx context.Context, dbKey *vnetv1.DatabaseKey) (crypto.Signer, error)
+
+	// OnNewDBConnection is called whenever a new database connection is
+	// established through VNet. Implementations may use it for audit/metrics
+	// or no-op.
+	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error
 }
 
 // EmbeddedVNetHostConfig is passed to EmbeddedVNetConfig.ConfigureHost to
@@ -291,20 +305,33 @@ func (*embeddedApplicationServiceClient) ExchangeSSHKeys(context.Context, *vnetv
 	}, nil
 }
 
-// DB-related RPCs. These are temporary NotImplemented stubs that mirror the
-// SSH stubs above; they will be replaced with real forwarding implementations
-// once the EmbeddedApplicationService interface gains DB methods.
+// DB-related RPCs. These forward to EmbeddedApplicationService implementations.
 
-func (*embeddedApplicationServiceClient) ReissueDBCert(context.Context, *vnetv1.ReissueDBCertRequest, ...grpc.CallOption) (*vnetv1.ReissueDBCertResponse, error) {
-	return nil, trace.NotImplemented("Database access is not yet supported in embedded VNet")
+func (e *embeddedApplicationServiceClient) ReissueDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest, _ ...grpc.CallOption) (*vnetv1.ReissueDBCertResponse, error) {
+	cert, err := e.service.GetDBCert(ctx, req.GetDatabaseInfo())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.ReissueDBCertResponse{Cert: cert.Certificate[0]}, nil
 }
 
-func (*embeddedApplicationServiceClient) SignForDB(context.Context, *vnetv1.SignForDBRequest, ...grpc.CallOption) (*vnetv1.SignForDBResponse, error) {
-	return nil, trace.NotImplemented("Database access is not yet supported in embedded VNet")
+func (e *embeddedApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest, _ ...grpc.CallOption) (*vnetv1.SignForDBResponse, error) {
+	signer, err := e.service.GetDBSigner(ctx, req.GetDatabaseKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sig, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for db %v", req.GetDatabaseKey())
+	}
+	return &vnetv1.SignForDBResponse{Signature: sig}, nil
 }
 
-func (*embeddedApplicationServiceClient) OnNewDBConnection(context.Context, *vnetv1.OnNewDBConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {
-	return nil, trace.NotImplemented("Database access is not yet supported in embedded VNet")
+func (e *embeddedApplicationServiceClient) OnNewDBConnection(ctx context.Context, req *vnetv1.OnNewDBConnectionRequest, _ ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {
+	if err := e.service.OnNewDBConnection(ctx, req.GetDatabaseKey()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.OnNewDBConnectionResponse{}, nil
 }
 
 var _ vnetv1.ClientApplicationServiceClient = (*embeddedApplicationServiceClient)(nil)
