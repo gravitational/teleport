@@ -631,7 +631,7 @@ export class TdpbCodec implements Codec {
         return {
           kind: 'serverHello',
           data: {
-            sessions: hello.sessions,
+            sessions: hello.sessions.map(s => s.name),
             clipboardSupport: hello.clipboardEnabled,
             activationEvent: hello.activationSpec,
           },
@@ -809,7 +809,9 @@ export class TdpbCodec implements Codec {
     return this.marshal({
       oneofKind: 'sessionSelection',
       sessionSelection: {
-        name: session,
+        session: {
+          name: session,
+        }
       },
     });
   }
