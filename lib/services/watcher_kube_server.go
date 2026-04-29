@@ -23,14 +23,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"rsc.io/ordered"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
-	"rsc.io/ordered"
 )
 
 type KubeServerWatcherGetter interface {
@@ -101,7 +102,7 @@ func (cfg *ProxyKubeServerWatcherConfig) CheckAndSetDefaults() error {
 // This is used by the proxy to watch for kube servers and should never be used in Agents, faulty cache
 // on agents would lead to an excessive amount of fallback calls to the auth server and cause performance issues.
 // This watcher should only be used when the cache staleness is in the critical connection path to keep access
-// functional in a degrated state. This is currently strongly typed to kube servers but could be made more generic if needed in the future.
+// functional in a degraded state. This is currently strongly typed to kube servers but could be made more generic if needed in the future.
 type ProxyKubeServerWatcher struct {
 	ProxyKubeServerWatcherConfig
 
