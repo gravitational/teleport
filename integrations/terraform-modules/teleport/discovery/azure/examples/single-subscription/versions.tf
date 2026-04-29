@@ -14,7 +14,7 @@ terraform {
 
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = ">= 18.5.1"
+      version = ">= 18.7.6"
     }
   }
 }
