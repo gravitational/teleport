@@ -131,8 +131,8 @@ func (c CertAuthType) addedInMajorVer() int64 {
 	case AWSRACA, BoundKeypairCA:
 		return 18
 	case WindowsCA, AppClientCA:
-		// Note: WindowsCA and AppClientCA was added in a 18.x minor release,
-		// so unlike others it's considered "new" in both versions 18 and 19.
+		// Note: WindowsCA and AppClientCA were added in an 18.x minor release,
+		// so unlike others they are considered "new" in both versions 18 and 19.
 		// That is to allow for, at least, a full release cycle.
 		return 19
 	default:
