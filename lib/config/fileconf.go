@@ -2453,6 +2453,15 @@ type App struct {
 	// setting this value to true will overwrite that public address in the web UI.
 	UseAnyProxyPublicAddr bool `yaml:"use_any_proxy_public_addr"`
 
+	// HTTPProtocolPriority controls how the proxy orders `http/1.1`
+	// and `h2` in the ALPN list it advertises for this app. If
+	// unset, the server default applies (currently HTTP/1.1 first,
+	// because Go's net/http does not implement RFC 8441; see
+	// https://github.com/golang/go/issues/49918). Accepted YAML
+	// values are `http1` and `http2`; see types.HTTPProtocolPriority
+	// for details.
+	HTTPProtocolPriority types.HTTPProtocolPriority `yaml:"http_protocol_priority,omitempty"`
+
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`

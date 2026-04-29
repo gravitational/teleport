@@ -34,6 +34,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |cloud|string|Cloud identifies the cloud instance the app represents.|
 |cors|[object](#speccors)|CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.|
 |dynamic_labels|[object](#specdynamic_labels)|DynamicLabels are the app's command labels.|
+|http_protocol_priority|string or integer|HTTPProtocolPriority controls how the proxy orders `http/1.1` and `h2` in the ALPN list it advertises for this app. If unset, the server default applies. See HTTPProtocolPriority for details. Can be either the string or the integer representation of each option.|
 |identity_center|[object](#specidentity_center)|IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|
 |inference|[object](#specinference)|LLM contains LLM inference endpoint related configurations.|
 |insecure_skip_verify|boolean|InsecureSkipVerify disables app's TLS certificate verification.|

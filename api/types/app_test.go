@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -1044,4 +1045,31 @@ func TestLLMConfiguration(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestAppV3HTTPProtocolPriorityRoundTrip pins the
+// `http_protocol_priority` JSON tag on AppSpecV3 and verifies it
+// survives a marshal / unmarshal pair as the lowercase string form
+// (`http2`), so dynamically registered apps (`tctl create app.yaml`,
+// `tsh apps register`) can carry the value.
+func TestAppV3HTTPProtocolPriorityRoundTrip(t *testing.T) {
+	app, err := NewAppV3(
+		Metadata{Name: "dumper"},
+		AppSpecV3{
+			URI:                  "http://localhost:1234",
+			PublicAddr:           "dumper.example.com",
+			HTTPProtocolPriority: HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2,
+		},
+	)
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(app)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"http_protocol_priority":"http2"`,
+		"expected proto json tag http_protocol_priority=http2 in marshaled spec; raw=%s",
+		string(raw))
+
+	var loaded AppV3
+	require.NoError(t, json.Unmarshal(raw, &loaded))
+	require.Equal(t, HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2, loaded.Spec.HTTPProtocolPriority)
 }

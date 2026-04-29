@@ -2104,6 +2104,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Cloud:                 application.Cloud,
 			RequiredAppNames:      application.RequiredApps,
 			UseAnyProxyPublicAddr: application.UseAnyProxyPublicAddr,
+			HTTPProtocolPriority:  application.HTTPProtocolPriority,
 		}
 
 		if application.CORS != nil {

@@ -2718,6 +2718,48 @@ app_service:
 	}
 }
 
+// TestAppsHTTPProtocolPriorityPlumbing checks that
+// `app_service.apps[].http_protocol_priority: http2` flows from the
+// static teleport.yaml file through fileconf -> servicecfg.App.
+// Without this plumbing, statically configured apps in teleport.yaml
+// silently ignore the value while only dynamically registered apps
+// (`tctl create app.yaml`, `tsh apps register`) honor it. The
+// assertion runs on cfg.Apps.Apps[0].HTTPProtocolPriority from
+// applyAppsConfig (lib/config/configuration.go) so it pins the
+// fileconf.App -> servicecfg.App mapping specifically.
+func TestAppsHTTPProtocolPriorityPlumbing(t *testing.T) {
+	configYAML := `
+app_service:
+  enabled: true
+  apps:
+    - name: dumper
+      public_addr: "dumper.example.com"
+      uri: "http://127.0.0.1:8080"
+      http_protocol_priority: http2
+    - name: jupyter
+      public_addr: "jupyter.example.com"
+      uri: "http://127.0.0.1:8081"
+`
+	clf := CommandLineFlags{
+		ConfigString: base64.StdEncoding.EncodeToString([]byte(configYAML)),
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, Configure(&clf, cfg, false))
+
+	require.Len(t, cfg.Apps.Apps, 2)
+	require.Equal(t, "dumper", cfg.Apps.Apps[0].Name)
+	require.Equal(t,
+		types.HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2,
+		cfg.Apps.Apps[0].HTTPProtocolPriority,
+		"app[0]=dumper: http_protocol_priority must survive fileconf -> servicecfg.App; got %+v",
+		cfg.Apps.Apps[0])
+	require.Equal(t, "jupyter", cfg.Apps.Apps[1].Name)
+	require.Equal(t,
+		types.HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_UNSPECIFIED,
+		cfg.Apps.Apps[1].HTTPProtocolPriority,
+		"app[1]=jupyter: default (UNSPECIFIED) must survive fileconf -> servicecfg.App")
+}
+
 // TestAppsCLF checks that validation runs on application configuration passed
 // in on the command line.
 func TestAppsCLF(t *testing.T) {

@@ -136,6 +136,11 @@ spec:
                   type: object
                 description: DynamicLabels are the app's command labels.
                 type: object
+              http_protocol_priority:
+                description: HTTPProtocolPriority controls how the proxy orders `http/1.1`
+                  and `h2` in the ALPN list it advertises for this app. If unset,
+                  the server default applies. See HTTPProtocolPriority for details.
+                x-kubernetes-int-or-string: true
               identity_center:
                 description: IdentityCenter encapsulates information specific to AWS
                   IAM Identity Center. Only valid for Identity Center account apps.

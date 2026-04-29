@@ -136,6 +136,7 @@ tcp_ports:
 use_any_proxy_public_addr: true
 mcp: # [...]
 inference: # [...]
+http_protocol_priority: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -145,6 +146,7 @@ inference: # [...]
 |cloud|Identifies the cloud instance the app represents.|string|
 |cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORS Policy](#cors-policy)|
 |dynamic_labels|The app's command labels.|map[string][Command Label V2](#command-label-v2)|
+|http_protocol_priority|Controls how the proxy orders `http/1.1` and `h2` in the ALPN list it advertises for this app. If unset, the server default applies. See HTTPProtocolPriority for details.|[HTTP Protocol Priority](#http-protocol-priority)|
 |identity_center|Encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
 |inference|Contains LLM inference endpoint related configurations.|[LLM](#llm)|
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
@@ -219,6 +221,11 @@ result: "string"
 ## Duration
 
 A wrapper around duration to set up custom marshal/unmarshal
+
+
+## HTTP Protocol Priority
+
+Controls the ALPN preference order the proxy advertises to clients connecting to an app. ALPN negotiation always selects from the intersection of what the client and server support; this value only ranks `http/1.1` and `h2` against each other in the server's preference list.
 
 
 ## Header

@@ -1125,6 +1125,28 @@ message AppIdentityCenter {
   repeated IdentityCenterPermissionSet PermissionSets = 2 [(gogoproto.jsontag) = "permission_sets,omitempty"];
 }
 
+// HTTPProtocolPriority controls the ALPN preference order the proxy
+// advertises to clients connecting to an app. ALPN negotiation always
+// selects from the intersection of what the client and server support;
+// this value only ranks `http/1.1` and `h2` against each other in the
+// server's preference list.
+enum HTTPProtocolPriority {
+  // HTTP_PROTOCOL_PRIORITY_UNSPECIFIED leaves the choice to the
+  // server-side default. The current default is HTTP/1.1 first, which
+  // is required for apps that use WebSockets because Go's net/http
+  // does not implement RFC 8441 (HTTP/2 extended CONNECT for
+  // WebSockets); see https://github.com/golang/go/issues/49918.
+  HTTP_PROTOCOL_PRIORITY_UNSPECIFIED = 0;
+  // HTTP_PROTOCOL_PRIORITY_HTTP1 advertises HTTP/1.1 ahead of HTTP/2.
+  // Pick this for apps that need WebSockets or otherwise do not
+  // benefit from HTTP/2 multiplexing.
+  HTTP_PROTOCOL_PRIORITY_HTTP1 = 1;
+  // HTTP_PROTOCOL_PRIORITY_HTTP2 advertises HTTP/2 ahead of HTTP/1.1.
+  // Pick this for apps that benefit from HTTP/2 multiplexing (e.g.
+  // gRPC) and do not use WebSockets.
+  HTTP_PROTOCOL_PRIORITY_HTTP2 = 2;
+}
+
 // AppSpecV3 is the AppV3 resource spec.
 message AppSpecV3 {
   // URI is the web app endpoint.
@@ -1172,6 +1194,10 @@ message AppSpecV3 {
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
   // LLM contains LLM inference endpoint related configurations.
   LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
+  // HTTPProtocolPriority controls how the proxy orders `http/1.1`
+  // and `h2` in the ALPN list it advertises for this app. If unset,
+  // the server default applies. See HTTPProtocolPriority for details.
+  HTTPProtocolPriority HTTPProtocolPriority = 17 [(gogoproto.jsontag) = "http_protocol_priority,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
