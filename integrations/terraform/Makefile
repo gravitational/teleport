@@ -264,11 +264,11 @@ endif
 
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
-testlib/plugin_test_ent.go:
+testlib/plugin_ent_test.go:
 	go generate testlib/plugin_test.go
 
 .PHONY: test-ent
-test-ent: testlib/plugin_test_ent.go test
+test-ent: testlib/plugin_ent_test.go test
 
 .PHONY: apply
 apply: install

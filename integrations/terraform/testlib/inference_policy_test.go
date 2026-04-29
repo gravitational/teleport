@@ -31,7 +31,6 @@ import (
 
 func (s *TerraformSuiteEnterprise) TestInferencePolicy() {
 	t := s.T()
-	t.Skip("Currently broken, need fixing.")
 	ctx := t.Context()
 
 	checkDestroyed := func(state *terraform.State) error {
@@ -82,7 +81,6 @@ func (s *TerraformSuiteEnterprise) TestInferencePolicy() {
 
 func (s *TerraformSuiteEnterprise) TestImportInferencePolicy() {
 	t := s.T()
-	t.Skip("Currently broken, need fixing.")
 	ctx := t.Context()
 
 	s.createInferenceModel(ctx, "some-model")
