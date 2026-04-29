@@ -718,6 +718,12 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
+			Credentials: &types.SAMLConnectorCredentials{
+				Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-id",
+					ClientSecret: "test-secret",
+				},
+			},
 		},
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
@@ -738,6 +744,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
+	oauthNoSecrets.ClientSecret = ""
+	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
 	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
@@ -1207,7 +1216,6 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
-
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
@@ -1525,7 +1533,6 @@ func (s *ServicesTestSuite) GithubPagination(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
-
 }
 
 // AuthPreference tests authentication preference service
@@ -1629,7 +1636,6 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertSessionRecordingConfig(ctx, gotRecConfig)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, gotRecConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {

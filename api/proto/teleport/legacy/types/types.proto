@@ -5583,8 +5583,11 @@ message OIDCConnectorSpecV3 {
 }
 
 // EntraIDGroupsProvider configures out-of-band user groups provider.
-// It works by following through the groups claim source, which is sent for
+// For OIDC, it works by following through the groups claim source, which is sent for
 // "groups" claim when the user's group membership exceeds 200 max item limit.
+// For SAML, it works by following through the "groups.link" SAML attribute,
+// which is sent instead of the "groups" SAML attribute, when the user's group
+// membership exceeds 150 max item limit.
 message EntraIDGroupsProvider {
   // Disabled specifies that the groups provider should be disabled
   // even when Entra ID responds with a groups claim source.
@@ -5836,6 +5839,30 @@ message SAMLConnectorSpecV2 {
   // authentication request. Defaults to false.
   // Note: Some IdPs will reject requests that contain a Subject.
   bool IncludeSubject = 21 [(gogoproto.jsontag) = "include_subject,omitempty"];
+  // EntraIDGroupsProvider configures out-of-band user groups provider.
+  // It works by following through the "groups.link" SAML assertion attribute,
+  // which is sent instead of the "groups" attribute, when the user's group membership
+  // exceeds 150 max item limit.
+  EntraIDGroupsProvider entra_id_groups_provider = 22;
+  // SAMLConnectorCredentials configures authentication for the connector to authenticate
+  // against the identity provider for performing ancillary operations,
+  // e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.
+  SAMLConnectorCredentials credentials = 23;
+}
+
+// SAMLConnectorCredentials holds credentials for a SAML connector to authenticate against
+// the identity provider. Only one type of credential should be specified at a time.
+message SAMLConnectorCredentials {
+  // OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.
+  OAuthClientCredentials oauth = 1;
+}
+
+// OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.
+message OAuthClientCredentials {
+  // ClientID is the client ID to use for OAuth client credentials grant.
+  string client_id = 1;
+  // ClientSecret is the client secret to use for OAuth client credentials grant.
+  string client_secret = 2;
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
