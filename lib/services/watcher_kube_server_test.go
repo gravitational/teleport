@@ -217,7 +217,7 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcherStartsWithFaultyPrimary(t *testing.T) {
+func TestProxyKubeServerWatcher_StartsWithFaultyPrimary(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest)
 }
 
@@ -236,6 +236,9 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 			newTestKubeServer(t, "initial", "host1"),
 		}, nil).Once()
 
+	watcherReady := make(chan time.Time)
+	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).WaitUntil(watcherReady).Once()
+
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
 		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
@@ -250,8 +253,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resources, "Watcher should start with empty cache before warm-up")
 
-	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).Once()
-
+	watcherReady <- time.Now()
 	fw.send(types.Event{Type: types.OpInit})
 	require.NoError(t, w.WaitInitialization())
 	require.True(t, w.IsInitialized())
@@ -288,7 +290,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestWatcherProcessesEvents(t *testing.T) {
+func TestProxyKubeServerWatcher_ProcessesEvents(t *testing.T) {
 	synctest.Test(t, testWatcherProcessesEventsSynctest)
 }
 
@@ -336,7 +338,7 @@ func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {
 
 }
 
-func TestProxyKubeServerWatcherRetryWatchAfterTimeout(t *testing.T) {
+func TestProxyKubeServerWatcher_RetryWatchAfterTimeout(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest)
 }
 
@@ -382,7 +384,7 @@ func testProxyKubeServerWatcherRetriesAfterTimeoutSynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcherRetriesAfterTimeout(t *testing.T) {
+func TestProxyKubeServerWatcher_RetriesAfterTimeout(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherRetriesAfterTimeoutSynctest)
 }
 
@@ -509,7 +511,7 @@ func testProxyKubeServerWatcherKeepsStaleServersSynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcherKeepsStaleServers(t *testing.T) {
+func TestProxyKubeServerWatcher_KeepsStaleServers(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherKeepsStaleServersSynctest)
 }
 
@@ -551,7 +553,7 @@ func testProxyKubeServerWatcherDiscardsBadInitEventSynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcherDiscardsBadInitEvent(t *testing.T) {
+func TestProxyKubeServerWatcher_DiscardsBadInitEvent(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherDiscardsBadInitEventSynctest)
 }
 
@@ -598,6 +600,6 @@ func testProxyKubeServerWatcherRecoversFromFirstFetchFailSynctest(t *testing.T) 
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcherRecoversFromFirstFetchFail(t *testing.T) {
+func TestProxyKubeServerWatcher_RecoversFromFirstFetchFail(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherRecoversFromFirstFetchFailSynctest)
 }
