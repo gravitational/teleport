@@ -15,42 +15,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useCallback } from 'react';
+
 import styled from 'styled-components';
 
 import { ButtonText, Flex, P3, Text } from 'design';
-import { Logout } from 'design/Icon';
+import { Logout, Trash, type IconComponentType } from 'design/Icon';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
-import { routing } from 'teleterm/ui/uri';
+import { routing, RootClusterUri } from 'teleterm/ui/uri';
 
 import { UserIcon } from '../IdentitySelector/UserIcon';
 
 export function IdentityListItem(props: {
   index: number;
-  cluster: Cluster;
+  uri: RootClusterUri;
+  color: WorkspaceColor;
+  cluster: Cluster | undefined;
   onSelect(): void;
-  /** If defined, the logout button is rendered. */
-  onLogout?(): void;
+  onLogout(): void;
+  onForget(): void;
 }) {
   const { isActive } = useKeyboardArrowsNavigation({
     index: props.index,
     onRun: props.onSelect,
   });
-  const workspaceColor = useStoreSelector(
-    'workspacesService',
-    useCallback(
-      state => state.workspaces[props.cluster.uri]?.color,
-      [props.cluster.uri]
-    )
-  );
-
-  const profileName = routing.parseClusterName(props.cluster.uri);
+  const profileName = routing.parseClusterName(props.uri);
+  const subtitle = getSubtitle(props.cluster);
 
   return (
     <StyledListItem
@@ -63,33 +57,28 @@ export function IdentityListItem(props: {
     >
       <Flex width="100%" justifyContent="space-between">
         <WithIconItem
-          letter={getProfileNameLetter(props.cluster)}
-          color={workspaceColor}
+          letter={getProfileNameLetter(props.uri)}
+          color={props.color}
           title={profileName}
-          subtitle={props.cluster.loggedInUser?.name}
+          subtitle={subtitle}
         />
-        {props.onLogout && (
-          <ButtonText
-            intent="danger"
-            size="small"
-            className="logout"
-            css={`
-              visibility: hidden;
-              transition: none;
-            `}
-            p={1}
-            ml={4}
-            title={`Log out from ${profileName}`}
-            onClick={e => {
-              e.stopPropagation();
-              props.onLogout();
-            }}
-          >
-            <Logout size="small" />
-          </ButtonText>
-        )}
+        <Flex alignItems="center" gap={2}>
+          {props.cluster?.connected ? (
+            <SideButton
+              Icon={Logout}
+              title={`Log out from ${profileName}`}
+              onClick={props.onLogout}
+            />
+          ) : (
+            <SideButton
+              Icon={Trash}
+              title={`Forget ${profileName}`}
+              onClick={props.onForget}
+            />
+          )}
+        </Flex>
       </Flex>
-      {props.cluster.profileStatusError && (
+      {props.cluster?.profileStatusError && (
         <ProfileStatusError
           error={props.cluster.profileStatusError}
           // Align the error with the user icon.
@@ -113,6 +102,33 @@ export function AddClusterItem(props: { index: number; onClick(): void }) {
     <StyledListItem isActive={isActive} onClick={props.onClick}>
       <WithIconItem letter="+" title="Add Cluster…" />
     </StyledListItem>
+  );
+}
+
+function SideButton(props: {
+  title: string;
+  Icon: IconComponentType;
+  onClick: () => void;
+}) {
+  return (
+    <ButtonText
+      intent="danger"
+      size="small"
+      className="logout"
+      css={`
+        visibility: hidden;
+        transition: none;
+      `}
+      p={1}
+      ml={4}
+      title={props.title}
+      onClick={e => {
+        e.stopPropagation();
+        props.onClick();
+      }}
+    >
+      <props.Icon size="medium" />
+    </ButtonText>
   );
 }
 
@@ -169,6 +185,22 @@ export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
   );
 }
 
-export function getProfileNameLetter(cluster: Cluster): string {
-  return routing.parseClusterName(cluster.uri).at(0);
+export function getProfileNameLetter(uri: RootClusterUri): string {
+  return routing.parseClusterName(uri).at(0);
+}
+
+function getSubtitle(cluster: Cluster | undefined): string {
+  if (!cluster) {
+    return 'Previously used';
+  }
+
+  if (!cluster.loggedInUser?.name) {
+    return 'Not logged in';
+  }
+
+  if (!cluster.connected) {
+    return `${cluster.loggedInUser.name} · Expired session`;
+  }
+
+  return cluster.loggedInUser.name;
 }

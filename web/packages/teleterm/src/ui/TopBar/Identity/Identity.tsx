@@ -33,24 +33,25 @@ import {
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
 
-import { ActiveCluster, ClusterList } from './IdentityList/IdentityList';
+import { ActiveCluster, IdentityList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
 import { useIdentity } from './useIdentity';
 
 export function IdentityContainer() {
   const {
     activeRootCluster,
-    rootClusters,
+    identityItems,
     changeRootCluster,
     logout,
     addCluster,
+    forget,
     refreshCluster,
     changeColor,
   } = useIdentity();
   const selectorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-  const hasClusters = activeRootCluster || rootClusters.length;
+  const hasClusters = activeRootCluster || identityItems.length;
   const togglePopoverOrAddCluster = useCallback(() => {
     if (hasClusters) {
       setOpen(o => !o);
@@ -125,11 +126,12 @@ export function IdentityContainer() {
           <TshHomeMigrationBanner />
           <KeyboardArrowsNavigation>
             {focusGrabber}
-            <ClusterList
-              clusters={rootClusters}
+            <IdentityList
+              items={identityItems}
               onSelect={withClose(changeRootCluster)}
               onLogout={withClose(logout)}
               onAdd={withClose(addCluster)}
+              onForget={withClose(forget)}
             />
           </KeyboardArrowsNavigation>
         </Container>
