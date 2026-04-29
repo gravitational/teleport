@@ -325,7 +325,7 @@ func (a *AppV3) IsLLM() bool {
 }
 
 func IsAppTCP(uri string) bool {
-	return strings.HasPrefix(uri, "tcp://")
+	return strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, SchemeTLS+"://")
 }
 
 // IsAppMCP returns true if provided uri is an MCP app.
@@ -1016,6 +1016,7 @@ var SupportedLLMProviders = []LLMProvider{
 // appSchemasWithTLSSupport list of app schemas that support TLS configurations.
 var appSchemasWithTLSSupport = []string{
 	"https",
+	SchemeTLS,
 	SchemeMCPHTTPS,
 	SchemeMCPSSEHTTPS,
 }

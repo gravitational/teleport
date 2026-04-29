@@ -1298,14 +1298,14 @@ func TestAppClientCertMode(t *testing.T) {
 		},
 		"empty tls block returns disabled": {
 			spec: AppSpecV3{
-				URI: "https://0.0.0.0:8000",
+				URI: "tls://0.0.0.0:8000",
 				TLS: &AppTLS{},
 			},
 			expectedMode: AppClientCertModeDisabled,
 		},
 		"explict disable": {
 			spec: AppSpecV3{
-				URI: "https://0.0.0.0:8000",
+				URI: "tls://0.0.0.0:8000",
 				TLS: &AppTLS{
 					Mode:           AppTLSModeVerifyServerName,
 					ClientCertMode: AppClientCertModeDisabled,
@@ -1315,7 +1315,7 @@ func TestAppClientCertMode(t *testing.T) {
 		},
 		"managed": {
 			spec: AppSpecV3{
-				URI: "https://0.0.0.0:8000",
+				URI: "tls://0.0.0.0:8000",
 				TLS: &AppTLS{
 					Mode:           AppTLSModeVerifyServerName,
 					ClientCertMode: AppClientCertModeManaged,
