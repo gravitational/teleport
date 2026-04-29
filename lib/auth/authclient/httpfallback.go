@@ -106,7 +106,7 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 //
 // TODO(noah): DELETE IN v20.0.0
 func (c *Client) UpsertProxy(ctx context.Context, s types.Server) error {
-	err := c.APIClient.UpsertProxy(ctx, s)
+	err := c.APIClient.UpsertProxyServer(ctx, s)
 	if err == nil {
 		return nil
 	}
@@ -138,7 +138,7 @@ func (c *HTTPClient) upsertProxyLegacy(ctx context.Context, s types.Server) erro
 //
 // TODO(noah): DELETE IN v20.0.0
 func (c *Client) DeleteProxy(ctx context.Context, name string) error {
-	err := c.APIClient.DeleteProxy(ctx, name)
+	err := c.APIClient.DeleteProxyServer(ctx, name)
 	if err == nil {
 		return nil
 	}

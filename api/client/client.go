@@ -5935,16 +5935,16 @@ func (c *Client) DeleteReverseTunnel(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteProxy deletes a proxy server heartbeat by name.
-func (c *Client) DeleteProxy(ctx context.Context, name string) error {
+// DeleteProxyServer deletes a proxy server heartbeat by name.
+func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
 	_, err := c.PresenceServiceClient().DeleteProxyServer(ctx, &presencepb.DeleteProxyServerRequest{
 		Name: name,
 	})
 	return trace.Wrap(err)
 }
 
-// UpsertProxy registers a proxy server heartbeat.
-func (c *Client) UpsertProxy(ctx context.Context, s types.Server) error {
+// UpsertProxyServer registers a proxy server heartbeat.
+func (c *Client) UpsertProxyServer(ctx context.Context, s types.Server) error {
 	serverV2, ok := s.(*types.ServerV2)
 	if !ok {
 		return trace.BadParameter("unsupported proxy server type %T", s)
