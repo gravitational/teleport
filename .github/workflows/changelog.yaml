@@ -47,14 +47,16 @@ jobs:
             grep -iE '^changelog: ' <<< "$BODY" | sed 's/^[Cc]hangelog: //'
             echo EOF
           } >> "$GITHUB_OUTPUT"
-      - name: Checkout dictionary
+      - name: Checkout dependencies
         uses: actions/checkout@v6
         with:
-          repository: 'gravitational/teleport'
-          path: 'teleport'
-          fetch-depth: 1
-          sparse-checkout: docs/cspell.json
+          sparse-checkout: |
+            package.json
+            pnpm-lock.yaml
+            docs/cspell.json
           sparse-checkout-cone-mode: false
+      - uses: pnpm/action-setup@v4
+      - name: Install cspell
+        run: pnpm install --frozen-lockfile
       - name: Spellcheck changelog
-        working-directory: 'docs'
-        run: yarn spellcheck <<< "${{ steps.changelog.outputs.entries }}"
+        run: pnpm exec cspell lint --no-progress --config docs/cspell.json stdin <<< "${{ steps.changelog.outputs.entries }}"
