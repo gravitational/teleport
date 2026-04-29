@@ -10,9 +10,22 @@
 		0C94C8522FA232E600C13C9A /* Verify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Verify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0C94C8612FA2365300C13C9A /* Exceptions for "Verify" folder in "Verify" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0C94C8512FA232E600C13C9A /* Verify */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0C94C8542FA232E600C13C9A /* Verify */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0C94C8612FA2365300C13C9A /* Exceptions for "Verify" folder in "Verify" target */,
+			);
 			path = Verify;
 			sourceTree = "<group>";
 		};
@@ -258,6 +271,8 @@
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Verify/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -294,6 +309,8 @@
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Verify/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
