@@ -811,7 +811,7 @@ export class TdpbCodec implements Codec {
       sessionSelection: {
         session: {
           name: session,
-        }
+        },
       },
     });
   }
