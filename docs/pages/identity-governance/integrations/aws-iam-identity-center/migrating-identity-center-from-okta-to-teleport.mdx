@@ -170,6 +170,9 @@ Choose the installation command for your Teleport deployment:
 <Tabs>
 <TabItem label="Teleport Cloud">
 
+Teleport Cloud clusters authenticate with AWS through an [AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
+Create the AWS OIDC integration first, then use this command.
+
 ```console
 $ tctl plugins install awsic \
     --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
@@ -187,7 +190,15 @@ $ tctl plugins install awsic \
 </TabItem>
 <TabItem label="Self-Hosted">
 
-#### Ambient system credentials
+Self-hosted clusters can use either ambient system credentials or AWS OIDC. For
+guidance choosing a credential source, see [AWS authentication
+methods](./advanced-options.mdx#aws-authentication-methods).
+
+**Ambient system credentials**
+
+This command uses the AWS credential provider chain available to the Auth
+Service. The credentials must be able to assume the IAM role passed in
+`--assume-role-arn`.
 
 ```console
 $ tctl plugins install awsic \
@@ -203,7 +214,11 @@ $ tctl plugins install awsic \
     --group-name ${GROUP_NAME_ALLOW_FILTER}
 ```
 
-#### AWS OIDC integration
+**AWS OIDC integration**
+
+This command uses the AWS OIDC integration named by `--oidc-integration` instead
+of ambient AWS credentials. Create the AWS OIDC integration before running the
+installer.
 
 ```console
 $ tctl plugins install awsic \
@@ -226,17 +241,13 @@ This will install the Teleport AWS IAM Identity Center integration with a
 Teleport configuration that:
 - Controls the AWS IAM Identity Center instance indicated by `--instance-arn`.
 - Authenticates with AWS using the credential source selected in the install
-  command: the AWS OIDC integration on Teleport Cloud, or system AWS credentials
-  and the IAM role indicated by `--assume-role-arn` on self-hosted clusters.
+  command: an AWS OIDC integration on Teleport Cloud or self-hosted clusters, or
+  system AWS credentials and the IAM role indicated by `--assume-role-arn` on
+  self-hosted clusters.
 - Manages account assignments for all AWS accounts that match the `${ACCOUNT_NAME_ALLOW_FILTER}`.
 - Provisions all users imported from Okta into AWS IAM Identity Center (from the `--user-origin okta` flag).
 - Only imports all groups matching `${GROUP_NAME_ALLOW_FILTER}` into Teleport as Access
   Lists, with `${TELEPORT_ACCESS_LIST_DEFAULT_OWNER}` as the owner.
-
-<Admonition type="note">
-For more details on Identity Center AWS credential sources, see
-[AWS authentication methods](./advanced-options.mdx#aws-authentication-methods).
-</Admonition>
 
 You can change the AWS account, group and user filters later by following the
 instructions in the [Extending the Integration](#extending-the-integration) section

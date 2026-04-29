@@ -37,10 +37,14 @@ $ tctl plugins install awsic \
 <TabItem label="Self-Hosted">
 
 Self-hosted clusters have two installation options: ambient system credentials
-and [AWS OIDC](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx). Use ambient credentials when the Auth Service already runs with
-AWS credentials, such as an EC2 instance profile or another AWS SDK credential
-source. Use AWS OIDC when you prefer to avoid host-level AWS credentials or want
-to manage AWS trust through a dedicated Teleport integration.
+and [AWS OIDC](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
+
+Use ambient credentials when the Auth Service already runs with AWS credentials,
+such as an EC2 instance profile or another AWS SDK credential source, or when
+your Teleport Proxy Service endpoint is private.
+
+Use AWS OIDC when AWS can reach your cluster's public Proxy Service endpoint and
+you want to manage AWS trust through a dedicated Teleport integration.
 
 ### Ambient system credentials
 
@@ -94,6 +98,9 @@ Choose the installation command for your Teleport deployment:
 <Tabs>
 <TabItem label="Teleport Cloud">
 
+Teleport Cloud clusters authenticate with AWS through an [AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
+Create the AWS OIDC integration first, then use this command.
+
 ```console
 $ tctl plugins install awsic \
     --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
@@ -109,7 +116,15 @@ $ tctl plugins install awsic \
 </TabItem>
 <TabItem label="Self-Hosted">
 
-### Ambient system credentials
+Self-hosted clusters can use either ambient system credentials or AWS OIDC. For
+guidance choosing a credential source, see [AWS authentication
+methods](#aws-authentication-methods).
+
+**Ambient system credentials**
+
+This command uses the AWS credential provider chain available to the Auth
+Service. The credentials must be able to assume the IAM role passed in
+`--assume-role-arn`.
 
 ```console
 $ tctl plugins install awsic \
@@ -123,7 +138,11 @@ $ tctl plugins install awsic \
     --roles-sync-mode NONE
 ```
 
-### AWS OIDC integration
+**AWS OIDC integration**
+
+This command uses the AWS OIDC integration named by `--oidc-integration` instead
+of ambient AWS credentials. Create the AWS OIDC integration before running the
+installer.
 
 ```console
 $ tctl plugins install awsic \
