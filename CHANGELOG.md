@@ -2,6 +2,44 @@
 
 ## 18.7.6 (04/29/26)
 
+### Security fixes
+
+This patch includes some security fixes.
+These issues are present in previous v18 releases.
+Impacted users are recommended to upgrade their auth and database services to the latest version.
+For Teleport Cloud customers, your control plane has already been upgraded to a patched release.
+
+#### [High] Authorization bypass in encrypted session recordings
+
+Teleport did not ensure sufficient authorization in some of the encrypted session recordings APIs.
+This could allow an attacker to upload recordings to the cluster.
+Teleport did not find the evidence of this being exploited in the Teleport Cloud environment. For
+self-hosted users that do not use encrypted session recordings, the following debug log messages
+on auth server would indicate vulnerable APIs being called:
+- “creating encrypted session upload”
+- “uploading encrypted session part”
+- “completing encrypted session upload”
+This issue affects only Teleport v18. All users are advised to upgrade their Auth services to the
+patched v18 release.
+
+#### [High] Cross-node session recording access
+
+When checking system service access to session recordings and audit logs, Teleport did not
+perform sufficient authorization. This could allow a compromised Teleport SSH node service to
+access audit events and session recordings from other nodes in the cluster.
+All users are advised to upgrade their Auth services to the patched v18 or v17 release.
+
+#### [Medium] SSRF via AWS database access endpoint
+
+Teleport did not sufficiently validate the connection endpoint for AWS database access
+(DynamoDB, OpenSearch, Keyspaces). This could allow a malicious actor with access to Teleport
+configuration to steal database access credentials by crafting a connection endpoint pointing to
+their domain.
+All users that use Teleport to access AWS-hosted databases (DynamoDB, OpenSearch, Keyspaces)
+are advised to upgrade their auth and database services to the patched v18 or v17 release
+
+### Other fixes and improvements
+
 * Fixed an issue that prevents GCP Server discovery to try to enroll all the VMs that are found when one of them returns an error. [#66240](https://github.com/gravitational/teleport/pull/66240)
 * Added scoped roles support to the Terraform provider. [#66225](https://github.com/gravitational/teleport/pull/66225)
 * Added scoped role assignment support to the Terraform provider. [#66225](https://github.com/gravitational/teleport/pull/66225)
