@@ -4,30 +4,29 @@
 
 ### Security fixes
 
-This patch includes some security fixes.
-These issues are present in previous v18 releases.
-Impacted users are recommended to upgrade their auth and database services to the latest version.
+This release includes various security-related improvements and bug fixes. 
+We recommend that users on versions prior to v18.7.5 upgrade their Auth and Database Services to this latest release.
 For Teleport Cloud customers, your control plane has already been upgraded to a patched release.
 
 #### [High] Authorization bypass in encrypted session recordings
 
 Teleport did not ensure sufficient authorization in some of the encrypted session recordings APIs.
 This could allow an attacker to upload recordings to the cluster.
-Teleport did not find the evidence of this being exploited in the Teleport Cloud environment. For
-self-hosted users that do not use encrypted session recordings, the following debug log messages
+For self-hosted users that do not use encrypted session recordings, the following debug log messages
 on auth server would indicate vulnerable APIs being called:
 - “creating encrypted session upload”
 - “uploading encrypted session part”
 - “completing encrypted session upload”
-This issue affects only Teleport v18. All users are advised to upgrade their Auth services to the
-patched v18 release.
+
+This issue specifically affects Teleport v18. We recommend that all users upgrade their 
+Auth Services to this release to ensure continued security and stability.
 
 #### [High] Cross-node session recording access
 
 When checking system service access to session recordings and audit logs, Teleport did not
 perform sufficient authorization. This could allow a compromised Teleport SSH node service to
 access audit events and session recordings from other nodes in the cluster.
-All users are advised to upgrade their Auth services to the patched v18 release.
+We recommend that all users upgrade their Auth Services to this release to ensure continued security and stability.
 
 #### [Medium] SSRF via AWS database access endpoint
 
@@ -36,7 +35,8 @@ Teleport did not sufficiently validate the connection endpoint for AWS database 
 configuration to steal database access credentials by crafting a connection endpoint pointing to
 their domain.
 All users that use Teleport to access AWS-hosted databases (DynamoDB, OpenSearch, Keyspaces)
-are advised to upgrade their auth and database services to the patched v18 release
+are advised to upgrade their Auth and Database Services to this release to ensure continued security
+and stability.
 
 ### Other fixes and improvements
 
