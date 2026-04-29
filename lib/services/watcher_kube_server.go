@@ -314,13 +314,13 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 	}
 
 	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
+	// Arm the next cold fetch.
+	w.nextColdFetch = time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
 	if err != nil {
 		return trace.Wrap(err, "fetching from fallback")
 	}
 
 	w.current = newCurrent
-	// Arm the next cold fetch.
-	w.nextColdFetch = time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
 	return nil
 }
 
