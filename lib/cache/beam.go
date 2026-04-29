@@ -211,7 +211,7 @@ func keyForBeamUserIndex(r *beamsv1.Beam) string {
 }
 
 func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
-	expires := r.GetMetadata().GetExpires().AsTime().UnixMilli()
+	expires := r.GetSpec().GetExpires().AsTime().UnixMilli()
 	name := r.GetMetadata().GetName()
 	return string(ordered.Encode(expires, name))
 }
