@@ -26,6 +26,9 @@ The Teleport cluster consists of two services:
 - **Teleport Proxy Service:** The cluster frontend, which handles user requests,
   forwards user credentials to the Auth Service, and communicates with Teleport
   instances that enable access to specific resources in your infrastructure.
+- **Teleport SSH Service:** An SSH server that enforces Teleport access
+  controls, records sessions, and logs activity as Teleport audit events,
+  enabling you to protect a Linux server with Teleport.
 
 ![Architecture of the setup you will complete in this
 guide](../../img/linux-server-diagram.png)
@@ -290,7 +293,7 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
    Service:
 
    ```code
-   $ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+   $ sudo tctl users add teleport-admin --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
    ```
 
    The command prints a message similar to the following:
@@ -305,6 +308,19 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
    If using a local container, replace the host and port with `localhost:3080`.
 
 1. Visit the provided URL in order to create your Teleport user.
+
+   The `tctl` command you ran earlier created a local Teleport user with the
+   following preset roles:
+   
+   |Role|Permissions|
+   |---|---|
+   |`editor`|Perform administrative tasks in your cluster|
+   |`access`|Connect to any Teleport-protected resource|
+   |`auditor`|View audit events and session recordings|
+
+   Since this user has almost total privileges, you should treat this identity
+   as a fallback after completing initial setup operations, and define other
+   roles and identities for day-to-day usage.
 
    <Admonition
      type="tip"
@@ -323,6 +339,11 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
      authenticate as the user that you have currently logged in as.
    
    </Admonition>
+
+1. [Recommended] Repeat these steps to create a second local user with
+   administrative privileges. We recommend more than one local user to prevent
+   lockout. As with the first identity you created, treat this one as a fallback
+   rather than an identity for day-to-day usage.
 
 1. Teleport enforces the use of multi-factor authentication by default. It
    supports one-time passwords (OTP) and multi-factor authenticators (WebAuthn).
@@ -348,7 +369,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin
   Cluster:            teleport.example.com
-  Roles:              access, editor
+  Roles:              access, auditor, editor
   Logins:             root, ubuntu, ec2-user
   Kubernetes:         enabled
   Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]
