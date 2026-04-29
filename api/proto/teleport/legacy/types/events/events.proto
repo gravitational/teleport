@@ -3757,7 +3757,7 @@ message WindowsCertificateMetadata {
   repeated string EnhancedKeyUsage = 7 [(gogoproto.jsontag) = "enhanced_key_usage"];
 }
 
-// WindowsDesktopSessionStart is emitted when a user connects to a desktop.
+// WindowsDesktopSessionStart is emitted when a user connects to a Windows desktop.
 message WindowsDesktopSessionStart {
   // Metadata is common event metadata.
   Metadata Metadata = 1 [
@@ -3819,6 +3819,48 @@ message WindowsDesktopSessionStart {
 message CAOverrideCertificateDetails {
   bool active = 1 [(gogoproto.jsontag) = "active"];
   string public_key_hash = 2 [(gogoproto.jsontag) = "public_key_hash"];
+}
+
+// LinuxDesktopSessionStart is emitted when a user connects to a Linux desktop.
+message LinuxDesktopSessionStart {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the connection was successful or denied.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // LinuxUser is the Linux username used to connect.
+  string LinuxUser = 7 [(gogoproto.jsontag) = "linux_user"];
+  // DesktopLabels are the labels on the desktop resource.
+  map<string, string> DesktopLabels = 8 [(gogoproto.jsontag) = "desktop_labels"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
@@ -4154,6 +4196,57 @@ message WindowsDesktopSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// LinuxDesktopSessionEnd is emitted when a user ends a Linux desktop session.
+message LinuxDesktopSessionEnd {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
+  string LinuxUser = 6 [(gogoproto.jsontag) = "linux_user"];
+  // DesktopLabels are the labels on the desktop resource.
+  map<string, string> DesktopLabels = 7 [(gogoproto.jsontag) = "desktop_labels"];
+  // StartTime is the timestamp at which the session began.
+  google.protobuf.Timestamp StartTime = 8 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_start,omitempty" // JSON tag intentionally matches SessionEnd event
+  ];
+  // EndTime is the timestamp at which the session ended.
+  google.protobuf.Timestamp EndTime = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_stop,omitempty"
+  ];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 10 [(gogoproto.jsontag) = "desktop_name"];
+  // Recorded is true if the session was recorded, false otherwise.
+  bool Recorded = 11 [(gogoproto.jsontag) = "recorded"];
+  // Participants is a list of participants in the session.
+  repeated string Participants = 12 [(gogoproto.jsontag) = "participants"];
 }
 
 // CertificateCreate is emitted when a certificate is issued.
@@ -5081,6 +5174,8 @@ message OneOf {
     events.RetrievalModelUpdate RetrievalModelUpdate = 251;
     events.RetrievalModelDelete RetrievalModelDelete = 252;
     events.AzureRun AzureRun = 253;
+    events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
+    events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
   }
 }
 

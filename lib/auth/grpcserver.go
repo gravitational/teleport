@@ -1919,7 +1919,8 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	return &emptypb.Empty{}, nil
 }
 
-// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+// resulting public key to an application web session.
 func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb.SetAppSessionDBSCPublicKeyRequest) (*authpb.SetAppSessionDBSCPublicKeyResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1931,7 +1932,7 @@ func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb
 	}
 
 	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("public key must not be empty")
+		return nil, trace.BadParameter("DBSC response must not be empty")
 	}
 
 	if err := auth.SetAppSessionDBSCPublicKey(ctx, req.SessionId, req.PublicKey); err != nil {
@@ -1939,6 +1940,25 @@ func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb
 	}
 
 	return &authpb.SetAppSessionDBSCPublicKeyResponse{}, nil
+}
+
+// SignDBSCChallenge signs a DBSC challenge.
+func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSCChallengeRequest) (*authpb.SignDBSCChallengeResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	challenge, err := auth.SignDBSCChallenge(ctx, req.SessionId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SignDBSCChallengeResponse{Challenge: challenge}, nil
 }
 
 // GenerateAppToken creates a JWT token with application access.

@@ -46,6 +46,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1215,23 +1216,16 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 	// Scoped identities currently receive "special" handling. For now, we only
 	// support watching the cert_authority kind, with load_secrets=false.
 	//
-	// For this, we perform a RiskyUnpinnedDecision to permit scoped identities
-	// to read an unscoped resource.
+	// For this, we use RiskyAuthorizeUnpinnedRead to permit scoped identities to
+	// read an unscoped resource.
 	if kind.Kind != types.KindCertAuthority {
 		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
 	}
 	if kind.LoadSecrets {
 		return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
 	}
-	verb := types.VerbReadNoSecrets
 	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(
-		ctx,
-		scopes.Root,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, kind.Kind, verb)
-		},
-	)
+	return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.
@@ -1445,6 +1439,7 @@ var (
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
+		types.KindLinuxDesktop:           {},
 		types.KindMCP:                    {},
 	}
 
@@ -1618,6 +1613,17 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
 						"error", err,
 						"resource", d.GetName(),
+					)
+					continue
+				}
+				r.Logins = logins
+			} else if d := r.GetLinuxDesktop(); d != nil {
+				desktop := proto.UnpackLinuxDesktop(d)
+				logins, err := resourceLister.getAllowedLogins(desktop)
+				if err != nil {
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for Linux desktop",
+						"error", err,
+						"resource", desktop.GetName(),
 					)
 					continue
 				}
@@ -2359,6 +2365,11 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			return r.CheckAccess(checkable, state)
+		}
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", resource)
@@ -2618,9 +2629,7 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -2643,9 +2652,7 @@ func (a *ServerWithRoles) ListAuthServers(ctx context.Context, pageSize int, pag
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
@@ -2684,9 +2691,7 @@ func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadProxies, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -2709,9 +2714,7 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
@@ -6309,21 +6312,21 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	return nil
 }
 
-// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-// Only the session owner can set the DBSC public key on their session, and only
-// if the key has not already been set (one-time binding).
-func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+// SetAppSessionDBSCPublicKey verifies a DBSC response for an application web session
+// and stores the bound public key if the session has not already been bound.
+func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
+	session, err := a.authorizeDBSCRequest(ctx, sessionID, "set DBSC public keys")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	publicKey, err := a.authServer.verifyDBSCResponse(ctx, string(responseJWT), sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	const iterationLimit = 3
 	for range iterationLimit {
-		session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if !authz.IsCurrentUser(a.context, session.GetUser()) {
-			return trace.AccessDenied("only session owner can set DBSC public key")
-		}
-
 		// DBSC public key can only be set once to prevent rebinding to a different key.
 		if existingKey := session.GetDBSCPublicKey(); len(existingKey) > 0 {
 			// Allow idempotent retries with the same key.
@@ -6335,10 +6338,15 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 
 		session.SetDBSCPublicKey(publicKey)
 		if err := a.authServer.UpdateAppSession(ctx, session); err != nil {
-			if trace.IsCompareFailed(err) {
-				continue
+			if !trace.IsCompareFailed(err) {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
+			// Reload after a compare-and-swap conflict and retry.
+			session, err = a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			continue
 		}
 
 		return nil
@@ -6428,6 +6436,62 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+// SignDBSCChallenge creates a signed challenge.
+func (a *ServerWithRoles) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	if _, err := a.authorizeDBSCRequest(ctx, sessionID, "sign DBSC challenges"); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challenge, err := a.authServer.signDBSCChallenge(ctx, sessionID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return challenge, nil
+}
+
+// authorizeDBSCRequest verifies that the caller is an allowed proxy for this DBSC session-scoped operation.
+// It also loads and returns the target app session for callers that need it.
+func (a *ServerWithRoles) authorizeDBSCRequest(ctx context.Context, sessionID string, action string) (types.WebSession, error) {
+	isLocalProxy := a.hasBuiltinRole(types.RoleProxy)
+	remoteRole, ok := a.context.Identity.(authz.RemoteBuiltinRole)
+	if !isLocalProxy && (!a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok) {
+		return nil, trace.AccessDenied("only proxies can %s", action)
+	}
+
+	// Check to ensure the session exists before proceeding, and that remote proxies
+	// only operate on sessions for their own cluster.
+	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !isLocalProxy {
+		clusterName, err := getAppSessionRouteClusterName(session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if remoteRole.ClusterName != clusterName {
+			return nil, trace.AccessDenied("only the local proxy or a remote proxy of cluster %q can %s", clusterName, action)
+		}
+	}
+
+	return session, nil
+}
+
+func getAppSessionRouteClusterName(session types.WebSession) (string, error) {
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return "", trace.Wrap(err, "parsing app session TLS cert")
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return "", trace.Wrap(err, "parsing app session identity")
+	}
+	if identity.RouteToApp.ClusterName == "" {
+		return "", trace.BadParameter("app session missing route cluster name")
+	}
+	return identity.RouteToApp.ClusterName, nil
 }
 
 func (a *ServerWithRoles) Close() error {
