@@ -342,6 +342,9 @@ func (s *SharedDirectoryRequest) validate() error {
 		if len(op.Read.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
 		}
+		if op.Read.GetLength() > tdp.MaxFileReadWriteLength {
+			return tdp.FileReadWriteMaxLenErr
+		}
 	case *tdpbv1.SharedDirectoryRequest_Write_:
 		if len(op.Write.GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
@@ -388,6 +391,10 @@ func (s *SharedDirectoryResponse) validate() error {
 		if len(op.Read.GetData()) > tdp.MaxFileReadWriteLength {
 			return tdp.FileReadWriteMaxLenErr
 		}
+	case *tdpbv1.SharedDirectoryResponse_Write_:
+		if op.Write.GetBytesWritten() > tdp.MaxFileReadWriteLength {
+			return tdp.FileReadWriteMaxLenErr
+		}
 	case *tdpbv1.SharedDirectoryResponse_Info_:
 		if len(op.Info.GetFso().GetPath()) > tdp.MaxPathLength {
 			return tdp.StringMaxLenErr
@@ -398,7 +405,6 @@ func (s *SharedDirectoryResponse) validate() error {
 				return tdp.StringMaxLenErr
 			}
 		}
-	case *tdpbv1.SharedDirectoryResponse_Move_:
 	}
 	return nil
 }

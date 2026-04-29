@@ -468,7 +468,3 @@ func TestDesktopWebsocketAdapter(t *testing.T) {
 	require.IsType(t, &tdpb.Alert{}, msg)
 	assert.Equal(t, "tdpb!", msg.(*tdpb.Alert).Message)
 }
-
-func TestLegacyErrorHandler(t *testing.T) {
-
-}
