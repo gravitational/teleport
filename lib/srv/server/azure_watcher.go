@@ -410,12 +410,21 @@ func (f *azureInstanceFetcher) filterSupportedPowerState(
 	// running or indeterminate by the fail-open logic below.
 	rawNonRunning, err := client.ListNonRunningVirtualMachineStates(ctx)
 	if err != nil {
-		// Do not fail open on context cancellation; callers are shutting down or timed out.
+		// This is the only step in GetInstances that swallows lookup errors
+		// (fail-open below). Surface ctx cancellation explicitly so a shutdown
+		// or deadline does not get reshaped into a successful "all VMs eligible"
+		// result and logged as a spurious power-fetch failure. Every other
+		// ctx-aware call in GetInstances propagates errors directly, so this
+		// guard is unique to this function, not a missing pattern elsewhere.
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, trace.Wrap(ctxErr)
 		}
 		f.logPowerFetchFailure(ctx, err)
 
+		// Fail open: when power state cannot be determined, keep every VM so
+		// installation is still attempted. Skipping VMs here would silently
+		// drop legitimately running hosts on transient ARM errors or partial
+		// RBAC scopes.
 		return vms, nil
 	}
 
