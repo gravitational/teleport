@@ -78,13 +78,13 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.newUserToken(ctx, req)
+	token, err := a.NewUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// remove any other existing tokens for this user
-	err = a.deleteUserTokens(ctx, req.Name)
+	err = a.DeleteUserTokens(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,7 +222,7 @@ func (a *Server) newTOTPKey(ctx context.Context, user string) (*otp.Key, *totp.G
 	return key, &opts, nil
 }
 
-func (a *Server) newUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
 	var err error
 	var proxyHost string
 
@@ -291,8 +291,8 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 	return u.String(), nil
 }
 
-// deleteUserTokens deletes all user tokens for the specified user.
-func (a *Server) deleteUserTokens(ctx context.Context, username string) error {
+// DeleteUserTokens deletes all user tokens for the specified user.
+func (a *Server) DeleteUserTokens(ctx context.Context, username string) error {
 	userTokens, err := stream.Collect(clientutils.Resources(ctx, a.ListUserTokens))
 	if err != nil {
 		return trace.Wrap(err)
@@ -346,7 +346,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := a.newUserToken(ctx, req)
+	newToken, err := a.NewUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -405,7 +405,7 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	// Delete any existing user tokens for user before creating.
-	if err := a.deleteUserTokens(ctx, username); err != nil {
+	if err := a.DeleteUserTokens(ctx, username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -427,7 +427,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := a.newUserToken(ctx, req)
+	newToken, err := a.NewUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.users.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -35,6 +36,18 @@ service UsersService {
   rpc UpsertUser(UpsertUserRequest) returns (UpsertUserResponse);
   // DeleteUser removes an existing user by name.
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  // ResetUser resets users current password (if applicable) and MFA devices.
+  //
+  // For local users, it creates a password reset token that can be then used
+  // to set up new credentials.
+  //
+  // For SSO users, only MFA devices are removed; they are also removed if the
+  // user has been deleted/expired from the backend. No password reset token is
+  // returned.
+  //
+  // Other types of users, like bots, are not supported. Requests for those
+  // users are rejected and will error.
+  rpc ResetUser(ResetUserRequest) returns (ResetUserResponse);
 }
 
 // Request for GetUser.
@@ -125,4 +138,31 @@ message UpsertUserResponse {
 message DeleteUserRequest {
   // Name of the user to remove.
   string name = 1;
+}
+
+// ResetUserRequest is a request to reset user's authentication credentials.
+message ResetUserRequest {
+  // Name is the user name.
+  string name = 1;
+  // Type is a token type. Possible values are:
+  // - "password" (lib/auth/authclient.UserTokenTypeResetPassword) for
+  //   resetting an existing user's password.
+  // - "invite" (lib/auth/authclient.UserTokenTypeResetPasswordInvite) for
+  //   usage in the invitation flow.
+  string type = 2;
+  // Ttl specifies how long the generated token is valid for. It can't be
+  // negative. If omitted or zero, it defaults to:
+  // - 8 hours (lib/defaults.ChangePasswordTokenTTL) if type is set to
+  //   "password"
+  // - 1 hour (lib/defaults.SignupTokenTTL) if type is set to "invite"
+  google.protobuf.Duration ttl = 3;
+}
+
+// ResetUserResponse is a response to resetting user's authentication
+// credentials.
+message ResetUserResponse {
+  // PasswordResetToken carries a token that can be used to set up new
+  // authentication credentials for the user. This field is not present if the
+  // user whose credentials were reset is an SSO user.
+  types.UserTokenV3 password_reset_token = 1;
 }

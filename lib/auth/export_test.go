@@ -98,10 +98,6 @@ func (a *Server) CreateRecoveryToken(ctx context.Context, username, tokenType st
 	return a.createRecoveryToken(ctx, username, tokenType, usage)
 }
 
-func (a *Server) NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	return a.newUserToken(ctx, req)
-}
-
 func CreatePrivilegeToken(ctx context.Context, srv *Server, username, tokenKind string) (*types.UserTokenV3, error) {
 	return srv.createPrivilegeToken(ctx, username, tokenKind)
 }

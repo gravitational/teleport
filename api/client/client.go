@@ -1163,6 +1163,14 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 	return trace.Wrap(err)
 }
 
+// ResetUser resets users current password (if applicable) and MFA devices.
+func (c *Client) ResetUser(
+	ctx context.Context, req *userspb.ResetUserRequest,
+) (*userspb.ResetUserResponse, error) {
+	res, err := userspb.NewUsersServiceClient(c.conn).ResetUser(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 // text format, signs it using User Certificate Authority signing key and
 // returns the resulting certificates.

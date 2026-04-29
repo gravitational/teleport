@@ -33,9 +33,11 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -191,19 +193,24 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
-	req := authclient.CreateUserTokenRequest{
+	req := &userspb.ResetUserRequest{
 		Name: u.login,
-		TTL:  u.ttl,
+		Ttl:  durationpb.New(u.ttl),
 		Type: authclient.UserTokenTypeResetPassword,
 	}
-	token, err := client.CreateResetPasswordToken(ctx, req)
+	res, err := client.ResetUser(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	err = u.PrintResetPasswordToken(token)
-	if err != nil {
-		return trace.Wrap(err)
+	token := res.GetPasswordResetToken()
+	if token != nil {
+		err = u.PrintResetPasswordToken(res.GetPasswordResetToken())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		fmt.Printf("SSO user %q has been reset. Removed all MFA devices.\n", u.login)
 	}
 
 	return nil

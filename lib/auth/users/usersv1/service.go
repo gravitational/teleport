@@ -32,6 +32,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -62,6 +63,28 @@ type Backend interface {
 	DeleteRole(ctx context.Context, name string) error
 	// DeleteUser deletes a user and all associated objects.
 	DeleteUser(ctx context.Context, user string) error
+	// DeletePassword deletes user's password and sets the `PasswordState` status
+	// flag accordingly.
+	DeletePassword(ctx context.Context, user string) error
+	// GetMFADevices gets all MFA devices for the user.
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
+	// DeleteMFADevice deletes an MFA device for the user by ID.
+	DeleteMFADevice(ctx context.Context, user, id string) error
+	// CreateUserToken creates a new user token in the backend.
+	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
+	// DeleteUserToken deletes a user token.
+	DeleteUserToken(ctx context.Context, tokenID string) error
+	// GetUserToken returns a user token by id.
+	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
+}
+
+// AuthServer is a subset of the auth server methods for token management.
+type AuthServer interface {
+	// NewUserToken creates a new in-memory user token without saving it in the
+	// backend.
+	NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error)
+	// DeleteUserTokens deletes all user tokens for the specified user.
+	DeleteUserTokens(ctx context.Context, username string) error
 }
 
 // ServiceConfig holds configuration options for
@@ -70,6 +93,7 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      Cache
 	Backend    Backend
+	Auth       AuthServer
 	Logger     *slog.Logger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
@@ -83,6 +107,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	cache      Cache
 	backend    Backend
+	auth       AuthServer
 	logger     *slog.Logger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
@@ -96,6 +121,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("cache service is required")
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend service is required")
+	case cfg.Auth == nil:
+		return nil, trace.BadParameter("auth service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Emitter == nil:
@@ -116,6 +143,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,
+		auth:       cfg.Auth,
 		emitter:    cfg.Emitter,
 		reporter:   cfg.Reporter,
 		clock:      cfg.Clock,
@@ -585,4 +613,164 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 
 	rsp, err := s.cache.ListUsers(ctx, req)
 	return rsp, trace.Wrap(err)
+}
+
+func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToRule(
+		&services.Context{User: authCtx.User},
+		types.KindUser,
+		types.VerbUpdate,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	// Allow reused MFA responses to allow creating a reset token after creating a user.
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	setResetUserRequestDefaults(req)
+	if err = validateResetUserRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch user, err := s.cache.GetUser(ctx, req.Name, false /* withSecrets */); {
+	case trace.IsNotFound(err):
+		return s.resetUnknownUser(ctx, req)
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case user.IsBot():
+		return nil, trace.BadParameter("cannot reset a bot user")
+	case user.GetUserType() == types.UserTypeLocal:
+		return s.resetLocalUser(ctx, req)
+	case user.GetUserType() == types.UserTypeSSO:
+		return s.resetSSOUser(ctx, req)
+	default:
+		return nil, trace.BadParameter("unknown user type: %q", user.GetUserType())
+	}
+}
+
+func (s *Service) resetLocalUser(
+	ctx context.Context, req *userspb.ResetUserRequest,
+) (*userspb.ResetUserResponse, error) {
+	if err := s.resetPassword(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := s.resetMFA(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.auth.NewUserToken(ctx, authclient.CreateUserTokenRequest{
+		Name: req.Name,
+		TTL:  req.Ttl.AsDuration(),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// remove any other existing tokens for this user
+	err = s.auth.DeleteUserTokens(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = s.backend.CreateUserToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.ResetPasswordTokenCreateEvent,
+			Code: events.ResetPasswordTokenCreateCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    req.Name,
+			TTL:     req.Ttl.AsDuration().String(),
+			Expires: s.clock.Now().UTC().Add(req.Ttl.AsDuration()),
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
+	}
+
+	token, err = s.backend.GetUserToken(ctx, token.GetName())
+	if err != nil {
+		return nil, err
+	}
+	tokenv3, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected token type: %T", token)
+	}
+	return &userspb.ResetUserResponse{
+		PasswordResetToken: tokenv3,
+	}, nil
+}
+
+func (s *Service) resetSSOUser(
+	ctx context.Context, req *userspb.ResetUserRequest,
+) (*userspb.ResetUserResponse, error) {
+	if _, err := s.resetMFA(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &userspb.ResetUserResponse{}, nil
+}
+
+func (s *Service) resetUnknownUser(
+	ctx context.Context, req *userspb.ResetUserRequest,
+) (*userspb.ResetUserResponse, error) {
+	hadMFAs, err := s.resetMFA(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if hadMFAs {
+		return &userspb.ResetUserResponse{}, nil
+	} else {
+		return nil, trace.NotFound("user %q not found", req.Name)
+	}
+}
+
+// resetPassword deletes the user's password. Used to invalidate existing user
+// password during password reset process.
+//
+// It does not fail if the user doesn't exist or doesn't have a password.
+func (s *Service) resetPassword(ctx context.Context, username string) error {
+	if err := s.backend.DeletePassword(ctx, username); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// resetMFA removes all MFA devices of a given user. Returns true if there were
+// devices to remove, false otherwise. The returned value corresponds to the
+// initial number of devices, not the result of the operation.
+func (s *Service) resetMFA(ctx context.Context, user string) (bool, error) {
+	devs, err := s.backend.GetMFADevices(ctx, user, false)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if len(devs) == 0 {
+		return false, nil
+	}
+
+	var errs []error
+	for _, d := range devs {
+		if d.GetSso() != nil {
+			// SSO MFA devices are synthetic and cannot be deleted.
+			continue
+		}
+		errs = append(errs, s.backend.DeleteMFADevice(ctx, user, d.Id))
+	}
+	return true, trace.NewAggregate(errs...)
 }

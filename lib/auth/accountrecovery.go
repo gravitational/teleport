@@ -74,7 +74,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 	}
 
 	// Remove any other existing tokens for this user before creating a token.
-	if err := a.deleteUserTokens(ctx, req.Username); err != nil {
+	if err := a.DeleteUserTokens(ctx, req.Username); err != nil {
 		a.logger.ErrorContext(
 			ctx, "Failed to delete existing recovery tokens for user",
 			"user", req.GetUsername(),
@@ -407,7 +407,7 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied("%s", unableToCreateCodesMsg)
 	}
 
-	if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
+	if err := a.DeleteUserTokens(ctx, token.GetUser()); err != nil {
 		a.logger.ErrorContext(ctx, "Failed to delete user tokens", "error", err)
 	}
 
