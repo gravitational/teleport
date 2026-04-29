@@ -126,23 +126,11 @@ export function AppLauncher({
             params,
             requiredApps,
           });
-          // Carry the original URL fragment through the auth flow as
-          // a URL fragment, not a query parameter. Browsers do not
-          // send fragments to the server (RFC 9110 § 7.1), so any
-          // sensitive values an app places in the fragment (for
-          // example an OAuth implicit-flow `#access_token=...` or a
-          // password-reset token) stay client-side. The browser will
-          // re-attach the fragment to the proxy's 302 response back
-          // to the launcher (RFC 9110 § 15.4), letting the second
-          // leg pick it up again from `useLocation().hash`.
-          //
-          // Skip the fragment when a required-apps chain is in
-          // play. In that case the proxy 302 to the next app's
-          // launcher would carry the fragment across origins via
-          // RFC 9110 § 15.4, exposing the originally requested
-          // app's fragment to intermediate apps. The trade-off is
-          // that chain-redirected apps lose the original fragment
-          // entirely.
+          // Pass the fragment to the second leg via the URL hash
+          // so it stays client-side. Skip on a required-apps chain
+          // to avoid leaking the originally requested app's
+          // fragment to intermediate apps' origins; chain-
+          // redirected apps lose the fragment as a result.
           if (hash && requiredApps.length <= 1) {
             url.hash = hash;
           }
@@ -176,18 +164,11 @@ export function AppLauncher({
           url.searchParams.set('required-apps', requiredApps.join(','));
         }
 
-        // Build the URL fragment used by the inline JS in
-        // `lib/web/app/redirect.go` to finish the auth exchange:
-        // `value` is the session cookie, and `fragment` is the
-        // user's original URL fragment, both kept in the URL hash
-        // so neither hits the proxy as a query parameter.
-        //
-        // Skip `fragment` on a required-apps chain so the original
-        // fragment never enters the chain in the first place. The
-        // inline JS in `redirect.go` also drops the fragment on
-        // the chain branch as a defense-in-depth backstop.
-        // `useLocation().hash` always has a leading `#` when
-        // non-empty, so `slice(1)` strips it before packing.
+        // Pack the session cookie and the original fragment into
+        // the URL hash for the inline JS in
+        // `lib/web/app/redirect.go` to consume. Skip `fragment` on
+        // a required-apps chain; the inline JS also drops it on
+        // the chain branch.
         const hashParams = new URLSearchParams();
         hashParams.set('value', session.cookieValue);
         if (hash && requiredApps.length <= 1) {

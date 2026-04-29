@@ -103,39 +103,31 @@ const appRedirectHTML = `
     <title>Teleport Redirection Service</title>
     <script nonce="{{.}}">
       (function() {
-        var currentUrl = new URL(window.location);
-        var currentOrigin = currentUrl.origin;
-        var params = new URLSearchParams(currentUrl.search);
-        var stateValue = params.get('state');
-        var subjectValue = params.get('subject');
-        var path = params.get('path');
+        var currentUrl = new URL(window.location)
+        var currentOrigin = currentUrl.origin
+        var params = new URLSearchParams(currentUrl.search)
+        var stateValue = params.get('state')
+        var subjectValue = params.get('subject')
+        var path = params.get('path')
         if (!stateValue) {
-          return;
+          return
         }
-        // The URL fragment carries two named values: 'value' is the
-        // session cookie value, and 'fragment' (optional) is the
-        // user's original URL fragment. Browsers do not send the
-        // fragment to the server (RFC 9110 § 7.1), so values placed
-        // here stay client-side. The original fragment is
-        // reattached to the final navigation below.
-        //
-        // window.location.hash includes a leading '#' when
-        // non-empty, so slice(1) strips it before URLSearchParams
-        // parses the body.
-        var hashParams = new URLSearchParams(window.location.hash.slice(1));
-        var cookieValue = hashParams.get('value');
+        // The URL fragment encodes two URLSearchParams values:
+        // 'value' is the session cookie, and 'fragment' (optional)
+        // is the user's original fragment, reattached to the final
+        // navigation below.
+        var hashParams = new URLSearchParams(window.location.hash.slice(1))
+        var cookieValue = hashParams.get('value')
         if (!cookieValue) {
-          return;
+          return
         }
-        // fragment does not include a leading '#'; the URL.hash
-        // setter below adds it back.
-        var fragment = hashParams.get('fragment');
+        var fragment = hashParams.get('fragment')
         const data = {
           state_value: stateValue,
           cookie_value: cookieValue,
           subject_cookie_value: subjectValue,
           required_apps: params.get('required-apps'),
-        };
+        }
         fetch('/x-teleport-auth', {
           method: 'POST',
           mode: 'same-origin',
@@ -145,53 +137,37 @@ const appRedirectHTML = `
           },
           body: JSON.stringify(data),
         }).then(response => {
-          if (response.ok) {
-            const nextAppRedirectUrl = response.headers.get("X-Teleport-NextAppRedirectUrl")
-            if (nextAppRedirectUrl) {
-              // The required-app chain navigates to a different
-              // application's launcher. The launcher gates fragment
-              // forwarding on requiredApps.length <= 1, so on this
-              // branch fragment should already be empty. Drop
-              // it unconditionally as a defense-in-depth backstop:
-              // an intermediate app must not see values that were
-              // meant for the user's originally requested app
-              // (e.g. an OAuth implicit-flow access token or a
-              // password-reset token). As a consequence, chain-
-              // redirected apps lose the original fragment
-              // entirely; "final navigation" below means the final
-              // navigation of this hop, not the user's originally
-              // requested URL.
-              window.location.replace(nextAppRedirectUrl)
-              return;
-            }
+          if (!response.ok) {
+            return
+          }
+          var target = currentOrigin
+          const nextAppRedirectUrl = response.headers.get("X-Teleport-NextAppRedirectUrl")
+          if (nextAppRedirectUrl) {
+            // Drop the fragment on a chain hop: reattaching it
+            // here would leak it to an intermediate app's
+            // origin. The launcher already skips packing it on
+            // chain redirects.
+            target = nextAppRedirectUrl
+          } else {
             try {
-              // if a path parameter was passed through the redirect, append that path to the current origin
-              if (path) {
-                var redirectUrl = new URL(path, currentOrigin)
-                if (fragment) {
-                  redirectUrl.hash = fragment
-                }
-                if (redirectUrl.origin === currentOrigin) {
-                  window.location.replace(redirectUrl.toString())
-                } else {
-                  window.location.replace(currentOrigin)
-                }
-              } else if (fragment) {
-                // Match the path branch: assign via URL.hash so
-                // the browser handles encoding.
-                var rootUrl = new URL('/', currentOrigin)
-                rootUrl.hash = fragment
-                window.location.replace(rootUrl.toString())
-              } else {
-                window.location.replace(currentOrigin)
+              // Resolve path relative to currentOrigin; fall back
+              // to the origin root if the path crosses origins
+              // (e.g. "//attacker.com/foo").
+              var redirectUrl = new URL(path || '/', currentOrigin)
+              if (redirectUrl.origin !== currentOrigin) {
+                redirectUrl = new URL('/', currentOrigin)
               }
+              if (fragment) {
+                redirectUrl.hash = fragment
+              }
+              target = redirectUrl.toString()
             } catch (error) {
-              // in case of malformed url, return to current origin
-              window.location.replace(currentOrigin)
+              // Malformed URL: target stays as currentOrigin.
             }
           }
-        });
-      })();
+          window.location.replace(target)
+        })
+      })()
     </script>
   </head>
   <body></body>
