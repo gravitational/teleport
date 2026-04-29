@@ -34,9 +34,12 @@ const (
 
 // Encode encodes HTTPProtocolPriority in its YAML/JSON string form.
 // UNSPECIFIED encodes to the empty string so it round-trips with the
-// proto jsontag's omitempty.
-func (h *HTTPProtocolPriority) Encode() (string, error) {
-	switch *h {
+// proto jsontag's omitempty. Encode is a value receiver so jsoniter
+// (used by lib/utils.FastMarshal) can apply omitempty correctly; with
+// a pointer receiver jsoniter calls MarshalJSON unconditionally and
+// includes the field as `""`.
+func (h HTTPProtocolPriority) Encode() (string, error) {
+	switch h {
 	case HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_UNSPECIFIED:
 		return "", nil
 	case HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP1:
@@ -44,12 +47,12 @@ func (h *HTTPProtocolPriority) Encode() (string, error) {
 	case HTTPProtocolPriority_HTTP_PROTOCOL_PRIORITY_HTTP2:
 		return httpProtocolPriorityHTTP2String, nil
 	default:
-		return "", trace.BadParameter("invalid HTTPProtocolPriority value %v", *h)
+		return "", trace.BadParameter("invalid HTTPProtocolPriority value %v", int32(h))
 	}
 }
 
 // MarshalJSON marshals HTTPProtocolPriority to its string form.
-func (h *HTTPProtocolPriority) MarshalJSON() ([]byte, error) {
+func (h HTTPProtocolPriority) MarshalJSON() ([]byte, error) {
 	val, err := h.Encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +73,7 @@ func (h *HTTPProtocolPriority) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalYAML marshals HTTPProtocolPriority to its string form.
-func (h *HTTPProtocolPriority) MarshalYAML() (interface{}, error) {
+func (h HTTPProtocolPriority) MarshalYAML() (interface{}, error) {
 	val, err := h.Encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
