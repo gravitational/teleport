@@ -47,7 +47,7 @@ type beamsCommands struct {
 }
 
 func newBeamsCommands(app *kingpin.Application) beamsCommands {
-	beams := app.Command("beams", "View, manage and run beams. Beams are ephemeral, sandbox VMs built for agentic workloads").Alias("beam")
+	beams := app.Command("beams", "View, manage and run beams. Beams are ephemeral, sandbox VMs built for agentic workloads.").Alias("beam")
 	return beamsCommands{
 		ls:        newBeamsLSCommand(beams),
 		add:       newBeamsAddCommand(beams),
