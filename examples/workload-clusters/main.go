@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	workloadcluster "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -121,24 +121,24 @@ func main() {
 	// The created child Teleport Cloud cluster will have a bot, role, and token
 	// each named example-iam. The bot will have access to create, read, and
 	// update users and roles.
-	wc := &workloadcluster.WorkloadCluster{
+	wc := &workloadclusterv1.WorkloadCluster{
 		Kind:    types.KindWorkloadCluster,
 		Version: "v1",
 		Metadata: &headerv1.Metadata{
 			Name: workloadClusterName,
 		},
-		Spec: &workloadcluster.WorkloadClusterSpec{
-			Regions: []*workloadcluster.Region{
+		Spec: &workloadclusterv1.WorkloadClusterSpec{
+			Regions: []*workloadclusterv1.Region{
 				{
 					Name: "us-west-2",
 				},
 			},
-			Bot: &workloadcluster.Bot{
+			Bot: &workloadclusterv1.Bot{
 				Name: "example-iam",
 			},
-			Token: &workloadcluster.Token{
+			Token: &workloadclusterv1.Token{
 				JoinMethod: "iam",
-				Allow: []*workloadcluster.Allow{
+				Allow: []*workloadclusterv1.Allow{
 					{
 						AwsAccount: awsAccount,
 						AwsArn:     awsARN,
@@ -332,7 +332,7 @@ func main() {
 	// Teleport Cloud cluster.
 }
 
-func waitForActiveWorkloadCluster(ctx context.Context, client *client.Client, workloadClusterName string, pollingInterval time.Duration) (*workloadcluster.WorkloadCluster, error) {
+func waitForActiveWorkloadCluster(ctx context.Context, client *client.Client, workloadClusterName string, pollingInterval time.Duration) (*workloadclusterv1.WorkloadCluster, error) {
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
