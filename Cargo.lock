@@ -2285,6 +2285,7 @@ dependencies = [
 name = "rdp-client"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bitflags 2.11.1",
  "boring",
  "byteorder",
