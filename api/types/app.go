@@ -659,7 +659,7 @@ func (a *AppV3) checkLLM() error {
 }
 
 func (a *AppV3) checkTLS() error {
-	if !SupportsTLSConfig(a.Spec.URI) {
+	if !AppSupportsTLSConfig(a.Spec.URI) {
 		return trace.BadParameter(
 			"App %q can only specify 'tls' settings for URI schemes that use upstream TLS. Supported schemes are: %s",
 			a.GetName(),
@@ -670,7 +670,7 @@ func (a *AppV3) checkTLS() error {
 	tls := a.Spec.TLS
 	var mode AppTLSMode
 	switch tls.Mode {
-	case AppTLSModeInsecure, AppTLSModeVerifyFull:
+	case AppTLSModeInsecure, AppTLSModeVerifyFull, AppTLSModeVerifyServerName, AppTLSModeVerifySpiffeID:
 		mode = tls.Mode
 	case "":
 		// When not specified, use the evaluated mode.
@@ -680,15 +680,15 @@ func (a *AppV3) checkTLS() error {
 			"App %q has invalid 'tls.mode' %q. Supported values are: %s",
 			a.GetName(),
 			tls.Mode,
-			quoteAndJoin([]string{AppTLSModeInsecure, AppTLSModeVerifyFull}),
+			quoteAndJoin([]string{AppTLSModeInsecure, AppTLSModeVerifyFull, AppTLSModeVerifyServerName, AppTLSModeVerifySpiffeID}),
 		)
 	}
 
-	if a.Spec.InsecureSkipVerify && mode == AppTLSModeVerifyFull {
+	if a.Spec.InsecureSkipVerify && mode != AppTLSModeInsecure {
 		return trace.BadParameter(
 			"App %q cannot specify 'insecure_skip_verify: true' (deprecated) and 'tls.mode: %q'. Drop 'insecure_skip_verify', and if you want the app to use insecure connections set 'tls.mode: %q'",
 			a.GetName(),
-			AppTLSModeVerifyFull,
+			mode,
 			AppTLSModeInsecure,
 		)
 	}
@@ -707,12 +707,28 @@ func (a *AppV3) checkTLS() error {
 		)
 	}
 
-	switch {
-	case (tls.ServerName != "" || tls.ServerSpiffeId != "") && mode == AppTLSModeInsecure:
-		return trace.BadParameter("App %q can only specify 'tls.server_name' or 'tls.server_spiffe_id' when 'tls.mode' is set to %q", a.GetName(), AppTLSModeVerifyFull)
-	case tls.ServerSpiffeId != "" && !strings.HasPrefix(tls.ServerSpiffeId, "spiffe://"):
-		// TODO(gabrielcorado): enhance the SPIFFE ID validation.
-		return trace.BadParameter("App %q has invalid 'tls.server_spiffe_id'. The SPIFFE ID must be complete (trust domain and path) and start with 'spiffe://'.", a.GetName())
+	switch mode {
+	case AppTLSModeVerifyFull:
+		// Note: tls.ServerName is optional and doesn't require any specific validation.
+		if !isValidSpiffeID(tls.ServerSpiffeId) {
+			return trace.BadParameter("App %q has invalid `tls.server_spiffe_id`. The SPIFFE ID must be complete (trust domain and path) and start with 'spiffe://'", a.GetName())
+		}
+	case AppTLSModeVerifyServerName:
+		// Note: tls.ServerName is optional and doesn't require any specific validation.
+		if tls.ServerSpiffeId != "" {
+			return trace.BadParameter("App %q 'tls.server_spiffe_id' is not used when mode is set to %q. To perform both, server name and SPIFFE ID verifications use %q mode", a.GetName(), mode, AppTLSModeVerifyFull)
+		}
+	case AppTLSModeVerifySpiffeID:
+		if !isValidSpiffeID(tls.ServerSpiffeId) {
+			return trace.BadParameter("App %q has invalid `tls.server_spiffe_id`. The SPIFFE ID must be complete (trust domain and path) and start with 'spiffe://'", a.GetName())
+		}
+		if tls.ServerName != "" {
+			return trace.BadParameter("App %q 'tls.server_name' is not used when mode is set to %q. To perform both, server name and SPIFFE ID verifications use %q mode", a.GetName(), mode, AppTLSModeVerifyFull)
+		}
+	case AppTLSModeInsecure:
+		if tls.ServerName != "" || tls.ServerSpiffeId != "" || len(tls.AllowedCas) > 0 {
+			return trace.BadParameter("App %q 'tls' are not in use since mode is set to %q", a.GetName(), mode)
+		}
 	}
 
 	for _, allowedCA := range tls.AllowedCas {
@@ -748,8 +764,15 @@ func isValidSingleCertificatePEM(s string) error {
 	return nil
 }
 
-// SupportsTLSConfig returns if app supports TLS config based on its URI.
-func SupportsTLSConfig(uri string) bool {
+// isValidSpiffeID validates that s contains a valid SPIFFE ID.
+//
+// TODO(gabrielcorado): enhance the SPIFFE ID validation.
+func isValidSpiffeID(s string) bool {
+	return strings.HasPrefix(s, "spiffe://")
+}
+
+// AppSupportsTLSConfig returns if app supports TLS config based on its URI.
+func AppSupportsTLSConfig(uri string) bool {
 	parsed, err := url.Parse(uri)
 	if err != nil {
 		return false
@@ -819,14 +842,12 @@ func (a *AppV3) GetTLSMode() AppTLSMode {
 	case a.Spec.TLS != nil && a.Spec.TLS.Mode != "":
 		// Rely on specified value when available.
 		return a.Spec.TLS.Mode
-	case a.IsTCP():
-		// For TCP apps without specifed mode value, default to insecure. This
-		// will keep the TCP connections as is.
-		return AppTLSModeInsecure
-	case SupportsTLSConfig(a.Spec.URI):
-		return AppTLSModeVerifyFull
+	case AppSupportsTLSConfig(a.Spec.URI):
+		// Defaults to check only server name to keep backwards compatibility.
+		return AppTLSModeVerifyServerName
 	default:
-		return AppTLSModeInsecure
+		// Unsupported app types should not return any valid mode.
+		return ""
 	}
 }
 
@@ -995,9 +1016,6 @@ var SupportedLLMProviders = []LLMProvider{
 // appSchemasWithTLSSupport list of app schemas that support TLS configurations.
 var appSchemasWithTLSSupport = []string{
 	"https",
-	"tcp",
-	"cloud",
-	SchemeLLMEndpoint,
 	SchemeMCPHTTPS,
 	SchemeMCPSSEHTTPS,
 }
@@ -1006,8 +1024,15 @@ var appSchemasWithTLSSupport = []string{
 type AppTLSMode = string
 
 const (
-	// AppTLSModeVerifyFull performs full certificate verification.
+	// AppTLSModeVerifyFull performs certificate verification with server name
+	// and spiffe ID check.
 	AppTLSModeVerifyFull AppTLSMode = "verify-full"
+	// AppTLSModeVerifyServerName performs certificate verification with server
+	// name check.
+	AppTLSModeVerifyServerName AppTLSMode = "verify-server-name"
+	// AppTLSModeVerifyFull performs certificate verification with spiffe ID
+	// check.
+	AppTLSModeVerifySpiffeID AppTLSMode = "verify-spiffe-id"
 	// AppTLSModeInsecure disables app's TLS certificate verification.
 	AppTLSModeInsecure AppTLSMode = "insecure"
 )

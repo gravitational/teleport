@@ -1067,13 +1067,14 @@ func TestAppTLSConfiguration(t *testing.T) {
 			uri: "mcp+https://localhost",
 			tls: &AppTLS{
 				Mode:           AppTLSModeVerifyFull,
+				ServerSpiffeId: "spiffe://mycluster/svc/mcp",
 				ClientCertMode: AppClientCertModeManaged,
 			},
 			expectErr: require.NoError,
 		},
 		"minimal": {
 			tls: &AppTLS{
-				Mode: AppTLSModeVerifyFull,
+				Mode: AppTLSModeVerifyServerName,
 			},
 			expectErr: require.NoError,
 		},
@@ -1084,17 +1085,25 @@ func TestAppTLSConfiguration(t *testing.T) {
 			},
 			expectErr: require.Error,
 		},
-		"conflicting insecure skip verify and verify full": {
+		"conflicting insecure skip verify and tls mode": {
 			tls: &AppTLS{
-				Mode: AppTLSModeVerifyFull,
+				Mode: AppTLSModeVerifyServerName,
 			},
 			insecureSkip: true,
 			expectErr:    require.Error,
 		},
 		"incomplete server spiffe id": {
 			tls: &AppTLS{
-				Mode:           AppTLSModeVerifyFull,
+				Mode:           AppTLSModeVerifySpiffeID,
 				ServerSpiffeId: "/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe id mode and with server name": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeVerifySpiffeID,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
 			},
 			expectErr: require.Error,
 		},
@@ -1134,8 +1143,15 @@ func TestAppTLSConfiguration(t *testing.T) {
 		},
 		"invalid client cert mode value": {
 			tls: &AppTLS{
-				Mode:           AppTLSModeVerifyFull,
+				Mode:           AppTLSModeVerifyServerName,
 				ClientCertMode: "foo",
+			},
+			expectErr: require.Error,
+		},
+		"client cert mode with insecure": {
+			tls: &AppTLS{
+				Mode:           AppTLSModeInsecure,
+				ClientCertMode: AppClientCertModeManaged,
 			},
 			expectErr: require.Error,
 		},
@@ -1151,54 +1167,47 @@ func TestAppTLSConfiguration(t *testing.T) {
 		},
 		"allowed cas with only internal alias": {
 			tls: &AppTLS{
-				Mode:       AppTLSModeVerifyFull,
+				Mode:       AppTLSModeVerifyServerName,
 				AllowedCas: []string{AppTLSInternalCAWorkloadIdentity},
 			},
 			expectErr: require.NoError,
 		},
 		"allowed cas with empty string entry": {
 			tls: &AppTLS{
-				Mode:       AppTLSModeVerifyFull,
+				Mode:       AppTLSModeVerifyServerName,
 				AllowedCas: []string{""},
 			},
 			expectErr: require.Error,
 		},
 		"allowed cas with non-certificate PEM block": {
 			tls: &AppTLS{
-				Mode:       AppTLSModeVerifyFull,
+				Mode:       AppTLSModeVerifyServerName,
 				AllowedCas: []string{appPrivateKeyPEM},
+			},
+			expectErr: require.Error,
+		},
+		"insecure mode with allowed cas": {
+			tls: &AppTLS{
+				Mode:       AppTLSModeInsecure,
+				AllowedCas: []string{appExternalAllowedCA},
 			},
 			expectErr: require.Error,
 		},
 		"cloud app with tls block": {
 			uri: "cloud://aws",
 			tls: &AppTLS{
-				Mode: AppTLSModeVerifyFull,
+				Mode: AppTLSModeInsecure,
 			},
-			expectErr: require.NoError,
+			expectErr: require.Error,
 		},
-		"http app with tls mode": {
+		"unsupported protocol with tls block": {
 			uri: "http://localhost",
 			tls: &AppTLS{
-				Mode: AppTLSModeVerifyFull,
+				Mode: AppTLSModeInsecure,
 			},
 			expectErr: require.Error,
 		},
-		"mcp http app with client cert mode": {
-			uri: "mcp+http://localhost",
-			tls: &AppTLS{
-				ClientCertMode: AppClientCertModeManaged,
-			},
-			expectErr: require.Error,
-		},
-		"mcp stdio app with allowed CAs": {
-			uri: "mcp+stdio://teleport-mcp-demo",
-			tls: &AppTLS{
-				AllowedCas: []string{appExternalAllowedCA},
-			},
-			expectErr: require.Error,
-		},
-		"http app with empty tls config": {
+		"unsupported protocol with empty tls config": {
 			uri:       "http://localhost",
 			tls:       &AppTLS{},
 			expectErr: require.Error,
@@ -1233,13 +1242,9 @@ func TestAppTLSMode(t *testing.T) {
 		spec         AppSpecV3
 		expectedMode AppTLSMode
 	}{
-		"tcp default": {
+		"unsupported protocol": {
 			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
-			expectedMode: AppTLSModeInsecure,
-		},
-		"http default": {
-			spec:         AppSpecV3{URI: "http://localhost:80"},
-			expectedMode: AppTLSModeInsecure,
+			expectedMode: "",
 		},
 		"https insecure": {
 			spec: AppSpecV3{
@@ -1250,37 +1255,20 @@ func TestAppTLSMode(t *testing.T) {
 			},
 			expectedMode: AppTLSModeInsecure,
 		},
-		"cloud default": {
-			spec:         AppSpecV3{Cloud: CloudAWS},
-			expectedMode: AppTLSModeVerifyFull,
-		},
-		"mcp http default": {
-			spec:         AppSpecV3{URI: "mcp+http://localhost:8080"},
-			expectedMode: AppTLSModeInsecure,
-		},
 		"insecure skip verify is respected": {
 			spec: AppSpecV3{
-				URI:                "http://localhost:80",
+				URI:                "https://localhost:80",
 				InsecureSkipVerify: true,
 			},
 			expectedMode: AppTLSModeInsecure,
 		},
-		"tcp with specified value": {
-			spec: AppSpecV3{
-				URI: "tcp://0.0.0.0:8000",
-				TLS: &AppTLS{
-					Mode: AppTLSModeVerifyFull,
-				},
-			},
-			expectedMode: AppTLSModeVerifyFull,
-		},
 		"https default": {
 			spec:         AppSpecV3{URI: "https://localhost:443"},
-			expectedMode: AppTLSModeVerifyFull,
+			expectedMode: AppTLSModeVerifyServerName,
 		},
 		"mcp https default": {
 			spec:         AppSpecV3{URI: "mcp+https://localhost:8080"},
-			expectedMode: AppTLSModeVerifyFull,
+			expectedMode: AppTLSModeVerifyServerName,
 		},
 		"insecure skip verify with mode insecure": {
 			spec: AppSpecV3{
@@ -1305,21 +1293,21 @@ func TestAppClientCertMode(t *testing.T) {
 		expectedMode AppClientCertMode
 	}{
 		"default disabled": {
-			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
+			spec:         AppSpecV3{URI: "https://0.0.0.0:8000"},
 			expectedMode: AppClientCertModeDisabled,
 		},
 		"empty tls block returns disabled": {
 			spec: AppSpecV3{
-				URI: "tcp://0.0.0.0:8000",
+				URI: "https://0.0.0.0:8000",
 				TLS: &AppTLS{},
 			},
 			expectedMode: AppClientCertModeDisabled,
 		},
 		"explict disable": {
 			spec: AppSpecV3{
-				URI: "tcp://0.0.0.0:8000",
+				URI: "https://0.0.0.0:8000",
 				TLS: &AppTLS{
-					Mode:           AppTLSModeVerifyFull,
+					Mode:           AppTLSModeVerifyServerName,
 					ClientCertMode: AppClientCertModeDisabled,
 				},
 			},
@@ -1327,9 +1315,9 @@ func TestAppClientCertMode(t *testing.T) {
 		},
 		"managed": {
 			spec: AppSpecV3{
-				URI: "tcp://0.0.0.0:8000",
+				URI: "https://0.0.0.0:8000",
 				TLS: &AppTLS{
-					Mode:           AppTLSModeVerifyFull,
+					Mode:           AppTLSModeVerifyServerName,
 					ClientCertMode: AppClientCertModeManaged,
 				},
 			},
