@@ -884,7 +884,9 @@ func (h *linuxDesktopHeartbeatV2) Poll(ctx context.Context) (changed bool) {
 		return false
 	}
 
-	return !gproto.Equal(desktop, h.prev)
+	ldesktop := types.ProtoResource153ToLegacy(desktop)
+	lprev := types.ProtoResource153ToLegacy(h.prev)
+	return services.CompareServers(ldesktop, lprev) == services.Different
 }
 
 func (h *linuxDesktopHeartbeatV2) SupportsFallback() bool {

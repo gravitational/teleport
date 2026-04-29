@@ -25,6 +25,7 @@ import (
 	"slices"
 	"time"
 
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -74,6 +75,11 @@ func CompareServers(a, b types.Resource) int {
 	if winA, ok := a.(types.WindowsDesktopService); ok {
 		if winB, ok := b.(types.WindowsDesktopService); ok {
 			return compareWindowsDesktopServices(winA, winB)
+		}
+	}
+	if linA, ok := a.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+		if linB, ok := b.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+			return compareLinuxDesktop(linA.UnwrapT(), linB.UnwrapT())
 		}
 	}
 	return Different
@@ -354,6 +360,34 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetSubKind() != b.GetSubKind() {
+		return Different
+	}
+	if a.GetMetadata().GetName() != b.GetMetadata().GetName() {
+		return Different
+	}
+	if a.GetSpec().GetAddr() != b.GetSpec().GetAddr() {
+		return Different
+	}
+	if a.GetSpec().GetHostname() != b.GetSpec().GetHostname() {
+		return Different
+	}
+	if !slices.Equal(a.GetSpec().GetProxyIds(), b.GetSpec().GetProxyIds()) {
+		return Different
+	}
+	if !maps.Equal(a.GetMetadata().GetLabels(), b.GetMetadata().GetLabels()) {
+		return Different
+	}
+	if a.GetMetadata().GetExpires() != b.GetMetadata().GetExpires() {
 		return OnlyTimestampsDifferent
 	}
 	return Equal
