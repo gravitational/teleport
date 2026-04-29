@@ -3,8 +3,7 @@
 # 17.7.23 (04/29/26)
 ### Security fixes
 
-This patch includes some security fixes.
-These issues are present in previous v17 releases.
+This patch addresses two security vulnerabilities.
 Impacted users are recommended to upgrade their auth and database services to the latest version.
 For Teleport Cloud customers, your control plane has already been upgraded to a patched release.
 
