@@ -56,7 +56,7 @@ service PresenceService {
   // UpsertProxyServer upserts a Proxy server heartbeat.
   rpc UpsertProxyServer(UpsertProxyServerRequest) returns (UpsertProxyServerResponse);
   // DeleteProxyServer removes an existing Proxy server heartbeat by name.
-  rpc DeleteProxyServer(DeleteProxyServerRequest) returns (google.protobuf.Empty);
+  rpc DeleteProxyServer(DeleteProxyServerRequest) returns (DeleteProxyServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -222,3 +222,6 @@ message DeleteProxyServerRequest {
   // Name is the name (host UUID) of the Proxy server to delete.
   string name = 1;
 }
+
+// Response message for the PresenceService.DeleteProxyServer rpc.
+message DeleteProxyServerResponse {}

@@ -517,7 +517,7 @@ func (s *Service) UpsertProxyServer(
 // DeleteProxyServer deletes a proxy server heartbeat by name.
 func (s *Service) DeleteProxyServer(
 	ctx context.Context, req *presencepb.DeleteProxyServerRequest,
-) (*emptypb.Empty, error) {
+) (*presencepb.DeleteProxyServerResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -533,5 +533,5 @@ func (s *Service) DeleteProxyServer(
 	if err := s.backend.DeleteProxy(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
+	return &presencepb.DeleteProxyServerResponse{}, nil
 }
