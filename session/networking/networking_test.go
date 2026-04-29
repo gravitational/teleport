@@ -24,6 +24,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,6 +68,41 @@ func TestWaitReady(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "networking process exited before signaling ready")
 		require.Empty(t, childErr)
+		<-proc.done
+	})
+
+	t.Run("process exited with stderr", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
+
+		proc := &Process{
+			cmd:  exec.Command("sh", "-c", "printf 'Failed to launch' >&2 && exit 255"),
+			done: make(chan struct{}),
+		}
+		require.NoError(t, proc.start(t.Context()))
+
+		childErr, err := proc.waitReady(t.Context())
+		require.Error(t, err)
+		require.ErrorContains(t, err, "networking process exited before signaling ready")
+		require.Equal(t, "Failed to launch", childErr)
+		<-proc.done
+	})
+
+	t.Run("process exited with stderr unbounded", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
+
+		// Write 256KiB to overload the stderr pipe. If the stderr isn't being actively drained,
+		// this would lead to the process failing to finish printing and thus never exiting.
+		proc := &Process{
+			cmd:  exec.Command("bash", "-c", "printf 'x%.0s' {1..262144} >&2 && exit 255"),
+			done: make(chan struct{}),
+		}
+		require.NoError(t, proc.start(t.Context()))
+
+		childErr, err := proc.waitReady(t.Context())
+		require.Error(t, err)
+		require.ErrorContains(t, err, "networking process exited before signaling ready")
+		expectStderr := strings.Repeat("x", stderrMaxRead)
+		require.Equal(t, expectStderr, childErr)
 		<-proc.done
 	})
 

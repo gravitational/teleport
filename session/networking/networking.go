@@ -43,6 +43,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -53,10 +54,13 @@ import (
 	"github.com/gravitational/teleport/session/uds"
 )
 
-// RequestBufferSize is the maximum amount of data we're comfortable writing at
-// once through a default unix datagram socket. Should fit comfortably in both
-// linux and darwin with default settings.
-const RequestBufferSize = 1024
+const (
+	stderrMaxRead = 4096
+	// RequestBufferSize is the maximum amount of data we're comfortable writing at
+	// once through a default unix datagram socket. Should fit comfortably in both
+	// linux and darwin with default settings.
+	RequestBufferSize = 1024
+)
 
 // Process represents an instance of a networking process.
 type Process struct {
@@ -70,8 +74,14 @@ type Process struct {
 	killed atomic.Bool
 	// exitErr is the exit error.
 	exitErr error
-	// childErr is an error sent by the child process over stderr.
-	childErr string
+
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
+	waitForOutputStreams sync.WaitGroup
+	// childStderr is stderr read from the child process which may be populated once
+	// waitForOutputStreams completes.
+	childStderr string
 }
 
 // Request is a networking request.
@@ -159,6 +169,19 @@ func (p *Process) start(ctx context.Context) error {
 	defer stderrWriter.Close()
 	p.cmd.Stderr = stderrWriter
 
+	p.waitForOutputStreams.Go(func() {
+		defer stderrReader.Close()
+
+		// Read the error msg from stderr.
+		errMsg := new(strings.Builder)
+		if _, err := io.Copy(errMsg, io.LimitReader(stderrReader, stderrMaxRead)); err != nil {
+			slog.WarnContext(ctx, "Failed to read child process error after early exit", "error", err)
+			return
+		}
+
+		p.childStderr = errMsg.String()
+	})
+
 	if err := p.cmd.Start(); err != nil {
 		localConn.Close()
 		stderrReader.Close()
@@ -168,23 +191,14 @@ func (p *Process) start(ctx context.Context) error {
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
-		defer stderrReader.Close()
 
 		p.exitErr = p.cmd.Wait()
+		p.waitForOutputStreams.Wait()
 		if p.exitErr == nil || p.killed.Load() {
 			return
 		}
 
-		// Read the error msg from stderr.
-		errMsg := new(strings.Builder)
-		const maxRead = 4096
-		if _, err := io.Copy(errMsg, io.LimitReader(stderrReader, maxRead)); err != nil {
-			slog.WarnContext(ctx, "Failed to read child process error after early exit", "error", err)
-			return
-		}
-
-		p.childErr = errMsg.String()
-		slog.DebugContext(ctx, "Networking process exited with error", "error", p.childErr, "exit_error", p.exitErr)
+		slog.DebugContext(ctx, "Networking process exited with error", "error", p.childStderr, "exit_error", p.exitErr)
 	}()
 
 	return nil
@@ -209,7 +223,7 @@ func (p *Process) waitReady(ctx context.Context) (string, error) {
 		return "", trace.Wrap(ctx.Err(), "networking process failed to signal ready")
 	case <-p.done:
 		_ = p.Close()
-		return p.childErr, trace.Wrap(p.exitErr, "networking process exited before signaling ready")
+		return p.childStderr, trace.Wrap(p.exitErr, "networking process exited before signaling ready")
 	}
 }
 
