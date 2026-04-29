@@ -1510,6 +1510,10 @@ message TokenRule {
   // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
   // must belong to this organization.
   string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
+  // AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units.
+  // Requires AWS Organization ID to be specified.
+  // The account's root ID is considered an Organizational Unit when validating the rule.
+  AWSOrganizationUnitsMatcher AWSOrganizationalUnits = 6 [(gogoproto.jsontag) = "aws_organizational_units,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
