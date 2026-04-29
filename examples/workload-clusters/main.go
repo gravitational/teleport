@@ -94,7 +94,7 @@ type Destination struct {
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("Failed running workload_cluster lifecycle %v", err)
+		log.Fatalf("Failed running workload_cluster lifecycle: %v", err)
 	}
 }
 
