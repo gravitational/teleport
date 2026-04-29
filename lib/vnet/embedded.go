@@ -291,4 +291,20 @@ func (*embeddedApplicationServiceClient) ExchangeSSHKeys(context.Context, *vnetv
 	}, nil
 }
 
+// DB-related RPCs. These are temporary NotImplemented stubs that mirror the
+// SSH stubs above; they will be replaced with real forwarding implementations
+// once the EmbeddedApplicationService interface gains DB methods.
+
+func (*embeddedApplicationServiceClient) ReissueDBCert(context.Context, *vnetv1.ReissueDBCertRequest, ...grpc.CallOption) (*vnetv1.ReissueDBCertResponse, error) {
+	return nil, trace.NotImplemented("Database access is not yet supported in embedded VNet")
+}
+
+func (*embeddedApplicationServiceClient) SignForDB(context.Context, *vnetv1.SignForDBRequest, ...grpc.CallOption) (*vnetv1.SignForDBResponse, error) {
+	return nil, trace.NotImplemented("Database access is not yet supported in embedded VNet")
+}
+
+func (*embeddedApplicationServiceClient) OnNewDBConnection(context.Context, *vnetv1.OnNewDBConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {
+	return nil, trace.NotImplemented("Database access is not yet supported in embedded VNet")
+}
+
 var _ vnetv1.ClientApplicationServiceClient = (*embeddedApplicationServiceClient)(nil)
