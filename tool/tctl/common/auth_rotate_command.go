@@ -1266,18 +1266,6 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 				"All Windows desktops should be updated to stop trusting the CA certificates that have now been rotated out.",
 			}
 		}
-	case types.SPIFFECA:
-		// TODO(strideynet): populate any known manual steps during SPIFFE CA rotation.
-		fallthrough
-	case types.OktaCA:
-		// TODO(smallinsky): populate any known manual steps during Okta CA rotation.
-		fallthrough
-	case types.AWSRACA:
-		// TODO(marco): populate any known manual steps during AWS IAM Roles Anywhere CA rotation.
-		fallthrough
-	case types.BoundKeypairCA:
-		// TODO(timothyb89): add any manual steps; this should mostly be handled automatically.
-		fallthrough
 	case types.AppClientCA:
 		switch phase {
 		case "init":
@@ -1291,6 +1279,18 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 		case "standby":
 			return []string{"All applications using client certificates should be updated to stop trusting the CA certificates that have now been rotated out."}
 		}
+	case types.SPIFFECA:
+		// TODO(strideynet): populate any known manual steps during SPIFFE CA rotation.
+		fallthrough
+	case types.OktaCA:
+		// TODO(smallinsky): populate any known manual steps during Okta CA rotation.
+		fallthrough
+	case types.AWSRACA:
+		// TODO(marco): populate any known manual steps during AWS IAM Roles Anywhere CA rotation.
+		fallthrough
+	case types.BoundKeypairCA:
+		// TODO(timothyb89): add any manual steps; this should mostly be handled automatically.
+		fallthrough
 	default:
 		return []string{"Consult the CA rotation docs for any manual steps that may be required: https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/"}
 	}
