@@ -302,22 +302,26 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 	}
 
 	w.rw.Lock()
+	nextFetch := w.nextColdFetch
+	w.rw.Unlock()
+
+	if time.Now().Before(nextFetch) {
+		return nil
+	}
+
+	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
+	w.rw.Lock()
 	defer w.rw.Unlock()
 
-	if time.Now().Before(w.nextColdFetch) {
-		return nil
+	// Arm the next cold fetch.
+	w.nextColdFetch = time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
+	if err != nil {
+		return trace.Wrap(err, "fetching from fallback")
 	}
 
 	// Check again in case the warm up succeeded while we were waiting for the lock.
 	if w.hot.Load() {
 		return nil
-	}
-
-	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
-	// Arm the next cold fetch.
-	w.nextColdFetch = time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
-	if err != nil {
-		return trace.Wrap(err, "fetching from fallback")
 	}
 
 	w.current = newCurrent
