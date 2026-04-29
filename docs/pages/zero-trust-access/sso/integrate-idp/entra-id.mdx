@@ -250,10 +250,14 @@ $ tctl create -f azure-connector.yaml
 
 ### (Optional) Groups overage
 
+{/* vale 3rd-party-products.former-names = NO */}
+
 If a user's group membership exceeds the 150 group limit,
 Microsoft Entra ID issues a SAML assertion with a groups link attribute instead of the expected groups attribute.
 The groups link attribute contains an Azure AD Graph link which indicates that the user's group membership
 needs to be queried from the Microsoft Graph API.
+
+{/* vale 3rd-party-products.former-names = YES */}
 
 If your users' group memberships do not exceed the 150 group limit, you can skip this step.
 
