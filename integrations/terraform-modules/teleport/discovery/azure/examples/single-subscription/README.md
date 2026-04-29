@@ -6,14 +6,14 @@
 | terraform | >= 1.5.7 |
 | azurerm | >= 4.0 |
 | http | >= 3.0 |
-| teleport | >= 18.5.1 |
+| teleport | >= 18.7.6 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
 | azurerm | >= 4.0 |
-| teleport | >= 18.5.1 |
+| teleport | >= 18.7.6 |
 
 ## Modules
 
