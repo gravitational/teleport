@@ -153,6 +153,21 @@ func main() {
 		log.Panicf("Failed to create workload cluster: %v", err)
 	}
 
+	defer func() {
+		/****************************
+		* Delete a workload cluster *
+		****************************/
+
+		// Delete the workload cluster if any error is encountered or if whole lifecycle
+		// completes successfully.
+
+		// Clean up the previously created workload_cluster resource in the parent
+		// Teleport Cloud cluster.
+		if err := parentClient.DeleteWorkloadCluster(ctx, wc.Metadata.Name); err != nil {
+			log.Panicf("Error deleting cloud cluster: %v", err)
+		}
+	}()
+
 	// Wait for the created workload cluster to reach an active state.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
@@ -313,12 +328,8 @@ func main() {
 	/****************************
 	* Delete a workload cluster *
 	****************************/
-
-	// Clean up the previously created workload_cluster resource in the parent
+	// Deferred function above will execute and delete the workload_cluster resource in the parent
 	// Teleport Cloud cluster.
-	if err := parentClient.DeleteWorkloadCluster(ctx, wc.Metadata.Name); err != nil {
-		log.Panicf("Error deleting cloud cluster: %v", err)
-	}
 }
 
 func waitForActiveWorkloadCluster(ctx context.Context, client *client.Client, workloadClusterName string, pollingInterval time.Duration) (*workloadcluster.WorkloadCluster, error) {
