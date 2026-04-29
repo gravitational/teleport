@@ -1,5 +1,6 @@
 ---
 title: Installing Teleport on Docker
+sidebar_label: Docker
 description: How to install and run Teleport on Docker using our pre-built images from Amazon ECR Public, with details on configuration, data persistence, and networking.
 tags:
 - reference
@@ -94,7 +95,7 @@ To execute Teleport commands on containers based on these images, run commands s
 
 ```code
 # in docker
-$ docker exec -i ${TELEPORT_CONTAINER} tctl status
+$ docker exec -it ${TELEPORT_CONTAINER} tctl status
 
 # in Kubernetes
 $ kubectl exec -i my-pod -- tctl status
