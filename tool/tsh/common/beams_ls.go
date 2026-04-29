@@ -44,7 +44,7 @@ type beamsLSCommand struct {
 	all    bool
 	format string
 
-	// These helper functions can be overriden
+	// These helper functions can be overridden.
 	fetchFn        func(context.Context, *client.TeleportClient, bool) ([]*beamsv1.Beam, error)
 	proxyAddrFn    func(*CLIConf) (string, error)
 	humanizeTimeFn func(time.Time) string
