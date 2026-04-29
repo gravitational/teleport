@@ -176,14 +176,29 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	for range 64 {
-		srvs, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
-		require.NoError(t, err)
-		require.Len(t, srvs, 1)
-		require.Equal(t, "foo", srvs[0].GetName())
+	var wg sync.WaitGroup
+
+	type result struct {
+		srvs []types.KubeServer
+		err  error
 	}
 
-	time.Sleep(10 * time.Second)
+	// Concurrent access will only result in one call to fallback
+	results := make(chan result, 64)
+	for range 64 {
+		wg.Go(func() {
+			srvs, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
+			results <- result{srvs: srvs, err: err}
+		})
+	}
+
+	wg.Wait()
+	close(results)
+	for res := range results {
+		require.NoError(t, res.err)
+		require.Len(t, res.srvs, 1)
+		require.Equal(t, "foo", res.srvs[0].GetName())
+	}
 
 	w.Close() // closes context
 
