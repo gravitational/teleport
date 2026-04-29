@@ -170,6 +170,11 @@ func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
 }
 
+// DeleteBatch deletes multiple items from the backend.
+func (s *Sanitizer) DeleteBatch(ctx context.Context, keys []Key) error {
+	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
+}
+
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
 func (s *Sanitizer) ConditionalDelete(ctx context.Context, key Key, revision string) error {
 	return s.backend.ConditionalDelete(ctx, key, revision)
