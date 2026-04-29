@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if srv.IsReexec() {
+	if reexec.IsReexec() {
 		reexec.RunAndExit(os.Args[1])
 		return
 	}

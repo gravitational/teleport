@@ -1907,13 +1907,20 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 
 	// Build the "teleport exec" command.
 	executor.Cmd = &exec.Cmd{
-		Stdin:      childFiles[0],
-		Stdout:     childFiles[1],
-		Stderr:     childFiles[2],
 		Path:       executable,
 		Args:       args,
 		Env:        *env,
 		ExtraFiles: childFiles[3:],
+	}
+
+	if childFiles[0] != nil {
+		executor.Cmd.Stdin = childFiles[0]
+	}
+	if childFiles[1] != nil {
+		executor.Cmd.Stdout = childFiles[1]
+	}
+	if childFiles[2] != nil {
+		executor.Cmd.Stderr = childFiles[2]
 	}
 
 	// Perform OS-specific tweaks to the command.
