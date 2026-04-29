@@ -132,6 +132,9 @@ type ProxyKubeServerWatcher struct {
 	// Used to single flight calls to the auth server when the cache is cold.
 	nextColdFetch time.Time
 
+	fetchPending bool
+	fetchDone    chan struct{}
+
 	// primaryFailureAt is the time when the primary access point was first observed to be failing.
 	primaryFailureAt time.Time
 }
@@ -301,30 +304,50 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		return nil
 	}
 
+	now := time.Now()
 	w.rw.Lock()
-	nextFetch := w.nextColdFetch
-	w.rw.Unlock()
 
-	if time.Now().Before(nextFetch) {
+	if w.fetchPending {
+		done := w.fetchDone
+		w.rw.Unlock()
+
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-w.ctx.Done():
+			return trace.Wrap(w.ctx.Err(), "watcher context closed")
+		}
+	}
+
+	if now.Before(w.nextColdFetch) {
+		w.rw.Unlock()
 		return nil
 	}
 
-	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
-	w.rw.Lock()
-	defer w.rw.Unlock()
+	w.fetchPending = true
+	done := make(chan struct{})
+	w.fetchDone = done
+	w.rw.Unlock()
 
-	// Arm the next cold fetch.
-	w.nextColdFetch = time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
+	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
+	next := time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
+
+	w.rw.Lock()
+	w.fetchPending = false
+	w.nextColdFetch = next
+	if err == nil && !w.hot.Load() {
+		w.current = newCurrent
+	}
+	w.rw.Unlock()
+
+	close(done)
+
 	if err != nil {
 		return trace.Wrap(err, "fetching from fallback")
 	}
 
-	// Check again in case the warm up succeeded while we were waiting for the lock.
-	if w.hot.Load() {
-		return nil
-	}
-
-	w.current = newCurrent
 	return nil
 }
 
