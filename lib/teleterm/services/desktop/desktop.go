@@ -453,7 +453,7 @@ func (d *fsRequestHandler) handleSharedDirectoryTruncateRequest(completionID uin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = dirAccess.Truncate(r.Path, int64(r.EndOfFile))
+	err = dirAccess.Truncate(r.Path, r.Size)
 	if err != nil {
 		return trace.Wrap(err)
 	}

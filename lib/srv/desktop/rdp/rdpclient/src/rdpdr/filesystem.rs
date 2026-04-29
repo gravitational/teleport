@@ -901,7 +901,7 @@ impl FilesystemBackend {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 path: file.path.clone(),
-                end_of_file: cast_length("tdp_sd_truncate", "end_of_file", end_of_file)?,
+                end_of_file,
             })?;
 
             self.pending_sd_truncate_resp_handlers.insert(

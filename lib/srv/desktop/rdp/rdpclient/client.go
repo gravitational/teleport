@@ -1267,8 +1267,8 @@ func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTr
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
 			Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
-				Path:      C.GoString(req.path),
-				EndOfFile: uint32(req.end_of_file),
+				Path: C.GoString(req.path),
+				Size: int64(req.end_of_file),
 			},
 		},
 	})

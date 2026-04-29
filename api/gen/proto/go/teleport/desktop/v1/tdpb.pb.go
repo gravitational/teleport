@@ -2750,7 +2750,7 @@ func (x *SharedDirectoryRequest_Move) GetNewPath() string {
 type SharedDirectoryRequest_Truncate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	EndOfFile     int64                  `protobuf:"varint,2,opt,name=end_of_file,json=endOfFile,proto3" json:"end_of_file,omitempty"`
+	Size          int64                  `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2792,9 +2792,9 @@ func (x *SharedDirectoryRequest_Truncate) GetPath() string {
 	return ""
 }
 
-func (x *SharedDirectoryRequest_Truncate) GetEndOfFile() int64 {
+func (x *SharedDirectoryRequest_Truncate) GetSize() int64 {
 	if x != nil {
-		return x.EndOfFile
+		return x.Size
 	}
 	return 0
 }
@@ -3211,7 +3211,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x1aSharedDirectoryAcknowledge\x12!\n" +
 	"\fdirectory_id\x18\x01 \x01(\rR\vdirectoryId\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x02 \x01(\rR\terrorCode\"\xf6\b\n" +
+	"error_code\x18\x02 \x01(\rR\terrorCode\"\xfd\b\n" +
 	"\x16SharedDirectoryRequest\x12!\n" +
 	"\fdirectory_id\x18\x01 \x01(\rR\vdirectoryId\x12#\n" +
 	"\rcompletion_id\x18\x02 \x01(\rR\fcompletionId\x12F\n" +
@@ -3243,10 +3243,10 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x04data\x18\x03 \x01(\fR\x04data\x1aF\n" +
 	"\x04Move\x12#\n" +
 	"\roriginal_path\x18\x01 \x01(\tR\foriginalPath\x12\x19\n" +
-	"\bnew_path\x18\x02 \x01(\tR\anewPath\x1a>\n" +
+	"\bnew_path\x18\x02 \x01(\tR\anewPath\x1aE\n" +
 	"\bTruncate\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1e\n" +
-	"\vend_of_file\x18\x02 \x01(\x03R\tendOfFileB\v\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04size\x18\x03 \x01(\x03R\x04sizeJ\x04\b\x02\x10\x03R\vend_of_fileB\v\n" +
 	"\toperation\"\x83\b\n" +
 	"\x17SharedDirectoryResponse\x12#\n" +
 	"\rcompletion_id\x18\x01 \x01(\rR\fcompletionId\x12\x1d\n" +
