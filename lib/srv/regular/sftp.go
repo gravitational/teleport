@@ -25,7 +25,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	sessionreexec "github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	sessionsftputils "github.com/gravitational/teleport/session/sftputils"
@@ -48,7 +48,7 @@ type sftpSubsys struct {
 	logger *slog.Logger
 
 	fileTransferReq *reexecsftp.FileTransferRequest
-	sftpCmd         *exec.Cmd
+	sftpCmd         *sessionreexec.CommandExecutor
 	serverCtx       *srv.ServerContext
 
 	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
@@ -119,8 +119,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err := serverCtx.SetSSHRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
-
-	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
+	s.sftpCmd, err = serverCtx.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.StdinFile:  chReadPipeOut,
+		sessionreexec.StdoutFile: chWritePipeIn,
+		sessionreexec.StderrFile: auditPipeIn,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -158,7 +161,9 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	execRequest.Continue()
+	if err := s.sftpCmd.Continue(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Send the file transfer request if applicable. The SFTP process
 	// expects the file transfer request data will end with a null byte,

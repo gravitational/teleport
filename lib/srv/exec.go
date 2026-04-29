@@ -20,7 +20,6 @@ package srv
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -43,8 +42,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
-	"github.com/gravitational/teleport/session/envutils"
-	"github.com/gravitational/teleport/session/networking/x11"
 	sessionreexec "github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
@@ -126,7 +123,7 @@ type localExec struct {
 	Command string
 
 	// Cmd holds an *exec.Cmd which will be used for local execution.
-	Cmd *exec.Cmd
+	Cmd *sessionreexec.CommandExecutor
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
@@ -186,7 +183,11 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 	e.Ctx.AddCloser(shellStderrR)
 
 	// Create the command that will actually execute.
-	e.Cmd, err = ConfigureCommand(e.Ctx, shellStdinR, shellStdoutW, shellStderrW)
+	e.Cmd, err = e.Ctx.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
+		sessionreexec.StdinFile:  shellStdinR,
+		sessionreexec.StdoutFile: shellStdoutW,
+		sessionreexec.StderrFile: shellStderrW,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,12 +235,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 
 		return trace.ConvertSystemError(err)
 	}
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := e.Ctx.readyw.Close(); err != nil {
-		logger.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
-	}
-	e.Ctx.readyw = nil
 
 	// Save off the PID of the Teleport process under which the command is executing.
 	e.pid = e.Cmd.Process.Pid
@@ -314,7 +309,7 @@ func (e *localExec) ReadAuditSessionID() (uint32, error) {
 		return 0, nil
 	}
 
-	if err := e.Ctx.WaitForChild(e.Ctx.cancelContext); err != nil {
+	if err := e.Cmd.WaitForChild(); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -325,10 +320,7 @@ func (e *localExec) ReadAuditSessionID() (uint32, error) {
 // pre-processing routine if Enhanced Session Recording is enabled.
 // Otherwise, this method is a no-op.
 func (e *localExec) Continue() {
-	e.Ctx.contw.Close()
-
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.contw = nil
+	e.Cmd.Continue()
 }
 
 // PID returns the PID of the Teleport process that was re-execed.
@@ -669,102 +661,5 @@ func exitCode(err error) int {
 	default:
 		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
 		return reexecconstants.RemoteCommandFailure
-	}
-}
-
-// ConfigureCommand creates a command fully configured to execute. This
-// function is used by Teleport to re-execute itself and pass whatever data
-// is need to the child to actually execute the shell.
-func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
-	// Create a os.Pipe and start copying over the payload to execute. While the
-	// pipe buffer is quite large (64k) some users have run into the pipe
-	// blocking writes on much smaller buffers (7k) leading to Teleport being
-	// unable to run some exec commands.
-	//
-	// To not depend on the OS implementation of a pipe, instead the copy should
-	// be non-blocking. The io.Copy will be closed when either when the child
-	// process has fully read in the payload or the process exits with an error
-	// (and closes all child file descriptors).
-	//
-	// See the below for details.
-	//
-	//   https://man7.org/linux/man-pages/man7/pipe.7.html
-	cmdmsg, err := ctx.ExecCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	go copyCommand(ctx.CancelContext(), ctx.cmdw, cmdmsg)
-
-	// Find the Teleport executable and its directory on disk.
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Build env for `teleport exec`.
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
-
-	// The channel/request type determines the subcommand to execute.
-	var subCommand string
-	switch ctx.ExecType {
-	case reexecconstants.NetworkingSubCommand:
-		subCommand = reexecconstants.NetworkingSubCommand
-
-		// Unset XAUTHORITY for the networking command as the SSH session
-		// process given to the user will not have it set which can cause
-		// issues with the X11 forwarding.
-		env.Remove(x11.XAuthFileEnvVar)
-	default:
-		subCommand = reexecconstants.ExecSubCommand
-	}
-
-	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
-	// is appended if Teleport is running in debug mode.
-	args := []string{executable, subCommand}
-
-	// Build the "teleport exec" command.
-	cmd := &exec.Cmd{
-		Path: executable,
-		Args: args,
-		Env:  *env,
-		ExtraFiles: []*os.File{
-			ctx.cmdr,
-			ctx.logw,
-			ctx.contr,
-			ctx.readyw,
-			ctx.killShellr,
-		},
-	}
-	// Add extra files if applicable.
-	if len(extraFiles) > 0 {
-		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
-	}
-
-	// Perform OS-specific tweaks to the command.
-	sessionreexec.CommandOSTweaks(cmd)
-
-	return cmd, nil
-}
-
-// copyCommand will copy the provided command to the child process over the
-// pipe attached to the context.
-func copyCommand(ctx context.Context, cmdw *os.File, cmdmsg *sessionreexec.ExecCommand) {
-	defer func() {
-		err := cmdw.Close()
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to close command pipe", "error", err)
-		}
-
-		// Set to nil so the close in the context doesn't attempt to re-close.
-		cmdw = nil
-	}()
-
-	// Write command bytes to pipe. The child process will read the command
-	// to execute from this pipe.
-	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
-		return
 	}
 }

@@ -1,32 +1,30 @@
 ---
-title: Database Server V3 Reference
-description: Provides a reference of fields within the Database Server V3 resource, which you can manage with tctl.
-sidebar_label: Database Server V3
+title: Database V3 Reference
+description: Provides a reference of fields within the Database V3 resource, which you can manage with tctl.
+sidebar_label: Database V3
 ---
 {/* vale 3rd-party-products.former-names = NO */}
 {/* vale messaging.capitalization = NO */}
 {/* Automatically generated from: types/types.pb.go */}
 {/* DO NOT EDIT */}
 
-**Kind**: `db_server`<br/>
+**Kind**: `db`<br/>
 **Version**: `v3`
 
-The `db_server` resource represents a database that has been registered
+The `db` resource represents a database that is dynamically registered
 with Teleport.
 
-The Teleport Database Service creates a `db_server` in two situations:
+If you configure the Teleport Database Service with **dynamic resource
+watchers**, the service queries the Teleport backend for `db` resources
+that match their configured filters. For each matching `db`, the Database
+Service creates a `db_server` resource configured to proxy the target
+database.
 
-  1. It reads information about the target database in its
-     configuration file when it first starts.
-  1. It fetches a dynamically registered `db` resource from the Teleport
-     backend that matches its dynamic resource watchers.
+To learn more about using the `db` resource, see [Dynamic Database
+Registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx).
 
-There can be multiple instances of a `db_server` for a single database,
-each corresponding to a different Teleport Database Service instance that
-proxies the database. Read more about [High
-Availability](../../../installation/agents/high-availability.mdx) for
-the Teleport Database Service. Read the [reference guide](./database-v3.mdx) for
-the `db` resource.
+To learn more about the `db_server` resource, see the [reference
+guide](database-server-v3.mdx).
 
 
 ## Top-level fields
@@ -40,17 +38,15 @@ version: "string"
 metadata: # [...]
 spec: # [...]
 status: # [...]
-scope: "string"
 ```
 |Field Name|Description|Type|
 |---|---|---|
-|kind|The database server resource kind.|string|
-|metadata|The database server metadata.|[Metadata](#metadata)|
-|scope|The advertized scope of the server which can not change once assigned.|string|
-|spec|The database server spec.|[Database Server Spec V3](#database-server-spec-v3)|
-|status|The database server status.|[Database Server Status V3](#database-server-status-v3)|
+|kind|The database resource kind.|string|
+|metadata|The database metadata.|[Metadata](#metadata)|
+|spec|The database spec.|[Database Spec V3](#database-spec-v3)|
+|status|The database runtime information.|[Database Status V3](#database-status-v3)|
 |sub_kind|An optional resource subkind.|string|
-|version|The resource version.|string|
+|version|The resource version. It must be specified. Supported values are: `v3`.|string|
 
 ## AD
 
@@ -221,56 +217,6 @@ default_database: "string"
 |default_database|The database that the privileged database user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users.|string|
 |name|The username of the privileged database user.|string|
 
-## Database Server Spec V3
-
-The database server spec.
-
-
-Example:
-
-```yaml
-version: "string"
-hostname: "string"
-host_id: "string"
-rotation: # [...]
-database: # [...]
-proxy_ids: 
-  - "string"
-  - "string"
-  - "string"
-relay_group: "string"
-relay_ids: 
-  - "string"
-  - "string"
-  - "string"
-```
-
-|Field Name|Description|Type|
-|---|---|---|
-|database|The database proxied by this database server.|[Database V3](#database-v3)|
-|host_id|The ID of the host the database server is running on.|string|
-|hostname|The database server hostname.|string|
-|proxy_ids|A list of proxy IDs this server is expected to be connected to.|[]string|
-|relay_group|The name of the Relay group that the server is connected to|string|
-|relay_ids|The list of Relay host IDs that the server is connected to|[]string|
-|rotation|Contains the server CA rotation information.|[Rotation](#rotation)|
-|version|The Teleport version that the server is running.|string|
-
-## Database Server Status V3
-
-The database server status.
-
-
-Example:
-
-```yaml
-target_health: # [...]
-```
-
-|Field Name|Description|Type|
-|---|---|---|
-|target_health|The health status of network connectivity between the agent and the database.|[Target Health](#target-health)|
-
 ## Database Spec V3
 
 The database spec.
@@ -366,31 +312,6 @@ trust_system_cert_pool: true
 
 Represents the level of TLS verification performed by DB agent when connecting to a database.
 
-
-## Database V3
-
-Represents a single proxied database.
-
-
-Example:
-
-```yaml
-kind: "string"
-sub_kind: "string"
-version: "string"
-metadata: # [...]
-spec: # [...]
-status: # [...]
-```
-
-|Field Name|Description|Type|
-|---|---|---|
-|kind|The database resource kind.|string|
-|metadata|The database metadata.|[Metadata](#metadata)|
-|spec|The database spec.|[Database Spec V3](#database-spec-v3)|
-|status|The database runtime information.|[Database Status V3](#database-status-v3)|
-|sub_kind|An optional resource subkind.|string|
-|version|The resource version. It must be specified. Supported values are: `v3`.|string|
 
 ## DocumentDB
 
@@ -680,54 +601,6 @@ workgroup_id: "string"
 |workgroup_id|The workgroup ID.|string|
 |workgroup_name|The workgroup name.|string|
 
-## Rotation
-
-A status of the rotation of the certificate authority
-
-
-Example:
-
-```yaml
-state: "string"
-phase: "string"
-mode: "string"
-current_id: "string"
-started: # See description
-grace_period: # [...]
-last_rotated: # See description
-schedule: # [...]
-```
-
-|Field Name|Description|Type|
-|---|---|---|
-|current_id|The ID of the rotation operation to differentiate between rotation attempts.|string|
-|grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.|[Duration](#duration)|
-|last_rotated|Specifies the last time of the completed rotation.||
-|mode|Sets manual or automatic rotation mode.|string|
-|phase|The current rotation phase.|string|
-|schedule|A rotation schedule - used in automatic mode to switch between phases.|[Rotation Schedule](#rotation-schedule)|
-|started|Set to the time when rotation has been started in case if the state of the rotation is "in_progress".||
-|state|Could be one of "init" or "in_progress".|string|
-
-## Rotation Schedule
-
-A rotation schedule setting time switches for different phases.
-
-
-Example:
-
-```yaml
-update_clients: # See description
-update_servers: # See description
-standby: # See description
-```
-
-|Field Name|Description|Type|
-|---|---|---|
-|standby|Specifies time to switch to the "Standby" phase.||
-|update_clients|Specifies time to switch to the "Update clients" phase||
-|update_servers|Specifies time to switch to the "Update servers" phase.||
-
 ## Secret Store
 
 Contains secret store configurations.
@@ -744,31 +617,4 @@ kms_key_id: "string"
 |---|---|---|
 |key_prefix|Specifies the secret key prefix.|string|
 |kms_key_id|Specifies the AWS KMS key for encryption.|string|
-
-## Target Health
-
-Describes the health status of network connectivity between an agent and a resource.
-
-
-Example:
-
-```yaml
-address: "string"
-protocol: "string"
-status: "string"
-transition_timestamp: # See description
-transition_reason: "string"
-transition_error: "string"
-message: "string"
-```
-
-|Field Name|Description|Type|
-|---|---|---|
-|address|The resource address.|string|
-|message|Additional information meant for a user.|string|
-|protocol|The health check protocol such as "tcp".|string|
-|status|The health status, one of "", "unknown", "healthy", "unhealthy".|string|
-|transition_error|Shows the health check error observed when the transition happened. Empty when transitioning to "healthy".|string|
-|transition_reason|A unique single word reason why the last transition occurred.|string|
-|transition_timestamp|The time that the last status transition occurred.||
 
