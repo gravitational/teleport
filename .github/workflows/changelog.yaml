@@ -48,5 +48,5 @@ jobs:
             echo EOF
           } >> "$GITHUB_OUTPUT"
       - name: Spellcheck changelog
-        working-directory: 'docs'
+        working-directory: '../docs'
         run: yarn spellcheck <<< "${{ steps.changelog.outputs.entries }}"
