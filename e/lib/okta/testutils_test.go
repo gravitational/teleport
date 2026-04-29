@@ -53,6 +53,7 @@ type testAccessPoint struct {
 	services.ClusterConfiguration
 	services.ConnectionsDiagnostic
 	services.DatabaseServices
+	services.LinuxDesktopGetter
 	services.Identity
 	services.Okta
 	services.Plugins
@@ -145,6 +146,9 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 	git, err := local.NewGitServerService(backend)
 	require.NoError(t, err)
 
+	linuxDesktops, err := local.NewLinuxDesktopService(backend)
+	require.NoError(t, err)
+
 	ic, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{Backend: backend})
 	require.NoError(t, err)
 
@@ -172,6 +176,7 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 		SAMLIdpServiceProviderGetter:          idp,
 		IdentityCenterAccountGetter:           ic,
 		IdentityCenterAccountAssignmentGetter: ic,
+		LinuxDesktopGetter:                    linuxDesktops,
 		GitServerGetter:                       git,
 	}
 	client.serviceCounts = map[types.SystemRole]uint64{
