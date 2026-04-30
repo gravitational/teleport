@@ -1823,6 +1823,7 @@ type disconnectTestCase struct {
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
+	ctx := t.Context()
 	idleTimeout := 3 * time.Second
 	netConfig := types.DefaultClusterNetworkingConfig()
 	netConfig.SetClientIdleTimeout(idleTimeout)
@@ -1837,15 +1838,8 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	term := NewTerminal(250)
 
 	sessionErr := make(chan error, 1)
-	t.Cleanup(func() {
-		require.Error(t, waitForError(sessionErr, 10*time.Second))
-	})
-
-	sessionCtx, cancelSession := context.WithCancel(t.Context())
-	defer cancelSession()
-
 	openSession := func() {
-		defer cancelSession()
+		defer close(sessionErr)
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			Login:                suite.Me.Username,
 			Cluster:              helpers.Site,
@@ -1862,29 +1856,39 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 
 		// Print a ready marker, then echo bytes from stdin back to the client.
 		const clientIdleKeepaliveCommand = `sh -c 'echo __READY__; exec cat'`
-		sessionErr <- cl.SSH(sessionCtx, []string{clientIdleKeepaliveCommand})
+		sessionErr <- cl.SSH(ctx, []string{clientIdleKeepaliveCommand})
 	}
 
 	go openSession()
 
-	require.NoError(t, waitForTerminalOutput(sessionCtx, term, ".*__READY__.*"))
+	readyErr := make(chan error, 1)
+	go func() {
+		readyErr <- waitForTerminalOutput(ctx, term, ".*__READY__.*")
+	}()
+
+	select {
+	case err := <-readyErr:
+		require.NoError(t, err)
+	case err := <-sessionErr:
+		require.FailNowf(t, "timeout", "session ended before becoming ready: %v", err)
+	}
 
 	// Keep the session alive by writing/reading with the terminal within the idle timeout.
 	keepaliveTicker := time.NewTicker(idleTimeout / 3)
+	defer keepaliveTicker.Stop()
 	keepaliveEnd := time.After(10 * time.Second)
 
+	require.NoError(t, enterInput(ctx, term, "start\r\n", "start"))
 	for i := 0; ; i++ {
 		select {
 		case <-keepaliveTicker.C:
 			msg := "keepalive-" + strconv.Itoa(i)
-			require.NoError(t, enterInput(sessionCtx, term, msg+"\r\n", msg))
-
+			require.NoError(t, enterInput(ctx, term, msg+"\r\n", msg))
 		case <-keepaliveEnd:
 			// The session survived beyond the idle timeout, success.
 			return
-
-		case <-sessionCtx.Done():
-			require.FailNowf(t, "timeout", "session ended before exceeding idle timeout: %v", sessionCtx.Err())
+		case err := <-sessionErr:
+			require.FailNowf(t, "timeout", "session ended before exceeding idle timeout: %v", err)
 		}
 	}
 }
