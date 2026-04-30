@@ -115,10 +115,10 @@ func (s *BeamService) IterateBeams(ctx context.Context, pageToken string, option
 }
 
 func validateListOptions(options *services.ListBeamsRequestOptions) error {
-	if options.GetSortField() != "" && options.GetSortField() != "name" {
-		return trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
+	if options.GetSortField() != beamsv1.BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED && options.GetSortField() != beamsv1.BeamSortField_BEAM_SORT_FIELD_NAME {
+		return trace.CompareFailed("unsupported sort, only name field is supported")
 	}
-	if options.GetSortDesc() {
+	if options.GetSortOrder() != beamsv1.BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED && options.GetSortOrder() != beamsv1.BeamSortOrder_BEAM_SORT_ORDER_ASCENDING {
 		return trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
 	return nil

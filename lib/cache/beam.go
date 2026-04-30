@@ -152,7 +152,7 @@ func (c *Cache) IterateBeams(ctx context.Context, pageToken string, options *ser
 			yield(nil, trace.Wrap(err))
 		}
 	}
-	isDesc := options.GetSortDesc()
+	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
 		cache:      c,
@@ -191,19 +191,15 @@ func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
 	return string(ordered.Encode(expires, name))
 }
 
-func beamIndexForSortField(sortField string) (beamIndex, func(*beamsv1.Beam) string, error) {
+func beamIndexForSortField(sortField beamsv1.BeamSortField) (beamIndex, func(*beamsv1.Beam) string, error) {
 	switch sortField {
-	case "":
-		fallthrough
-	case "name":
-		return beamNameIndex, keyForBeamNameIndex, nil
-	case "alias":
+	case beamsv1.BeamSortField_BEAM_SORT_FIELD_ALIAS:
 		return beamAliasIndex, keyForBeamAliasIndex, nil
-	case "user":
+	case beamsv1.BeamSortField_BEAM_SORT_FIELD_USER:
 		return beamUserIndex, keyForBeamUserIndex, nil
-	case "expires":
+	case beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES:
 		return beamExpiresIndex, keyForBeamExpiresIndex, nil
 	default:
-		return "", nil, trace.CompareFailed("unsupported sort %q but expected name, alias, user or expires", sortField)
+		return beamNameIndex, keyForBeamNameIndex, nil
 	}
 }

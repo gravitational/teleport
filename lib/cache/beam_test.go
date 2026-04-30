@@ -136,8 +136,8 @@ func TestBeamCacheSorting(t *testing.T) {
 
 	t.Run("sort descending by name", func(t *testing.T) {
 		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortField: "name",
-			SortDesc:  true,
+			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_NAME,
+			SortOrder: beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -148,7 +148,7 @@ func TestBeamCacheSorting(t *testing.T) {
 
 	t.Run("sort ascending by alias", func(t *testing.T) {
 		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortField: "alias",
+			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_ALIAS,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -159,7 +159,7 @@ func TestBeamCacheSorting(t *testing.T) {
 
 	t.Run("sort ascending by user", func(t *testing.T) {
 		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortField: "user",
+			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_USER,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -170,7 +170,7 @@ func TestBeamCacheSorting(t *testing.T) {
 
 	t.Run("sort ascending by expires", func(t *testing.T) {
 		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortField: "expires",
+			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -236,8 +236,8 @@ func TestBeamCacheFallback(t *testing.T) {
 
 	t.Run("supported sort", func(t *testing.T) {
 		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortField: "name",
-			SortDesc:  false,
+			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_NAME,
+			SortOrder: beamsv1.BeamSortOrder_BEAM_SORT_ORDER_ASCENDING,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 2)
@@ -254,14 +254,14 @@ func TestBeamCacheFallback(t *testing.T) {
 
 	t.Run("unsupported sort field", func(t *testing.T) {
 		_, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortField: "expires",
+			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES,
 		})
-		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "expires"`)
+		require.ErrorContains(t, err, `unsupported sort, only name field is supported`)
 	})
 
 	t.Run("unsupported sort dir", func(t *testing.T) {
 		_, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
-			SortDesc: true,
+			SortOrder: beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING,
 		})
 		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
 	})

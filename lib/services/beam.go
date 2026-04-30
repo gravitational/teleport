@@ -161,30 +161,31 @@ func MakeBeamFilterFunc(options *ListBeamsRequestOptions) func(beam *beamsv1.Bea
 }
 
 type ListBeamsRequestOptions struct {
-	// The sort field to use for the results. If empty, the default sort field
-	// is used.
-	SortField string
-	// The sort order to use for the results. If empty, the default sort order
-	// is used.
-	SortDesc bool
-	// FilterUsers filters the results to only include beams owned by the provided users.
+	// The sort field to use for the results. If unspecified, the default sort
+	// field is used.
+	SortField beamsv1.BeamSortField
+	// The sort order to use for the results. If unspecified, the default sort
+	// order is used.
+	SortOrder beamsv1.BeamSortOrder
+	// FilterUsers filters the results to only include beams owned by the
+	// provided users.
 	FilterUsers set.Set[string]
 }
 
 // GetSortField is a nil-safe getter for SortField
-func (o *ListBeamsRequestOptions) GetSortField() string {
+func (o *ListBeamsRequestOptions) GetSortField() beamsv1.BeamSortField {
 	if o == nil {
-		return ""
+		return beamsv1.BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED
 	}
 	return o.SortField
 }
 
-// GetSortDesc is a nil-safe getter for SortDesc
-func (o *ListBeamsRequestOptions) GetSortDesc() bool {
+// GetSortOrder is a nil-safe getter for SortDesc
+func (o *ListBeamsRequestOptions) GetSortOrder() beamsv1.BeamSortOrder {
 	if o == nil {
-		return false
+		return beamsv1.BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED
 	}
-	return o.SortDesc
+	return o.SortOrder
 }
 
 // GetFilterOwners is a nil-safe getter for FilterOwners
