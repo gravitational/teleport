@@ -163,7 +163,7 @@ combining the following:
 | Question | Use |
 |----------|-----|
 | Is the agent process running? | `/healthz` (or a host-level check such as `systemctl status teleport`) |
-| Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes liveness/readiness probe) |
+| Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes liveness probe) |
 | Is the cluster aware of this agent right now? | `tctl inventory status --connected` |
 | Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
 | Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.login`, `instance.join`, `instance.token.create`, `cert.create` |
