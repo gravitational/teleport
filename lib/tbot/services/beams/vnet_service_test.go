@@ -79,9 +79,7 @@ func TestVNetService(t *testing.T) {
 	nsConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
 	require.NoError(t, err)
 	go func() {
-		if err := upstreamNameserver.ListenAndServeUDP(t.Context(), nsConn); err != nil {
-			t.Logf("error serving nameserver: %v", err)
-		}
+		_ = upstreamNameserver.ListenAndServeUDP(t.Context(), nsConn)
 	}()
 
 	// Start an HTTP server that we'll access over VNet.
