@@ -900,6 +900,9 @@ func (w *sliceWriter) completeStream() {
 				w.shouldProcessMetadata = true
 				w.shouldSkipSummarize = true
 				w.sessionType = recordingmetadata.SessionTypeDesktop
+				if w.sessionStartTime.IsZero() {
+					w.sessionStartTime = o.StartTime
+				}
 				w.sessionEndTime = o.EndTime
 			}
 		}

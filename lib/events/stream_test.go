@@ -901,6 +901,29 @@ func TestRecordingMetadataProcessing(t *testing.T) {
 			expectedDuration: 20 * time.Minute,
 		},
 		{
+			// Simulates auth restart mid-session: only DesktopRecording events are
+			// observed in-band, so sessionStartTime/sessionType/shouldProcessMetadata
+			// must all be populated from the recovered WindowsDesktopSessionEnd.
+			name: "recovered WindowsDesktopSessionEnd populates start time when start was not observed",
+			buildEvents: func(sid session.ID) []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					&apievents.DesktopRecording{
+						Metadata: apievents.Metadata{Type: events.DesktopRecordingEvent, Time: startTime.Add(5 * time.Minute)},
+					},
+				}
+			},
+			onUploadComplete: func(_ context.Context, gotSID session.ID) (apievents.AuditEvent, error) {
+				return &apievents.WindowsDesktopSessionEnd{
+					Metadata:        apievents.Metadata{Type: events.WindowsDesktopSessionEndEvent, Code: events.DesktopSessionEndCode},
+					SessionMetadata: apievents.SessionMetadata{SessionID: gotSID.String()},
+					StartTime:       startTime,
+					EndTime:         startTime.Add(15 * time.Minute),
+				}, nil
+			},
+			expectProcess:    true,
+			expectedDuration: 15 * time.Minute,
+		},
+		{
 			name: "processing error does not cause panic",
 			buildEvents: func(sid session.ID) []apievents.AuditEvent {
 				return []apievents.AuditEvent{
