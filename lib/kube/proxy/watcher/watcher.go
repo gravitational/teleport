@@ -189,7 +189,7 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 // armTimeout creates the timeout timer for marking the cache as stale. If a previous
 // failure has already been marked and the cache is still hot the timeout is adjusted
 // to not exceed [ProxyKubeServerWatcherConfig.PrimaryTimeout].
-// Otherwise defautls to [ProxyKubeServerWatcherConfig.PrimaryTimeout].
+// Otherwise defaults to [ProxyKubeServerWatcherConfig.PrimaryTimeout].
 func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
 	w.rw.RLock()
 	failureAt := w.primaryFailureAt
