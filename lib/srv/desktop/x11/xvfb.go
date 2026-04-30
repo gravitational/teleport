@@ -257,7 +257,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if _, err := rand.Read(cookie); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	
+
 	entry, err := generateXauthorityEntry(display, cookie)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -643,6 +643,7 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 	for i := 0; i < len(screen.Sizes); i++ {
 		if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
 			x.mu.Lock()
+			defer x.mu.Unlock()
 			reply, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
 			if err != nil {
 				return trace.Wrap(err)
@@ -658,7 +659,6 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 			x.width = width
 			x.height = height
 			x.resizeTimestamp = reply.NewTimestamp
-			x.mu.Unlock()
 
 			return nil
 		}
