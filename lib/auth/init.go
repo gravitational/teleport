@@ -1590,7 +1590,8 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				types.SAMLIDPCA,
 				types.SPIFFECA,
 				types.AWSRACA,
-				types.WindowsCA:
+				types.WindowsCA,
+				types.AppClientCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner,
 				types.OIDCIdPCA,
