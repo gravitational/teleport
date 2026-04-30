@@ -132,7 +132,7 @@ pub extern "C" fn rdp_decoder_new(
             user_channel_id,
         )))
     }))
-    .unwrap_or_else(|_| ptr::null_mut())
+    .unwrap_or(ptr::null_mut())
 }
 
 /// Frees the memory associated with a decoder.
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn rdp_decoder_image_data(
         *out_height = decoder.image.height();
         data.as_ptr()
     }))
-    .unwrap_or_else(|_| ptr::null())
+    .unwrap_or(ptr::null())
 }
 
 /// Returns the current cursor position and visibility state.

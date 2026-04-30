@@ -265,11 +265,12 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 		ioChannelID := uint16(spec.GetIoChannelId())
 		userChannelID := uint16(spec.GetUserChannelId())
 
+		//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 		d, err := decoder.New(
 			w, h,
 			decoder.WithIOChannelID(ioChannelID),
 			decoder.WithUserChannelID(userChannelID),
-		) //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		)
 		if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 			return trace.Wrap(err, "creating RDP decoder")
 		}
