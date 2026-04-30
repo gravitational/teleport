@@ -6420,13 +6420,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		if acmeCfg.URI != "" {
 			m.Client = &acme.Client{DirectoryURL: acmeCfg.URI}
 		}
-		// We have to duplicate the behavior of `m.TLSConfig()` here because
-		// http/1.1 needs to take precedence over h2 due to
-		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		// Duplicate the behavior of m.TLSConfig() with h2 prioritized to enable
+		// WebSocket over HTTP/2 (RFC 8441). Requires GODEBUG=http2xconnect=1.
 		tlsConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos: []string{
-				string(alpncommon.ProtocolHTTP), string(alpncommon.ProtocolHTTP2), // enable HTTP/2
+				string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolHTTP), // enable HTTP/2
 				acme.ALPNProto, // enable tls-alpn ACME challenges
 			},
 		}
@@ -6553,8 +6552,8 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(
-				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
+				alpncommon.ProtocolHTTP,
 				acme.ALPNProto,
 			),
 			Handler:    webWrapper.HandleConnection,
