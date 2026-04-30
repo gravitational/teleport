@@ -92,11 +92,8 @@ func (s *BeamService) GetBeamByAlias(ctx context.Context, alias string) (*beamsv
 
 // ListBeams returns a paginated list of Beam resources.
 func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
-	if options.GetSortField() != "" && options.GetSortField() != "name" {
-		return nil, "", trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
-	}
-	if options.GetSortDesc() {
-		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
+	if err := validateListOptions(options); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	items, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken, services.MakeBeamFilterFunc(options))
@@ -108,18 +105,23 @@ func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken str
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
 func (s *BeamService) IterateBeams(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
-	if options.GetSortField() != "" && options.GetSortField() != "name" {
+	if err := validateListOptions(options); err != nil {
 		return func(yield func(*beamsv1.Beam, error) bool) {
-			yield(nil, trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField()))
-		}
-	}
-	if options.GetSortDesc() {
-		return func(yield func(*beamsv1.Beam, error) bool) {
-			yield(nil, trace.CompareFailed("unsupported sort, only ascending order is supported"))
+			yield(nil, trace.Wrap(err))
 		}
 	}
 
 	return s.svc.Resources(ctx, pageToken, "")
+}
+
+func validateListOptions(options *services.ListBeamsRequestOptions) error {
+	if options.GetSortField() != "" && options.GetSortField() != "name" {
+		return trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
+	}
+	if options.GetSortDesc() {
+		return trace.CompareFailed("unsupported sort, only ascending order is supported")
+	}
+	return nil
 }
 
 // AppendPutBeamActions adds conditional actions to an atomic write to create
