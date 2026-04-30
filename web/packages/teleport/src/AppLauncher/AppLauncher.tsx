@@ -42,7 +42,7 @@ export function AppLauncher({
   const clusterId = pathParams.clusterId;
   const publicAddr = pathParams.publicAddr;
   const arn = pathParams.arn;
-  const { search } = useLocation();
+  const { search, hash } = useLocation();
 
   const mfa = useMfa({
     req: {
@@ -56,7 +56,7 @@ export function AppLauncher({
       },
     },
   });
-  const launchKey = `${fqdn}|${clusterId || ''}|${publicAddr || ''}|${arn || ''}|${search}`;
+  const launchKey = `${fqdn}|${clusterId || ''}|${publicAddr || ''}|${arn || ''}|${search}|${hash}`;
   const latestRunKeyRef = useRef<string>('');
 
   useEffect(() => {
@@ -126,6 +126,26 @@ export function AppLauncher({
             params,
             requiredApps,
           });
+          // Carry the original URL fragment through the auth flow as
+          // a URL fragment, not a query parameter. Browsers do not
+          // send fragments to the server (RFC 9110 § 7.1), so any
+          // sensitive values an app places in the fragment (for
+          // example an OAuth implicit-flow `#access_token=...` or a
+          // password-reset token) stay client-side. The browser will
+          // re-attach the fragment to the proxy's 302 response back
+          // to the launcher (RFC 9110 § 15.4), letting the second
+          // leg pick it up again from `useLocation().hash`.
+          //
+          // Skip the fragment when a required-apps chain is in
+          // play. In that case the proxy 302 to the next app's
+          // launcher would carry the fragment across origins via
+          // RFC 9110 § 15.4, exposing the originally requested
+          // app's fragment to intermediate apps. The trade-off is
+          // that chain-redirected apps lose the original fragment
+          // entirely.
+          if (hash && requiredApps.length <= 1) {
+            url.hash = hash;
+          }
           windowLocation.replace(url.toString());
           return;
         }
@@ -155,7 +175,25 @@ export function AppLauncher({
         if (requiredApps.length > 1) {
           url.searchParams.set('required-apps', requiredApps.join(','));
         }
-        url.hash = `#value=${session.cookieValue}`;
+
+        // Build the URL fragment used by the inline JS in
+        // `lib/web/app/redirect.go` to finish the auth exchange:
+        // `value` is the session cookie, and `fragment` is the
+        // user's original URL fragment, both kept in the URL hash
+        // so neither hits the proxy as a query parameter.
+        //
+        // Skip `fragment` on a required-apps chain so the original
+        // fragment never enters the chain in the first place. The
+        // inline JS in `redirect.go` also drops the fragment on
+        // the chain branch as a defense-in-depth backstop.
+        // `useLocation().hash` always has a leading `#` when
+        // non-empty, so `slice(1)` strips it before packing.
+        const hashParams = new URLSearchParams();
+        hashParams.set('value', session.cookieValue);
+        if (hash && requiredApps.length <= 1) {
+          hashParams.set('fragment', hash.slice(1));
+        }
+        url.hash = hashParams.toString();
 
         if (path) {
           url.searchParams.set('path', path);
@@ -193,6 +231,7 @@ export function AppLauncher({
     arn,
     clusterId,
     fqdn,
+    hash,
     launchKey,
     mfa,
     publicAddr,
@@ -280,7 +319,10 @@ function getNewAuthExchangeUrl({
   // path will only be defined, if a user hit the app endpoint
   // directly. This path is created in the server.
   // The path preserves both the path and query params of
-  // the original request.
+  // the original request. The caller is responsible for
+  // setting `url.hash` on the returned URL if a fragment
+  // must be preserved across the redirect; this function
+  // only builds the path and query parts.
   path: string;
   requiredApps: string[];
 }) {

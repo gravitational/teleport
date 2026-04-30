@@ -75,6 +75,68 @@ const launcherPathTestCases: {
     expectedPath:
       'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value',
   },
+  {
+    // The fragment travels through the URL fragment of the
+    // auth-exchange URL, never the query string, so it stays out
+    // of proxy access logs.
+    name: 'no state with root path and fragment',
+    path: '?path=%2F#my-section',
+    expectedPath: 'x-teleport-auth?path=%2F#my-section',
+  },
+  {
+    name: 'no state with path and fragment',
+    path: '?path=%2Ffoo%2Fbar#my-section',
+    expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar#my-section',
+  },
+  {
+    name: 'no state with path, query, and fragment',
+    path: '?path=%2Ffoo%2Fbar&query=q%3Dv#my-section',
+    expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar%3Fq%3Dv#my-section',
+  },
+  {
+    // On the second leg the browser carries the original fragment
+    // forward via RFC 9110 § 15.4. The fragment is repacked
+    // alongside the session cookie value in the URL fragment of
+    // the redirect URL so the inline JS in
+    // lib/web/app/redirect.go can reattach it to the final
+    // navigation. The fragment is never serialised into the path
+    // query parameter.
+    name: 'with state, path, and fragment',
+    path: '?state=ABC&path=%2Ffoo%2Fbar#my-section',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value&fragment=my-section',
+  },
+  {
+    // The new `else if (origFragment)` branch in the inline JS at
+    // lib/web/app/redirect.go is the only branch that handles a
+    // second-leg navigation with no `path` but with a fragment;
+    // pin the launcher's side of that branch.
+    name: 'with state and fragment, no path',
+    path: '?state=ABC#my-section',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value#value=cookie-value&fragment=my-section',
+  },
+  {
+    // OAuth implicit-flow tokens stay client-side: they only appear
+    // in the URL fragment, encoded as the `fragment` param.
+    name: 'with state, path, and OAuth implicit-flow fragment',
+    path: '?state=ABC&path=%2Fcallback#access_token=secret&token_type=Bearer',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Fcallback#value=cookie-value&fragment=access_token%3Dsecret%26token_type%3DBearer',
+  },
+  {
+    // Chain-redirect case: the launcher gates fragment forwarding
+    // on requiredApps.length <= 1 so the fragment never enters the
+    // chain. The inline JS in lib/web/app/redirect.go drops the
+    // fragment on the chain branch as a defense-in-depth backstop.
+    // The user's original fragment is intentionally lost when a
+    // required-apps chain is in play, to avoid exposing it to
+    // intermediate apps' origins.
+    name: 'with state, path, fragment, and required-apps chain',
+    path: '?state=ABC&path=%2Ffoo&required-apps=app1,app2#secret',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&required-apps=app1%2Capp2&path=%2Ffoo#value=cookie-value',
+  },
 ];
 
 describe('app launcher path is properly formed', () => {
