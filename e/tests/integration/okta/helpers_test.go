@@ -215,13 +215,13 @@ func (c *tshCommand) run(t require.TestingT, args []string, opts ...cmdOption) e
 	return nil
 }
 
-func waitForOktaFirstOktaAssignment(t *testing.T, sut *common.SUT) {
+func waitForPerUserOktaAssignments(t *testing.T, watcher types.Watcher, count int) {
 	t.Helper()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assignments, _, err := sut.Teleport.Process.GetAuthServer().ListOktaAssignments(context.Background(), 0, "")
-		assert.NoError(t, err)
-		assert.NotEmpty(t, assignments)
-	}, time.Second*10, time.Millisecond*100)
+	seen := make(map[string]struct{})
+	waitForResource(t, watcher, func(assignment *types.OktaAssignmentV1) bool {
+		seen[assignment.GetUser()] = struct{}{}
+		return len(seen) >= count
+	})
 }
 
 type waitOptions struct {
@@ -337,4 +337,25 @@ func updateOktaPlugin(t *testing.T, plugins services.Plugins, updateFn func(p *t
 		_, err = plugins.UpdatePlugin(ctx, plugin)
 		require.NoError(t, err)
 	}, time.Second*10, time.Millisecond*50)
+}
+
+func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) {
+	t.Helper()
+	for {
+		select {
+		case event, ok := <-watcher.Events():
+			if !ok {
+				t.Fatal("watcher closed")
+			}
+			if event.Type != types.OpPut {
+				continue
+			}
+			resource, ok := event.Resource.(T)
+			if ok && fn(resource) {
+				return
+			}
+		case <-t.Context().Done():
+			t.Fatal("timed out waiting for resource")
+		}
+	}
 }

@@ -218,3 +218,27 @@ func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector 
 	require.NoError(t, err)
 	return connector
 }
+
+func (s *SUT) NewResourceWatcher(t *testing.T, kind ...string) types.Watcher {
+	t.Helper()
+	watchKinds := make([]types.WatchKind, 0, len(kind))
+	for _, k := range kind {
+		watchKinds = append(watchKinds, types.WatchKind{Kind: k})
+	}
+
+	watcher, err := s.Teleport.Process.GetAuthServer().NewWatcher(t.Context(), types.Watch{
+		Kinds: watchKinds,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { watcher.Close() })
+
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			t.Fatalf("expected initial event, got %s", event.Type)
+		}
+	case <-t.Context().Done():
+		t.Fatal("timeout waiting for initial event")
+	}
+	return watcher
+}

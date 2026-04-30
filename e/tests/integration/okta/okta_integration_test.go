@@ -75,6 +75,8 @@ func TestBasicAssignmentFlow(t *testing.T) {
 
 	tclCmd := sut.GetTCTL(t)
 
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+
 	beforeInstall := time.Now()
 
 	err := tclCmd.Run(t.Context(),
@@ -95,7 +97,9 @@ func TestBasicAssignmentFlow(t *testing.T) {
 	})
 
 	waitForOktaSync(t, sut, withTimeout(time.Minute), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
-	waitForOktaFirstOktaAssignment(t, sut)
+	// During init we have added 3 users to the group, so we should have 3 initial assignments created for those users.
+	numOfInitialUserOktaAssignments := 3
+	waitForPerUserOktaAssignments(t, assignmentWatcher, numOfInitialUserOktaAssignments)
 	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaUserLogin(fakeOkta.provisionedUsers[0]))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -158,6 +162,8 @@ func TestNestedAclAssignment(t *testing.T) {
 	authServer := sut.Teleport.Process.GetAuthServer()
 	tctlCmd := sut.GetTCTL(t)
 
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+
 	beforeInstall := time.Now()
 
 	err := tctlCmd.Run(t.Context(),
@@ -176,7 +182,9 @@ func TestNestedAclAssignment(t *testing.T) {
 		timeBetweenAssignmentProcessLoops: time.Second,
 	})
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
-	waitForOktaFirstOktaAssignment(t, sut)
+	// During init we have added 3 users to the group, so we should have 3 initial assignments created for those users.
+	numOfInitialUserOktaAssignments := 3
+	waitForPerUserOktaAssignments(t, assignmentWatcher, numOfInitialUserOktaAssignments)
 	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
 
 	oktaSyncedList, err := authServer.GetAccessList(ctx, fakeOkta.provisionedGroups[0].Id)
