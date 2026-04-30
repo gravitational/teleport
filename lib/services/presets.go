@@ -840,6 +840,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 				},
 			},
 		},
