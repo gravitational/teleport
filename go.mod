@@ -641,3 +641,5 @@ replace (
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
+
+replace github.com/gorilla/websocket => github.com/tigrato/websocket v0.0.0-20260430151903-2891ac7863ba
