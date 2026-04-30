@@ -53,10 +53,16 @@ func NewFakeHostNetwork() (*FakeHostNetwork, error) {
 	}()
 
 	return &FakeHostNetwork{
-		tun:     vnetTun,
-		stack:   stack,
-		nic:     nic,
-		cancel:  cancel,
+		tun:   vnetTun,
+		stack: stack,
+		nic:   nic,
+		closeFn: func() {
+			cancel()
+
+			if err := hostTun.Close(); err != nil {
+				slog.ErrorContext(ctx, "failed to close host-side TUN")
+			}
+		},
 		readyCh: make(chan struct{}),
 	}, nil
 }
@@ -64,10 +70,10 @@ func NewFakeHostNetwork() (*FakeHostNetwork, error) {
 // FakeHostNetwork implements an in-memory emulation of a host network for use
 // in tests.
 type FakeHostNetwork struct {
-	tun    TUNDevice
-	stack  *stack.Stack
-	nic    *channel.Endpoint
-	cancel context.CancelFunc
+	tun     TUNDevice
+	stack   *stack.Stack
+	nic     *channel.Endpoint
+	closeFn func()
 
 	mu         sync.Mutex
 	readyCh    chan struct{}
@@ -262,7 +268,7 @@ func (f *FakeHostNetwork) HTTPTransport() *http.Transport {
 }
 
 // Close the network to free its resources.
-func (f *FakeHostNetwork) Close() { f.cancel() }
+func (f *FakeHostNetwork) Close() { f.closeFn() }
 
 // newSplitTUN returns two fake TUN devices that are tied together: writes to one can be read on the other,
 // and vice versa.
