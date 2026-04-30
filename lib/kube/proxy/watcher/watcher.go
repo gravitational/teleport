@@ -234,6 +234,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 			// It's possible the watcher will recover eventually. If using the cache,
 			// on error the cache will close the watcher and we handle that separately.
 			w.hot.Store(false)
+			w.Logger.WarnContext(w.ctx, "slow watcher init")
 		}
 	}
 
@@ -350,12 +351,19 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 	}
 	_, err := w.gate.Do(ctx, func(ctx context.Context) error {
 		newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
-		if err == nil && !w.hot.Load() {
-			w.rw.Lock()
-			w.current = newCurrent
-			w.rw.Unlock()
+		if err != nil {
+			return trace.Wrap(err, "fetching from fallback")
 		}
-		return trace.Wrap(err, "fetching from fallback")
+
+		w.rw.Lock()
+		defer w.rw.Unlock()
+		if w.hot.Load() {
+			// Double check cache is not hot while we waited on the lock and/or fetch.
+			return nil
+		}
+
+		w.current = newCurrent
+		return nil
 	})
 	return err
 }
