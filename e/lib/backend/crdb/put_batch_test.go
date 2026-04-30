@@ -46,6 +46,38 @@ func (f fakePool) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults 
 	panic("not implemented")
 }
 
+// TestPutBatch_ExecUsesAcquiredConnection verifies that PutBatch calls Exec on
+// the connection acquired via AcquireFunc rather than directly on the pool.
+func TestPutBatch_ExecUsesAcquiredConnection(t *testing.T) {
+	b := &Backend{
+		log: logtest.NewLogger(),
+		pool: fakePool{
+			acquireFunc: func(ctx context.Context, f func(*pgxpool.Conn) error) error {
+				defer func() { recover() }()
+				// This is expected flow.
+				// The acquireFunc was called, but we don't want to don't need to inject
+				// the real *pgxpool.Conn.
+				_ = f(nil)
+				return nil
+			},
+			execFunc: func(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+				t.Fatal("pool.Exec must not be called directly; Exec should be called on the acquired connection")
+				return pgconn.CommandTag{}, nil
+			},
+		},
+	}
+
+	now := time.Now().UTC()
+	items := []backend.Item{
+		{Key: backend.NewKey("key1"), Value: []byte("value1"), Expires: now},
+	}
+
+	// PutBatch should succeed because AcquireFunc returns nil (no error).
+	revisions, err := b.PutBatch(t.Context(), items)
+	require.NoError(t, err)
+	require.Len(t, revisions, len(items))
+}
+
 func TestPutBatchChunk_ProtocolViolationError(t *testing.T) {
 	callCount := 0
 	b := &Backend{

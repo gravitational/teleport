@@ -81,7 +81,7 @@ func (b *Backend) PutBatch(ctx context.Context, items []backend.Item) ([]string,
 				defer cancel()
 
 				upsertStmt := `UPSERT INTO kv (key, value, expires, revision) SELECT * FROM UNNEST($1::bytea[], $2::bytea[], $3::timestamptz[], $4::uuid[]);`
-				if _, err := b.pool.Exec(ctx, upsertStmt, keys, values, expires, revs); err != nil {
+				if _, err := c.Exec(ctx, upsertStmt, keys, values, expires, revs); err != nil {
 					return trace.Wrap(err)
 				}
 				return nil
