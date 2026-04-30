@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -410,8 +411,7 @@ func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
 		return nil, trace.BadParameter("duplicate key detected in PutBatch: %q", v)
 	}
 	// Many Backend implementations rely on unique keys for correct operation.
-	// Where it is up to the caller to ensure this to remove duplication keys
-	// Just in case we will fallback to single Put calls if duplicates are detected.
+	// Where it is up to the caller to ensure this to remove duplication keys.
 	if v, ok := bk.(BatchPutter); ok {
 		revs, err := v.PutBatch(ctx, items)
 		return revs, trace.Wrap(err)
@@ -433,9 +433,13 @@ func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
 // it falls back to calling [Backend.Delete] for each key individually.
 // Keys that do not exist are silently ignored.
 //
+// WARNING: Make sure that keys are unique when calling DeleteBatch.
+//
 // TODO(smallinsky): Move to backend interfaces and make required for backends to
 // implement batch deletes interfaces.
 func DeleteBatch(ctx context.Context, bk Backend, keys []Key) error {
+	keys = slices.DeduplicateKey(keys, func(k Key) string { return k.String() })
+
 	if v, ok := bk.(BatchDeleter); ok {
 		return trace.Wrap(v.DeleteBatch(ctx, keys))
 	}
