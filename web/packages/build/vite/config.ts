@@ -29,7 +29,7 @@ import { guardWasmPlugin } from './guard-wasm';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
 
-const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+const DEFAULT_PROXY_TARGET = 'localhost:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
 
 export function createViteConfig(
