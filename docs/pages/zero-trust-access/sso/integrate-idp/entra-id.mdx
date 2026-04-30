@@ -300,6 +300,12 @@ Should a user's group membership exceed 150 groups, Teleport will follow through
 the groups link attribute issued by Entra ID and fetch user's group details using the
 Microsoft Graph API. 
 
+<details>
+<summary>Customize how Teleport follows the groups overage claim</summary>
+
+(!docs/pages/includes/sso/entraid-groups-provider.mdx type="saml"!)
+</details>
+
 
 ## Step 3/3. Configure authentication preferences
 
@@ -471,12 +477,6 @@ Update the connector by saving and closing the file in your editor.
 ![Activate certificate](../../../../img/azuread/azuread-token-encryption-2-activate.png)
 
 If the SSO login with this connector is successful, the encryption works.
-
-## FAQ
-
-### I want to customize how Teleport follows the groups overage claim
-
-(!docs/pages/includes/sso/entraid-groups-provider.mdx type="saml"!)
 
 ## Next steps
 
