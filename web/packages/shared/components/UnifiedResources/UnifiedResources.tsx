@@ -259,11 +259,14 @@ export interface UnifiedResourcesProps {
    */
   visibleResourceItemFields?: VisibleResourceItemFields;
   /**
-   * If true, renders a check icon at the top right corner of cards
-   * or right next to resource name for list view rows for all
-   * resources.
+   * Controls rendering of a check icon at the top right corner of cards
+   * or right next to resource name for list view rows.
+   *
+   * If a boolean, applies to all resources uniformly.
+   * If a function, called per resource with its labels to determine
+   * whether the icon should be shown.
    */
-  showResourcesSelectedIcon?: boolean;
+  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -289,7 +292,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     className,
     forceNoResources,
     noResultCustomText,
-    showResourcesSelectedIcon,
+    showResourceSelectedIcon,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -694,7 +697,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   query: makeAdvancedSearchQueryForLabel(label, params),
                 })
         }
-        showResourcesSelectedIcon={showResourcesSelectedIcon}
+        showResourceSelectedIcon={showResourceSelectedIcon}
         resourceLabelConfig={resourceLabelConfig}
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}
