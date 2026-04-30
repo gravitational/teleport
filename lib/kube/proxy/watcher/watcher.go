@@ -207,7 +207,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 		case <-time.After(w.PrimaryTimeout):
 			// Do not return timeout here but mark the failure and continue waiting.
 			// It's possible the watcher will recover eventually. If using the cache,
-			// on error the cache will close the watcher and we handle that seperately.
+			// on error the cache will close the watcher and we handle that separately.
 			w.handleWatchError(trace.ConnectionProblem(nil, "watcher taking too long to init"))
 		}
 	}
