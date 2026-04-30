@@ -35,15 +35,17 @@ import (
 // terminal emulator to generate SVG thumbnails, and records resize events, user join/leave activity, and inactivity periods.
 type ttyRecordingProcessor struct {
 	baseRecordingProcessor
+	thumbnailInterval time.Duration
 	activeUsers       map[string]time.Duration
 	hasSeenPrintEvent bool
 }
 
-func newTTYRecordingProcessor(base baseRecordingProcessor) *ttyRecordingProcessor {
+func newTTYRecordingProcessor(base baseRecordingProcessor, duration time.Duration) *ttyRecordingProcessor {
 	base.thumbnailGenerator = newTTYThumbnailGenerator()
 
 	return &ttyRecordingProcessor{
 		baseRecordingProcessor: base,
+		thumbnailInterval:      calculateThumbnailInterval(duration, maxThumbnails, ttyMinThumbnailInterval),
 		activeUsers:            make(map[string]time.Duration),
 	}
 }
@@ -146,7 +148,7 @@ func (t *ttyRecordingProcessor) handleSessionPrint(evt *apievents.SessionPrint) 
 		return trace.Wrap(err)
 	}
 
-	t.captureThumbnailIfNeeded(evt.Time)
+	t.captureThumbnailIfNeeded(evt.Time, t.thumbnailInterval)
 
 	return nil
 }
@@ -180,7 +182,7 @@ func (t *ttyRecordingProcessor) handleSessionEnd(evt *apievents.SessionEnd) erro
 		t.addInactivityEvent(t.lastActivityTime, evt.Time)
 	}
 
-	t.captureThumbnailIfNeeded(evt.Time)
+	t.captureThumbnailIfNeeded(evt.Time, t.thumbnailInterval)
 
 	return nil
 }

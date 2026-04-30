@@ -19,6 +19,8 @@
 package recordingmetadatav1
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -29,13 +31,15 @@ import (
 
 type desktopProcessor struct {
 	baseRecordingProcessor
+	thumbnailInterval time.Duration
 }
 
-func newDesktopProcessor(base baseRecordingProcessor) *desktopProcessor {
+func newDesktopProcessor(base baseRecordingProcessor, duration time.Duration) *desktopProcessor {
 	base.thumbnailGenerator = newDesktopThumbnailGenerator()
 
 	return &desktopProcessor{
 		baseRecordingProcessor: base,
+		thumbnailInterval:      calculateThumbnailInterval(duration, maxThumbnails, desktopMinThumbnailInterval),
 	}
 }
 
@@ -72,13 +76,13 @@ func (d *desktopProcessor) handleDesktopRecording(evt *apievents.DesktopRecordin
 		return trace.Wrap(err)
 	}
 
-	d.captureThumbnailIfNeeded(evt.GetTime())
+	d.captureThumbnailIfNeeded(evt.GetTime(), d.thumbnailInterval)
 
 	return nil
 }
 
 func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.WindowsDesktopSessionEnd) error {
-	d.captureThumbnailIfNeeded(evt.GetTime())
+	d.captureThumbnailIfNeeded(evt.GetTime(), d.thumbnailInterval)
 
 	return nil
 }

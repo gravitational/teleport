@@ -74,7 +74,7 @@ func TestDesktopThumbnailGenerator_ThumbnailScaling(t *testing.T) {
 			require.NoError(t, gen.handleEvent(desktopServerHelloEvent(t, startTime, tt.screenW, tt.screenH)))
 			require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White))))
 
-			thumb, err := gen.produceThumbnail()
+			thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
 			require.NoError(t, err)
 			require.NotNil(t, thumb)
 
@@ -127,7 +127,7 @@ func TestDesktopThumbnailGenerator_CursorMetadata(t *testing.T) {
 				require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(time.Duration(i+1)*time.Second), pdu)))
 			}
 
-			thumb, err := gen.produceThumbnail()
+			thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectedVisible, thumb.CursorVisible)
@@ -144,7 +144,7 @@ func TestDesktopThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 		gen := newDesktopThumbnailGenerator()
 		defer gen.release()
 
-		_, err := gen.produceThumbnail()
+		_, err := gen.produceThumbnail(thumbnailMaxDimensions)
 		require.Error(t, err)
 	})
 
@@ -155,12 +155,12 @@ func TestDesktopThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 		require.NoError(t, gen.handleEvent(desktopServerHelloEvent(t, startTime, 100, 100)))
 		require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White))))
 
-		thumb1, err := gen.produceThumbnail()
+		thumb1, err := gen.produceThumbnail(thumbnailMaxDimensions)
 		require.NoError(t, err)
 
 		require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(2*time.Second), rdpstatetest.BuildBitmapPDU(10, 10, 4, 2, rdpstatetest.RGB565Red))))
 
-		thumb2, err := gen.produceThumbnail()
+		thumb2, err := gen.produceThumbnail(thumbnailMaxDimensions)
 		require.NoError(t, err)
 
 		require.NotEqual(t, thumb1.Png, thumb2.Png, "thumbnails should differ after more updates")
@@ -173,14 +173,14 @@ func TestDesktopThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 		require.NoError(t, gen.handleEvent(desktopServerHelloEvent(t, startTime, 1920, 1080)))
 		require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White))))
 
-		thumbNoCursor, err := gen.produceThumbnail()
+		thumbNoCursor, err := gen.produceThumbnail(thumbnailMaxDimensions)
 		require.NoError(t, err)
 
 		// Make cursor visible at center of screen.
 		require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(2*time.Second), rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))))
 		require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(3*time.Second), rdpstatetest.BuildPointerPositionPDU(960, 540))))
 
-		thumbWithCursor, err := gen.produceThumbnail()
+		thumbWithCursor, err := gen.produceThumbnail(thumbnailMaxDimensions)
 		require.NoError(t, err)
 
 		require.NotEqual(t, thumbNoCursor.Png, thumbWithCursor.Png)

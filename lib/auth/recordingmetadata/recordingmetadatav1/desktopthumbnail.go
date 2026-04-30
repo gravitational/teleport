@@ -34,9 +34,15 @@ import (
 )
 
 const (
-	// thumbnailMaxDimensions is the maximum dimension (width or height) for desktop thumbnails. The other dimension is
-	// computed from the screen's actual aspect ratio to avoid black bars.
+	// thumbnailMaxDimensions is the maximum dimension (width or height) for the representative
+	// session thumbnail. The other dimension is computed from the screen's actual aspect ratio
+	// to avoid black bars.
 	thumbnailMaxDimensions = 1536
+
+	// frameMaxDimensions is the maximum dimension for streamed timeline frames. Frames are
+	// rendered smaller than the representative thumbnail since they're displayed at low
+	// resolution in the scrubber UI, which keeps the metadata file size reasonable.
+	frameMaxDimensions = 1024
 
 	// cursorVisibleZoom is the zoom level applied when the cursor is visible
 	cursorVisibleZoom = 2.0
@@ -83,10 +89,10 @@ func (d *desktopThumbnailGenerator) handleDesktopRecording(evt *apievents.Deskto
 }
 
 // produceThumbnail generates a thumbnail from the current RDP state. If the cursor is visible, the thumbnail is zoomed
-// to the area around the cursor.
+// to the area around the cursor. maxDim caps the longer side (in pixels) of the encoded PNG.
 // NOTE: If the decoder is not available (e.g. in nop builds without desktop_access_rdp), this will return nil without
 // error and all subsequent calls will be no-ops.
-func (d *desktopThumbnailGenerator) produceThumbnail() (*pb.SessionRecordingThumbnail, error) {
+func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRecordingThumbnail, error) {
 	if d.disabled {
 		return nil, nil
 	}
@@ -110,17 +116,17 @@ func (d *desktopThumbnailGenerator) produceThumbnail() (*pb.SessionRecordingThum
 	cropW := bounds.Dx()
 	cropH := bounds.Dy()
 
-	// Scale the crop to fit within thumbnailMaxDimensions.
+	// Scale the crop to fit within maxDim.
 	thumbW, thumbH := cropW, cropH
 	if thumbW > thumbH {
-		if thumbW > thumbnailMaxDimensions {
-			thumbH = thumbH * thumbnailMaxDimensions / thumbW
-			thumbW = thumbnailMaxDimensions
+		if thumbW > maxDim {
+			thumbH = thumbH * maxDim / thumbW
+			thumbW = maxDim
 		}
 	} else {
-		if thumbH > thumbnailMaxDimensions {
-			thumbW = thumbW * thumbnailMaxDimensions / thumbH
-			thumbH = thumbnailMaxDimensions
+		if thumbH > maxDim {
+			thumbW = thumbW * maxDim / thumbH
+			thumbH = maxDim
 		}
 	}
 

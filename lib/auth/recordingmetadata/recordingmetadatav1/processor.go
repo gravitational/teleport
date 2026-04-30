@@ -49,20 +49,17 @@ type recordingProcessor interface {
 
 func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionType recordingmetadata.SessionType, duration time.Duration) recordingProcessor {
 	base := baseRecordingProcessor{
-		metadata:          &pb.SessionRecordingMetadata{},
-		writer:            writer,
-		logger:            logger,
-		thumbnailInterval: calculateThumbnailInterval(duration, maxThumbnails),
-		thumbnailTime:     getRandomThumbnailTime(duration),
+		metadata:      &pb.SessionRecordingMetadata{},
+		writer:        writer,
+		logger:        logger,
+		thumbnailTime: getRandomThumbnailTime(duration),
 	}
 
 	switch sessionType {
 	case recordingmetadata.SessionTypeTTY:
-		return newTTYRecordingProcessor(base)
-
+		return newTTYRecordingProcessor(base, duration)
 	case recordingmetadata.SessionTypeDesktop:
-		return newDesktopProcessor(base)
-
+		return newDesktopProcessor(base, duration)
 	default:
 		logger.WarnContext(context.Background(), "unsupported session type for recording metadata generation, skipping thumbnail generation", "sessionType", sessionType)
 	}
@@ -80,7 +77,6 @@ type baseRecordingProcessor struct {
 	lastActivityTime time.Time
 	startTime        time.Time
 
-	thumbnailInterval time.Duration
 	thumbnailTime     time.Duration
 	lastThumbnailTime time.Time
 	thumbnail         *pb.SessionRecordingThumbnail
@@ -89,45 +85,56 @@ type baseRecordingProcessor struct {
 	logger *slog.Logger
 }
 
-func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time) {
-	if eventTime.Sub(b.lastThumbnailTime) < b.thumbnailInterval {
+func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, interval time.Duration) {
+	if eventTime.Sub(b.lastThumbnailTime) < interval {
 		return
 	}
 
-	thumbnail, err := b.thumbnailGenerator.produceThumbnail()
+	frame, err := b.thumbnailGenerator.produceThumbnail(frameMaxDimensions)
 	if err != nil {
 		b.logger.WarnContext(context.Background(), "Failed to produce thumbnail", "error", err)
 
 		return
 	}
 
-	if thumbnail == nil {
+	if frame == nil {
 		return
 	}
 
 	b.lastThumbnailTime = eventTime
 
-	thumbnail.StartOffset = durationpb.New(eventTime.Sub(b.startTime))
-	thumbnail.EndOffset = durationpb.New(eventTime.Add(b.thumbnailInterval).Add(-1 * time.Millisecond).Sub(b.startTime))
+	startOffset := durationpb.New(eventTime.Sub(b.startTime))
+	endOffset := durationpb.New(eventTime.Add(interval).Add(-1 * time.Millisecond).Sub(b.startTime))
+	frame.StartOffset = startOffset
+	frame.EndOffset = endOffset
 
-	if _, err := protodelim.MarshalTo(b.writer, thumbnail); err != nil {
+	if _, err := protodelim.MarshalTo(b.writer, frame); err != nil {
 		// log the error but continue processing other thumbnails and the session metadata (metadata is more important)
 		b.logger.WarnContext(context.Background(), "Failed to marshal thumbnail entry", "error", err)
 	}
 
-	if b.thumbnail == nil {
-		b.thumbnail = thumbnail
+	// Decide whether this frame should become the representative thumbnail. We only re-encode at
+	// the higher resolution when the frame is actually being kept, to avoid wasted work.
+	if b.thumbnail != nil {
+		previousDiff := math.Abs(float64(b.thumbnailTime - b.thumbnail.StartOffset.AsDuration()))
+		diff := math.Abs(float64(b.thumbnailTime - eventTime.Sub(b.startTime)))
+		if diff >= previousDiff {
+			return
+		}
+	}
+
+	representative, err := b.thumbnailGenerator.produceThumbnail(thumbnailMaxDimensions)
+	if err != nil {
+		b.logger.WarnContext(context.Background(), "Failed to produce representative thumbnail", "error", err)
 
 		return
 	}
-
-	previousDiff := math.Abs(float64(b.thumbnailTime - b.thumbnail.StartOffset.AsDuration()))
-	diff := math.Abs(float64(b.thumbnailTime - eventTime.Sub(b.startTime)))
-
-	if diff < previousDiff {
-		// this thumbnail is closer to the ideal thumbnail time, use it instead
-		b.thumbnail = thumbnail
+	if representative == nil {
+		return
 	}
+	representative.StartOffset = startOffset
+	representative.EndOffset = endOffset
+	b.thumbnail = representative
 }
 
 func (b *baseRecordingProcessor) release() {

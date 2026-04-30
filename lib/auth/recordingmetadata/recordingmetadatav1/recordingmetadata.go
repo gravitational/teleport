@@ -79,8 +79,21 @@ const (
 	// inactivityThreshold is the duration after which an inactivity event is recorded.
 	inactivityThreshold = 10 * time.Second
 
-	// maxThumbnails is the maximum number of thumbnails to store in the session metadata.
+	// maxThumbnails is the maximum number of thumbnails to store in the session metadata. Sessions
+	// longer than maxThumbnails * (minimum interval) get a longer interval scaled to fit within
+	// this cap.
 	maxThumbnails = 1000
+
+	// ttyMinThumbnailInterval is the minimum gap between captured thumbnails for terminal sessions.
+	// SVG thumbnails are small and resolution-independent, so capturing once per second keeps fine
+	// timeline granularity at negligible cost.
+	ttyMinThumbnailInterval = 1 * time.Second
+
+	// desktopMinThumbnailInterval is the minimum gap between captured thumbnails for desktop
+	// sessions. Each PNG frame is on the order of tens of KB, so the interval is bumped to keep
+	// metadata file size reasonable. A 17-minute session produces ~145 thumbnails; a 2-hour session
+	// hits the maxThumbnails cap.
+	desktopMinThumbnailInterval = 7 * time.Second
 
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
@@ -329,18 +342,10 @@ func getRandomThumbnailTime(duration time.Duration) time.Duration {
 	return time.Duration(rand.IntN(maxIndex-minIndex) + minIndex)
 }
 
-func calculateThumbnailInterval(duration time.Duration, maxThumbnails int) time.Duration {
-	interval := time.Second
-
-	if duration > time.Duration(maxThumbnails)*time.Second {
-		interval = duration / time.Duration(maxThumbnails)
+func calculateThumbnailInterval(duration time.Duration, maxThumbnails int, minInterval time.Duration) time.Duration {
+	interval := (duration / time.Duration(maxThumbnails)).Round(time.Second)
+	if interval < minInterval {
+		return minInterval
 	}
-
-	interval = interval.Round(time.Second)
-
-	if interval < time.Second {
-		interval = time.Second
-	}
-
 	return interval
 }
