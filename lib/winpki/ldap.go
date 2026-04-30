@@ -355,6 +355,9 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 		var ldapErr *ldap.Error
 		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
 			referrals := extractReferrals(ldapErr)
+			if len(referrals) == 0 {
+				return nil, trace.Errorf("Failed to extract referrals from ldap error: %v", err)
+			}
 			l.cfg.Logger.DebugContext(ctx, "Got referrals from paged query error", "referrals", referrals)
 			return searchResultReferral{
 				referrals: referrals,
