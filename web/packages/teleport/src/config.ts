@@ -1304,9 +1304,9 @@ const cfg = {
   getRoleUrl(
     req:
       | {
-        action: 'get' | 'delete' | 'update';
-        name: string;
-      }
+          action: 'get' | 'delete' | 'update';
+          name: string;
+        }
       | { action: 'list' | 'listv2'; params?: UrlListRolesParams }
   ) {
     const action = req.action;
@@ -1731,9 +1731,9 @@ const cfg = {
     req: (
       | { action: 'list' | 'create' | 'gen-wizard-cicd' }
       | {
-        action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
-        botName: string;
-      }
+          action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
+          botName: string;
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
@@ -1784,19 +1784,19 @@ const cfg = {
   getBotInstanceUrl(
     req: (
       | {
-        action: 'list';
-      }
+          action: 'list';
+        }
       | {
-        action: 'listV2';
-      }
+          action: 'listV2';
+        }
       | {
-        action: 'read';
-        botName: string;
-        instanceId: string;
-      }
+          action: 'read';
+          botName: string;
+          instanceId: string;
+        }
       | {
-        action: 'metrics';
-      }
+          action: 'metrics';
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
