@@ -29,6 +29,8 @@ import (
 )
 
 var _ Backend = (*Wrapper)(nil)
+var _ BatchDeleter = (*Wrapper)(nil)
+var _ BatchPutter = (*Wrapper)(nil)
 
 // Wrapper wraps a Backend implementation that can fail
 // on demand.
