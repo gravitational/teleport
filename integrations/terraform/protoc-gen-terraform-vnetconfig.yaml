@@ -33,6 +33,7 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - 'VnetConfig.id'
+  - 'VnetConfig.metadata.revision'
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -40,7 +41,6 @@ computed_fields:
   - 'VnetConfig.metadata'
   - 'VnetConfig.metadata.name'
   - 'VnetConfig.metadata.namespace'
-  - 'VnetConfig.metadata.revision'
   - "VnetConfig.kind"
   - "VnetConfig.sub_kind"
   - "VnetConfig.version"
