@@ -342,23 +342,18 @@ func TestProxyKubeServerWatcher_RetryWatchAfterTimeout(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest)
 }
 
-func testProxyKubeServerWatcherRetriesAfterTimeoutSynctest(t *testing.T) {
+func testProxyKubeServerWatcherRecoversAfterTimeoutSynctest(t *testing.T) {
 	ctx := t.Context()
 
-	fw1 := newFakeWatcher(1) // never sends OpInit
-	fw2 := newFakeWatcher(1)
+	fw := newFakeWatcher(1)
 
 	primary := &mockKubeServerWatcherGetter{}
 	fallback := &mockKubeServerWatcherGetter{}
 
-	primary.On("NewWatcher", mock.Anything, mock.Anything).
-		Return(fw1, nil).
-		Once()
-
 	primary.On("GetKubernetesServers", mock.Anything).
 		Return([]types.KubeServer{}, nil).Once().NotBefore(
 		primary.On("NewWatcher", mock.Anything, mock.Anything).
-			Return(fw2, nil).
+			Return(fw, nil).
 			Once(),
 	)
 
@@ -373,9 +368,9 @@ func testProxyKubeServerWatcherRetriesAfterTimeoutSynctest(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	time.Sleep(21 * time.Millisecond)
-	require.False(t, w.hot.Load())
 
-	fw2.send(types.Event{Type: types.OpInit})
+	require.False(t, w.hot.Load())
+	fw.send(types.Event{Type: types.OpInit})
 	synctest.Wait()
 
 	require.True(t, w.hot.Load())
@@ -384,8 +379,8 @@ func testProxyKubeServerWatcherRetriesAfterTimeoutSynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcher_RetriesAfterTimeout(t *testing.T) {
-	synctest.Test(t, testProxyKubeServerWatcherRetriesAfterTimeoutSynctest)
+func TestProxyKubeServerWatcher_RecoversAfterTimeout(t *testing.T) {
+	synctest.Test(t, testProxyKubeServerWatcherRecoversAfterTimeoutSynctest)
 }
 
 func testProxyKubeServerWatcherKeepsStaleServersSynctest(t *testing.T) {
