@@ -43,7 +43,12 @@ export const AppInitializer = () => {
       // activate it.
       const rootClusterUri =
         appContext.workspacesService.getRestoredState()?.rootClusterUri;
-      if (rootClusterUri) {
+      if (
+        rootClusterUri &&
+        // Only activate the workspace if its cluster still exists; otherwise
+        // activation would recreate the profile.
+        appContext.clustersService.findCluster(rootClusterUri)
+      ) {
         void appContext.workspacesService.setActiveWorkspace(rootClusterUri);
       }
       appContext.mainProcessClient.signalUserInterfaceReadiness({
