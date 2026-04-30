@@ -57,6 +57,7 @@ func ValidateMSGraphAndLoginEndpoints(loginEndpoint, graphEndpoint string) error
 }
 
 // ValidateMSGraphEndpoint checks if the given endpoint points to a valid MS Graph endpoint.
+// Note: An empty string is considered valid to maintain backward compatibility.
 func ValidateMSGraphEndpoint(graphEndpoint string) error {
 	if graphEndpoint != "" && !slices.Contains(validGraphEndpoints, graphEndpoint) {
 		return trace.BadParameter("expected graph endpoint to be one of %q, got %q", validGraphEndpoints, graphEndpoint)
@@ -65,6 +66,7 @@ func ValidateMSGraphEndpoint(graphEndpoint string) error {
 }
 
 // ValidateMSLoginEndpoint checks if the given endpoint points to a valid MS login endpoint.
+// Note: An empty string is considered valid to maintain backward compatibility.
 func ValidateMSLoginEndpoint(loginEndpoint string) error {
 	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
 		return trace.BadParameter("expected login endpoint to be one of %q, got %q", validLoginEndpoints, loginEndpoint)
