@@ -90,6 +90,8 @@ func newTestCommand(format string) *Command {
 }
 
 func TestRunNodes(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -349,6 +351,8 @@ Azure sub-1   eastus rg-1/vm-on...               Online
 }
 
 func TestBuildNodes_CloudFilter(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
 		desc       string
