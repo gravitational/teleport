@@ -267,6 +267,10 @@ export interface UnifiedResourcesProps {
    * whether the icon should be shown.
    */
   showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
+  /**
+   * Optional content rendered on the left side of the filter panel.
+   */
+  FilterPanelLeftContent?: JSX.Element;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -293,6 +297,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     forceNoResources,
     noResultCustomText,
     showResourceSelectedIcon,
+    FilterPanelLeftContent,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -625,6 +630,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
         ClusterDropdown={ClusterDropdown}
+        LeftContent={FilterPanelLeftContent}
         setExpandAllLabels={expandAllLabels => {
           setLabelsViewMode(
             expandAllLabels ? LabelsViewMode.EXPANDED : LabelsViewMode.COLLAPSED

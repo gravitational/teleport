@@ -93,6 +93,10 @@ interface FilterPanelProps {
    * When specified, only fields with `true` value are shown.
    */
   visibleFilterPanelFields?: VisibleFilterPanelFields;
+  /**
+   * Optional content rendered on the left side of the filter panel.
+   */
+  LeftContent?: JSX.Element;
 }
 
 export function FilterPanel({
@@ -119,6 +123,7 @@ export function FilterPanel({
     resourceAvailabilityOpts: true,
     collapseLabelBtn: true,
   },
+  LeftContent = null,
 }: FilterPanelProps) {
   const { sort, kinds, statuses } = params;
 
@@ -156,7 +161,8 @@ export function FilterPanel({
       minHeight="32px"
       alignItems="center"
     >
-      <Flex gap={2}>
+      <Flex gap={2} alignItems="center">
+        {LeftContent}
         {visibleFilterPanelFields.checkbox && (
           <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
             <CheckboxInput
