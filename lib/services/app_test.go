@@ -786,9 +786,6 @@ func TestValidateAppAllowedCAsContents(t *testing.T) {
 	caKeyPEM, caCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
 	require.NoError(t, err)
 
-	_, caCertPEM2, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
-	require.NoError(t, err)
-
 	identity := &tlsca.Identity{Username: "test-user"}
 	subj, err := identity.Subject()
 	require.NoError(t, err)
@@ -814,9 +811,9 @@ func TestValidateAppAllowedCAsContents(t *testing.T) {
 			contents:  caCertPEM,
 			expectErr: require.NoError,
 		},
-		"multiple valid ca": {
-			contents:  bytes.Join([][]byte{caCertPEM, caCertPEM2}, []byte("\n")),
-			expectErr: require.NoError,
+		"only single ca allowed": {
+			contents:  bytes.Join([][]byte{caCertPEM, caCertPEM}, []byte("\n")),
+			expectErr: require.Error,
 		},
 		"no CA certificate": {
 			contents:  bytes.Join([][]byte{caCertPEM, tlsCert}, []byte("\n")),
@@ -831,39 +828,4 @@ func TestValidateAppAllowedCAsContents(t *testing.T) {
 			tc.expectErr(t, isValidCACertificatePEM(string(tc.contents)))
 		})
 	}
-
-	t.Run("expired certificates", func(t *testing.T) {
-		for name, tc := range map[string]struct {
-			notBefore time.Duration
-			notAfter  time.Duration
-			expectErr require.ErrorAssertionFunc
-		}{
-			"valid": {
-				notBefore: 0,              // Valid starting now.
-				notAfter:  24 * time.Hour, // Expires after 24h
-				expectErr: require.NoError,
-			},
-			"not valid": {
-				notBefore: time.Hour,      // Valid starting in 1 hour.
-				notAfter:  24 * time.Hour, // Expires after 24h
-				expectErr: require.Error,
-			},
-			"expired": {
-				notBefore: -2 * time.Hour, // Valid 2 hours ago.
-				notAfter:  -1 * time.Hour, // Expired 1 hour ago.
-				expectErr: require.Error,
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				now := time.Now()
-				_, caPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
-					ClusterName: "example.com",
-					NotBefore:   now.Add(tc.notBefore),
-					NotAfter:    now.Add(tc.notAfter),
-				})
-				require.NoError(t, err)
-				tc.expectErr(t, isValidCACertificatePEM(string(caPEM)))
-			})
-		}
-	})
 }

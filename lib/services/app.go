@@ -22,7 +22,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -34,7 +33,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -47,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -551,32 +550,18 @@ func isValidSpiffeID(s string) error {
 }
 
 // isValidCACertificatePEM validates that s contains valid PEM-encoded CA
-// certificates.
+// certificate.
 func isValidCACertificatePEM(s string) error {
-	if len(s) == 0 {
-		return trace.BadParameter("contains no valid PEM-encoded certificates")
+	cert, err := tlsutils.ParseCertificatePEMStrict([]byte(s))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	now := time.Now()
-	data := []byte(s)
-	for len(data) > 0 {
-		var block *pem.Block
-		block, data = pem.Decode(data)
-		if block == nil {
-			return trace.BadParameter("expected a PEM-encoded certificate")
-		}
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return trace.BadParameter("invalid certificate: %s", err)
-		}
-		switch {
-		case !cert.BasicConstraintsValid || !cert.IsCA:
-			return trace.BadParameter("certificate %q is not a CA", cert.Subject.String())
-		case cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0:
-			return trace.BadParameter("CA certificate %q does not allow certificate signing", cert.Subject.String())
-		case now.After(cert.NotAfter) || now.Before(cert.NotBefore):
-			return trace.BadParameter("CA certificate %q is no longer valid", cert.Subject.String())
-		}
+	switch {
+	case !cert.BasicConstraintsValid || !cert.IsCA:
+		return trace.BadParameter("certificate %q is not a CA", cert.Subject.String())
+	case cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0:
+		return trace.BadParameter("CA certificate %q does not allow certificate signing", cert.Subject.String())
 	}
 
 	return nil
