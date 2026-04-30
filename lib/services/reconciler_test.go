@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"sync"
 	"testing"
@@ -513,4 +514,47 @@ func (r testResource) GetName() string {
 
 func (r testResource) GetKind() string {
 	return "testResource"
+}
+
+// BenchmarkReconciler benchmarks reconciliation with varying resource counts
+// and concurrency levels to measure overhead differences between sequential
+// and concurrent modes.
+func BenchmarkReconciler(b *testing.B) {
+	for _, resourceCount := range []int{100, 1000, 100000} {
+		b.Run(fmt.Sprintf("%d", resourceCount), func(b *testing.B) {
+			benchmarkReconciler(b, resourceCount, 1)
+		})
+	}
+}
+
+func benchmarkReconciler(b *testing.B, resourceCount, concurrency int) {
+	b.Helper()
+	b.ReportAllocs()
+
+	labels := map[string]string{"env": "prod"}
+	currentResources := make(map[int]testResource, resourceCount)
+	for i := range resourceCount {
+		currentResources[i] = makeDynamicResource(fmt.Sprintf("res%d", i), maps.Clone(labels))
+	}
+	r, err := NewGenericReconciler(GenericReconcilerConfig[int, testResource]{
+		Logger:              slog.New(slog.DiscardHandler),
+		Matcher:             func(tr testResource) bool { return true },
+		CompareResources:    func(tr1, tr2 testResource) int { return 0 },
+		GetCurrentResources: func() map[int]testResource { return currentResources },
+		GetNewResources:     func() map[int]testResource { return currentResources },
+		OnCreate:            func(ctx context.Context, tr testResource) error { return nil },
+		OnUpdate:            func(ctx context.Context, tr, old testResource) error { return nil },
+		OnDelete:            func(ctx context.Context, tr testResource) error { return nil },
+		Concurrency:         concurrency,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	ctx := context.Background()
+	b.ResetTimer()
+	for range b.N {
+		if err := r.Reconcile(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
