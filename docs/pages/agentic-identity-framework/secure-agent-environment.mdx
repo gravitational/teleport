@@ -9,7 +9,7 @@ tags:
 An AI agent running on a local workstation can read any credentials available to
 it, giving it permissions to perform any operations the user can, and in the
 user's name. As with all agent activity, the way agents use credentials to
-access infrastructure is indeterministic. To run AI agents without unintended
+access infrastructure is non-deterministic. To run AI agents without unintended
 damage, your system needs to incorporate security as a first principle.
 
 The Teleport Agentic Identity framework introduces the recommended approach to
@@ -53,10 +53,10 @@ presence of a subject.
 ## Sandboxing
 
 The first layer of the secure agent environment is **sandboxing**. Agentic
-workloads are untrusted. Since agentic output is indeterministic, we must assume
-that any code an agent executes is arbitrary. As a result, the only truly secure
-way to protect a system against abuse by an agent is to isolate the agent from
-the system.
+workloads are untrusted. Since agentic output is non-deterministic, we must
+assume that any code an agent executes is arbitrary. As a result, the only truly
+secure way to protect a system against abuse by an agent is to isolate the agent
+from the system.
 
 As the first layer, sandboxing ensures that the agentic workload has no effect
 on the surrounding system unless other parts of the system let it escape the
@@ -127,90 +127,9 @@ telemetry that includes this information.
 
 ## Reference implementation
 
-Teleport has implemented the secure agent environment in Teleport Beams. Beams
+Teleport has implemented the secure agent environment in Teleport Beams, which
 allows you to run agentic workloads securely on Teleport-managed infrastructure.
-A beam is a remote environment for running an untrusted workload, designed for
-AI agents. Each beam has the following components, which correspond to the
-layers of the secure agent environment.
-
-### Sandboxing
-
-A beam runs on a microVM that also hosts an instance of `tbot`, the [Machine &
-Workload Identity](../machine-workload-identity/introduction.mdx) agent. The
-`tbot` instance runs a server-side version of [Teleport
-VNet](../connect-your-client/teleport-clients/vnet.mdx), which sets up a TUN
-interface on the VM that intercepts all traffic that flows from the agentic
-workload. The agentic workload queries the VNet instance as its DNS resolver,
-and VNet returns the public addresses of Teleport protected resources in your
-infrastructure.
-
-From the point of view of the agentic workload, it can attempt a connection to
-any Teleport-protected resource. However, all traffic from the workload to the
-infrastructure outside the sandbox must go through the local VNet TUN interface.
-From there, since the VNet resolver returns addresses of Teleport-protected
-resources, the workload can only dial the Teleport Proxy Service.
-
-Teleport-managed infrastructure tears down the virtual machine after a
-pre-configured time to live, minimizing the risk of the agent finding and
-exploiting vulnerabilities.
-
-### Identity
-
-Every component of Teleport Beams has its own identity. As in any Teleport
-deployment the Auth Service maintains several certificate authorities that it
-uses to issue certificates to end users and Teleport services. 
-
-In the case of Beams, the `tbot` instance authenticates itself to the Teleport
-Auth Service using [Bound Keypair
-Joining](../reference/machine-workload-identity/bound-keypair/admin-guide.mdx)
-and receives an identity of its own, then periodically issues identities to the
-agentic workload (TLS and SSH user certificates) and the microVM (an SSH host
-certificate).
-
-`tbot` issues a **delegated identity** to the agentic workload. The `tbot`
-configuration specifies the ID of a **delegation session** resource, which
-indicates the user the bot is authorized to delegate identity to. The Auth
-Service looks up the delegation session and issues certificates with the same
-subject information as the end user who initialized the beam, including the
-user's login and Teleport roles.
-
-When the agentic workload attempts to authenticate to a Teleport-protected
-resource, it presents its Teleport-issued certificate for validation against an
-Auth Service CA.
-
-### Access controls
-
-Because an agentic workload running on a beam must use Teleport-controlled
-infrastructure to connect to resources outside the sandbox, and receives a
-Teleport-issued identity, the Teleport-controlled infrastructure can execute
-access controls. 
-
-Teleport Agents inspect the certificate issued to the agentic workload just as
-they do with any Teleport-issued certificate, determining from the user's roles
-which protected resources it can access. From the perspective of a Teleport
-Agent, the certificate could be that of a human user or the delegated agentic
-identity. The Teleport RBAC system provides a centralized means of configuring
-access for AI agents. 
-
-While `tbot` issues a delegated identity with the originating user's full set of
-Teleport roles, the architecture of Beams allows future development to limit the
-permissions of the delegated identity to a subset of the user's.
-
-### Auditing
-
-Because Teleport Agents handle the agentic workload's certificate as they would
-any user certificate, Beams has auditing built in. Components of a Teleport
-cluster emit audit events by sending a message to the gRPC API on the Teleport
-Auth Service. Teleport Agents emit audit events throughout the lifecycle of a
-session with a Teleport-protected resource, from an authentication attempt to
-activity within the session and the closure of the connection. 
-
-And because `tbot` issues a delegated certificate with the subject information
-of the originating user, auditors can see which users are managing which agentic
-operations, and these workloads cannot hide behind anonymous logins. Audit
-events include the name of the originating user as well as the name of the
-`tbot` Bot that runs inside the beam, which always begins with `beam-`.
-
-## Get started with Beams 
+Beams use hardware isolation and Teleport-issued identities to enforce access
+controls and auditing for agentic workloads.
 
 Read more about Teleport Beams in the [documentation](../beams/beams.mdx).
