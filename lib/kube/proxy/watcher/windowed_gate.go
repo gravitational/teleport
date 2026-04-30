@@ -46,92 +46,58 @@ func (cfg *WindowedGateConfig) CheckAndSetDefaults() error {
 }
 
 // WindowedGate provides a time-windowed execution gate.
-//
-//   - At most one execution of the provided function is in-flight at any time
-//     (single-flight behavior).
-//   - Subsequent calls within a configured time window are suppressed.
-//   - Callers arriving while a function is in-flight will wait for the same
-//     result and receive the same error.
 type WindowedGate struct {
 	WindowedGateConfig
-	ctx context.Context
 
 	// mu protects variables below
 	mu sync.Mutex
-	// current holds the in-flight call, if any.
-	current *call
+
 	// next is the earliest time a new execution is allowed.
 	next time.Time
-}
 
-// call represents a single in-flight execution.
-type call struct {
-	done chan struct{}
-	// err stores the error of this result to propagate to callers.
-	err error
+	// pending marks if a request is in flight.
+	pending bool
 }
 
 // NewWindowedGate creates a new WindowedGate.
-func NewWindowedGate(ctx context.Context, cfg WindowedGateConfig) (*WindowedGate, error) {
+func NewWindowedGate(cfg WindowedGateConfig) (*WindowedGate, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &WindowedGate{
 		WindowedGateConfig: cfg,
-		ctx:                ctx,
 		next:               time.Now().Add(cfg.StartupGracePeriod),
 	}, nil
 }
 
-// Do executes fn if the gate allows it, otherwise suppresses or coalesces calls.
+// MaybeDo executes fn if the gate allows it, otherwise suppresses or coalesces calls.
 //
-//   - If another execution is already in progress, Do will wait for it to finish
-//     and return the same result.
 //   - If called before the next allowed execution time, Do returns nil without
 //     invoking fn.
-//   - Otherwise, fn is executed and its result is shared with any concurrent callers.
+//   - Otherwise, fn is executed and its error is returned
 //
 // The execution window is advanced after fn completes, regardless of success or failure,
 // with jitter applied to reduce synchronization across callers.
 // Do returns true if it has been the driver of the current call or false if nothing has been ran.
-func (g *WindowedGate) Do(ctx context.Context, fn func(context.Context) error) (bool, error) {
-	g.mu.Lock()
-
-	if c := g.current; c != nil {
-		done := c.done
-		g.mu.Unlock()
-
-		select {
-		case <-g.ctx.Done():
-			return false, trace.Wrap(g.ctx.Err(), "parent context closed")
-		case <-ctx.Done():
-			return false, trace.Wrap(ctx.Err(), "caller context closed")
-		case <-done:
-			return false, c.err
-		}
-	}
-
-	if time.Now().Before(g.next) {
-		g.mu.Unlock()
-		return false, nil
-	}
-
-	c := &call{done: make(chan struct{})}
-	g.current = c
-
-	g.mu.Unlock()
-
-	err := trace.Wrap(fn(ctx))
+func (g *WindowedGate) MaybeDo(ctx context.Context, fn func(context.Context) error) (bool, error) {
 	now := time.Now()
 
 	g.mu.Lock()
-	c.err = err
-	g.current = nil
-	// Advance window with jitter, this happens regardless of result.
-	g.next = now.Add(retryutils.SeventhJitter(g.Window))
+	if g.pending || now.Before(g.next) {
+		g.mu.Unlock()
+		return false, nil
+	}
+	g.pending = true
 	g.mu.Unlock()
 
-	close(c.done)
+	err := trace.Wrap(fn(ctx))
+	done := time.Now()
+
+	g.mu.Lock()
+	g.pending = false
+	// Advance window with jitter, this happens regardless of result.
+	g.next = done.Add(retryutils.SeventhJitter(g.Window))
+	g.mu.Unlock()
 	return true, err
 }
