@@ -1836,7 +1836,8 @@ type sharedClusterKey struct {
 
 type sharedClusters map[sharedClusterKey]*sharedCluster
 
-func (c sharedClusters) Get(t *testing.T, suite *integrationTestSuite, key sharedClusterKey) *sharedCluster {
+// getOrCreate a gets or creates a shared cluster for the given suite and key.
+func (c sharedClusters) getOrCreate(t *testing.T, suite *integrationTestSuite, key sharedClusterKey) *sharedCluster {
 	t.Helper()
 
 	cluster, ok := c[key]
@@ -2070,7 +2071,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 	// without fighting over resources that go into starting the cluster instances.
 	clusters := make(sharedClusters)
 	for i, tc := range testCases {
-		cluster := clusters.Get(t, suite, sharedClusterKey{
+		cluster := clusters.getOrCreate(t, suite, sharedClusterKey{
 			recordingMode:  tc.recordingMode,
 			sessCtlTimeout: tc.sessCtlTimeout,
 		})

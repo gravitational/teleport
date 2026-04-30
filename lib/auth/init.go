@@ -480,7 +480,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		return nil, trace.Wrap(err)
 	}
 
-	// Initialize the unified resource cache before running period checks that rely on it in
+	// Initialize the unified resource cache before running period checks that rely on it.
 	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			QueueSize:    defaults.UnifiedResourcesQueueSize,
