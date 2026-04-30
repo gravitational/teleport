@@ -153,13 +153,10 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 
 // IsVNetApp returns true if the app type is supported by VNet.
 func IsVNetApp(app types.Application) bool {
-	return app.IsTCP() || app.GetProtocol() == "HTTP" || app.IsLLM() || isMCPStreamableHTTPApp(app)
-}
-
-// isMCPStreamableHTTPApp returns true if the app is an MCP server using the
-// streamable HTTP transport, which is supported by VNet.
-func isMCPStreamableHTTPApp(app types.Application) bool {
-	return types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
+	return app.IsTCP() ||
+		app.GetProtocol() == "HTTP" ||
+		app.IsLLM() ||
+		types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
 }
 
 // RouteToApp returns a *proto.RouteToApp populated from appInfo and targetPort.
