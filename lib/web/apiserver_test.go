@@ -130,6 +130,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -10097,7 +10098,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
-	kubeServersWatcher, err := services.NewProxyKubeServerWatcher(ctx, services.ProxyKubeServerWatcherConfig{
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(ctx, kubewatcher.ProxyKubeServerWatcherConfig{
 		Component:      component,
 		AccessPoint:    client,
 		FallbackGetter: client,

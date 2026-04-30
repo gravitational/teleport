@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -6065,7 +6066,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
 		// and feed them to the kube proxy server so it can route the requests to
 		// the correct kubernetes server.
-		kubeServerWatcher, err := services.NewProxyKubeServerWatcher(process.ExitContext(), services.ProxyKubeServerWatcherConfig{
+		kubeServerWatcher, err := kubewatcher.NewProxyKubeServerWatcher(process.ExitContext(), kubewatcher.ProxyKubeServerWatcherConfig{
 			Component:      component,
 			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			AccessPoint:    accessPoint,

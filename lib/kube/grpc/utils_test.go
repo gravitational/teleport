@@ -62,9 +62,11 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -321,9 +323,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Create kubernetes proxy server.
-	kubeServersWatcher, err := services.NewProxyKubeServerWatcher(
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(
 		testCtx.Context,
-		services.ProxyKubeServerWatcherConfig{
+		kubewatcher.ProxyKubeServerWatcherConfig{
 			Component:      teleport.ComponentKube,
 			AccessPoint:    client,
 			FallbackGetter: client,
