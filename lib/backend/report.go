@@ -81,6 +81,8 @@ func (r *ReporterConfig) CheckAndSetDefaults() error {
 }
 
 var _ Backend = (*Reporter)(nil)
+var _ BatchDeleter = (*Reporter)(nil)
+var _ BatchPutter = (*Reporter)(nil)
 
 // Reporter wraps a Backend implementation and reports
 // statistics about the backend operations

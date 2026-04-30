@@ -75,6 +75,8 @@ func IsKeySafe(key Key) bool {
 }
 
 var _ Backend = (*Sanitizer)(nil)
+var _ BatchDeleter = (*Sanitizer)(nil)
+var _ BatchPutter = (*Sanitizer)(nil)
 
 // Sanitizer wraps a [Backend] implementation to make sure all
 // [Key]s written to the backend are allowed. Retrieval and deletion
