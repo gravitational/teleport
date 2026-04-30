@@ -73,7 +73,7 @@ func NewWindowedGate(cfg WindowedGateConfig) (*WindowedGate, error) {
 
 // MaybeDo executes fn if the gate allows it, otherwise suppresses calls.
 //
-//   - If called before the next allowed execution time, Do returns nil without
+//   - If called before the next allowed execution time or another call is pending returns nil without
 //     invoking fn.
 //   - Otherwise, fn is executed and its error is returned
 //

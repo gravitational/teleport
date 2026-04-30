@@ -127,22 +127,25 @@ type ProxyKubeServerWatcher struct {
 	initC    chan struct{}
 	initOnce sync.Once
 
+	// gate limits the calls to the fallback getter
+	gate *WindowedGate
+
 	// rw protects below fields
 	rw sync.RWMutex
 
 	// current holds a map of the currently known servers.
 	current map[serverKey]types.KubeServer
 
-	gate *WindowedGate
-
 	// primaryFailureAt is the time when the primary access point was first observed to be failing.
 	primaryFailureAt time.Time
 }
 
+// serverKey maps [types.KubeServer] into a local cache.
 type serverKey struct {
 	Name, HostID string
 }
 
+// NewProxyKubeServerWatcher creates a new instance of [ProxyKubeServerWatcher]
 func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherConfig) (*ProxyKubeServerWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "checking and setting defaults")
@@ -170,11 +173,12 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 
 	w := &ProxyKubeServerWatcher{
 		ProxyKubeServerWatcherConfig: cfg,
-		cancel:                       cancel,
-		ctx:                          ctx,
-		retry:                        retry,
-		initC:                        make(chan struct{}),
-		gate:                         gate,
+
+		cancel: cancel,
+		ctx:    ctx,
+		retry:  retry,
+		initC:  make(chan struct{}),
+		gate:   gate,
 	}
 
 	go w.runWatchLoop()
@@ -182,6 +186,10 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 	return w, nil
 }
 
+// armTimeout creates the timeout timer for marking the cache as stale. If a previous
+// failure has already been marked and the cache is still hot the timeout is adjusted
+// to not exceed [ProxyKubeServerWatcherConfig.PrimaryTimeout].
+// Otherwise defautls to [ProxyKubeServerWatcherConfig.PrimaryTimeout].
 func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
 	w.rw.RLock()
 	failureAt := w.primaryFailureAt
@@ -202,6 +210,7 @@ func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
 
 }
 
+// watch spawns a watcher on [types.KindKubeServer] and if successful, initlizes the local cache nad fetches events.
 func (w *ProxyKubeServerWatcher) watch() error {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
 		Name:            w.Component,
@@ -381,6 +390,7 @@ func (w *ProxyKubeServerWatcher) handleWatchError(err error) {
 	}
 }
 
+// runWatchLoop is the main event loop of the watcher.
 func (w *ProxyKubeServerWatcher) runWatchLoop() {
 	for {
 		err := w.watch()
@@ -409,6 +419,7 @@ func (w *ProxyKubeServerWatcher) runWatchLoop() {
 	}
 }
 
+// processEvents takes events from the watcher channel and applies them to the local cache.
 func (w *ProxyKubeServerWatcher) processEvents(ctx context.Context, events []types.Event) {
 	w.rw.Lock()
 	defer w.rw.Unlock()
