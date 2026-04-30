@@ -200,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -1194,6 +1193,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1598,7 +1598,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1635,7 +1634,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1781,6 +1779,11 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 			keyPair.PrivateKey = ""
 			conn.SetSigningKeyPair(keyPair)
 		}
+		oauthCreds := conn.GetOAuthClientCredentials()
+		if oauthCreds != nil {
+			oauthCreds.ClientSecret = ""
+			conn.SetOAuthClientCredentials(oauthCreds)
+		}
 	}
 	return conn, nil
 }
@@ -1812,7 +1815,6 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -1826,6 +1828,11 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			if keyPair != nil {
 				keyPair.PrivateKey = ""
 				conn.SetSigningKeyPair(keyPair)
+			}
+			oauthCreds := conn.GetOAuthClientCredentials()
+			if oauthCreds != nil {
+				oauthCreds.ClientSecret = ""
+				conn.SetOAuthClientCredentials(oauthCreds)
 			}
 		}
 
@@ -2086,7 +2093,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2121,7 +2127,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.
