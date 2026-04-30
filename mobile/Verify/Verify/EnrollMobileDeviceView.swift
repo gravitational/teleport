@@ -93,28 +93,23 @@ struct EnrollMobileDeviceView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
-        .alert(
-            "Enrollment",
+        .sheet(
             isPresented: Binding(
                 get: {
                     switch viewModel.attempt {
-                    case .success, .failure: return true
-                    default: return false
+                    case .idle: false
+                    default: true
                     }
                 },
                 set: { if !$0 { viewModel.attempt = .idle } }
             )
         ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            switch viewModel.attempt {
-            case .success(let token):
-                Text("Got enrollment token: \(token)")
-            case .failure(let error):
-                Text("Error: \(error.localizedDescription)")
-            default:
-                EmptyView()
-            }
+            EnrollRequestStatusView(
+                attempt: viewModel.attempt,
+                onDismiss: { viewModel.attempt = .idle }
+            )
+            .presentationDetents([.medium])
+            .interactiveDismissDisabled(viewModel.attempt.isLoading)
         }
     }
 }
