@@ -348,7 +348,7 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		// fast path watcher is hot, no need to fetch from upstream
 		return nil
 	}
-	return w.gate.Do(ctx, func(ctx context.Context) error {
+	_, err := w.gate.Do(ctx, func(ctx context.Context) error {
 		newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
 		if err == nil && !w.hot.Load() {
 			w.rw.Lock()
@@ -357,6 +357,7 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		}
 		return trace.Wrap(err, "fetching from fallback")
 	})
+	return err
 }
 
 // handleWatchError handles errors from the watch loop.

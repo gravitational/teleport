@@ -58,7 +58,7 @@ func TestDo_ConcurrentSharedExecution(t *testing.T) {
 
 		for i := range n {
 			go func() {
-				results[i] = g.Do(ctx, fn)
+				_, results[i] = g.Do(ctx, fn)
 			}()
 		}
 
@@ -147,11 +147,12 @@ func TestDo_CallerCancellationWhileWaiting(t *testing.T) {
 		synctest.Wait()
 
 		cancel()
-		err := g.Do(cctx, fn)
+		ran, err := g.Do(cctx, fn)
 		close(block)
 
 		require.ErrorContains(t, err, "context canceled")
 		require.ErrorContains(t, err, "caller")
+		require.False(t, ran)
 	})
 }
 
@@ -176,7 +177,8 @@ func TestDo_ParentCancellation(t *testing.T) {
 
 		go func() {
 			// this call should be blocked
-			errC <- g.Do(t.Context(), func(context.Context) error { return nil })
+			_, err := g.Do(t.Context(), func(context.Context) error { return nil })
+			errC <- err
 		}()
 
 		synctest.Wait()
