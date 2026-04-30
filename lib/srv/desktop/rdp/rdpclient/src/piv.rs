@@ -196,11 +196,6 @@ impl<const S: usize> Card<S> {
                     }
                 }
 
-                warn!(
-                    "PIN mismatch, want {:?}, got {:?}",
-                    self.pin.as_bytes(),
-                    cmd.data()
-                );
                 // Always return max remaining retries.
                 return Ok(Response::new(Status::RemainingRetries(0xF)));
             }
@@ -216,19 +211,19 @@ impl<const S: usize> Card<S> {
 
     fn handle_get_data(&mut self, cmd: Command<S>) -> PduResult<Response> {
         // See subsection '3.1.2 GET DATA Card Command' at: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf#page=86
-        // Command syntax constants:
-        const GET_DATA_P1: u8 = 0x3F;
-        const GET_DATA_P2: u8 = 0xFF;
-        // Data object constants:
-        const GET_DATA_TAG_LIST: u8 = 0x5C;
+        // See ISO 7816-4 for other possible P1-P2 pairs.
+        const GET_DATA_P1_CURRENT_DF: u8 = 0x3F;
+        const GET_DATA_P2_CURRENT_DF: u8 = 0xFF;
 
-        if cmd.p1 != GET_DATA_P1 || cmd.p2 != GET_DATA_P2 {
-            return Ok(Response::new(Status::IncorrectP1OrP2Parameter));
+        const TAG_LIST: u8 = 0x5C;
+
+        if cmd.p1 != GET_DATA_P1_CURRENT_DF || cmd.p2 != GET_DATA_P2_CURRENT_DF {
+            return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data()).map_err(
             |e| pdu_other_err!("", source:TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))),
         )?;
-        if *request_tlv.tag() != tlv_tag(GET_DATA_TAG_LIST)? {
+        if *request_tlv.tag() != tlv_tag(TAG_LIST)? {
             return Ok(Response::new(Status::NotFound));
         }
         match request_tlv.value() {
@@ -533,7 +528,7 @@ const TLV_TAG_FASC_N: u8 = 0x30;
 const TLV_TAG_GUID: u8 = 0x34;
 const TLV_TAG_EXPIRATION_DATE: u8 = 0x35;
 const TLV_TAG_ISSUER_ASYMMETRIC_SIGNATURE: u8 = 0x3E;
-const TLV_TAG_CARD_IDENTIFIER: u8 = 0xF1;
+const TLV_TAG_CARD_IDENTIFIER: u8 = 0xF0;
 const TLV_TAG_CAPABILITY_CONTAINER_VERSION_NUMBER: u8 = 0xF1;
 const TLV_TAG_CAPABILITY_GRAMMAR_VERSION_NUMBER: u8 = 0xF2;
 const TLV_TAG_APPLICATIONS_CARDURL: u8 = 0xF3;
@@ -602,6 +597,7 @@ fn len_to_vec(len: usize) -> Vec<u8> {
 mod tests {
     extern crate std;
 
+    use base64::{engine::general_purpose, Engine as _};
     use picky::key::PrivateKey;
 
     use super::*;
@@ -611,36 +607,12 @@ mod tests {
     fn new_test_card() -> Card<MAX_APDU_SIZE> {
         let uuid = Uuid::new_v4();
         let cert_der_stub = vec![0xff; 1024];
-        // Random RSA 2048 private key.
+        // Random RSA 2048 private key, encoded with Base64 for obfuscation.
         // Hardcoded because generating it with `picky` is quite slow in debug builds.
-        let key_pem = "-----BEGIN RSA PRIVATE KEY-----
-MIIEpgIBAAKCAQEAzR7HSXHE/tvGv+BgP5jl1Hfmq318l/8JvCyFuZ82dF4su99F
-gXShqKsljZ1s3ge+nfXsuRzLcx7vFX09j7WGnxJclPCg0aoQbdIll1IXYzkP7pBY
-nB0KOIjXM/hDuwcCUD6Wd9KsXEjC6/KykJNQo8HZ/PSm3BoBLXSQH0UI5gszfy7z
-hAMMfK+E2mn9TVDC1MpzBuivaivHBNKWPZb2kaEuI1t7HtWMixgrpRaCW3w3BVqX
-/CCyqO8Ak1Vu8y4W9fQ01cLjFE7PH+IbxIMnUpakM2hlD8UQ7rusvg42utx9szeZ
-UmlxBjMTIKlX4fqCeRPzIGjSTUfeJO8BNckh6wIDAQABAoIBAQC8dC68t546WUm9
-ODS1uZBPKOnxXRV/wH39ORqTdEffmjaXVYbSbYmpIbUa6yv+wjbLggq/+EijuCQJ
-JkvNIQZSV9hfrsTSXOFDRPPslyuNqfuNP2lp5PRjBLZTtSDlUIc7moU8CX76Oo97
-oDuWwQIxsgTJdy1mwy2ZyaIwWIjYcIP5j02012GiEHQ1CDPiOKAIOVXwydoEXfrF
-U1YW+igrq4Zz6fjBnNxgeFaIlY0huE1oN8Wu5DkpZL9W8pToHA2+/TTPhKL1DcXX
-AwEi4kIvl3QtT940DTNfcinWtv366ZcIK85y5arEPZnEFMr3rBuERoQXGKx9TaR4
-ysHHfD3hAoGBAPYAmGMylXhTqfZ68MiRTHdJZJe1qK7ocvPPEybNvp6ynCnPxy0X
-lnSURBlc6odPrzExAYhXegZmcW+MD4CwNAJpCuHfTCOYDD3WlU3pEdcw+PyM69n7
-HxJHsFC5+W5Go/PfiwOaoaDuQ2mY6Xc65U+Ei/kfaaGYu3d5QJMbZOrVAoGBANV0
-2LA9InM/EgMmmgqzbSGNOpDWKEQQfgDBq0BANWgn3CzST35Lc/VmsdMMLBenfW+K
-R3w4BZ7RUhPcflM8OJ9hEqr8V4wipja5FKXVK3ZjY+slbGOb1hMkh4TcrGTJj8p2
-G+G5zcZs965I80rfr0PbrQhIVg/Fqj10Dl7Jorm/AoGBAPJJRc01jddT92rmTO4N
-hRVbeLKe3UNfd5A/m+o065Bb88iOduoneCzbtnKQfADG75JwZMUG+w0AqqqldMNX
-R/IzyN8L0W6hGzVwed6hNcwO1LvQg55OYZzcdIAdmtgMxP+1ZLIpAxWAdW60hwTC
-QgVeU4oKcTwSNFkIWBxK98r9AoGBAISVjl5xqqtQ2pxQZtAMwNVdRqpeCyaz48AO
-i5NeDo5Ca/T/MNcugLlF72A6qEyNAVG930cd+Qe71rJ1e5Wxyy3b+t9v2+U0RG+r
-KFMVBGkFtTOCzD9WtXKwduiktQPpWsIT+J+NbG46kuGTeGLia5fHpEOHwsULLwH6
-y04/Ci87AoGBALFkJAjxWyeFk5CIW5JLDxGMfWFYC6m3RxWXRfHeDabVoO1HI8Di
-ro9Z/Vg1m7lm3UEJVWNWSKCu6EhRvLMBehy9X/BZEICBlJLSjkGpho3Ta3WKR1SP
-AoWNMl982OxiHK8WcZLCHzfPH0zrj2v8xJWqln3zpGrLEixaAzIuezGH
------END RSA PRIVATE KEY-----";
-        let key_der = PrivateKey::from_pem_str(key_pem)
+        let key_pem_base64 = "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcGdJQkFBS0NBUUVBelI3SFNYSEUvdHZHditCZ1A1amwxSGZtcTMxOGwvOEp2Q3lGdVo4MmRGNHN1OTlGCmdYU2hxS3NsaloxczNnZStuZlhzdVJ6TGN4N3ZGWDA5ajdXR254SmNsUENnMGFvUWJkSWxsMUlYWXprUDdwQlkKbkIwS09JalhNL2hEdXdjQ1VENldkOUtzWEVqQzYvS3lrSk5RbzhIWi9QU20zQm9CTFhTUUgwVUk1Z3N6Znk3egpoQU1NZksrRTJtbjlUVkRDMU1wekJ1aXZhaXZIQk5LV1BaYjJrYUV1STF0N0h0V01peGdycFJhQ1czdzNCVnFYCi9DQ3lxTzhBazFWdTh5NFc5ZlEwMWNMakZFN1BIK0lieElNblVwYWtNMmhsRDhVUTdydXN2ZzQydXR4OXN6ZVoKVW1seEJqTVRJS2xYNGZxQ2VSUHpJR2pTVFVmZUpPOEJOY2toNndJREFRQUJBb0lCQVFDOGRDNjh0NTQ2V1VtOQpPRFMxdVpCUEtPbnhYUlYvd0gzOU9ScVRkRWZmbWphWFZZYlNiWW1wSWJVYTZ5dit3amJMZ2dxLytFaWp1Q1FKCkprdk5JUVpTVjloZnJzVFNYT0ZEUlBQc2x5dU5xZnVOUDJscDVQUmpCTFpUdFNEbFVJYzdtb1U4Q1g3Nk9vOTcKb0R1V3dRSXhzZ1RKZHkxbXd5Mlp5YUl3V0lqWWNJUDVqMDIwMTJHaUVIUTFDRFBpT0tBSU9WWHd5ZG9FWGZyRgpVMVlXK2lncnE0Wno2ZmpCbk54Z2VGYUlsWTBodUUxb044V3U1RGtwWkw5VzhwVG9IQTIrL1RUUGhLTDFEY1hYCkF3RWk0a0l2bDNRdFQ5NDBEVE5mY2luV3R2MzY2WmNJSzg1eTVhckVQWm5FRk1yM3JCdUVSb1FYR0t4OVRhUjQKeXNISGZEM2hBb0dCQVBZQW1HTXlsWGhUcWZaNjhNaVJUSGRKWkplMXFLN29jdlBQRXliTnZwNnluQ25QeHkwWApsblNVUkJsYzZvZFByekV4QVloWGVnWm1jVytNRDRDd05BSnBDdUhmVENPWUREM1dsVTNwRWRjdytQeU02OW43Ckh4SkhzRkM1K1c1R28vUGZpd09hb2FEdVEybVk2WGM2NVUrRWkva2ZhYUdZdTNkNVFKTWJaT3JWQW9HQkFOVjAKMkxBOUluTS9FZ01tbWdxemJTR05PcERXS0VRUWZnREJxMEJBTldnbjNDelNUMzVMYy9WbXNkTU1MQmVuZlcrSwpSM3c0Qlo3UlVoUGNmbE04T0o5aEVxcjhWNHdpcGphNUZLWFZLM1pqWStzbGJHT2IxaE1raDRUY3JHVEpqOHAyCkcrRzV6Y1pzOTY1STgwcmZyMFBiclFoSVZnL0ZxajEwRGw3Sm9ybS9Bb0dCQVBKSlJjMDFqZGRUOTJybVRPNE4KaFJWYmVMS2UzVU5mZDVBL20rbzA2NUJiODhpT2R1b25lQ3pidG5LUWZBREc3NUp3Wk1VRyt3MEFxcXFsZE1OWApSL0l6eU44TDBXNmhHelZ3ZWQ2aE5jd08xTHZRZzU1T1laemNkSUFkbXRnTXhQKzFaTElwQXhXQWRXNjBod1RDClFnVmVVNG9LY1R3U05Ga0lXQnhLOThyOUFvR0JBSVNWamw1eHFxdFEycHhRWnRBTXdOVmRScXBlQ3lhejQ4QU8KaTVOZURvNUNhL1QvTU5jdWdMbEY3MkE2cUV5TkFWRzkzMGNkK1FlNzFySjFlNVd4eXkzYit0OXYyK1UwUkcrcgpLRk1WQkdrRnRUT0N6RDlXdFhLd2R1aWt0UVBwV3NJVCtKK05iRzQ2a3VHVGVHTGlhNWZIcEVPSHdzVUxMd0g2CnkwNC9DaTg3QW9HQkFMRmtKQWp4V3llRms1Q0lXNUpMRHhHTWZXRllDNm0zUnhXWFJmSGVEYWJWb08xSEk4RGkKcm85Wi9WZzFtN2xtM1VFSlZXTldTS0N1NkVoUnZMTUJlaHk5WC9CWkVJQ0JsSkxTamtHcGhvM1RhM1dLUjFTUApBb1dOTWw5ODJPeGlISzhXY1pMQ0h6ZlBIMHpyajJ2OHhKV3FsbjN6cEdyTEVpeGFBekl1ZXpHSAotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ==";
+        let key_pem_bytes = general_purpose::STANDARD.decode(key_pem_base64).unwrap();
+        let key_pem = String::from_utf8(key_pem_bytes).unwrap();
+        let key_der = PrivateKey::from_pem_str(&key_pem)
             .unwrap()
             .to_pkcs1()
             .unwrap();
@@ -720,11 +692,11 @@ AoWNMl982OxiHK8WcZLCHzfPH0zrj2v8xJWqln3zpGrLEixaAzIuezGH
         // Test the GET DATA handler's APDU error handling capabilities.
         let mut scard = new_test_card();
 
-        // Invalid P1 & P2 (DEAD instead of 3FFF).
-        let get_data_incorrect_p1_or_p2 =
+        // Unsupported identifier in P1-P2 (DEAD instead of 3FFF for current DF).
+        let get_data_unsupported_p1p2 =
             Command::<MAX_APDU_SIZE>::try_from(&[0x00, 0xCB, 0xDE, 0xAD, 0x00]).unwrap();
-        let response = scard.handle(get_data_incorrect_p1_or_p2);
-        assert!(response.is_ok_and(|resp| resp.status == Status::IncorrectP1OrP2Parameter));
+        let response = scard.handle(get_data_unsupported_p1p2);
+        assert!(response.is_ok_and(|resp| resp.status == Status::NotFound));
 
         // Invalid tag (BADBAD instead of e.g., 5FC102 for CHUID)
         let get_data_invalid_tag = Command::<MAX_APDU_SIZE>::try_from(&[
