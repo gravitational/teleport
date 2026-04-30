@@ -34,22 +34,23 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DeviceTrustService_CreateDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
-	DeviceTrustService_UpdateDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
-	DeviceTrustService_UpsertDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
-	DeviceTrustService_DeleteDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/DeleteDevice"
-	DeviceTrustService_FindDevices_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/FindDevices"
-	DeviceTrustService_GetDevice_FullMethodName                      = "/teleport.devicetrust.v1.DeviceTrustService/GetDevice"
-	DeviceTrustService_ListDevices_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/ListDevices"
-	DeviceTrustService_ListDevicesByUser_FullMethodName              = "/teleport.devicetrust.v1.DeviceTrustService/ListDevicesByUser"
-	DeviceTrustService_BulkCreateDevices_FullMethodName              = "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices"
-	DeviceTrustService_CreateDeviceEnrollToken_FullMethodName        = "/teleport.devicetrust.v1.DeviceTrustService/CreateDeviceEnrollToken"
-	DeviceTrustService_EnrollDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
-	DeviceTrustService_AuthenticateDevice_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
-	DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication"
-	DeviceTrustService_SyncInventory_FullMethodName                  = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
-	DeviceTrustService_CreateMobileEnrollTokenRequest_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/CreateMobileEnrollTokenRequest"
-	DeviceTrustService_GetMobileEnrollTokenRequest_FullMethodName    = "/teleport.devicetrust.v1.DeviceTrustService/GetMobileEnrollTokenRequest"
+	DeviceTrustService_CreateDevice_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
+	DeviceTrustService_UpdateDevice_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
+	DeviceTrustService_UpsertDevice_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
+	DeviceTrustService_DeleteDevice_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/DeleteDevice"
+	DeviceTrustService_FindDevices_FullMethodName                     = "/teleport.devicetrust.v1.DeviceTrustService/FindDevices"
+	DeviceTrustService_GetDevice_FullMethodName                       = "/teleport.devicetrust.v1.DeviceTrustService/GetDevice"
+	DeviceTrustService_ListDevices_FullMethodName                     = "/teleport.devicetrust.v1.DeviceTrustService/ListDevices"
+	DeviceTrustService_ListDevicesByUser_FullMethodName               = "/teleport.devicetrust.v1.DeviceTrustService/ListDevicesByUser"
+	DeviceTrustService_BulkCreateDevices_FullMethodName               = "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices"
+	DeviceTrustService_CreateDeviceEnrollToken_FullMethodName         = "/teleport.devicetrust.v1.DeviceTrustService/CreateDeviceEnrollToken"
+	DeviceTrustService_EnrollDevice_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
+	DeviceTrustService_AuthenticateDevice_FullMethodName              = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
+	DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName  = "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication"
+	DeviceTrustService_SyncInventory_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
+	DeviceTrustService_CreateMobileEnrollTokenRequest_FullMethodName  = "/teleport.devicetrust.v1.DeviceTrustService/CreateMobileEnrollTokenRequest"
+	DeviceTrustService_GetMobileEnrollTokenRequest_FullMethodName     = "/teleport.devicetrust.v1.DeviceTrustService/GetMobileEnrollTokenRequest"
+	DeviceTrustService_ApproveMobileEnrollTokenRequest_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/ApproveMobileEnrollTokenRequest"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -188,6 +189,12 @@ type DeviceTrustServiceClient interface {
 	// Used by the Web UI modal to poll for the iOS device's call to
 	// CreateMobileDeviceEnrollToken on the public Device Trust service.
 	GetMobileEnrollTokenRequest(ctx context.Context, in *GetMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*GetMobileEnrollTokenRequestResponse, error)
+	// ApproveMobileEnrollTokenRequest approves the calling user's pending
+	// enroll-pairing request. The CreateMobileDeviceEnrollToken call on the
+	// public Device Trust service blocks until this is invoked.
+	//
+	// See RFD 32e, "Enrollment token" section.
+	ApproveMobileEnrollTokenRequest(ctx context.Context, in *ApproveMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*ApproveMobileEnrollTokenRequestResponse, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -367,6 +374,16 @@ func (c *deviceTrustServiceClient) GetMobileEnrollTokenRequest(ctx context.Conte
 	return out, nil
 }
 
+func (c *deviceTrustServiceClient) ApproveMobileEnrollTokenRequest(ctx context.Context, in *ApproveMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*ApproveMobileEnrollTokenRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveMobileEnrollTokenRequestResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_ApproveMobileEnrollTokenRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility.
@@ -503,6 +520,12 @@ type DeviceTrustServiceServer interface {
 	// Used by the Web UI modal to poll for the iOS device's call to
 	// CreateMobileDeviceEnrollToken on the public Device Trust service.
 	GetMobileEnrollTokenRequest(context.Context, *GetMobileEnrollTokenRequestRequest) (*GetMobileEnrollTokenRequestResponse, error)
+	// ApproveMobileEnrollTokenRequest approves the calling user's pending
+	// enroll-pairing request. The CreateMobileDeviceEnrollToken call on the
+	// public Device Trust service blocks until this is invoked.
+	//
+	// See RFD 32e, "Enrollment token" section.
+	ApproveMobileEnrollTokenRequest(context.Context, *ApproveMobileEnrollTokenRequestRequest) (*ApproveMobileEnrollTokenRequestResponse, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -560,6 +583,9 @@ func (UnimplementedDeviceTrustServiceServer) CreateMobileEnrollTokenRequest(cont
 }
 func (UnimplementedDeviceTrustServiceServer) GetMobileEnrollTokenRequest(context.Context, *GetMobileEnrollTokenRequestRequest) (*GetMobileEnrollTokenRequestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMobileEnrollTokenRequest not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) ApproveMobileEnrollTokenRequest(context.Context, *ApproveMobileEnrollTokenRequestRequest) (*ApproveMobileEnrollTokenRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApproveMobileEnrollTokenRequest not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -837,6 +863,24 @@ func _DeviceTrustService_GetMobileEnrollTokenRequest_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DeviceTrustService_ApproveMobileEnrollTokenRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveMobileEnrollTokenRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).ApproveMobileEnrollTokenRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_ApproveMobileEnrollTokenRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).ApproveMobileEnrollTokenRequest(ctx, req.(*ApproveMobileEnrollTokenRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -895,6 +939,10 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMobileEnrollTokenRequest",
 			Handler:    _DeviceTrustService_GetMobileEnrollTokenRequest_Handler,
+		},
+		{
+			MethodName: "ApproveMobileEnrollTokenRequest",
+			Handler:    _DeviceTrustService_ApproveMobileEnrollTokenRequest_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
