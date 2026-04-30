@@ -187,16 +187,23 @@ func (w *ProxyKubeServerWatcher) watch() error {
 	}
 	defer watcher.Close()
 
-	select {
-	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
-	case <-w.ctx.Done():
-		return trace.ConnectionProblem(w.ctx.Err(), "context is closing")
-	case <-time.After(w.PrimaryTimeout):
-		return trace.ConnectionProblem(nil, "timed out waiting for initial watch event")
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
+	var initRecieved bool
+	for !initRecieved {
+		select {
+		case <-watcher.Done():
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+		case <-w.ctx.Done():
+			return trace.ConnectionProblem(w.ctx.Err(), "context is closing")
+		case event := <-watcher.Events():
+			if event.Type != types.OpInit {
+				return trace.BadParameter("expected init event, got %v instead", event.Type)
+			}
+			initRecieved = true
+		case <-time.After(w.PrimaryTimeout):
+			// Do not return timeout here but mark the failure and continue waiting.
+			// It's possible the watcher will recover eventually. If using the cache,
+			// on error the cache will close the watcher and we handle that seperately.
+			w.handleWatchError(trace.ConnectionProblem(nil, "watcher taking too long to init"))
 		}
 	}
 
