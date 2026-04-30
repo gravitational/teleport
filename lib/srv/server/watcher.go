@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Fetcher fetches instances from a particular cloud provider.
@@ -45,6 +46,8 @@ type Fetcher[Instances any] interface {
 	// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
 	// Might be empty when the fetcher is using ambient credentials.
 	IntegrationName() string
+	// LogValue implements [slog.LogValuer].
+	LogValue() slog.Value
 }
 
 // Option is a functional option for the Watcher.
@@ -116,6 +119,7 @@ type Watcher[Instances any] struct {
 	// InstancesC can be used to consume newly discovered instances.
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
+	logger         *slog.Logger
 
 	fetcherMap utils.SyncMap[string, []Fetcher[Instances]]
 
@@ -131,10 +135,14 @@ type Watcher[Instances any] struct {
 }
 
 // NewWatcher initializes a new instance of Watcher.
-func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *Watcher[Instances] {
+func NewWatcher[Instances any](ctx context.Context, logger *slog.Logger, opts ...Option[Instances]) *Watcher[Instances] {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
+	if logger == nil {
+		logger = slog.Default()
+	}
 	watcher := Watcher[Instances]{
 		ctx:          cancelCtx,
+		logger:       logger,
 		cancel:       cancelFn,
 		clock:        clockwork.NewRealClock(),
 		pollInterval: time.Minute,
@@ -179,7 +187,7 @@ func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, 
 		if trace.IsNotFound(err) {
 			return
 		}
-		slog.ErrorContext(context.Background(), "Failed to fetch instances", "error", err)
+		w.logger.ErrorContext(w.ctx, "Failed to fetch instances", "error", err)
 		return
 	}
 	w.perInstanceHookFn(instancesColl)
@@ -187,6 +195,14 @@ func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, 
 
 // fetchAndSubmit fetches the resources and submits them for processing.
 func (w *Watcher[Instances]) fetchAndSubmit() {
+	w.logger.InfoContext(w.ctx, "Instance discovery iteration starting")
+	runStart := w.clock.Now()
+	defer func() {
+		w.logger.InfoContext(w.ctx, "Instance discovery iteration completed",
+			"elapsed", log.StringerAttr(w.clock.Since(runStart)),
+		)
+	}()
+
 	cloned := w.fetcherMap.Clone()
 	fetchers := slices.Concat(slices.Collect(maps.Values(cloned))...)
 
@@ -194,7 +210,12 @@ func (w *Watcher[Instances]) fetchAndSubmit() {
 		w.preFetchHookFn(fetchers)
 	}
 
-	for _, fetcher := range fetchers {
+	for i, fetcher := range fetchers {
+		w.logger.DebugContext(w.ctx, "Fetching instances",
+			"fetcher", fetcher,
+			"current_fetcher", i+1,
+			"total_fetchers", len(fetchers),
+		)
 		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
 	}
 

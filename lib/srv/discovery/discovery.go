@@ -636,6 +636,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
+		s.Log.With("cloud", "AWS"),
 		server.WithMissedRotation(s.caRotationCh),
 		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
 		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
@@ -1008,6 +1009,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 
 	s.gcpWatcher = server.NewWatcher(
 		s.ctx,
+		s.Log.With("cloud", "GCP"),
 		server.WithPreFetchHookFn[*server.GCPInstances](func(fetchers []server.Fetcher[*server.GCPInstances]) {
 			if len(fetchers) > 0 {
 				s.submitFetchEvent(types.CloudGCP, types.GCPMatcherCompute)
@@ -1606,8 +1608,8 @@ func (s *Server) startAzureServerDiscovery() {
 
 	azureWatcher = server.NewWatcher(
 		s.ctx,
+		s.Log.With("cloud", "Azure"),
 		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.AzureInstances]) {
-			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration starting")
 			runStart = s.clock.Now()
 
 			if len(fetchers) > 0 {
@@ -1653,8 +1655,6 @@ func (s *Server) startAzureServerDiscovery() {
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 			// upsert user tasks for failed enrollments.
 			vmTasks.upsertAll(s.taskUpdater())
-
-			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration completed", "elapsed", s.clock.Since(runStart))
 		}),
 		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
 		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),

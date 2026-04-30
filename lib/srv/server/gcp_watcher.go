@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -96,7 +97,6 @@ type gcpInstanceFetcher struct {
 	GCP                 gcp.InstancesClient
 	ProjectIDs          []string
 	Zones               []string
-	ProjectID           string
 	ServiceAccounts     []string
 	Labels              types.Labels
 	projectsClient      gcp.ProjectsClient
@@ -198,4 +198,16 @@ func (f *gcpInstanceFetcher) getProjectIDs(ctx context.Context) ([]string, error
 		projectIDs = append(projectIDs, prj.ID)
 	}
 	return projectIDs, nil
+}
+
+// LogValue implements [slog.LogValuer].
+func (f *gcpInstanceFetcher) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("labels", f.Labels),
+		slog.Any("project_ids", f.ProjectIDs),
+		slog.Any("service_accounts", f.ServiceAccounts),
+		slog.Any("zones", f.Zones),
+		slog.String("discovery_config", f.GetDiscoveryConfigName()),
+		slog.String("integration", f.IntegrationName()),
+	)
 }
