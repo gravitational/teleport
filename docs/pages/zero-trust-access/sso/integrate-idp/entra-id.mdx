@@ -261,8 +261,10 @@ needs to be queried from the Microsoft Graph API.
 
 If your users' group memberships do not exceed the 150 group limit, you can skip this step.
 
-If the SAML connector was created using the [Entra ID Integration](../../../identity-governance/integrations/entra-id/getting-started.mdx),
+If the SAML connector was created using the Entra ID Integration,
 then Teleport will already be configured to authenticate to Microsoft Graph API and you can skip **Configure connector credentials** and go to [Grant Microsoft Graph API permission](#grant-microsoft-graph-api-permission).
+To check if the SAML connector was created using the Entra ID Integration, navigate to **Zero Trust Access -> Integrations -> Microsoft Entra ID -> SSO Connector** and look for the **Enabled** badge.
+
 If the SAML connector was not created using the Entra ID Integration,
 then you will need to create client credentials in Entra ID and configure those credentials on the SAML connector to
 enable Teleport to authenticate to Microsoft Graph API.
