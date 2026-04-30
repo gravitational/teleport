@@ -23,6 +23,13 @@ require (
 )
 
 require (
+	github.com/mailgun/errors v0.4.0
+	github.com/mailgun/mailgun-go/v4 v4.23.0
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc
+	gopkg.in/mail.v2 v2.3.1
+)
+
+require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/alloydb v1.19.0 // indirect

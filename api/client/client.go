@@ -74,6 +74,7 @@ import (
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -988,6 +989,11 @@ func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.Reco
 // service.
 func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
 	return delegationv1.NewDelegationSessionServiceClient(c.conn)
+}
+
+// BeamServiceClient returns a client for the beam service.
+func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
+	return beamsv1.NewBeamServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
