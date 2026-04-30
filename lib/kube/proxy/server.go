@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -115,7 +116,7 @@ type TLSServerConfig struct {
 	// kubernetes cluster name. Proxy uses this map to route requests to the correct
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
-	KubernetesServersWatcher *services.ProxyKubeServerWatcher
+	KubernetesServersWatcher *kubewatcher.ProxyKubeServerWatcher
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 	// InventoryHandle is used to send kube server heartbeats via the inventory control stream.

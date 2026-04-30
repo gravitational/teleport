@@ -13,8 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-package services
+package watcher
 
 import (
 	"context"
@@ -33,6 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+// KubernetesServerGetter defines interface for fetching kubernetes server resources.
+type KubernetesServerGetter interface {
+	// GetKubernetesServers returns all kubernetes server resources.
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+}
 
 type KubeServerWatcherGetter interface {
 	KubernetesServerGetter
@@ -216,6 +221,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 
 	// start out with a modestly sized event buffer
 	eventBuf := make([]types.Event, 0, 32)
+	const eventBufferMaxSize = 2048
 
 	batchCollectEvents := func(ctx context.Context, w types.Watcher) {
 		// resource collectors want to process events in batches
