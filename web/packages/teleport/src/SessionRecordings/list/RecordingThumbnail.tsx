@@ -22,7 +22,8 @@ import Box from 'design/Box';
 
 import { useSuspenseGetRecordingThumbnail } from 'teleport/services/recordings/hooks';
 import {
-  injectSVGStyles, pngToDataURIBase64,
+  injectSVGStyles,
+  pngToDataURIBase64,
   svgToDataURIBase64,
 } from 'teleport/SessionRecordings/svg';
 

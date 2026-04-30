@@ -21,7 +21,8 @@ import type { DefaultTheme } from 'styled-components';
 import type { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import {
   generateTerminalSVGStyleTag,
-  injectSVGStyles, pngToDataURIBase64,
+  injectSVGStyles,
+  pngToDataURIBase64,
   svgToDataURIBase64,
 } from 'teleport/SessionRecordings/svg';
 import { calculateThumbnailViewport } from 'teleport/SessionRecordings/view/Timeline/utils';
