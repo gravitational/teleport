@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockEC2Client struct {
@@ -429,7 +430,7 @@ func TestEC2Watcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context())
+	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
@@ -557,7 +558,7 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		watcher := NewWatcher[*EC2Instances](t.Context())
+		watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
 		watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 		go watcher.Run()
@@ -604,7 +605,7 @@ func TestEC2WatcherMergesReservationInstances(t *testing.T) {
 		var gotInstances []*EC2Instances
 
 		synctest.Test(t, func(t *testing.T) {
-			watcher := NewWatcher(t.Context(), WithPerInstanceHookFn(func(groups []*EC2Instances) {
+			watcher := NewWatcher(t.Context(), logtest.NewLogger(), WithPerInstanceHookFn(func(groups []*EC2Instances) {
 				gotInstances = append(gotInstances, groups...)
 			}))
 			watcher.SetFetchers(noDiscoveryConfig, fetchers)
@@ -744,7 +745,7 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	require.NoError(t, err)
 
 	const noDiscoveryConfig = ""
-	watcher := NewWatcher[*EC2Instances](t.Context())
+	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
