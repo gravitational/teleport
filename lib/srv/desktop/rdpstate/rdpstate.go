@@ -135,9 +135,9 @@ func (s *RDPState) ImageWithCursor() (*image.RGBA, decoder.CursorState) {
 
 	drawX := int(cursorX) - bmp.HotspotX
 	drawY := int(cursorY) - bmp.HotspotY
-	bounds := img.Bounds()
+	cb := bmp.Image.Bounds()
 
-	dstRect := image.Rect(drawX, drawY, drawX+bounds.Dx(), drawY+bounds.Dy())
+	dstRect := image.Rect(drawX, drawY, drawX+cb.Dx(), drawY+cb.Dy())
 	draw.Draw(img, dstRect, bmp.Image, image.Point{}, draw.Over)
 
 	return img, cs
