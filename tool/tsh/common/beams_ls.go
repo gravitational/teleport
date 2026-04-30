@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"io"
-	"slices"
 	"strings"
 	"time"
 
@@ -148,10 +147,6 @@ func (c *beamsLSCommand) print(cf *CLIConf, beams []*beamsv1.Beam, proxyAddr str
 	for idx, beam := range beams {
 		formatted[idx] = formatBeam(beam, proxyAddr)
 	}
-	slices.SortFunc(formatted, func(a, b formattedBeam) int {
-		return strings.Compare(a.ID, b.ID)
-	})
-
 	switch strings.ToLower(c.format) {
 	case teleport.JSON:
 		return trace.Wrap(common.PrintJSONIndent(cf.Stdout(), formatted))

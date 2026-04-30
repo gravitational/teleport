@@ -40,20 +40,20 @@ func TestBeamsLSCommand(t *testing.T) {
 
 	beams := []*beamsv1.Beam{
 		makeTestBeam(
-			"bravo",
-			"22222222-2222-2222-2222-222222222222",
-			"alice",
-			"",
-			time.Date(2026, time.January, 2, 4, 5, 6, 0, time.UTC),
-			nil,
-		),
-		makeTestBeam(
 			"alpha",
 			"11111111-1111-1111-1111-111111111111",
 			"alice",
 			"alpha-app",
 			time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
 			&beamsv1.PublishSpec{Protocol: beamsv1.Protocol_PROTOCOL_HTTP, Port: 8080},
+		),
+		makeTestBeam(
+			"bravo",
+			"22222222-2222-2222-2222-222222222222",
+			"alice",
+			"",
+			time.Date(2026, time.January, 2, 4, 5, 6, 0, time.UTC),
+			nil,
 		),
 		makeTestBeam(
 			"charlie",
