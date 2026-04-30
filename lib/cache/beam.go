@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -206,8 +207,9 @@ func keyForBeamAliasIndex(beam *beamsv1.Beam) string {
 
 func keyForBeamUserIndex(r *beamsv1.Beam) string {
 	user := r.GetStatus().GetUser()
+	lowerUser := strings.ToLower(user)
 	name := r.GetMetadata().GetName()
-	return string(ordered.Encode(user, name))
+	return string(ordered.Encode(lowerUser, name))
 }
 
 func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
