@@ -383,8 +383,7 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, 
 	}
 
 	if pin == piv.DefaultPIN {
-		pin, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo, pinCacheTTL)
-		if err != nil {
+		if _, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo, pinCacheTTL); err != nil {
 			return trace.Wrap(err)
 		}
 	}

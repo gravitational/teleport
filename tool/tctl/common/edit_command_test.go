@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -58,10 +59,13 @@ import (
 )
 
 func TestEditResources(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
+	t.Parallel()
 	log := logtest.NewLogger()
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
+		}),
+		testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -375,22 +379,24 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 }
 
 // TestEditEnterpriseResources asserts that tctl edit
-// behaves as expected for enterprise resources. These resources cannot
-// be tested in parallel because they alter the modules to enable features.
-// The tests are grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. The tests are
+// grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestEditEnterpriseResources(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	})
 	log := logtest.NewLogger()
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OIDC: {Enabled: true},
+						entitlements.SAML: {Enabled: true},
+					},
+				},
+			}
+		}),
+		testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

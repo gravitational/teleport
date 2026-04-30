@@ -13,10 +13,16 @@ mechanism to try to guess what to do with the CRDs (see the implementation of
 shouldInstallCRDs in _helpers.yaml for more details). */ -}}
 {{- if eq (include "teleport-cluster.operator.shouldInstallCRDs" . ) "true" -}}
 {{ $currentScope := .}}
+{{- $crdValidationSupport := semverCompare ">=1.25.0-0" .Capabilities.KubeVersion.Version -}}
 {{ range $path, $_ :=  .Files.Glob  "operator-crds/*" }}
   {{- with $currentScope}}
-    {{- $crd := (.Files.Get $path | fromYaml) -}}
-    {{- $injectedCRD := mustMergeOverwrite $crd (include "teleport-cluster.operator.crdOverrides" $currentScope | fromYaml) -}}
+    {{- $raw := (.Files.Get $path | fromYaml) -}}
+    {{- if not $crdValidationSupport -}}
+      {{- range $version := $raw.spec.versions -}}
+        {{- $_ := unset $version.schema.openAPIV3Schema "x-kubernetes-validations" -}}
+      {{- end -}}
+    {{- end -}}
+    {{- $injectedCRD := mustMergeOverwrite $raw (include "teleport-cluster.operator.crdOverrides" $currentScope | fromYaml) -}}
     {{- toYaml $injectedCRD -}}
   {{- end }}
 ---

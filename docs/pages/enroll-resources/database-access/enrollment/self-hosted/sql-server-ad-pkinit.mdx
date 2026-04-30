@@ -167,7 +167,7 @@ to publish the Teleport CA to your Active Directory domain (using the path
 to the exported Teleport `db-ca.cer` file that you copied above):
 
 ```powershell
-certutil –dspublish –f <PathToCertFile.cer> RootCA
+certutil -dspublish –f <PathToCertFile.cer> RootCA
 certutil -dspublish -f <PathToCertFile.cer> NTAuthCA
 ```
 
@@ -370,7 +370,7 @@ authentication failed` and on Teleport Database Service logs, there is the error
 entry `Failed to authenticate with KDC: Password for user@AD.TELEPORT.DEV:
 \nkinit: Cannot read password while getting initial credentials`, which means
 that the KDC hostname is wrong. You can verify your domain controller’s SPN to
-see if they’re set correctly and update the value on the field `kdc_hostname` on
+see if they’re set correctly and update the value on the field `kdc_host_name` on
 your database's configuration.
 
 ### PKINIT authentication fails due to missing SID

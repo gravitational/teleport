@@ -410,6 +410,14 @@ func TestCallingSummarizerMetadata(t *testing.T) {
 		UploadHandler:             uploader,
 		SessionSummarizerProvider: summarizerProvider,
 		RecordingMetadataProvider: metadataProvider,
+		OnUploadComplete: func(_ context.Context, sid session.ID) (apievents.AuditEvent, error) {
+			now := time.Now()
+			return &apievents.SessionEnd{
+				SessionMetadata: apievents.SessionMetadata{SessionID: string(sid)},
+				StartTime:       now.Add(-time.Minute),
+				EndTime:         now,
+			}, nil
+		},
 	})
 	require.NoError(t, err)
 	defer alog.Close()

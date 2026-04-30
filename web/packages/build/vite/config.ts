@@ -20,7 +20,7 @@ import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 
 import { visualizer } from 'rollup-plugin-visualizer';
-import { defineConfig, type UserConfig } from 'vite';
+import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
 import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
@@ -57,6 +57,7 @@ export function createViteConfig(
 
     const config: UserConfig = {
       clearScreen: false,
+      cacheDir: process.env.VITE_CACHE_DIR,
       server: {
         allowedHosts: resolveAllowedHosts(target),
         fs: {
@@ -156,82 +157,32 @@ export function createViteConfig(
       }
     } else {
       config.plugins.push(htmlPlugin(target));
-      // siteName matches everything between the slashes.
+
+      // siteName matches everything between the slashes (regex format
+      // assumes slashes are escaped, e.g. `\/v1\/webapi\/sites\/:site\/connect`).
       const siteName = '([^\\/]+)';
 
-      config.server.proxy = {
-        // The format of the regex needs to assume that the slashes are escaped, for example:
-        // \/v1\/webapi\/sites\/:site\/connect
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/connect`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
-          {
-            target: `wss://${target}`,
-            changeOrigin: false,
-            secure: false,
-            ws: true,
-          },
-        // /webapi/sites/:site/kube/exec
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        // /webapi/sites/:site/db/exec - database interactive sessions
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/db\\/exec`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        // /webapi/sites/:site/(desktopplayback|sessionrecording|ttyplayback)/:sid
-        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|sessionrecording|ttyplayback)\\/(.*?))(\\/ws)?':
-          {
-            target: `wss://${target}`,
-            changeOrigin: true,
-            secure: false,
-            ws: true,
-            rewriteWsOrigin: true, // rewrite the origin so Teleport doesn't reject the connection
-          },
-        '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
-          target: `https://${target}`,
-          changeOrigin: false,
-          secure: false,
-        },
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        '^\\/v[0-9]+\\/webapi\\/command\\/(.*?)/execute': {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        '/web/config.js': {
-          target: `https://${target}`,
-          changeOrigin: true,
-          secure: false,
-        },
-        '^\\/v[0-9]+': {
-          target: `https://${target}`,
-          changeOrigin: true,
-          secure: false,
-        },
-        '/enterprise': {
-          target: `https://${target}`,
-          changeOrigin: true,
-          secure: false,
-        },
-      };
+      // All teleport websocket endpoints live under
+      // `/v{N}/webapi/(sites/<site>/{connect, desktops/<d>/connect, kube/exec,
+      // db/exec, (desktopplayback|sessionrecording|ttyplayback)/...} |
+      // command/<cmd>/execute)`. One alternation covers the lot.
+      const wsPath =
+        `^\\/v[0-9]+\\/webapi\\/(` +
+        [
+          `sites\\/${siteName}\\/connect`,
+          `sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`,
+          `sites\\/${siteName}\\/(kube|db)\\/exec`,
+          `sites\\/${siteName}\\/(desktopplayback|sessionrecording|ttyplayback)\\/.+`,
+          `command\\/.+\\/execute`,
+        ].join('|') +
+        `)`;
+
+      config.server.proxy = Object.fromEntries([
+        wsRoute(target, wsPath),
+        httpRoute(target, '/web/config.js'),
+        httpRoute(target, '^\\/v[0-9]+'),
+        httpRoute(target, '/enterprise'),
+      ]);
 
       if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
         config.server.https = {
@@ -289,4 +240,28 @@ function resolveTargetURL(url: string) {
   const parsed = new URL(target);
 
   return parsed.host;
+}
+
+function wsRoute(target: string, path: string): [string, ProxyOptions] {
+  return [
+    path,
+    {
+      target: `wss://${target}`,
+      secure: false,
+      ws: true,
+      changeOrigin: true,
+      rewriteWsOrigin: true,
+    },
+  ];
+}
+
+function httpRoute(target: string, path: string): [string, ProxyOptions] {
+  return [
+    path,
+    {
+      target: `https://${target}`,
+      secure: false,
+      changeOrigin: true,
+    },
+  ];
 }

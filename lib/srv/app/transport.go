@@ -44,12 +44,12 @@ import (
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	app          types.Application
-	publicPort   string
-	cipherSuites []uint16
-	jwt          string
-	traits       wrappers.Traits
-	log          *slog.Logger
+	app           types.Application
+	publicPort    string
+	cipherSuites  []uint16
+	jwt           string
+	rewriteTraits wrappers.Traits
+	log           *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
 	hostID       string
 	insecureMode bool
@@ -208,7 +208,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.Header.Set(teleport.AppJWTHeader, t.jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traits, t.log)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.rewriteTraits, t.log)
 	return nil
 }
 

@@ -20,9 +20,12 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -30,75 +33,61 @@ import (
 )
 
 type mockRunCommandClient struct {
-	runFunc func(ctx context.Context, req azure.RunCommandRequest) error
 }
 
-func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) error {
-	if m.runFunc != nil {
-		return m.runFunc(ctx, req)
+func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
+	if strings.HasPrefix(req.VMName, "bad") {
+		return nil, trace.BadParameter("VM is bad: %v", req.VMName)
 	}
-	return nil
+
+	return &azure.RunCommandResult{
+		ExecutionState: string(armcompute.ExecutionStateSucceeded),
+		ExitCode:       0,
+		StdOut:         "Mock stdout",
+		StdErr:         "Mock stderr",
+	}, nil
 }
 
 func TestAzureInstallRequestRun(t *testing.T) {
+	makeVM := func(name string) *armcompute.VirtualMachine {
+		return &armcompute.VirtualMachine{
+			ID:   &name,
+			Name: &name,
+		}
+	}
+
 	makeVMs := func(names ...string) []*armcompute.VirtualMachine {
-		vms := make([]*armcompute.VirtualMachine, len(names))
-		for i, name := range names {
-			vms[i] = &armcompute.VirtualMachine{
-				ID:   &name,
-				Name: &name,
-			}
+		var vms []*armcompute.VirtualMachine
+		for _, name := range names {
+			vms = append(vms, makeVM(name))
 		}
 		return vms
 	}
+
 	t.Parallel()
+
+	client := &mockRunCommandClient{}
 
 	tests := []struct {
 		name            string
 		instances       []*armcompute.VirtualMachine
-		runFunc         func(ctx context.Context, req azure.RunCommandRequest) error
 		proxyAddrGetter func(context.Context) (string, error)
-		wantErr         string
-		wantFailedVMs   []string
+
+		wantErr string
+
+		wantOK     []string
+		wantFailed []string
 	}{
 		{
-			name:      "no instances",
-			instances: nil,
+			name:      "success",
+			instances: makeVMs("good-1", "good-2", "good-3"),
+			wantOK:    []string{"good-1", "good-2", "good-3"},
 		},
 		{
-			name:      "single instance success",
-			instances: makeVMs("vm-1"),
-		},
-		{
-			name:      "single instance failure",
-			instances: makeVMs("vm-1"),
-			runFunc: func(ctx context.Context, req azure.RunCommandRequest) error {
-				return errors.New("install failed")
-			},
-			wantFailedVMs: []string{"vm-1"},
-		},
-		{
-			name:      "multiple instances all success",
-			instances: makeVMs("vm-1", "vm-2", "vm-3"),
-		},
-		{
-			name:      "multiple instances some failures",
-			instances: makeVMs("vm-1", "vm-2", "vm-3"),
-			runFunc: func(ctx context.Context, req azure.RunCommandRequest) error {
-				if req.VMName == "vm-2" {
-					return errors.New("install failed")
-				}
-				return nil
-			},
-			wantFailedVMs: []string{"vm-2"},
-		},
-		{
-			name:      "multiple instances all failures",
-			instances: makeVMs("vm-1", "vm-2", "vm-3"),
-			runFunc: func(ctx context.Context, req azure.RunCommandRequest) error {
-				return errors.New("install failed")
-			},
-			wantFailedVMs: []string{"vm-1", "vm-2", "vm-3"},
+			name:       "mixed results",
+			instances:  makeVMs("good-1", "bad-2", "good-3", "bad-4"),
+			wantOK:     []string{"good-1", "good-3"},
+			wantFailed: []string{"bad-2", "bad-4"},
 		},
 		{
 			name:      "proxy addr getter error",
@@ -114,13 +103,16 @@ func TestAzureInstallRequestRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockRunCommandClient{runFunc: tt.runFunc}
 			proxyAddrGetter := tt.proxyAddrGetter
 			if proxyAddrGetter == nil {
 				proxyAddrGetter = func(ctx context.Context) (string, error) {
 					return "proxy.example.com:443", nil
 				}
 			}
+
+			var mu sync.Mutex
+			var failed []string
+			var good []string
 
 			req := &AzureInstallRequest{
 				Instances: tt.instances,
@@ -131,24 +123,30 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				ProxyAddrGetter: proxyAddrGetter,
 				Region:          "eastus",
 				ResourceGroup:   "test-rg",
+				OnRunCommandFinished: func(result AzureInstallResult) {
+					mu.Lock()
+					defer mu.Unlock()
+					if result.Failure() {
+						failed = append(failed, *result.Instance.ID)
+					} else {
+						good = append(good, *result.Instance.ID)
+					}
+				},
 			}
 
-			failures, err := req.Run(t.Context(), client)
+			err := req.Run(t.Context(), client)
+
+			slices.Sort(failed)
+			slices.Sort(good)
+
+			require.Equal(t, tt.wantFailed, failed)
+			require.Equal(t, tt.wantOK, good)
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-
-			require.NoError(t, err)
-
-			var failedNames []string
-			for _, vm := range failures {
-				failedNames = append(failedNames, *vm.Instance.Name)
-			}
-			slices.Sort(failedNames)
-
-			require.Equal(t, tt.wantFailedVMs, failedNames)
 		})
 	}
 }

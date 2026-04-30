@@ -251,16 +251,14 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 		}
 		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
-		databaseEventPrefix + database.GetName(): {
-			ResourceType:        types.DiscoveredResourceDatabase,
-			ResourceOrigin:      types.OriginCloud,
-			CloudProvider:       database.GetCloud(),
-			DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
-			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
-				DbType:     database.GetType(),
-				DbProtocol: database.GetProtocol(),
-			},
+	err = s.emitUsageEvent(databaseEventPrefix+database.GetName(), &usageeventsv1.ResourceCreateEvent{
+		ResourceType:        types.DiscoveredResourceDatabase,
+		ResourceOrigin:      types.OriginCloud,
+		CloudProvider:       database.GetCloud(),
+		DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
+		Database: &usageeventsv1.DiscoveredDatabaseMetadata{
+			DbType:     database.GetType(),
+			DbProtocol: database.GetProtocol(),
 		},
 	})
 	if err != nil {
