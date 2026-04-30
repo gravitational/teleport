@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"io"
 	"net"
 	"net/http"
@@ -635,6 +636,31 @@ func TestKubeMiddleware(t *testing.T) {
 			}
 		})
 	}
+
+	// TODO(jakealti): DELETE IN v20.0.0.
+	t.Run("legacy SNI request resolves to the same cert", func(t *testing.T) {
+		// Old kubeconfigs encoded the kube cluster as <hex>.<teleport> in TLS SNI
+		// and the URL was just a regular /api/... path.
+		req := http.Request{
+			URL: mustURL("https://example.test/api/v1/namespaces"),
+			TLS: &tls.ConnectionState{
+				ServerName: hex.EncodeToString([]byte("kube1")) + "." + teleportCluster,
+			},
+		}
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs:        getStartCerts(),
+			CertReissuer: certReissuer,
+			Logger:       logtest.NewLogger(),
+			Clock:        clockwork.NewFakeClockAt(now),
+			CloseContext: context.Background(),
+		})
+		km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
+		certs, ok, err := km.GetClientCerts(&req)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Len(t, certs, 1)
+		require.Equal(t, kube1Cert, certs[0])
+	})
 }
 
 func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *LocalProxy {

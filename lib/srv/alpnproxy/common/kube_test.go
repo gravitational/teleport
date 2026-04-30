@@ -108,3 +108,25 @@ func TestClustersFromKubeLocalProxyPath(t *testing.T) {
 		require.ErrorContains(t, err, "decoding kube cluster")
 	})
 }
+
+// TestClustersFromLegacyKubeLocalProxySNI tests the legacy SNI format emitted by
+// older tsh versions to ensure continued compatibility during the deprecation window.
+// TODO(jakealti): DELETE IN v20.0.0.
+func TestClustersFromLegacyKubeLocalProxySNI(t *testing.T) {
+	t.Run("decodes legacy hex SNI", func(t *testing.T) {
+		tc, kc, err := ClustersFromLegacyKubeLocalProxySNI("656b732d62656e6368.teleport.example.com")
+		require.NoError(t, err)
+		require.Equal(t, "teleport.example.com", tc)
+		require.Equal(t, "eks-bench", kc)
+	})
+
+	t.Run("rejects empty teleport suffix", func(t *testing.T) {
+		_, _, err := ClustersFromLegacyKubeLocalProxySNI("656b732d62656e6368")
+		require.ErrorContains(t, err, "invalid legacy kube local proxy SNI")
+	})
+
+	t.Run("rejects non-hex kube prefix", func(t *testing.T) {
+		_, _, err := ClustersFromLegacyKubeLocalProxySNI("not-hex.teleport.example.com")
+		require.ErrorContains(t, err, "decoding legacy kube cluster")
+	})
+}
