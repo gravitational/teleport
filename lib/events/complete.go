@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -426,7 +427,7 @@ func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
 		if version == "" {
 			continue
 		}
-		if err := MergeUpload(ctx, sessionStreamer, u.reuploadStreamer, upload); err != nil {
+		if err := AppendUpload(ctx, sessionStreamer, u.reuploadStreamer, upload); err != nil {
 			log.ErrorContext(ctx, "failed to merge recordings", "error", err)
 			continue
 		}
@@ -444,10 +445,9 @@ type TempSessionStreamer interface {
 	StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
-// MergeUpload merges the current recording for a session with a temporary
-// recording, replacing the current recording with one that includes all
-// events from both.
-func MergeUpload(
+// AppendUpload appends a temporary recording to an existing session recording
+// and replaces the current recording with the new one.
+func AppendUpload(
 	ctx context.Context,
 	uploadStreamer TempSessionStreamer,
 	streamer *ProtoStreamer,
@@ -464,57 +464,52 @@ func MergeUpload(
 			}
 		}
 	}()
+	// Record all existing events first.
 	currentStream, currentErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, "" /* upload ID */, 0)
-	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
-
 	nopPreparer := NoOpPreparer{}
-	var current, incoming apievents.AuditEvent
+	var lastEventIndex int64 = -1
 	for {
-		if current == nil {
-			select {
-			case current = <-currentStream:
-			case err := <-currentErr:
-				return trace.Wrap(err)
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
+		var event events.AuditEvent
+		select {
+		case event = <-currentStream:
+		case err := <-currentErr:
+			return trace.Wrap(err)
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		}
-		if incoming == nil {
-			select {
-			case incoming = <-incomingStream:
-			case err := <-incomingErr:
-				return trace.Wrap(err)
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
+		if event == nil {
+			break
 		}
-		// Both streams are exhausted, we are done.
-		if current == nil && incoming == nil {
-			return trace.Wrap(stream.Complete(ctx))
-		}
-
-		var nextEvent apievents.AuditEvent
-		switch {
-		// There are no incoming events, or the current event is next by index.
-		case incoming == nil || (current != nil && current.GetIndex() < incoming.GetIndex()):
-			nextEvent = current
-			current = nil
-			// There are no current events, or the incoming event is next by index.
-		case current == nil || (incoming != nil && incoming.GetIndex() < current.GetIndex()):
-			nextEvent = incoming
-			incoming = nil
-			// Duplicate event. Send the current event, replace both.
-		case current.GetIndex() == incoming.GetIndex():
-			nextEvent = current
-			current = nil
-			incoming = nil
-		}
-
-		preparedEvent, _ := nopPreparer.PrepareSessionEvent(nextEvent)
+		lastEventIndex = event.GetIndex()
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
 		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+
+	// Record new events from incoming.
+	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
+	for {
+		var event apievents.AuditEvent
+		select {
+		case event = <-incomingStream:
+		case err := <-incomingErr:
+			return trace.Wrap(err)
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+		if event == nil {
+			break
+		}
+		if event.GetIndex() <= lastEventIndex {
+			continue
+		}
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(stream.Complete(ctx))
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
