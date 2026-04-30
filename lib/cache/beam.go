@@ -117,20 +117,9 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 		pageSize = defaults.DefaultChunkSize
 	}
 
-	keyFn := keyForBeamNameIndex
-	switch options.GetSortField() {
-	case "name":
-		keyFn = keyForBeamNameIndex
-	case "alias":
-		keyFn = keyForBeamAliasIndex
-	case "user":
-		keyFn = keyForBeamUserIndex
-	case "expires":
-		keyFn = keyForBeamExpiresIndex
-	case "":
-	// default ordering as defined above
-	default:
-		return nil, "", trace.CompareFailed("unsupported sort %q but expected name, alias, user or expires", options.GetSortField())
+	_, keyFn, err := beamIndexForSortField(options.GetSortField())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	var (
@@ -157,29 +146,13 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
 func (c *Cache) IterateBeams(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
-	index := beamNameIndex
-	keyFn := keyForBeamNameIndex
-	isDesc := options.GetSortDesc()
-	switch options.GetSortField() {
-	case "name":
-		index = beamNameIndex
-		keyFn = keyForBeamNameIndex
-	case "alias":
-		index = beamAliasIndex
-		keyFn = keyForBeamAliasIndex
-	case "user":
-		index = beamUserIndex
-		keyFn = keyForBeamUserIndex
-	case "expires":
-		index = beamExpiresIndex
-		keyFn = keyForBeamExpiresIndex
-	case "":
-		// default ordering as defined above
-	default:
+	index, keyFn, err := beamIndexForSortField(options.GetSortField())
+	if err != nil {
 		return func(yield func(*beamsv1.Beam, error) bool) {
-			yield(nil, trace.CompareFailed("unsupported sort %q but expected name, alias, user or expires", options.GetSortField()))
+			yield(nil, trace.Wrap(err))
 		}
 	}
+	isDesc := options.GetSortDesc()
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
 		cache:      c,
@@ -216,4 +189,21 @@ func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
 	expires := r.GetSpec().GetExpires().AsTime().UnixMilli()
 	name := r.GetMetadata().GetName()
 	return string(ordered.Encode(expires, name))
+}
+
+func beamIndexForSortField(sortField string) (beamIndex, func(*beamsv1.Beam) string, error) {
+	switch sortField {
+	case "":
+		fallthrough
+	case "name":
+		return beamNameIndex, keyForBeamNameIndex, nil
+	case "alias":
+		return beamAliasIndex, keyForBeamAliasIndex, nil
+	case "user":
+		return beamUserIndex, keyForBeamUserIndex, nil
+	case "expires":
+		return beamExpiresIndex, keyForBeamExpiresIndex, nil
+	default:
+		return "", nil, trace.CompareFailed("unsupported sort %q but expected name, alias, user or expires", sortField)
+	}
 }
