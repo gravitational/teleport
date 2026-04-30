@@ -19,6 +19,8 @@ package discovery
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -46,12 +48,20 @@ func (m *mockUserTasks) ListUserTasks(_ context.Context, _ int64, _ string, _ *u
 
 // mockClient implements discoveryClient for testing.
 type mockClient struct {
-	events    []apievents.AuditEvent
-	nodes     []*types.ServerV2
-	userTasks []*usertasksv1.UserTask
+	events             []apievents.AuditEvent
+	nodes              []*types.ServerV2
+	userTasks          []*usertasksv1.UserTask
+	acceptedEventTypes []string
 }
 
 func (m *mockClient) SearchEvents(_ context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	if m.acceptedEventTypes != nil {
+		for _, want := range req.EventTypes {
+			if !slices.Contains(m.acceptedEventTypes, want) {
+				return nil, "", fmt.Errorf("unexpected event type %q (accepted: %v)", want, m.acceptedEventTypes)
+			}
+		}
+	}
 	return m.events, "", nil
 }
 
@@ -334,6 +344,54 @@ Azure sub-1   eastus rg-1/vm-on...               Online
 				require.NoError(t, c.runNodes(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
 				require.Equal(t, tt.wantJSON, buf.String())
 			})
+		})
+	}
+}
+
+func TestBuildNodes_CloudFilter(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		desc       string
+		cfg        cloudProviderConfig
+		accepted   []string
+		wantClouds []string
+	}{
+		{
+			desc:       "aws only",
+			cfg:        cloudProviderConfig{aws: true},
+			accepted:   []string{libevents.SSMRunEvent},
+			wantClouds: []string{cloudAWS},
+		},
+		{
+			desc:       "azure only",
+			cfg:        cloudProviderConfig{azure: true},
+			accepted:   []string{libevents.AzureRunEvent},
+			wantClouds: []string{cloudAzure},
+		},
+		{
+			desc:       "both clouds",
+			cfg:        cloudProviderConfig{aws: true, azure: true},
+			accepted:   []string{libevents.SSMRunEvent, libevents.AzureRunEvent},
+			wantClouds: []string{cloudAWS, cloudAzure},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			client := &mockClient{
+				events: []apievents.AuditEvent{
+					makeSSMRun("i-1", "111", "us-east-1", "Success", 0, "", now),
+					makeAzureRun("vm-1", "sub-1", "rg-1", "eastus", azureExecStateSucceeded, 0, "", "", now),
+				},
+				acceptedEventTypes: tt.accepted,
+			}
+			instances, err := buildNodes(t.Context(), client, now.Add(-time.Hour), now, tt.cfg)
+			require.NoError(t, err)
+
+			var clouds []string
+			for _, inst := range instances {
+				clouds = append(clouds, inst.cloud().cloudName())
+			}
+			require.Equal(t, tt.wantClouds, clouds)
 		})
 	}
 }

@@ -233,14 +233,48 @@ func filterFailures(instances []instanceInfo) []instanceInfo {
 	})
 }
 
+type cloudProviderConfig struct {
+	aws, azure bool
+}
+
+func parseCloudProviders(value string) (cloudProviderConfig, error) {
+	const (
+		cloudProviderAWS   = "aws"
+		cloudProviderAzure = "azure"
+	)
+
+	if value == "" {
+		return cloudProviderConfig{
+			aws:   true,
+			azure: true,
+		}, nil
+	}
+
+	cfg := cloudProviderConfig{}
+	parts := strings.Split(value, ",")
+	for _, part := range parts {
+		switch strings.ToLower(strings.TrimSpace(part)) {
+		case cloudProviderAWS:
+			cfg.aws = true
+		case cloudProviderAzure:
+			cfg.azure = true
+		case "":
+			return cloudProviderConfig{}, trace.BadParameter("empty cloud provider in --cloud (allowed: aws, azure)")
+		default:
+			return cloudProviderConfig{}, trace.BadParameter("unknown cloud provider %q (allowed: aws, azure)", part)
+		}
+	}
+	return cfg, nil
+}
+
 // buildNodes combines information about cloud instances from three sources,
 // matching on cloud instance ID:
 //  1. Installation audit events.
 //  2. Online Teleport nodes.
 //  3. User tasks.
-func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time) ([]instanceInfo, error) {
+func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time, cfg cloudProviderConfig) ([]instanceInfo, error) {
 	slog.DebugContext(ctx, "Fetching installation audit events")
-	ssmEvents, azureEvents, err := getRunEvents(ctx, clt, from, to)
+	ssmEvents, azureEvents, err := getRunEvents(ctx, clt, from, to, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching installation audit events")
 	}
@@ -265,14 +299,21 @@ func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time) ([
 	}
 	slog.DebugContext(ctx, "Fetched user tasks", "count", len(tasks))
 
-	awsInstances := cloudNodes(
-		mergeInstances(correlateSSMEvents(ssmEvents), correlateAWSNodes(nodes)),
-		tasks, awsTaskInstanceKeys)
-	azureInstances := cloudNodes(
-		mergeInstances(correlateAzureRunEvents(azureEvents), correlateAzureNodes(nodes)),
-		tasks, azureTaskInstanceKeys)
+	var instances []instanceInfo
+	if cfg.aws {
+		awsInstances := cloudNodes(
+			mergeInstances(correlateSSMEvents(ssmEvents), correlateAWSNodes(nodes)),
+			tasks, awsTaskInstanceKeys)
+		instances = append(instances, awsInstances...)
+	}
+	if cfg.azure {
+		azureInstances := cloudNodes(
+			mergeInstances(correlateAzureRunEvents(azureEvents), correlateAzureNodes(nodes)),
+			tasks, azureTaskInstanceKeys)
+		instances = append(instances, azureInstances...)
+	}
 
-	return append(awsInstances, azureInstances...), nil
+	return instances, nil
 }
 
 // cloudNodes finalizes one cloud's pipeline: flatten the instance map to a
@@ -316,12 +357,20 @@ func sortInstances(a, b instanceInfo) int {
 // getRunEvents fetches installation script audit events in descending time order
 // (most recent first). Returns SSM run events (AWS) and Azure run events; will
 // include GCP equivalents when available.
-func getRunEvents(ctx context.Context, clt discoveryClient, from, to time.Time) ([]*apievents.SSMRun, []*apievents.AzureRun, error) {
+func getRunEvents(ctx context.Context, clt discoveryClient, from, to time.Time, cfg cloudProviderConfig) ([]*apievents.SSMRun, []*apievents.AzureRun, error) {
+	var eventTypes []string
+	if cfg.aws {
+		eventTypes = append(eventTypes, libevents.SSMRunEvent)
+	}
+	if cfg.azure {
+		eventTypes = append(eventTypes, libevents.AzureRunEvent)
+	}
+
 	events, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchEvents(ctx, libevents.SearchEventsRequest{
 			From:       from,
 			To:         to,
-			EventTypes: []string{libevents.SSMRunEvent, libevents.AzureRunEvent},
+			EventTypes: eventTypes,
 			Order:      types.EventOrderDescending,
 			Limit:      limit,
 			StartKey:   token,
