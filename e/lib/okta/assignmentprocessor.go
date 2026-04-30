@@ -31,10 +31,6 @@ const (
 	// The amount of time that must pass before a failed assignment can be retried.
 	timeBeforeFailedRetry time.Duration = 5 * time.Minute
 
-	// Any assignment left in timeout for this amount of time will be marked as failed.
-	// TODO measure and document max number of group/app
-	processingTimeout time.Duration = 15 * time.Minute
-
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
 	processAssignmentTimeout time.Duration = 5 * time.Minute
@@ -48,11 +44,8 @@ type assignmentProcessorAccessPoint struct {
 type oktaAssignmentService interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
-	// UpdateOktaAssignment updates an existing Okta assignment resource.
-	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-	// since the last transition.
-	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
+	// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 }
@@ -90,6 +83,8 @@ type assignmentProcessor struct {
 	// be called. Otherwise, the assignment will be marked cleaned up but the Okta API will not be called
 	// until the counter reaches 0.
 	userTargetCounter map[string]map[string]struct{}
+
+	processingAssignmentLock utils.KeyLock[string]
 }
 
 func newAssignmentProcessor(svc *Service) *assignmentProcessor {
@@ -120,8 +115,8 @@ func (a *assignmentProcessor) start(ctx context.Context) {
 
 // loop runs the main body of the processing loop.
 func (a *assignmentProcessor) loop(ctx context.Context) {
-	a.logger.DebugContext(ctx, "Starting time-based Okta assignments reconciler")
-	defer a.logger.DebugContext(ctx, "Stopped time-based Okta assignments reconciler")
+	a.logger.DebugContext(ctx, "Starting timer-based Okta assignments reconciler")
+	defer a.logger.DebugContext(ctx, "Stopped timer-based Okta assignments reconciler")
 
 	timer := a.clock.NewTimer(a.timeBetweenAssignmentProcessLoops)
 	defer timer.Stop()
@@ -262,7 +257,6 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	}
 
 	startStatus := assignment.GetStatus()
-	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 
 	// TODO(kopiczko): Get rid of OktaAssignment.Finalizer and move the simplified assignment filtering here form [processAssignment]. That should allow removing `source` parameter from [processAssignment].
 	if shouldProcess := a.shouldProcess(ctx, logger, assignment, needsCleanup); !shouldProcess {
@@ -275,34 +269,41 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		"cleanup_time", timeAttr(assignment.GetCleanupTime()),
 	))
 
+	// Make sure we process only one event for each assignment at a time. We can receive
+	// processing event for the same assignment the watcher or the timer-based re-processing
+	// loop.
+	timeBeforeLocking := a.clock.Now()
+	a.processingAssignmentLock.Lock(assignment.GetName())
+	defer a.processingAssignmentLock.Unlock(assignment.GetName())
+	if timeToAcquire := a.clock.Since(timeBeforeLocking); timeToAcquire > 30*time.Second {
+		logger.DebugContext(ctx, "Took more than 30s to acquire assignment processing lock. Probably the same assignment (possibly different revision) has been processed in parallel", "time_to_acquire_lock", logutils.StringerAttr(timeToAcquire))
+	}
+
 	// Before we process, set finalized to false if we're re-processing.
+	// TODO(kopiczko): Verify the `needsReprovision` case is really needed and delete if not.
 	if needsReprovision {
 		var err error
 		assignment.SetFinalized(false)
-		assignment, err = a.accessPoint.UpdateOktaAssignment(ctx, assignment)
+		assignment, err = a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment)
 		if err != nil {
 			logger.ErrorContext(ctx, "Error unsetting finalized on assignment that doesn't need cleanup. Will retry on the next loop", "error", err)
 			return processAssignmentFailed
 		}
 	}
 
+	// Set status to processing to indicate this assignment is being processed and verify we
+	// are dealing with latest version of the resource.
 	if err := assignment.SetStatus(constants.OktaAssignmentStatusProcessing); err != nil {
-		if !trace.IsCompareFailed(err) {
-			a.logger.DebugContext(ctx, "Skipping assignment claimed by another service", "assignment", assignment.GetName())
-			return processAssignmentFailed
-		}
 		logger.ErrorContext(ctx, "Illegal assignment status transition (this is a bug)", "error", err)
 		return processAssignmentFailed
 	}
-
-	// Update the status to processing, which will lock other processor goroutines from operating on this.
-	if err := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), assignment.GetStatus(), sinceTransition); err != nil {
-		if trace.IsBadParameter(err) {
-			// err.Error() to not print the whole stack. This will be the "since last
-			// transition" error.
-			logger.DebugContext(ctx, "Failed to acquire assignment for processing, probably acquired by another processor", "error", err.Error())
+	assignment.SetLastTransition(a.clock.Now())
+	assignment, err := a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			logger.DebugContext(ctx, "Assignment is stale. Skipping", "error", err.Error())
 		} else {
-			logger.ErrorContext(ctx, "Failed to acquire assignment for processing", "error", err)
+			logger.ErrorContext(ctx, "Error updating assignment status to processing", "error", err)
 		}
 		return processAssignmentFailed
 	}
@@ -315,7 +316,6 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	}
 	processErrs := a.processTargets(ctx, logger, assignmentClient, assignment, op)
 
-	var err error
 	if len(processErrs) == 0 {
 		err = assignment.SetStatus(constants.OktaAssignmentStatusSuccessful)
 	} else {
@@ -327,8 +327,12 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	}
 	assignment.SetLastTransition(a.clock.Now())
 	assignment.SetFinalized(len(processErrs) == 0 && needsCleanup)
-	if _, err := a.accessPoint.UpdateOktaAssignment(ctx, assignment); err != nil {
-		logger.ErrorContext(ctx, "Failed to update processed assignment resource", "error", err)
+	if _, err := a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment); err != nil {
+		if trace.IsCompareFailed(err) {
+			logger.DebugContext(ctx, "Assignment was updated while processing. Will try again during next re-process loop", "error", err.Error())
+		} else {
+			logger.ErrorContext(ctx, "Error updating assignment status after finished processing. Will try again during next re-process loop.", "error", err)
+		}
 		return processAssignmentFailed
 	}
 
@@ -340,7 +344,6 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 			"finalized", assignment.IsFinalized(),
 			"cleanup_time", timeAttr(assignment.GetCleanupTime()),
 		))
-
 	}
 
 	// Emit the event if there was a processing error or cleanup was needed, or the starting and ending status aren't
@@ -365,6 +368,7 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 	if !needsCleanup || assignment.GetLastTransition().After(assignment.GetCleanupTime()) {
 		switch startStatus {
 		case constants.OktaAssignmentStatusPending:
+		case constants.OktaAssignmentStatusProcessing:
 		case constants.OktaAssignmentStatusSuccessful:
 			// If the assignment is marked finalized, it means this assignment was recently unlocked
 			// and we need to re-process it.
@@ -382,12 +386,6 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 			if sinceTransition < timeBeforeFailedRetry {
 				return false
 			}
-		case constants.OktaAssignmentStatusProcessing:
-			// Only process this if enough time has passed since trying to process this.
-			if sinceTransition < processingTimeout {
-				return false
-			}
-			logger.DebugContext(ctx, "Restarting processing of stuck assignment", "assignment", assignment.GetName())
 		default:
 			logger.ErrorContext(ctx, "Unknown assignment status, unable to process", "status", startStatus)
 			return false

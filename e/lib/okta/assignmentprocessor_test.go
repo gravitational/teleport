@@ -38,7 +38,7 @@ func TestProcessAssignments(t *testing.T) {
 	}
 	startTime := time.Now().UTC()
 	zero := time.Time{}
-	timeout := startTime.Add(processingTimeout)
+	timeout := startTime.Add(1 * time.Minute)
 	testUser := userName("test-user@test.user")
 	testOktaUserID := oktaUserID("okta-user-id")
 
@@ -300,7 +300,7 @@ func TestProcessAssignments(t *testing.T) {
 			},
 		},
 		{
-			name: "processing timeout, app retried, group retried",
+			name: "processing, app retried, group retried right away",
 			groups: types.UserGroups{
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
@@ -311,11 +311,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout), false,
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(1*time.Second), false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			incrementTimeDuration: processingTimeout,
+			incrementTimeDuration: 1 * time.Second,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New(testOktaUserID),
 			},
@@ -341,15 +341,14 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
-			// The cleanup time is 1 minute ahead of the last transition time, which puts it in the window of
+			// The cleanup time is the same time as the last transition time, which puts it in the window of
 			// not immediately transitioning. However, assignments should be cleaned up immediately even if they're
 			// within the retry window.
-			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusPending, timeout.Add(-time.Minute), false,
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusPending, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			// The expected last transition time is 2 minutes ahead of the timeout time.
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, timeout.Add(time.Minute), true,
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(1*time.Second), true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
@@ -359,8 +358,7 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New[oktaapi.AppAssignment](),
 			},
-			// 6 minutes pass from the start time, which should trigger an immediate cleanup.
-			incrementTimeDuration: processingTimeout + time.Minute,
+			incrementTimeDuration: 1 * time.Second,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:             "assignment1",
@@ -373,18 +371,18 @@ func TestProcessAssignments(t *testing.T) {
 			},
 		},
 		{
-			name: "cleanup retry",
+			name: "failed cleanup retry",
 			groups: types.UserGroups{
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
 				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
-			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusFailed, timeout.Add(1*time.Minute), false,
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusFailed, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+10*time.Minute), true,
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(timeBeforeFailedRetry), true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
@@ -394,7 +392,7 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New[oktaapi.AppAssignment](),
 			},
-			incrementTimeDuration: processingTimeout + 10*time.Minute,
+			incrementTimeDuration: timeBeforeFailedRetry,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:             "assignment1",
@@ -419,16 +417,16 @@ func TestProcessAssignments(t *testing.T) {
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
 			expected: types.OktaAssignments{
-				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), false,
+				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				),
-				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), true,
+				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}),
 			},
-			incrementTimeDuration: processingTimeout + 5*time.Minute,
+			incrementTimeDuration: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:             "assignment2",
@@ -453,16 +451,16 @@ func TestProcessAssignments(t *testing.T) {
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
 			expected: types.OktaAssignments{
-				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), true,
+				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				),
-				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), false,
+				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}),
 			},
-			incrementTimeDuration: processingTimeout + 5*time.Minute,
+			incrementTimeDuration: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:             "assignment1",
@@ -584,10 +582,10 @@ func Test_assignmentProcessor_processAssignments_priority(t *testing.T) {
 	cleanupTimePast2 := now.Add(-1 * time.Hour)
 	cleanupTimeFuture1 := now.Add(1 * time.Hour)
 	cleanupTimeFuture2 := now.Add(2 * time.Hour)
-	lastProcessedT1 := now.Add(-4*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
-	lastProcessedT2 := now.Add(-3*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
-	lastProcessedT3 := now.Add(-2*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
-	lastProcessedT4 := now.Add(-1*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
+	lastProcessedT1 := now.Add(-4*time.Minute - oktaplugin.DefaultTimeBetweenAssignmentProcessLoops)
+	lastProcessedT2 := now.Add(-3*time.Minute - oktaplugin.DefaultTimeBetweenAssignmentProcessLoops)
+	lastProcessedT3 := now.Add(-2*time.Minute - oktaplugin.DefaultTimeBetweenAssignmentProcessLoops)
+	lastProcessedT4 := now.Add(-1*time.Minute - oktaplugin.DefaultTimeBetweenAssignmentProcessLoops)
 
 	assignmentDescs := []struct {
 		cleanupTime   time.Time
