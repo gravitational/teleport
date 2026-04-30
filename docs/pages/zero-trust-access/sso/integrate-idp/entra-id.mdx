@@ -273,12 +273,32 @@ enable Teleport to authenticate to Microsoft Graph API.
 
 For the same app registration created in Step 1:
 
+<Tabs>
+<TabItem label="Azure Portal">
 1. From the **Overview** page, copy the **Application (client) ID**.
    ![Entra ID SAML client ID](../../../../img/sso/entraid/entra-id-client-id.png)
 2. Select **Manage -> Certificates & secrets**, click on **New client secret**, set a description and expiry, then click **Add**.
    ![Entra ID SAML client credential](../../../../img/sso/entraid/entra-id-client-credential.png)
-3. Copy the secret value.
+3. Copy the secret value before moving to the next step, as it won't be shown again.
    ![Entra ID SAML client secret](../../../../img/sso/entraid/entra-id-client-secret.png)
+</TabItem>
+<TabItem label="Azure CLI">
+1. Get the client ID.
+   ```code
+   az ad app list --display-name <Var name="app-name" description="The name of your app" /> --query "[0].appId" -o tsv
+   ```
+2. Create a client secret.
+   ```shell
+   az ad app credential reset --append \
+     --id <Var name="client-id" description="The client ID from the previous step" />\
+     --display-name <Var name="display-name" description="The display name for the client secret" />\
+     --query "password" \
+     -o tsv
+   ```
+3. Copy the client secret value before moving to the next step, as it won't be shown again.
+</TabItem>
+</Tabs>
+
 4. Update the connector with the credentials.
    ```yaml
    kind: saml
