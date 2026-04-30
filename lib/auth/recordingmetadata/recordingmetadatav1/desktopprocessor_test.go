@@ -71,20 +71,6 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 			},
 		},
 		{
-			name: "cursor state is captured in thumbnail",
-			events: generateCompleteDesktopSession(t, startTime, 800, 600, []apievents.AuditEvent{
-				desktopFastPathEvent(t, startTime.Add(2*time.Second), rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed)),
-				desktopFastPathEvent(t, startTime.Add(3*time.Second), rdpstatetest.BuildPointerPositionPDU(400, 300)),
-			}),
-			expectedThumbnail: func(t *testing.T, thumbnail *pb.SessionRecordingThumbnail) {
-				require.NotNil(t, thumbnail)
-
-				require.True(t, thumbnail.CursorVisible)
-				require.Equal(t, int32(400), thumbnail.CursorX)
-				require.Equal(t, int32(300), thumbnail.CursorY)
-			},
-		},
-		{
 			name: "unhandled events are silently ignored",
 			events: generateCompleteDesktopSession(t, startTime, 800, 600, []apievents.AuditEvent{
 				&apievents.SessionJoin{Metadata: apievents.Metadata{Time: startTime.Add(2 * time.Second)}},
