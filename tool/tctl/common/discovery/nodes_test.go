@@ -385,6 +385,78 @@ func TestCombineOutput(t *testing.T) {
 	}
 }
 
+func TestParseCloudProviders(t *testing.T) {
+	tests := []struct {
+		desc    string
+		in      string
+		want    cloudProviderConfig
+		wantErr string
+	}{
+		{
+			desc: "empty enables all",
+			in:   "",
+			want: cloudProviderConfig{aws: true, azure: true},
+		},
+		{
+			desc: "aws only",
+			in:   "aws",
+			want: cloudProviderConfig{aws: true},
+		},
+		{
+			desc: "azure only",
+			in:   "azure",
+			want: cloudProviderConfig{azure: true},
+		},
+		{
+			desc: "both providers",
+			in:   "aws,azure",
+			want: cloudProviderConfig{aws: true, azure: true},
+		},
+		{
+			desc: "case-insensitive",
+			in:   "AWS,Azure",
+			want: cloudProviderConfig{aws: true, azure: true},
+		},
+		{
+			desc: "whitespace trimmed",
+			in:   " aws , azure ",
+			want: cloudProviderConfig{aws: true, azure: true},
+		},
+		{
+			desc: "duplicate providers accepted",
+			in:   "aws,aws",
+			want: cloudProviderConfig{aws: true},
+		},
+		{
+			desc:    "single comma rejected",
+			in:      ",",
+			wantErr: "empty cloud provider",
+		},
+		{
+			desc:    "whitespace-only entry rejected",
+			in:      "aws, ,azure",
+			wantErr: "empty cloud provider",
+		},
+		{
+			desc:    "unknown provider rejected",
+			in:      "gcp",
+			wantErr: `unknown cloud provider "gcp"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got, err := parseCloudProviders(tt.in)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Equal(t, cloudProviderConfig{}, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestFilterFailures(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	instances := []instanceInfo{

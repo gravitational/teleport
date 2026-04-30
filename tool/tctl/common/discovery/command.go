@@ -40,6 +40,7 @@ type Command struct {
 	nodesLast         time.Duration
 	nodesFormat       string
 	nodesFailuresOnly bool
+	nodesCloudFilter  string
 }
 
 // Initialize registers the "discovery" command and its subcommands with the CLI parser.
@@ -67,6 +68,9 @@ Examples:
 		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON)
 	c.nodesCmd.Flag("failures-only", "Only show instances with enrollment failures.").
 		BoolVar(&c.nodesFailuresOnly)
+	c.nodesCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
+		Default("").
+		StringVar(&c.nodesCloudFilter)
 }
 
 // TryRun attempts to run the matched subcommand.
@@ -95,7 +99,12 @@ func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer
 		"last", c.nodesLast,
 	)
 
-	instances, err := buildNodes(ctx, clt, dateFrom, dateTo)
+	cfg, err := parseCloudProviders(c.nodesCloudFilter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	instances, err := buildNodes(ctx, clt, dateFrom, dateTo, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
