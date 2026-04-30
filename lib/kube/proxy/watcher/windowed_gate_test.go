@@ -36,7 +36,7 @@ func newGate(t *testing.T, window time.Duration) *WindowedGate {
 	return g
 }
 
-func TestDo_WindowRespected(t *testing.T) {
+func TestMaybeDo_WindowRespected(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
 		g := newGate(t, time.Second)
@@ -61,7 +61,7 @@ func TestDo_WindowRespected(t *testing.T) {
 	})
 }
 
-func TestDo_WindowExpires(t *testing.T) {
+func TestMaybeDo_WindowExpires(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
 		g := newGate(t, time.Second)
