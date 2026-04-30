@@ -387,7 +387,7 @@ func TestReferralParsing(t *testing.T) {
 	t.Run("extensions only - no dn", func(t *testing.T) {
 		ref, err := newLDAPReferral("ldaps://somehost:123/????extensions")
 		require.NoError(t, err)
-		assert.Equal(t, ref.host, "somehost:123")
+		assert.Equal(t, "somehost:123", ref.host)
 		assert.Empty(t, ref.baseDN)
 		assert.Empty(t, ref.attributes)
 		assert.Empty(t, ref.filter)
@@ -398,7 +398,7 @@ func TestReferralParsing(t *testing.T) {
 	t.Run("extensions only - no dn - no leading slash", func(t *testing.T) {
 		ref, err := newLDAPReferral("ldaps://somehost:123??????extensions")
 		require.NoError(t, err)
-		assert.Equal(t, ref.host, "somehost:123")
+		assert.Equal(t, "somehost:123", ref.host)
 		assert.Empty(t, ref.baseDN)
 		assert.Empty(t, ref.attributes)
 		assert.Empty(t, ref.filter)
