@@ -883,7 +883,7 @@ func (c *Client) TrustClient() trustpb.TrustServiceClient {
 	return trustpb.NewTrustServiceClient(c.conn)
 }
 
-// BotServiceClient returns an unadorned client for the bot service.
+// BotServiceClient returns a client for the bot service.
 func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
 }
