@@ -711,7 +711,7 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 		if oldts.AgentConnectionCount != newts.AgentConnectionCount {
 			return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
 		}
-		if oldts.DisconnectThreshold != newts.DisconnectThreshold {
+		if oldts.DisconnectThresholdSeconds != newts.DisconnectThresholdSeconds {
 			return trace.BadParameter(cloudUpdateFailureMsg, "disconnect_threshold")
 		}
 	}

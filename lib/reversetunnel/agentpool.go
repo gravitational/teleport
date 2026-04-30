@@ -931,7 +931,7 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 	if c.tunnelStrategyType == types.ProxyPeering {
 		strategy := netConfig.GetProxyPeeringTunnelStrategy()
 		c.connectionCount = int(strategy.AgentConnectionCount)
-		c.disconnectThreshold = strategy.DisconnectThreshold.Duration()
+		c.disconnectThreshold = time.Duration(strategy.DisconnectThresholdSeconds) * time.Second
 	}
 	if c.connectionCount <= 0 {
 		c.connectionCount = defaultAgentConnectionCount

@@ -758,7 +758,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
 				ts := p.GetProxyPeeringTunnelStrategy()
-				ts.DisconnectThreshold = types.Duration(time.Minute)
+				ts.DisconnectThresholdSeconds = 60
 				p.SetTunnelStrategy(&types.TunnelStrategyV1{
 					Strategy: &types.TunnelStrategyV1_ProxyPeering{
 						ProxyPeering: ts,
