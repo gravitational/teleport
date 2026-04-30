@@ -528,7 +528,7 @@ func (s *WindowsService) startReconciler(ctx context.Context) error {
 				// watcher doesn't prevent LDAP discovery from running.
 				if len(s.cfg.ResourceMatchers) > 0 &&
 					!watcherNotificationReceived &&
-					s.cfg.Clock.Since(start) > 5*time.Minute {
+					s.cfg.Clock.Since(start) < 5*time.Minute {
 					continue
 				}
 				s.cfg.Logger.DebugContext(ctx, "Performing LDAP discovery")
