@@ -158,16 +158,15 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 		return nil, trace.Wrap(err, "creating retry")
 	}
 
-	cfg.Logger = cfg.Logger.With("resource_kinds", types.KindKubeServer)
-	ctx, cancel := context.WithCancel(ctx)
-
-	gate, err := NewWindowedGate(ctx, WindowedGateConfig{
+	gate, err := NewWindowedGate(WindowedGateConfig{
 		Window: cfg.FallbackInterval,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err, "creating windowed gate")
 	}
+
+	cfg.Logger = cfg.Logger.With("resource_kinds", types.KindKubeServer)
+	ctx, cancel := context.WithCancel(ctx)
 
 	w := &ProxyKubeServerWatcher{
 		ProxyKubeServerWatcherConfig: cfg,
@@ -349,7 +348,7 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		// fast path watcher is hot, no need to fetch from upstream
 		return nil
 	}
-	_, err := w.gate.Do(ctx, func(ctx context.Context) error {
+	_, err := w.gate.MaybeDo(ctx, func(ctx context.Context) error {
 		newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
 		if err != nil {
 			return trace.Wrap(err, "fetching from fallback")
