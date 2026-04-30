@@ -211,7 +211,7 @@ type fakeUploader struct {
 	events.MultipartUploader
 }
 
-func (f fakeUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (f fakeUploader) CreateUpload(ctx context.Context, sessionID session.ID, _ ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	return &events.StreamUpload{ID: uuid.NewString(), SessionID: sessionID}, nil
 }
 

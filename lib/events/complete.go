@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -469,7 +468,7 @@ func AppendUpload(
 	nopPreparer := NoOpPreparer{}
 	var lastEventIndex int64 = -1
 	for {
-		var event events.AuditEvent
+		var event apievents.AuditEvent
 		select {
 		case event = <-currentStream:
 		case err := <-currentErr:
