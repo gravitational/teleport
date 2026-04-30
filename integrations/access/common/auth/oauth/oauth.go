@@ -16,28 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package storage
+// TODO(hugoShaka): Delete this file when the teleport.e counterpart is merged
+
+package oauth
 
 import (
 	"context"
-	"time"
+
+	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
 
-// Credentials represents the short-lived OAuth2 credentials.
-type Credentials struct {
-	// AccessToken is the Bearer token used to access the provider's API
-	AccessToken string
-	// RefreshToken is used to acquire a new access token.
-	RefreshToken string
-	// ExpiresAt marks the end of validity period for the access token.
-	// The application must use the refresh token to acquire a new access token
-	// before this time.
-	ExpiresAt time.Time
+// Authorizer is the composite interface of Exchanger and Refresher.
+type Authorizer interface {
+	Exchanger
+	Refresher
 }
 
-// Store defines the interface for persisting the short-lived OAuth2 credentials.
-// TODO(hugoShaka): delete this interface once the teleport.e PR is merged
-type Store interface {
-	GetCredentials(context.Context) (*Credentials, error)
-	PutCredentials(context.Context, *Credentials) error
+// Exchanger implements the OAuth2 authorization code exchange operation.
+type Exchanger interface {
+	Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error)
+}
+
+// Refresher implements the OAuth2 bearer token refresh operation.
+type Refresher interface {
+	Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error)
 }
