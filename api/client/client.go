@@ -893,11 +893,6 @@ func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClie
 	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
 }
 
-// BeamServiceClient returns an unadorned client for the beams service.
-func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
-	return beamsv1.NewBeamServiceClient(c.conn)
-}
-
 func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationServiceClient {
 	return machineidv1pb.NewSPIFFEFederationServiceClient(c.conn)
 }
@@ -994,6 +989,11 @@ func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.Reco
 // service.
 func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
 	return delegationv1.NewDelegationSessionServiceClient(c.conn)
+}
+
+// BeamServiceClient returns a client for the beam service.
+func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
+	return beamsv1.NewBeamServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
