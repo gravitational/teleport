@@ -41,7 +41,9 @@ KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERS
 
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
+# It is exported so that the enterprise Makefile puts the build artifacts here too.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
+export RELEASE_DIR
 
 GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 
@@ -316,6 +318,8 @@ CGOFLAG = CGO_ENABLED=1
 ifneq ($(BUILDBOX_MODE),cross)
 ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
+# export CC for enterprise build.
+export CC
 endif
 endif
 
