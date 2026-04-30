@@ -19,6 +19,15 @@ import SwiftUI
 struct EnrollMobileDeviceView: View {
     let deepURL: EnrollMobileDeviceDeepURL
     let onCancel: () -> Void
+    @State private var viewModel: EnrollMobileDeviceViewModel
+
+    init(deepURL: EnrollMobileDeviceDeepURL, onCancel: @escaping () -> Void) {
+        self.deepURL = deepURL
+        self.onCancel = onCancel
+        _viewModel = State(
+            initialValue: EnrollMobileDeviceViewModel(deepURL: deepURL)
+        )
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -48,21 +57,65 @@ struct EnrollMobileDeviceView: View {
             Spacer()
             VStack(spacing: 16) {
                 Button {
+                    Task { await viewModel.requestEnrollToken() }
                 } label: {
-                    Text("Request Now").frame(maxWidth: .infinity)
+                    Group {
+                        if viewModel.attempt.isLoading {
+                            Label(
+                                "Request in progress",
+                                systemImage: "progress.indicator"
+                            )
+                            .labelStyle(.iconOnly)
+                            .symbolEffect(
+                                .variableColor.iterative,
+                                options: .repeat(.continuous),
+                                isActive: true
+                            )
+                        } else {
+                            Text("Request Now")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .animation(.easeInOut, value: viewModel.attempt.isLoading)
+                .disabled(viewModel.attempt.isLoading)
+
                 Button(role: .cancel, action: onCancel) {
                     Text("Cancel").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
+                .disabled(viewModel.attempt.isLoading)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
+        .alert(
+            "Enrollment",
+            isPresented: Binding(
+                get: {
+                    switch viewModel.attempt {
+                    case .success, .failure: return true
+                    default: return false
+                    }
+                },
+                set: { if !$0 { viewModel.attempt = .idle } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            switch viewModel.attempt {
+            case .success(let token):
+                Text("Got enrollment token: \(token)")
+            case .failure(let error):
+                Text("Error: \(error.localizedDescription)")
+            default:
+                EmptyView()
+            }
+        }
     }
 }
 
