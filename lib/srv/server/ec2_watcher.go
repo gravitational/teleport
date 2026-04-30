@@ -702,3 +702,14 @@ func (f *ec2InstanceFetcher) GetDiscoveryConfigName() string {
 func (f *ec2InstanceFetcher) IntegrationName() string {
 	return f.Matcher.Integration
 }
+
+// LogValue implements [slog.LogValuer].
+func (f *ec2InstanceFetcher) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("organization", f.Matcher.Organization),
+		slog.Any("regions", f.Matcher.Regions),
+		slog.Any("tags", f.Matcher.Tags),
+		slog.String("discovery_config", f.GetDiscoveryConfigName()),
+		slog.String("integration", f.IntegrationName()),
+	)
+}

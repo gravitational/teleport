@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockInstance struct {
@@ -56,6 +58,13 @@ func (m *mockFetcher) GetDiscoveryConfigName() string {
 
 func (m *mockFetcher) IntegrationName() string {
 	panic("IntegrationName should not be called")
+}
+
+func (m *mockFetcher) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("instances", m.instances),
+		slog.Any("error", m.err),
+	)
 }
 
 func TestWatcherFetchAndSubmit(t *testing.T) {
@@ -133,7 +142,7 @@ func TestWatcherFetchAndSubmit(t *testing.T) {
 			var collected []mockInstance
 			var mu sync.Mutex
 
-			w := NewWatcher[mockInstance](t.Context(),
+			w := NewWatcher[mockInstance](t.Context(), logtest.NewLogger(),
 				WithPerInstanceHookFn[mockInstance](func(inst []mockInstance) {
 					mu.Lock()
 					collected = append(collected, inst...)
@@ -232,6 +241,7 @@ func TestWatcherRunLoop(t *testing.T) {
 		},
 	}
 
+	logger := logtest.NewLogger()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -240,6 +250,7 @@ func TestWatcherRunLoop(t *testing.T) {
 				var fetchCount atomic.Int32
 
 				w := NewWatcher[mockInstance](t.Context(),
+					logger,
 					WithPollInterval[mockInstance](tt.pollInterval),
 					WithTriggerFetchC[mockInstance](triggerC),
 					WithPerInstanceHookFn[mockInstance](func([]mockInstance) {
@@ -280,6 +291,7 @@ func TestWatcherHooks(t *testing.T) {
 		},
 	}
 
+	logger := logtest.NewLogger()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -288,6 +300,7 @@ func TestWatcherHooks(t *testing.T) {
 				var order []string
 
 				w := NewWatcher[mockInstance](t.Context(),
+					logger,
 					WithPollInterval[mockInstance](time.Hour),
 					WithTriggerFetchC[mockInstance](triggerC),
 					WithTriggerFetchHookFn[mockInstance](func() { order = append(order, "trigger") }),
@@ -350,6 +363,7 @@ func TestWatcherShutdown(t *testing.T) {
 		},
 	}
 
+	logger := logtest.NewLogger()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -358,6 +372,7 @@ func TestWatcherShutdown(t *testing.T) {
 				defer cancel()
 
 				w := NewWatcher[mockInstance](ctx,
+					logger,
 					WithPollInterval[mockInstance](time.Hour),
 				)
 

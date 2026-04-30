@@ -352,3 +352,15 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 	return instances, nil
 }
+
+// LogValue implements [slog.LogValuer].
+func (f *azureInstanceFetcher) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("labels", f.Labels),
+		slog.Any("regions", f.Regions),
+		slog.String("discovery_config", f.GetDiscoveryConfigName()),
+		slog.String("integration", f.IntegrationName()),
+		slog.String("resource_group", f.ResourceGroup),
+		slog.String("subscription_id", f.Subscription),
+	)
+}
