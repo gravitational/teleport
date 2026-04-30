@@ -227,6 +227,31 @@ func TestSessionService_CreateSession(t *testing.T) {
 		require.ErrorContains(t, err, "cannot create a delegation session from within a delegation session")
 	})
 
+	t.Run("cannot create a session with a non-reissuable certificate", func(t *testing.T) {
+		service, pack := sessionServiceTestPack(t)
+
+		pack.authenticateUserWithDisallowReissue(
+			t,
+			"bob",
+			authz.AdminActionAuthMFAVerified,
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+				},
+			},
+		)
+
+		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+			Spec: newDelegationSessionSpec("bob"),
+			Ttl:  durationpb.New(5 * time.Minute),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+		require.ErrorContains(t, err, "cannot create a delegation session because certificate reissuance is prohibited")
+	})
+
 	t.Run("missing ttl", func(t *testing.T) {
 		service, pack := sessionServiceTestPack(t)
 

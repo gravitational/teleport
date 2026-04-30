@@ -114,6 +114,7 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 						Username:            pack.user.GetName(),
 						Groups:              pack.user.GetRoles(),
 						DelegationSessionID: pack.delegationSessionID,
+						DisallowReissue:     pack.disallowReissue,
 					},
 				}
 
@@ -169,6 +170,7 @@ type sessionTestPack struct {
 	adminActionAuthState authz.AdminActionAuthState
 	botName              string
 	delegationSessionID  string
+	disallowReissue      bool
 
 	onCreateAppSession func(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
 	onGenerateCert     func(context.Context, cert.Request) (*proto.Certs, error)
@@ -198,6 +200,18 @@ func (p *sessionTestPack) authenticateUserInDelegationSession(
 
 	p.authenticateUser(t, name, mfaState, roleSpec)
 	p.delegationSessionID = delegationSessionID
+}
+
+func (p *sessionTestPack) authenticateUserWithDisallowReissue(
+	t *testing.T,
+	name string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.authenticateUser(t, name, mfaState, roleSpec)
+	p.disallowReissue = true
 }
 
 func (p *sessionTestPack) createUser(

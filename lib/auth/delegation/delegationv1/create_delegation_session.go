@@ -58,6 +58,9 @@ func (s *SessionService) CreateDelegationSession(
 	if authCtx.Identity.GetIdentity().DelegationSessionID != "" {
 		return nil, trace.AccessDenied("cannot create a delegation session from within a delegation session")
 	}
+	if authCtx.Identity.GetIdentity().DisallowReissue {
+		return nil, trace.AccessDenied("cannot create a delegation session because certificate reissuance is prohibited")
+	}
 
 	if req.GetTtl() == nil {
 		return nil, trace.BadParameter("ttl: is required")
