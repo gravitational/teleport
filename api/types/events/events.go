@@ -3039,22 +3039,50 @@ func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
-func (m *ScopedTokenCreate) TrimToMaxSize(int) AuditEvent {
+func (m *ScopedTokenCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenCreate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
+}
+
+func (m *ScopedTokenUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenUpdate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
+}
+
+func (m *ScopedTokenDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
-func (m *ScopedTokenUpdate) TrimToMaxSize(int) AuditEvent {
-	return m
+func (m *ScopedTokenUse) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenUse) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
 }
 
-func (m *ScopedTokenDelete) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *ScopedTokenUse) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *ScopedTokenFail) TrimToMaxSize(int) AuditEvent {
-	return m
+func (m *ScopedTokenFail) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenFail) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
 }

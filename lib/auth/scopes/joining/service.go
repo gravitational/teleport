@@ -128,6 +128,10 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
 	}); err == nil {
+		res, err := s.backend.DeleteScopedToken(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// We can't fetch the existing token before emitting this event, but
 		// all we need to emit is the token name anyway so we just construct
 		// an empty scoped token for this case.
@@ -136,7 +140,7 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 				Name: req.GetName(),
 			},
 		})
-		return s.backend.DeleteScopedToken(ctx, req)
+		return res, nil
 	}
 
 	// fetch the token so we can determine the resource scope
