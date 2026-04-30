@@ -225,7 +225,7 @@ var (
 		BoundKeypairCAJWT:    ECDSAP256,
 		RecordingKeyWrapping: RSA4096,
 		WindowsCARDP:         RSA2048, // same as UserCATLS
-		AppClientCATLS:       RSA2048,
+		AppClientCATLS:       ECDSAP256,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
