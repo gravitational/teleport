@@ -25,6 +25,8 @@ import (
 )
 
 func TestRenderText(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc      string
 		instances []instanceInfo

@@ -82,6 +82,8 @@ func makeNode(name, awsInstanceID, accountID, region string, expiry time.Time) *
 }
 
 func TestCorrelateSSMEvents(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC().Truncate(time.Second)
 
 	tests := []struct {
@@ -139,6 +141,8 @@ func TestCorrelateSSMEvents(t *testing.T) {
 }
 
 func TestCorrelateAWSNodes(t *testing.T) {
+	t.Parallel()
+
 	expiry := time.Now().UTC().Truncate(time.Second).Add(time.Hour)
 
 	tests := []struct {

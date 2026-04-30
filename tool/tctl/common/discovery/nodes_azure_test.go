@@ -81,6 +81,8 @@ func makeAzureNode(name, vmID, subscriptionID, resourceGroup, region string, exp
 }
 
 func TestCorrelateAzureRunEvents(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC().Truncate(time.Second)
 
 	tests := []struct {
@@ -179,6 +181,8 @@ func TestCorrelateAzureRunEvents(t *testing.T) {
 }
 
 func TestCorrelateAzureNodes(t *testing.T) {
+	t.Parallel()
+
 	expiry := time.Now().UTC().Truncate(time.Second).Add(time.Hour)
 
 	tests := []struct {

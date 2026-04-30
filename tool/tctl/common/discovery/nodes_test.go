@@ -75,6 +75,8 @@ func makeAzureVMTask(t *testing.T, issueType string, vmIDs ...string) *usertasks
 }
 
 func TestCloudNodes(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC().Truncate(time.Second)
 
 	tests := []struct {
@@ -166,6 +168,8 @@ func TestCloudNodes(t *testing.T) {
 }
 
 func TestInstanceInfo_Status(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc string
 		fi   instanceInfo
@@ -220,6 +224,8 @@ func TestInstanceInfo_Status(t *testing.T) {
 }
 
 func TestInstanceInfo_UserTaskTitle(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc string
 		fi   instanceInfo
@@ -268,6 +274,8 @@ func TestInstanceInfo_UserTaskTitle(t *testing.T) {
 }
 
 func TestInstanceInfo_LastTime(t *testing.T) {
+	t.Parallel()
+
 	t10 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	t12 := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	t08 := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
@@ -306,6 +314,8 @@ func TestInstanceInfo_LastTime(t *testing.T) {
 }
 
 func TestTrimEscape(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc string
 		in   string
@@ -345,6 +355,8 @@ func TestTrimEscape(t *testing.T) {
 }
 
 func TestCombineOutput(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc   string
 		stdout string
@@ -386,6 +398,8 @@ func TestCombineOutput(t *testing.T) {
 }
 
 func TestParseCloudProviders(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc    string
 		in      string
@@ -458,6 +472,8 @@ func TestParseCloudProviders(t *testing.T) {
 }
 
 func TestFilterFailures(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC().Truncate(time.Second)
 	instances := []instanceInfo{
 		{AWS: &awsInfo{InstanceID: "i-ok"}, IsOnline: true, RunResult: &runResult{ExitCode: 0}},
