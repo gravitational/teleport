@@ -78,7 +78,7 @@ func executeWithOktaLock(semaphores types.Semaphores, holder string, plugin *typ
 				if ctx.Err() != nil {
 					return nil
 				}
-				log.WarnContext(ctx, "Failed to acquire Okta semaphore", "error", err)
+				log.DebugContext(ctx, "Okta Plugin instance is in standby mode trying to acquire a lock held by leader, will retry")
 				select {
 				case <-ctx.Done():
 					return nil
