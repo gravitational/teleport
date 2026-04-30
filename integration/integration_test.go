@@ -1823,7 +1823,7 @@ type disconnectTestCase struct {
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
-	idleTimeout := 4 * time.Second
+	idleTimeout := 3 * time.Second
 	netConfig := types.DefaultClusterNetworkingConfig()
 	netConfig.SetClientIdleTimeout(idleTimeout)
 
@@ -1860,7 +1860,7 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdout = term
 		cl.Stdin = term
 
-		// Print a ready marker, then echo each line of stdin back to the client.
+		// Print a ready marker, then echo bytes from stdin back to the client.
 		const clientIdleKeepaliveCommand = `sh -c 'echo __READY__; exec cat'`
 		sessionErr <- cl.SSH(sessionCtx, []string{clientIdleKeepaliveCommand})
 	}
@@ -1869,19 +1869,20 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 
 	require.NoError(t, waitForTerminalOutput(sessionCtx, term, ".*__READY__.*"))
 
-	// Keep the session alive by writing and reading from the terminal within the idle timeout.
-	start := time.Now()
-	for i := 0; ; i++ {
-		msg := "keepalive-" + strconv.Itoa(i)
-		require.NoError(t, enterInput(sessionCtx, term, msg+"\r\n", msg))
+	// Keep the session alive by writing/reading with the terminal within the idle timeout.
+	keepaliveTicker := time.NewTicker(idleTimeout / 3)
+	keepaliveEnd := time.After(10 * time.Second)
 
-		if time.Since(start) > idleTimeout*2 {
+	for i := 0; ; i++ {
+		select {
+		case <-keepaliveTicker.C:
+			msg := "keepalive-" + strconv.Itoa(i)
+			require.NoError(t, enterInput(sessionCtx, term, msg+"\r\n", msg))
+
+		case <-keepaliveEnd:
 			// The session survived beyond the idle timeout, success.
 			return
-		}
 
-		select {
-		case <-time.After(idleTimeout / 3):
 		case <-sessionCtx.Done():
 			require.FailNowf(t, "timeout", "session ended before exceeding idle timeout: %v", sessionCtx.Err())
 		}
@@ -2121,14 +2122,17 @@ func timeNow() string {
 	return time.Now().Format(time.StampMilli)
 }
 
-// enterInput simulates entering user input into a terminal and awaiting a
-// response. Returns an error if the given response text doesn't match
-// the supplied regexp string.
+// enterInput simulates typing command into the terminal and waits for output
+// matching pattern. Returns an error on timeout, nil on match or context
+// cancellation.
 func enterInput(ctx context.Context, person *Terminal, command, pattern string) error {
 	person.Type(command)
 	return waitForTerminalOutput(ctx, person, pattern)
 }
 
+// waitForTerminalOutput polls the terminal until output matches pattern,
+// 10 seconds elapse, or ctx is canceled.
+// Returns nil on match or cancellation, error on timeout.
 func waitForTerminalOutput(ctx context.Context, person *Terminal, pattern string) error {
 	abortTime := time.Now().Add(10 * time.Second)
 	for {
