@@ -6,7 +6,7 @@ require github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 
 require (
 	cyphar.com/go-pathrs v0.2.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.77.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.78.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000 // indirect
