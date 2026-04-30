@@ -112,8 +112,9 @@ information.
 Note that non-bot agents manage their certificates differently from bots: they
 generally do not reauthenticate to Teleport on a regular basis and only do so
 under certain conditions, like if role changes are requested (adding a new
-service role). Rotation can only happen during the bound keypair challenge
-process, which only happens during these events.
+service role) or cluster CAs are rotated. Bound Keypair rotation can only happen
+during the bound keypair challenge process, which for agents only happens during
+these rare, manual events.
 </Admonition>
 
 ## Locking a `bound_keypair` client
@@ -385,7 +386,9 @@ Note that the benefits of Bound Keypair joining for agents are more limited, so
 most users will still probably prefer to use the traditional `token` join
 method:
 - Agents are ultimately still issued long-lived certificates and do not
-  generally renew these identities outside of limited circumstances.
+  generally renew these identities outside of limited circumstances, namely
+  during [cluster CA rotation](../../../zero-trust-access/management/security/ca-rotation.mdx)
+  or when new system roles are added to an existing agent.
 - As most Agents only join a single time, Bound Keypair's
   [Join State Verification](./concepts.mdx#join-state-verification) is
   effectively unused.

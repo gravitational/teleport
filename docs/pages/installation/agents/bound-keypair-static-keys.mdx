@@ -21,8 +21,9 @@ agents:
    agent and shared out-of-band to Teleport, which is then configured to trust
    the agent's public key.
 
-This guide covers the use of **static keys**. If you wish to join an
-agent using Bound Keypair registration secrets, see the
+This guide covers the use of **static keys**, which are useful in situations
+where agents might be stateless or otherwise lack long-term persistent storage.
+If you wish to join an agent using Bound Keypair registration secrets, see the
 [dedicated guide](./bound-keypair.mdx).
 
 <Admonition type="tip" title="Bound Keypair for Bots">
@@ -49,10 +50,12 @@ method works and how to use it in production.
 
 Note that there are a number of limitations inherent to using Bound Keypair
 joining for non-bot agents:
-- Unlike bots, Teleport Agents are still issued long-lived certificates and
-  usually only need to join the cluster a single time during their normal
-  lifecycle. This means some Bound Keypair features, like join state
-  verification and keypair renewals, will not be regularly exercised.
+- Teleport Agents joining a cluster with the Bound Keypair join method generally
+  exercise Bound Keypair features only once during their initial join attempt.
+  Unlike the `tbot` client which authenticates to Teleport frequently, Agents
+  are issued long-lived certificates when they join which are not normally
+  refreshed. This means join state verification, keypair rotation, and other
+  Bound Keypair features will not be exercised during normal Agent operation.
 - Standard preregistered keys are not currently supported.
 
 For more information on agent joining limitations, see the
@@ -73,7 +76,7 @@ Install Teleport on your Linux VM or bare-metal host.
 ## Step 2/5. Generate a static key
 
 On the target VM or bare-metal host, use the `tbot` client to generate a
-keypair:
+keypair. Run `tbot keypair create` to write a key to a file:
 
 ```code
 $ tbot keypair create \
@@ -85,10 +88,14 @@ To register the keypair with Teleport, include this public key in the token's
 'spec.bound_keypair.onboarding.initial_public_key' field:
 
 	ssh-ed25519 <data>
+
+[...help text continues...]
 ```
 
-Make a note of the `ssh-ed25519 ...` text for a future step; the exact prefix
-may vary depending on your cluster configuration.
+The command should print a help message with instructions for creating a join
+token. Make a note of the `ssh-ed25519 <data>` written in the help text for a
+future step. Note that the exact `ssh-[...]` prefix may vary depending on your
+cluster configuration.
 
 ## Step 3/5. Create the token
 
