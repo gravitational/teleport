@@ -77,10 +77,13 @@ func VNetServiceBuilder(cfg *VNetServiceConfig, opts ...VNetServiceOpt) bot.Serv
 			opt(svc)
 		}
 
-		identitySvc, err := clientcredentials.ServiceBuilder(
+		identityBuilder := clientcredentials.ServiceBuilder(
 			svc.identity,
 			cmp.Or(cfg.CredentialLifetime, svc.defaultCredentialLifetime),
-		).Build(deps)
+		)
+		identitySvc, err := identityBuilder.Build(
+			deps.WithStatusReporter(readyz.NoopReporter()),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
