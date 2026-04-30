@@ -66,6 +66,10 @@ impl CursorState {
         });
     }
 
+    pub(crate) fn clear_bitmap(&mut self) {
+        self.bitmap = None;
+    }
+
     pub(crate) fn move_cursor(&mut self, x: u16, y: u16) {
         self.x = x;
         self.y = y;
@@ -85,5 +89,34 @@ impl CursorState {
 
     pub(crate) fn bitmap(&self) -> Option<&CursorBitmap> {
         self.bitmap.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ironrdp_graphics::pointer::DecodedPointer;
+
+    fn sample_pointer() -> DecodedPointer {
+        DecodedPointer {
+            width: 2,
+            height: 2,
+            hotspot_x: 0,
+            hotspot_y: 0,
+            bitmap_data: vec![0xFF; 2 * 2 * 4],
+        }
+    }
+
+    #[test]
+    fn pointer_default_clears_cached_bitmap() {
+        let mut state = CursorState::default();
+        state.set_bitmap(&sample_pointer());
+        assert!(state.bitmap().is_some());
+
+        state.set_visible(true);
+        state.clear_bitmap();
+
+        assert!(state.bitmap().is_none());
+        assert!(state.is_visible());
     }
 }
