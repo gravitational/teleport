@@ -6,8 +6,26 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0C94C8CA2FA35ECB00C13C9A /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0C94C8522FA232E600C13C9A /* Verify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Verify.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.9.tbd; path = usr/lib/libresolv.9.tbd; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -20,11 +38,25 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		0C94C8CB2FA35ECC00C13C9A /* Exceptions for "Verify" folder in "Embed Frameworks" phase from "Verify" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			attributesByRelativePath = {
+				gen/Enroll.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+			};
+			buildPhase = 0C94C8CA2FA35ECB00C13C9A /* Embed Frameworks */;
+			membershipExceptions = (
+				gen/Enroll.xcframework,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0C94C8542FA232E600C13C9A /* Verify */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				0C94C8612FA2365300C13C9A /* Exceptions for "Verify" folder in "Verify" target */,
+				0C94C8CB2FA35ECC00C13C9A /* Exceptions for "Verify" folder in "Embed Frameworks" phase from "Verify" target */,
 			);
 			path = Verify;
 			sourceTree = "<group>";
@@ -36,6 +68,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -46,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				0C94C8542FA232E600C13C9A /* Verify */,
+				0C94C8CC2FA35ED900C13C9A /* Frameworks */,
 				0C94C8532FA232E600C13C9A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -58,6 +92,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		0C94C8CC2FA35ED900C13C9A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -68,6 +110,7 @@
 				0C94C84E2FA232E600C13C9A /* Sources */,
 				0C94C84F2FA232E600C13C9A /* Frameworks */,
 				0C94C8502FA232E600C13C9A /* Resources */,
+				0C94C8CA2FA35ECB00C13C9A /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
