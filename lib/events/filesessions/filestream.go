@@ -292,8 +292,8 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 		"key", uploadKey,
 	)
 	log.DebugContext(ctx, "Aborting upload")
-	if err := os.RemoveAll(h.uploadRootPath(upload)); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+	if err := trace.ConvertSystemError(os.RemoveAll(h.uploadRootPath(upload))); err != nil && !trace.IsNotFound(err) {
+		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID, "error", err)
 	}
 
 	log.InfoContext(ctx, "Aborted upload")
