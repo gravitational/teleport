@@ -39,7 +39,6 @@ import {
   Regions,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
-import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -161,12 +160,6 @@ const cfg = {
 
   defaultDatabaseTTL: '2190h',
 
-  identitySecurity: {
-    accessGraphConfigSet: false,
-    licensed: false,
-    sessionSummarizationEnabled: false,
-  },
-
   routes: {
     root: '/web',
     discover: '/web/discover',
@@ -201,7 +194,6 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
-    instances: '/web/instances',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -211,6 +203,7 @@ const cfg = {
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -240,7 +233,6 @@ const cfg = {
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
-    managedUpdates: '/web/managedupdates',
 
     // sso routes
     ssoConnector: {
@@ -306,8 +298,6 @@ const cfg = {
     databaseServer: {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
-
-    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -562,11 +552,6 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
-
-    managedUpdates: {
-      details: '/v1/webapi/managedupdates',
-      groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
-    },
   },
 
   playable_db_protocols: [],
@@ -727,21 +712,6 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
-  },
-
-  getManagedUpdatesRoute() {
-    return cfg.routes.managedUpdates;
-  },
-
-  getManagedUpdatesUrl() {
-    return cfg.api.managedUpdates.details;
-  },
-
-  getManagedUpdatesGroupActionUrl(groupName: string, action: GroupAction) {
-    return generatePath(cfg.api.managedUpdates.groupAction, {
-      groupName,
-      action,
-    });
   },
 
   /**
@@ -934,10 +904,6 @@ const cfg = {
     return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
-  getInstancesRoute() {
-    return generatePath(cfg.routes.instances);
-  },
-
   getWorkloadIdentitiesRoute() {
     return generatePath(cfg.routes.workloadIdentities);
   },
@@ -986,6 +952,10 @@ const cfg = {
 
   getDbConnectRoute(params: UrlDbConnectParams) {
     return generatePath(cfg.routes.dbConnect, { ...params });
+  },
+
+  getDbSessionRoute({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
@@ -1205,13 +1175,6 @@ const cfg = {
 
   getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databaseServer.list, {
-      clusterId,
-      ...params,
-    });
-  },
-
-  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.instancesPath, {
       clusterId,
       ...params,
     });
