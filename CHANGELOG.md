@@ -1,6 +1,6 @@
 # Changelog
 
-# 17.7.23 (04/29/26)
+## 17.7.23 (04/29/26)
 ### Security fixes
 
 This patch addresses two security vulnerabilities.
