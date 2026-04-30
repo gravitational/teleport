@@ -66,7 +66,21 @@ export async function launchApp(homeDir: string) {
 }
 
 export async function login(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  const connectButton = page.getByRole('button', {
+    name: 'Connect',
+    exact: true,
+  });
+  const addClusterItem = page
+    .getByRole('listitem')
+    .filter({ hasText: 'Add Cluster' });
+
+  // The 'Connect' button is visible only when no clusters are present.
+  if (await connectButton.isVisible()) {
+    await connectButton.click();
+  } else {
+    await addClusterItem.click();
+  }
+
   const clusterInput = page.getByPlaceholder('teleport.example.com');
   await expect(clusterInput).toBeVisible();
 
