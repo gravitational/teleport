@@ -21,6 +21,7 @@ package filesessions
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -219,18 +220,13 @@ func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID,
 		SessionID: sessionID,
 		Temporary: uploadID != "",
 	})
-	f, err := os.Open(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		osErr := trace.ConvertSystemError(err)
 		if trace.IsNotFound(osErr) {
 			return "", nil
 		}
 		return "", osErr
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
 	}
 	// Acquiring a file lock on a nonexistent session recording will create an
 	// empty file, treat that as not existing.
@@ -239,8 +235,12 @@ func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID,
 	}
 
 	h := sha256.New()
-	_, err = f.WriteTo(h)
-	if err != nil {
+	if err := binary.Write(h, binary.NativeEndian, info.ModTime().UnixMicro()); err != nil {
+		return "", trace.Wrap(err)
+	}
+	// In case mod time isn't high enough resolution. Recording files are append
+	// only, so if two files have the same size they should have the same contents.
+	if err := binary.Write(h, binary.NativeEndian, info.Size()); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
