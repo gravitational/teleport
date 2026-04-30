@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-prealpha.2
+VERSION=19.0.0-dev.camh.export.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -363,6 +363,8 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 # are different to the Go $(ARCH) we use as an input.
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
+
+export
 
 #
 # 'make all' builds all 4 executables and places them in the current directory.
