@@ -165,6 +165,20 @@ service DeviceTrustService {
   // Authorized either by a valid MDM service certificate or the appropriate
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
+
+  // CreateMobileEnrollTokenRequest registers a pending mobile-device
+  // enroll-pairing for the calling user and returns the pairing token to
+  // embed in the QR code shown by the Web UI modal.
+  //
+  // See RFD 32e, "Enrollment token" section.
+  rpc CreateMobileEnrollTokenRequest(CreateMobileEnrollTokenRequestRequest) returns (CreateMobileEnrollTokenRequestResponse);
+
+  // GetMobileEnrollTokenRequest returns the current pending enroll-pairing
+  // request for the calling user, or NotFound if none exists.
+  //
+  // Used by the Web UI modal to poll for the iOS device's call to
+  // CreateMobileDeviceEnrollToken on the public Device Trust service.
+  rpc GetMobileEnrollTokenRequest(GetMobileEnrollTokenRequestRequest) returns (GetMobileEnrollTokenRequestResponse);
 }
 
 // Request for CreateDevice.
@@ -671,4 +685,43 @@ message SyncInventoryMissingDevices {
   // Guaranteed to have the following fields: id, os_type, asset_tag and
   // profile.external_id.
   repeated Device devices = 1;
+}
+
+// EnrollTokenRequestStatus is the lifecycle state of a pending mobile
+// enroll-pairing request. RFD 32e describes additional states
+// (awaiting_unauthorized_client, awaiting_approval, approved); the demo
+// implementation only distinguishes "the iOS app hasn't called" from
+// "the iOS app has called".
+enum EnrollTokenRequestStatus {
+  ENROLL_TOKEN_REQUEST_STATUS_UNSPECIFIED = 0;
+
+  // ENROLL_TOKEN_REQUEST_STATUS_PENDING is the initial state: the Web UI
+  // has shown a QR code; the iOS app has not yet called the public
+  // CreateMobileDeviceEnrollToken RPC.
+  ENROLL_TOKEN_REQUEST_STATUS_PENDING = 1;
+
+  // ENROLL_TOKEN_REQUEST_STATUS_RECEIVED means the iOS app has called the
+  // public RPC with a matching pairing token.
+  ENROLL_TOKEN_REQUEST_STATUS_RECEIVED = 2;
+}
+
+// Request for CreateMobileEnrollTokenRequest.
+message CreateMobileEnrollTokenRequestRequest {}
+
+// Response for CreateMobileEnrollTokenRequest.
+message CreateMobileEnrollTokenRequestResponse {
+  // pairing_token is the freshly-generated token to embed in the QR code
+  // shown by the Web UI modal. The iOS app sends this token to the public
+  // CreateMobileDeviceEnrollToken RPC.
+  string pairing_token = 1;
+}
+
+// Request for GetMobileEnrollTokenRequest.
+message GetMobileEnrollTokenRequestRequest {}
+
+// Response for GetMobileEnrollTokenRequest.
+message GetMobileEnrollTokenRequestResponse {
+  // status is the current state of the calling user's pending
+  // enroll-pairing request.
+  EnrollTokenRequestStatus status = 1;
 }

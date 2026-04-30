@@ -48,6 +48,8 @@ const (
 	DeviceTrustService_AuthenticateDevice_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
 	DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication"
 	DeviceTrustService_SyncInventory_FullMethodName                  = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
+	DeviceTrustService_CreateMobileEnrollTokenRequest_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/CreateMobileEnrollTokenRequest"
+	DeviceTrustService_GetMobileEnrollTokenRequest_FullMethodName    = "/teleport.devicetrust.v1.DeviceTrustService/GetMobileEnrollTokenRequest"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -174,6 +176,18 @@ type DeviceTrustServiceClient interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SyncInventoryRequest, SyncInventoryResponse], error)
+	// CreateMobileEnrollTokenRequest registers a pending mobile-device
+	// enroll-pairing for the calling user and returns the pairing token to
+	// embed in the QR code shown by the Web UI modal.
+	//
+	// See RFD 32e, "Enrollment token" section.
+	CreateMobileEnrollTokenRequest(ctx context.Context, in *CreateMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*CreateMobileEnrollTokenRequestResponse, error)
+	// GetMobileEnrollTokenRequest returns the current pending enroll-pairing
+	// request for the calling user, or NotFound if none exists.
+	//
+	// Used by the Web UI modal to poll for the iOS device's call to
+	// CreateMobileDeviceEnrollToken on the public Device Trust service.
+	GetMobileEnrollTokenRequest(ctx context.Context, in *GetMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*GetMobileEnrollTokenRequestResponse, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -333,6 +347,26 @@ func (c *deviceTrustServiceClient) SyncInventory(ctx context.Context, opts ...gr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_SyncInventoryClient = grpc.BidiStreamingClient[SyncInventoryRequest, SyncInventoryResponse]
 
+func (c *deviceTrustServiceClient) CreateMobileEnrollTokenRequest(ctx context.Context, in *CreateMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*CreateMobileEnrollTokenRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateMobileEnrollTokenRequestResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_CreateMobileEnrollTokenRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *deviceTrustServiceClient) GetMobileEnrollTokenRequest(ctx context.Context, in *GetMobileEnrollTokenRequestRequest, opts ...grpc.CallOption) (*GetMobileEnrollTokenRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMobileEnrollTokenRequestResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_GetMobileEnrollTokenRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility.
@@ -457,6 +491,18 @@ type DeviceTrustServiceServer interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]) error
+	// CreateMobileEnrollTokenRequest registers a pending mobile-device
+	// enroll-pairing for the calling user and returns the pairing token to
+	// embed in the QR code shown by the Web UI modal.
+	//
+	// See RFD 32e, "Enrollment token" section.
+	CreateMobileEnrollTokenRequest(context.Context, *CreateMobileEnrollTokenRequestRequest) (*CreateMobileEnrollTokenRequestResponse, error)
+	// GetMobileEnrollTokenRequest returns the current pending enroll-pairing
+	// request for the calling user, or NotFound if none exists.
+	//
+	// Used by the Web UI modal to poll for the iOS device's call to
+	// CreateMobileDeviceEnrollToken on the public Device Trust service.
+	GetMobileEnrollTokenRequest(context.Context, *GetMobileEnrollTokenRequestRequest) (*GetMobileEnrollTokenRequestResponse, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -508,6 +554,12 @@ func (UnimplementedDeviceTrustServiceServer) ConfirmDeviceWebAuthentication(cont
 }
 func (UnimplementedDeviceTrustServiceServer) SyncInventory(grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) CreateMobileEnrollTokenRequest(context.Context, *CreateMobileEnrollTokenRequestRequest) (*CreateMobileEnrollTokenRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateMobileEnrollTokenRequest not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) GetMobileEnrollTokenRequest(context.Context, *GetMobileEnrollTokenRequestRequest) (*GetMobileEnrollTokenRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMobileEnrollTokenRequest not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -749,6 +801,42 @@ func _DeviceTrustService_SyncInventory_Handler(srv interface{}, stream grpc.Serv
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_SyncInventoryServer = grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]
 
+func _DeviceTrustService_CreateMobileEnrollTokenRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMobileEnrollTokenRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).CreateMobileEnrollTokenRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_CreateMobileEnrollTokenRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).CreateMobileEnrollTokenRequest(ctx, req.(*CreateMobileEnrollTokenRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DeviceTrustService_GetMobileEnrollTokenRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMobileEnrollTokenRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).GetMobileEnrollTokenRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_GetMobileEnrollTokenRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).GetMobileEnrollTokenRequest(ctx, req.(*GetMobileEnrollTokenRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -799,6 +887,14 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmDeviceWebAuthentication",
 			Handler:    _DeviceTrustService_ConfirmDeviceWebAuthentication_Handler,
+		},
+		{
+			MethodName: "CreateMobileEnrollTokenRequest",
+			Handler:    _DeviceTrustService_CreateMobileEnrollTokenRequest_Handler,
+		},
+		{
+			MethodName: "GetMobileEnrollTokenRequest",
+			Handler:    _DeviceTrustService_GetMobileEnrollTokenRequest_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
