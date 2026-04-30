@@ -239,6 +239,8 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	watcherReady := make(chan time.Time)
 	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).WaitUntil(watcherReady).Once()
 
+	fallback.On("GetKubernetesServers", mock.Anything).Return([]types.KubeServer{}, nil).Once()
+
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
 		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
@@ -248,12 +250,14 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+	synctest.Wait()
 
+	// Single call to backup since watcher is not ready.
 	resources, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.NoError(t, err)
 	require.Empty(t, resources, "Watcher should start with empty cache before warm-up")
 
-	watcherReady <- time.Now()
+	watcherReady <- time.Now() // unblock watcher
 	fw.send(types.Event{Type: types.OpInit})
 	require.NoError(t, w.WaitInitialization())
 	require.True(t, w.IsInitialized())
@@ -314,6 +318,7 @@ func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {
 		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
 		FallbackGetter: fallback,
+		PrimaryTimeout: 10 * time.Second,
 	})
 	t.Cleanup(w.Close)
 
@@ -321,10 +326,16 @@ func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {
 	synctest.Wait()
 
 	fw1.closeWithError(context.DeadlineExceeded)
-	time.Sleep(30 * time.Second) // allow some time for the watcher backoff to elapse and restart
+	synctest.Wait()
+	// Initially the cache is still hot
+	require.True(t, w.hot.Load(), "expected watcher to be hot before primary timeout")
+	time.Sleep(10*time.Second + time.Millisecond)
+	require.False(t, w.hot.Load(), "expected watcher to be cold after primary timeout")
 
 	fw2.send(types.Event{Type: types.OpInit})
 	synctest.Wait()
+
+	require.True(t, w.hot.Load(), "expected watcher to be hot")
 
 	noopFilter := func(k readonly.KubeServer) bool { return true }
 

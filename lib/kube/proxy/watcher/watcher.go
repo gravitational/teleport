@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"rsc.io/ordered"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -132,17 +131,16 @@ type ProxyKubeServerWatcher struct {
 	rw sync.RWMutex
 
 	// current holds a map of the currently known servers.
-	current map[string]types.KubeServer
+	current map[serverKey]types.KubeServer
 
-	// nextColdFetch is the time of the next allowed fetch of resources from the auth server.
-	// Used to single flight calls to the auth server when the cache is cold.
-	nextColdFetch time.Time
-
-	fetchPending bool
-	fetchDone    chan struct{}
+	gate *WindowedGate
 
 	// primaryFailureAt is the time when the primary access point was first observed to be failing.
 	primaryFailureAt time.Time
+}
+
+type serverKey struct {
+	Name, HostID string
 }
 
 func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherConfig) (*ProxyKubeServerWatcher, error) {
@@ -163,22 +161,46 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 	cfg.Logger = cfg.Logger.With("resource_kinds", types.KindKubeServer)
 	ctx, cancel := context.WithCancel(ctx)
 
+	gate, err := NewWindowedGate(ctx, WindowedGateConfig{
+		Window: cfg.FallbackInterval,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err, "creating windowed gate")
+	}
+
 	w := &ProxyKubeServerWatcher{
 		ProxyKubeServerWatcherConfig: cfg,
-		// Arm a cold fetch immediately, in the case the primary never initilizes and the consumer
-		// does not wait for [ProxyKubeServerWatcher.WaitInitialization] to return this delays the
-		// cold fetch to after the first timeout period with some jitter applied in case all proxy
-		// caches fail the same way.
-		nextColdFetch: time.Now().Add(cfg.PrimaryTimeout).Add(retryutils.FullJitter(cfg.FallbackInterval)),
-		cancel:        cancel,
-		ctx:           ctx,
-		retry:         retry,
-		initC:         make(chan struct{}),
+		cancel:                       cancel,
+		ctx:                          ctx,
+		retry:                        retry,
+		initC:                        make(chan struct{}),
+		gate:                         gate,
 	}
 
 	go w.runWatchLoop()
 
 	return w, nil
+}
+
+func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
+	w.rw.RLock()
+	failureAt := w.primaryFailureAt
+	w.rw.RUnlock()
+
+	timeout := w.PrimaryTimeout
+
+	if !failureAt.IsZero() && w.hot.Load() {
+		elapsed := time.Since(failureAt)
+		if elapsed >= w.PrimaryTimeout {
+			timeout = 0
+		} else {
+			timeout = w.PrimaryTimeout - elapsed
+		}
+	}
+
+	return time.NewTimer(timeout)
+
 }
 
 func (w *ProxyKubeServerWatcher) watch() error {
@@ -192,6 +214,9 @@ func (w *ProxyKubeServerWatcher) watch() error {
 	}
 	defer watcher.Close()
 
+	timer := w.armTimeout()
+	defer timer.Stop()
+
 	var initRecieved bool
 	for !initRecieved {
 		select {
@@ -204,11 +229,11 @@ func (w *ProxyKubeServerWatcher) watch() error {
 				return trace.BadParameter("expected init event, got %v instead", event.Type)
 			}
 			initRecieved = true
-		case <-time.After(w.PrimaryTimeout):
+		case <-timer.C:
 			// Do not return timeout here but mark the failure and continue waiting.
 			// It's possible the watcher will recover eventually. If using the cache,
 			// on error the cache will close the watcher and we handle that separately.
-			w.handleWatchError(trace.ConnectionProblem(nil, "watcher taking too long to init"))
+			w.hot.Store(false)
 		}
 	}
 
@@ -268,24 +293,30 @@ func (w *ProxyKubeServerWatcher) watch() error {
 }
 
 // kubeServerKey returns the key used to store the given kube server in the watcher's cache.
-func kubeServerKey(resource types.KubeServer) string {
-	return string(ordered.Encode(resource.GetHostID(), resource.GetName()))
+func kubeServerKey(resource types.KubeServer) serverKey {
+	return serverKey{
+		Name:   resource.GetName(),
+		HostID: resource.GetHostID(),
+	}
 }
 
 // kubeServerDeleteKey returns the key used to delete the given kube server from the watcher's cache.
-func kubeServerDeleteKey(resource types.Resource) string {
-	// On delete events, the server description is populated with the host ID.
-	return string(ordered.Encode(resource.GetMetadata().Description, resource.GetName()))
+func kubeServerDeleteKey(resource types.Resource) serverKey {
+	return serverKey{
+		Name: resource.GetName(),
+		// On delete events, the server description is populated with the host ID.
+		HostID: resource.GetMetadata().Description,
+	}
 }
 
 // getAllKubeServers fetches all kube servers from the given getter and returns them as a map keyed by the watcher's cache keys.
-func (w *ProxyKubeServerWatcher) getAllKubeServers(ctx context.Context, getter KubernetesServerGetter) (map[string]types.KubeServer, error) {
+func (w *ProxyKubeServerWatcher) getAllKubeServers(ctx context.Context, getter KubernetesServerGetter) (map[serverKey]types.KubeServer, error) {
 	resources, err := getter.GetKubernetesServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	current := make(map[string]types.KubeServer, len(resources))
+	current := make(map[serverKey]types.KubeServer, len(resources))
 	for _, resource := range resources {
 		current[kubeServerKey(resource)] = resource
 	}
@@ -317,64 +348,27 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		// fast path watcher is hot, no need to fetch from upstream
 		return nil
 	}
-
-	now := time.Now()
-	w.rw.Lock()
-
-	if w.fetchPending {
-		done := w.fetchDone
-		w.rw.Unlock()
-
-		select {
-		case <-done:
-			return nil
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		case <-w.ctx.Done():
-			return trace.Wrap(w.ctx.Err(), "watcher context closed")
+	return w.gate.Do(ctx, func(ctx context.Context) error {
+		newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
+		if err == nil && !w.hot.Load() {
+			w.rw.Lock()
+			w.current = newCurrent
+			w.rw.Unlock()
 		}
-	}
-
-	if now.Before(w.nextColdFetch) {
-		w.rw.Unlock()
-		return nil
-	}
-
-	w.fetchPending = true
-	done := make(chan struct{})
-	w.fetchDone = done
-	w.rw.Unlock()
-
-	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
-	next := time.Now().Add(retryutils.SeventhJitter(w.FallbackInterval))
-
-	w.rw.Lock()
-	w.fetchPending = false
-	w.nextColdFetch = next
-	if err == nil && !w.hot.Load() {
-		w.current = newCurrent
-	}
-	w.rw.Unlock()
-
-	close(done)
-
-	if err != nil {
 		return trace.Wrap(err, "fetching from fallback")
-	}
-
-	return nil
+	})
 }
 
 // handleWatchError handles errors from the watch loop.
 func (w *ProxyKubeServerWatcher) handleWatchError(err error) {
+	now := time.Now()
+
 	w.rw.Lock()
 	defer w.rw.Unlock()
-	now := time.Now()
 	if w.primaryFailureAt.IsZero() {
 		w.primaryFailureAt = now
-	} else if w.hot.Load() && time.Since(w.primaryFailureAt) > w.PrimaryTimeout {
+	} else if w.hot.Load() && time.Since(w.primaryFailureAt) >= w.PrimaryTimeout {
 		w.Logger.WarnContext(w.ctx, "Primary access point is unhealthy, falling back to auth server for kube servers.", "error", err, "failure_at", w.primaryFailureAt.String())
-		w.nextColdFetch = now.Add(retryutils.FullJitter(w.FallbackInterval))
 		w.hot.Store(false)
 	}
 }
