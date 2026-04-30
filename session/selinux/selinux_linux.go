@@ -284,7 +284,7 @@ func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive 
 // UserContext returns the SELinux context that should be used when
 // creating processes as a certain Linux user.
 func UserContext(login string) (string, error) {
-	seUser, level, err := ocselinux.GetSeUserByName(login)
+	seUser, level, err := ocselinux.SEUserByName(login)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -21,6 +21,7 @@ package x11
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"os"
@@ -51,7 +52,7 @@ func TestXAuthCommands(t *testing.T) {
 	require.Nil(t, xauthEntry)
 
 	// Add trusted xauth entry
-	trustedXauthEntry, err := NewFakeXAuthEntry(display)
+	trustedXauthEntry, err := NewFakeXAuthEntry(display, rand.Reader)
 	require.NoError(t, err)
 	xauth = NewXAuthCommand(ctx, xauthFile)
 	err = xauth.AddEntry(*trustedXauthEntry)
@@ -95,15 +96,15 @@ func TestXAuthCommands(t *testing.T) {
 func TestReadAndRewriteXAuthPacket(t *testing.T) {
 	t.Parallel()
 
-	realXAuthEntry, err := NewFakeXAuthEntry(Display{})
+	realXAuthEntry, err := NewFakeXAuthEntry(Display{}, rand.Reader)
 	require.NoError(t, err)
 	realXAuthPacket := mockXAuthPacket(t, realXAuthEntry)
 
-	spoofedXAuthEntry, err := realXAuthEntry.SpoofXAuthEntry()
+	spoofedXAuthEntry, err := realXAuthEntry.SpoofXAuthEntry(rand.Reader)
 	require.NoError(t, err)
 	spoofedXAuthPacket := mockXAuthPacket(t, spoofedXAuthEntry)
 
-	otherXAuthEntry, err := NewFakeXAuthEntry(Display{})
+	otherXAuthEntry, err := NewFakeXAuthEntry(Display{}, rand.Reader)
 	require.NoError(t, err)
 	otherXAuthPacket := mockXAuthPacket(t, otherXAuthEntry)
 

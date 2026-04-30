@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -538,7 +539,7 @@ func TestSessionAuditLog(t *testing.T) {
 	require.NoError(t, err)
 
 	// Request x11 forwarding, event should be emitted immediately.
-	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{}, rand.Reader)
 	require.NoError(t, err)
 	err = x11forward.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
@@ -1599,7 +1600,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.NoError(t, err)
 
 	// Client requests x11 forwarding for the server session.
-	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{}, rand.Reader)
 	require.NoError(t, err)
 	err = x11forward.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)

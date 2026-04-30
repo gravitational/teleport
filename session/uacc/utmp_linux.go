@@ -28,7 +28,10 @@ import "C"
 
 import (
 	"encoding/binary"
+	"errors"
+	"io/fs"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -340,4 +343,25 @@ func decodeUnknownError(status int, rawUaccPathErr [uaccPathErrMaxLength]C.char)
 	}
 
 	return trace.Errorf("unknown error with code %d", status)
+}
+
+// fileExists is an inlining of lib/utils.FileExists, to avoid importing
+// lib/utils
+func fileExists(fp string) bool {
+	_, err := os.Stat(fp)
+	return !errors.Is(err, fs.ErrNotExist)
+}
+
+// hostFromAddr is an inlining of lib/utils.FromAddr(a).Host(), to avoid
+// importing lib/utils
+func hostFromAddr(a net.Addr) string {
+	s := a.String()
+	host, _, err := net.SplitHostPort(s)
+	if err == nil {
+		return host
+	}
+	if ip := net.ParseIP(strings.Trim(s, "[]")); len(ip) != 0 {
+		return ip.String()
+	}
+	return s
 }

@@ -20,7 +20,6 @@ package x11
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -55,8 +54,8 @@ type XAuthEntry struct {
 }
 
 // NewFakeXAuthEntry creates a fake xauth entry with a randomly generated MIT-MAGIC-COOKIE-1.
-func NewFakeXAuthEntry(display Display) (*XAuthEntry, error) {
-	cookie, err := newCookie(mitMagicCookieSize)
+func NewFakeXAuthEntry(display Display, randReader io.Reader) (*XAuthEntry, error) {
+	cookie, err := newCookie(mitMagicCookieSize, randReader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,8 +70,8 @@ func NewFakeXAuthEntry(display Display) (*XAuthEntry, error) {
 // SpoofXAuthEntry creates a new xauth entry with a random cookie with the
 // same length as the original entry's cookie. This is used to create a
 // believable spoof of the client's xauth data to send to the server.
-func (e *XAuthEntry) SpoofXAuthEntry() (*XAuthEntry, error) {
-	spoofedCookie, err := newCookie(hex.DecodedLen(len(e.Cookie)))
+func (e *XAuthEntry) SpoofXAuthEntry(randReader io.Reader) (*XAuthEntry, error) {
+	spoofedCookie, err := newCookie(hex.DecodedLen(len(e.Cookie)), randReader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,9 +83,9 @@ func (e *XAuthEntry) SpoofXAuthEntry() (*XAuthEntry, error) {
 }
 
 // newCookie makes a random hex-encoded cookie with the given byte length.
-func newCookie(byteLength int) (string, error) {
+func newCookie(byteLength int, randReader io.Reader) (string, error) {
 	cookieBytes := make([]byte, byteLength)
-	if _, err := rand.Read(cookieBytes); err != nil {
+	if _, err := randReader.Read(cookieBytes); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return hex.EncodeToString(cookieBytes), nil
