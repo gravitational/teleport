@@ -39,27 +39,22 @@ func KubeLocalProxyPathPrefix(teleportCluster, kubeCluster string) string {
 
 // ClustersFromKubeLocalProxyPath parses the leading
 // /v1/teleport/<b64>/<b64> prefix of a request URL path and returns the
-// decoded (teleport cluster, kube cluster) pair along with the rest of the
-// path after the prefix (including the leading slash, e.g. "/api/v1/pods").
-func ClustersFromKubeLocalProxyPath(path string) (teleportCluster, kubeCluster, rest string, err error) {
+// decoded (teleport cluster, kube cluster) pair.
+func ClustersFromKubeLocalProxyPath(path string) (teleportCluster, kubeCluster string, err error) {
 	trimmed := strings.TrimPrefix(path, "/")
 	parts := strings.SplitN(trimmed, "/", 5)
 	if len(parts) < 4 || parts[0] != "v1" || parts[1] != "teleport" {
-		return "", "", "", trace.BadParameter("invalid kube local proxy path %q", path)
+		return "", "", trace.BadParameter("invalid kube local proxy path %q", path)
 	}
 	tcBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
-		return "", "", "", trace.Wrap(err, "decoding teleport cluster name from path")
+		return "", "", trace.Wrap(err, "decoding teleport cluster name from path")
 	}
 	kcBytes, err := base64.RawURLEncoding.DecodeString(parts[3])
 	if err != nil {
-		return "", "", "", trace.Wrap(err, "decoding kube cluster name from path")
+		return "", "", trace.Wrap(err, "decoding kube cluster name from path")
 	}
-	rest = "/"
-	if len(parts) == 5 {
-		rest = "/" + parts[4]
-	}
-	return string(tcBytes), string(kcBytes), rest, nil
+	return string(tcBytes), string(kcBytes), nil
 }
 
 // ClustersFromLegacyKubeLocalProxySNI decodes the legacy local-proxy SNI shape

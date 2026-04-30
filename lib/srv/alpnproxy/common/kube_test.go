@@ -58,53 +58,50 @@ func TestClustersFromKubeLocalProxyPath(t *testing.T) {
 		const kubeCluster = "loooooooooooooooooooooooooooooooooooooooooong-kube-cluster-exceeding-sixty-three-chars"
 
 		path := KubeLocalProxyPathPrefix(teleportCluster, kubeCluster) + "/api/v1/namespaces"
-		tc, kc, rest, err := ClustersFromKubeLocalProxyPath(path)
+		tc, kc, err := ClustersFromKubeLocalProxyPath(path)
 		require.NoError(t, err)
 		require.Equal(t, teleportCluster, tc)
 		require.Equal(t, kubeCluster, kc)
-		require.Equal(t, "/api/v1/namespaces", rest)
 	})
 
 	t.Run("just the prefix", func(t *testing.T) {
 		path := KubeLocalProxyPathPrefix("root-cluster", "kube1")
-		tc, kc, rest, err := ClustersFromKubeLocalProxyPath(path)
+		tc, kc, err := ClustersFromKubeLocalProxyPath(path)
 		require.NoError(t, err)
 		require.Equal(t, "root-cluster", tc)
 		require.Equal(t, "kube1", kc)
-		require.Equal(t, "/", rest)
 	})
 
 	t.Run("prefix with trailing slash", func(t *testing.T) {
 		path := KubeLocalProxyPathPrefix("root-cluster", "kube1") + "/"
-		tc, kc, rest, err := ClustersFromKubeLocalProxyPath(path)
+		tc, kc, err := ClustersFromKubeLocalProxyPath(path)
 		require.NoError(t, err)
 		require.Equal(t, "root-cluster", tc)
 		require.Equal(t, "kube1", kc)
-		require.Equal(t, "/", rest)
 	})
 
 	t.Run("rejects bare API path", func(t *testing.T) {
-		_, _, _, err := ClustersFromKubeLocalProxyPath("/api/v1/namespaces")
+		_, _, err := ClustersFromKubeLocalProxyPath("/api/v1/namespaces")
 		require.ErrorContains(t, err, "invalid kube local proxy path")
 	})
 
 	t.Run("rejects wrong leading component", func(t *testing.T) {
-		_, _, _, err := ClustersFromKubeLocalProxyPath("/v2/teleport/abc/def/api/v1/namespaces")
+		_, _, err := ClustersFromKubeLocalProxyPath("/v2/teleport/abc/def/api/v1/namespaces")
 		require.ErrorContains(t, err, "invalid kube local proxy path")
 	})
 
 	t.Run("rejects missing kube cluster segment", func(t *testing.T) {
-		_, _, _, err := ClustersFromKubeLocalProxyPath("/v1/teleport/abc")
+		_, _, err := ClustersFromKubeLocalProxyPath("/v1/teleport/abc")
 		require.ErrorContains(t, err, "invalid kube local proxy path")
 	})
 
 	t.Run("rejects non-base64url teleport cluster", func(t *testing.T) {
-		_, _, _, err := ClustersFromKubeLocalProxyPath("/v1/teleport/not*base64/a3ViZTE")
+		_, _, err := ClustersFromKubeLocalProxyPath("/v1/teleport/not*base64/a3ViZTE")
 		require.ErrorContains(t, err, "decoding teleport cluster")
 	})
 
 	t.Run("rejects non-base64url kube cluster", func(t *testing.T) {
-		_, _, _, err := ClustersFromKubeLocalProxyPath("/v1/teleport/cm9vdC1jbHVzdGVy/not*base64")
+		_, _, err := ClustersFromKubeLocalProxyPath("/v1/teleport/cm9vdC1jbHVzdGVy/not*base64")
 		require.ErrorContains(t, err, "decoding kube cluster")
 	})
 }
