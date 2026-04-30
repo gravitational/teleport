@@ -94,13 +94,14 @@ func (g *WindowedGate) Do(ctx context.Context, fn func(context.Context) error) e
 	g.mu.Unlock()
 
 	err := trace.Wrap(fn(ctx))
+	now := time.Now()
 
 	g.mu.Lock()
 	c.err = err
 	g.current = nil
 	// Advance window with jitter, this happens regardless of result. This is sufficent for current
 	// use case in the watcher.
-	g.next = time.Now().Add(retryutils.SeventhJitter(g.Window))
+	g.next = now.Add(retryutils.SeventhJitter(g.Window))
 	g.mu.Unlock()
 
 	close(c.done)
