@@ -2122,3 +2122,7 @@ ifndef BENCH_FILES
 	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
 endif
 	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
+
+.PHONY: mobile/Verify/Verify/gen/Enroll.xcframework
+mobile/Verify/Verify/gen/Enroll.xcframework:
+	gomobile bind -target=ios -o $@ github.com/gravitational/teleport/lib/mobile/verify/enroll
