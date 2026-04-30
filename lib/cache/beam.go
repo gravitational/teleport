@@ -186,9 +186,12 @@ func keyForBeamUserIndex(r *beamsv1.Beam) string {
 }
 
 func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
-	expires := r.GetSpec().GetExpires().AsTime().UnixMilli()
+	expires := r.GetSpec().GetExpires()
 	name := r.GetMetadata().GetName()
-	return string(ordered.Encode(expires, name))
+	if expires == nil {
+		return string(ordered.Encode(ordered.Inf, name))
+	}
+	return string(ordered.Encode(expires.AsTime().UnixMilli(), name))
 }
 
 func beamIndexForSortField(sortField beamsv1.BeamSortField) (beamIndex, func(*beamsv1.Beam) string, error) {
