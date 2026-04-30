@@ -168,10 +168,7 @@ combining the following:
 | Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
 | Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.login`, `instance.join`, `instance.token.create`, `cert.create` |
 
-For Kubernetes deployments, configure `/readyz` as both the liveness and
-readiness probe on agent pods, and pair it with a periodic check from your
-monitoring system that runs `tctl inventory status --connected` against the
-control plane and alerts on agents that disappear from the connected list.
-This catches both local-process failures (caught by the probe) and
-cluster-side disconnects (caught by the inventory check) that `/readyz` alone
-would miss.
+For Kubernetes deployments, configure `/readyz` as the readiness probe on agent pods, and pair it with a periodic 
+check from your monitoring system that runs `tctl inventory status --connected` against the control plane and alerts 
+on agents that disappear from the connected list.This catches both local-process failures (caught by the probe) and
+cluster-side disconnects (caught by the inventory check) that `/readyz` alone would miss.
