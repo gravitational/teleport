@@ -339,7 +339,7 @@ func (b *Balancer) scheduleReconnectSerial() {
 		return
 	}
 
-	delay := b.backoff + time.Duration(float32(b.backoff/2)*rand.Float32())
+	delay := b.backoff + rand.N(max(time.Nanosecond, b.backoff/2))
 	var reconnect *time.Timer
 	reconnect = time.AfterFunc(delay, func() {
 		b.serializer.Put(func() {
