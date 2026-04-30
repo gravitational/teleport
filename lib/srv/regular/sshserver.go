@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
+	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -1244,13 +1245,13 @@ func (s *Server) getServerResource() (types.Resource, error) {
 }
 
 // dialTCPIP dials the given tcpip address through the network process.
-func (s *Server) dialTCPIP(scx *srv.ServerContext, addr string) (net.Conn, error) {
-	proc, err := s.getNetworkingProcess(scx)
+func (s *Server) dialTCPIP(ctx context.Context, scx *srv.ServerContext, addr string) (net.Conn, error) {
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := proc.Dial(context.Background(), "tcp", addr)
+	conn, err := proc.Dial(ctx, "tcp", addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1259,13 +1260,13 @@ func (s *Server) dialTCPIP(scx *srv.ServerContext, addr string) (net.Conn, error
 }
 
 // listenTCPIP creates a new listener in the networking process.
-func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener, error) {
-	proc, err := s.getNetworkingProcess(scx)
+func (s *Server) listenTCPIP(ctx context.Context, scx *srv.ServerContext, addr string) (net.Listener, error) {
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listener, err := proc.Listen(context.Background(), "tcp", addr)
+	listener, err := proc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1276,12 +1277,12 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 // getNetworkingProcess sets up a connection-level subprocess that handles
 // networking requests. Subsequent calls from the same connection context
 // reuse the same networking process.
-func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+func (s *Server) getNetworkingProcess(ctx context.Context, scx *srv.ServerContext) (*networking.Process, error) {
 	if proc, ok := scx.Parent().GetNetworkingProcess(); ok {
 		return proc, nil
 	}
 
-	proc, err := s.startNetworkingProcess(scx)
+	proc, err := s.startNetworkingProcess(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1301,9 +1302,9 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 
 // startNetworkingProcess launches a new networking process. It should be closed once
 // the server connection is closed.
-func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+func (s *Server) startNetworkingProcess(ctx context.Context, scx *srv.ServerContext) (*networking.Process, error) {
 	// Create context for the networking process.
-	nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity, nil)
+	nsctx, err := srv.NewServerContext(ctx, scx.ConnectionContext, s, scx.Identity, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1319,8 +1320,22 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd.Cmd)
-	return proc, trace.Wrap(err)
+	proc, childErr, err := networking.NewProcess(ctx, cmd.Cmd)
+	if err != nil {
+		if childErr == "" {
+			return nil, trace.Wrap(err)
+		}
+
+		// If the networking process failed with an error message from stderr, prefer
+		// that over the other error.
+		childErr = reexecutils.ChildErrorWithContext(childErr, &reexecutils.ErrorContext{
+			DecisionContext: scx.Identity.AccessPermit.DecisionContext,
+			Login:           scx.Identity.Login,
+		})
+		return nil, errors.New(strings.TrimRight(childErr, "\n"))
+	}
+
+	return proc, nil
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band
@@ -1663,7 +1678,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.Logger.DebugContext(ctx, "Opening direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr)
 	defer scx.Logger.DebugContext(ctx, "Closing direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr)
 
-	conn, err := s.dialTCPIP(scx, scx.DstAddr)
+	conn, err := s.dialTCPIP(ctx, scx, scx.DstAddr)
 	if err != nil {
 		if errors.Is(err, trace.NotFound("%s", user.UnknownUserError(scx.Identity.Login))) || errors.Is(err, trace.BadParameter("unknown user")) {
 			// user does not exist for the provided login. Terminate the connection.
@@ -1978,12 +1993,12 @@ func (s *Server) handleAgentForwardNode(ctx context.Context, _ *ssh.Request, scx
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
 func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
-	proc, err := s.getNetworkingProcess(scx)
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	listener, err := proc.ListenAgent(context.Background())
+	listener, err := proc.ListenAgent(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2079,7 +2094,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.Wrap(err)
 	}
 
-	proc, err := s.getNetworkingProcess(scx)
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2376,7 +2391,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-	listener, err := s.listenTCPIP(scx, scx.SrcAddr)
+	listener, err := s.listenTCPIP(ctx, scx, scx.SrcAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

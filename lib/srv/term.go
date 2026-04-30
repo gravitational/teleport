@@ -40,8 +40,8 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/reexec"
-	sessionreexec "github.com/gravitational/teleport/session/reexec"
+	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
@@ -142,7 +142,7 @@ type terminal struct {
 
 	log *slog.Logger
 
-	cmd           *sessionreexec.CommandExecutor
+	cmd           *reexec.CommandExecutor
 	serverContext *ServerContext
 
 	pty     *os.File
@@ -219,8 +219,8 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 
 	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = t.serverContext.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
-		sessionreexec.TTYFile: tty,
+	t.cmd, err = t.serverContext.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.TTYFile: tty,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -237,7 +237,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	t.waitForOutputStreams.Go(func() {
 		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
 			DecisionContext: t.serverContext.Identity.AccessPermit.DecisionContext,
 			Login:           t.serverContext.Identity.Login,
 		})

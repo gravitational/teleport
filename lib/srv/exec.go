@@ -41,8 +41,8 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/sshutils/reexec"
-	sessionreexec "github.com/gravitational/teleport/session/reexec"
+	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
@@ -123,7 +123,7 @@ type localExec struct {
 	Command string
 
 	// Cmd holds an *exec.Cmd which will be used for local execution.
-	Cmd *sessionreexec.CommandExecutor
+	Cmd *reexec.CommandExecutor
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
@@ -183,10 +183,10 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 	e.Ctx.AddCloser(shellStderrR)
 
 	// Create the command that will actually execute.
-	e.Cmd, err = e.Ctx.ConfigureCommand(map[sessionreexec.FileFD]*os.File{
-		sessionreexec.StdinFile:  shellStdinR,
-		sessionreexec.StdoutFile: shellStdoutW,
-		sessionreexec.StderrFile: shellStderrW,
+	e.Cmd, err = e.Ctx.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.StdinFile:  shellStdinR,
+		reexec.StdoutFile: shellStdoutW,
+		reexec.StderrFile: shellStderrW,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -203,7 +203,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 	e.waitForOutputStreams.Go(func() {
 		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
 			DecisionContext: e.Ctx.Identity.AccessPermit.DecisionContext,
 			Login:           e.Ctx.Identity.Login,
 		})

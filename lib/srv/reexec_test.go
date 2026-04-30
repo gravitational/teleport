@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"syscall"
@@ -59,6 +60,31 @@ func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 	tsrv.Start()
 	t.Cleanup(tsrv.Close)
 	return tsrv
+}
+
+const (
+	reexecWaitHelperErrorEnv = "TELEPORT_REEXEC_WAIT_HELPER_ERROR"
+)
+
+func TestNetworkingProcessPropagatesChildStderr(t *testing.T) {
+	const expectedChildErr = "Failed to launch: test networking child error"
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNetworkingHelperProcess$")
+	cmd.Env = append(
+		os.Environ(),
+		reexecWaitHelperErrorEnv+"="+expectedChildErr,
+	)
+
+	_, childErr, err := networking.NewProcess(t.Context(), cmd)
+	require.Error(t, err)
+	require.Contains(t, childErr, expectedChildErr)
+}
+
+func TestNetworkingHelperProcess(t *testing.T) {
+	if os.Getenv(reexecWaitHelperErrorEnv) != "" {
+		_, _ = io.WriteString(os.Stderr, os.Getenv(reexecWaitHelperErrorEnv))
+		os.Exit(1)
+	}
 }
 
 func TestNetworkingCommand(t *testing.T) {
@@ -98,8 +124,9 @@ func testNetworkingCommand(t *testing.T, login string) {
 	// Start networking subprocess.
 	command, err := scx.ConfigureCommand(nil)
 	require.NoError(t, err)
-	proc, err := networking.NewProcess(ctx, command.Cmd)
+	proc, stderr, err := networking.NewProcess(ctx, command.Cmd)
 	require.NoError(t, err)
+	require.Empty(t, stderr)
 	t.Cleanup(func() { proc.Close() })
 
 	t.Run("local port forward", func(t *testing.T) {
