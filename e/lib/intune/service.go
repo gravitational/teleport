@@ -132,7 +132,7 @@ func NewService(ctx context.Context, config Config) (*Service, error) {
 	if err := config.APIConfig.AppCredentials.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := types.ValidateMSGraphEndpoints(config.APIConfig.LoginEndpoint, config.APIConfig.GraphEndpoint); err != nil {
+	if err := types.ValidateMSGraphAndLoginEndpoints(config.APIConfig.LoginEndpoint, config.APIConfig.GraphEndpoint); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	creds := config.APIConfig.AppCredentials
