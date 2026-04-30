@@ -9,6 +9,10 @@
 // Size, in bytes, of the ring buffer used to report
 // audit events to userspace. This is the default,
 // the userspace can adjust this value based on config.
+//
+// Each event is 4120 bytes, so this default buffer size
+// will fit just over 2000 events at once which should be
+// a safe default.
 #define EVENTS_BUF_SIZE (4096 * 2048)
 
 // ERR_PTR range: pointers in [-MAX_ERRNO, -1] indicate errors.

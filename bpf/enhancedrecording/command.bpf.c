@@ -8,6 +8,10 @@
 // Size, in bytes, of the ring buffer used to report
 // audit events to userspace. This is the default,
 // the userspace can adjust this value based on config.
+//
+// Each event is 21012 bytes, so this default buffer size
+// will fit just under 400 events at once which should be
+// a safe default.
 #define EVENTS_BUF_SIZE (4096 * 2048)
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -71,7 +75,7 @@ BPF_COUNTER(lost);
 // storage for exit_execve to use if necessary. The data from userspace
 // may not be paged into memory yet so it's not reliable and why getting
 // the data in fexit/bprm_execve is preferred; when its called the data
-// is guaranteed to be in paged in and accessible to us.
+// is guaranteed to be paged in and accessible to us.
 static int enter_execve(const char *filename, const char *const *argv)
 {
     struct inflight_exec_t *info = NULL;
