@@ -17,7 +17,10 @@
  */
 
 import { existsSync, readFileSync } from 'fs';
+import { Agent as HttpsAgent, type RequestOptions } from 'https';
+import { isIP } from 'net';
 import { resolve } from 'path';
+import type { Duplex } from 'stream';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
@@ -266,6 +269,7 @@ function wsRoute(target: string, path: string): [string, ProxyOptions] {
       ws: true,
       changeOrigin,
       rewriteWsOrigin: changeOrigin,
+      agent: getProxyAgent(target),
     },
   ];
 }
@@ -277,6 +281,31 @@ function httpRoute(target: string, path: string): [string, ProxyOptions] {
       target: `https://${target}`,
       secure: false,
       changeOrigin: shouldChangeOrigin(target),
+      agent: getProxyAgent(target),
     },
   ];
+}
+
+// Suppress SNI for IP-literal targets. Newer Node either warns (DEP0123) or
+// drops the IP servername outright, which can break the upstream TLS handshake.
+class NoSniAgent extends HttpsAgent {
+  createConnection(
+    options: RequestOptions,
+    callback?: (err: Error | null, stream: Duplex) => void
+  ) {
+    return super.createConnection({ ...options, servername: '' }, callback);
+  }
+}
+
+let cachedNoSniAgent: NoSniAgent | null = null;
+
+function getProxyAgent(target: string): HttpsAgent | undefined {
+  const { hostname } = new URL(`https://${target}`);
+  if (!isIP(hostname)) {
+    return undefined;
+  }
+  if (!cachedNoSniAgent) {
+    cachedNoSniAgent = new NoSniAgent({ rejectUnauthorized: false });
+  }
+  return cachedNoSniAgent;
 }

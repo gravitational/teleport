@@ -20,6 +20,7 @@ import { readFileSync } from 'fs';
 import type * as http from 'http';
 import type * as http2 from 'http2';
 import { connect } from 'http2';
+import { isIP } from 'net';
 import { resolve } from 'path';
 
 import type { Plugin } from 'vite';
@@ -130,8 +131,14 @@ function getSession(target: string) {
     return session;
   }
 
+  const { hostname } = new URL(`https://${target}`);
+
   const created = connect(`https://${target}`, {
     rejectUnauthorized: false,
+    // SNI must not be an IP literal. Newer Node will silently drop the IP
+    // servername, which can leave the h2 session in a broken state; suppress
+    // it explicitly here.
+    ...(isIP(hostname) && { servername: '' }),
   });
 
   function invalidate() {
