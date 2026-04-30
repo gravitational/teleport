@@ -242,15 +242,30 @@ function resolveTargetURL(url: string) {
   return parsed.host;
 }
 
+// Rewrite Host / Origin only when VITE_HOST is set and its hostname differs
+// from the proxy target. Otherwise the original headers are correct as-is.
+function shouldChangeOrigin(target: string): boolean {
+  if (!process.env.VITE_HOST) {
+    return false;
+  }
+
+  const { hostname: viteHost } = new URL(`https://${process.env.VITE_HOST}`);
+  const { hostname: targetHost } = new URL(`https://${target}`);
+
+  return viteHost !== targetHost;
+}
+
 function wsRoute(target: string, path: string): [string, ProxyOptions] {
+  const changeOrigin = shouldChangeOrigin(target);
+
   return [
     path,
     {
       target: `wss://${target}`,
       secure: false,
       ws: true,
-      changeOrigin: true,
-      rewriteWsOrigin: true,
+      changeOrigin,
+      rewriteWsOrigin: changeOrigin,
     },
   ];
 }
@@ -261,7 +276,7 @@ function httpRoute(target: string, path: string): [string, ProxyOptions] {
     {
       target: `https://${target}`,
       secure: false,
-      changeOrigin: true,
+      changeOrigin: shouldChangeOrigin(target),
     },
   ];
 }
