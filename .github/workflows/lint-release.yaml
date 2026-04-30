@@ -3,31 +3,75 @@
 name: Lint Release
 
 on:
-  push:
-    branches:
-      - release/*
   pull_request:
-    branches:
-      - release/*
 
 jobs:
   lint-release:
     name: Check Release Correctness
+    if: startsWith(github.head_ref, 'release/')
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from Makefile
+        id: extract_version
+        run: |
+          VERSION=$(sed -nE 's/^VERSION[[:space:]]*[?:]?=[[:space:]]*([^[:space:]#]+).*/\1/p' Makefile)
+          if [ -z "$VERSION" ]; then
+            echo "VERSION not found in Makefile"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+          case "$VERSION" in
+            *-*) IS_PRERELEASE=true ;;
+            *)   IS_PRERELEASE=false ;;
+          esac
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Determine merge base
+        id: merge_base
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          MERGE_BASE=$(git merge-base "origin/${BASE_REF}" HEAD)
+          echo "MERGE_BASE=$MERGE_BASE" >> "$GITHUB_OUTPUT"
 
       - name: Ensure Changelog Entry
-        run: make ensure-changelog-entry
+        if: steps.extract_version.outputs.IS_PRERELEASE == 'false'
+        env:
+          VERSION: ${{ steps.extract_version.outputs.VERSION }}
+        run: |
+          if ! grep -qF -- "$VERSION" CHANGELOG.md; then
+            echo "Missing changelog entry for $VERSION"
+            exit 1
+          fi
 
-      # Base branch is only available for Pull Requests
-      - name: Fetch base branch
-        if: github.event_name == 'pull_request'
-        run: git fetch origin ${{ github.base_ref }}
+      - name: Ensure Changelog Untouched (pre-release)
+        if: steps.extract_version.outputs.IS_PRERELEASE == 'true'
+        env:
+          VERSION: ${{ steps.extract_version.outputs.VERSION }}
+          MERGE_BASE: ${{ steps.merge_base.outputs.MERGE_BASE }}
+        run: |
+          if ! git diff --quiet "$MERGE_BASE" -- CHANGELOG.md; then
+            echo "Pre-release version $VERSION must not modify CHANGELOG.md"
+            exit 1
+          fi
 
       - name: Ensure Version Changed
-        if: github.event_name == 'pull_request'
-        run: make ensure-version-changed BASE_REF=origin/${{ github.base_ref }}
+        env:
+          VERSION: ${{ steps.extract_version.outputs.VERSION }}
+          MERGE_BASE: ${{ steps.merge_base.outputs.MERGE_BASE }}
+        run: |
+          BASE_VER=$(git show "${MERGE_BASE}:Makefile" \
+            | sed -nE 's/^VERSION[[:space:]]*[?:]?=[[:space:]]*([^[:space:]#]+).*/\1/p')
+          if [ "$VERSION" = "$BASE_VER" ]; then
+            echo "VERSION $VERSION has not changed from merge-base"
+            exit 1
+          fi
