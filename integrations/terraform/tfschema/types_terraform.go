@@ -1160,17 +1160,17 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 				"tls": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_cas": {
-							Description: "AllowedCas is the list of user provided CAs used for verifying upstream certificates. Accepted values are PEM-encoded CA certificates and Teleport CA aliases.",
+							Description: "AllowedCas is the list of user provided CAs used for verifying upstream certificates. Accepted values are PEM-encoded CA certificates and Teleport CA aliases. Supported aliases: \"workload_identity\" (workload Identity CA. Allows accepting certificates issued by `tbot`).",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"client_cert_mode": {
-							Description: "ClientCertMode specifies which client certificate mode to use for the upstream connection.",
+							Description: "ClientCertMode specifies which client certificate mode to use for the upstream connection. Supported values: \"managed\" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections), \"disabled\" (app upstream connection won't use client certificates).",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"mode": {
-							Description: "Mode defines the TLS verification.",
+							Description: "Mode defines the TLS verification. Supported values: \"verify-full\" (performs certificate validation, and asserts server name and SPIFFE ID), \"verify-server-name\" (performs certificate validation, and asserts server name), \"verify-spiffe-id\": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option), \"insecure\": (accepts any certificate provided by app)",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

@@ -886,6 +886,10 @@ var AppSchemesWithTLSSupport = []string{
 }
 
 // AppTLSMode defines TLS verification.
+//
+// Friendly reminder: When adding or modifying TLS mode value, also check the
+// AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
 type AppTLSMode = string
 
 const (
@@ -895,7 +899,7 @@ const (
 	// AppTLSModeVerifyServerName performs certificate verification with server
 	// name check.
 	AppTLSModeVerifyServerName AppTLSMode = "verify-server-name"
-	// AppTLSModeVerifyFull performs certificate verification with spiffe ID
+	// AppTLSModeVerifySpiffeID performs certificate verification with spiffe ID
 	// check.
 	AppTLSModeVerifySpiffeID AppTLSMode = "verify-spiffe-id"
 	// AppTLSModeInsecure disables app's TLS certificate verification.
@@ -904,17 +908,28 @@ const (
 
 // AppClientCertMode specifies which client certificate mode to use for the
 // upstream connection.
+//
+// Friendly reminder: When adding or modifying a client cert mode, also check the
+// AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
 type AppClientCertMode = string
 
 const (
-	// AppClientCertModeManaged indicates app service will issue client certificates to use in the app upstream connection, establishing mTLS connections.
+	// AppClientCertModeManaged indicates app service will issue client
+	// certificates to use in the app upstream connection, establishing mTLS
+	// connections.
 	AppClientCertModeManaged AppClientCertMode = "managed"
-	// AppClientCertModeDisabled indicates the app upstream connection won't use client certificates.
+	// AppClientCertModeDisabled indicates the app upstream connection won't use
+	// client certificates.
 	AppClientCertModeDisabled AppClientCertMode = "disabled"
 )
 
 // AppTLSInternalCA represents a Teleport CA that the app service will accept
-// certificates from when establishing a app upstream connection.
+// certificates from when establishing an app upstream connection.
+//
+// Friendly reminder: When adding or modifying a internal CA alias, also check
+// the AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
 type AppTLSInternalCA = string
 
 const (
