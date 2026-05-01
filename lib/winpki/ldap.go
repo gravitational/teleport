@@ -405,7 +405,6 @@ type ldapReferral struct {
 //
 // parses an LDAP referral URL
 func parseLDAPReferral(raw string) (ldapReferral, error) {
-	// Only support ldaps scheme
 	const ldapsPrefix = "ldaps://"
 	const ldapPrefix = "ldap://"
 	var ref string
