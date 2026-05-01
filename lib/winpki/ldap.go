@@ -488,12 +488,26 @@ func newLDAPReferral(raw string) (ldapReferral, error) {
 // Returns either a slice of the resolved hosts, or upon failure, a slice
 // containing only parsed hostname of the raw referral.
 func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
+	// The host portion of an LDAP URL is actually optional.
+	// Avoid looking up or returning empty hosts
+	if r.host == "" {
+		return []string{}
+	}
+
+	if strings.ContainsRune(r.host, ':') {
+		// Skip the SRV lookup. If the referral URL has
+		// an exact port then this isn't a domain referral
+		return []string{r.host}
+	}
+
 	_, records, err := rslv.LookupSRV(ctx, "ldap", "tcp", r.host)
 	if err == nil && len(records) > 0 {
 		return libslices.Map(records, func(srv *net.SRV) string {
 			return srv.Target
 		})
 	}
+	// No records found or SRV lookup failed. Fall
+	// back to trying the host as-is.
 	return []string{r.host}
 }
 
@@ -599,7 +613,7 @@ func (r *recursiveSearch) run(ctx context.Context, client searcher, request *lda
 		defer r.referrals.Add(ref)
 		referral, err := newLDAPReferral(ref)
 		if err != nil {
-			r.logger.WarnContext(ctx, "Could not parse referral as URL", "referral", ref)
+			r.logger.WarnContext(ctx, "Could not parse referral as URL", "referral", ref, "error", err)
 			return ldapReferral{}, false
 		}
 		// Avoid following the same referral twice or exceeding the maximum referral limit
