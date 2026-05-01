@@ -325,7 +325,7 @@ func TestRecursiveSearch(t *testing.T) {
 
 func TestReferralParsing(t *testing.T) {
 	t.Run("full url", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com?cn,mail?sub?filter")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/DC=example,DC=com?cn,mail?sub?filter")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -336,7 +336,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("attributes only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/dn?cn,mail")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/dn?cn,mail")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -347,7 +347,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("scope only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com??one")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/DC=example,DC=com??one")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -358,7 +358,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("filter only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com???filter")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/DC=example,DC=com???filter")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -369,7 +369,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("attributes and filter only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com?cn,mail??filter")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/DC=example,DC=com?cn,mail??filter")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -380,7 +380,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("extensions only - with dn", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/DC=example,DC=com????extensions")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/DC=example,DC=com????extensions")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -391,7 +391,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("extensions only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldaps://somehost:123/dn??????extensions")
+		ref, err := parseLDAPReferral("ldaps://somehost:123/dn??????extensions")
 		require.NoError(t, err)
 		assert.Equal(t, "ldaps://", ref.scheme)
 		assert.Equal(t, "somehost:123", ref.host)
@@ -404,7 +404,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("dn only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldap:///dn")
+		ref, err := parseLDAPReferral("ldap:///dn")
 		require.NoError(t, err)
 		assert.Equal(t, "ldap://", ref.scheme)
 		assert.Equal(t, "dn", ref.baseDN)
@@ -416,7 +416,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("sparse but valid", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldap:///dn????")
+		ref, err := parseLDAPReferral("ldap:///dn????")
 		require.NoError(t, err)
 		assert.Equal(t, "ldap://", ref.scheme)
 		assert.Equal(t, "dn", ref.baseDN)
@@ -428,7 +428,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("scheme only", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldap://")
+		ref, err := parseLDAPReferral("ldap://")
 		require.NoError(t, err)
 		assert.Equal(t, "ldap://", ref.scheme)
 		assert.Equal(t, "dn", ref.baseDN)
@@ -440,7 +440,7 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("percent encoded params", func(t *testing.T) {
-		ref, err := newLDAPReferral("ldap://host.example.com:1234/dc=example%3F,dc=com?cn,o%3Dname?sub?(cn=John%20Smith)?1.2.3.4=foo%2Cbar")
+		ref, err := parseLDAPReferral("ldap://host.example.com:1234/dc=example%3F,dc=com?cn,o%3Dname?sub?(cn=John%20Smith)?1.2.3.4=foo%2Cbar")
 		require.NoError(t, err)
 		assert.Equal(t, "ldap://", ref.scheme)
 		assert.Equal(t, "dc=example?,dc=com", ref.baseDN)
@@ -459,7 +459,7 @@ func TestReferralParsing(t *testing.T) {
 			"ldap://[::1/dc=example,dc=com",                  // unclosed IP-literal bracket
 			"ldap://host?",                                   // ? in host
 		} {
-			_, err := newLDAPReferral(url)
+			_, err := parseLDAPReferral(url)
 			require.Error(t, err)
 		}
 

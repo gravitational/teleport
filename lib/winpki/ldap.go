@@ -404,7 +404,7 @@ type ldapReferral struct {
 // https://datatracker.ietf.org/doc/html/rfc4516#section-2
 //
 // parses an LDAP referral URL
-func newLDAPReferral(raw string) (ldapReferral, error) {
+func parseLDAPReferral(raw string) (ldapReferral, error) {
 	// Only support ldaps scheme
 	const ldapsPrefix = "ldaps://"
 	const ldapPrefix = "ldap://"
@@ -614,7 +614,7 @@ func (r *recursiveSearch) run(ctx context.Context, client searcher, request *lda
 	// and add new ones to the referrals set.
 	parsedReferrals := libslices.FilterMapUnique(referralResult.referrals, func(ref string) (ldapReferral, bool) {
 		defer r.referrals.Add(ref)
-		referral, err := newLDAPReferral(ref)
+		referral, err := parseLDAPReferral(ref)
 		if err != nil {
 			r.logger.WarnContext(ctx, "Could not parse referral as URL", "referral", ref, "error", err)
 			return ldapReferral{}, false
