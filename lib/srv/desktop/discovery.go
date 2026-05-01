@@ -88,17 +88,17 @@ const (
 )
 
 // currentDesktops returns the set of desktops that exist in the backend which were both:
-// 1. Registered by this agent.
-// 2. Registered with a dynamic origin (either via LDAP discovery or dynamic registration)
-func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.WindowsDesktop {
+func (s *WindowsService) currentLDAPDesktops(ctx context.Context) map[string]types.WindowsDesktop {
 	result := make(map[string]types.WindowsDesktop)
-
 	for desktop, err := range clientutils.Resources(
 		ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
 			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
 				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
-				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+				Labels: map[string]string{
+					types.OriginLabel:                 types.OriginDynamic,
+					types.DiscoveryLabelWindowsDomain: s.cfg.Domain,
+				},
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -127,7 +127,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		CompareResources: func(wd1, wd2 types.WindowsDesktop) int {
 			return services.EqualFromBool(wd1.IsEqual(wd2))
 		},
-		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(s.closeCtx) },
+		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentLDAPDesktops(s.closeCtx) },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
