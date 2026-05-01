@@ -33,7 +33,7 @@ We plan to release the following versions in the coming months:
 | Version | Date                   |
 |---------|------------------------|
 | 18.8.0  | Week of May 4, 2026    |
-| 18.9.0  | Week of May 11, 2026   |
+| 18.9.0  | Week of June 1, 2026   |
 | 19.0.0  | August 2026            |
 
 ### 18.8.0
@@ -68,6 +68,16 @@ belong to different Active Directory domains than the target hosts.
 Teleport's bound keypair join method will be extended to support arbitrary
 Teleport agents in addition to bots.
 
+#### Session summaries search
+
+Identity Security will provide users with CLI tooling for searching session
+summaries allowing users to find sessions based on natural language queries.
+
+#### Reduce resource consumption of SSH sessions
+
+Teleport SSH session latency will be reduced and each session will consume
+less memory.
+
 ### 18.9.0
 
 #### Device Bound Session Credentials for App Access
@@ -82,14 +92,34 @@ Teleport will support sharing multiple directories in a single RDP session.  In
 addition, users will be able to unmount shared directories without terminating
 the session.
 
+#### Windows sessions summaries
+
+Identity Security will support AI summarization for Windows desktop access session
+recordings.
+
+#### Terraform support for AWS EKS discovery
+
+Users will be able to set up AWS EKS discovery on an AWS account level using
+Terraform module.
+
+#### Terraform support for Azure VM discovery
+
+Users will be able to set up Azure VM discovery on a subscription level using
+Terraform module.
+
+#### Terraform support for access list workflows
+
+Short and long term access list creation flows in the web UI will include terraform
+support allowing users to define access with infrastructure-as-code.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of          | Description                                                 |
 |------------------|-------------------------------------------------------------|
-| April 27, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
-| April 27, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
+| May 11, 2026     | Teleport 18.8 will begin rollout on Cloud.                   |
+| May 11, 2026     | Teleport 18.8 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
