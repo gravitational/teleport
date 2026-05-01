@@ -59,7 +59,27 @@ func init() {
 		}
 		return types.Resource153ToLegacy(model), nil
 	})
-
+	services.RegisterResourceUnmarshaler(types.KindInferencePolicy, func(b []byte, options ...services.MarshalOption) (types.Resource, error) {
+		policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](b, options...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(policy), nil
+	})
+	services.RegisterResourceUnmarshaler(types.KindInferenceSecret, func(b []byte, options ...services.MarshalOption) (types.Resource, error) {
+		secret, err := services.UnmarshalProtoResource[*summarizerv1.InferenceSecret](b, options...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(secret), nil
+	})
+	services.RegisterResourceUnmarshaler(types.KindRetrievalModel, func(b []byte, options ...services.MarshalOption) (types.Resource, error) {
+		model, err := services.UnmarshalProtoResource[*summarizerv1.RetrievalModel](b, options...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(model), nil
+	})
 	// Register functions to create enterprise GitHub auth connectors.
 	services.RegisterGithubAuthCreator(etypes.NewGithubConnectorE)
 	// Register function to convert OSS GitHub auth connectors to
