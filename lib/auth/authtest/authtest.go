@@ -1264,13 +1264,19 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
+	return TestScopedServerID(role, serverID, "")
+}
+
+// TestScopedServerID returns a scoped TestIdentity for a node with the passed in serverID.
+func TestScopedServerID(role types.SystemRole, serverID, scope string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              serverID,
 			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
-				Username: serverID,
+				Username:   serverID,
+				AgentScope: scope,
 			},
 		},
 	}
@@ -1545,6 +1551,49 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
 		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
+}
+
+// NewScopedServerIdentity generates new scoped server identity, used in tests
+func NewScopedServerIdentity(clt *auth.Server, hostID, scope string, role types.SystemRole) (*state.Identity, error) {
+	if scope == "" {
+		return NewServerIdentity(clt, hostID, role)
+	}
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Role:         role,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
+		},
+		AgentScope: scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
