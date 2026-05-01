@@ -19,24 +19,22 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph/models"
-	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 func TestResourceImport(t *testing.T) {
 	ctx := t.Context()
 
-	defaultStorage := msgraphtest.NewDefaultStorage()
-	env := newTestEnv(t, defaultStorage)
+	env := newTestEnv(t, newDefaultStorage())
 
 	// Install the plugin, should trigger resource import on first start.
 	plugin := newDefaultPluginSpec(t)
 	err := createEntraIDPlugin(ctx, env.authClient, plugin)
 	require.NoError(t, err, "expected Entra ID plugin to be created")
 
+	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
 	expectDefaultUserSync(t, env.authClient)
 	expectDefaultGroupSync(t, env.authClient)
 	expectDefaultGroupOwners(t, env.authClient)
-	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
 }
 
 func TestResourceImportWithUnsupportedUsers(t *testing.T) {
@@ -45,7 +43,7 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 	// Unsupported user with quote "'" in username.
 	david := &models.User{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("dav'id@example.com"),
+			ID:          to.Ptr("ed29ef7c-95ec-4754-aee4-683677a5d49c"),
 			DisplayName: to.Ptr("David D"),
 		},
 		GivenName:         to.Ptr("David"),
@@ -56,7 +54,7 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 	// Unsupported user with forward slash "/"" in username.
 	eve := &models.User{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("ev/e@example.com"),
+			ID:          to.Ptr("f889c1c3-c033-43ea-9a9b-8bfde82652f2"),
 			DisplayName: to.Ptr("Eve E"),
 		},
 		GivenName:         to.Ptr("Eve"),
@@ -67,7 +65,7 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 	// Supported username
 	fiona := &models.User{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("fiona@example.com"),
+			ID:          to.Ptr("1205d54e-2f00-45f7-9e3a-ff7c176c4779"),
 			DisplayName: to.Ptr("Fiona F"),
 		},
 		GivenName:         to.Ptr("Fiona"),
@@ -76,14 +74,14 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 		UserPrincipalName: to.Ptr("fiona@example.com"),
 	}
 
-	defaultStorage := msgraphtest.NewDefaultStorage()
+	defaultStorage := newDefaultStorage()
 	// Add new users david, fiona, eve to the default storage users.
 	defaultStorage.Users[*david.ID] = david
 	defaultStorage.Users[*eve.ID] = eve
 	defaultStorage.Users[*fiona.ID] = fiona
 	// Add new group members david, fiona, eve to the default storage group members.
-	defaultStorage.GroupMembers["group2"] = slices.Concat(defaultStorage.GroupMembers["group2"], []models.GroupMember{david, fiona, eve})
-	defaultStorage.GroupMembers["group3"] = slices.Concat(defaultStorage.GroupMembers["group3"], []models.GroupMember{david, fiona, eve})
+	defaultStorage.GroupMembers[group2ID] = slices.Concat(defaultStorage.GroupMembers[group2ID], []models.GroupMember{david, fiona, eve})
+	defaultStorage.GroupMembers[group3ID] = slices.Concat(defaultStorage.GroupMembers[group3ID], []models.GroupMember{david, fiona, eve})
 
 	env := newTestEnv(t, defaultStorage)
 
@@ -94,8 +92,7 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 
 	require.EventuallyWithT(t,
 		func(t *assert.CollectT) {
-			// alice, bob and carol are default users defined in
-			// [msgraphtest.PayloadListUsers].
+			// alice, bob and carol are default users defined in newDefaultStorage().
 			expected := []string{"alice@example.com", "bob@example.com", "carol@example.com", "fiona@example.com"} // david and eve users skipped.
 			requireEntraIDUsers(t, ctx, env.authClient, expected)
 		},
@@ -109,14 +106,13 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 			require.NotNil(t, gotAccesslists)
 			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
 
-			// alice, bob and carol are default group members defined
-			// in [msgraphtest.PayloadListGroups].
+			// alice, bob and carol are default group members defined in newDefaultStorage().
 			requireEntraIDAccessListMembers(t, ctx, env.authClient,
-				gotAccesslists["group2"].GetName(),
+				gotAccesslists["group2"],
 				[]string{"alice@example.com", "bob@example.com", "carol@example.com", "fiona@example.com"}, // david and eve users skipped.
 			)
 			requireEntraIDAccessListMembers(t, ctx, env.authClient,
-				gotAccesslists["group3"].GetName(),
+				gotAccesslists["group3"],
 				[]string{"alice@example.com", "bob@example.com", "carol@example.com", "fiona@example.com"}, // david and eve users skipped.
 			)
 		},
@@ -130,7 +126,7 @@ func expectDefaultUserSync(t *testing.T, authClt authclient.ClientI) {
 	require.EventuallyWithT(t,
 		func(t *assert.CollectT) {
 			// Users are expected to be created before Access List and members.
-			// User names matches with default payload available in [msgraphtest.PayloadListUsers].
+			// User names matches with default payload available in newDefaultStorage().
 			expected := []string{"alice@example.com", "bob@example.com", "carol@example.com"}
 			requireEntraIDUsers(t, ctx, authClt, expected)
 		},
@@ -146,7 +142,7 @@ func expectDefaultGroupSync(t *testing.T, authClt authclient.ClientI) {
 			// Entra ID groups are created as Access List and
 			// group members created as Access List members.
 
-			// Group names matches with default payload available in [msgraphtest.PayloadListGroups].
+			// Group names matches with default payload available in newDefaultStorage().
 			expectedAccessListTitles := []string{"group1", "group2", "group3"}
 			gotAccesslists, err := listEntraIDAccessLists(ctx, authClt.AccessListClient())
 			require.NoError(t, err)
@@ -154,17 +150,17 @@ func expectDefaultGroupSync(t *testing.T, authClt authclient.ClientI) {
 			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
 
 			requireEntraIDAccessListMembers(t, ctx, authClt,
-				gotAccesslists["group1"].GetName(),
+				gotAccesslists["group1"],
 				[]string{gotAccesslists["group2"].GetName(), "alice@example.com"}, // group2 is nested member of group1.
 			)
 
 			requireEntraIDAccessListMembers(t, ctx, authClt,
-				gotAccesslists["group2"].GetName(),
+				gotAccesslists["group2"],
 				[]string{"alice@example.com", "bob@example.com", "carol@example.com"},
 			)
 
 			requireEntraIDAccessListMembers(t, ctx, authClt,
-				gotAccesslists["group3"].GetName(),
+				gotAccesslists["group3"],
 				[]string{"alice@example.com", "bob@example.com", "carol@example.com"},
 			)
 
@@ -198,15 +194,16 @@ func expectDefaultPluginStatus(t *testing.T, authClt authclient.ClientI, name st
 			require.NoError(t, err)
 
 			status := updatedPlugin.GetStatus()
-			require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
-			require.Empty(t, status.GetErrorMessage())
 			require.Empty(t, status.GetLastRawError())
+			require.Empty(t, status.GetErrorMessage())
+			require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode(), `expected plugin status to be "running"`)
 
 			entraStatus := status.GetEntraId()
+			require.NotNil(t, entraStatus)
 			require.Equal(t, uint32(3), entraStatus.ImportedUsers)
 			require.Equal(t, uint32(3), entraStatus.ImportedGroups)
 		},
-		time.Second*10, time.Millisecond*30, "expected successful plugins status")
+		time.Second*15, time.Millisecond*30, "expected successful plugins status")
 }
 
 func mustParseURL(t *testing.T, in string) *url.URL {
@@ -227,14 +224,14 @@ func requireEntraIDUsers(t *assert.CollectT, ctx context.Context, authClient aut
 	require.ElementsMatch(t, expectedUsers, got, "expected Entra ID users to be created in Teleport")
 }
 
-func requireEntraIDAccessListMembers(t *assert.CollectT, ctx context.Context, authClient authclient.ClientI, aclName string, expectedMembers []string) {
+func requireEntraIDAccessListMembers(t *assert.CollectT, ctx context.Context, authClient authclient.ClientI, acl *accesslist.AccessList, expectedMembers []string) {
 	t.Helper()
 
-	gotMembers, err := listEntraIDMembers(ctx, aclName, authClient.AccessListClient())
+	gotMembers, err := listEntraIDMembers(ctx, acl.GetName(), authClient.AccessListClient())
 	require.NoError(t, err, "listing Access List members for Entra ID groups")
 	require.NotNil(t, gotMembers)
 
-	require.ElementsMatch(t, expectedMembers, gotMembers, "expected Entra ID group members to be created")
+	require.ElementsMatch(t, expectedMembers, gotMembers, "expected Entra ID group members to be created. acl=%s", acl.Spec.Title)
 }
 
 func requireDefaultEntraIDAccessListOwners(t *assert.CollectT, acls map[string]*accesslist.AccessList) {

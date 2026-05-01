@@ -13,21 +13,20 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/msgraph/models"
-	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 func TestSyncErrorStatusReport(t *testing.T) {
 	ctx := t.Context()
 
-	storage := msgraphtest.NewDefaultStorage()
+	storage := newDefaultStorage()
 	// Unsupported user with quote "'" in username.
-	davidInvalid := entraUser(t, "dav'id@example.com")
+	davidInvalid := newEntraUser("f25cfcf2-913d-4fd0-a2d3-4d7e7ac2100b", "dav'id@example.com", "David I")
 	// Unsupported user with forward slash "/"" in username.
-	eveInvalid := entraUser(t, "ev/e@example.com")
+	eveInvalid := newEntraUser("5cba2a74-f905-4a6c-a9d5-d43a3082bed8", "ev/e@example.com", "Eve E")
 	// Supported username.
-	fiona := entraUser(t, "fiona@example.com")
+	fiona := newEntraUser("adc68501-3dc8-4ab9-a1f3-a2389928a840", "fiona@example.com", "Fiona F")
 	// Supported username but a local user with same email already exists.
-	gianna := entraUser(t, "gianna@example.com")
+	gianna := newEntraUser("899d9091-7bbf-4e7c-88be-9b044f36d36b", "gianna@example.com", "Gianna G")
 	// Add new users david, fiona, eve to the default storage users,
 	// Default users alice, bob and carol remains unchanged.
 	storage.Users[*davidInvalid.ID] = davidInvalid
@@ -35,8 +34,8 @@ func TestSyncErrorStatusReport(t *testing.T) {
 	storage.Users[*fiona.ID] = fiona
 	storage.Users[*gianna.ID] = gianna
 
-	group1 := entraGroup(t, "group1")
-	group2 := entraGroup(t, "group2")
+	group1 := newEntraGroup(group1ID, "group1")
+	group2 := newEntraGroup(group2ID, "group2")
 	group3invalid := &models.Group{
 		DirectoryObject: models.DirectoryObject{
 			ID:          to.Ptr("group3invalid"),
@@ -44,13 +43,13 @@ func TestSyncErrorStatusReport(t *testing.T) {
 		},
 	}
 	storage.Groups = make(map[string]*models.Group)
-	storage.Groups["group1"] = group1
-	storage.Groups["group2"] = group2
+	storage.Groups[group1ID] = group1
+	storage.Groups[group2ID] = group2
 	storage.Groups["group3invalid"] = group3invalid
 
 	// Add new group members david, fiona, eve to the default storage group members.
-	storage.GroupMembers["group1"] = slices.Concat(storage.GroupMembers["group2"], []models.GroupMember{davidInvalid, fiona, eveInvalid})
-	storage.GroupMembers["group2"] = slices.Concat(storage.GroupMembers["group2"], []models.GroupMember{davidInvalid, fiona, eveInvalid})
+	storage.GroupMembers[group1ID] = slices.Concat(storage.GroupMembers[group1ID], []models.GroupMember{davidInvalid, fiona, eveInvalid})
+	storage.GroupMembers[group2ID] = slices.Concat(storage.GroupMembers[group2ID], []models.GroupMember{davidInvalid, fiona, eveInvalid})
 
 	env := newTestEnv(t, storage)
 
@@ -67,8 +66,7 @@ func TestSyncErrorStatusReport(t *testing.T) {
 
 	require.EventuallyWithT(t,
 		func(t *assert.CollectT) {
-			// alice, bob and carol are default users defined in
-			// [msgraphtest.PayloadListUsers].
+			// alice, bob and carol are default users defined in newDefaultStorage().
 			expected := []string{"alice@example.com", "bob@example.com", "carol@example.com", "fiona@example.com"} // david and eve users skipped.
 			requireEntraIDUsers(t, ctx, env.authClient, expected)
 		},
@@ -82,14 +80,13 @@ func TestSyncErrorStatusReport(t *testing.T) {
 			require.NotNil(t, gotAccesslists)
 			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
 
-			// alice, bob and carol are default group members defined
-			// in [msgraphtest.PayloadListGroups].
+			// alice, bob and carol are default group members defined in newDefaultStorage().
 			requireEntraIDAccessListMembers(t, ctx, env.authClient,
-				gotAccesslists["group1"].GetName(),
-				[]string{"alice@example.com", "bob@example.com", "carol@example.com", "fiona@example.com"}, // david and eve users skipped.
+				gotAccesslists["group1"],
+				[]string{"alice@example.com", gotAccesslists["group2"].GetName(), "fiona@example.com"}, // david and eve users skipped.
 			)
 			requireEntraIDAccessListMembers(t, ctx, env.authClient,
-				gotAccesslists["group2"].GetName(),
+				gotAccesslists["group2"],
 				[]string{"alice@example.com", "bob@example.com", "carol@example.com", "fiona@example.com"}, // david and eve users skipped.
 			)
 		},

@@ -14,9 +14,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/e/lib/entraid/directory"
 	"github.com/gravitational/teleport/lib/msgraph/models"
-	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 // Test that when AccessListOwnersSource is set to
@@ -26,9 +24,7 @@ import (
 func TestAccessListDefaultOwners(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-
-	defaultStorage := msgraphtest.NewDefaultStorage()
-	env := newTestEnv(t, defaultStorage)
+	env := newTestEnv(t, newDefaultStorage())
 
 	// Plugin configured with plugin as a source of Access List owners.
 	plugin := newDefaultPluginSpec(t)
@@ -57,7 +53,7 @@ func TestAccessListEntraIDGroupOwners(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	defaultStorage := msgraphtest.NewDefaultStorage()
+	defaultStorage := newDefaultStorage()
 	env := newTestEnv(t, defaultStorage)
 
 	// Plugin with Entra ID group owners as Access List owner source.
@@ -82,26 +78,26 @@ func TestAccessListEntraIDGroupOwners(t *testing.T) {
 			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
 			require.NoError(t, err, "listing entra id access lists")
 
-			expectedGroup1Owners := directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group1"])
-			require.Empty(t,
-				cmp.Diff(expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group1 owners to match")
+			expectedGroup1Owners := aclOwners(t, defaultStorage.GroupOwners[group1ID])
+			compareOwners(t, "group1", expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners)
 
 			// group2 has zero owners, should fallback to default owners.
-			require.Empty(t,
-				cmp.Diff([]accesslist.Owner{defaultOwner}, gotAccesslists["group2"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group2 owners to match")
+			compareOwners(t, "group2", []accesslist.Owner{defaultOwner}, gotAccesslists["group2"].Spec.Owners)
 
-			expectedGroup3Owners := directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group3"])
-			require.Empty(t,
-				cmp.Diff(expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group3 owners to match")
+			expectedGroup3Owners := aclOwners(t, defaultStorage.GroupOwners[group3ID])
+			compareOwners(t, "group3", expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners)
 
 		},
 		time.Second*10, time.Millisecond*30)
+}
+
+func compareOwners(t *assert.CollectT, groupName string, ownersA, ownersB []accesslist.Owner) {
+	t.Helper()
+	require.Empty(t,
+		cmp.Diff(ownersA, ownersB,
+			cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
+			cmpopts.SortSlices(func(o1, o2 accesslist.Owner) bool { return o1.Name < o2.Name }),
+		), "expected Entra ID %s owners to match", groupName)
 }
 
 // Test that when AccessListOwnersSource is set to
@@ -113,14 +109,18 @@ func TestAccessListUnsupportedEntraIDGroupOwners(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	defaultStorage := msgraphtest.NewDefaultStorage()
+	defaultStorage := newDefaultStorage()
+	// alice, bob are default owners of group1.
+	expectedGroup1Owners := slices.Clone(defaultStorage.GroupOwners[group1ID])
+	defaultStorage.GroupOwners = make(map[string][]*models.User)
+	defaultStorage.GroupOwners[group1ID] = expectedGroup1Owners
 	env := newTestEnv(t, defaultStorage)
 
 	// fion'a@example.com is an unsupported user account (contains quote "'"),
 	// should be filtered if configured as group owner.
 	fiona := &models.User{
 		DirectoryObject: models.DirectoryObject{
-			ID:          to.Ptr("fion'a@example.com"),
+			ID:          to.Ptr("81229ef0-7661-4ffe-b385-d032bcaeb819"),
 			DisplayName: to.Ptr("Fiona F"),
 		},
 		GivenName:         to.Ptr("Fiona"),
@@ -134,11 +134,10 @@ func TestAccessListUnsupportedEntraIDGroupOwners(t *testing.T) {
 	env.fakeServer.SetUsers(users)
 
 	// Append one unsupported user account to group1 owner.
-	group1Owners := defaultStorage.GroupOwners["group1"]
-	group1Owners = append(group1Owners, fiona)
-	env.fakeServer.SetGroupOwners("group1", group1Owners)
+	group1Owners := append(defaultStorage.GroupOwners[group1ID], fiona)
+	env.fakeServer.SetGroupOwners(group1ID, group1Owners)
 	// Add one unsupported user account as group3 owner.
-	env.fakeServer.SetGroupOwners("group3", []*models.User{fiona})
+	env.fakeServer.SetGroupOwners(group3ID, []*models.User{fiona})
 
 	// Plugin with Entra ID group owners as Access List owner source.
 	plugin := newDefaultPluginSpec(t)
@@ -162,26 +161,15 @@ func TestAccessListUnsupportedEntraIDGroupOwners(t *testing.T) {
 			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
 			require.NoError(t, err, "listing entra id access lists")
 
-			expectedGroup1Owners := directory.ToAclOwner(ctx, group1Owners)
-			require.Len(t, expectedGroup1Owners, 2)
-			require.Empty(t,
-				cmp.Diff(expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group1 owners to match")
+			require.Len(t, aclOwners(t, expectedGroup1Owners), 2)
+			compareOwners(t, "group1", aclOwners(t, expectedGroup1Owners), gotAccesslists["group1"].Spec.Owners)
 
 			// group2 has zero owners, should fallback to default owners.
-			require.Empty(t,
-				cmp.Diff([]accesslist.Owner{defaultOwner}, gotAccesslists["group2"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group2 owners to match")
+			compareOwners(t, "group2", []accesslist.Owner{defaultOwner}, gotAccesslists["group2"].Spec.Owners)
 
 			// group3 had only one owner but the user account is unsupported and filtered.
 			// Should fallback to default owners.
-			require.Empty(t,
-				cmp.Diff([]accesslist.Owner{defaultOwner}, gotAccesslists["group3"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group3 owners to match")
-
+			compareOwners(t, "group3", []accesslist.Owner{defaultOwner}, gotAccesslists["group3"].Spec.Owners)
 		},
 		time.Second*10, time.Millisecond*30)
 }
@@ -193,7 +181,7 @@ func TestAccessListMergePluginAndEntraIDGroupOwners(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	defaultStorage := msgraphtest.NewDefaultStorage()
+	defaultStorage := newDefaultStorage()
 	env := newTestEnv(t, defaultStorage)
 
 	// Plugin with Entra ID group owners and Plugin source as Access List owners.
@@ -220,24 +208,15 @@ func TestAccessListMergePluginAndEntraIDGroupOwners(t *testing.T) {
 
 			defaultOwners := []accesslist.Owner{defaultOwner}
 			// Merge Entra ID group owners and plugin default owners.
-			expectedGroup1Owners := slices.Concat(directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group1"]), defaultOwners)
-			require.Empty(t,
-				cmp.Diff(expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group1 owners to match")
+			expectedGroup1Owners := slices.Concat(aclOwners(t, defaultStorage.GroupOwners[group1ID]), defaultOwners)
+			compareOwners(t, "group1", expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners)
 
 			// group2 has zero owners, should fallback to default owners.
-			require.Empty(t,
-				cmp.Diff(defaultOwners, gotAccesslists["group2"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group2 owners to match")
+			compareOwners(t, "group2", defaultOwners, gotAccesslists["group2"].Spec.Owners)
 
 			// Merge Entra ID group owners and plugin default owners.
-			expectedGroup3Owners := slices.Concat(directory.ToAclOwner(ctx, defaultStorage.GroupOwners["group3"]), defaultOwners)
-			require.Empty(t,
-				cmp.Diff(expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners,
-					cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-				), "expected Entra ID group3 owners to match")
+			expectedGroup3Owners := slices.Concat(aclOwners(t, defaultStorage.GroupOwners[group3ID]), defaultOwners)
+			compareOwners(t, "group3", expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners)
 
 		},
 		time.Second*10, time.Millisecond*30)
