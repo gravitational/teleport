@@ -5,7 +5,7 @@
 ### Security fixes
 
 This release includes various security-related improvements and bug fixes. 
-We recommend that users on versions prior to v18.7.5 upgrade their Auth and Database Services to this latest release.
+We recommend that users on versions prior to v18.7.4 upgrade their Auth and Database Services to this latest release.
 For Teleport Cloud customers, your control plane has already been upgraded to a patched release.
 
 #### [High] Authorization bypass in encrypted session recordings
