@@ -897,13 +897,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
 	app := cf.kingpinApp
 
+	registerGlobalConfigFlags(app, &cf)
 	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	app.Flag("proxy", "Teleport proxy address.").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user.").Envar(userEnvVar).StringVar(&cf.Username)
-	app.Flag("home-dir", "Directory where client state, credentials, and user-specific config are stored. Defaults to \"$HOME/.tsh\".").Envar(types.HomeEnvVar).StringVar(&cf.HomePath)
-	app.Flag("global-config-path", "Path to file where shared config is stored. Defaults to \"/etc/tsh.yaml\".").Envar(globalTshConfigEnvVar).StringVar(&cf.GlobalTshConfigPath)
 	app.Flag("mem-profile", "Write memory profile to file.").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file.").Hidden().StringVar(&cpuProfile)
 	app.Flag("trace-profile", "Write trace profile to file.").Hidden().StringVar(&traceProfile)
@@ -1549,13 +1548,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
-	if cf.HomePath != "" {
-		cf.HomePath = filepath.Clean(cf.HomePath)
-	}
-	if cf.GlobalTshConfigPath != "" {
-		cf.GlobalTshConfigPath = filepath.Clean(cf.GlobalTshConfigPath)
-	}
-
 	if cf.SiteName == "" {
 		if clusterName := os.Getenv(siteEnvVar); clusterName != "" {
 			cf.SiteName = clusterName
@@ -1563,6 +1555,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// configs
+	initGlobalConfig(ctx, &cf, args)
 	confOptions, err := client.LoadAllConfigs(cf.GlobalTshConfigPath, cf.HomePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6336,6 +6329,42 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		out, err = yaml.Marshal(env)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+// registerGlobalConfigFlags registers global config flags that are intended to have global effect,
+// i.e. before any specific command is parsed.
+func registerGlobalConfigFlags(app *kingpin.Application, cf *CLIConf) {
+	app.Flag("home-dir", "Directory where client state, credentials, and user-specific config are stored. Defaults to \"$HOME/.tsh\".").Envar(types.HomeEnvVar).StringVar(&cf.HomePath)
+	app.Flag("global-config-path", "Path to file where shared config is stored. Defaults to \"/etc/tsh.yaml\".").Envar(globalTshConfigEnvVar).StringVar(&cf.GlobalTshConfigPath)
+
+	// validation
+	app.PreAction(func(pc *kingpin.ParseContext) error {
+		if cf.HomePath != "" {
+			cf.HomePath = filepath.Clean(cf.HomePath)
+		}
+		if cf.GlobalTshConfigPath != "" {
+			cf.GlobalTshConfigPath = filepath.Clean(cf.GlobalTshConfigPath)
+		}
+		return nil
+	})
+
+	// The cluster flag is only supported for specific commands, but the env var is supported globally.
+	//
+	// Due to a flag naming conflict, namely `tsh kube exec -c`, the per-command flag
+	// cannot be replaced this global one without breaking backwards compatibility.
+	app.Flag("cluster-env", clusterHelp).Hidden().Envar(clusterEnvVar).StringVar(&cf.SiteName)
+
+	// Support old env var for backwards compatibility. The flag above takes precedence.
+	app.Flag("sitename-env", clusterHelp).Hidden().Envar(siteEnvVar).StringVar(&cf.SiteName)
+}
+
+func initGlobalConfig(ctx context.Context, cf *CLIConf, args []string) {
+	// Read tsh config/home paths from the CLI args/env.
+	app := utils.InitHiddenCLIParser()
+	registerGlobalConfigFlags(app, cf)
+	if _, err := app.Parse(utils.FilterArguments(args, app.Model())); err != nil {
+		slog.WarnContext(ctx, "failed to init global flags", "error", err)
+	}
 }
 
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
