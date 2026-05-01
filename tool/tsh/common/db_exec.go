@@ -144,9 +144,7 @@ func (c *databaseExecCommand) close() {
 }
 
 func checkDatabaseExecInputFlags(cf *CLIConf) error {
-	// Pick an arbitrary number for max connections to avoid flooding the
-	// backend. The limit can be overwritten with the "TELEPORT_PARALLEL_JOBS"
-	// env var.
+	// Pick an arbitrary number for max connections to avoid flooding the backend.
 	const maxParallelJobs = 10
 	if cf.ParallelJobs < 1 || cf.ParallelJobs > maxParallelJobs {
 		return trace.BadParameter(`--parallel must be between 1 and %v`, maxParallelJobs)
