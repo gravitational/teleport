@@ -288,6 +288,7 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
+export
 # This unexport statement is required for make to work with the `-e` flag.
 # With -e, the first Makefile sets HELMJANITOR=$$(go tool ...),
 # passes HELMJANITOR=$(go tool) to the child make process.
