@@ -223,6 +223,7 @@ func (r resourceTeleportDatabaseObjectImportRule) Update(ctx context.Context, re
 	}
 	importRuleResource := importRule
 
+	importRuleResource.Kind = apitypes.KindDatabaseObjectImportRule
 
 	
 	name := importRuleResource.Metadata.Name

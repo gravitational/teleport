@@ -216,6 +216,13 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	vnetConfig.Kind = apitypes.KindVnetConfig
+	if vnetConfig.GetMetadata() == nil {
+		vnetConfig.Metadata = &headerv1.Metadata{}
+	}
+	if vnetConfig.GetMetadata().GetName() == "" {
+		vnetConfig.Metadata.Name = apitypes.MetaNameVnetConfig
+	}
 
 	vnetConfigBefore, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {

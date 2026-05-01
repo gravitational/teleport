@@ -223,6 +223,7 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 	}
 	scopedRoleResource := scopedRole
 
+	scopedRoleResource.Kind = apitypes.KindScopedRole
 
 	
 	name := scopedRoleResource.Metadata.Name
