@@ -75,6 +75,10 @@ func Process(ctx context.Context, cfg Config) error {
 		if err := summarizer.SummarizeDatabase(ctx, o); err != nil {
 			summarizerErr = trace.Wrap(err, "failed to summarize upload")
 		}
+	case *apievents.WindowsDesktopSessionEnd:
+		if err := summarizer.SummarizeWindowsDesktop(ctx, o); err != nil {
+			summarizerErr = trace.Wrap(err, "failed to summarize upload")
+		}
 	}
 	return trace.NewAggregate(summarizerErr, metadataErr)
 }

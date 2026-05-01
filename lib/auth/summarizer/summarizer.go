@@ -32,10 +32,14 @@ type SessionSummarizer interface {
 	// SummarizeDatabase summarizes the database session recording associated
 	// with the provided [events.DatabaseSessionEnd] event.
 	SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error
+	// SummarizeWindowsDesktop summarizes the Windows desktop session recording
+	// associated with the provided [events.WindowsDesktopSessionEnd] event.
+	SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *events.WindowsDesktopSessionEnd) error
 	// SummarizeWithoutEndEvent summarizes a session recording with a given ID.
 	// This is used for cases where the session ID is known, but there is no end
-	// event available. [SessionSummarizer.SummarizeSSH] and
-	// [SessionSummarizer.SummarizeDatabase] should be used instead of this
-	// method whenever possible, as they are more efficient.
+	// event available. [SessionSummarizer.SummarizeSSH],
+	// [SessionSummarizer.SummarizeDatabase], and
+	// [SessionSummarizer.SummarizeWindowsDesktop] should be used instead of
+	// this method whenever possible, as they are more efficient.
 	SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error
 }

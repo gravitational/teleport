@@ -609,6 +609,10 @@ type sliceWriter struct {
 	// point where the session end event has already been uploaded. If captured,
 	// it will be passed to the summarizer.
 	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	// desktopSessionEndEvent is an event that marked the end of this session if
+	// it was a Windows desktop one. Same nil semantics as the SSH/database
+	// fields above; if captured, it will be passed to the summarizer.
+	desktopSessionEndEvent *apievents.WindowsDesktopSessionEnd
 
 	// hasSessionEnd indicates if the session end event is present.
 	hasSessionEnd bool
@@ -737,6 +741,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
 				w.hasSessionEnd = true
 			case *apievents.OneOf_WindowsDesktopSessionEnd:
+				w.desktopSessionEndEvent = e.WindowsDesktopSessionEnd
 				w.hasSessionEnd = true
 			case *apievents.OneOf_AppSessionEnd:
 				w.hasSessionEnd = true
@@ -883,6 +888,8 @@ func (w *sliceWriter) completeStream() {
 				w.sessionEndTime = o.EndTime
 			case *apievents.DatabaseSessionEnd:
 				w.dbSessionEndEvent = o
+			case *apievents.WindowsDesktopSessionEnd:
+				w.desktopSessionEndEvent = o
 			}
 		}
 
@@ -908,6 +915,8 @@ func (w *sliceWriter) completeStream() {
 			err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
 		case w.dbSessionEndEvent != nil:
 			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
+		case w.desktopSessionEndEvent != nil:
+			err = summarizer.SummarizeWindowsDesktop(w.proto.cancelCtx, w.desktopSessionEndEvent)
 		default:
 			err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
 		}

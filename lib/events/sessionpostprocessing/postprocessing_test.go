@@ -102,6 +102,11 @@ func (f *fakeSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 	return args.Error(0)
 }
 
+func (f *fakeSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
 func (f *fakeSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := f.Called(ctx, sessionID)
 	return args.Error(0)

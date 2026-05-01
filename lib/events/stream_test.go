@@ -683,6 +683,11 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 	return args.Error(0)
 }
 
+func (m *MockSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	args := m.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
 func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
