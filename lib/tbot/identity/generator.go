@@ -31,6 +31,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -104,6 +105,7 @@ type Generator struct {
 }
 
 type generateOpts struct {
+	delegationSessionID  string
 	roles                []string
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
@@ -113,6 +115,16 @@ type generateOpts struct {
 
 // GenerateOption allows you to customize aspects of the generated identity.
 type GenerateOption func(*generateOpts)
+
+// WithDelegation uses the given delegation session ID to generate certificates
+// associated with a *human* user and delegation session.
+//
+// Note: this option is mutually-exclusive with WithRoles.
+func WithDelegation(sessionID string) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.delegationSessionID = sessionID
+	}
+}
 
 // WithRoles sets the roles the generated identity should include.
 //
@@ -232,6 +244,10 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	log := cmp.Or(o.logger, g.logger)
 
+	if len(o.roles) != 0 && o.delegationSessionID != "" {
+		return nil, trace.BadParameter("delegation sessions and explicit roles are mutually-exclusive")
+	}
+
 	if len(o.roles) == 0 {
 		if o.currentIdentity != nil {
 			// If the caller provided an impersonated identity, take its roles.
@@ -294,11 +310,19 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	// First, ask the auth server to generate a new set of certs with a new
-	// expiration date.
-	certs, err := g.client.GenerateUserCerts(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var certs *proto.Certs
+	if o.delegationSessionID == "" {
+		// Traditional bot certificates.
+		certs, err = g.client.GenerateUserCerts(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Delegation certificates, tied to a human user identity.
+		certs, err = g.generateDelegationCertificates(ctx, req, o)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// The root CA included with the returned user certs will only contain the
@@ -443,6 +467,63 @@ func (g *Generator) GenerateScoped(
 	)
 
 	return newIdentity, nil
+}
+
+func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
+	certReq := &delegationv1.GenerateCertsRequest{
+		DelegationSessionId: o.delegationSessionID,
+		SshPublicKey:        req.SSHPublicKey,
+		TlsPublicKey:        req.TLSPublicKey,
+		Ttl:                 durationpb.New(o.ttl),
+	}
+	if req.GetRouteToCluster() != o.currentIdentity.ClusterName {
+		return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
+	}
+	switch {
+	case req.GetRouteToApp().Name != "":
+		route := req.GetRouteToApp()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
+			RouteToApp: &delegationv1.RouteToApp{
+				Name:              route.GetName(),
+				PublicAddr:        route.GetPublicAddr(),
+				ClusterName:       route.GetClusterName(),
+				Uri:               route.GetURI(),
+				TargetPort:        route.GetTargetPort(),
+				AwsRoleArn:        route.GetAWSRoleARN(),
+				AzureIdentity:     route.GetAzureIdentity(),
+				GcpServiceAccount: route.GetGCPServiceAccount(),
+			},
+		}
+	case req.GetRouteToDatabase().ServiceName != "":
+		route := req.GetRouteToDatabase()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
+			RouteToDatabase: &delegationv1.RouteToDatabase{
+				ServiceName: route.GetServiceName(),
+				Protocol:    route.GetProtocol(),
+				Username:    route.GetUsername(),
+				Database:    route.GetDatabase(),
+				Roles:       route.GetRoles(),
+			},
+		}
+	case req.GetKubernetesCluster() != "":
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
+			RouteToKubernetes: &delegationv1.RouteToKubernetes{
+				ClusterName: req.GetKubernetesCluster(),
+			},
+		}
+	}
+	certsRsp, err := g.client.DelegationSessionServiceClient().
+		GenerateCerts(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.Certs{
+		SSH:        certsRsp.GetSsh(),
+		TLS:        certsRsp.GetTls(),
+		SSHCACerts: o.currentIdentity.SSHCACertBytes,
+		TLSCACerts: o.currentIdentity.TLSCACertsBytes,
+	}, nil
 }
 
 // warnOnEarlyExpiration logs a warning if the given identity is likely to
