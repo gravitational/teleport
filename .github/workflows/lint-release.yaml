@@ -49,8 +49,8 @@ jobs:
           VERSION: ${{ steps.extract_version.outputs.VERSION }}
         run: |
           ESCAPED=${VERSION//./\\.}
-          if ! grep -qE "^## ${ESCAPED}\$" CHANGELOG.md; then
-            echo "Missing changelog entry for $VERSION (expected header: ## $VERSION)"
+          if ! grep -qE "^## ${ESCAPED}( |\$)" CHANGELOG.md; then
+            echo "Missing changelog entry for $VERSION (expected header starting with: ## $VERSION)"
             exit 1
           fi
 
