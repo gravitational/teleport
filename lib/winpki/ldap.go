@@ -495,7 +495,8 @@ func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
 		return []string{}
 	}
 
-	if strings.ContainsRune(r.host, ':') {
+	_, port, _ := net.SplitHostPort(r.host)
+	if port != "" {
 		// Skip the SRV lookup. If the referral URL has
 		// an exact port then this isn't a domain referral
 		return []string{r.host}
