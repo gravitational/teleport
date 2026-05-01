@@ -453,6 +453,10 @@ func parseLDAPReferral(raw string) (ldapReferral, error) {
 	}
 
 	// invariant: remainder is non-empty
+	// Since we 'found' the forward slash above, the remainder should contain
+	// at least the DN component. Optionally, up to 4 parameters (each prefixed
+	// by a '?') may follow the DN. So we'll split 'remainder' on "?"
+	// for a maximum of 5 substrings.
 	parts := strings.SplitN(remainder, "?", 5)
 	// therefore len(parts) > 0 holds
 	dn, params := parts[0], parts[1:]
