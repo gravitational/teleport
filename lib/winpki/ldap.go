@@ -380,13 +380,12 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 }
 
 type ldapReferral struct {
+	// URL scheme (ldaps:// or ldap://)
+	scheme string
 	// The raw referral received from LDAP server.
 	raw string
-	// host is the add:port (port optional) hostname
+	// (optional) host is the add:port (port optional) hostname
 	host string
-
-	// Parameters specified by the referral which *should* be used in the
-	// search request to the referred server.
 	// (optional) base distinguished name specified by the referral.
 	baseDN string
 	// (optional) scope specified by the referral.
@@ -400,24 +399,71 @@ type ldapReferral struct {
 }
 
 // Referral grammar:
-// ldap[s]://hostname[:port]/[base-dn[?[attributes][?[scope][?[filter][?extensions]]]]]
-// https://datatracker.ietf.org/doc/html/rfc4516
-func newLDAPReferral(ref string) (ldapReferral, error) {
-	u, err := url.Parse(ref)
-	if err != nil {
-		return ldapReferral{}, trace.BadParameter("failed to parse ldap referral URL: %v", err)
+// https://datatracker.ietf.org/doc/html/rfc4516#section-2
+//
+// parses an LDAP referral URL
+func newLDAPReferral(raw string) (ldapReferral, error) {
+	// Only support ldaps scheme
+	const ldapsPrefix = "ldaps://"
+	const ldapPrefix = "ldap://"
+	var ref string
+	var scheme string
+	switch {
+	case strings.HasPrefix(raw, ldapsPrefix):
+		ref = strings.TrimPrefix(raw, ldapsPrefix)
+		scheme = ldapsPrefix
+	case strings.HasPrefix(raw, ldapPrefix):
+		ref = strings.TrimPrefix(raw, ldapPrefix)
+		scheme = ldapPrefix
+	default:
+		return ldapReferral{}, trace.BadParameter("ldap referral does not have ldaps scheme")
 	}
 
-	if u.Scheme != "ldaps" {
-		return ldapReferral{}, trace.BadParameter("ldap referral URL contains invalid scheme")
+	if len(ref) == 0 {
+		// I guess it's technically a valid URL, but useless.
+		return ldapReferral{scheme: scheme, raw: raw}, trace.Errorf("empty referral")
 	}
 
-	params := strings.SplitN(u.RawQuery, "?", 4)
+	isValidHostPort := func(host string) error {
+		const subDelims = "!$&'()*+,;=:"
+		for _, r := range host {
+			switch {
+			case r >= 'A' && r <= 'Z':
+			case r >= 'a' && r <= 'z':
+			case r >= '0' && r <= '9':
+			case r == '-' || r == '.' || r == '_' || r == '~':
+			case strings.ContainsRune(subDelims, r):
+			case r == '%':
+			default:
+				return trace.BadParameter("malformed LDAP URL - host portion contains invalid character %c", r)
+			}
+		}
+		return nil
+	}
+
+	hostPort, remainder, found := strings.Cut(ref, "/")
+	if err := isValidHostPort(hostPort); err != nil {
+		return ldapReferral{}, err
+	}
+
+	if !found || remainder == "" {
+		return ldapReferral{scheme: scheme, raw: raw, host: hostPort}, nil
+	}
+
+	// invariant: remainder is non-empty
+	parts := strings.SplitN(remainder, "?", 5)
+	// therefore len(parts) > 0 holds
+	dn, params := parts[0], parts[1:]
+	var err error
+	if dn, err = url.QueryUnescape(dn); err != nil {
+		return ldapReferral{}, trace.BadParameter("ldap url contains malformed DN component")
+	}
 
 	referral := ldapReferral{
-		raw:    ref,
-		host:   u.Host,
-		baseDN: strings.TrimPrefix(u.Path, "/"),
+		scheme: scheme,
+		raw:    raw,
+		host:   hostPort,
+		baseDN: dn,
 	}
 
 	assign := []*string{
@@ -428,7 +474,11 @@ func newLDAPReferral(ref string) (ldapReferral, error) {
 	}
 
 	for idx, param := range params {
-		*assign[idx] = param
+		// Params may be percent encoded
+		*assign[idx], err = url.QueryUnescape(param)
+		if err != nil {
+			return ldapReferral{}, trace.Wrap(err)
+		}
 	}
 	return referral, nil
 }
