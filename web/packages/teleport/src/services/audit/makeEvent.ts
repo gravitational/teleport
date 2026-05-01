@@ -136,8 +136,15 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state }) =>
-      `Access request [${id}] has been created and is ${state}`,
+    format: ({ id, state, RequestedResourceAccessIDs }) => {
+      if (RequestedResourceAccessIDs?.length) {
+        const resources = RequestedResourceAccessIDs.map(
+          r => `${r.id.kind}/${r.id.name}`
+        ).join(', ');
+        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
+      }
+      return `Access request [${id}] has been created and is ${state}`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
