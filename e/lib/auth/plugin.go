@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -32,6 +33,7 @@ import (
 	workloadclusterv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	beamservicev1 "github.com/gravitational/teleport/e/api/beamservice/v1"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
@@ -40,6 +42,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/sessionsearchv1"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/e/lib/auth/workloadcluster/workloadclusterv1"
+	beamsv1 "github.com/gravitational/teleport/e/lib/beams/v1"
+	beamscompute "github.com/gravitational/teleport/e/lib/beams/v1/compute"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
@@ -78,10 +82,11 @@ import (
 )
 
 const (
-	pluginName                = "auth.enterprise"
-	envVarNameDisabledPlugins = "TELEPORT_UNSTABLE_DISABLE_PLUGINS"
-	envVarNameBedrockRegion   = "TELEPORT_BEDROCK_REGION"
-	envVarNameBedrockModel    = "TELEPORT_BEDROCK_MODEL"
+	pluginName                   = "auth.enterprise"
+	envVarNameDisabledPlugins    = "TELEPORT_UNSTABLE_DISABLE_PLUGINS"
+	envVarNameBedrockRegion      = "TELEPORT_BEDROCK_REGION"
+	envVarNameBedrockModel       = "TELEPORT_BEDROCK_MODEL"
+	envVarNameBeamServiceAddress = "TELEPORT_BEAM_SERVICE_ADDRESS"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
@@ -573,6 +578,52 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	if err := registerSubCAService(gRPCServer, p.authServer); err != nil {
 		return trace.Wrap(err, "register Sub CA service")
+	}
+
+	if p.Config.Modules.Features().GetEntitlement(entitlements.Beams).Enabled {
+		if addr := os.Getenv(envVarNameBeamServiceAddress); addr != "" {
+			clusterName, err := p.authServer.AuthServer.GetDomainName()
+			if err != nil {
+				return trace.Wrap(err, "getting cluster name")
+			}
+			creds, err := beamscompute.TransportCredentials(ctx, beamscompute.TransportCredentialsConfig{
+				ClusterName:          clusterName,
+				AuthPreferenceGetter: p.authServer.AuthServer,
+				CertAuthorityGetter:  p.authServer.AuthServer,
+				Keystore:             p.authServer.AuthServer.GetKeyStore(),
+				Logger:               logger.With(teleport.ComponentKey, "beams-transport-credentials"),
+				Emitter:              p.authServer.Emitter,
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating beams transport credentials")
+			}
+			client, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
+			if err != nil {
+				return trace.Wrap(err, "create beams compute service client")
+			}
+			computeServiceClient := beamservicev1.NewBeamsOrchestratorServiceClient(client)
+
+			srv, err := beamsv1.NewBeamService(beamsv1.BeamsServiceConfig{
+				AuthPreferenceGetter:    p.authServer.AuthServer,
+				BeamReader:              p.authServer.AuthServer,
+				StorageBackend:          p.authServer.GetBackend(),
+				AppWriter:               p.authServer.AuthServer,
+				BeamWriter:              p.authServer.AuthServer,
+				DelegationSessionWriter: p.authServer.AuthServer,
+				ProvisionTokenWriter:    p.authServer.AuthServer,
+				UserWriter:              p.authServer.AuthServer,
+				RoleWriter:              p.authServer.AuthServer,
+				NodeWriter:              p.authServer.AuthServer,
+				WorkloadIdentityWriter:  p.authServer.AuthServer,
+				ComputeServiceClient:    computeServiceClient,
+				Authorizer:              p.authServer.Authorizer,
+				Logger:                  logger.With(teleport.ComponentKey, "beams-service"),
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating beams service")
+			}
+			beamsv1pb.RegisterBeamServiceServer(gRPCServer, srv)
+		}
 	}
 
 	return nil
