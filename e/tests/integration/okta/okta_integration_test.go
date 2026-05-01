@@ -866,7 +866,6 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	for _, user := range fakeOkta.provisionedUsers {
 		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
 	}
-
 	memberID := fakeOkta.provisionedUsers[0].Id
 	memberLogin := oktaUserLogin(fakeOkta.provisionedUsers[0])
 	groupID := fakeOkta.provisionedGroups[0].Id
@@ -888,7 +887,7 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	// Block the assignment processor from removing the user from the Okta group
 	// by making the DELETE endpoint return 429 (Too Many Requests).
 	// This simulates Okta rate limiting the removal request.
-	fakeOkta.setRemoveUserFromGroupOverwrite(func(_, _ string) error {
+	fakeOkta.SetRemoveUserFromGroupOverwrite(func(_, _ string) error {
 		return trace.LimitExceeded("rate limited")
 	})
 
@@ -911,10 +910,117 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
 
 	// Clear the overwrite so the assignment processor can complete the cleanup.
-	fakeOkta.setRemoveUserFromGroupOverwrite(nil)
+	fakeOkta.SetRemoveUserFromGroupOverwrite(nil)
 
 	// Verify the user is eventually removed from the Okta group.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.False(t, fakeOkta.UserAssignedGroup(groupID, memberID))
 	}, time.Minute, time.Millisecond*250)
+}
+
+// TestOktaAssignmentFailedCleanupProcessing verifies there that the assignmentProcessor creates
+// okta_assignment related audit events only when targets are truly processed or cleaned up. For
+// that to happen the timer-based loop is disabled by setting timeBetweenAssignmentProcessLoops to
+// 1h (otherwise re-processing would generate more audit events). This by extension verifies there
+// are no races or unnecessary updates for okta_assignment resources during their lifecycle. One
+// example of such unnecessary update that was fixed was updating the cleanup time to the current
+// time by UserAssignmentCreator for the assignments already scheduled for cleanup.
+func TestOktaAssignmentFailedCleanupProcessing(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	const usersLen = 10
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(usersLen),
+		withAppCount(0),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	for _, user := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
+	}
+
+	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
+	start := time.Now()
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ApiCredentials:          apiCredentials,
+		EnableUserSync:          true,
+		EnableAppGroupSync:      true,
+		EnableAccessListSync:    true,
+		EnableBidirectionalSync: true,
+		AccessListSettings: &oktav1.AccessListSettings{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{"app-*"},
+			DefaultOwner: []string{"alice-admin"},
+		},
+		ReuseConnector: "okta-pre-created-test",
+	})
+	updateOktaDelays(t, sut, delays{
+		// We don't want timer-based processing to intertwine as it may cause extra cleanup
+		// audit events if re-processing kicks-in during EventuallyWithT.
+		timeBetweenAssignmentProcessLoops: 1 * time.Hour,
+	})
+	require.NoError(t, err)
+	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
+
+	users := mustGetOktaUsers(t, sut)
+	require.Len(t, users, usersLen)
+
+	// Make sure we have 1 lists synced for each group.
+	accessLists := mustGetAccessLists(t, sut)
+	require.Len(t, accessLists, 1)
+	accessList := accessLists[0]
+
+	// Make sure there are no Okta assignments related in the backend events yet.
+	assignmentEvents := mustGetEventsFrom(t, sut, start, events.OktaAssignmentProcessEvent, events.OktaAssignmentCleanupEvent)
+	require.Empty(t, assignmentEvents)
+
+	start = time.Now()
+	mustUpsertAccessListMember(t, sut, accessList, users[0])
+	mustUpsertAccessListMember(t, sut, accessList, users[1])
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		processEvents := mustGetEventsFrom(t, sut, start, events.OktaAssignmentProcessEvent)
+		// TODO(kopiczko): the check here should be `require.Len(t, processEvents, 2, "len(processEvents) = %d", len(processEvents))` when https://github.com/gravitational/teleport.e/issues/8654 is addressed
+		require.GreaterOrEqual(t, len(processEvents), 2, "len(processEvents) = %d", len(processEvents))
+		require.LessOrEqual(t, len(processEvents), 4, "len(processEvents) = %d", len(processEvents))
+
+		cleanupEvents := mustGetEventsFrom(t, sut, start, events.OktaAssignmentCleanupEvent)
+		// TODO(kopiczko): the check here should be `require.Empty(t, cleanupEvents, "len(cleanupEvents) = %d", len(cleanupEvents))` when https://github.com/gravitational/teleport.e/issues/8654 is addressed
+		require.GreaterOrEqual(t, len(cleanupEvents), 0, "len(cleanupEvents) = %d", len(cleanupEvents))
+		require.LessOrEqual(t, len(cleanupEvents), 2, "len(cleanupEvents) = %d", len(cleanupEvents))
+	}, 1*time.Minute, 500*time.Millisecond)
+
+	fakeOkta.SetRemoveUserFromGroupOverwrite(func(_, _ string) error {
+		return trace.LimitExceeded("assignment cleanup audit events test: failing to remove the user from group on the Okta side")
+	})
+
+	mustDeleteAccessListMember(t, sut, accessList, users[0])
+	mustDeleteAccessListMember(t, sut, accessList, users[1])
+	for _, u := range users[2:] {
+		mustUpsertAccessListMember(t, sut, accessList, u)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		processEvents := mustGetEventsFrom(t, sut, start, events.OktaAssignmentProcessEvent)
+		// TODO(kopiczko): the check here should be `require.Len(t, processEvents, len(users), "len(processEvents) = %d", len(processEvents))` when https://github.com/gravitational/teleport.e/issues/8654 is addressed
+		require.GreaterOrEqual(t, len(processEvents), len(users), "len(processEvents) = %d", len(processEvents))
+		require.LessOrEqual(t, len(processEvents), len(users)*2, "len(processEvents) = %d", len(processEvents))
+
+		cleanupEvents := mustGetEventsFrom(t, sut, start, events.OktaAssignmentCleanupEvent)
+		// TODO(kopiczko): the check here should be `require.Len(t, cleanupEvents, 2, "len(cleanupEvents) = %d", len(cleanupEvents))` when https://github.com/gravitational/teleport.e/issues/8654 is addressed
+		require.GreaterOrEqual(t, len(cleanupEvents), 2, "len(cleanupEvents) = %d", len(cleanupEvents))
+		require.LessOrEqual(t, len(cleanupEvents), 4, "len(cleanupEvents) = %d", len(cleanupEvents))
+	}, 1*time.Minute, 500*time.Millisecond)
 }

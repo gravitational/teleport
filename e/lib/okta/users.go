@@ -24,6 +24,7 @@ import (
 
 const (
 	userAssignmentCreatorSource = "user-assignment-creator"
+	uacNameHash                 = crypto.SHA256
 )
 
 // UserAssignmentCreatorAccessPoint is a client that consists of only the interfaces
@@ -143,7 +144,7 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 		accessState: services.AccessState{
 			MFAVerified: true,
 		},
-		hash:        crypto.SHA256,
+		hash:        uacNameHash,
 		appPageSize: defaults.DefaultChunkSize,
 		printDiffs:  config.PrintDiffs,
 	}
@@ -248,18 +249,31 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	for _, oldAssignment := range oldAssignments {
 		// Only retire old assignments if they don't match the name of the new assignment.
 		if oldAssignment.GetName() != assignmentName {
-			oldAssignment.SetCleanupTime(u.clock.Now())
+			changed := false
+			now := u.clock.Now()
+			// Set/update CleanupTime to time.Now() only if:
+			// - it is not set at all
+			// - it is set to a time in the future, but it's determined the assignment
+			//   should be cleaned up now
+			if oldAssignment.GetCleanupTime().IsZero() || oldAssignment.GetCleanupTime().After(now) {
+				oldAssignment.SetCleanupTime(now)
+				changed = true
+			}
 			if newAssignment != nil {
 				neededTargets := newAssignment.GetTargets()
+				initialTargetCnt := len(oldAssignment.GetTargets())
 				// Remove the targets that are being used in the new assignment.
 				// Let's say that user still have access to target A and B but old Assignment has A, B, C, D.
 				// In order to prevent the cleanup of A and B, we need to remove them from the old assignment.
 				if err := removedUsedTargetsFromOldAssignment(neededTargets, oldAssignment); err != nil {
 					return trace.Wrap(err, "removing used targets from old assignment %s", oldAssignment.GetName())
 				}
+				changed = changed || initialTargetCnt != len(oldAssignment.GetTargets())
 			}
-			if _, err := u.accessPoint.UpdateOktaAssignment(ctx, oldAssignment); err != nil {
-				return trace.Wrap(err, "cleaning up old assignment %s", oldAssignment.GetName())
+			if changed {
+				if _, err := u.accessPoint.UpdateOktaAssignment(ctx, oldAssignment); err != nil {
+					return trace.Wrap(err, "cleaning up old assignment %s", oldAssignment.GetName())
+				}
 			}
 		}
 	}

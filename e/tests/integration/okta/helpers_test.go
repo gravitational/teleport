@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -22,6 +23,9 @@ import (
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -358,4 +362,93 @@ func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn f
 			t.Fatal("timed out waiting for resource")
 		}
 	}
+}
+
+func mustUpsertAccessListMember(t *testing.T, sut *common.SUT, accessList *accesslist.AccessList, user types.User) {
+	t.Helper()
+	ctx := t.Context()
+
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	m := mustCreateMember(t, accessList.GetName(), user.GetName(), accesslist.MembershipKindUser)
+
+	_, err := authServer.UpsertAccessListMember(ctx, m)
+	require.NoError(t, err)
+}
+
+func mustDeleteAccessListMember(t *testing.T, sut *common.SUT, accessList *accesslist.AccessList, user types.User) {
+	t.Helper()
+	ctx := t.Context()
+
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	err := authServer.DeleteAccessListMember(ctx, accessList.GetName(), user.GetName())
+	require.NoError(t, err)
+}
+
+func mustGetEventsFrom(t require.TestingT, sut *common.SUT, from time.Time, eventTypes ...string) []apievents.AuditEvent {
+	callHelper(t)
+	ctx := getContextOrBackground(t)
+
+	services := sut.Teleport.Process.GetAuthServer().Services
+
+	listFn := func(ctx context.Context, limit int, pageToken string) ([]apievents.AuditEvent, string, error) {
+		return services.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       from,
+			To:         time.Now(),
+			Limit:      limit,
+			EventTypes: eventTypes,
+			StartKey:   pageToken,
+		})
+	}
+
+	var res []apievents.AuditEvent
+	for ev, err := range clientutils.Resources(ctx, listFn) {
+		require.NoError(t, err)
+		res = append(res, ev)
+	}
+
+	return res
+}
+
+func mustGetAccessLists(t *testing.T, sut *common.SUT) []*accesslist.AccessList {
+	t.Helper()
+	ctx := t.Context()
+
+	services := sut.Teleport.Process.GetAuthServer().Services
+
+	var res []*accesslist.AccessList
+	for al, err := range clientutils.Resources(ctx, services.ListAccessLists) {
+		require.NoError(t, err)
+		res = append(res, al)
+	}
+
+	return res
+}
+
+func mustGetOktaUsers(t *testing.T, sut *common.SUT) []types.User {
+	t.Helper()
+	ctx := t.Context()
+
+	services := sut.Teleport.Process.GetAuthServer().Services
+
+	users, err := services.GetUsers(ctx, false)
+	require.NoError(t, err)
+
+	return slices.DeleteFunc(users, func(u types.User) bool {
+		return u.Origin() != types.OriginOkta
+	})
+}
+
+func callHelper(t require.TestingT) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+}
+
+func getContextOrBackground(t require.TestingT) context.Context {
+	if c, ok := t.(interface{ Context() context.Context }); ok {
+		return c.Context()
+	}
+	return context.Background()
 }

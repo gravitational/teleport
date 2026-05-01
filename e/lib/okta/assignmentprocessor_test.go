@@ -383,7 +383,7 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(timeBeforeFailedRetry), true,
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
@@ -393,7 +393,7 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New[oktaapi.AppAssignment](),
 			},
-			incrementTimeDuration: timeBeforeFailedRetry,
+			incrementTimeDuration: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:             "assignment1",

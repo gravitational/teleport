@@ -354,7 +354,7 @@ func (f *fakeOktaServer) SetScopes(scopes []string) {
 	f.scopes = scopes
 }
 
-func (f *fakeOktaServer) setRemoveUserFromGroupOverwrite(fn func(string, string) error) {
+func (f *fakeOktaServer) SetRemoveUserFromGroupOverwrite(fn func(string, string) error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.removeUserFromGroupOverwrite = fn

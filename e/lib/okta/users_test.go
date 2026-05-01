@@ -3,11 +3,13 @@ package okta
 import (
 	"context"
 	"crypto"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -26,17 +28,16 @@ import (
 type testUACAccessPoint struct {
 	*testAccessPoint
 
-	userState *userloginstate.UserLoginState
-	uac       *UserAssignmentCreator
-	user      types.User
+	uac *UserAssignmentCreator
+
+	// user test-user@test.user that is stored in the backend and assigned "test-role" that
+	// grants access to all app_server and user_group resources.
+	user types.User
 }
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (t *testUACAccessPoint) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
-	if t.userState == nil {
-		return t.GetUser(ctx, username, false)
-	}
-	return t.userState, nil
+	return t.GetUser(ctx, username, false)
 }
 
 func TestUserAssignmentCreator(t *testing.T) {
@@ -188,6 +189,309 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 }
 
+func TestUserAssignmentCreator_set_CleanupTime_only_if_needed(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	suite := initUACSuite(t, ctx, clock)
+
+	app1 := application(t, "app1", "link", types.OriginOkta, testOrgURL)
+	app2 := application(t, "app2", "link", types.OriginOkta, testOrgURL)
+	appDupe := application(t, "app1", "link", types.OriginOkta, testOrgURL, withHostID("dummy-host"))
+	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
+	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
+
+	uac := suite.uac
+	user := suite.user
+	ap := suite
+
+	// No resources in the backend - no assignments.
+	require.NoError(t, uac.OnLogin(ctx, user))
+	assertEmptyAssignmentList(t, ap)
+
+	upsertAppServer(t, ap, app1)
+	upsertAppServer(t, ap, app2)
+	upsertAppServer(t, ap, appDupe)
+	require.NoError(t, ap.CreateUserGroup(ctx, group1))
+	require.NoError(t, ap.CreateUserGroup(ctx, group2))
+
+	// The UnifiedResourceCache doesn't take host id into consideration for apps.
+	// So even though there exist two apps, the most recent one is the only app
+	// that will appear in the cache.
+	assertResourceCount(t, ctx, ap, 2)
+
+	time0 := clock.Now()
+
+	// The user is permitted to read all apps and groups so the assignment should have all of
+	// them.
+	require.NoError(t, uac.OnLogin(ctx, user))
+	mustFetchAndAssertAssignments(t, ctx, ap, []types.OktaAssignment{
+		new(testAssignmentBuilder).
+			Name(user, group1, group2, app1, app2).
+			Targets(group1, group2, app1, app2).
+			LastTransition(time0).
+			Build(t),
+	})
+
+	time1 := clock.Now()
+
+	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app2.GetHostID(), app2.GetName()))
+	assertResourceCount(t, ctx, ap, 1)
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	mustFetchAndAssertAssignments(t, ctx, ap, []types.OktaAssignment{
+		new(testAssignmentBuilder).
+			Name(user, group1, group2, app1, app2).
+			Targets(app2).
+			LastTransition(time0).
+			CleanupTime(time1).
+			Build(t),
+		new(testAssignmentBuilder).
+			Name(user, group1, group2, app1).
+			Targets(group1, group2, app1).
+			LastTransition(time0).
+			Build(t),
+	})
+
+	clock.Advance(1 * time.Hour)
+	time2 := clock.Now()
+
+	require.NoError(t, ap.DeleteUserGroup(ctx, group1.GetName()))
+	assertResourceCount(t, ctx, ap, 1)
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	mustFetchAndAssertAssignments(t, ctx, ap, []types.OktaAssignment{
+		new(testAssignmentBuilder).
+			Name(user, group1, group2, app1, app2).
+			Targets(app2).
+			LastTransition(time0).
+			CleanupTime(time1).
+			Build(t),
+		new(testAssignmentBuilder).
+			Name(user, group1, group2, app1).
+			Targets(group1).
+			LastTransition(time1).
+			CleanupTime(time2).
+			Build(t),
+		new(testAssignmentBuilder).
+			Name(user, group2, app1).
+			Targets(group2, app1).
+			LastTransition(time2).
+			Build(t),
+	})
+}
+
+func TestUserAssignmentCreator_calls_backend_only_if_needed(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	suite := initUACSuite(t, ctx, clock)
+
+	app1 := application(t, "app1", "link", types.OriginOkta, testOrgURL)
+	app2 := application(t, "app2", "link", types.OriginOkta, testOrgURL)
+	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
+	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
+
+	uac := suite.uac
+	user := suite.user
+	ap := suite
+
+	// No resources in the backend - no assignments.
+	require.NoError(t, uac.OnLogin(ctx, user))
+	assertEmptyAssignmentList(t, ap)
+
+	originalAP := uac.accessPoint
+	recordingAP := newRecordingUserAssignmentCreatorAccessPoint(originalAP)
+	uac.accessPoint = recordingAP
+
+	expectedCreateCalls := 0
+	expectedUpdateCalls := 0
+
+	// Create apps and groups. Expect one assignment to be created.
+
+	upsertAppServer(t, ap, app1)
+	upsertAppServer(t, ap, app2)
+	require.NoError(t, ap.CreateUserGroup(ctx, group1))
+	require.NoError(t, ap.CreateUserGroup(ctx, group2))
+	assertResourceCount(t, ctx, ap, 2)
+
+	expectedCreateCalls++
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+
+	// Delete a group. Expect the old assignment to be updated with the cleanup time and a new
+	// one to be created.
+
+	require.NoError(t, ap.DeleteUserGroup(ctx, group1.GetName()))
+
+	expectedUpdateCalls++ // CleanupTime set, used targets cleaned
+	expectedCreateCalls++ // new replacement assignment created
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+
+	/* TODO(kopiczko): Uncomment when https://github.com/gravitational/teleport-private/issues/2486 is fixed
+
+	// Unset CleanupTime on the cleanup assignment. Expect to be updated with the CleanupTime,
+	// but only once.
+
+	cleanupAssignment := recordingAP.UpdateOktaAssignmentCalls[expectedUpdateCalls-1].Copy()
+	cleanupAssignment.SetCleanupTime(time.Time{})                     // reset
+	_, err := originalAP.UpdateOktaAssignment(ctx, cleanupAssignment) // use originalAP to bypass recording
+	require.NoError(t, err)
+
+	expectedUpdateCalls++ // for CleanupTime set, used targets cleaned
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+
+	*/
+
+	/* TODO(kopiczko): Uncomment when https://github.com/gravitational/teleport-private/issues/2486 is fixed
+
+	// Setting CleanupTime time to the future results in updating it to now, so expect one
+	// update call.
+
+	cleanupAssignment = recordingAP.UpdateOktaAssignmentCalls[expectedUpdateCalls-1].Copy()
+	cleanupAssignment.SetCleanupTime(clock.Now().Add(10 * time.Hour))
+	_, err = originalAP.UpdateOktaAssignment(ctx, cleanupAssignment) // use originalAP to bypass recording
+	require.NoError(t, err)
+
+	expectedUpdateCalls++ // CleanupTime set from future to now
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+
+	*/
+
+	// Setting CleanupTime time to the past doesn't cause the update.
+
+	cleanupAssignment := recordingAP.UpdateOktaAssignmentCalls[expectedUpdateCalls-1].Copy()
+	cleanupAssignment.SetCleanupTime(clock.Now().Add(-10 * time.Hour))
+	_, err := originalAP.UpdateOktaAssignment(ctx, cleanupAssignment) // use originalAP to bypass recording
+	require.NoError(t, err)
+
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+
+	// Adding back targets to a cleanup okta_assignment that are "in use" by another
+	// okta_assignment results in removing them. Expect 1 update.
+
+	ongoingAssignment := recordingAP.CreateOktaAssignmentCalls[expectedCreateCalls-1].Copy()
+	cleanupAssignment = recordingAP.UpdateOktaAssignmentCalls[expectedUpdateCalls-1].Copy()
+
+	// Targets are only updated on the cleanup assignment if the new (replacement)
+	// okta_assignment is created. In that case the targets present in the new okta_assignment
+	// are removed from all existing cleanup assignments.
+	testAppendTargets(t, cleanupAssignment, ongoingAssignment.GetTargets())
+	err = ap.DeleteOktaAssignment(ctx, ongoingAssignment.GetName())
+	require.NoError(t, err)
+	_, err = ap.UpdateOktaAssignment(ctx, cleanupAssignment)
+	require.NoError(t, err)
+
+	expectedCreateCalls++ // ongoing assignment re-created
+	expectedUpdateCalls++ // removing targets present in the ongoingAssignment
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+
+	// Deleting user's standing access sets the cleanup time once.
+
+	denyAllRole, err := types.NewRole("test_deny_all", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			AppLabels:   types.Labels{"*": utils.Strings{"*"}},
+			GroupLabels: types.Labels{"*": utils.Strings{"*"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = ap.UpsertRole(ctx, denyAllRole)
+	require.NoError(t, err)
+
+	user.AddRole(denyAllRole.GetName())
+	_, err = ap.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	expectedUpdateCalls++ // setting cleanup time on the ongoing okta_assignment
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.NoError(t, uac.OnLogin(ctx, user))
+	require.Len(t, recordingAP.CreateOktaAssignmentCalls, expectedCreateCalls)
+	require.Len(t, recordingAP.UpdateOktaAssignmentCalls, expectedUpdateCalls)
+}
+
+func testAppendTargets(t *testing.T, a types.OktaAssignment, targets []types.OktaAssignmentTarget) {
+	t.Helper()
+
+	var targetsV1 []*types.OktaAssignmentTargetV1
+	for _, target := range targets {
+		require.IsType(t, &types.OktaAssignmentTargetV1{}, target)
+		targetsV1 = append(targetsV1, target.(*types.OktaAssignmentTargetV1))
+	}
+
+	require.IsType(t, &types.OktaAssignmentV1{}, a)
+	a.(*types.OktaAssignmentV1).Spec.Targets = append(a.(*types.OktaAssignmentV1).Spec.Targets, targetsV1...)
+}
+
+type recordingUserAssignmentCreatorAccessPoint struct {
+	UserAssignmentCreatorAccessPoint
+	CreateOktaAssignmentCalls []types.OktaAssignment
+	UpdateOktaAssignmentCalls []types.OktaAssignment
+}
+
+func newRecordingUserAssignmentCreatorAccessPoint(underlying UserAssignmentCreatorAccessPoint) *recordingUserAssignmentCreatorAccessPoint {
+	return &recordingUserAssignmentCreatorAccessPoint{UserAssignmentCreatorAccessPoint: underlying}
+}
+
+func (ap *recordingUserAssignmentCreatorAccessPoint) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	ap.CreateOktaAssignmentCalls = append(ap.CreateOktaAssignmentCalls, assignment.Copy())
+	return ap.UserAssignmentCreatorAccessPoint.CreateOktaAssignment(ctx, assignment)
+}
+
+func (ap *recordingUserAssignmentCreatorAccessPoint) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	ap.UpdateOktaAssignmentCalls = append(ap.UpdateOktaAssignmentCalls, assignment.Copy())
+	return ap.UserAssignmentCreatorAccessPoint.UpdateOktaAssignment(ctx, assignment)
+}
+
 func BenchmarkUserAssignmentCreator(b *testing.B) {
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
@@ -333,43 +637,132 @@ func mustDeleteCleanupAssignments(t *testing.T, ctx context.Context, ap *testUAC
 	}
 }
 
-func mustNewAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clocki.FakeClock) func([][]types.Resource) []types.OktaAssignment {
-	return func(targetResourceSets [][]types.Resource) []types.OktaAssignment {
-		var groups []string
-		var apps []string
-		var out []types.OktaAssignment
+type testAssignmentBuilder struct {
+	user           string
+	name           string
+	targets        []*types.OktaAssignmentTargetV1
+	lastTransition time.Time
+	cleanupTime    time.Time
 
+	buildErrs []error
+}
+
+// Name has a separate set of resources form Targets because the OktaAssignment targets may be
+// stripped down if the assignment was scheduled for cleanup.
+func (b *testAssignmentBuilder) Name(user types.User, targetResources ...types.Resource) *testAssignmentBuilder {
+	if len(b.buildErrs) > 0 {
+		return b
+	}
+
+	var groups, apps []string
+	for _, r := range targetResources {
+		switch r.GetKind() {
+		case types.KindUserGroup:
+			groups = append(groups, r.GetName())
+		case types.KindAppServer:
+			apps = append(apps, r.GetName())
+		default:
+			b.recordError("building name: unexpected resource kind %q", r.GetKind())
+			return b
+		}
+	}
+
+	name, err := uacAssignmentName(uacNameHash, user.GetName(), groups, apps)
+	if err != nil {
+		b.recordError("building name: hash error: %v", err)
+		return b
+	}
+
+	b.user = user.GetName()
+	b.name = name
+
+	return b
+}
+
+// Targets may be different from those which name is the OktaAssignment name hash is calculated
+// with.
+func (b *testAssignmentBuilder) Targets(targetResources ...types.Resource) *testAssignmentBuilder {
+	if len(b.buildErrs) > 0 {
+		return b
+	}
+
+	var targets []*types.OktaAssignmentTargetV1
+	for _, r := range targetResources {
+		var typ types.OktaAssignmentTargetV1_OktaAssignmentTargetType
+		switch r.GetKind() {
+		case types.KindUserGroup:
+			typ = types.OktaAssignmentTargetV1_GROUP
+		case types.KindAppServer:
+			typ = types.OktaAssignmentTargetV1_APPLICATION
+		default:
+			b.recordError("building targets: unexpected resource kind %q", r.GetKind())
+			return b
+		}
+		targets = append(targets, &types.OktaAssignmentTargetV1{Type: typ, Id: r.GetName()})
+	}
+
+	b.targets = targets
+
+	return b
+}
+
+// LastTransition sets LastTransition.
+func (b *testAssignmentBuilder) LastTransition(lastTransition time.Time) *testAssignmentBuilder {
+	b.lastTransition = lastTransition
+	return b
+}
+
+// CleanupTime sets CleanupTime.
+func (b *testAssignmentBuilder) CleanupTime(cleanupTime time.Time) *testAssignmentBuilder {
+	b.cleanupTime = cleanupTime
+	return b
+}
+
+// Build builds the OktaAssignment.
+func (b *testAssignmentBuilder) Build(t *testing.T) types.OktaAssignment {
+	t.Helper()
+
+	require.NoError(t, trace.NewAggregate(b.buildErrs...))
+
+	require.NotEmpty(t, b.user, "OktaAssignment user cannot be empty")
+	require.NotEmpty(t, b.name, "OktaAssignment name cannot be empty")
+	require.False(t, b.lastTransition.IsZero(), "OktaAssignment last transition cannot be zero")
+
+	assignment, err := types.NewOktaAssignment(
+		types.Metadata{
+			Name: b.name,
+			Labels: map[string]string{
+				teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
+			},
+		},
+		types.OktaAssignmentSpecV1{
+			User:           b.user,
+			Targets:        b.targets,
+			Status:         types.OktaAssignmentSpecV1_PENDING,
+			LastTransition: b.lastTransition,
+			CleanupTime:    b.cleanupTime,
+		},
+	)
+	require.NoError(t, err)
+
+	return assignment
+}
+
+func (b *testAssignmentBuilder) recordError(format string, a ...any) {
+	b.buildErrs = append(b.buildErrs, fmt.Errorf(format, a...))
+}
+
+func mustNewAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clocki.FakeClock) func([][]types.Resource) []types.OktaAssignment {
+	return func(targetResourceSets [][]types.Resource) (out []types.OktaAssignment) {
+		var resourcesForNameHash []types.Resource
 		for _, targetResources := range targetResourceSets {
-			var targets []*types.OktaAssignmentTargetV1
-			for _, resource := range targetResources {
-				var typ types.OktaAssignmentTargetV1_OktaAssignmentTargetType
-				switch resource.GetKind() {
-				case types.KindUserGroup:
-					typ = types.OktaAssignmentTargetV1_GROUP
-					groups = append(groups, resource.GetName())
-				case types.KindAppServer:
-					typ = types.OktaAssignmentTargetV1_APPLICATION
-					apps = append(apps, resource.GetName())
-				default:
-					require.FailNow(t, "unexpected resource kind %q", resource.GetKind())
-				}
-				targets = append(targets, &types.OktaAssignmentTargetV1{Type: typ, Id: resource.GetName()})
-			}
-			name, err := uacAssignmentName(hash, user, groups, apps)
-			require.NoError(t, err)
-			assignment, err := types.NewOktaAssignment(types.Metadata{
-				Name: name,
-				Labels: map[string]string{
-					teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
-				},
-			}, types.OktaAssignmentSpecV1{
-				User:           user,
-				Targets:        targets,
-				Status:         types.OktaAssignmentSpecV1_PENDING,
-				LastTransition: clock.Now(),
-			})
-			require.NoError(t, err)
-			out = append(out, assignment)
+			resourcesForNameHash = append(resourcesForNameHash, targetResources...)
+			u := &types.UserV2{Metadata: types.Metadata{Name: user}}
+			out = append(out, new(testAssignmentBuilder).
+				Name(u, resourcesForNameHash...).
+				Targets(targetResources...).
+				LastTransition(clock.Now()).
+				Build(t))
 		}
 		return out
 	}

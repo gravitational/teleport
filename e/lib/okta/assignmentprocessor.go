@@ -31,9 +31,6 @@ import (
 )
 
 const (
-	// The amount of time that must pass before a failed assignment can be retried.
-	timeBeforeFailedRetry time.Duration = 5 * time.Minute
-
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
 	processAssignmentTimeout time.Duration = 5 * time.Minute
@@ -246,11 +243,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentSkipped
 	}
 
-	logger.DebugContext(ctx, "Processing assignment", slog.Group("details",
-		"status", assignment.GetStatus(),
-		"finalized", assignment.IsFinalized(),
-		"cleanup_time", timeAttr(assignment.GetCleanupTime()),
-	))
+	logger.DebugContext(ctx, "Processing assignment", assignmentDetailsSlogGroup(assignment))
 
 	// Make sure we process only one event for each assignment at a time. We can receive
 	// processing event for the same assignment the watcher or the timer-based re-processing
@@ -322,11 +315,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	// Errors are logged while processing the assignment, so log success only when there are no
 	// processing errors.
 	if len(processErrs) == 0 {
-		logger.DebugContext(ctx, "Successfully processed assignment", slog.Group("details",
-			"status", assignment.GetStatus(),
-			"finalized", assignment.IsFinalized(),
-			"cleanup_time", timeAttr(assignment.GetCleanupTime()),
-		))
+		logger.DebugContext(ctx, "Successfully processed assignment", assignmentDetailsSlogGroup(assignment))
 	}
 
 	// Emit the event if there was a processing error or cleanup was needed, or the starting and ending status aren't
@@ -369,7 +358,7 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 		}
 	case constants.OktaAssignmentStatusFailed:
 		// Only process this if enough time has passed since the failure state.
-		if sinceTransition < timeBeforeFailedRetry {
+		if sinceTransition < a.timeBetweenAssignmentProcessLoops {
 			return false
 		}
 	default:
@@ -747,6 +736,15 @@ func assignmentNeedsUrgentProcessing(assignment types.OktaAssignment, now time.T
 	return false
 }
 
+func assignmentDetailsSlogGroup(a types.OktaAssignment) slog.Attr {
+	return slog.Group("details",
+		"status", a.GetStatus(),
+		"finalized", a.IsFinalized(),
+		"last_transition", timeAttr(a.GetLastTransition()),
+		"cleanup_time", timeAttr(a.GetCleanupTime()),
+	)
+}
+
 // TODO(kopiczko) Move to OSS lib/utils/log (https://github.com/gravitational/teleport/pull/62057)
 func timeAttr(t time.Time) slog.LogValuer {
 	return &timeAttrT{t}
@@ -755,5 +753,5 @@ func timeAttr(t time.Time) slog.LogValuer {
 type timeAttrT struct{ v time.Time }
 
 func (a *timeAttrT) LogValue() slog.Value {
-	return slog.StringValue(a.v.UTC().Format(time.RFC3339))
+	return slog.StringValue(a.v.UTC().Format(time.RFC3339Nano))
 }
