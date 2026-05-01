@@ -272,13 +272,11 @@ endif
 
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
-.PHONY: test-full
-test-full: TEST_ARGS=--tags enterprisetests
-test-full: test
+testlib/plugin_ent_test.go:
+	go generate testlib/plugin_test.go
 
 .PHONY: test-ent
-test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
-test-ent: test
+test-ent: testlib/plugin_ent_test.go test
 
 .PHONY: apply
 apply: install

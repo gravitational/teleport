@@ -231,7 +231,7 @@ func (x *Region) GetName() string {
 // Bot configures a bot for the child Teleport Cloud cluster
 type Bot struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name is the name of the bot, token, and role that will be created
+	// name of the bot, token, and role that will be created
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

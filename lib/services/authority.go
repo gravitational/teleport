@@ -59,6 +59,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkAWSRACA(ca)
 	case types.WindowsCA:
 		err = checkWindowsCA(ca)
+	case types.AppClientCA:
+		err = checkAppClientCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -200,6 +202,15 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 }
 
 func checkWindowsCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	return trace.Wrap(checkTLSKeys(ca))
+}
+
+func checkAppClientCA(cai types.CertAuthority) error {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {
 		return trace.BadParameter("unknown CA type %T", cai)
