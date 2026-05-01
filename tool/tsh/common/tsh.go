@@ -1548,12 +1548,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
-	if cf.SiteName == "" {
-		if clusterName := os.Getenv(siteEnvVar); clusterName != "" {
-			cf.SiteName = clusterName
-		}
-	}
-
 	// configs
 	initGlobalConfig(ctx, &cf, args)
 	confOptions, err := client.LoadAllConfigs(cf.GlobalTshConfigPath, cf.HomePath)
@@ -6348,14 +6342,25 @@ func registerGlobalConfigFlags(app *kingpin.Application, cf *CLIConf) {
 		return nil
 	})
 
-	// The cluster flag is only supported for specific commands, but the env var is supported globally.
-	//
-	// Due to a flag naming conflict, namely `tsh kube exec -c`, the per-command flag
-	// cannot be replaced this global one without breaking backwards compatibility.
-	app.Flag("cluster-env", clusterHelp).Hidden().Envar(clusterEnvVar).StringVar(&cf.SiteName)
+	// The cluster and kube-cluster flags are only supported for specific commands,
+	// but the env vars are supported globally.
+	// TODO(Joerger): Remove this indirect global env var support in favor of global env flags,
+	// although it cannot easily be done backwards compatibly due to naming conflicts with existing sub commands.
+	app.PreAction(func(pc *kingpin.ParseContext) error {
+		if cf.SiteName == "" {
+			// check cluster env variables in order of priority.
+			if clusterName := os.Getenv(clusterEnvVar); clusterName != "" {
+				cf.SiteName = clusterName
+			} else if clusterName = os.Getenv(siteEnvVar); clusterName != "" {
+				cf.SiteName = clusterName
+			}
+		}
+		if cf.KubernetesCluster == "" {
+			cf.KubernetesCluster = os.Getenv(kubeClusterEnvVar)
+		}
+		return nil
+	})
 
-	// Support old env var for backwards compatibility. The flag above takes precedence.
-	app.Flag("sitename-env", clusterHelp).Hidden().Envar(siteEnvVar).StringVar(&cf.SiteName)
 }
 
 func initGlobalConfig(ctx context.Context, cf *CLIConf, args []string) {
