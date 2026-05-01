@@ -1,0 +1,327 @@
+package beamsv1
+
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/api/types"
+)
+
+func TestUpdateBeamPublish(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		protocol           beamsv1pb.Protocol
+		expectedURI        string
+		updateProtocol     beamsv1pb.Protocol
+		expectedUpdatedURI string
+	}{
+		{
+			name:        "http",
+			protocol:    beamsv1pb.Protocol_PROTOCOL_HTTP,
+			expectedURI: "https://127.0.0.1:8443",
+		},
+		{
+			name:        "tcp",
+			protocol:    beamsv1pb.Protocol_PROTOCOL_TCP,
+			expectedURI: "tcp://127.0.0.1:8444",
+		},
+		{
+			name:               "http to tcp",
+			protocol:           beamsv1pb.Protocol_PROTOCOL_HTTP,
+			expectedURI:        "https://127.0.0.1:8443",
+			updateProtocol:     beamsv1pb.Protocol_PROTOCOL_TCP,
+			expectedUpdatedURI: "tcp://127.0.0.1:8444",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+			service := pack.service(t, pack.user(t, "alice"))
+			createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+				Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+			})
+			require.NoError(t, err)
+
+			beam := proto.CloneOf(createResp.GetBeam())
+			beam.Spec.Publish = &beamsv1pb.PublishSpec{
+				Port:     8080,
+				Protocol: tt.protocol,
+			}
+
+			resp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+				Beam: beam,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.GetBeam().GetStatus().GetAppName())
+
+			storedBeam, err := pack.beam.GetBeam(t.Context(), resp.GetBeam().GetMetadata().GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(resp.GetBeam(), storedBeam, protocmp.Transform()))
+
+			app, err := pack.app.GetApp(t.Context(), resp.GetBeam().GetStatus().GetAppName())
+			require.NoError(t, err)
+			require.Equal(t, resp.GetBeam().GetStatus().GetAppName(), app.GetName())
+			require.Equal(t, tt.expectedURI, app.GetURI())
+
+			if tt.updateProtocol == beamsv1pb.Protocol_PROTOCOL_UNSPECIFIED {
+				return
+			}
+
+			updatedBeam := proto.CloneOf(resp.GetBeam())
+			updatedBeam.Spec.Publish.Protocol = tt.updateProtocol
+
+			updateResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+				Beam: updatedBeam,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.updateProtocol, updateResp.GetBeam().GetSpec().GetPublish().GetProtocol())
+			require.Equal(t, resp.GetBeam().GetStatus().GetAppName(), updateResp.GetBeam().GetStatus().GetAppName())
+
+			storedBeam, err = pack.beam.GetBeam(t.Context(), updateResp.GetBeam().GetMetadata().GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(updateResp.GetBeam(), storedBeam, protocmp.Transform()))
+
+			app, err = pack.app.GetApp(t.Context(), updateResp.GetBeam().GetStatus().GetAppName())
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedUpdatedURI, app.GetURI())
+		})
+	}
+}
+
+func TestUpdateBeamUnpublish(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+	service := pack.service(t, pack.user(t, "alice"))
+	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.NoError(t, err)
+
+	published := proto.CloneOf(createResp.GetBeam())
+	published.Spec.Publish = &beamsv1pb.PublishSpec{
+		Port:     8080,
+		Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
+	}
+
+	publishResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: published,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, publishResp.GetBeam().GetStatus().GetAppName())
+
+	appName := publishResp.GetBeam().GetStatus().GetAppName()
+	unpublished := proto.CloneOf(publishResp.GetBeam())
+	unpublished.Spec.Publish = nil
+
+	resp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: unpublished,
+	})
+	require.NoError(t, err)
+	require.Nil(t, resp.GetBeam().GetSpec().GetPublish())
+	require.Empty(t, resp.GetBeam().GetStatus().GetAppName())
+
+	storedBeam, err := pack.beam.GetBeam(t.Context(), resp.GetBeam().GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(resp.GetBeam(), storedBeam, protocmp.Transform()))
+
+	_, err = pack.app.GetApp(t.Context(), appName)
+	require.True(t, trace.IsNotFound(err))
+}
+
+func TestUpdateBeamRejectsLabelChange(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*beamsv1pb.Beam)
+	}{
+		{
+			name: "modify label",
+			mutate: func(beam *beamsv1pb.Beam) {
+				beam.Metadata.Labels[types.BeamAliasLabel] = "modified"
+			},
+		},
+		{
+			name: "add user label",
+			mutate: func(beam *beamsv1pb.Beam) {
+				beam.Metadata.Labels["user-controlled"] = "label"
+			},
+		},
+		{
+			name: "remove label",
+			mutate: func(beam *beamsv1pb.Beam) {
+				delete(beam.Metadata.Labels, types.BeamAliasLabel)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+			service := pack.service(t, pack.user(t, "alice"))
+			createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+				Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+			})
+			require.NoError(t, err)
+
+			beam := proto.CloneOf(createResp.GetBeam())
+			tt.mutate(beam)
+
+			_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+				Beam: beam,
+			})
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, "metadata.labels: cannot be modified")
+
+			storedBeam, err := pack.beam.GetBeam(t.Context(), createResp.GetBeam().GetMetadata().GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(createResp.GetBeam(), storedBeam, protocmp.Transform()))
+		})
+	}
+}
+
+func TestUpdateBeamRejectsMetadataExpiryChange(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+	service := pack.service(t, pack.user(t, "alice"))
+	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.NoError(t, err)
+
+	beam := proto.CloneOf(createResp.GetBeam())
+	beam.Metadata.Expires = createResp.GetBeam().GetSpec().GetExpires()
+
+	_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: beam,
+	})
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "metadata.expires: must not be set")
+
+	storedBeam, err := pack.beam.GetBeam(t.Context(), createResp.GetBeam().GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createResp.GetBeam(), storedBeam, protocmp.Transform()))
+}
+
+func TestUpdateBeamRejectsEgressChange(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+	service := pack.service(t, pack.user(t, "alice"))
+	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.NoError(t, err)
+
+	beam := proto.CloneOf(createResp.GetBeam())
+	beam.Spec.Egress = beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED
+
+	_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: beam,
+	})
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "spec.egress: cannot be modified")
+
+	storedBeam, err := pack.beam.GetBeam(t.Context(), createResp.GetBeam().GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createResp.GetBeam(), storedBeam, protocmp.Transform()))
+}
+
+func TestUpdateBeamRejectsSpecExpiryChange(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+	service := pack.service(t, pack.user(t, "alice"))
+	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.NoError(t, err)
+
+	beam := proto.CloneOf(createResp.GetBeam())
+	beam.Spec.Expires.Seconds++
+
+	_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: beam,
+	})
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "spec.expires: cannot be modified")
+
+	storedBeam, err := pack.beam.GetBeam(t.Context(), createResp.GetBeam().GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createResp.GetBeam(), storedBeam, protocmp.Transform()))
+}
+
+func TestUpdateBeamAccessDenied(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+	aliceService := pack.service(t, pack.user(t, "alice"))
+	createResp, err := aliceService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.NoError(t, err)
+
+	beam := proto.CloneOf(createResp.GetBeam())
+	beam.Spec.Publish = &beamsv1pb.PublishSpec{
+		Port:     8080,
+		Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
+	}
+
+	bobService := pack.service(t, pack.user(t, "bob"))
+	_, err = bobService.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: beam,
+	})
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestUpdateBeamNoPublishChange(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+
+	service := pack.service(t, pack.user(t, "alice"))
+	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.NoError(t, err)
+
+	beam := proto.CloneOf(createResp.GetBeam())
+
+	resp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: beam,
+	})
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(
+		createResp.GetBeam(),
+		resp.GetBeam(),
+		protocmp.Transform(),
+		protocmp.IgnoreFields(createResp.GetBeam().GetMetadata(), "revision"),
+	))
+
+	storedBeam, err := pack.beam.GetBeam(t.Context(), resp.GetBeam().GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(resp.GetBeam(), storedBeam, protocmp.Transform()))
+}

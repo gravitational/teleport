@@ -28,20 +28,19 @@ func TestDeleteBeam(t *testing.T) {
 	require.NoError(t, err)
 	beam := proto.CloneOf(createResp.GetBeam())
 
-	// TODO(boxofrad): Reintroduce this once the UpdateBeam RPC handler has been merged.
-	//
-	//	beam.Spec.Publish = &beamsv1pb.PublishSpec{
-	//		Port:     8080,
-	//		Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
-	//	}
-	//
-	//	updateResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
-	//		Beam: beam,
-	//	})
-	//	require.NoError(t, err)
-	//
-	//	beam = updateResp.GetBeam()
-	//	require.NotEmpty(t, beam.GetStatus().GetAppName())
+	// Publish the beam.
+	beam.Spec.Publish = &beamsv1pb.PublishSpec{
+		Port:     8080,
+		Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
+	}
+
+	updateResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		Beam: beam,
+	})
+	require.NoError(t, err)
+
+	beam = updateResp.GetBeam()
+	require.NotEmpty(t, beam.GetStatus().GetAppName())
 
 	// Delete the beam.
 	resp, err := service.DeleteBeam(t.Context(), &beamsv1pb.DeleteBeamRequest{
@@ -83,10 +82,8 @@ func TestDeleteBeam(t *testing.T) {
 	_, err = pack.presence.GetNode(t.Context(), apidefaults.Namespace, beam.GetStatus().GetNodeId())
 	require.True(t, trace.IsNotFound(err))
 
-	// TODO(boxofrad): Reintroduce this once the UpdateBeam RPC handler has been merged.
-	//
-	// 	_, err = pack.app.GetApp(t.Context(), beam.GetStatus().GetAppName())
-	// 	require.True(t, trace.IsNotFound(err))
+	_, err = pack.app.GetApp(t.Context(), beam.GetStatus().GetAppName())
+	require.True(t, trace.IsNotFound(err))
 }
 
 func TestDeleteBeamMissingName(t *testing.T) {
