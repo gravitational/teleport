@@ -7726,7 +7726,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
 		ProxyPublicAddr:         a.getProxyPublicAddr(ctx),
-		IsBoring:                a.modules.IsBoringBinary(),
+		IsBoring:                a.modules.IsFIPSBuild(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,

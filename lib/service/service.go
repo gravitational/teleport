@@ -1136,9 +1136,9 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.Wrap(err, "creating metrics registry")
 	}
 
-	// If FIPS mode was requested make sure binary is build against BoringCrypto.
-	if cfg.FIPS && !cfg.Modules.IsBoringBinary() {
-		return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
+	// If FIPS mode was requested make sure binary is built in FIPS140 mode.
+	if cfg.FIPS && !cfg.Modules.IsFIPSBuild() {
+		return nil, trace.BadParameter("binary not compiled in FIPS140 mode, check " +
 			"that Enterprise FIPS release was downloaded from " +
 			"a Teleport account https://teleport.sh")
 	}

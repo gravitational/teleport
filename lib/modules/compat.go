@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,19 +14,11 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build boringcrypto
-
 package modules
 
-import "crypto/boring"
-
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-//
-// It's possible to enable the boringcrypto GOEXPERIMENT (which will enable the
-// boringcrypto build tag) even on platforms that don't support the boringcrypto
-// module, which results in crypto packages being available and working, but not
-// actually using a certified cryptographic module, so we have to check
-// [boring.Enabled] even if this is compiled in.
-func IsFIPSBuild() bool {
-	return boring.Enabled()
+// IsBoringBinary checks if the binary was compiled in FIPS140 mode. It is
+// a compatibility shim that will be removed once the callers from other repos
+// have been removed.
+func IsBoringBinary() bool {
+	return IsFIPSBuild()
 }

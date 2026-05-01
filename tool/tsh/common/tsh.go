@@ -920,7 +920,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
 	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
-	if !moduleCfg.IsBoringBinary() {
+	if !moduleCfg.IsFIPSBuild() {
 		// The user is *never* allowed to do this in FIPS mode.
 		app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments.").
 			Default("false").
@@ -2036,7 +2036,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
 	var fipsErr *sshutils.FIPSError
-	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+	if moduleCfg.IsFIPSBuild() && errors.As(err, &fipsErr) {
 		return trace.Wrap(err,
 			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
 		)

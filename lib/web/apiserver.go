@@ -1821,7 +1821,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
 		Edition:           h.cfg.Modules.BuildType(),
-		FIPS:              h.cfg.Modules.IsBoringBinary(),
+		FIPS:              h.cfg.Modules.IsFIPSBuild(),
 	}, nil
 }
 
@@ -1853,7 +1853,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          h.cfg.Modules.BuildType(),
-			FIPS:             h.cfg.Modules.IsBoringBinary(),
+			FIPS:             h.cfg.Modules.IsFIPSBuild(),
 			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
@@ -4152,7 +4152,7 @@ func (h *Handler) siteNodeConnect(
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
 		SSHDialTimeout:     dialTimeout,
-		FIPSBuild:          h.cfg.Modules.IsBoringBinary(),
+		FIPSBuild:          h.cfg.Modules.IsFIPSBuild(),
 		HostNameResolver: func(serverID string) (string, error) {
 			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
 				return n.GetName() == serverID
