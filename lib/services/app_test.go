@@ -234,6 +234,12 @@ func TestApplicationUnmarshal(t *testing.T) {
 		Labels:      map[string]string{"env": "dev"},
 	}, types.AppSpecV3{
 		URI: "http://localhost:8080",
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifyFull,
+			ServerName:     "localhost",
+			ServerSpiffeId: "spiffe://mycluster/svc/localhost",
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
 	})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(appYAML))
@@ -250,7 +256,13 @@ func TestApplicationMarshal(t *testing.T) {
 		Description: "Test description",
 		Labels:      map[string]string{"env": "dev"},
 	}, types.AppSpecV3{
-		URI: "http://localhost:8080",
+		URI: "https://localhost:8080",
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifyFull,
+			ServerName:     "localhost",
+			ServerSpiffeId: "spiffe://mycluster/svc/localhost",
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
 	})
 	require.NoError(t, err)
 	data, err := MarshalApp(expected)
@@ -268,7 +280,12 @@ metadata:
   labels:
     env: dev
 spec:
-  uri: "http://localhost:8080"`
+  uri: "http://localhost:8080"
+  tls:
+    mode: verify-full
+    server_name: localhost
+    server_spiffe_id: spiffe://mycluster/svc/localhost
+    client_cert_mode: managed`
 
 func TestGetAppName(t *testing.T) {
 	tests := []struct {
