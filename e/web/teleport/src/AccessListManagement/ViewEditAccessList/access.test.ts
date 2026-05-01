@@ -5,6 +5,8 @@ import {
 
 import { Action, getActionForbiddenInfo, isActionForbidden } from './access';
 
+const emptyMetadata = { name: '', labels: {}, revision: '' };
+
 describe('isEditDisabled', () => {
   // 'true' means the action is forbidden while 'false' means it is allowed
   test.each`
@@ -60,6 +62,7 @@ describe('isEditDisabled', () => {
       const accessList = {
         type: accessListType,
         origin: undefined,
+        metadata: emptyMetadata,
       };
       const noPerms = {
         adminWhoCanRead: false,
@@ -151,6 +154,7 @@ describe('access list with preset', () => {
           type: AccessListType.Default,
           origin: undefined,
           preset,
+          metadata: emptyMetadata,
         },
         action: Action.EditMembersGrants,
         isReadOnlyOktaList: false,
@@ -170,6 +174,7 @@ describe('access list with preset', () => {
         type: AccessListType.Default,
         origin: undefined,
         preset: undefined,
+        metadata: emptyMetadata,
       },
       action: Action.EditMembersGrants,
       isReadOnlyOktaList: false,
@@ -188,6 +193,7 @@ describe('access list with preset', () => {
           type: AccessListType.Default,
           origin: undefined,
           preset,
+          metadata: emptyMetadata,
         },
         action: Action.Delete,
         isReadOnlyOktaList: false,
@@ -210,6 +216,7 @@ describe('access list with preset', () => {
           type: AccessListType.Default,
           origin: undefined,
           preset,
+          metadata: emptyMetadata,
         },
         action: Action.Delete,
         isReadOnlyOktaList: false,
@@ -228,6 +235,7 @@ describe('access list with preset', () => {
         type: AccessListType.Default,
         origin: undefined,
         preset: undefined,
+        metadata: emptyMetadata,
       },
       action: Action.Delete,
       isReadOnlyOktaList: false,
@@ -253,6 +261,7 @@ describe('EntraID Access Control', () => {
       accessList: {
         type: AccessListType.Default,
         origin: AccessListOrigin.EntraID,
+        metadata: emptyMetadata,
       },
       action: Action.EditMembers,
       isReadOnlyOktaList: false,
@@ -278,6 +287,7 @@ describe('EntraID Access Control', () => {
         accessList: {
           type: AccessListType.Default,
           origin: AccessListOrigin.EntraID,
+          metadata: emptyMetadata,
         },
         action,
         isReadOnlyOktaList: false,

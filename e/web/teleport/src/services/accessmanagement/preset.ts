@@ -7,6 +7,18 @@ import {
   MemberSpecRequest,
 } from './types';
 
+export type MemberSpecTerraformRequest = Pick<
+  MemberSpecRequest,
+  'name' | 'membership_kind'
+> &
+  Partial<Omit<MemberSpecRequest, 'name' | 'membership_kind'>>;
+
+export type AccessListBodyRequest = {
+  spec: AccessListSpecRequest;
+  metadata: AccessListMetadata;
+  members: MemberSpecTerraformRequest[];
+};
+
 /**
  * Access lists created with a preset provides a web UI that guides admins on
  * defining access to resources. It basically provides a fancier role editor
@@ -24,15 +36,27 @@ export type AccessListPreset = 'long-term' | 'short-term' | '';
 
 export type AccessListWithPresetRequest = {
   presetType: AccessListPreset;
-  accessList: {
-    spec: AccessListSpecRequest;
-    metadata: AccessListMetadata;
-    members: MemberSpecRequest[];
-  };
+  accessList: AccessListBodyRequest;
   accessRoles: Role[];
 };
 
 export type UpdateAccessListWithPresetResponse = {
   accessList: AccessList;
   rolesToBeDeleted: string[];
+};
+
+export type TerraformAcessRoleRequest = {
+  role: Role;
+  blockComment?: string;
+};
+
+export type GenerateTerraformConfigRequest = {
+  presetType: AccessListPreset;
+  accessList?: AccessListBodyRequest;
+  accessRoles: TerraformAcessRoleRequest[];
+  accessListId: string;
+};
+
+export type GenerateTerraformConfigResponse = {
+  terraform: string;
 };

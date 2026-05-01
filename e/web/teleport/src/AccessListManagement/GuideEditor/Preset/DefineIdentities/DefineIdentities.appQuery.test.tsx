@@ -179,5 +179,9 @@ test('queries for app types when identities are not pre-determined', async () =>
   // Empty b/c query for gcp returned no result
   expect(screen.queryByText(/gcp/i)).not.toBeInTheDocument();
 
-  expect(screen.queryAllByRole('textbox')).toHaveLength(3);
+  // Filter to only count actual text inputs (not Ace editor textareas from
+  // the TerraformPanel which renders by default alongside the guide).
+  expect(
+    screen.queryAllByRole('textbox').filter(el => el.tagName === 'INPUT')
+  ).toHaveLength(3);
 });

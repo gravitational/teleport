@@ -138,6 +138,7 @@ const cfg = {
     accessListPreset: {
       create: '/v1/enterprise/accesslistpreset',
       update: '/v1/enterprise/accesslistpreset/:accessListId',
+      terraform: '/v1/enterprise/generate/terraform/accesslist',
     },
 
     accessGraphSettingsPath: '/v1/enterprise/accessgraphsettings',
@@ -331,12 +332,16 @@ const cfg = {
   },
 
   getAccessListWithPresetUrl(
-    req: { action: 'create' } | { action: 'update'; accessListId: string }
+    req:
+      | { action: 'create' | 'terraform' }
+      | { action: 'update'; accessListId: string }
   ) {
     const action = req.action;
     switch (action) {
       case 'create':
         return generatePath(cfg.api.accessListPreset.create);
+      case 'terraform':
+        return generatePath(cfg.api.accessListPreset.terraform);
       case 'update':
         return generatePath(cfg.api.accessListPreset.update, {
           accessListId: req.accessListId,

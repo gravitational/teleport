@@ -28,7 +28,7 @@ export function PanelResizer({
       const mouseDragged = e.clientX - startMouseX;
       const newWidth = startPanelWidth - mouseDragged;
 
-      if (newWidth >= defaultSidePanelWidth && newWidth <= 600) {
+      if (newWidth >= defaultSidePanelWidth && newWidth <= 900) {
         updatePanelWidth(newWidth);
         return;
       }

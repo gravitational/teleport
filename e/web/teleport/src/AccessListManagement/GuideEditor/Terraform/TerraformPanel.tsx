@@ -7,31 +7,23 @@ import TextEditor from 'shared/components/TextEditor';
 
 import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
 
+import { Terraform } from '../useGuideEditor';
 import { PanelResizer } from './PanelResizer';
 
-export type TerraformProps = {
-  data: string;
-  loading: boolean;
-  error: Error;
-};
-
 export function TerraformPanel({
-  panelWidth,
-  updatePanelWidth,
   disableResizer = false,
   terraform,
 }: {
-  panelWidth: number;
-  updatePanelWidth(width: number): void;
   disableResizer?: boolean;
-  terraform: TerraformProps;
+  terraform: Terraform;
 }) {
+  const { sidePanel: panelWidth, updateSidePanel } = terraform;
   return (
     <CodeContainer width={panelWidth}>
       {!disableResizer && panelWidth > 0 && (
         <PanelResizer
           panelWidth={panelWidth}
-          updatePanelWidth={updatePanelWidth}
+          updatePanelWidth={updateSidePanel}
         />
       )}
       <Flex flexDirection={'column'} width="100%">
@@ -46,7 +38,7 @@ export function TerraformPanel({
           {!disableResizer && (
             <ButtonIcon
               onClick={() => {
-                updatePanelWidth(0);
+                updateSidePanel(0);
               }}
             >
               <Cross size="small" />
@@ -68,7 +60,10 @@ export function TerraformPanel({
             onClick={() => {
               copyToClipboard(makeTerraformContent(terraform));
             }}
-            disabled={!terraform.data}
+            disabled={
+              terraform.mutatePending ||
+              (!terraform.config && !terraform.mutateError)
+            }
           />
         </Box>
       </Flex>
@@ -83,16 +78,16 @@ const CodeContainer = styled(Flex)`
   position: relative;
 `;
 
-export function makeTerraformContent(terraform: TerraformProps) {
-  if (terraform.error) {
-    return `# Failed to fetch template\n# ${terraform.error.message}`;
+export function makeTerraformContent(terraform: Terraform) {
+  if (terraform.mutateError) {
+    return `# Failed to fetch template\n# ${terraform.mutateError.message}`;
   }
 
-  if (terraform.data) {
-    return terraform.data;
+  if (terraform.config) {
+    return terraform.config;
   }
 
-  if (terraform.loading) {
+  if (terraform.mutatePending) {
     return `# Loading template...`;
   }
 

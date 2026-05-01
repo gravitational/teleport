@@ -41,9 +41,7 @@ export const Default: StoryObj = {
   render() {
     return (
       <Provider>
-        <Info>
-          Dev: click "Create Access List Now" to see the finished step
-        </Info>
+        <Info>Dev: click buttons to see the next step</Info>
         <DeploymentMethods />
       </Provider>
     );

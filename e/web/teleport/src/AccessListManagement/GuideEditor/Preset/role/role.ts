@@ -1,4 +1,4 @@
-import { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import { AccessList } from 'e-teleport/services/accessmanagement';
 import { defaultRoleVersion } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 import { optionsWithDefaults } from 'teleport/Roles/RoleEditor/StandardEditor/withDefaults';
 import {
@@ -506,7 +506,7 @@ export function validateQueriedRoles({
   accessList,
 }: {
   gotRoles: Role[];
-  accessList: AccessListModified;
+  accessList: AccessList;
 }): QueriedRoleState {
   const grantedRoleNames = accessList.grants.roles;
 
@@ -666,16 +666,23 @@ export function newAccessRole({
   kind,
   roleConditions,
   roleVersion = defaultRoleVersion,
+  /**
+   * Options can be left blank to allow the backend
+   * to set default values.
+   */
+  withoutOptions = false,
 }:
   | {
       kind: typeof awsIcRoleAccessKind;
       roleConditions: AwsIcRoleConditions;
       roleVersion?: RoleVersion;
+      withoutOptions?: boolean;
     }
   | {
       kind: typeof standardRoleAccessKind;
       roleConditions: StandardRoleConditions;
       roleVersion?: RoleVersion;
+      withoutOptions?: boolean;
     }): Role {
   if (kind === awsIcRoleAccessKind) {
     return {
@@ -684,7 +691,7 @@ export function newAccessRole({
       metadata: { name: getRolePrefixForAccess('awsic') },
       spec: {
         deny: {},
-        options: optionsWithDefaults(roleVersion),
+        options: withoutOptions ? undefined : optionsWithDefaults(roleVersion),
         allow: {
           app_labels: roleConditions.labels,
           account_assignments: convertAwsAccountMapToRoleType(
@@ -701,7 +708,7 @@ export function newAccessRole({
     metadata: { name: getRolePrefixForAccess('standard') },
     spec: {
       deny: {},
-      options: optionsWithDefaults(roleVersion),
+      options: withoutOptions ? undefined : optionsWithDefaults(roleVersion),
       allow: { ...roleConditions },
     },
   };

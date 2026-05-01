@@ -67,8 +67,18 @@ function mockGuideEditor() {
         getResumableState: jest.fn(),
         originatedFromOkta: false,
         removeLocationState: jest.fn(),
-        terraformPanel: 0,
-        setTerraformPanel: jest.fn(),
+        deploymentView: '',
+        setDeploymentView: jest.fn(),
+        terraform: {
+          config: '',
+          prevConfig: '',
+          mutatePending: false,
+          mutateError: null,
+          regenerateConfig: jest.fn(),
+          sidePanel: 0,
+          updateSidePanel: jest.fn(),
+          hasMutatedConfig: false,
+        },
       } as GuideEditorState,
     } as any);
 
@@ -81,6 +91,7 @@ test('rendering loading state upon initial render', async () => {
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess: () => new Promise(() => {}), // Never resolves
     onClose: jest.fn(),
+    usedTerraform: false,
   };
 
   render(
@@ -106,6 +117,7 @@ test('rendering error with retry button when update fails', async () => {
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess,
     onClose,
+    usedTerraform: false,
   };
 
   render(
@@ -141,6 +153,7 @@ test('clicking on cancel, closes the dialog', async () => {
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess: jest.fn().mockRejectedValue(new Error('Update failed')),
     onClose: jest.fn(),
+    usedTerraform: false,
   };
 
   render(
@@ -168,6 +181,7 @@ test('rendering of table and deleting roles from table for a access list using p
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess: jest.fn().mockResolvedValue(rolesToDelete),
     onClose,
+    usedTerraform: false,
   };
 
   jest
@@ -232,6 +246,7 @@ test('rendering error when deleting a role fails and successfuly retry', async (
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess: jest.fn().mockResolvedValue(rolesToDelete),
     onClose: jest.fn(),
+    usedTerraform: false,
   };
 
   const deleteRoleSpy = jest

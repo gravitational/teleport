@@ -4,22 +4,32 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 
 import { defaultSidePanelWidth } from '../Shared';
-import { TerraformPanel, TerraformProps } from './TerraformPanel';
+import { Terraform } from '../useGuideEditor';
+import { TerraformPanel } from './TerraformPanel';
 import { TerraformSideTab } from './TerraformSideTab';
 
 export default {
   title: 'TeleportE/AccessLists/Terraform/TerraformPanel',
 };
 
+const terraformProps: Terraform = {
+  config: '',
+  prevConfig: '',
+  mutatePending: false,
+  mutateError: null,
+  regenerateConfig: () => {},
+  sidePanel: defaultSidePanelWidth,
+  updateSidePanel: () => {},
+  hasMutatedConfig: false,
+};
+
 export function Empty() {
-  return <StoryPanel terraform={{ data: '', loading: false, error: null }} />;
+  return <StoryPanel terraform={terraformProps} />;
 }
 
 export function WithData() {
   return (
-    <StoryPanel
-      terraform={{ data: sampleTerraform, loading: false, error: null }}
-    />
+    <StoryPanel terraform={{ ...terraformProps, config: sampleTerraform }} />
   );
 }
 
@@ -27,28 +37,24 @@ export function WithError() {
   return (
     <StoryPanel
       terraform={{
-        data: '',
-        loading: false,
-        error: new Error('Some kind of error message'),
+        ...terraformProps,
+        mutateError: new Error('Some kind of error message'),
       }}
     />
   );
 }
 
 export function Loading() {
-  return (
-    <StoryPanel
-      terraform={{
-        data: '',
-        loading: true,
-        error: null,
-      }}
-    />
-  );
+  return <StoryPanel terraform={{ ...terraformProps, mutatePending: true }} />;
 }
 
-function StoryPanel({ terraform }: { terraform: TerraformProps }) {
+function StoryPanel({ terraform: terraformProp }: { terraform: Terraform }) {
   const [panelWidth, setPanelWidth] = useState(defaultSidePanelWidth);
+  const terraform: Terraform = {
+    ...terraformProp,
+    sidePanel: panelWidth,
+    updateSidePanel: setPanelWidth,
+  };
 
   function toggleSidePanel() {
     setPanelWidth(panelWidth === 0 ? defaultSidePanelWidth : 0);
@@ -61,11 +67,7 @@ function StoryPanel({ terraform }: { terraform: TerraformProps }) {
           <TerraformSideTab onClick={toggleSidePanel} panelWidth={panelWidth} />
         </NavSpacer>
       </Spacer>
-      <TerraformPanel
-        panelWidth={panelWidth}
-        updatePanelWidth={setPanelWidth}
-        terraform={terraform}
-      />
+      <TerraformPanel terraform={terraform} />
     </Container>
   );
 }

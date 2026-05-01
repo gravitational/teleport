@@ -1,4 +1,6 @@
-import { Box, Indicator } from 'design';
+import styled from 'styled-components';
+
+import { Box, Flex, Indicator } from 'design';
 import { UserList } from 'design/Icon';
 
 import {
@@ -10,9 +12,12 @@ import { FeatureBox } from 'teleport/components/Layout';
 import { Prompt } from 'teleport/components/Router';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 
-import { GuideContainer } from '../GuideEditor/Shared';
+import { defaultSidePanelWidth, GuideContainer } from '../GuideEditor/Shared';
+import { TerraformPanel } from '../GuideEditor/Terraform/TerraformPanel';
+import { TerraformSideTab } from '../GuideEditor/Terraform/TerraformSideTab';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
 import { SelectGuide } from './SelectGuide/SelectGuide';
+import { cancelPrompt } from './types';
 
 export const CreateAccessListWithProvider = () => (
   <AccessListManagementContextProvider>
@@ -24,7 +29,7 @@ export const CreateAccessListWithProvider = () => (
 
 export function CreateAccessList() {
   const { guideEditor, oktaPluginAttempt } = useAccessListManagementContext();
-  const { preset, currentStep, views } = guideEditor;
+  const { preset, currentStep, views, terraform } = guideEditor;
 
   if (preset == null) {
     return (
@@ -60,19 +65,47 @@ export function CreateAccessList() {
       preset satisfies never;
   }
 
+  function toggleSidePanel() {
+    terraform.updateSidePanel(
+      terraform.sidePanel === 0 ? defaultSidePanelWidth : 0
+    );
+  }
+
+  const terraformPanelSupported =
+    preset === 'long-term' || preset === 'short-term';
+
   return (
-    <Box height="100%">
-      <Box mt={3} px={6}>
-        <Navigation
-          currentStep={currentStep}
-          views={views}
-          startWithIcon={{
-            title: navTitle,
-            component: <UserList size={20} />,
-          }}
-        />
-      </Box>
-      <GuideContainer>{views[currentStep].Component}</GuideContainer>
+    <Container>
+      <MainViewContainer height="100%">
+        <Flex
+          minWidth={0}
+          mt={3}
+          px={6}
+          css={`
+            position: relative;
+          `}
+        >
+          <Navigation
+            currentStep={currentStep}
+            views={views}
+            startWithIcon={{
+              title: navTitle,
+              component: <UserList size={20} />,
+            }}
+          />
+          {terraformPanelSupported && (
+            <TerraformSideTab
+              onClick={toggleSidePanel}
+              panelWidth={terraform.sidePanel}
+              top="-10px"
+            />
+          )}
+        </Flex>
+        <GuideContainer>{views[currentStep].Component}</GuideContainer>
+      </MainViewContainer>
+      {terraformPanelSupported && terraform.sidePanel > 0 && (
+        <TerraformPanel terraform={terraform} disableResizer={false} />
+      )}
       {preset && currentStep < views.length - 1 && (
         <Prompt
           when
@@ -92,10 +125,23 @@ export function CreateAccessList() {
             ) {
               return true;
             }
-            return 'Are you sure you want to exit the "Create New Access List" workflow? You’ll have to start from the beginning next time.';
+            return cancelPrompt;
           }}
         />
       )}
-    </Box>
+    </Container>
   );
 }
+
+const Container = styled(Flex)`
+  flex: 1;
+  width: 100%;
+  overflow: auto;
+`;
+
+const MainViewContainer = styled(Flex)`
+  flex: 1;
+  min-width: 600px;
+  flex-direction: column;
+  overflow: auto;
+`;

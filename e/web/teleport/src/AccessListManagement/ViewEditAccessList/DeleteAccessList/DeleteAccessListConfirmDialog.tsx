@@ -37,7 +37,7 @@ export function DeleteAccessListConfirmDialog({
 
   const { attempt: deleteAccessListAttempt, setAttempt } = useAttempt();
 
-  const roleFetchEnabled = isGuideEditorSupported(accessList.preset);
+  const roleFetchEnabled = isGuideEditorSupported(accessList);
 
   // Allow fetching roles first, so it can fail first before
   // the call to delete access list.

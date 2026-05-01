@@ -23,7 +23,10 @@ import {
   ReviewFrequency,
   UpsertAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
-import { AccessListWithPresetRequest } from 'e-teleport/services/accessmanagement/preset';
+import {
+  AccessListBodyRequest,
+  AccessListWithPresetRequest,
+} from 'e-teleport/services/accessmanagement/preset';
 import {
   AccessListEvent,
   AccessListStepStatusEvent,
@@ -35,9 +38,10 @@ import {
   newAccessRole,
   standardRoleAccessKind,
 } from '../GuideEditor/Preset/role/role';
+import { getTerraformBlockCommentWithRole } from '../GuideEditor/Terraform/terraform';
 import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { HybridUserOption } from '../Shared/Shared';
-import { convertTraitLabelsToAllUserTraits } from '../Traits';
+import { convertTraitLabelsToAllUserTraits, TraitLabel } from '../Traits';
 import { ResumableAccessListState } from './route';
 import { Grant, Members, Owners, Spec } from './types';
 
@@ -71,6 +75,10 @@ type State = {
    */
   createdAccessList: AccessList;
   getResumableAccessListState(): ResumableAccessListState;
+  /**
+   * The UUID generated for the new access list being created.
+   */
+  newAccessListId: string;
 };
 
 const CreateAccessListContext = createContext<State>(null);
@@ -90,7 +98,8 @@ export const CreateAccessListContextProvider: FC<
   const { updateAccessListCache, guideEditor } =
     useAccessListManagementContext();
 
-  const { preset, standardRoleState, awsIcRoleState, emitEvent } = guideEditor;
+  const { preset, standardRoleState, awsIcRoleState, emitEvent, terraform } =
+    guideEditor;
 
   const perms = ctx.storeUser.getAccessListAccess();
   const canCreateAccessList = perms.create && perms.list && perms.read;
@@ -118,6 +127,103 @@ export const CreateAccessListContextProvider: FC<
     props.mockCreatedAccessList
   );
 
+  const [newAccessListId, setNewAccessListId] = useState(() =>
+    crypto.randomUUID()
+  );
+
+  // This effect triggers the terraform configs to be regenerated when state
+  // changes. It's debounced to reduce the number of api calls.
+  useEffect(() => {
+    if (preset !== 'long-term' && preset !== 'short-term') {
+      return;
+    }
+
+    // Skip calling the API if a user has just started and
+    // has not defined any access yet.
+    if (
+      !terraform.hasMutatedConfig &&
+      !awsIcRoleState.definedAccess() &&
+      !standardRoleState.hasAnyAccessDefined() &&
+      !spec.title
+    ) {
+      return;
+    }
+
+    // Skip if any owner/member trait has an empty key or value.
+    if (
+      hasEmptyTrait(ownerGrant.traitsToGrant) ||
+      hasEmptyTrait(memberGrant.traitsToGrant) ||
+      hasEmptyTrait(owners.traitLabels) ||
+      hasEmptyTrait(members.traitLabels)
+    ) {
+      return;
+    }
+
+    const accessRoles = [];
+    if (standardRoleState.hasAnyAccessDefined()) {
+      accessRoles.push(
+        getTerraformBlockCommentWithRole(
+          'standard',
+          newAccessRole({
+            kind: standardRoleAccessKind,
+            roleConditions: standardRoleState.roleConditions,
+            withoutOptions: true,
+          })
+        )
+      );
+    }
+
+    if (awsIcRoleState.definedAccess()) {
+      accessRoles.push(
+        getTerraformBlockCommentWithRole(
+          'awsic',
+          newAccessRole({
+            kind: awsIcRoleAccessKind,
+            roleConditions: awsIcRoleState.roleConditions,
+            withoutOptions: true,
+          })
+        )
+      );
+    }
+
+    let accessList: AccessListBodyRequest;
+    if (spec.title) {
+      accessList = {
+        spec: makeAccessListSpecForRequest({
+          // To manage members with terraform, type static is required
+          type: AccessListType.Static,
+          spec,
+          ownerGrant,
+          owners,
+          memberGrant,
+          members,
+        }),
+        members: makeAccessListMembersForTerraformRequest({
+          members,
+        }),
+        metadata: { name: newAccessListId, labels: {}, revision: '' },
+      };
+    }
+
+    terraform.regenerateConfig({
+      accessRoles,
+      accessListId: newAccessListId,
+      accessList,
+      presetType: preset,
+    });
+  }, [
+    awsIcRoleState.roleConditions,
+    standardRoleState.roleConditions,
+    terraform.hasMutatedConfig,
+    spec,
+    ownerGrant,
+    owners,
+    memberGrant,
+    members,
+    preset,
+    newAccessListId,
+  ]);
+
   function reset() {
     setSpec(defaultSpec);
     setOwners(defaultOwners);
@@ -126,6 +232,7 @@ export const CreateAccessListContextProvider: FC<
     setMemberGrant(defaultGrants);
     setCreateAttempt({ status: '' });
     setCreatedAccessList(undefined);
+    setNewAccessListId(crypto.randomUUID());
 
     checkFeatureLimit();
   }
@@ -240,7 +347,7 @@ export const CreateAccessListContextProvider: FC<
       accessList: {
         spec: reqSpec,
         members: reqMembers,
-        metadata: { name: crypto.randomUUID(), labels: {}, revision: '' },
+        metadata: { name: newAccessListId, labels: {}, revision: '' },
       },
       accessRoles,
     };
@@ -316,6 +423,7 @@ export const CreateAccessListContextProvider: FC<
         reset,
         createdAccessList,
         getResumableAccessListState,
+        newAccessListId,
       }}
     >
       {props.children}
@@ -369,12 +477,14 @@ function getNameAndMembershipKind(o: HybridUserOption) {
 }
 
 function makeAccessListSpecForRequest({
+  type = AccessListType.Default,
   spec,
   ownerGrant,
   owners,
   memberGrant,
   members,
 }: {
+  type?: AccessListType;
   spec: Spec;
   ownerGrant: Grant;
   owners: Owners;
@@ -383,7 +493,7 @@ function makeAccessListSpecForRequest({
 }) {
   return {
     // specs
-    type: AccessListType.Default,
+    type,
     title: spec.title,
     description: spec.description,
     audit: {
@@ -437,6 +547,20 @@ function makeAccessListMembersForRequest({
   });
 }
 
+function makeAccessListMembersForTerraformRequest({
+  members,
+}: {
+  members: Members;
+}) {
+  return members.selectedMembers.map(m => {
+    const { name, membership_kind } = getNameAndMembershipKind(m);
+    return {
+      name,
+      membership_kind,
+    };
+  });
+}
+
 type AccessListSpecForRequest = ReturnType<typeof makeAccessListSpecForRequest>;
 
 type AccessListMembersForRequest = ReturnType<
@@ -477,3 +601,7 @@ const defaultGrants: Grant = {
   rolesToGrant: [],
   traitsToGrant: [],
 };
+
+function hasEmptyTrait(traits: TraitLabel[]): boolean {
+  return traits.some(t => !t.name || !t.value);
+}

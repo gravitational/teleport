@@ -40,7 +40,7 @@ export function SelectGuide() {
   useEffect(() => {
     // Default to having the side panel opened.
     if (canCreateAccessList) {
-      setInfoGuideConfig({ guide: <InfoGuide /> });
+      setInfoGuideConfig({ guide: <InfoGuide />, viewHasOwnSidePanel: true });
     }
   }, []);
 

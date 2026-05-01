@@ -91,3 +91,6 @@ export type EligibleUsersFieldSelectProps = {
   userKind?: 'nested-access-list' | undefined;
   key?: string;
 };
+
+export const cancelPrompt =
+  'Are you sure you want to exit the "Create New Access List" workflow? You’ll have to start from the beginning next time.';

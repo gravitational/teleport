@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimaryBorder, Card, Flex, H1, H2, Text } from 'design';
@@ -8,7 +7,10 @@ import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/
 import { useCreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList/CreateAccessListContextProvider';
 import { Finished } from 'e-teleport/AccessListManagement/CreateAccessList/Finished';
 import { StepButtons } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
+import { TerraformDeploymentCreate } from 'e-teleport/AccessListManagement/GuideEditor/Terraform/TerraformDeploymentCreate';
+import { Prompt } from 'teleport/components/Router';
 
+import { cancelPrompt } from '../types';
 import { ErrorCreatingAccessListDialog } from './ErrorCreatingAccessListDialog';
 
 export function DeploymentMethods() {
@@ -16,24 +18,21 @@ export function DeploymentMethods() {
     useCreateAccessList();
 
   const { guideEditor } = useAccessListManagementContext();
-  const { setTerraformPanel } = guideEditor;
+  const { terraform, deploymentView, setDeploymentView } = guideEditor;
 
-  const [view, setView] = useState<'' | 'finished' | 'terraform'>('');
-
-  if (view === 'finished') {
+  if (deploymentView === 'finished') {
     return <Finished />;
   }
 
-  if (view === 'terraform') {
-    // TODO(kimlisa): implement terraform view
-    return null;
+  if (deploymentView === 'terraform') {
+    return <TerraformDeploymentCreate onPrev={() => setDeploymentView('')} />;
   }
 
   async function handleCreate(validator: Validator) {
     const created = await onCreate(validator);
     if (created) {
-      setView('finished');
-      setTerraformPanel(0);
+      setDeploymentView('finished');
+      terraform.updateSidePanel(0);
     }
   }
 
@@ -62,7 +61,7 @@ export function DeploymentMethods() {
               button={
                 <PaneButton
                   onClick={() => {
-                    setView('terraform');
+                    setDeploymentView('terraform');
                   }}
                 >
                   Continue via Terraform
@@ -106,6 +105,7 @@ export function DeploymentMethods() {
         </Card>
       </Box>
       <StepButtons hideNextBtn />
+      {deploymentView === '' && <Prompt when message={cancelPrompt} />}
     </>
   );
 }

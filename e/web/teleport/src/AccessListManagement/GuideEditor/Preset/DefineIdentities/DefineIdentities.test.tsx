@@ -365,7 +365,9 @@ test('defining application access where identities are required', async () => {
   expect(spiedUnifiedResource).not.toHaveBeenCalled();
   expect(screen.queryAllByRole('tab')).toHaveLength(1);
   expect(screen.getByText(/gcp/i)).toBeInTheDocument();
-  expect(screen.queryAllByRole('textbox')).toHaveLength(1);
+  expect(
+    screen.queryAllByRole('textbox').filter(el => el.tagName === 'INPUT')
+  ).toHaveLength(1);
   expect(screen.queryAllByText(/labels/i)).toHaveLength(0);
 
   // Go back to trigger new fetch to include Azure app
@@ -395,7 +397,9 @@ test('defining application access where identities are required', async () => {
   expect(screen.queryAllByRole('tab')).toHaveLength(1);
   expect(screen.getByText(/gcp/i)).toBeInTheDocument();
   expect(screen.getByText(/azure/i)).toBeInTheDocument();
-  expect(screen.queryAllByRole('textbox')).toHaveLength(2);
+  expect(
+    screen.queryAllByRole('textbox').filter(el => el.tagName === 'INPUT')
+  ).toHaveLength(2);
   expect(screen.queryAllByText(/labels/i)).toHaveLength(0);
 
   // Go back to trigger new fetch to include mcp app
@@ -431,7 +435,9 @@ test('defining application access where identities are required', async () => {
   expect(screen.getByText(/gcp/i)).toBeInTheDocument();
   expect(screen.getByText(/azure/i)).toBeInTheDocument();
   expect(screen.getByText(/mcp/i)).toBeInTheDocument();
-  expect(screen.queryAllByRole('textbox')).toHaveLength(3);
+  expect(
+    screen.queryAllByRole('textbox').filter(el => el.tagName === 'INPUT')
+  ).toHaveLength(3);
   expect(screen.queryAllByText(/labels/i)).toHaveLength(0);
 
   // Go back to trigger new fetch to include aws consol app
@@ -473,7 +479,9 @@ test('defining application access where identities are required', async () => {
   expect(screen.getByText(/azure/i)).toBeInTheDocument();
   expect(screen.getByText(/mcp/i)).toBeInTheDocument();
   expect(screen.getByText(/aws/i)).toBeInTheDocument();
-  expect(screen.queryAllByRole('textbox')).toHaveLength(4);
+  expect(
+    screen.queryAllByRole('textbox').filter(el => el.tagName === 'INPUT')
+  ).toHaveLength(4);
   expect(screen.queryAllByText(/labels/i)).toHaveLength(0);
 
   // Ensure all fields got tested.

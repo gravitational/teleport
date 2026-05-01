@@ -32,6 +32,7 @@ export function SuccessDefault() {
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess: async () => [],
     onClose: () => {},
+    usedTerraform: false,
   };
 
   return (
@@ -51,6 +52,7 @@ export function SuccessWithRolesToDelete() {
       { name: 'access-awsic-acl-preset-deprecated-role' },
     ],
     onClose: () => {},
+    usedTerraform: false,
   };
 
   return (
@@ -67,6 +69,7 @@ export function Loading() {
   const accessRoleEditor: AccessRoleEditor = {
     onUpdateAccess: () => new Promise(() => {}), // simulates loading
     onClose: () => {},
+    usedTerraform: false,
   };
 
   return (
@@ -85,6 +88,7 @@ export function Failed() {
       throw new Error('Whoops some kind of error');
     },
     onClose: () => {},
+    usedTerraform: false,
   };
 
   return (
@@ -137,8 +141,18 @@ const mockGuideEditor: GuideEditorState = {
   removeLocationState: () => null,
   getResumableState: () => null,
   originatedFromOkta: false,
-  terraformPanel: 0,
-  setTerraformPanel: () => {},
+  deploymentView: '',
+  setDeploymentView: () => {},
+  terraform: {
+    config: '',
+    prevConfig: '',
+    mutatePending: false,
+    mutateError: null,
+    regenerateConfig: () => {},
+    sidePanel: 0,
+    updateSidePanel: () => {},
+    hasMutatedConfig: false,
+  },
 };
 
 const mockContextValue: AccessListManagementContextValue = {

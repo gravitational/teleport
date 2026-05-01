@@ -107,6 +107,13 @@ export type AccessList = {
   userAssignments?: AccessListUserAssignments;
 };
 
+export type AccessListDescriptor = Pick<
+  AccessList,
+  'origin' | 'type' | 'preset'
+> & {
+  metadata?: AccessListMetadata;
+};
+
 // A user must match both roles and traits to
 // be found "eligible" (gets granted additional permissions)
 export type AccessListRequires = {

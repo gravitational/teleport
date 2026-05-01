@@ -107,7 +107,7 @@ export function extractAwsIcRoleConditionsFromRole(
   const allow = role.spec.allow;
   const account: AwsAccountMap = new Map();
 
-  allow.account_assignments.forEach(aws => {
+  allow.account_assignments?.forEach(aws => {
     if (!account.has(aws.account)) {
       account.set(aws.account, new Set());
     }

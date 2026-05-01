@@ -45,15 +45,12 @@ import { CollapsibleAccessListTypeInfo } from '../../Shared/CollapsibleAccessLis
 
 export function DefineUserTemplate({
   userKind,
-  isLastStep,
 }: {
-  isLastStep: boolean;
   userKind: 'member' | 'owner';
 }) {
   const { fetchUsersOptions, fetchAccessListsOptions } = useFetch();
 
   const {
-    onCreate,
     createAttempt,
     owners,
     setOwners,
@@ -267,17 +264,6 @@ export function DefineUserTemplate({
   }
 
   async function handleNext(validator: Validator) {
-    if (isLastStep) {
-      const created = await onCreate(validator);
-      if (created) {
-        nextStep();
-        emitEvent({
-          stepStatus: AccessListStepStatusEvent.Success,
-        });
-      }
-      return;
-    }
-
     if (!validator.validate()) {
       return;
     }

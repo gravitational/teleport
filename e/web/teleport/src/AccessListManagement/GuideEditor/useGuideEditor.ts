@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, type Location } from 'react-router';
+import { useDebounceCallback } from 'usehooks-ts';
+
+import { usePrevious } from 'shared/hooks/usePrevious';
 
 import cfg from 'e-teleport/config';
-import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
+import {
+  AccessListDescriptor,
+  AccessListType,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
+import {
+  AccessListPreset,
+  GenerateTerraformConfigRequest,
+} from 'e-teleport/services/accessmanagement/preset';
 import { Role, RoleVersion } from 'teleport/services/resources';
 import { userEventService } from 'teleport/services/userEvent';
 import {
@@ -31,6 +43,7 @@ import {
   DefinableResourceAccessFields,
 } from './Preset/role/listaccess';
 import { defaultSidePanelWidth } from './Shared';
+import { hasTerraformLabel } from './Terraform/terraform';
 
 /**
  * Do not change.
@@ -39,6 +52,32 @@ import { defaultSidePanelWidth } from './Shared';
  * It also marks the start of this guide editor feature.
  */
 export const MinimumRoleVersionSupported = RoleVersion.V8;
+
+type DeploymentView = '' | 'finished' | 'terraform';
+
+export type Terraform = {
+  config: string;
+  /**
+   * Used to always have the latest config rendered in the UI
+   * while the new config is being generated.
+   */
+  prevConfig: string;
+  mutatePending: boolean;
+  mutateError: Error | null;
+  regenerateConfig: (req: GenerateTerraformConfigRequest) => void;
+  /**
+   * True once regenerateConfig has been called at least once.
+   * Used to determine the initial empty state to skip calling
+   * the API and render helpful terraform config text for user.
+   */
+  hasMutatedConfig: boolean;
+  /**
+   * If zero, terraform panel will not be visible.
+   * Otherwise, it represents the width of the panel in pixels.
+   */
+  sidePanel: number;
+  updateSidePanel: (width: number) => void;
+};
 
 export type GuideEditorState = {
   /**
@@ -51,11 +90,9 @@ export type GuideEditorState = {
   views: AccessListView[];
 
   /**
-   * If zero, terraform panel will not be visible.
-   * Otherwise, it represents the width of the panel in pixels.
+   * Holds state and actions for generating and displaying Terraform config
    */
-  terraformPanel: number;
-  setTerraformPanel(width: number): void;
+  terraform: Terraform;
 
   /**
    * Defines which step in a flow a user is in.
@@ -76,6 +113,13 @@ export type GuideEditorState = {
    * and wants to add another access list.
    */
   reset(): void;
+  /**
+   * Tracks the current view within the DeploymentMethods step.
+   * Used to gate the abort event so it only fires when the user
+   * leaves without selecting a deployment method.
+   */
+  deploymentView: DeploymentView;
+  setDeploymentView(view: DeploymentView): void;
 
   /**
    * Contains the role conditions and funcs specific to AWS IC application.
@@ -165,7 +209,52 @@ export function useGuideEditor(): GuideEditorState {
     () => loc.state?.eventSessionId ?? crypto.randomUUID()
   );
 
+  const [deploymentView, setDeploymentView] = useState<DeploymentView>('');
+
   const [terraformPanel, setTerraformPanel] = useState(defaultSidePanelWidth);
+
+  const refAbortCtrl = useRef<AbortController>(null);
+  const terraformConfigMutation = useMutation({
+    mutationFn: (req: GenerateTerraformConfigRequest) => {
+      refAbortCtrl.current?.abort();
+      refAbortCtrl.current = new AbortController();
+      return accessManagementService.generateTerraformConfig(
+        req,
+        refAbortCtrl.current.signal
+      );
+    },
+    retry: (failureCount, error) => {
+      if (error.name === 'AbortError') {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    scope: {
+      id: 'accesslist-preset-terraform',
+    },
+  });
+  const prevTerraformConfig = usePrevious(terraformConfigMutation?.data);
+  const hasMutatedTerraformConfigRef = useRef(false);
+  const debouncedTerraformMutate = useDebounceCallback(
+    terraformConfigMutation.mutate,
+    1000
+  );
+
+  function regenerateTerraformConfig(req: GenerateTerraformConfigRequest) {
+    hasMutatedTerraformConfigRef.current = true;
+    debouncedTerraformMutate(req);
+  }
+
+  const terraform: Terraform = {
+    config: terraformConfigMutation.data?.terraform || '',
+    prevConfig: prevTerraformConfig?.terraform || '',
+    regenerateConfig: regenerateTerraformConfig,
+    mutateError: terraformConfigMutation.error,
+    mutatePending: terraformConfigMutation.isPending,
+    hasMutatedConfig: hasMutatedTerraformConfigRef.current,
+    sidePanel: terraformPanel,
+    updateSidePanel: setTerraformPanel,
+  };
 
   const views: AccessListView[] = useMemo(() => {
     switch (preset) {
@@ -187,7 +276,7 @@ export function useGuideEditor(): GuideEditorState {
     !!standardRoleState.roleEditState || !!awsIcRoleState.roleEditState;
 
   function reset() {
-    setTerraformPanel(defaultSidePanelWidth);
+    setDeploymentView('');
     setPreset(null);
     setCurrentStep(0);
     setEventSessionId(crypto.randomUUID());
@@ -195,7 +284,19 @@ export function useGuideEditor(): GuideEditorState {
     awsIcRoleState.reset();
     standardRoleState.reset();
 
+    resetTerraform();
+
     removeLocationState();
+  }
+
+  function resetTerraform() {
+    // Stops debounce timer.
+    debouncedTerraformMutate.cancel();
+    // Cancels any in-flight HTTP request.
+    refAbortCtrl.current?.abort();
+    terraformConfigMutation.reset();
+    hasMutatedTerraformConfigRef.current = false;
+    setTerraformPanel(defaultSidePanelWidth);
   }
 
   function removeLocationState() {
@@ -209,6 +310,7 @@ export function useGuideEditor(): GuideEditorState {
     stepStatus,
     integrate,
     stepStatusError,
+    preferredTerraform,
   }: AccessListEmitEvent) {
     // Only emit events when creating.
     if (isEditing || !views.length) return;
@@ -223,22 +325,28 @@ export function useGuideEditor(): GuideEditorState {
         integrate,
         preset: getAccessListPresetForEvent(preset),
         stepStatusError,
+        preferredTerraform,
       },
     });
   }
 
   // Only support emitting events when creating new access lists.
-  const emitAbortEvent = useCallback(async () => {
+  async function emitAbortEvent() {
     if (views.length && !isEditing) {
       const curView = views[currentStep];
-      if (curView.eventName && !curView.isFinishedStep) {
-        emitEvent({
-          event: curView.eventName,
-          stepStatus: AccessListStepStatusEvent.Aborted,
-        });
+      if (curView.eventName) {
+        if (
+          !curView.isFinishedStep ||
+          (curView.isFinishedStep && deploymentView === '')
+        ) {
+          emitEvent({
+            event: curView.eventName,
+            stepStatus: AccessListStepStatusEvent.Aborted,
+          });
+        }
       }
     }
-  }, [views, currentStep]);
+  }
 
   function onGuideSelect(preset: AccessListPreset) {
     setPreset(preset);
@@ -289,6 +397,7 @@ export function useGuideEditor(): GuideEditorState {
 
   function undoEditRoleChanges() {
     setCurrentStep(0);
+    resetTerraform();
 
     if (standardRoleState.roleEditState) {
       standardRoleState.initRoleEditState(
@@ -371,8 +480,7 @@ export function useGuideEditor(): GuideEditorState {
     reset,
     preset,
     setPreset,
-    terraformPanel,
-    setTerraformPanel,
+    terraform,
     onGuideSelect,
     views,
     currentStep,
@@ -381,6 +489,8 @@ export function useGuideEditor(): GuideEditorState {
     nextStep,
     originatedFromOkta: !!loc.state?.oktaOrgUrl,
     removeLocationState,
+    deploymentView,
+    setDeploymentView,
 
     emitEvent,
 
@@ -399,7 +509,7 @@ export function useGuideEditor(): GuideEditorState {
   };
 }
 
-export function isGuideEditorSupported(preset: AccessListPreset) {
+function hasSupportedPreset(preset: AccessListPreset) {
   switch (preset) {
     case 'long-term':
     case 'short-term':
@@ -409,5 +519,19 @@ export function isGuideEditorSupported(preset: AccessListPreset) {
     default:
       preset satisfies never;
   }
+  return false;
+}
+
+export function isGuideEditorSupported(accessList: AccessListDescriptor) {
+  if (accessList.type === AccessListType.Static) {
+    return (
+      hasTerraformLabel(accessList) && hasSupportedPreset(accessList.preset)
+    );
+  }
+
+  if (accessList.type === AccessListType.Default) {
+    return hasSupportedPreset(accessList.preset);
+  }
+
   return false;
 }

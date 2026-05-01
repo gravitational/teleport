@@ -5,12 +5,14 @@ import { Box, Flex, ResourceIcon } from 'design';
 export function TerraformSideTab({
   onClick,
   panelWidth,
+  top = 0,
 }: {
   onClick(): void;
   panelWidth: number;
+  top?: number | string;
 }) {
   return (
-    <TabWrapper position="absolute">
+    <TabWrapper position="absolute" top={top}>
       <Tab onClick={onClick} panelWidth={panelWidth}>
         <Flex justifyContent={'center'} alignItems={'center'} height={'100%'}>
           <ResourceIcon name="terraform" width="25px" height="25px" />
@@ -22,7 +24,6 @@ export function TerraformSideTab({
 
 const TabWrapper = styled(Box)`
   position: absolute;
-  top: -10px;
   right: 40px;
 `;
 

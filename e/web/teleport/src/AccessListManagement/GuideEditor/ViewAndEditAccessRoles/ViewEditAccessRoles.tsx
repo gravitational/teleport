@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Alert, Box, Indicator, Text } from 'design';
 import { Info } from 'design/Alert';
 
 import { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
-import { AccessList } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  AccessListType,
+} from 'e-teleport/services/accessmanagement';
 import {
   accessManagementService,
   makeAccessListForUpdate,
@@ -18,11 +21,18 @@ import useTeleport from 'teleport/useTeleport';
 
 import { useAccessListManagementContext } from '../../AccessListManagementContext';
 import {
+  awsIcRoleAccessKind,
   getMissingRoleAccess,
   getRoleSuffix,
   QueriedRoleState,
+  standardRoleAccessKind,
   validateQueriedRoles,
 } from '../Preset/role/role';
+import {
+  makeTerraformRoleBlock,
+  hasTerraformLabel,
+  makeAccessListMembersForTerraformUpdate,
+} from '../Terraform/terraform';
 import { AccessRoleEditor } from './AccessRoleEditor';
 import { ManuallyEditAccess } from './ManuallyEditAccess';
 import { PresetDescription } from './PresetDescription';
@@ -39,6 +49,9 @@ export function ViewEditAccessRoles({
   accessList: AccessListModified;
   updateAccessListCache(accessList: AccessList): void;
 }) {
+  const usedTerraform =
+    accessList.type === AccessListType.Static && hasTerraformLabel(accessList);
+
   const ctx = useTeleport();
   const roleAccess = ctx.storeUser.getRoleAccess();
 
@@ -49,7 +62,80 @@ export function ViewEditAccessRoles({
   const [showGuideEditor, setShowGuideEditor] = useState(false);
 
   const { guideEditor } = useAccessListManagementContext();
-  const { setPreset, standardRoleState, awsIcRoleState, preset } = guideEditor;
+  const { setPreset, standardRoleState, awsIcRoleState, preset, terraform } =
+    guideEditor;
+
+  // This effect triggers the code templates to be regenerated when state
+  // changes. It's debounced to reduce the number of api calls.
+  useEffect(() => {
+    if (!showGuideEditor || !usedTerraform) {
+      return;
+    }
+
+    if (preset !== 'long-term' && preset !== 'short-term') {
+      return;
+    }
+
+    if (
+      !roleState ||
+      (roleState?.status !== 'valid-roles' &&
+        roleState?.status !== 'no-access-defined')
+    ) {
+      return;
+    }
+
+    const accessRoles = [];
+
+    const standardBlock = makeTerraformRoleBlock(
+      {
+        kind: standardRoleAccessKind,
+        roleConditions: standardRoleState.roleConditions,
+      },
+      standardRoleState.roleEditState?.original,
+      standardRoleState.hasAnyAccessDefined()
+    );
+    if (standardBlock) {
+      accessRoles.push(standardBlock);
+    }
+
+    const awsIcBlock = makeTerraformRoleBlock(
+      {
+        kind: awsIcRoleAccessKind,
+        roleConditions: awsIcRoleState.roleConditions,
+      },
+      awsIcRoleState.roleEditState?.original,
+      awsIcRoleState.definedAccess()
+    );
+    if (awsIcBlock) {
+      accessRoles.push(awsIcBlock);
+    }
+
+    const baseReq = {
+      req: {},
+      original: accessList,
+    };
+
+    terraform.regenerateConfig({
+      accessRoles,
+      accessListId: accessList.metadata.name,
+      accessList: {
+        metadata: { ...accessList.metadata },
+        spec: makeAccessListForUpdate({
+          ...baseReq,
+          withoutMembers: true,
+        }),
+        members: makeAccessListMembersForTerraformUpdate(accessList),
+      },
+      presetType: preset,
+    });
+  }, [
+    awsIcRoleState.roleConditions,
+    standardRoleState.roleConditions,
+    preset,
+    roleState,
+    showGuideEditor,
+    usedTerraform,
+  ]);
 
   const fetchRoles = useQuery({
     queryKey: ['fetch', 'roles', 'withpreset'],
@@ -60,9 +146,19 @@ export function ViewEditAccessRoles({
         includeObject: 'yes',
       });
 
+      let accessListForValidation: AccessList = accessList;
+      if (usedTerraform && showGuideEditor) {
+        // Grants may have changed during terraform update so refetch is required
+        // to display the latest access list.
+        accessListForValidation = await accessManagementService.fetchAccessList(
+          accessList.id
+        );
+        updateAccessListCache(accessListForValidation);
+      }
+
       const roleState = validateQueriedRoles({
         gotRoles: gotResponse.items.map(item => item.object),
-        accessList,
+        accessList: accessListForValidation,
       });
 
       setRoleState(roleState);
@@ -159,6 +255,7 @@ export function ViewEditAccessRoles({
       <AccessRoleEditor
         onClose={onCloseEditor}
         onUpdateAccess={handleOnUpdate}
+        usedTerraform={usedTerraform}
       />
     );
   }

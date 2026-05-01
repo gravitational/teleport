@@ -2,7 +2,7 @@ import { DefineAccess } from 'e-teleport/AccessListManagement/GuideEditor/Preset
 import { DefineIdentities } from 'e-teleport/AccessListManagement/GuideEditor/Preset/DefineIdentities/DefineIdentities';
 import { AccessListEvent } from 'teleport/services/userEvent/accessListEvents';
 
-import { Finished } from '../../Finished';
+import { DeploymentMethods } from '../../DeploymentMethods/DeploymentMethods';
 import { BasicInformation } from './BasicInformation/BasicInformation';
 import { DefineMembership } from './DefineUser/DefineMembership';
 import { DefineOwnership } from './DefineUser/DefineOwnership';
@@ -35,8 +35,9 @@ export const presetGuideViews: AccessListView[] = [
     eventName: AccessListEvent.DefineOwners,
   },
   {
-    title: 'Finished',
-    Component: <Finished />,
+    title: 'Deployment',
+    Component: <DeploymentMethods />,
     isFinishedStep: true,
+    eventName: AccessListEvent.Completed,
   },
 ];

@@ -269,7 +269,7 @@ export function DefineAccess() {
   }
 
   return (
-    <Box>
+    <>
       <Validation>
         <GuideContent>
           <H1 mb={1}>
@@ -323,7 +323,7 @@ export function DefineAccess() {
           onClose={() => setActiveDialog('')}
         />
       )}
-    </Box>
+    </>
   );
 }
 

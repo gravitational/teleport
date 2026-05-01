@@ -247,13 +247,13 @@ export function IdentityTabsAndSection({
   let nextBtnText = hasNextTabSection
     ? `Next: ${hasNextTabSection.btnTitle}`
     : 'Next';
-  if (!hasNextTabSection && isEditing) {
+  if (!hasNextTabSection && isEditing && !accessRoleEditor.usedTerraform) {
     nextBtnText = 'Save Changes';
   }
 
   function handleNext() {
     if (!hasNextTabSection) {
-      if (isEditing) {
+      if (isEditing && !accessRoleEditor.usedTerraform) {
         setShowUpdateDialog(true);
         return;
       }

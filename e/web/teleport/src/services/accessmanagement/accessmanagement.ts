@@ -14,6 +14,7 @@ import {
 import {
   AccessListPreset,
   AccessListWithPresetRequest,
+  GenerateTerraformConfigRequest,
   UpdateAccessListWithPresetResponse,
 } from './preset';
 import {
@@ -256,6 +257,22 @@ export const accessManagementService = {
       null,
       mfaResponse
     );
+  },
+  async generateTerraformConfig(
+    req: GenerateTerraformConfigRequest,
+    signal?: AbortSignal
+  ) {
+    const resp = await api.post(
+      cfg.getAccessListWithPresetUrl({
+        action: 'terraform',
+      }),
+      req,
+      signal
+    );
+
+    return resp as {
+      terraform: string;
+    };
   },
 };
 

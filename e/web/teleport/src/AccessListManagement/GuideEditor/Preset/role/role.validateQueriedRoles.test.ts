@@ -1,4 +1,4 @@
-import { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import type { AccessList } from 'e-teleport/services/accessmanagement';
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 import { defaultRoleVersion } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 import { optionsWithDefaults } from 'teleport/Roles/RoleEditor/StandardEditor/withDefaults';
@@ -29,14 +29,14 @@ const standardRoleWithMissingLabel: Role = {
   metadata: { ...standardRole.metadata, labels: {} },
 };
 
-// Creates a minimal AccessListModified for testing.
+// Creates a minimal AccessList for testing.
 function makeAccessList(
   overrides: Partial<{
     id: string;
     preset: AccessListPreset;
     memberRolesGranted: string[];
   }> = {}
-): AccessListModified {
+): AccessList {
   const {
     id = testAccessListId,
     preset = 'long-term',
@@ -47,7 +47,7 @@ function makeAccessList(
     id,
     preset,
     grants: { roles: memberRolesGranted, traits: {}, scopedRoles: [] },
-  } as AccessListModified;
+  } as AccessList;
 }
 
 // Creates a requester role for short-term access.

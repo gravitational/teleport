@@ -1,16 +1,16 @@
 import {
+  AccessListDescriptor,
   AccessListOrigin,
   isEntraIdList,
   isReadOnly,
   isScim,
-  type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
 import { isGuideEditorSupported } from '../GuideEditor/useGuideEditor';
 import { Perms } from './Shared';
 
 type AccessProps = {
-  accessList: Pick<AccessList, 'origin' | 'type' | 'preset'>;
+  accessList: AccessListDescriptor;
   isReadOnlyOktaList?: boolean;
   action: Action;
   perms: Perms;
@@ -123,10 +123,7 @@ function getEditAccess({
   if (action === Action.Delete) {
     if (!perms.adminWhoCanDelete) return EditAccess.ForbiddenRbac;
 
-    if (
-      isGuideEditorSupported(accessList.preset) &&
-      missingRolePerms.length > 0
-    ) {
+    if (isGuideEditorSupported(accessList) && missingRolePerms.length > 0) {
       return EditAccess.ForbiddenPresetDelete;
     }
   } else {
@@ -149,7 +146,7 @@ function getEditAccess({
   if (
     (action === Action.EditMembersGrants ||
       action === Action.EditOwnersGrants) &&
-    isGuideEditorSupported(accessList.preset)
+    isGuideEditorSupported(accessList)
   ) {
     return EditAccess.ForbiddenPresetEditingGrants;
   }

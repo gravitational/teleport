@@ -1,5 +1,5 @@
 import { DefineUserTemplate } from './DefineUserTemplate';
 
 export function DefineMembership() {
-  return <DefineUserTemplate userKind="member" isLastStep={false} />;
+  return <DefineUserTemplate userKind="member" />;
 }

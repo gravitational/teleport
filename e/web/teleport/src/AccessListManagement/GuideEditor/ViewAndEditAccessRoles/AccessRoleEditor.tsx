@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex } from 'design';
@@ -13,6 +13,10 @@ import { useAccessListManagementContext } from '../../AccessListManagementContex
 import { NavView } from '../../CreateAccessList/types';
 import { DefineAccess } from '../Preset/DefineAccess/DefineAccess';
 import { DefineIdentities } from '../Preset/DefineIdentities/DefineIdentities';
+import { defaultSidePanelWidth, GuideContainer } from '../Shared';
+import { TerraformDeploymentUpdate } from '../Terraform/TerraformDeploymentUpdate';
+import { TerraformPanel } from '../Terraform/TerraformPanel';
+import { TerraformSideTab } from '../Terraform/TerraformSideTab';
 
 /**
  * Renders like a dialog that fills the current view.
@@ -21,15 +25,21 @@ import { DefineIdentities } from '../Preset/DefineIdentities/DefineIdentities';
 export function AccessRoleEditor({
   onClose,
   onUpdateAccess,
+  usedTerraform,
 }: {
   onClose(): void;
   onUpdateAccess(accessRoles: Role[]): Promise<RoleToDelete[]>;
+  usedTerraform: boolean;
 }) {
   const { guideEditor } = useAccessListManagementContext();
-  const { preset, currentStep, undoEditRoleChanges } = guideEditor;
+  const { preset, currentStep, undoEditRoleChanges, prevStep, terraform } =
+    guideEditor;
+
+  const prevStepRef = useRef(prevStep);
+  prevStepRef.current = prevStep;
 
   const editViews: BaseView<NavView>[] = useMemo(() => {
-    return [
+    const views = [
       {
         title: 'Edit Resource Access',
         Component: <DefineAccess />,
@@ -37,10 +47,26 @@ export function AccessRoleEditor({
       {
         title: 'Edit Resource Identities',
         Component: (
-          <DefineIdentities accessRoleEditor={{ onUpdateAccess, onClose }} />
+          <DefineIdentities
+            accessRoleEditor={{ onUpdateAccess, onClose, usedTerraform }}
+          />
         ),
       },
     ];
+
+    if (usedTerraform) {
+      views.push({
+        title: 'Terraform',
+        Component: (
+          <TerraformDeploymentUpdate
+            onPrev={() => prevStepRef.current()}
+            onClose={handleCancelEditor}
+          />
+        ),
+      });
+    }
+
+    return views;
   }, []);
 
   function handleCancelEditor() {
@@ -65,6 +91,14 @@ export function AccessRoleEditor({
       preset satisfies never;
   }
 
+  function toggleSidePanel() {
+    terraform.updateSidePanel(
+      terraform.sidePanel === 0 ? defaultSidePanelWidth : 0
+    );
+  }
+
+  const showTerraformPanel = usedTerraform && terraform.sidePanel > 0;
+
   return (
     <Box
       css={`
@@ -73,26 +107,39 @@ export function AccessRoleEditor({
         left: 0px;
         right: 0;
         bottom: 0;
+        height: 100%;
         background: ${p => p.theme.colors.levels.sunken};
         z-index: 13;
       `}
     >
-      <StickyNav px={2} py={2}>
-        <Flex mb={1} gap={2}>
-          <ButtonIcon aria-label="Close" onClick={handleCancelEditor}>
-            <Cross size="medium" />
-          </ButtonIcon>
-          <Navigation
-            currentStep={currentStep}
-            views={views}
-            startWithIcon={{
-              title: navTitle,
-              component: <UserList size={20} />,
-            }}
-          />
-        </Flex>
-      </StickyNav>
-      <Box>{views[currentStep].Component}</Box>
+      <Flex height="100%">
+        <MainViewContainer>
+          <StickyNav px={2} py={2}>
+            <Flex mb={1} gap={2}>
+              <ButtonIcon aria-label="Close" onClick={handleCancelEditor}>
+                <Cross size="medium" />
+              </ButtonIcon>
+              <Navigation
+                currentStep={currentStep}
+                views={views}
+                startWithIcon={{
+                  title: navTitle,
+                  component: <UserList size={20} />,
+                }}
+              />
+              {usedTerraform && (
+                <TerraformSideTab
+                  onClick={toggleSidePanel}
+                  panelWidth={terraform.sidePanel}
+                  top={'6px'}
+                />
+              )}
+            </Flex>
+          </StickyNav>
+          <GuideContainer>{views[currentStep].Component}</GuideContainer>
+        </MainViewContainer>
+        {showTerraformPanel && <TerraformPanel terraform={terraform} />}
+      </Flex>
     </Box>
   );
 }
@@ -103,4 +150,11 @@ const StickyNav = styled(Box)`
   background-color: ${props => props.theme.colors.levels.sunken};
   border-bottom: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
   z-index: 1;
+`;
+
+const MainViewContainer = styled(Flex)`
+  flex: 1;
+  min-width: 600px;
+  flex-direction: column;
+  overflow: auto;
 `;

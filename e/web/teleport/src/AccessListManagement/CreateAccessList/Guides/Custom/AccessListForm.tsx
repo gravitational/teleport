@@ -18,11 +18,18 @@ import { SpecSection } from '../../SpecSection';
  * user to manually enter all fields however they like.
  */
 export function AccessListForm() {
-  const { onCreate, createAttempt } = useCreateAccessList();
+  const {
+    onCreate,
+    createAttempt,
+    reset: resetCreateContext,
+  } = useCreateAccessList();
   const { guideEditor } = useAccessListManagementContext();
-  const { prevStep, nextStep, emitEvent } = guideEditor;
+  const { prevStep, currentStep, nextStep, emitEvent } = guideEditor;
 
   function handlePrev() {
+    if (currentStep === 0) {
+      resetCreateContext();
+    }
     prevStep();
   }
 

@@ -190,7 +190,6 @@ export function ViewEditAccessList() {
     <FeatureBox
       css={`
         position: relative;
-        height: auto;
       `}
     >
       <Flex
@@ -407,7 +406,7 @@ const MainContent = ({
 
   const canReadAccess = perms.isOwner || perms.adminWhoCanRead;
   const renderResourceAccessTab =
-    canReadAccess && isGuideEditorSupported(accessList.preset);
+    canReadAccess && isGuideEditorSupported(accessList);
 
   return (
     <>

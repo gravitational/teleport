@@ -178,7 +178,6 @@ describe('going through different guides', () => {
     renderComponent(ctx);
 
     await screen.findByText(/Select the type of Access List/i);
-    await screen.findByText(/Page Info/i);
 
     // Click on custom tile
     await user.click(screen.getByText(/custom/i));
@@ -284,7 +283,6 @@ describe('going through different guides', () => {
     renderComponent(ctx);
 
     await screen.findByText(/Select the type of Access List/i);
-    await screen.findByText(/Page Info/i);
 
     // Step 0: click on preset tile
     await user.click(screen.getByText(/temporary access/i));
@@ -400,10 +398,25 @@ describe('going through different guides', () => {
     });
     await selectEvent.select(screen.getByLabelText('Add Owners'), 'alice');
 
-    // Step 6: finished
+    // Step 6: choose deployment method
 
-    // Test error renders dialogue
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText(/Choose Deployment Method/i);
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineOwners,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
+    // Test error renders dialog
+    await user.click(
+      screen.getByRole('button', { name: 'Create Access List Now' })
+    );
     await screen.findByText(/whoops error/i);
 
     expect(emitEventSpy).toHaveBeenCalledTimes(1);
@@ -416,8 +429,8 @@ describe('going through different guides', () => {
     });
     emitEventSpy.mockClear();
 
-    // Try again should succeed
-    await user.click(screen.getByRole('button', { name: 'Next' }));
+    // Retry should succeed
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByText(/some title successfully created/i);
 
     const { members: expectedMembers, ...expectedSpec } = getExpectedRequest();
@@ -442,16 +455,8 @@ describe('going through different guides', () => {
       accessRoles: [],
     });
 
-    expect(emitEventSpy).toHaveBeenCalledTimes(2);
     expect(emitEventSpy).toHaveBeenCalledWith({
       event: AccessListEvent.Completed,
-      eventData: expect.objectContaining({
-        stepStatus: AccessListStepStatusEvent.Success,
-        preset: AccessListPresetEvent.ShortTerm,
-      }),
-    });
-    expect(emitEventSpy).toHaveBeenCalledWith({
-      event: AccessListEvent.DefineOwners,
       eventData: expect.objectContaining({
         stepStatus: AccessListStepStatusEvent.Success,
         preset: AccessListPresetEvent.ShortTerm,
@@ -496,7 +501,6 @@ describe('going through different guides', () => {
     renderComponent(ctx);
 
     await screen.findByText(/Select the type of Access List/i);
-    await screen.findByText(/Page Info/i);
 
     // Step 0: click on preset tile
     await user.click(screen.getByText(/long-lived access/i));
@@ -613,10 +617,25 @@ describe('going through different guides', () => {
     );
     await screen.findByText(/role-foo/i);
 
-    // Step 6: finished
+    // Step 6: choose deployment method
 
-    // Test error renders dialogue
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText(/Choose Deployment Method/i);
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineOwners,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
+    // Test error renders dialog
+    await user.click(
+      screen.getByRole('button', { name: 'Create Access List Now' })
+    );
     await screen.findByText(/whoops error/i);
 
     expect(emitEventSpy).toHaveBeenCalledTimes(1);
@@ -629,8 +648,8 @@ describe('going through different guides', () => {
     });
     emitEventSpy.mockClear();
 
-    // Try again should succeed
-    await user.click(screen.getByRole('button', { name: 'Next' }));
+    // Retry should succeed
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByText(/some title successfully created/i);
 
     const { members: expectedMembers, ...expectedSpec } = getExpectedRequest();
@@ -657,7 +676,6 @@ describe('going through different guides', () => {
       accessRoles: [],
     });
 
-    expect(emitEventSpy).toHaveBeenCalledTimes(2);
     expect(emitEventSpy).toHaveBeenCalledWith({
       event: AccessListEvent.Completed,
       eventData: expect.objectContaining({
@@ -665,11 +683,112 @@ describe('going through different guides', () => {
         preset: AccessListPresetEvent.LongTerm,
       }),
     });
+  });
+
+  test('short-term, deploy via terraform with access list detection', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
+
+    server.use(
+      http.post(cfg.api.accessListPreset.terraform, () =>
+        HttpResponse.json({ terraform: '' })
+      ),
+      http.get(`${accessListPath}/:id`, ({ params }) =>
+        HttpResponse.json({
+          accessList: {
+            spec: { title: 'Engineering Access' },
+            metadata: { name: params.id, labels: {} },
+          },
+        })
+      )
+    );
+
+    const ctx = createTeleportContextE();
+    renderComponent(ctx);
+
+    await screen.findByText(/Select the type of Access List/i);
+
+    // Step 0: click on preset tile
+    await user.click(screen.getByText(/temporary access/i));
+
+    await goThroughPresetStepsToDeployment(user, 'short-term');
+
+    emitEventSpy.mockClear();
+
+    // Continue via Terraform
+    await user.click(
+      screen.getByRole('button', { name: 'Continue via Terraform' })
+    );
+    await screen.findByText(/Terraform Deployment/i);
+    expect(screen.getByText(/Detecting your Access List/i)).toBeInTheDocument();
+
+    // Advance timers to trigger polling interval
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    // Access list is detected
+    await screen.findByText(/Access List Detected/i);
+    expect(
+      screen.getByText(/"Engineering Access" was successfully detected/i)
+    ).toBeInTheDocument();
+
+    // Click "View Created List" to complete
+    await user.click(screen.getByRole('button', { name: 'View Created List' }));
+
     expect(emitEventSpy).toHaveBeenCalledWith({
-      event: AccessListEvent.DefineOwners,
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+        preferredTerraform: true,
+      }),
+    });
+  });
+
+  test('long-term, deploy via terraform', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
+
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const ctx = createTeleportContextE();
+    renderComponent(ctx);
+
+    await screen.findByText(/Select the type of Access List/i);
+
+    // Step 0: click on preset tile
+    await user.click(screen.getByText(/long-lived access/i));
+
+    await goThroughPresetStepsToDeployment(user, 'long-term');
+
+    // Terraform side panel is visible by default
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Terraform' })
+    ).toBeInTheDocument();
+
+    emitEventSpy.mockClear();
+
+    // Continue via Terraform
+    await user.click(
+      screen.getByRole('button', { name: 'Continue via Terraform' })
+    );
+    await screen.findByText(/Terraform Deployment/i);
+
+    await user.click(screen.getByRole('link', { name: 'Done' }));
+
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
       eventData: expect.objectContaining({
         stepStatus: AccessListStepStatusEvent.Success,
         preset: AccessListPresetEvent.LongTerm,
+        preferredTerraform: true,
       }),
     });
   });
@@ -793,21 +912,29 @@ describe('going through different guides', () => {
     // Should start at Define Ownership step
     await screen.findByText(/who should review access requests/i);
 
-    // Complete the flow
+    // Navigate to DeploymentMethods
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText(/Resumed Access List successfully created/i);
+    await screen.findByText(/Choose Deployment Method/i);
 
-    expect(emitEventSpy).toHaveBeenCalledTimes(2);
-    expect(emitEventSpy).toHaveBeenNthCalledWith(1, {
-      event: AccessListEvent.Completed,
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineOwners,
       eventData: expect.objectContaining({
         id: 'some-event-session-id',
         stepStatus: AccessListStepStatusEvent.Success,
         preset: AccessListPresetEvent.ShortTerm,
       }),
     });
-    expect(emitEventSpy).toHaveBeenNthCalledWith(2, {
-      event: AccessListEvent.DefineOwners,
+    emitEventSpy.mockClear();
+
+    // Complete the flow
+    await user.click(
+      screen.getByRole('button', { name: 'Create Access List Now' })
+    );
+    await screen.findByText(/Resumed Access List successfully created/i);
+
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
       eventData: expect.objectContaining({
         id: 'some-event-session-id',
         stepStatus: AccessListStepStatusEvent.Success,
@@ -912,6 +1039,59 @@ function renderComponent(
       ],
     }
   );
+}
+
+async function goThroughPresetStepsToDeployment(
+  user: ReturnType<typeof userEvent.setup>,
+  preset: 'short-term' | 'long-term'
+) {
+  // Step 1: skip DefineAccess
+  await screen.findByText(/define access to resources/i);
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByText(/No resource access is defined/i);
+  await user.click(screen.getAllByRole('button', { name: 'Next' })[1]);
+
+  // Step 2: skip DefineIdentities
+  await screen.findByText(/define what identities/i);
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+
+  // Step 3: BasicInfo
+  await screen.findByText(/step 3: basic information/i);
+  await user.type(screen.getByPlaceholderText(/Title/i), 'some title');
+  await user.click(screen.getByText(/select a date/i));
+  await user.click(screen.queryAllByText(/26/)[0]);
+  await user.click(screen.getByText(/next/i));
+
+  // Step 4: DefineMembership
+  await screen.findByText(
+    preset === 'short-term'
+      ? /who should be required to request access/i
+      : /who are you setting up access for/i
+  );
+  await selectEvent.select(
+    screen.getByLabelText('Add Access Lists as Members'),
+    'All Employees'
+  );
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+
+  // Step 5: DefineOwnership
+  await screen.findByText(
+    preset === 'short-term'
+      ? /who should review access requests/i
+      : /who should periodically review and audit memberships/i
+  );
+  await selectEvent.select(
+    screen.getByLabelText('Add Access Lists as Owners'),
+    'All Employees'
+  );
+  await act(async () => {
+    await selectEvent.select(screen.getByLabelText('Owner Type'), 'Users');
+  });
+  await selectEvent.select(screen.getByLabelText('Add Owners'), 'alice');
+
+  // Step 6: navigate to DeploymentMethods
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByText(/Choose Deployment Method/i);
 }
 
 function getRawAccessList() {
