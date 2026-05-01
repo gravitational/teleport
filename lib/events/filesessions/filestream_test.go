@@ -243,13 +243,20 @@ func TestRejectVersionMismatch(t *testing.T) {
 	require.NoError(t, err)
 	secondReupload, err := handler.CreateUpload(t.Context(), sessionID, events.WithUploadReplace(version))
 	require.NoError(t, err)
-	firstPart := createPart(*firstReupload, "bar")
-	secondPart := createPart(*secondReupload, "baz")
+	firstPart := createPart(*firstReupload, "foobar")
+	secondPart := createPart(*secondReupload, "foobaz")
 
 	// Verify that the first upload succeeds, but the second upload fails because
 	// the version has changed.
-	require.NoError(t, handler.CompleteUpload(t.Context(), *firstReupload, []events.StreamPart{firstPart}))
-	require.Error(t, handler.CompleteUpload(t.Context(), *secondReupload, []events.StreamPart{secondPart}))
+	require.NoError(
+		t, handler.CompleteUpload(t.Context(), *firstReupload, []events.StreamPart{firstPart}),
+		"upload with target version %q tried to replace version %q", firstReupload.ReplaceVersion, version,
+	)
+	version, err = handler.GetRecordingVersion(t.Context(), sessionID, "")
+	require.Error(
+		t, handler.CompleteUpload(t.Context(), *secondReupload, []events.StreamPart{secondPart}),
+		"upload with target version %q tried to replace version %q", secondReupload.ReplaceVersion, version,
+	)
 }
 
 func TestCleanupEmptyUpload(t *testing.T) {
