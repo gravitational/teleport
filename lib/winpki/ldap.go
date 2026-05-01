@@ -422,7 +422,7 @@ func parseLDAPReferral(raw string) (ldapReferral, error) {
 
 	if len(ref) == 0 {
 		// I guess it's technically a valid URL, but useless.
-		return ldapReferral{scheme: scheme, raw: raw}, trace.Errorf("empty referral")
+		return ldapReferral{scheme: scheme, raw: raw}, trace.BadParameter("empty referral")
 	}
 
 	isValidHostPort := func(host string) error {
