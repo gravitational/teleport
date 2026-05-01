@@ -22,7 +22,7 @@ import {render, screen} from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 
-import {LoginFailed} from './LoginFailed';
+import { LoginFailed } from './LoginFailed';
 
 test('callback error path shows callback error', () => {
   render(<MemoryRouter initialEntries={[cfg.routes.loginErrorCallback]}><LoginFailed/></MemoryRouter>);
@@ -37,4 +37,9 @@ test('unauthorized error path shows unauthorized error', () => {
 test('groups overage error path shows groups overage error', () => {
   render(<MemoryRouter initialEntries={[cfg.routes.loginErrorEntraIDGroupsOverage]}><LoginFailed/></MemoryRouter>);
   expect(screen.getByText('Your account is a member of more than 150 Entra ID groups. Please contact your SSO administrator to configure Graph API access on the Teleport SAML connector.')).toBeInTheDocument();
+})
+
+test('unhandled error path shows generic error', () => {
+  render(<MemoryRouter initialEntries={['/web/msg/error/login/some_unhandled_path']}><LoginFailed/></MemoryRouter>);
+  expect(screen.getByText('Unable to log in, please check Teleport\'s log for details.')).toBeInTheDocument();
 })
