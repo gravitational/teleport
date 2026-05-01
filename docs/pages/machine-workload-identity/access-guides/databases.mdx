@@ -35,6 +35,9 @@ used to access a database configured in Teleport.
 - `tbot` must already be installed and configured on the machine that will
   access the database. For more information, see the
   [deployment guides](../deployment/deployment.mdx).
+- To run the example programs we include in [Step
+  4](#step-44-configure-the-client-to-connect-to-the-database), you must have
+  [Go installed on your system](https://go.dev/doc/install).
 
 ## Step 1/4. Configure RBAC
 
@@ -148,8 +151,7 @@ services:
   # format: mongo
 ```
 
-If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to access the database.
+(!docs/pages/includes/machine-id/reload-tbot.mdx resource="the database"!)
 
 ## Step 3/4. Configure the local database access proxy
 
@@ -245,20 +247,27 @@ configured port.
 With the credentials generated and the local proxy running, you can now
 configure your client to use the local proxy with the credentials.
 
-Refer to these sample Go programs for using the credentials:
+1. Copy one of these sample Go programs into a file called "connect.go",
+   modifying it as indicated in the commands:
 
-<Tabs>
-  <TabItem label="Self-Hosted PostgreSQL">
-  ```go
-  (!docs/pages/includes/machine-id/postgresql/postgresql.go!)
-  ```
-  </TabItem>
-  <TabItem label="Self-Hosted MongoDB">
-  ```go
-  (!docs/pages/includes/machine-id/mongodb/mongodb.go!)
-  ```
-  </TabItem>
-</Tabs>
+  <Tabs>
+    <TabItem label="Self-Hosted PostgreSQL">
+    ```go
+    (!docs/pages/includes/machine-id/postgresql/postgresql.go!)
+    ```
+    </TabItem>
+    <TabItem label="Self-Hosted MongoDB">
+    ```go
+    (!docs/pages/includes/machine-id/mongodb/mongodb.go!)
+    ```
+    </TabItem>
+  </Tabs>
+
+1. Run the program:
+
+   ```code
+   $ go run connect.go
+   ```
 
 You're all set. You have provided your application with short-lived
 certificates tied to a machine identity that can access your database, be
