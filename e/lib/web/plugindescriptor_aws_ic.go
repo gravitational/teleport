@@ -115,7 +115,18 @@ func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 
 	_, err = authClient.PluginsClient().CreatePlugin(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// The install flow creates the SAML provider before the plugin resource,
+		// so undo it when plugin creation fails.
+		rollbackErr := authClient.DeleteSAMLIdPServiceProvider(ctx, samlSP.GetName())
+		switch {
+		case rollbackErr == nil, trace.IsNotFound(rollbackErr):
+			return nil, trace.Wrap(err)
+		default:
+			return nil, trace.NewAggregate(
+				trace.Wrap(err),
+				trace.Wrap(rollbackErr, "rolling back AWS Identity Center SAML IdP service provider %q", samlSP.GetName()),
+			)
+		}
 	}
 
 	uiPlugin, err := ui.NewPlugin(req.GetPlugin())

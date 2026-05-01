@@ -128,6 +128,88 @@ func TestAWSICCreatePlugin(t *testing.T) {
 	testServer.Close()
 }
 
+func TestAWSICCreatePluginRollsBackSAMLServiceProviderOnCreatePluginFailure(t *testing.T) {
+	t.Parallel()
+
+	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
+	t.Cleanup(testServer.Close)
+
+	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
+	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
+	require.NoError(t, err)
+
+	// Pre-create the static credential name used by the web install request.
+	// This lets web validation pass, then forces auth CreatePlugin to fail
+	// before the plugin record is persisted.
+	cred, err := types.NewPluginStaticCredentials(
+		types.Metadata{Name: types.PluginTypeAWSIdentityCenter},
+		types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "existing-scim-token",
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, wSuite.authPlugin.PluginStaticCredentialsService().CreatePluginStaticCredentials(wSuite.ctx, cred))
+	t.Cleanup(func() {
+		_ = wSuite.authPlugin.PluginStaticCredentialsService().DeletePluginStaticCredentials(wSuite.ctx, types.PluginTypeAWSIdentityCenter)
+	})
+
+	// Exercise the real web static-auth install route. The install should fail
+	// on the injected static credential conflict.
+	resp, err := aPack.clt.PostForm(
+		wSuite.ctx,
+		aPack.clt.Endpoint("enterprise", "plugins", "staticauth"),
+		installRequestURLValues(t),
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusConflict, resp.Code())
+
+	// The failed install must not leave behind the SAML provider that was
+	// created before auth CreatePlugin returned the static credential conflict.
+	_, err = authClient.GetSAMLIdPServiceProvider(wSuite.ctx, types.PluginTypeAWSIdentityCenter)
+	require.True(t, trace.IsNotFound(err))
+}
+
+func TestAWSICCreatePluginRollsBackSAMLServiceProviderWhenPluginExists(t *testing.T) {
+	t.Parallel()
+
+	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
+	t.Cleanup(testServer.Close)
+
+	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
+	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
+	require.NoError(t, err)
+
+	// Pre-create the plugin record without the SAML provider used by the web
+	// install request. This lets web validation pass, then forces auth
+	// CreatePlugin to fail while a plugin record exists.
+	_, err = authClient.PluginsClient().CreatePlugin(wSuite.ctx, ictestenv.NewPluginV1CreateRequest(
+		icOIDCIntegrationName,
+		"preexisting-service-provider",
+	))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = authClient.PluginsClient().DeletePlugin(wSuite.ctx, &pluginspb.DeletePluginRequest{
+			Name: types.PluginTypeAWSIdentityCenter,
+		})
+		_ = authClient.DeleteSAMLIdPServiceProvider(wSuite.ctx, types.PluginTypeAWSIdentityCenter)
+	})
+
+	// Exercise the same web install route. The handler should return the
+	// conflict and roll back the SAML provider it created for this request.
+	resp, err := aPack.clt.PostForm(
+		wSuite.ctx,
+		aPack.clt.Endpoint("enterprise", "plugins", "staticauth"),
+		installRequestURLValues(t),
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusConflict, resp.Code())
+
+	_, err = authClient.GetSAMLIdPServiceProvider(wSuite.ctx, types.PluginTypeAWSIdentityCenter)
+	require.True(t, trace.IsNotFound(err))
+}
+
 func TestAWSICPluginPreValidation(t *testing.T) {
 	t.Parallel()
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
