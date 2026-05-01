@@ -258,6 +258,11 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 	}
 
 	autoUpdateVersion = autoUpdateVersionI
+	diags = schemav1.CopyAutoUpdateVersionToTerraform(ctx, autoUpdateVersion, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
