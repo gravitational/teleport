@@ -298,6 +298,19 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			if version != "" {
 				continue
 			}
+		} else {
+			// Delete abandoned append uploads, they will be recreated if needed.
+			version, err := u.cfg.Uploader.GetRecordingVersion(ctx, upload.SessionID, "")
+			if err != nil {
+				log.WarnContext(ctx, "could not check recording version", "error", err)
+				continue
+			}
+			if version != "" {
+				if err := u.cfg.Uploader.CompleteUpload(ctx, upload, nil); err != nil {
+					log.WarnContext(ctx, "could not clean up abandoned append upload", "error", err)
+				}
+				continue
+			}
 		}
 
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
@@ -404,10 +417,6 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 // CheckReuploads checks and merges temporary recordings that can be merged with
 // the real one.
 func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
-	sessionStreamer, ok := u.cfg.AuditLog.(TempSessionStreamer)
-	if !ok {
-		return trace.BadParameter("audit log does not implement UploadStreamer")
-	}
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -426,7 +435,7 @@ func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
 		if version == "" {
 			continue
 		}
-		if err := AppendUpload(ctx, sessionStreamer, u.reuploadStreamer, upload); err != nil {
+		if err := u.AppendUpload(ctx, upload); err != nil {
 			log.ErrorContext(ctx, "failed to merge recordings", "error", err)
 			continue
 		}
@@ -446,23 +455,48 @@ type TempSessionStreamer interface {
 
 // AppendUpload appends a temporary recording to an existing session recording
 // and replaces the current recording with the new one.
-func AppendUpload(
+func (u *UploadCompleter) AppendUpload(
 	ctx context.Context,
-	uploadStreamer TempSessionStreamer,
-	streamer *ProtoStreamer,
 	upload StreamUpload,
 ) (err error) {
-	stream, err := streamer.CreateOverwriteAuditStream(ctx, upload.SessionID)
+	uploadStreamer, ok := u.cfg.AuditLog.(TempSessionStreamer)
+	if !ok {
+		return trace.BadParameter("audit log does not implement UploadStreamer")
+	}
+	stream, err := u.reuploadStreamer.CreateOverwriteAuditStream(ctx, upload.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	uploadID := ""
+	select {
+	case status := <-stream.Status():
+		uploadID = status.UploadID
+	case <-ctx.Done():
+		_ = stream.Close(ctx)
+		return trace.Wrap(ctx.Err())
+	}
+
+	abortUpload := func() {
+		if closeErr := stream.Close(ctx); closeErr != nil {
+			slog.WarnContext(ctx, "Failed to close steam.", "error", closeErr)
+		}
+		if uploadID == "" {
+			return
+		}
+		// If this upload fails, delete it; it will be re-created on the next go around.
+		if err := u.cfg.Uploader.CompleteUpload(ctx, StreamUpload{
+			ID:        uploadID,
+			SessionID: upload.SessionID,
+		}, nil); err != nil {
+			u.log.WarnContext(ctx, "Failed to clean up upload.", "error", err)
+		}
+	}
 	defer func() {
 		if err != nil {
-			if closeErr := stream.Close(ctx); closeErr != nil {
-				slog.WarnContext(ctx, "Failed to close steam.", "error", closeErr)
-			}
+			abortUpload()
 		}
 	}()
+
 	// Record all existing events first.
 	currentStream, currentErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, "" /* upload ID */, 0)
 	nopPreparer := NoOpPreparer{}
@@ -488,6 +522,7 @@ func AppendUpload(
 
 	// Record new events from incoming.
 	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
+	appendedEvent := false
 	for {
 		var event apievents.AuditEvent
 		select {
@@ -507,6 +542,12 @@ func AppendUpload(
 		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
 			return trace.Wrap(err)
 		}
+		appendedEvent = true
+	}
+	if !appendedEvent {
+		// Recording is unchanged, nothing to do.
+		abortUpload()
+		return nil
 	}
 	return trace.Wrap(stream.Complete(ctx))
 }

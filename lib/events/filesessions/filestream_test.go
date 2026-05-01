@@ -253,6 +253,7 @@ func TestRejectVersionMismatch(t *testing.T) {
 		"upload with target version %q tried to replace version %q", firstReupload.ReplaceVersion, version,
 	)
 	version, err = handler.GetRecordingVersion(t.Context(), sessionID, "")
+	require.NoError(t, err)
 	require.Error(
 		t, handler.CompleteUpload(t.Context(), *secondReupload, []events.StreamPart{secondPart}),
 		"upload with target version %q tried to replace version %q", secondReupload.ReplaceVersion, version,
