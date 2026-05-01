@@ -448,6 +448,23 @@ func TestGenerate_ResourceComment(t *testing.T) {
 	)
 }
 
+func TestUniqueSanitizedResourceName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "alice.foo", want: "alice_foo_3e0c50e5"},
+		{input: "alice_foo", want: "alice_foo_28a09df0"},
+		{input: "alice@foo", want: "alice_foo_d1c41c77"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := tfgen.UniqueSanitizedResourceName(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestSanitizeResourceName(t *testing.T) {
 	tests := []struct {
 		input string

@@ -59,7 +59,63 @@ func TestValidateMSGraphEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.errAssertion(t, ValidateMSGraphEndpoints(tt.loginEndpoint, tt.graphEndpoint))
+			tt.errAssertion(t, ValidateMSGraphAndLoginEndpoints(tt.loginEndpoint, tt.graphEndpoint))
+		})
+	}
+}
+
+func TestValidateMSGraphEndpoint(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		graphEndpoint string
+		errAssertion  require.ErrorAssertionFunc
+	}{
+		{
+			name:          "valid endpoint",
+			graphEndpoint: "https://graph.microsoft.com",
+			errAssertion:  require.NoError,
+		},
+		{
+			name:          "invalid endpoint",
+			graphEndpoint: "https://graph.windows.net",
+			errAssertion:  require.Error,
+		},
+		{
+			name:          "empty value",
+			graphEndpoint: "",
+			errAssertion:  require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errAssertion(t, ValidateMSGraphEndpoint(tt.graphEndpoint))
+		})
+	}
+}
+
+func TestValidateMSLoginEndpoint(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		loginEndpoint string
+		errAssertion  require.ErrorAssertionFunc
+	}{
+		{
+			name:          "valid endpoint",
+			loginEndpoint: "https://login.microsoftonline.com",
+			errAssertion:  require.NoError,
+		},
+		{
+			name:          "invalid endpoint",
+			loginEndpoint: "https://login.microsoft.com",
+			errAssertion:  require.Error,
+		},
+		{
+			name:          "empty value",
+			loginEndpoint: "",
+			errAssertion:  require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errAssertion(t, ValidateMSLoginEndpoint(tt.loginEndpoint))
 		})
 	}
 }
