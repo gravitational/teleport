@@ -18,7 +18,10 @@
 
 package modules
 
-import "crypto/boring"
+import (
+	"crypto/boring"
+	_ "crypto/tls/fipsonly"
+)
 
 // IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
 //
