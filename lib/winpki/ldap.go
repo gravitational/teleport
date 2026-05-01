@@ -417,7 +417,7 @@ func parseLDAPReferral(raw string) (ldapReferral, error) {
 		ref = strings.TrimPrefix(raw, ldapPrefix)
 		scheme = ldapPrefix
 	default:
-		return ldapReferral{}, trace.BadParameter("ldap referral does not have ldaps scheme")
+		return ldapReferral{}, trace.BadParameter("LDAP referral does not have ldaps scheme")
 	}
 
 	if len(ref) == 0 {
@@ -457,7 +457,7 @@ func parseLDAPReferral(raw string) (ldapReferral, error) {
 	dn, params := parts[0], parts[1:]
 	var err error
 	if dn, err = url.QueryUnescape(dn); err != nil {
-		return ldapReferral{}, trace.BadParameter("ldap url contains malformed DN component")
+		return ldapReferral{}, trace.BadParameter("LDAP URL contains malformed DN component")
 	}
 
 	referral := ldapReferral{
