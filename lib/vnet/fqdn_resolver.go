@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
-	"github.com/gravitational/teleport/lib/vnet/dbfqdn"
+	"github.com/gravitational/teleport/lib/vnet/db"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
@@ -179,7 +179,7 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 
 		// Check if fqdn looks like a database FQDN using the root proxy address
 		rootProxyHost := rootProxyHostFromProfile(profileName)
-		fqdnMatchesDBZone := dbfqdn.HasZoneSuffix(fqdn, rootProxyHost)
+		fqdnMatchesDBZone := db.HasZoneSuffix(fqdn, rootProxyHost)
 
 		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
 			if shouldYieldAllCandidates {
@@ -192,8 +192,9 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 			}
 
 			if fqdnMatchesDBZone {
-				// This FQDN has a .db.<root-proxy> pattern, so it may
-				// match a database in any cluster (including leaves).
+				// Database FQDNs are addressed at the root proxy zone, so a
+				// leaf cluster whose own name is not in the FQDN may still
+				// own the database
 				return true
 			}
 
@@ -409,11 +410,11 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		zones = append(zones, rootProxyHost)
 	}
 
-	var vnetDNSName string
+	var identifier string
 	var matched bool
 	for _, zone := range zones {
-		vnetDNSName, err = dbfqdn.Parse(fqdn, zone)
-		if err == nil {
+		if id, ok := db.Parse(fqdn, zone); ok {
+			identifier = id
 			matched = true
 			break
 		}
@@ -422,9 +423,12 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	// Query the cluster for a database server whose status.vnet_dns_name
-	// matches the parsed identifier.
-	expr := fmt.Sprintf(`resource.status.vnet_dns_name == "%s"`, vnetDNSName)
+	// Query the cluster for a database whose status.vnet_dns_name or metadata.name matches the parsed
+	// identifier. Matching either lets the user type the database name or the hash.
+	expr := fmt.Sprintf(
+		`resource.status.vnet_dns_name == %q || name == %q`,
+		identifier, identifier,
+	)
 	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: expr,
@@ -442,11 +446,11 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	db := resp.Resources[0].GetDatabase()
-	dbName := db.GetName()
-	protocol := db.GetProtocol()
+	dbResource := resp.Resources[0].GetDatabase()
+	dbName := dbResource.GetName()
+	protocol := dbResource.GetProtocol()
 
-	if !dbfqdn.IsSupportedProtocol(protocol) {
+	if !db.IsUserOptional(protocol) {
 		log.InfoContext(ctx, "Database protocol not currently supported by VNet",
 			"protocol", protocol, "db_name", dbName)
 		return nil, errNoMatch
@@ -463,7 +467,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		DatabaseKey: &vnetv1.DatabaseKey{
 			Profile:     candidate.profileName,
 			LeafCluster: candidate.leafClusterName,
-			Name:        db.GetName(),
+			Name:        dbName,
 		},
 		Cluster:       candidate.clusterName,
 		Protocol:      protocol,

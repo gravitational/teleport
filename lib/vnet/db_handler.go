@@ -85,7 +85,7 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 		dbInfo:     h.cfg.dbInfo,
 	}
 	certChecker := client.NewCertChecker(dbCertIssuer, h.cfg.clock)
-	middleware := &vnetLocalProxyMiddleware{
+	middleware := &localProxyMiddleware{
 		certChecker: certChecker,
 		onNewConnection: func(ctx context.Context) error {
 			return h.cfg.dbProvider.OnNewDBConnection(ctx, h.cfg.dbInfo.GetDatabaseKey())
@@ -93,7 +93,7 @@ func (h *dbHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnproxy.L
 	}
 
 	h.log.DebugContext(ctx, "Creating local proxy for database")
-	lp, err := newLocalProxyForVnet(localProxyConfig{
+	lp, err := newLocalProxy(localProxyConfig{
 		dialOptions:              h.cfg.dbInfo.GetDialOptions(),
 		protocols:                []alpncommon.Protocol{alpnProtocol},
 		parentContext:            h.cfg.parentCtx,
@@ -130,28 +130,10 @@ type dbCertIssuer struct {
 }
 
 func (i *dbCertIssuer) CheckCert(cert *x509.Certificate) error {
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err, "parsing cert subject")
-	}
-	wantService := i.dbInfo.GetDatabaseKey().GetName()
-	if identity.RouteToDatabase.ServiceName != wantService {
-		return trace.BadParameter(
-			"certificate subject is for database service %q, but need %q",
-			identity.RouteToDatabase.ServiceName, wantService)
-	}
-	wantProtocol := i.dbInfo.GetProtocol()
-	if identity.RouteToDatabase.Protocol != wantProtocol {
-		return trace.BadParameter(
-			"certificate subject is for database protocol %q, but need %q",
-			identity.RouteToDatabase.Protocol, wantProtocol)
-	}
-	if identity.RouteToDatabase.Username != "" {
-		return trace.BadParameter(
-			"VNet database certificate must have an empty subject username, got %q",
-			identity.RouteToDatabase.Username)
-	}
-	return nil
+	return alpnproxy.CheckDBCertSubject(cert, tlsca.RouteToDatabase{
+		ServiceName: i.dbInfo.GetDatabaseKey().GetName(),
+		Protocol:    i.dbInfo.GetProtocol(),
+	})
 }
 
 func (i *dbCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {

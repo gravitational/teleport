@@ -39,10 +39,10 @@ type localProxyConfig struct {
 	alwaysTrustRootClusterCA bool
 }
 
-// newLocalProxyForVnet creates a new [alpnproxy.LocalProxy] configured for VNet
+// newLocalProxy creates a new [alpnproxy.LocalProxy] configured for VNet
 // use. It handles the common setup of dial options, ALPN protocols, and the
 // optional RootCAs configuration for ALPN connection upgrades.
-func newLocalProxyForVnet(cfg localProxyConfig) (*alpnproxy.LocalProxy, error) {
+func newLocalProxy(cfg localProxyConfig) (*alpnproxy.LocalProxy, error) {
 	dialOptions := cfg.dialOptions
 	proxyConfig := alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         dialOptions.GetWebProxyAddr(),
@@ -72,21 +72,21 @@ func newLocalProxyForVnet(cfg localProxyConfig) (*alpnproxy.LocalProxy, error) {
 	return lp, nil
 }
 
-// vnetLocalProxyMiddleware is a shared [alpnproxy.LocalProxyMiddleware]
+// localProxyMiddleware is a shared [alpnproxy.LocalProxyMiddleware]
 // implementation. It delegates cert checking to a [client.CertChecker]
 // and calls a connection callback for observability on each new connection.
-type vnetLocalProxyMiddleware struct {
+type localProxyMiddleware struct {
 	certChecker     *client.CertChecker
 	onNewConnection func(ctx context.Context) error
 }
 
-func (m *vnetLocalProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	if err := m.certChecker.OnNewConnection(ctx, lp); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(m.onNewConnection(ctx))
 }
 
-func (m *vnetLocalProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
 }

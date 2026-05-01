@@ -90,14 +90,14 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 		targetPort:  localPort,
 	}
 	certChecker := client.NewCertChecker(appCertIssuer, h.cfg.clock)
-	middleware := &vnetLocalProxyMiddleware{
+	middleware := &localProxyMiddleware{
 		certChecker: certChecker,
 		onNewConnection: func(ctx context.Context) error {
 			return h.cfg.appProvider.OnNewAppConnection(ctx, h.cfg.appInfo.GetAppKey())
 		},
 	}
 	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort)
-	newLP, err := newLocalProxyForVnet(localProxyConfig{
+	newLP, err := newLocalProxy(localProxyConfig{
 		dialOptions:              h.cfg.appInfo.GetDialOptions(),
 		protocols:                []alpncommon.Protocol{alpncommon.ProtocolTCP},
 		parentContext:            ctx,
