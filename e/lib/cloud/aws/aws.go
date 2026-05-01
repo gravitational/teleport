@@ -16,8 +16,9 @@ import (
 )
 
 // BuildAWSConfig is a helper function allowing to build AWS config with the given region, role ARN and role tags.
-func BuildAWSConfig(ctx context.Context, region, roleARN string, roleTags map[string]string) (aws.Config, error) {
-	awsConfig, err := config.LoadDefaultConfig(ctx, awssdkconfig.WithRegion(region))
+func BuildAWSConfig(ctx context.Context, region, roleARN string, roleTags map[string]string, option ...func(*awssdkconfig.LoadOptions) error) (aws.Config, error) {
+	option = append(option, awssdkconfig.WithRegion(region))
+	awsConfig, err := config.LoadDefaultConfig(ctx, option...)
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}

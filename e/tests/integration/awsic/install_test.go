@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 )
@@ -17,6 +19,7 @@ func TestInstall(t *testing.T) {
 	const pluginName = "aws-identity-center"
 
 	ctx := t.Context()
+	setupMockAWSICEnvironment(t, icsdk.NewClientMock(nil), scimsdk.NewSCIMClientMock())
 
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),

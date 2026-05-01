@@ -282,10 +282,10 @@ func (s *Service) getOktaRoleNames(ctx context.Context) ([]string, error) {
 type oktaPluginHandler struct{}
 
 // updatePlugin implements [pluginHandler] for the default handler.
-func (oktaPluginHandler) validatePlugin(_ context.Context, plugin *types.PluginV1, _ *auth.Server) error {
-	oktaSettings := plugin.Spec.GetOkta()
+func (oktaPluginHandler) validatePlugin(_ context.Context, input pluginValidationInput, _ *auth.Server) error {
+	oktaSettings := input.plugin.Spec.GetOkta()
 	if oktaSettings == nil {
-		return trace.BadParameter("plugin %q does not have Okta settings", plugin.GetName())
+		return trace.BadParameter("plugin %q does not have Okta settings", input.plugin.GetName())
 	}
 
 	timeBetweenImports, err := oktaplugin.GetTimeBetweenImports(oktaSettings.GetSyncSettings())

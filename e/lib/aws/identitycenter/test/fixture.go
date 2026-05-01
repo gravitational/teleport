@@ -621,6 +621,21 @@ func NewPluginV1CreateRequest(integrationName, samlServiceProviderName string) *
 				},
 			},
 		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name: types.PluginTypeAWSIdentityCenter,
+					Labels: map[string]string{
+						"aws-ic/scim-api-endpoint": "https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2",
+					},
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: "scim-token",
+				},
+			},
+		},
 	}
 }
 

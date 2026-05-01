@@ -11,6 +11,8 @@ import (
 
 func TestIdentityCenterValidation(t *testing.T) {
 	t.Parallel()
+	suite := createSuite(t)
+
 	testCases := []struct {
 		name        string
 		mutate      func(*types.PluginAWSICSettings)
@@ -78,7 +80,7 @@ func TestIdentityCenterValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			p := newIdentityCenterPluginResource()
 			test.mutate(p.Spec.GetAwsIc())
-			test.expectError(t, awsicPluginHandler{}.validatePlugin(t.Context(), p, nil))
+			test.expectError(t, awsicPluginHandler{}.validatePlugin(t.Context(), pluginValidationInput{plugin: p}, suite.svc.authServer))
 		})
 	}
 }

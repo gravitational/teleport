@@ -199,7 +199,14 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("missing validator for plugin type %q", plugin.GetType())
 	}
 
-	if err := handler.validatePlugin(ctx, plugin, s.authServer); err != nil {
+	staticCreds, staticCredLabels := normalizeCreatePluginStaticCredentials(req)
+
+	if err := handler.validatePlugin(ctx, pluginValidationInput{
+		plugin:                     plugin,
+		staticCredentials:          staticCreds,
+		validateInstallCredentials: true,
+		httpClient:                 s.httpClient,
+	}, s.authServer); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -224,28 +231,6 @@ This may cause issues with the current installation`,
 
 	if err := s.updatePluginWithLiveCredentials(ctx, plugin, req.BootstrapCredentials); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	staticCreds := req.StaticCredentialsList
-	staticCredLabels := req.CredentialLabels
-	if req.StaticCredentials != nil {
-		// For backwards compatibility, if the single StaticCredential value is
-		// set then we override the supplied credential list with that single
-		// credential
-		staticCreds = []*types.PluginStaticCredentialsV1{req.StaticCredentials}
-
-		// Similarly, we need to generate the identifying label set from the
-		// single credential, rather than use the supplied label set.
-		staticCredLabels = req.StaticCredentials.GetStaticLabels()
-		if staticCredLabels == nil {
-			staticCredLabels = map[string]string{}
-		}
-
-		for k := range staticCredLabels {
-			if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
-				delete(staticCredLabels, k)
-			}
-		}
 	}
 
 	if err := s.updatePluginAndCreateStaticCredentials(ctx, plugin, staticCredLabels, staticCreds); err != nil {
@@ -314,9 +299,9 @@ func (s *Service) pluginToProtobufStruct(ctx context.Context, plugin types.Plugi
 // differences in handling, so that the common pathway for creating/updating/deleting
 // Plugin resources is less cluttered
 type pluginHandler interface {
-	// validatePlugin checks that the supplied plugin resource is valid for a given plugin
-	// type.
-	validatePlugin(context.Context, *types.PluginV1, *auth.Server) error
+	// validatePlugin checks that the supplied plugin resource and any normalized
+	// static credentials are valid for a given plugin type.
+	validatePlugin(context.Context, pluginValidationInput, *auth.Server) error
 
 	// updatePlugin updates the [newP] plugin based on the implications of any changes
 	// between the [oldP] and [newP] plugin resources. In most cases this will be simply
@@ -325,11 +310,21 @@ type pluginHandler interface {
 	updatePlugin(newP, oldP *types.PluginV1) error
 }
 
+// pluginValidationInput carries plugin-type-specific validation inputs. Most
+// plugin types only use the plugin resource itself and ignore the optional
+// static credentials.
+type pluginValidationInput struct {
+	plugin                     *types.PluginV1
+	staticCredentials          []*types.PluginStaticCredentialsV1
+	validateInstallCredentials bool
+	httpClient                 *http.Client
+}
+
 // defaultHandler defines a default handler for plugin creation and updating.
 type defaultHandler struct{}
 
-// updatePlugin implements [pluginHandler] for the default handler.
-func (defaultHandler) validatePlugin(context.Context, *types.PluginV1, *auth.Server) error {
+// validatePlugin implements [pluginHandler] for the default handler.
+func (defaultHandler) validatePlugin(context.Context, pluginValidationInput, *auth.Server) error {
 	return nil
 }
 
@@ -348,8 +343,8 @@ type pluginHandlerFn struct {
 
 // validatePlugin implements [pluginHandler] for [pluginHandlerFn]. Invokes the
 // contained function on the supplied Plugin resource.
-func (h pluginHandlerFn) validatePlugin(ctx context.Context, p *types.PluginV1, server *auth.Server) error {
-	return h.fn(p)
+func (h pluginHandlerFn) validatePlugin(ctx context.Context, input pluginValidationInput, server *auth.Server) error {
+	return h.fn(input.plugin)
 }
 
 // defaultPluginHandlers is the default set of plugin validation handlers for the known plugin types.
@@ -440,7 +435,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		}
 	}
 
-	if err := handler.validatePlugin(ctx, inPlugin, s.authServer); err != nil {
+	if err := handler.validatePlugin(ctx, pluginValidationInput{plugin: inPlugin, httpClient: s.httpClient}, s.authServer); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -651,6 +646,32 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 	}
 
 	return nil
+}
+
+func normalizeCreatePluginStaticCredentials(req *pluginspb.CreatePluginRequest) ([]*types.PluginStaticCredentialsV1, map[string]string) {
+	staticCreds := req.StaticCredentialsList
+	staticCredLabels := req.CredentialLabels
+	if req.StaticCredentials != nil {
+		// For backwards compatibility, if the single StaticCredential value is
+		// set then we override the supplied credential list with that single
+		// credential.
+		staticCreds = []*types.PluginStaticCredentialsV1{req.StaticCredentials}
+
+		// Similarly, we need to generate the identifying label set from the
+		// single credential, rather than use the supplied label set.
+		staticCredLabels = req.StaticCredentials.GetStaticLabels()
+		if staticCredLabels == nil {
+			staticCredLabels = map[string]string{}
+		}
+
+		for k := range staticCredLabels {
+			if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
+				delete(staticCredLabels, k)
+			}
+		}
+	}
+
+	return staticCreds, staticCredLabels
 }
 
 // GetPlugin returns a plugin instance by name.

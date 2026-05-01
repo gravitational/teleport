@@ -2,24 +2,40 @@ package pluginsv1
 
 import (
 	"context"
+	"net/http"
 	"slices"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/auth"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
+	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 )
 
 // awsicPluginHandler defines a validation and update handler for the AWS
-// Identity Center integration
-type awsicPluginHandler struct{}
+// Identity Center integration.
+type awsicPluginHandler struct {
+	newIdentityCenterClient func(icsdk.Config) (icsdk.Client, error)
+	newSCIMClient           func(*scimsdk.Config) (scimsdk.Client, error)
+}
+
+const (
+	awsICResourceSyncValidationError = "invalid AWS resource sync credentials"
+	awsICSCIMValidationError         = "invalid SCIM credentials"
+)
 
 // validatePlugin implements [pluginHandler] for the [awsicPluginHandler].
-func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.PluginV1, auth *auth.Server) error {
-	settings := plugin.Spec.GetAwsIc()
+func (h awsicPluginHandler) validatePlugin(ctx context.Context, input pluginValidationInput, auth *auth.Server) error {
+	settings := input.plugin.Spec.GetAwsIc()
 	if settings == nil {
 		return trace.BadParameter("missing AWS IC settings")
 	}
@@ -58,34 +74,141 @@ func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.Plug
 		}
 	}
 
-	if err := validateAWSICCredentials(ctx, settings.Credentials, auth); err != nil {
-		return trace.Wrap(err, "invalid credentials")
+	return trace.Wrap(h.validateAWSICCredentials(ctx, settings, input, auth))
+}
+
+func (h awsicPluginHandler) validateAWSICCredentials(ctx context.Context, settings *types.PluginAWSICSettings, input pluginValidationInput, auth *auth.Server) error {
+	// Only install-time validation should probe AWS/SCIM credentials via downstream APIs.
+	// Plugin updates preserve credentials and should be allowed to skip.
+	if !input.validateInstallCredentials {
+		return nil
+	}
+
+	if err := h.validateAwsIcSDKCredentials(ctx, settings, auth, input.httpClient); err != nil {
+		return trace.Wrap(err, awsICResourceSyncValidationError)
+	}
+
+	if err := h.validateAWSICSCIMCredentials(ctx, settings, input.staticCredentials, input.httpClient); err != nil {
+		return trace.Wrap(err, awsICSCIMValidationError)
 	}
 
 	return nil
 }
 
-type integrationGetter interface {
-	GetIntegration(context.Context, string) (types.Integration, error)
-}
-
-func validateAWSICCredentials(ctx context.Context, credentials *types.AWSICCredentials, services integrationGetter) error {
-	switch creds := credentials.GetSource().(type) {
+func (h awsicPluginHandler) validateAwsIcSDKCredentials(ctx context.Context, settings *types.PluginAWSICSettings, auth *auth.Server, httpClient *http.Client) error {
+	switch creds := settings.Credentials.GetSource().(type) {
 	case *types.AWSICCredentials_Oidc:
 		// check that the presented integration exists
 		if creds.Oidc == nil {
 			return trace.BadParameter("missing inner OIDC credentials")
 		}
 
-		if _, err := services.GetIntegration(ctx, creds.Oidc.IntegrationName); err != nil {
+		if _, err := auth.GetIntegration(ctx, creds.Oidc.IntegrationName); err != nil {
 			return trace.Wrap(err)
 		}
-		return nil
+
+		cfg, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+			Region:                settings.Region,
+			IntegrationName:       creds.Oidc.IntegrationName,
+			IntegrationGetter:     auth.Services,
+			AWSOIDCTokenGenerator: identitycenter.MakeTokenGenerator(auth),
+			Clock:                 auth.GetClock(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(h.validateAWSICResourceSyncCredential(ctx, settings.Arn, cfg))
+
+	case *types.AWSICCredentials_System:
+		if creds.System == nil {
+			return trace.BadParameter("missing inner system credentials")
+		}
+
+		var (
+			awsCfg aws.Config
+			err    error
+		)
+		if creds.System.AssumeRoleArn != "" {
+			awsCfg, err = cloudaws.BuildAWSConfig(ctx, settings.Region, creds.System.AssumeRoleArn, nil, awsHTTPClientOptions(httpClient)...)
+		} else {
+			awsCfg, err = awsconfig.LoadDefaultConfig(ctx, awsLoadOptions(settings.Region, httpClient)...)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(h.validateAWSICResourceSyncCredential(ctx, settings.Arn, &awsCfg))
 
 	default:
-		// no other credential types need validation
 		return nil
 	}
+}
+
+func awsLoadOptions(region string, httpClient *http.Client) []func(*awssdkconfig.LoadOptions) error {
+	options := []func(*awssdkconfig.LoadOptions) error{awssdkconfig.WithRegion(region)}
+	return append(options, awsHTTPClientOptions(httpClient)...)
+}
+
+func awsHTTPClientOptions(httpClient *http.Client) []func(*awssdkconfig.LoadOptions) error {
+	return []func(*awssdkconfig.LoadOptions) error{awssdkconfig.WithHTTPClient(httpClient)}
+}
+
+func (h awsicPluginHandler) validateAWSICResourceSyncCredential(ctx context.Context, instanceARN string, cfg *aws.Config) error {
+	client, err := h.identityCenterClient(icsdk.Config{
+		AWSConfig:   cfg,
+		InstanceARN: instanceARN,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.ValidateResourceSyncCredential(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (h awsicPluginHandler) identityCenterClient(config icsdk.Config) (icsdk.Client, error) {
+	if h.newIdentityCenterClient != nil {
+		return h.newIdentityCenterClient(config)
+	}
+	return icsdk.New(config)
+}
+
+func (h awsicPluginHandler) validateAWSICSCIMCredentials(ctx context.Context, settings *types.PluginAWSICSettings, staticCredentials []*types.PluginStaticCredentialsV1, httpClient *http.Client) error {
+	if len(staticCredentials) == 0 || staticCredentials[0] == nil || staticCredentials[0].Spec == nil {
+		return trace.BadParameter("missing SCIM credentials")
+	}
+
+	bearerToken := staticCredentials[0].GetAPIToken()
+	if bearerToken == "" {
+		return trace.BadParameter("missing SCIM auth token")
+	}
+
+	scimClient, err := h.scimClient(&scimsdk.Config{
+		HTTPClient:      httpClient,
+		Endpoint:        settings.ProvisioningSpec.BaseUrl,
+		Token:           bearerToken,
+		IntegrationType: types.PluginTypeAWSIdentityCenter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := scimClient.Ping(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (h awsicPluginHandler) scimClient(config *scimsdk.Config) (scimsdk.Client, error) {
+	if h.newSCIMClient != nil {
+		return h.newSCIMClient(config)
+	}
+	return scimsdk.New(config)
 }
 
 var excludeAll types.AWSICResourceFilter_ExcludeNameRegex = types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*"}

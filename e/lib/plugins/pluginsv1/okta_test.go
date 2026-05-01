@@ -341,7 +341,7 @@ func Test_oktaHandler_validatePlugin(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := newTestOktaPlugin(tt.oktaSettings)
-			err := oktaPluginHandler{}.validatePlugin(t.Context(), plugin, nil)
+			err := oktaPluginHandler{}.validatePlugin(t.Context(), pluginValidationInput{plugin: plugin}, nil)
 			if tt.errMatcher == nil && tt.errContains == "" {
 				require.NoError(t, err)
 				return

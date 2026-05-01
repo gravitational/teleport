@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictestenv "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -279,7 +281,7 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 
 func TestAWSICPluginValidatePermissions(t *testing.T) {
 	t.Parallel()
-	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
+	wSuite, aPack := newAWSIdentityCenterPluginWebTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	form := url.Values{
 		awsICPluginNameField: {types.PluginTypeAWSIdentityCenter},
@@ -432,15 +434,44 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 	})
 }
 
-type icSuitOpt func(cfg *awsICPluginDescriptor)
+type awsICTestSuiteConfig struct {
+	descriptor awsICPluginDescriptor
+}
+
+type icSuitOpt func(cfg *awsICTestSuiteConfig)
 
 func withICClient(c icsdk.Client) icSuitOpt {
-	return func(cfg *awsICPluginDescriptor) {
-		cfg.ICSDKClient = c
+	return func(cfg *awsICTestSuiteConfig) {
+		cfg.descriptor.ICSDKClient = c
 	}
 }
 
-func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webSuite, *authWebPack, *httptest.Server) {
+var installAWSICClientProvidersOnce sync.Once
+
+// installAWSICClientProvidersForTests installs package-level AWS IC SDK
+// providers once so parallel web tests do not overwrite each other's globals.
+func installAWSICClientProvidersForTests() {
+	installAWSICClientProvidersOnce.Do(func() {
+		icClientProvider := icsdk.ClientProvider
+		scimClientProvider := scimsdk.ClientProvider
+
+		icsdk.ClientProvider = func(config icsdk.Config) (icsdk.Client, error) {
+			if config.InstanceARN != "" {
+				return icsdk.NewClientMock(nil /* custom mock data */), nil
+			}
+			return icClientProvider(config)
+		}
+		scimsdk.ClientProvider = func(config *scimsdk.Config) (scimsdk.Client, error) {
+			if config.IntegrationType == types.PluginTypeAWSIdentityCenter &&
+				(config.HTTPClient == nil || config.HTTPClient.Transport == nil) {
+				return scimsdk.NewSCIMClientMock(), nil
+			}
+			return scimClientProvider(config)
+		}
+	})
+}
+
+func newAWSIdentityCenterPluginWebTestSuite(t *testing.T) (*webSuite, *authWebPack) {
 	t.Helper()
 
 	s := newWebSuite(t,
@@ -458,6 +489,18 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webS
 		}),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
+
+	return s, webPack
+}
+
+// newAWSIdentityCenterPluginTestSuite configures the web descriptor with a
+// mocked IC client and a test SCIM HTTP client.
+func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webSuite, *authWebPack, *httptest.Server) {
+	t.Helper()
+
+	installAWSICClientProvidersForTests()
+
+	s, webPack := newAWSIdentityCenterPluginWebTestSuite(t)
 	testSCIMServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.RequestURI {
 		case "/random-id/scim/v2/ServiceProviderConfig":
@@ -479,15 +522,17 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webS
 		},
 	}
 
-	cfg := awsICPluginDescriptor{HTTPClient: client}
+	cfg := awsICTestSuiteConfig{
+		descriptor: awsICPluginDescriptor{HTTPClient: client},
+	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	if cfg.ICSDKClient == nil {
-		cfg.ICSDKClient = icsdk.NewClientMock(nil /* custom mock data */)
+	if cfg.descriptor.ICSDKClient == nil {
+		cfg.descriptor.ICSDKClient = icsdk.NewClientMock(nil /* custom mock data */)
 	}
 
-	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = cfg
+	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = cfg.descriptor
 	return s, webPack, testSCIMServer
 }
 
@@ -677,7 +722,7 @@ func TestAWSICRegionValidation(t *testing.T) {
 		},
 	}
 
-	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
+	wSuite, aPack := newAWSIdentityCenterPluginWebTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, types.PluginTypeAWSIdentityCenter)
 	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
@@ -741,7 +786,7 @@ func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
 
 func TestMissingIntegrationCreateAccess(t *testing.T) {
 	t.Parallel()
-	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
+	wSuite, aPack := newAWSIdentityCenterPluginWebTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	// "foo" is username of a user created with aPack. This user is
 	// assigned with editor role.

@@ -25,13 +25,13 @@ func wrapGetConnector[T any](get func(context.Context, string, bool) (T, error))
 	}
 }
 
-func (s scimPluginHandler) validatePlugin(ctx context.Context, plugin *types.PluginV1, auth *auth.Server) error {
-	scim := plugin.Spec.GetScim()
+func (s scimPluginHandler) validatePlugin(ctx context.Context, input pluginValidationInput, auth *auth.Server) error {
+	scim := input.plugin.Spec.GetScim()
 	if scim == nil {
 		return trace.BadParameter("missing SCIM settings")
 	}
 
-	if err := s.validateConnector(ctx, plugin, auth); err != nil {
+	if err := s.validateConnector(ctx, input.plugin, auth); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
