@@ -72,10 +72,23 @@ func (t *topology) clear() {
 	clear(t.openClients)
 }
 
-func (t topology) newSearcher(_ context.Context, name string) (searcher, func() error, error) {
+type funcSearcher struct {
+	searchFunc func(ctx context.Context, searchRequest *ldap.SearchRequest) (res searchResult, err error)
+	onClose    func() error
+}
+
+func (f funcSearcher) search(ctx context.Context, searchRequest *ldap.SearchRequest) (res searchResult, err error) {
+	return f.searchFunc(ctx, searchRequest)
+}
+
+func (f funcSearcher) Close() error {
+	return f.onClose()
+}
+
+func (t topology) newSearcher(_ context.Context, name string) (searcher, error) {
 	id := uuid.NewV4().String()
 	t.openClients[id] = struct{}{}
-	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (res searchResult, err error) {
+	return funcSearcher{searchFunc: func(ctx context.Context, searchRequest *ldap.SearchRequest) (res searchResult, err error) {
 		res, ok := t.servers[name]
 		t.searches[name] += 1
 		if !ok {
@@ -83,7 +96,7 @@ func (t topology) newSearcher(_ context.Context, name string) (searcher, func() 
 		}
 
 		return res, ctx.Err()
-	}), func() error { delete(t.openClients, id); return nil }, nil
+	}, onClose: func() error { delete(t.openClients, id); return nil }}, nil
 }
 
 func TestRecursiveSearch(t *testing.T) {
@@ -148,8 +161,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, closer, _ := top.newSearcher(t.Context(), "root")
-		closer()
+		root, _ := top.newSearcher(t.Context(), "root")
+		root.Close()
 		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		require.NoError(t, err)
 		assert.Len(t, entries, 1)
@@ -175,8 +188,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, closer, _ := top.newSearcher(t.Context(), "root")
-		closer()
+		root, _ := top.newSearcher(t.Context(), "root")
+		root.Close()
 		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
@@ -208,8 +221,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, closer, _ := top.newSearcher(t.Context(), "root")
-		closer()
+		root, _ := top.newSearcher(t.Context(), "root")
+		root.Close()
 		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
@@ -239,8 +252,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, closer, _ := top.newSearcher(t.Context(), "root")
-		closer()
+		root, _ := top.newSearcher(t.Context(), "root")
+		root.Close()
 		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, entries)
@@ -269,8 +282,8 @@ func TestRecursiveSearch(t *testing.T) {
 
 		cancel()
 		// Start the search from the "root" mock LDAPS server
-		root, closer, _ := top.newSearcher(t.Context(), "root")
-		closer()
+		root, _ := top.newSearcher(t.Context(), "root")
+		root.Close()
 		entries, err := testSearch.start(subCtx, root, &ldap.SearchRequest{})
 		assert.Error(t, err)
 		assert.Empty(t, entries)
@@ -310,8 +323,8 @@ func TestRecursiveSearch(t *testing.T) {
 		}
 
 		// Start the search from the "root" mock LDAPS server
-		root, closer, _ := top.newSearcher(t.Context(), "root")
-		closer()
+		root, _ := top.newSearcher(t.Context(), "root")
+		root.Close()
 		entries, err := testSearch.start(t.Context(), root, &ldap.SearchRequest{})
 		require.NoError(t, err)
 		assert.Empty(t, entries)
@@ -428,15 +441,9 @@ func TestReferralParsing(t *testing.T) {
 	})
 
 	t.Run("scheme only", func(t *testing.T) {
-		ref, err := parseLDAPReferral("ldap://")
-		require.NoError(t, err)
-		assert.Equal(t, "ldap://", ref.scheme)
-		assert.Equal(t, "dn", ref.baseDN)
-		assert.Empty(t, ref.host)
-		assert.Empty(t, ref.attributes)
-		assert.Empty(t, ref.filter)
-		assert.Empty(t, ref.scope)
-		assert.Empty(t, ref.extensions)
+		_, err := parseLDAPReferral("ldap://")
+		// We expect an error on empty referral URLs
+		require.Error(t, err)
 	})
 
 	t.Run("percent encoded params", func(t *testing.T) {

@@ -25,6 +25,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/url"
@@ -515,18 +516,15 @@ func (r *ldapReferral) resolve(ctx context.Context, rslv resolver) []string {
 
 type searcher interface {
 	search(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error)
+	io.Closer
 }
 
-type searcherFunc func(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error)
-
-func (s searcherFunc) search(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error) {
-	return s(ctx, searchRequest)
+type ldapSearcher struct {
+	*LDAPClient
 }
 
-func ldapSearcher(l *LDAPClient) searcher {
-	return searcherFunc(func(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error) {
-		return l.search(ctx, l.conn, searchRequest)
-	})
+func (l *ldapSearcher) search(ctx context.Context, searchRequest *ldap.SearchRequest) (searchResult, error) {
+	return l.LDAPClient.search(ctx, l.conn, searchRequest)
 }
 
 type resolver interface {
@@ -580,7 +578,7 @@ type recursiveSearch struct {
 	maxHosts uint
 	// constructor for new searcher (wrapped LDAP client) and associated close function
 	// to be called when the searcher is no longer needed.
-	newSearcher func(context.Context, string) (searcher, func() error, error)
+	newSearcher func(context.Context, string) (searcher, error)
 	// A resolver to use for SRV lookups when resolving domain referrals.
 	resolver resolver
 	logger   *slog.Logger
@@ -631,12 +629,12 @@ referralLoop:
 		r.logger.InfoContext(ctx, "Chasing referral", "referral", ref.raw, "hosts", hosts)
 		for _, host := range hosts[:min(uint(len(hosts)), r.maxHosts)] {
 			entries, err := func() ([]*ldap.Entry, error) {
-				newClient, closer, err := r.newSearcher(ctx, host)
+				newClient, err := r.newSearcher(ctx, host)
 				if err != nil {
 					r.logger.ErrorContext(ctx, "Failed to dial LDAPS server while chasing referral", "error", err, "hostname", host)
 					return nil, err
 				}
-				defer closer()
+				defer newClient.Close()
 
 				entries, err := r.run(ctx, newClient, newRequestFromReferral(request, ref), depth+1)
 				if err != nil {
@@ -676,7 +674,7 @@ func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, fil
 		maxDepth:     maxSearchDepth,
 		maxHosts:     maxSearchHosts,
 		maxReferrals: maxReferralsCount,
-		newSearcher: func(ctx context.Context, host string) (searcher, func() error, error) {
+		newSearcher: func(ctx context.Context, host string) (searcher, error) {
 			serverName, _, err := net.SplitHostPort(host)
 			if err != nil {
 				serverName = host
@@ -690,12 +688,12 @@ func (l *LDAPClient) RecursiveReadWithFilter(ctx context.Context, dn string, fil
 				Addr:   host,
 				Logger: l.cfg.Logger,
 			}, referralCreds)
-			return ldapSearcher(client), client.Close, err
+			return &ldapSearcher{LDAPClient: client}, err
 		},
 		resolver: net.DefaultResolver,
 		logger:   l.cfg.Logger,
 	}
-	return search.start(ctx, ldapSearcher(l), ldap.NewSearchRequest(
+	return search.start(ctx, &ldapSearcher{LDAPClient: l}, ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
 		ldap.DerefAlways,
