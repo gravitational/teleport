@@ -139,7 +139,8 @@ func deriveTeleportEqualKubernetesClusterV3(this, that *KubernetesClusterV3) boo
 			this.SubKind == that.SubKind &&
 			this.Version == that.Version &&
 			deriveTeleportEqualMetadata(&this.Metadata, &that.Metadata) &&
-			deriveTeleportEqual_15(&this.Spec, &that.Spec)
+			deriveTeleportEqual_15(&this.Spec, &that.Spec) &&
+			this.Scope == that.Scope
 }
 
 // deriveTeleportEqualKubernetesClusterStatus returns whether this and that are equal.
