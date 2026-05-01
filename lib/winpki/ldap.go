@@ -202,6 +202,7 @@ func convertLDAPError(err error) error {
 // The provided username can be a plain username "bob", or a full UPN like
 // "alice@example.com".
 func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username string) (string, string, error) {
+	fullUsername := username
 	username, domain, _ := strings.Cut(username, "@")
 	domain = cmp.Or(domain, l.cfg.Domain)
 
@@ -270,16 +271,16 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 
 	if len(entries) == 0 {
 		l.cfg.Logger.DebugContext(ctx, "all SID queries exhausted with no results found")
-		return "", "", trace.NotFound("could not find Windows account %q", username)
+		return "", "", trace.NotFound("could not find Windows account %q", fullUsername)
 	}
 	if len(entries) > 1 {
-		l.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
+		l.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", fullUsername)
 	}
 	activeDirectorySID, err := ADSIDStringFromLDAPEntry(entries[0])
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	l.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
+	l.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", fullUsername)
 	distinguishedName := entries[0].DN
 	return activeDirectorySID, distinguishedName, nil
 }
