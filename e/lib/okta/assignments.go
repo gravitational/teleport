@@ -2,17 +2,16 @@ package okta
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // AssignmentReconcilerAccessPoint is a client that consists of only the interfaces
@@ -39,7 +38,6 @@ type assignmentReconciler struct {
 	logger              *slog.Logger
 	clock               clockwork.Clock
 	accessPoint         AssignmentReconcilerAccessPoint
-	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
 
 	startedCh chan struct{}
@@ -47,8 +45,8 @@ type assignmentReconciler struct {
 	stopOnce  sync.Once
 
 	// These are used for testing.
-	onReconcileCh             chan struct{}
-	noAssignmentProcessorLoop bool
+	testOnWatchEventCh            chan struct{}
+	testNoAssignmentProcessorLoop bool
 }
 
 // newAssignmentReconciler creates a new AssignmentReconciler.
@@ -66,21 +64,10 @@ func newAssignmentReconciler(svc *Service) *assignmentReconciler {
 // Start will start the reconciler.
 func (a *assignmentReconciler) start(ctx context.Context) error {
 	defer close(a.startedCh)
-	var err error
-	a.watcher, err = services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
-		RWCfg: services.ResourceWatcherConfig{
-			Component: eteleport.ComponentOktaAssignmentReconciler,
-			Logger:    a.logger,
-			Client:    a.accessPoint,
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err, "creating Okta assignments watcher")
-	}
 
-	go a.reconcileLoop(ctx)
+	go a.runWatcher(ctx)
 
-	if !a.noAssignmentProcessorLoop {
+	if !a.testNoAssignmentProcessorLoop {
 		// Start the assignment processor. This will run periodically to retry calls
 		// to Okta.
 		a.assignmentProcessor.start(ctx)
@@ -89,18 +76,86 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 	return nil
 }
 
-func (a *assignmentReconciler) reconcileLoop(ctx context.Context) {
+// runWatcher makes sure to run OktaAssignment watcher at all times.
+func (a *assignmentReconciler) runWatcher(ctx context.Context) {
 	a.logger.DebugContext(ctx, "Starting watcher-based Okta assignments reconciler")
 	defer a.logger.DebugContext(ctx, "Stopped watcher-based Okta assignments reconciler")
 
+	const cooldownPeriod = 5 * time.Second
+
+	for {
+		a.watch(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+
+		select {
+		case <-a.clock.After(cooldownPeriod):
+			continue
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// watch watches for OktaAssignment events and dispatches them for processing if needed.
+func (a *assignmentReconciler) watch(ctx context.Context) {
+	watcher, err := a.accessPoint.NewWatcher(ctx, types.Watch{
+		Name: "okta-assignment-watcher",
+		Kinds: []types.WatchKind{
+			{Kind: types.KindOktaAssignment},
+		},
+	})
+	if err != nil {
+		a.logger.ErrorContext(ctx, "Failed to create Okta assignments watcher. Will retry", "error", err)
+		return
+	}
+	defer watcher.Close()
+
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			a.logger.ErrorContext(ctx, "Unexpected watcher event type. Want OpInit. Will retry", "unexpected_event_type", event.Type.String())
+			return
+		}
+		if a.testOnWatchEventCh != nil {
+			a.testOnWatchEventCh <- struct{}{}
+		}
+	case <-a.stopCh:
+		return
+	case <-watcher.Done():
+		if ctx.Err() == nil {
+			a.logger.ErrorContext(ctx, "Unexpected Okta assignments watcher error. Will retry", "error", watcher.Error())
+		}
+		return
+	case <-ctx.Done():
+		return
+	}
+
 	for {
 		select {
-		case newAssignments := <-a.watcher.CollectorChan():
-			a.assignmentProcessor.processWatcherEvent(ctx, newAssignments)
-			if a.onReconcileCh != nil {
-				a.onReconcileCh <- struct{}{}
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut {
+				continue
+			}
+			assignment, ok := event.Resource.(types.OktaAssignment)
+			if !ok {
+				a.logger.ErrorContext(ctx, "Unexpected Okta assignments watcher event resource type. Want OktaAssignment. (this is a bug)", "unexpected_event_resource_type", fmt.Sprintf("%T", event.Resource))
+				continue
+			}
+
+			if assignmentNeedsUrgentProcessing(assignment, a.clock.Now()) {
+				a.assignmentProcessor.processWatcherEvent(ctx, assignment)
+				if a.testOnWatchEventCh != nil {
+					a.testOnWatchEventCh <- struct{}{}
+				}
 			}
 		case <-a.stopCh:
+			return
+		case <-watcher.Done():
+			if ctx.Err() == nil {
+				a.logger.ErrorContext(ctx, "Unexpected Okta assignments watcher error. Will retry", "error", watcher.Error())
+			}
 			return
 		case <-ctx.Done():
 			return
@@ -129,10 +184,7 @@ func (a *assignmentReconciler) stop() {
 
 	a.stopOnce.Do(func() {
 		close(a.stopCh)
-		if a.watcher != nil {
-			a.watcher.Close()
-		}
-		if !a.noAssignmentProcessorLoop && a.assignmentProcessor != nil {
+		if !a.testNoAssignmentProcessorLoop && a.assignmentProcessor != nil {
 			a.assignmentProcessor.stop()
 		}
 	})

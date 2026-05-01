@@ -267,6 +267,7 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
+			expected:              nil,
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New[oktaUserID](),
@@ -662,6 +663,67 @@ func (s *shufflingOktaAssignmentService) ListOktaAssignments(ctx context.Context
 	return page, nextPageToken, err
 }
 
+func Test_assignmentNeedsUrgentProcessing(t *testing.T) {
+	t.Parallel()
+
+	const notFinalized = false
+	now := time.Date(2026, time.April, 17, 12, 0, 0, 0, time.UTC)
+	cleanupTimePast := now.Add(-time.Minute)
+	cleanupTimeFuture := now.Add(time.Minute)
+	testUser := userName("test-user")
+
+	tests := []struct {
+		name       string
+		assignment types.OktaAssignment
+		want       bool
+	}{
+		{
+			name:       "pending assignment is urgent",
+			assignment: assignment(t, "pending", testUser, time.Time{}, constants.OktaAssignmentStatusPending, now, notFinalized),
+			want:       true,
+		},
+		{
+			name:       "CleanupTime in the past and LastTransition before the CleanupTime is urgent",
+			assignment: assignment(t, "cleanup-overdue", testUser, cleanupTimePast, constants.OktaAssignmentStatusSuccessful, cleanupTimePast.Add(-time.Second), notFinalized),
+			want:       true,
+		},
+		{
+			name:       "CleanupTime in the past and LastTransition before the CleanupTime is urgent even if processing",
+			assignment: assignment(t, "cleanup-overdue", testUser, cleanupTimePast, constants.OktaAssignmentStatusProcessing, cleanupTimePast.Add(-time.Second), notFinalized),
+			want:       true,
+		},
+		{
+			name:       "CleanupTime in the past and LastTransition exactly at CleanupTime time is not urgent",
+			assignment: assignment(t, "cleanup-at-boundary", testUser, cleanupTimePast, constants.OktaAssignmentStatusSuccessful, cleanupTimePast, notFinalized),
+			want:       false,
+		},
+		{
+			name:       "CleanupTime in the past and LastTransition after the CleanupTime time is not urgent",
+			assignment: assignment(t, "cleanup-after", testUser, cleanupTimePast, constants.OktaAssignmentStatusFailed, cleanupTimePast.Add(time.Second), notFinalized),
+			want:       false,
+		},
+		{
+			name:       "CleanupTime in the Future is not urgent",
+			assignment: assignment(t, "cleanup-future", testUser, cleanupTimeFuture, constants.OktaAssignmentStatusFailed, now.Add(-100*time.Hour), notFinalized),
+			want:       false,
+		},
+		{
+			name:       "Failed assignment without CleanupTime set is not urgent",
+			assignment: assignment(t, "failed", testUser, time.Time{}, constants.OktaAssignmentStatusFailed, now.Add(-100*time.Hour), notFinalized),
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := assignmentNeedsUrgentProcessing(tt.assignment, now)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // This test makes sure we don't skip Okta-side cleanup of okta_assignment resources that expired
 // during plugin restart. This may happen due to race conditions and/or proper reconcilers seeding.
 func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
@@ -719,31 +781,33 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	// Also make sure it's successful when we are at it.
 	require.Equal(t, constants.OktaAssignmentStatusSuccessful, assignment.GetStatus())
 	assignment.SetCleanupTime(clock.Now().Add(-1))
-	assignment, err = ap.UpdateOktaAssignment(ctx, assignment)
+	_, err = ap.UpdateOktaAssignment(ctx, assignment)
 	require.NoError(t, err)
 
 	// Assert assignments before starting the service.
 	requireOktaSideApplicationAssignments(t, oktaClient, application1, []string{uid1})
 	requireOktaSideGroupAssignments(t, oktaClient, group1, []string{uid1})
 
+	assignment, err = ap.GetOktaAssignment(ctx, assignment.GetName())
+	require.NoError(t, err)
+	require.False(t, assignment.GetCleanupTime().IsZero())
+	require.False(t, assignment.IsFinalized())
+
 	svc, _ = newTestService(t, ap, oktaClient, withClock(clock))
+	svc.assignmentReconciler.assignmentProcessor.timeBetweenAssignmentProcessLoops = 1 * time.Second
 	err = svc.Start(ctx)
 	require.NoError(t, err)
 
 	// Wait for okta_assignment to be cleaned up.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// This will either trigger watcher and make the assignment being processed or
-		// return NotFoundError confirming that the assignment was cleaned up.
-		assignment.GetAllLabels()["test-trigger"] = uuid.NewString()
-		_, err := ap.UpdateOktaAssignment(ctx, assignment)
-		require.True(t, trace.IsNotFound(err), "expected NotFound, but got: %s", err)
-	}, time.Second*10, time.Millisecond*50)
+		_, err := ap.GetOktaAssignment(ctx, assignment.GetName())
+		require.True(t, trace.IsNotFound(err), "unexpected error = %v", err)
+	}, time.Second*10, time.Millisecond*500)
 
 	// After okta_assignment is cleaned up, assert targets are also cleaned up on the
 	// Okta-side.
 	requireOktaSideApplicationAssignments(t, oktaClient, application1, nil)
 	requireOktaSideGroupAssignments(t, oktaClient, group1, nil)
-
 }
 
 func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {

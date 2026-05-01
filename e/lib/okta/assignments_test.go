@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +25,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	oktaClient := newTestOktaClient()
 	svc, emitter := newTestService(t, ap, oktaClient)
 	svc.clock = clock
-	onReconcileCh := make(chan struct{}, 1)
+	onWatcherEventCh := make(chan struct{}, 1)
 	testUser := userName("test-user@test.user")
 	testOktaUserID := oktaUserID("okta-user-id")
 
@@ -38,45 +37,26 @@ func TestAssignmentReconciler(t *testing.T) {
 	}
 
 	reconciler := newAssignmentReconciler(svc)
-	reconciler.onReconcileCh = onReconcileCh
-	reconciler.noAssignmentProcessorLoop = true
+	reconciler.testOnWatchEventCh = onWatcherEventCh
+	reconciler.testNoAssignmentProcessorLoop = true
 	require.NoError(t, reconciler.start(ctx))
 	t.Cleanup(func() {
 		reconciler.stop()
 	})
 
-	waitForResult(t, onReconcileCh, struct{}{}, 1)
+	// OpInit event comes first. This confirms the watcher is watching before we create the
+	// first assignment.
+	waitForResult(t, onWatcherEventCh, struct{}{}, 1)
 
-	t.Run("finalized assignment should be deleted from backend", func(t *testing.T) {
-		cleanedUpAssignment := assignment(t, "cleaned-up-assignment", testUser, clock.Now(), constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
-			target(types.OktaAssignmentTargetV1_APPLICATION, appName("cleanedUpApp1")),
-			target(types.OktaAssignmentTargetV1_GROUP, "cleanedUpGroup1"),
-		)
-		_, err := ap.CreateOktaAssignment(ctx, cleanedUpAssignment)
-		require.NoError(t, err)
-
-		// 2 event expected:
-		// Assignment Creation
-		// Assignment Deletion
-		waitForResult(t, onReconcileCh, struct{}{}, 2)
-		assertOktaAssignments(t, ap, types.OktaAssignments{})
-
-	})
-
-	// This Okta assignment should be recognized.
+	// Create a pending assignment.
 	assignment1 := assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 	)
-
 	_, err := ap.CreateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
 
-	// 3 events expected:
-	// assignment created
-	// assignment -> PROCESSING
-	// assignment -> SUCCESSFUL
-	waitForResult(t, onReconcileCh, struct{}{}, 3)
+	waitForResult(t, onWatcherEventCh, struct{}{}, 1)
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
 		require.Equal(t, events.OktaAssignmentProcessEvent, event.GetType())
@@ -85,30 +65,20 @@ func TestAssignmentReconciler(t *testing.T) {
 		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
 	})
 
-	assignment1 = assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusSuccessful, clock.Now(), false,
-		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
-	)
+	// Check the assignment was reprocessed and is in successful state now.
+	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusProcessing))
+	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusSuccessful))
 	assertOktaAssignments(t, ap, types.OktaAssignments{assignment1})
 
-	foundAssignment, err := ap.GetOktaAssignment(ctx, assignment1.GetName())
-	require.NoError(t, err)
-	assertAssignments(t, types.OktaAssignments{assignment1}, types.OktaAssignments{foundAssignment})
-
-	// Update should be recognized.
+	// Set CleanupTime to past and set LastTransition to time before the CleanupTime.
 	cleanupTime := clock.Now()
-	lastTransition := clock.Now().Add(-5 * time.Second)
-	foundAssignment.SetCleanupTime(cleanupTime)
-	foundAssignment.SetLastTransition(lastTransition)
 	clock.Advance(10 * time.Minute)
-	_, err = ap.UpdateOktaAssignment(ctx, foundAssignment)
+	assignment1.SetCleanupTime(cleanupTime)
+	assignment1.SetLastTransition(cleanupTime.Add(-5 * time.Second))
+	_, err = ap.UpdateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
 
-	// 3 events expected:
-	// app1 -> object update (the test update above)
-	// app1 -> PROCESSING
-	// app1 -> SUCCESSFUL (cleaned up)
-	waitForResult(t, onReconcileCh, struct{}{}, 4)
+	waitForResult(t, onWatcherEventCh, struct{}{}, 1)
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
 		require.Equal(t, events.OktaAssignmentCleanupEvent, event.GetType())
@@ -117,20 +87,20 @@ func TestAssignmentReconciler(t *testing.T) {
 		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
 	})
 
-	assertAssignmentDoesntExist(t, ap, assignment1.GetName())
-	assertOktaAssignments(t, ap, types.OktaAssignments{})
-}
-
-func assertAssignmentDoesntExist(t *testing.T, ap *testAccessPoint, name string) {
-	t.Helper()
-	ctx := t.Context()
-	_, err := ap.GetOktaAssignment(ctx, name)
-	require.True(t, trace.IsNotFound(err))
+	// Make sure the assignment is successfully cleaned up and finalized.
+	assignments, _, err := ap.ListOktaAssignments(ctx, 100, "")
+	require.NoError(t, err)
+	require.Len(t, assignments, 1)
+	require.Equal(t, assignment1.GetName(), assignments[0].GetName())
+	require.False(t, assignments[0].GetCleanupTime().IsZero())
+	require.True(t, assignments[0].IsFinalized())
+	require.Equal(t, constants.OktaAssignmentStatusSuccessful, assignments[0].GetStatus())
 }
 
 func assertOktaAssignments(t *testing.T, ap *testAccessPoint, want types.OktaAssignments) {
 	t.Helper()
 	ctx := t.Context()
+
 	actual := make([]types.OktaAssignment, 0, len(want))
 	for oa, err := range clientutils.Resources(ctx, ap.ListOktaAssignments) {
 		require.NoError(t, err)

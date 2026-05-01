@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -143,17 +146,14 @@ func (a *assignmentProcessor) stop() {
 
 // processWatcherEvent processes all Okta assignments coming from a watcher event. It will only
 // process assignments which are pending or require cleanup.
-func (a *assignmentProcessor) processWatcherEvent(ctx context.Context, assignments []types.OktaAssignment) {
-	const source = sourceWatcher
-	loopID := newLoopID(source, a.clock.Now())
-
-	logger := a.logger.With("loop_id", loopID)
+func (a *assignmentProcessor) processWatcherEvent(ctx context.Context, assignment types.OktaAssignment) {
+	logger := a.logger.With("loop_id", newLoopID(sourceWatcher))
 
 	start := time.Now()
 	logger.DebugContext(ctx, "Started processing Okta assignments")
 	defer func() {
 		took := time.Since(start)
-		a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID, "took", logutils.StringerAttr(took))
+		logger.DebugContext(ctx, "Finished processing Okta assignments", "took", logutils.StringerAttr(took))
 	}()
 
 	// Note that this loop is using a.assignmentClient which is reset only during
@@ -161,26 +161,21 @@ func (a *assignmentProcessor) processWatcherEvent(ctx context.Context, assignmen
 	// loops are only processing assignments that are pending or scheduled for cleanup. Those
 	// are excluded during target counter building.
 
-	for _, assignment := range assignments {
-		// TODO(kopiczko): Get rid of the processAssignment return value.
-		_ = a.processAssignment(ctx, logger, assignment, source)
-	}
+	// TODO(kopiczko): Get rid of the processAssignment return value.
+	_ = a.processAssignment(ctx, logger, assignment)
 }
 
 // processTimerEvent is supposed to be called in a periodic loop and re-processes all assignments
 // stored in Teleport cache. It also resets the cached assignment client (which is also used for
 // watcher events).
 func (a *assignmentProcessor) processTimerEvent(ctx context.Context) {
-	const source = sourceTimer
-	loopID := newLoopID(source, a.clock.Now())
-
-	logger := a.logger.With("loop_id", loopID)
+	logger := a.logger.With("loop_id", newLoopID(sourceTimer))
 
 	start := time.Now()
 	logger.DebugContext(ctx, "Started processing Okta assignments")
 	defer func() {
 		took := time.Since(start)
-		a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID, "took", logutils.StringerAttr(took))
+		logger.DebugContext(ctx, "Finished processing Okta assignments", "took", logutils.StringerAttr(took))
 	}()
 
 	// Cached assignments client is reset periodically at the beginning of every timer-based
@@ -204,7 +199,7 @@ func (a *assignmentProcessor) processTimerEvent(ctx context.Context) {
 
 	for _, assignment := range assignments {
 		// TODO(kopiczko): Get rid of the processAssignment return value.
-		_ = a.processAssignment(ctx, logger, assignment, source)
+		_ = a.processAssignment(ctx, logger, assignment)
 	}
 }
 
@@ -221,7 +216,7 @@ const (
 // If the assignment has a cleanup time set in the past it will be scheduled for cleanup and
 // eventually removed from the backend.
 // NOTE: This should not be used directly. [processTimerEvent] or [processWatcherEvent] should be used instead.
-func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
+func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment) processAssignmentResult {
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
 
@@ -230,7 +225,8 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		"user", assignment.GetUser(),
 	)
 
-	needsCleanup := getNeedsCleanup(assignment, a.clock.Now())
+	startTime := a.clock.Now()
+	needsCleanup := assignmentNeedsCleanup(assignment, startTime)
 	needsReprovision := assignment.IsFinalized() && !needsCleanup
 
 	// If the assignment was Finalized (Successfully processed in needCleanupState) delete Okta
@@ -244,22 +240,9 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentProcessed
 	}
 
-	// We only process non-pending assignments if the source is timer (i.e. the assignment
-	// comes from the periodic retry mechanism and not from event watcher) or if the assignment
-	// needs to be cleaned up.
-	if source != sourceTimer {
-		force := needsCleanup ||
-			needsReprovision ||
-			assignment.GetStatus() == constants.OktaAssignmentStatusPending
-		if !force {
-			return processAssignmentSkipped
-		}
-	}
-
 	startStatus := assignment.GetStatus()
 
-	// TODO(kopiczko): Get rid of OktaAssignment.Finalizer and move the simplified assignment filtering here form [processAssignment]. That should allow removing `source` parameter from [processAssignment].
-	if shouldProcess := a.shouldProcess(ctx, logger, assignment, needsCleanup); !shouldProcess {
+	if !a.shouldProcess(ctx, logger, assignment, startTime) {
 		return processAssignmentSkipped
 	}
 
@@ -359,37 +342,39 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	return processAssignmentProcessed
 }
 
-func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, needsCleanup bool) bool {
+func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, now time.Time) bool {
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 	startStatus := assignment.GetStatus()
 
-	// If this assignment doesn't need cleanup or it last transitioned after the cleanup time,
-	// check if enough time has passed to process this again.
-	if !needsCleanup || assignment.GetLastTransition().After(assignment.GetCleanupTime()) {
-		switch startStatus {
-		case constants.OktaAssignmentStatusPending:
-		case constants.OktaAssignmentStatusProcessing:
-		case constants.OktaAssignmentStatusSuccessful:
-			// If the assignment is marked finalized, it means this assignment was recently unlocked
-			// and we need to re-process it.
-			if assignment.IsFinalized() {
-				return true
-			}
+	if assignmentNeedsUrgentProcessing(assignment, now) {
+		return true
+	}
 
-			// Otherwise, we should only retry successful objects if the time between loops has passes since
-			// it last became successful
-			if sinceTransition < a.timeBetweenAssignmentProcessLoops {
-				return false
-			}
-		case constants.OktaAssignmentStatusFailed:
-			// Only process this if enough time has passed since the failure state.
-			if sinceTransition < timeBeforeFailedRetry {
-				return false
-			}
-		default:
-			logger.ErrorContext(ctx, "Unknown assignment status, unable to process", "status", startStatus)
+	switch startStatus {
+	case constants.OktaAssignmentStatusPending:
+		// "pending" is caught with assignmentNeedsUrgentProcessing so it's here only for
+		// the sake the sake of exhaustively handling all values.
+	case constants.OktaAssignmentStatusProcessing:
+	case constants.OktaAssignmentStatusSuccessful:
+		// If the assignment is marked finalized, it means this assignment was recently unlocked
+		// and we need to re-process it.
+		if assignment.IsFinalized() {
+			return true
+		}
+
+		// Otherwise, we should only retry successful objects if the time between loops has
+		// passed since it last became successful
+		if sinceTransition < a.timeBetweenAssignmentProcessLoops {
 			return false
 		}
+	case constants.OktaAssignmentStatusFailed:
+		// Only process this if enough time has passed since the failure state.
+		if sinceTransition < timeBeforeFailedRetry {
+			return false
+		}
+	default:
+		logger.ErrorContext(ctx, "Unknown assignment status, unable to process (this is a bug)", "unknown_status", startStatus)
+		return false
 	}
 
 	return true
@@ -699,8 +684,14 @@ const (
 	sourceTimer   processorSource = "timer"
 )
 
-func newLoopID(source processorSource, time time.Time) string {
-	return string(source) + ":" + time.UTC().Format("02150405") // ddhhmmss
+var newLoopSeq atomic.Uint64
+
+func newLoopID(source processorSource) string {
+	seq := strconv.FormatUint(newLoopSeq.Add(1), 36)
+	if len(seq) < 8 {
+		seq = strings.Repeat("0", 8-len(seq)) + seq
+	}
+	return string(source) + ":" + seq
 }
 
 // sortAssignmentsByProcessingPriority following rules below:
@@ -711,7 +702,7 @@ func newLoopID(source processorSource, time time.Time) string {
 //  5. LastTransitionTime.
 func sortAssignmentsByProcessingPriority(now time.Time, assignments []types.OktaAssignment) {
 	statusPriority := func(assignment types.OktaAssignment) int {
-		if getNeedsCleanup(assignment, now) {
+		if assignmentNeedsCleanup(assignment, now) {
 			return 0
 		}
 		switch assignment.GetStatus() {
@@ -728,16 +719,32 @@ func sortAssignmentsByProcessingPriority(now time.Time, assignments []types.Okta
 
 	slices.SortFunc(assignments, func(a, b types.OktaAssignment) int {
 		cmpLastTransition := a.GetLastTransition().Compare(b.GetLastTransition())
-		if getNeedsCleanup(a, now) && getNeedsCleanup(b, now) {
+		if assignmentNeedsCleanup(a, now) && assignmentNeedsCleanup(b, now) {
 			return cmp.Or(a.GetCleanupTime().Compare(b.GetCleanupTime()), cmpLastTransition)
 		}
 		return cmp.Or(cmp.Compare(statusPriority(a), statusPriority(b)), cmpLastTransition)
 	})
 }
 
-func getNeedsCleanup(a types.OktaAssignment, now time.Time) bool {
+// assignmentNeedsCleanup returns true if the assignment needs cleanup.
+func assignmentNeedsCleanup(a types.OktaAssignment, now time.Time) bool {
 	cleanupTime := a.GetCleanupTime()
 	return !cleanupTime.IsZero() && !cleanupTime.After(now)
+}
+
+// assignmentNeedsUrgentProcessing indicates if an assignment observed by the watcher should be
+// scheduled for processing.
+func assignmentNeedsUrgentProcessing(assignment types.OktaAssignment, now time.Time) bool {
+	// If it's pending it's always urgent. The there is not valid transition to pending so it's
+	// always a freshly created assignment.
+	if assignment.GetStatus() == constants.OktaAssignmentStatusPending {
+		return true
+	}
+	// If needs cleanup, it's only urgent if it was not yet processed after CleanupTime.
+	if assignmentNeedsCleanup(assignment, now) && assignment.GetLastTransition().Before(assignment.GetCleanupTime()) {
+		return true
+	}
+	return false
 }
 
 // TODO(kopiczko) Move to OSS lib/utils/log (https://github.com/gravitational/teleport/pull/62057)

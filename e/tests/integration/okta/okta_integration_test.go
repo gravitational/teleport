@@ -816,7 +816,7 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 	groupID := fakeOkta.provisionedGroups[0].Id
 
 	const iterCount = 10
-	for range iterCount {
+	for i := range iterCount {
 		fakeOkta.AddUserToGroup(groupID, memberID)
 		m := assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
 		require.Equal(t, "okta-service", m.Spec.AddedBy)
@@ -829,7 +829,7 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 			assignments, _, err := sut.Teleport.Process.GetAuthServer().Okta.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
 			require.Empty(t, assignments)
-		}, time.Minute, time.Millisecond*30)
+		}, time.Minute, time.Millisecond*500, "iteration = %d", i+1)
 	}
 }
 
