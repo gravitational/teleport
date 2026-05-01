@@ -467,7 +467,13 @@ func TestAppendUpload(t *testing.T) {
 				Context:       t.Context(),
 			})
 			require.NoError(t, err)
-			tc.assert(t, events.AppendUpload(t.Context(), log, streamer, events.StreamUpload{
+			completer, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+				AuditLog:       log,
+				Uploader:       uploader,
+				SessionTracker: &mockSessionTrackerService{},
+				ClusterName:    "teleport-cluster",
+			})
+			tc.assert(t, completer.AppendUpload(t.Context(), events.StreamUpload{
 				ID:        secondUploadID,
 				SessionID: sessionID,
 			}))
@@ -484,7 +490,7 @@ func TestAppendUpload(t *testing.T) {
 	}
 }
 
-func TestUploadCompleterMergesRecordings(t *testing.T) {
+func TestUploadCompleterAppendsRecordings(t *testing.T) {
 	t.Parallel()
 	mkEvent := func(index int64, data string) apievents.AuditEvent {
 		return &apievents.SessionPrint{
@@ -625,6 +631,20 @@ func TestUploadCompleterMergesRecordings(t *testing.T) {
 		finalRecording := downloadEvents("")
 		require.Equal(t, sessionEvents, finalRecording)
 		require.NotEqual(t, initialVersion, finalVersion)
+
+		// Check that abandoned append uploads are aborted.
+		extraStream, err := streamer.CreateOverwriteAuditStream(t.Context(), sessionID)
+		require.NoError(t, err)
+		for _, event := range sessionEvents[:4] {
+			preparedEvent, _ := prep.PrepareSessionEvent(event)
+			require.NoError(t, extraStream.RecordEvent(t.Context(), preparedEvent))
+		}
+		require.NoError(t, extraStream.Close(t.Context()))
+
+		time.Sleep(gracePeriod + checkPeriod)
+		synctest.Wait()
+		extraVersion := assertRecordingExists(sessionID, "")
+		require.Equal(t, finalVersion, extraVersion)
 	})
 }
 
