@@ -286,19 +286,19 @@ func dnToDomain(dn string) string {
 		return ""
 	}
 
-	bldr := strings.Builder{}
+	var b strings.Builder
 	for _, rdn := range parsed.RDNs {
 		// Domain Component RDNs will only ever have one attribute/value pair
 		// in practice (even though the grammar technically allows multiple).
 		if len(rdn.Attributes) == 1 && strings.EqualFold(rdn.Attributes[0].Type, "dc") {
-			if bldr.Len() > 0 {
-				bldr.WriteRune('.')
+			if b.Len() > 0 {
+				b.WriteRune('.')
 			}
-			bldr.WriteString(rdn.Attributes[0].Value)
+			b.WriteString(rdn.Attributes[0].Value)
 		}
 	}
 
-	return bldr.String()
+	return b.String()
 }
 
 const dnsQueryTimeout = 5 * time.Second
