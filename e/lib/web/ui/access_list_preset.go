@@ -78,3 +78,34 @@ func (u *AccessListWithPresetRequest) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+type AccessRole struct {
+	Role *types.RoleV6 `json:"role,omitempty"`
+	// BlockComment is an optional comment that will be generated
+	// on top of the role resource definition in the Terraform configuration.
+	// This can be used to provide additional context to user.
+	BlockComment string `json:"blockComment,omitempty"`
+}
+
+type GenerateAccessListTerraformConfigRequest struct {
+	// PresetType specifies the type of preset configuration to apply.
+	// Valid values are "long-term" or "short-term".
+	//   - "long-term": Members receive direct access to resources through assigned roles
+	//   - "short-term": Members can request temporary access to resources
+	PresetType string `json:"presetType,omitempty"`
+	// AccessRoles related to defining access to resources.
+	// If empty, no roles will be generated as part of the terraform configuration.
+	AccessRoles []AccessRole `json:"accessRoles,omitempty"`
+	// AccessList contains the full access list configuration.
+	// If empty, no access list and its members will be generated
+	// as part of the terraform configuration.
+	AccessList *AccessList `json:"accessList,omitempty"`
+	// AccessListID should be the same as AccessList.Metadata.Name but is separated
+	// here to use the ID as part of the role name and role labels. Roles can be
+	// generated first before the access list resource.
+	AccessListID string `json:"accessListId,omitempty"`
+}
+
+type GenerateAccessListTerraformConfigResponse struct {
+	Terraform string `json:"terraform"`
+}

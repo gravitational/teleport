@@ -2918,7 +2918,7 @@ func (s *Service) CreateAccessListWithPreset(ctx context.Context, req *accesslis
 
 	roleBuilder, err := preset.NewPresetAccessListRolesBuilder(preset.AccessListRolesBuilderConfig{
 		PresetName:     accessList.GetName(),
-		AccessListSpec: *accessList,
+		AccessListSpec: accessList,
 		PresetType:     preset.PresetType(req.GetPresetType()),
 		AccessRoles:    accessRoles,
 	})
@@ -2980,7 +2980,7 @@ func (s *Service) UpdateAccessListWithPreset(ctx context.Context, req *accesslis
 
 	builder, err := preset.NewPresetAccessListRolesBuilder(preset.AccessListRolesBuilderConfig{
 		PresetName:     accessList.GetName(),
-		AccessListSpec: *accessList,
+		AccessListSpec: accessList,
 		PresetType:     preset.PresetType(accessList.GetAllLabels()[preset.TeleportAccessListPreset]),
 		AccessRoles:    accessRoles,
 	})

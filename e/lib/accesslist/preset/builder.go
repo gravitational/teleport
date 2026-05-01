@@ -8,7 +8,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/header"
 )
 
 const (
@@ -50,25 +49,53 @@ type AccessListRolesBuilderConfig struct {
 	// PresetName is the name of the preset access list.
 	PresetName string
 	// AccessListSpec is the access list specification to build from.
-	AccessListSpec accesslist.AccessList
+	AccessListSpec *accesslist.AccessList
 	// PresetType determines the grant behavior (long-term or short-term).
 	PresetType PresetType
 	// AccessRoles are the roles that will be granted based on the preset type.
 	AccessRoles []types.Role
+
+	// SkipRoleDescriptions when true, omits adding role descriptions
+	SkipRoleDescriptions bool
+	// ManagedByIAC when not empty, adds a label to roles and access list that
+	// the resource is being managed by a IAC tool (e.g. terraform)
+	ManagedByIAC string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
 // It ensures that the access list name, preset name, and preset type are valid.
+//
+// Note: this function is not called by NewPresetAccessListRolesBuilderForTerraform.
 func (c *AccessListRolesBuilderConfig) CheckAndSetDefaults() error {
+	if c.AccessListSpec == nil {
+		return trace.BadParameter("access list is required")
+	}
+	if err := c.validateAccessListName(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.validatePreset(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// validatePreset validates the preset type in the config.
+func (c *AccessListRolesBuilderConfig) validatePreset() error {
+	if c.PresetType != LongTermPresetType && c.PresetType != ShortTermPresetType {
+		return trace.BadParameter("preset type is required")
+	}
+	return nil
+}
+
+// validateAccessListName validates the access list name in the config
+// and ensures name matches if both are provided.
+func (c *AccessListRolesBuilderConfig) validateAccessListName() error {
 	aclName := c.AccessListSpec.GetName()
 	if aclName == "" {
 		return trace.BadParameter("access list name is required")
 	}
 	if c.PresetName != "" && c.PresetName != aclName {
 		return trace.BadParameter("access list name is invalid")
-	}
-	if c.PresetType != LongTermPresetType && c.PresetType != ShortTermPresetType {
-		return trace.BadParameter("preset type is required")
 	}
 	return nil
 }
@@ -80,18 +107,26 @@ type AccessListRolesBuilder struct {
 	cfg AccessListRolesBuilderConfig
 }
 
-// BuildResult contains all constructed objects (access list + roles).
-type BuildResult struct {
-	// AccessList is the constructed access list with grants configured based on preset type.
-	AccessList *accesslist.AccessList
+type RolesBuildResult struct {
 	// ReviewerRole allows reviewing access requests for the access roles.
 	ReviewerRole types.Role
 	// RequesterRole allows requesting access to the access roles.
 	RequesterRole types.Role
 	// AccessRoles are the roles that grant actual permissions (e.g., app access, database access).
 	AccessRoles []types.Role
+}
+
+type AccessListBuildResult struct {
+	// AccessList is the constructed access list with grants configured based on preset type.
+	AccessList *accesslist.AccessList
 	// RolesToBeDeleted are role names that should be deleted (removed from previous access list configuration).
 	RolesToBeDeleted []string
+}
+
+// BuildResult contains all constructed objects (access list + roles).
+type BuildResult struct {
+	RolesBuildResult
+	AccessListBuildResult
 }
 
 // NewPresetAccessListRolesBuilder creates a new standalone builder
@@ -101,6 +136,26 @@ func NewPresetAccessListRolesBuilder(cfg AccessListRolesBuilderConfig) (*AccessL
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &AccessListRolesBuilder{cfg: cfg}, nil
+}
+
+// NewPresetAccessListRolesBuilderForTerraform is similar to NewPresetAccessListRolesBuilder but allows for more
+// flexible validation rules to accommodate Terraform's workflow where certain resources (e.g access list) may
+// not exist yet.
+//
+// Note: this constructor does not call CheckAndSetDefaults.
+func NewPresetAccessListRolesBuilderForTerraform(cfg AccessListRolesBuilderConfig) (*AccessListRolesBuilder, error) {
+	if err := cfg.validatePreset(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.AccessListSpec != nil {
+		if err := cfg.validateAccessListName(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	cfg.ManagedByIAC = types.IACToolTerraform
+	cfg.SkipRoleDescriptions = true
 	return &AccessListRolesBuilder{cfg: cfg}, nil
 }
 
@@ -116,6 +171,25 @@ func collectRolesName(roles []types.Role) []string {
 // It creates the access list, reviewer role, requester role, and access roles
 // based on the preset type. Returns BuildResult with all constructed objects.
 func (b *AccessListRolesBuilder) Build() (*BuildResult, error) {
+	builtRoles, err := b.BuildRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	builtAccessList, err := b.BuildAccessList(builtRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &BuildResult{
+		RolesBuildResult:      *builtRoles,
+		AccessListBuildResult: *builtAccessList,
+	}, nil
+}
+
+// BuildRoles only constructs the roles: access roles, reviewer role, and requester role.
+// Reviewer and requester roles are still constructed even if access roles are not provided.
+func (b *AccessListRolesBuilder) BuildRoles() (*RolesBuildResult, error) {
 	accessRoles, err := b.constructAccessRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,19 +203,44 @@ func (b *AccessListRolesBuilder) Build() (*BuildResult, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessList, err := b.constructAccessList(reviewerRole.GetName(), requesterRole.GetName(), accessRoleNames)
+
+	return &RolesBuildResult{
+		AccessRoles:   accessRoles,
+		ReviewerRole:  reviewerRole,
+		RequesterRole: requesterRole,
+	}, nil
+}
+
+// BuildAccessList only constructs the access list with the appropriate grants based on preset type.
+// If builtRoles is nil, access list grants will be empty.
+func (b *AccessListRolesBuilder) BuildAccessList(builtRoles *RolesBuildResult) (*AccessListBuildResult, error) {
+	if b.cfg.AccessListSpec == nil {
+		return nil, trace.BadParameter("access list spec is required to build access list")
+	}
+
+	reviewerRoleName := ""
+	requesterRoleName := ""
+	accessRoleNames := []string{}
+	if builtRoles != nil {
+		if builtRoles.ReviewerRole != nil {
+			reviewerRoleName = builtRoles.ReviewerRole.GetName()
+		}
+		if builtRoles.RequesterRole != nil {
+			requesterRoleName = builtRoles.RequesterRole.GetName()
+		}
+		accessRoleNames = collectRolesName(builtRoles.AccessRoles)
+	}
+
+	accessList, err := b.constructAccessList(reviewerRoleName, requesterRoleName, accessRoleNames)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Compute roles to be deleted by comparing old and new access lists
-	rolesToBeDeleted := b.computeRolesToBeDeleted(&b.cfg.AccessListSpec, accessList)
+	rolesToBeDeleted := b.computeRolesToBeDeleted(b.cfg.AccessListSpec, accessList)
 
-	return &BuildResult{
+	return &AccessListBuildResult{
 		AccessList:       accessList,
-		AccessRoles:      accessRoles,
-		ReviewerRole:     reviewerRole,
-		RequesterRole:    requesterRole,
 		RolesToBeDeleted: rolesToBeDeleted,
 	}, nil
 }
@@ -165,13 +264,27 @@ func (b *AccessListRolesBuilder) constructAccessRoles() ([]types.Role, error) {
 func (b *AccessListRolesBuilder) prepareAccessRole(roleSpec types.Role) types.Role {
 	role := roleSpec.Clone()
 
+	labels := map[string]string{
+		TeleportAccessListPreset: b.cfg.PresetName,
+	}
+	if b.cfg.ManagedByIAC != "" {
+		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
+	}
+
 	if _, ok := role.GetLabel(TeleportAccessListPreset); !ok {
 		role.SetName(b.generateRoleName(roleSpec.GetName()))
-		role.SetStaticLabels(map[string]string{
-			TeleportAccessListPreset: b.cfg.PresetName,
-		})
+		role.SetStaticLabels(labels)
+	} else if b.cfg.ManagedByIAC != "" {
+		existing := role.GetStaticLabels()
+		if existing == nil {
+			existing = map[string]string{}
+		}
+		existing[types.IACToolLabel] = b.cfg.ManagedByIAC
+		role.SetStaticLabels(existing)
 	}
-	setRoleDesc(role, RoleDesc)
+	if !b.cfg.SkipRoleDescriptions {
+		setRoleDesc(role, RoleDesc)
+	}
 
 	return role
 }
@@ -189,12 +302,18 @@ func (b *AccessListRolesBuilder) constructReviewerRole(accessRoleNames []string)
 	labels := map[string]string{
 		TeleportAccessListPreset: b.cfg.PresetName,
 	}
+	if b.cfg.ManagedByIAC != "" {
+		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
+	}
 
 	role, err := types.NewRole(b.generateRoleName(roleReviewerPrefix), spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	setRoleDesc(role, RoleDesc)
+
+	if !b.cfg.SkipRoleDescriptions {
+		setRoleDesc(role, RoleDesc)
+	}
 	role.SetStaticLabels(labels)
 	return role, nil
 }
@@ -213,12 +332,17 @@ func (b *AccessListRolesBuilder) constructRequesterRole(accessRoleNames []string
 	labels := map[string]string{
 		TeleportAccessListPreset: b.cfg.PresetName,
 	}
+	if b.cfg.ManagedByIAC != "" {
+		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
+	}
 
 	role, err := types.NewRole(roleName, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	setRoleDesc(role, RoleDesc)
+	if !b.cfg.SkipRoleDescriptions {
+		setRoleDesc(role, RoleDesc)
+	}
 	role.SetStaticLabels(labels)
 	return role, nil
 }
@@ -231,38 +355,74 @@ func setRoleDesc(r types.Role, desc string) {
 
 // constructAccessList constructs the access list with the appropriate grants based on preset type
 func (b *AccessListRolesBuilder) constructAccessList(reviewerRoleName, requesterRoleName string, accessRoleNames []string) (*accesslist.AccessList, error) {
+	labels := map[string]string{
+		TeleportAccessListPreset: string(b.cfg.PresetType),
+	}
+
+	presetRoles := []string{}
+	if reviewerRoleName != "" {
+		presetRoles = append(presetRoles, reviewerRoleName)
+	}
+	if requesterRoleName != "" {
+		presetRoles = append(presetRoles, requesterRoleName)
+	}
+	presetRoles = append(presetRoles, accessRoleNames...)
+
+	if len(presetRoles) > 0 {
+		labels[TeleportAccessListPresetRoles] = strings.Join(presetRoles, ",")
+	}
+
+	if b.cfg.ManagedByIAC != "" {
+		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
+	}
+
 	al, err := accesslist.NewAccessList(b.cfg.AccessListSpec.Metadata, b.cfg.AccessListSpec.Spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m := header.Metadata{
-		Name: b.cfg.PresetName,
-		Labels: map[string]string{
-			TeleportAccessListPreset:      string(b.cfg.PresetType),
-			TeleportAccessListPresetRoles: strings.Join(append([]string{reviewerRoleName, requesterRoleName}, accessRoleNames...), ","),
-		},
-	}
-	al.Metadata = m
+	al.Metadata.Name = b.cfg.PresetName
+	al.Metadata.Labels = labels
 
 	// Apply grants based on preset type
 	switch b.cfg.PresetType {
 	case LongTermPresetType:
+		memberGrants := accesslist.Grants{}
+		ownerGrants := accesslist.Grants{}
+
 		// long-term: Members get access roles directly, owners get reviewer role
-		al.Spec.Grants = accesslist.Grants{
-			Roles: accessRoleNames,
+		if len(accessRoleNames) > 0 {
+			memberGrants = accesslist.Grants{
+				Roles: accessRoleNames,
+			}
 		}
-		al.Spec.OwnerGrants = accesslist.Grants{
-			Roles: []string{reviewerRoleName},
+		if reviewerRoleName != "" {
+			ownerGrants = accesslist.Grants{
+				Roles: []string{reviewerRoleName},
+			}
 		}
 
+		al.Spec.Grants = memberGrants
+		al.Spec.OwnerGrants = ownerGrants
+
 	case ShortTermPresetType:
+		memberGrants := accesslist.Grants{}
+		ownerGrants := accesslist.Grants{}
+
 		// Short-term: Members get requester role, owners get reviewer role
-		al.Spec.Grants = accesslist.Grants{
-			Roles: []string{requesterRoleName},
+		if requesterRoleName != "" {
+			memberGrants = accesslist.Grants{
+				Roles: []string{requesterRoleName},
+			}
 		}
-		al.Spec.OwnerGrants = accesslist.Grants{
-			Roles: []string{reviewerRoleName},
+		if reviewerRoleName != "" {
+			ownerGrants = accesslist.Grants{
+				Roles: []string{reviewerRoleName},
+			}
 		}
+
+		al.Spec.Grants = memberGrants
+		al.Spec.OwnerGrants = ownerGrants
+
 	default:
 		return nil, trace.BadParameter("unknown preset type %v", b.cfg.PresetType)
 	}

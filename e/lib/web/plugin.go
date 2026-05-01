@@ -305,6 +305,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.POST("/enterprise/accesslist/:accessListId/members", h.WithAuth(p.addMembersToAccessList))
 	h.POST("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.reviewAccessList))
 	h.GET("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.listAccessListReviews))
+	h.POST("/enterprise/generate/terraform/accesslist", h.WithAuth(p.generateAccessListTerraformConfig))
 
 	// Access List long-term short-term Preset API
 	h.POST("/enterprise/accesslistpreset", h.WithAuth(p.createAccessListWithPreset))
