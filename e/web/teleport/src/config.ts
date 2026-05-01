@@ -112,6 +112,9 @@ export const enterpriseRoutes = {
   // Legacy routes kept for backwards compatibility redirects.
   // usageSummarySummary was moved to cloud.usageSummary in v19.
   usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
+
+  // beams
+  beamsQuickstart: '/web/beams/get-started',
 };
 
 const cfg = {
@@ -690,6 +693,10 @@ const cfg = {
 
   getSessionSummariesManagementRoute(clusterId: string) {
     return generatePath(cfg.routes.sessionSummariesManagement, { clusterId });
+  },
+
+  getBeamsQuickstartRoute() {
+    return generatePath(cfg.routes.beamsQuickstart);
   },
 
   init(json: object) {

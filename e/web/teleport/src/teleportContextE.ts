@@ -1,6 +1,7 @@
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import { ACCESS_GRAPH_JS_URL } from 'e-teleport/AccessGraph/loader';
+import cfgE from 'e-teleport/config';
 import CloudService from 'e-teleport/services/cloud';
 import { deviceService } from 'e-teleport/services/devices';
 import RecoveryService from 'e-teleport/services/recovery';
@@ -8,7 +9,6 @@ import ResourceService from 'e-teleport/services/resource';
 import { surveyService } from 'e-teleport/services/survey';
 import WorkflowService from 'e-teleport/services/workflow';
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
-import cfg from 'teleport/config';
 import { storageService } from 'teleport/services/storageService';
 import * as service from 'teleport/services/userPreferences';
 import TeleportContext from 'teleport/teleportContext';
@@ -87,7 +87,7 @@ class TeleportEContext extends TeleportContext {
     if (
       !isDismissed &&
       this.isCloud &&
-      cfg.entitlements.ExternalAuditStorage.enabled &&
+      cfgE.oss.entitlements.ExternalAuditStorage.enabled &&
       this.storeUser.getExternalAuditStorageAccess().read
     ) {
       try {
@@ -100,6 +100,10 @@ class TeleportEContext extends TeleportContext {
         // log error instead of bubbling it up and crashing the app
         console.error(err);
       }
+    }
+
+    if (cfgE.oss.entitlements.Beams.enabled && cfgE.oss.beamsUi) {
+      this.redirectUrl = cfgE.getBeamsQuickstartRoute();
     }
   }
 }

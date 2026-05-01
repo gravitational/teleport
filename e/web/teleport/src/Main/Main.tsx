@@ -15,6 +15,7 @@ import { Main } from 'teleport/Main/Main';
 import { storageService } from 'teleport/services/storageService';
 
 import { BblpLogo } from './bblpLogo';
+import { BeamsLogo } from './beamsLogo/BeamsLogo';
 import { McLogo } from './mcLogo';
 
 export function MainE() {
@@ -43,17 +44,25 @@ export function MainE() {
     );
   }
 
-  const CustomLogos = {
+  const CustomLogos: Record<string, () => React.ReactElement> = {
     bblp: BblpLogo,
     mc: McLogo,
   };
+
+  let customLogo = cfg.oss.customTheme
+    ? CustomLogos[cfg.oss.customTheme]
+    : undefined;
+
+  if (!customLogo && cfg.oss.beamsUi) {
+    customLogo = BeamsLogo;
+  }
 
   return (
     <AccessGraphDemoProvider>
       <Main
         features={getEnterpriseFeatures()}
         customBanners={customBanners}
-        CustomLogo={cfg.oss.customTheme && CustomLogos[cfg.oss.customTheme]}
+        CustomLogo={customLogo}
       />
     </AccessGraphDemoProvider>
   );

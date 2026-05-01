@@ -12,6 +12,7 @@ import {
   LineSegments,
   ListAddCheck,
   Plugs,
+  RocketLaunch,
   Table,
   UserList,
   Warning,
@@ -53,6 +54,7 @@ import {
 
 import { AccessAutomations } from './AccessAutomations/AccessAutomations';
 import { AccessGraph } from './AccessGraph';
+import { BeamsQuickstart } from './Beams/BeamsQuickstart';
 import { ManagedUpdates as ManagedUpdatesE } from './ManagedUpdates';
 import { RolesE } from './Roles/RolesE';
 
@@ -742,7 +744,45 @@ class FeatureSessionSummaries implements TeleportFeature {
   }
 }
 
+// ****************************
+// Beams Feature
+// ****************************
+
+class FeatureBeamsQuickstart implements TeleportFeature {
+  category = NavigationCategory.Beams;
+
+  route = {
+    title: 'Quickstart',
+    path: cfg.getBeamsQuickstartRoute(),
+    exact: true,
+    component: BeamsQuickstart,
+  };
+
+  hasAccess() {
+    // Hide this feature if the entitlement is not enabled.
+    return cfg.oss.entitlements.Beams.enabled;
+  }
+
+  navigationItem = {
+    title: NavTitle.BeamsQuickstart,
+    icon: RocketLaunch,
+    exact: true,
+    getLink() {
+      return cfg.getBeamsQuickstartRoute();
+    },
+    searchableTags: ['beams'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 export function getEnterpriseFeatures(): TeleportFeature[] {
+  if (cfg.oss.beamsUi) {
+    return getBeamsUiFeatures();
+  }
+
   return [
     // Resources
     new FeatureUnifiedResources(),
@@ -804,10 +844,44 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureAccessGraphSQLEditor(),
     new FeatureAccessGraphIntegrations(),
 
+    // - Beams
+    new FeatureBeamsQuickstart(),
+
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
     new FeatureLegacyUsageSummary(),
+    new FeatureUsageSummary(),
+    new FeatureDeviceTrustWeb(),
+    new FeatureSSOConfirm(),
+  ];
+}
+
+function getBeamsUiFeatures(): TeleportFeature[] {
+  return [
+    // Beams
+    new FeatureBeamsQuickstart(),
+
+    // Resources
+    new FeatureUnifiedResources(),
+
+    // Access
+    new FeatureUsersE(),
+    new FeatureRoles(),
+    new OSS.FeatureJoinTokens(),
+    new FeatureAuthConnectors(),
+
+    // AddNew
+    new FeatureDiscoverE(),
+    new FeatureIntegrationEnroll(),
+
+    // Audit
+    new OSS.FeatureAudit(),
+    new FeatureRecordings(),
+
+    // Other
+    new FeatureAccount(),
+    new FeatureHelpAndSupport(),
     new FeatureUsageSummary(),
     new FeatureDeviceTrustWeb(),
     new FeatureSSOConfirm(),
