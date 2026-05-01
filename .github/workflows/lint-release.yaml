@@ -48,8 +48,9 @@ jobs:
         env:
           VERSION: ${{ steps.extract_version.outputs.VERSION }}
         run: |
-          if ! grep -qF -- "$VERSION" CHANGELOG.md; then
-            echo "Missing changelog entry for $VERSION"
+          ESCAPED=${VERSION//./\\.}
+          if ! grep -qE "^## ${ESCAPED}\$" CHANGELOG.md; then
+            echo "Missing changelog entry for $VERSION (expected header: ## $VERSION)"
             exit 1
           fi
 
