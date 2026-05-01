@@ -86,4 +86,3 @@ test('unhandled error path shows generic error', () => {
     )
   ).toBeInTheDocument();
 });
-
