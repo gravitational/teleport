@@ -1264,13 +1264,19 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
+	return TestScopedServerID(role, serverID, "")
+}
+
+// TestScopedServerID returns a scoped TestIdentity for a node with the passed in serverID.
+func TestScopedServerID(role types.SystemRole, serverID, scope string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              serverID,
 			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
-				Username: serverID,
+				Username:   serverID,
+				AgentScope: scope,
 			},
 		},
 	}
@@ -1515,8 +1521,11 @@ func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 
+// HostCertsParamsOpt is a functional option for editing HostCertsParams while generating a new server identity.
+type HostCertsParamsOpt func(req *auth.HostCertsParams)
+
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (*state.Identity, error) {
+func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole, opts ...HostCertsParamsOpt) (*state.Identity, error) {
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1537,7 +1546,7 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+	params := auth.HostCertsParams{
 		Req: &proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
@@ -1545,7 +1554,12 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
 		},
-	})
+	}
+
+	for _, opt := range opts {
+		opt(&params)
+	}
+	certs, err := clt.GenerateHostCerts(context.Background(), params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

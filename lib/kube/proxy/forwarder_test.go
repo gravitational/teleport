@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -155,7 +154,7 @@ func TestAuthenticate(t *testing.T) {
 		netConfig:       nc,
 		recordingConfig: types.DefaultSessionRecordingConfig(),
 		authPref:        authPref,
-		scopedRoles:     make(map[string]*accessv1.ScopedRole),
+		scopedRoles:     make(map[string]*scopedaccessv1.ScopedRole),
 	}
 
 	const (
@@ -1713,7 +1712,7 @@ type mockAccessPoint struct {
 	authPref        types.AuthPreference
 	kubeServers     []types.KubeServer
 	cas             map[string]types.CertAuthority
-	scopedRoles     map[string]*accessv1.ScopedRole
+	scopedRoles     map[string]*scopedaccessv1.ScopedRole
 }
 
 func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error) {
@@ -1744,12 +1743,12 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 	return ap.cas[id.DomainName], nil
 }
 
-func (ap mockAccessPoint) GetScopedRole(ctx context.Context, req *accessv1.GetScopedRoleRequest) (*accessv1.GetScopedRoleResponse, error) {
-	return &accessv1.GetScopedRoleResponse{Role: ap.scopedRoles[req.GetName()]}, nil
+func (ap mockAccessPoint) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	return &scopedaccessv1.GetScopedRoleResponse{Role: ap.scopedRoles[req.GetName()]}, nil
 }
 
-func (ap mockAccessPoint) ListScopedRoles(ctx context.Context, req *accessv1.ListScopedRolesRequest) (*accessv1.ListScopedRolesResponse, error) {
-	return &accessv1.ListScopedRolesResponse{Roles: slices.Collect(maps.Values(ap.scopedRoles))}, nil
+func (ap mockAccessPoint) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	return &scopedaccessv1.ListScopedRolesResponse{Roles: slices.Collect(maps.Values(ap.scopedRoles))}, nil
 }
 
 type mockRevTunnel struct {
