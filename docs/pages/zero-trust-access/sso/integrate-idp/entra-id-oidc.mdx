@@ -138,7 +138,7 @@ In the "App registrations" UI for the enterprise application, from the "Manage"
 menu, select "Certificates & secrets". Now select the "Client secrets" tab and 
 click on the `+ New client secret` button. Create a new client secret. 
 
-![Entra ID OIDC client credential](../../../../img/sso/entraid/oidc/entra-id-oidc-client-credential.png)
+![Entra ID OIDC client credential](../../../../img/sso/entraid/entra-id-client-credential.png)
 
 Once the secret is created, copy the value and save it in your working environment: 
 ```code 
@@ -179,27 +179,18 @@ step. Otherwise, you will need to grant Teleport with a Microsoft Graph API
 permission so it can retrieve user's group membership using the Microsoft 
 Graph API. 
 
-To query user's group membership, Teleport requires `User.ReadBasic.All` permission.
-To grant this permission, in the "App registrations" UI for the enterprise 
-application, from the "Manage" menu, select "API permissions".
-
-Next, click `+ Add a permission` button and then select "Microsoft APIs > Microsoft Graph >
-Application permissions". In the permission filter search bar, type `User.ReadBasic.All`.
-
-Select the permission and add it to the application by clicking on the `Add permissions` button.
-
-![Entra ID OIDC graph permission](../../../../img/sso/entraid/oidc/entra-id-oidc-graph-permission.png)
-
-Once you add the permission, you will need to grant an admin consent.
-
-In the same "API permissions" UI, click the `Grant admin consent` button.
-
-A consent confirmation prompt will appear, click "Yes" to grant the consent. 
+(!docs/pages/includes/sso/entraid-graph-permission.mdx!)
 
 The Graph API permission to fetch user's group membership is now configured.
 Should the user's group membership exceed 200 groups, Teleport will follow through 
 the groups overage claim issued by Entra ID and fetch user's groups detail using the 
 Microsoft Graph API. 
+
+<details>
+<summary>Customize how Teleport follows the groups overage claim</summary>
+
+(!docs/pages/includes/sso/entraid-groups-provider.mdx type="oidc"!)
+</details>
 
 ## Step 2/3. Connect your OIDC provider to Teleport
 
@@ -311,25 +302,6 @@ The Auth Connector resource for Microsoft Entra ID is now configured.
 ## Step 3/3. Configure authentication preferences
 
 (!docs/pages/includes/sso/cap.mdx type="oidc"!)
-
-## FAQ
-
-### I want to customize how Teleport follows the groups overage claim
-
-Groups overage claim setting can be customized by using the `entra_id_groups_provider`
-field in the Auth Connector spec.
-
-```yaml
-kind: oidc
-metadata:
-  name: entra-id
-spec:
-  ... # other fields not displayed for brevity
-  entra_id_groups_provider: 
-    disabled: false # set value to "true" to turn off the groups overage claim 
-    group_type: "security-groups" # can be "directory-roles", "all-groups"
-    graph_endpoint: "https://graph.microsoft.com" # update this value to point to another official Graph API endpoint
-```
 
 ## Next steps
 
