@@ -288,8 +288,8 @@ For the same app registration created in Step 1:
 $ az ad app list --display-name <Var name="app-name" /> --query "[0].appId" -o tsv
    ```
 2. Create a client secret, replacing <Var name="client-id" /> with the client ID from step 1 and <Var name="display-name" /> with a name for the client secret.
-   ```shell
-   az ad app credential reset --append \
+   ```code
+   $ az ad app credential reset --append \
      --id <Var name="client-id" description="The client ID from the previous step" />\
      --display-name <Var name="display-name" description="The display name for the client secret" />\
      --query "password" \
