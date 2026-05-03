@@ -20,6 +20,8 @@ package local
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/gravitational/trace"
 
@@ -64,7 +66,17 @@ func NewKubeWaitingContainerService(b backend.Backend) (*KubeWaitingContainerSer
 // containers that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
-	out, nextToken, err := k.svc.ListResources(ctx, pageSize, pageToken)
+	return k.svc.ListResources(ctx, pageSize, pageToken)
+}
+
+// ListKubernetesWaitingContainersWithFilter lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (k *KubeWaitingContainerService) ListKubernetesWaitingContainersWithFilter(ctx context.Context, pageSize int, pageToken string, filter func(wc *kubewaitingcontainerpb.KubernetesWaitingContainer) bool) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	if filter == nil {
+		return k.svc.ListResources(ctx, pageSize, pageToken)
+	}
+	out, nextToken, err := k.svc.ListResourcesWithFilter(ctx, pageSize, pageToken, filter)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -76,7 +88,12 @@ func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx contex
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	out, err := k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName).GetResource(ctx, req.ContainerName)
+	svc := k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName)
+	if req.Scope != "" {
+		svc = svc.WithPrefix(encodeScope(req.Scope))
+	}
+
+	out, err := svc.GetResource(ctx, req.ContainerName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,6 +106,9 @@ func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.
 // session conditions are met.
 func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	svc := k.svc.WithPrefix(in.Spec.Username, in.Spec.Cluster, in.Spec.Namespace, in.Spec.PodName)
+	if in.Scope != "" {
+		svc = svc.WithPrefix(encodeScope(in.Scope))
+	}
 	out, err := svc.CreateResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,6 +122,9 @@ func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx conte
 // session conditions are met.
 func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 	svc := k.svc.WithPrefix(in.Spec.Username, in.Spec.Cluster, in.Spec.Namespace, in.Spec.PodName)
+	if in.Scope != "" {
+		svc = svc.WithPrefix(encodeScope(in.Scope))
+	}
 	out, err := svc.UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,7 +137,11 @@ func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx conte
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
-	return trace.Wrap(k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName).DeleteResource(ctx, req.ContainerName))
+	svc := k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName)
+	if req.Scope != "" {
+		svc = svc.WithPrefix(encodeScope(req.Scope))
+	}
+	return trace.Wrap(svc.DeleteResource(ctx, req.ContainerName))
 }
 
 // DeleteAllKubernetesWaitingContainers deletes all Kubernetes ephemeral
@@ -122,4 +149,11 @@ func (k *KubeWaitingContainerService) DeleteKubernetesWaitingContainer(ctx conte
 // session conditions are met.
 func (k *KubeWaitingContainerService) DeleteAllKubernetesWaitingContainers(ctx context.Context) error {
 	return trace.Wrap(k.svc.DeleteAllResources(ctx))
+}
+
+func encodeScope(scope string) string {
+	// character length the encoded scope should occupy
+	const scopeHashLength = 32
+	scopeHash := sha256.Sum256([]byte(scope))
+	return hex.EncodeToString(scopeHash[:scopeHashLength/2])
 }

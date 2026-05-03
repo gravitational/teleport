@@ -37,6 +37,12 @@ type KubeWaitingContainer interface {
 	DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error
 }
 
+// KubeWaitingContainerWithFilter is a KubeWaitingContainer service that also implements a list method with a filter.
+type KubeWaitingContainerWithFilter interface {
+	KubeWaitingContainer
+	ListKubernetesWaitingContainersWithFilter(ctx context.Context, pageSize int, pageToken string, filter func(wc *kubewaitingcontainerpb.KubernetesWaitingContainer)) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+}
+
 // MarshalKubeWaitingContainer marshals a KubernetesWaitingContainer resource to JSON.
 func MarshalKubeWaitingContainer(in *kubewaitingcontainerpb.KubernetesWaitingContainer, opts ...MarshalOption) ([]byte, error) {
 	if err := kubewaitingcontainer.ValidateKubeWaitingContainer(in); err != nil {

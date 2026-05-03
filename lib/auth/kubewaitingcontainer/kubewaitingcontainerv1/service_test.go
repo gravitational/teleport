@@ -43,8 +43,9 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 	const namespace = "default"
 	const podName = "pod"
 	const patchType = kubewaitingcontainer.JSONPatchType
+	const scope = "/test"
 
-	sampleKubeWaitingContFn := func(t *testing.T, name string) *kubewaitingcontainerpb.KubernetesWaitingContainer {
+	sampleKubeWaitingContFn := func(t *testing.T, name, scope string) *kubewaitingcontainerpb.KubernetesWaitingContainer {
 		wc, err := kubewaitingcontainer.NewKubeWaitingContainer(
 			name,
 			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
@@ -58,6 +59,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		wc.Scope = scope
 		return wc
 	}
 
@@ -70,6 +72,17 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		return authzContext, nil
 	})
 
+	scopedKubeAuthFn := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+		authzContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+			Role:     types.RoleKube,
+			Username: string(types.RoleKube),
+			Identity: tlsca.Identity{
+				AgentScope: scope,
+			},
+		}, &types.SessionRecordingConfigV2{})
+		require.NoError(t, err)
+		return authzContext, nil
+	})
 	tt := []struct {
 		Name       string
 		Authorizer func(t *testing.T, client localClient) authz.Authorizer
@@ -85,7 +98,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				for range 10 {
 					_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString()),
+						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString(), ""),
 					})
 					require.NoError(t, err)
 				}
@@ -93,6 +106,53 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				_, err := resourceSvc.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{})
 				require.NoError(t, err)
+			},
+		},
+		{
+			Name: "not allowed list access",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+					return authorizerForDummyUser(t, ctx, client, []string{types.VerbRead, types.VerbList}), nil
+				})
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{})
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			Name: "allowed list access - scoped",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				for range 10 {
+					_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString(), scope),
+					})
+					require.NoError(t, err)
+
+					// create orthogonal scoped waiting container
+					_, err = resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString(), "/other"),
+					})
+					require.NoError(t, err)
+
+					// create unscoped waiting container
+					_, err = resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString(), ""),
+					})
+					require.NoError(t, err)
+				}
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				wcs, err := resourceSvc.ListKubernetesWaitingContainers(ctx, &kubewaitingcontainerpb.ListKubernetesWaitingContainersRequest{PageSize: 10})
+				require.NoError(t, err)
+				require.Len(t, wcs.WaitingContainers, 10)
+				for _, wc := range wcs.WaitingContainers {
+					require.Equal(t, scope, wc.GetScope())
+				}
 			},
 		},
 		{
@@ -117,7 +177,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, ""),
 				})
 				require.NoError(t, err)
 			},
@@ -140,6 +200,37 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 		},
 		{
+			Name: "allowed get access - scoped",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, scope),
+				})
+				require.NoError(t, err)
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				out, err := resourceSvc.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+					Username:      username,
+					Cluster:       cluster,
+					Namespace:     namespace,
+					PodName:       podName,
+					ContainerName: wcName,
+					Scope:         scope,
+				})
+				require.NoError(t, err)
+				require.Equal(t, wcName, out.Metadata.Name)
+				require.Equal(t, username, out.Spec.Username)
+				require.Equal(t, cluster, out.Spec.Cluster)
+				require.Equal(t, namespace, out.Spec.Namespace)
+				require.Equal(t, podName, out.Spec.PodName)
+				require.Equal(t, wcName, out.Spec.ContainerName)
+				require.Equal(t, patchType, out.Spec.PatchType)
+				require.Equal(t, scope, out.Scope)
+			},
+		},
+		{
 			Name: "not allowed get access",
 			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
 				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
@@ -153,6 +244,42 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			Name: "not allowed get access - orthogonal request scope",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+					Username:      username,
+					Cluster:       cluster,
+					Namespace:     namespace,
+					PodName:       podName,
+					ContainerName: wcName,
+					Scope:         "/other",
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			Name: "not allowed get access - scoped agent with unscoped request",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+					Username:      username,
+					Cluster:       cluster,
+					Namespace:     namespace,
+					PodName:       podName,
+					ContainerName: wcName,
+					Scope:         "",
 				})
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
@@ -184,7 +311,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				out, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, ""),
 				})
 				require.NoError(t, err)
 				require.Equal(t, wcName, out.Metadata.Name)
@@ -197,6 +324,26 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 		},
 		{
+			Name: "allowed create access - scoped",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				out, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, scope),
+				})
+				require.NoError(t, err)
+				require.Equal(t, wcName, out.Metadata.Name)
+				require.Equal(t, username, out.Spec.Username)
+				require.Equal(t, cluster, out.Spec.Cluster)
+				require.Equal(t, namespace, out.Spec.Namespace)
+				require.Equal(t, podName, out.Spec.PodName)
+				require.Equal(t, wcName, out.Spec.ContainerName)
+				require.Equal(t, patchType, out.Spec.PatchType)
+				require.Equal(t, scope, out.Scope)
+			},
+		},
+		{
 			Name: "not allowed create access",
 			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
 				return authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
@@ -205,10 +352,23 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, ""),
 				})
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			Name: "not allowed create access - orthogonal scope",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, "/other"),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 			},
 		},
 		{
@@ -218,13 +378,13 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, ""),
 				})
 				require.NoError(t, err)
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, ""),
 				})
 				require.Error(t, err)
 				require.True(t, trace.IsAlreadyExists(err))
@@ -239,7 +399,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
 				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
-					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, ""),
 				})
 				require.NoError(t, err)
 			},
@@ -250,6 +410,29 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
+				})
+				require.NoError(t, err)
+			},
+		},
+		{
+			Name: "allowed delete access - scoped",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
+					WaitingContainer: sampleKubeWaitingContFn(t, wcName, scope),
+				})
+				require.NoError(t, err)
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+					Username:      username,
+					Cluster:       cluster,
+					Namespace:     namespace,
+					PodName:       podName,
+					ContainerName: wcName,
+					Scope:         scope,
 				})
 				require.NoError(t, err)
 			},
@@ -268,6 +451,24 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			Name: "not allowed delete access - orthogonal scope",
+			Authorizer: func(t *testing.T, client localClient) authz.Authorizer {
+				return scopedKubeAuthFn
+			},
+			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
+				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+					Username:      username,
+					Cluster:       cluster,
+					Namespace:     namespace,
+					PodName:       podName,
+					ContainerName: wcName,
+					Scope:         "/other",
 				})
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
@@ -296,11 +497,22 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
+			if tc.Name != "allowed delete access - scoped" {
+				t.Skip()
+			}
 			ctx, _, resourceSvc := initSvc(t, tc.Authorizer)
 
 			wcName := uuid.NewString()
 			if tc.Setup != nil {
-				tc.Setup(t, ctx, resourceSvc, wcName)
+				// setupSvc shared the same backend but always uses the kube
+				// authorizer
+				setupSvc, err := NewService(ServiceConfig{
+					Authorizer: kubeAuthFn,
+					Backend:    resourceSvc.backend,
+					Cache:      resourceSvc.cache,
+				})
+				require.NoError(t, err)
+				tc.Setup(t, ctx, setupSvc, wcName)
 			}
 
 			tc.Test(t, ctx, resourceSvc, wcName)

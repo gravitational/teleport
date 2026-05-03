@@ -27,6 +27,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -45,7 +46,7 @@ type ServiceConfig struct {
 // ephemeral containers that are waiting to be created until moderated
 // session conditions are met.
 type Cache interface {
-	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string, filter func(wc *kubewaitingcontainerpb.KubernetesWaitingContainer) bool) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
 	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 }
 
@@ -92,7 +93,9 @@ func (s *Service) ListKubernetesWaitingContainers(ctx context.Context, req *kube
 		return nil, trace.AccessDenied("unauthorized to list Kubernetes waiting container resources")
 	}
 
-	conts, nextToken, err := s.cache.ListKubernetesWaitingContainers(ctx, int(req.PageSize), req.PageToken)
+	conts, nextToken, err := s.cache.ListKubernetesWaitingContainers(ctx, int(req.PageSize), req.PageToken, func(wc *kubewaitingcontainerpb.KubernetesWaitingContainer) bool {
+		return checkAgentScope(authCtx, wc.GetScope()) == nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,24 +130,30 @@ func (s *Service) GetKubernetesWaitingContainer(ctx context.Context, req *kubewa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkAgentScope(authCtx, req.Scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := authCtx.CheckAccessToKind(types.KindKubeWaitingContainer, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !isKubeSvcOrProxy(authCtx) {
 		return nil, trace.AccessDenied("unauthorized to read Kubernetes waiting container resources")
 	}
-
 	out, err := s.cache.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 		Username:      req.Username,
 		Cluster:       req.Cluster,
 		Namespace:     req.Namespace,
 		PodName:       req.PodName,
 		ContainerName: req.ContainerName,
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	// sanity check the scope of the returned waiting container
+	if err := checkAgentScope(authCtx, out.GetScope()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return out, nil
 }
 
@@ -161,6 +170,10 @@ func (s *Service) CreateKubernetesWaitingContainer(ctx context.Context, req *kub
 	}
 	if !isKubeSvcOrProxy(authCtx) {
 		return nil, trace.AccessDenied("unauthorized to create Kubernetes waiting container resources")
+	}
+
+	if err := checkAgentScope(authCtx, req.GetWaitingContainer().GetScope()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	out, err := s.backend.CreateKubernetesWaitingContainer(ctx, req.WaitingContainer)
@@ -195,11 +208,31 @@ func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kub
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkAgentScope(authCtx, req.Scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := authCtx.CheckAccessToKind(types.KindKubeWaitingContainer, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !isKubeSvcOrProxy(authCtx) {
 		return nil, trace.AccessDenied("unauthorized to delete Kubernetes waiting container resources")
+	}
+
+	preAuthRes, err := s.cache.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+		Username:      req.Username,
+		Cluster:       req.Cluster,
+		Namespace:     req.Namespace,
+		PodName:       req.PodName,
+		ContainerName: req.ContainerName,
+		Scope:         req.Scope,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// sanity check the scope of the returned waiting container before deleting
+	if err := checkAgentScope(authCtx, preAuthRes.GetScope()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &emptypb.Empty{}, trace.Wrap(s.backend.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
@@ -208,6 +241,7 @@ func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kub
 		Namespace:     req.Namespace,
 		PodName:       req.PodName,
 		ContainerName: req.ContainerName,
+		Scope:         req.Scope,
 	}))
 }
 
@@ -215,4 +249,22 @@ func (s *Service) DeleteKubernetesWaitingContainer(ctx context.Context, req *kub
 // of "kube" or "proxy".
 func isKubeSvcOrProxy(authCtx *authz.Context) bool {
 	return authz.HasBuiltinRole(*authCtx, string(types.RoleKube)) || authz.HasBuiltinRole(*authCtx, string(types.RoleProxy))
+}
+
+// checkAgentScope returns true if the given auth context has an agent scope that matches the given scope.
+func checkAgentScope(authCtx *authz.Context, scope string) error {
+	agentScope := authCtx.Identity.GetIdentity().AgentScope
+	// unscoped agents are free to access waiting containers regardless of scope
+	if agentScope == "" {
+		return nil
+	}
+
+	if agentScope == scope {
+		return nil
+	}
+	if scopes.Compare(agentScope, scope) == scopes.Equivalent {
+		return nil
+	}
+
+	return trace.AccessDenied("agent scope %q does not permit access to %q", agentScope, scope)
 }

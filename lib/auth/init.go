@@ -345,7 +345,7 @@ type InitConfig struct {
 	// KubeWaitingContainers is a service that manages
 	// Kubernetes ephemeral containers that are waiting
 	// to be created until moderated session conditions are met.
-	KubeWaitingContainers services.KubeWaitingContainer
+	KubeWaitingContainers services.KubeWaitingContainerWithFilter
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications

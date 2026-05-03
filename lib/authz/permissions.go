@@ -1097,6 +1097,7 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 					},
 				},
 			},

@@ -246,10 +246,10 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 	}, nil
 }
 
-// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// ListKubernetesWaitingContainersWithFilter lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
+func (c *Cache) ListKubernetesWaitingContainersWithFilter(ctx context.Context, pageSize int, pageToken string, filter func(wc *kubewaitingcontainerv1.KubernetesWaitingContainer) bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
 	defer span.End()
 
@@ -258,6 +258,7 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 		collection:   c.collections.kubeWaitingContainers,
 		index:        kubeWaitingContainerNameIndex,
 		upstreamList: c.Config.KubeWaitingContainers.ListKubernetesWaitingContainers,
+		filter:       filter,
 		nextToken: func(t *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
 			spec := t.GetSpec()
 			return kubernetesWaitingContainerCacheKey(spec)
@@ -265,6 +266,13 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
+	return c.ListKubernetesWaitingContainersWithFilter(ctx, pageSize, pageToken, nil)
 }
 
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
