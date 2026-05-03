@@ -37,3 +37,6 @@ const (
 	UsersPrefix  = usersPrefix
 	ParamsPrefix = paramsPrefix
 )
+
+// NormalizeOIDCAuthRequestDurations exports normalizeOIDCAuthRequestDurations for tests.
+var NormalizeOIDCAuthRequestDurations = normalizeOIDCAuthRequestDurations

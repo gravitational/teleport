@@ -1708,10 +1708,77 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.OIDCAuthRequest)
-	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(normalizeOIDCAuthRequestDurations(item.Value)), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
+}
+
+// normalizeOIDCAuthRequestDurations converts Go duration strings (e.g. "8h0m0s")
+// stored in OIDCAuthRequest JSON to nanosecond integers before jsonpb unmarshaling.
+//
+// When CreateOIDCAuthRequest serializes an OIDCAuthRequest via jsonpb.Marshaler,
+// fields of type types.Duration (proto casttype=Duration) are marshaled as Go
+// duration strings rather than raw integers, because the marshaler falls back to
+// encoding/json which invokes Duration.MarshalJSON. On the read side,
+// jsonpb.Unmarshaler strips the surrounding JSON quotes (treating the value as a
+// quoted integer) and then calls json.Unmarshal on the raw bytes (e.g. 8h0m0s),
+// which fails JSON validation before the custom Duration.UnmarshalJSON is reached.
+// Converting the strings to integer nanoseconds before unmarshaling side-steps
+// the invalid-JSON path and also makes Duration.UnmarshalJSON's integer branch
+// reachable.
+func normalizeOIDCAuthRequestDurations(raw []byte) []byte {
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return raw
+	}
+
+	spec, _ := doc["ConnectorSpec"].(map[string]any)
+	if spec == nil {
+		return raw
+	}
+
+	changed := false
+	// OIDCConnectorSpecV3.MaxAge embedded field → jsonpb key "MaxAge" → field "Value"
+	if maxAge, _ := spec["MaxAge"].(map[string]any); maxAge != nil {
+		if normalizeDurationField(maxAge, "Value") {
+			changed = true
+		}
+	}
+	// OIDCConnectorSpecV3.MFASettings → jsonpb key "MFASettings" → field "maxAge"
+	if mfaSettings, _ := spec["MFASettings"].(map[string]any); mfaSettings != nil {
+		if normalizeDurationField(mfaSettings, "maxAge") {
+			changed = true
+		}
+	}
+
+	if !changed {
+		return raw
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+// normalizeDurationField converts a Go duration string value in m[key] to its
+// nanosecond integer equivalent in place. Returns true if a conversion happened.
+//
+// It uses time.ParseDuration, which accepts only Go stdlib units (h/m/s/ms/µs/ns).
+// That is sufficient here because jsonpb stores Duration values via Duration.MarshalJSON
+// which delegates to time.Duration.String() — the same unit set.
+func normalizeDurationField(m map[string]any, key string) bool {
+	str, ok := m[key].(string)
+	if !ok || str == "" {
+		return false
+	}
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		return false
+	}
+	m[key] = d.Nanoseconds()
+	return true
 }
 
 // UpsertSAMLConnector upserts SAML Connector

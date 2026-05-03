@@ -44,13 +44,25 @@ func (d Duration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.Duration().String())
 }
 
-// UnmarshalJSON interprets the given bytes as a Duration value
+// UnmarshalJSON interprets the given bytes as a Duration value.
+// Accepted formats:
+//   - JSON string containing a Go duration (e.g. "8h", "30m", "8h0m0s") — the primary format
+//   - JSON integer containing nanoseconds — used when reading OIDCAuthRequest records
+//     that were stored via github.com/gogo/protobuf/jsonpb after normalization
 func (d *Duration) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
 	var stringVar string
 	if err := json.Unmarshal(data, &stringVar); err != nil {
+		// Not a JSON string. Accept a raw integer as nanoseconds to support
+		// round-trips through storage layers that normalize duration fields
+		// to their nanosecond representation before unmarshaling.
+		var ns int64
+		if parseErr := json.Unmarshal(data, &ns); parseErr == nil {
+			*d = Duration(ns)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 	if stringVar == constants.DurationNever {
