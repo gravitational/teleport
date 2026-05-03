@@ -43,6 +43,9 @@ import (
 type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.ClusterNameGetter
+
+	// GetCertAuthority returns cert authority by id.
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
 // AuthClient defines functions that the MCP server requires from the auth
@@ -70,6 +73,8 @@ type ServerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 
 	clock clockwork.Clock
 }
