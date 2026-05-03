@@ -276,6 +276,9 @@ func (f fakeAccessPoint) GetClusterName(context.Context) (types.ClusterName, err
 	})
 	return clusterName, trace.Wrap(err)
 }
+func (f fakeAccessPoint) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
 
 func checkParamsHaveNameField(t *testing.T, params *apievents.Struct, wantName string) {
 	t.Helper()
