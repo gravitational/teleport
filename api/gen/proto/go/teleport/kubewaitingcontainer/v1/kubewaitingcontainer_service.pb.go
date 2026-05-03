@@ -160,6 +160,8 @@ type GetKubernetesWaitingContainerRequest struct {
 	PodName string `protobuf:"bytes,4,opt,name=pod_name,json=podName,proto3" json:"pod_name,omitempty"`
 	// container_name is the name of the ephemeral container
 	ContainerName string `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	// The scope of the ephemeral container
+	Scope         string `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -229,6 +231,13 @@ func (x *GetKubernetesWaitingContainerRequest) GetContainerName() string {
 	return ""
 }
 
+func (x *GetKubernetesWaitingContainerRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 // CreateKubernetesWaitingContainerRequest is the request for CreateKubernetesWaitingContainer.
 type CreateKubernetesWaitingContainerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -288,6 +297,8 @@ type DeleteKubernetesWaitingContainerRequest struct {
 	PodName string `protobuf:"bytes,4,opt,name=pod_name,json=podName,proto3" json:"pod_name,omitempty"`
 	// container_name is the name of the ephemeral container
 	ContainerName string `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	// The scope of the ephemeral container
+	Scope         string `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -357,6 +368,13 @@ func (x *DeleteKubernetesWaitingContainerRequest) GetContainerName() string {
 	return ""
 }
 
+func (x *DeleteKubernetesWaitingContainerRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 var File_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto protoreflect.FileDescriptor
 
 const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDesc = "" +
@@ -368,21 +386,23 @@ const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_r
 	"page_token\x18\x02 \x01(\tR\tpageToken\"\xbe\x01\n" +
 	"'ListKubernetesWaitingContainersResponse\x12k\n" +
 	"\x12waiting_containers\x18\x01 \x03(\v2<.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerR\x11waitingContainers\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xbc\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xd2\x01\n" +
 	"$GetKubernetesWaitingContainerRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1c\n" +
 	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12\x19\n" +
 	"\bpod_name\x18\x04 \x01(\tR\apodName\x12%\n" +
-	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\"\x94\x01\n" +
+	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scope\"\x94\x01\n" +
 	"'CreateKubernetesWaitingContainerRequest\x12i\n" +
-	"\x11waiting_container\x18\x01 \x01(\v2<.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerR\x10waitingContainer\"\xbf\x01\n" +
+	"\x11waiting_container\x18\x01 \x01(\v2<.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerR\x10waitingContainer\"\xd5\x01\n" +
 	"'DeleteKubernetesWaitingContainerRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1c\n" +
 	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12\x19\n" +
 	"\bpod_name\x18\x04 \x01(\tR\apodName\x12%\n" +
-	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName2\xb5\x05\n" +
+	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scope2\xb5\x05\n" +
 	"\x1cKubeWaitingContainersService\x12\xb6\x01\n" +
 	"\x1fListKubernetesWaitingContainers\x12H.teleport.kubewaitingcontainer.v1.ListKubernetesWaitingContainersRequest\x1aI.teleport.kubewaitingcontainer.v1.ListKubernetesWaitingContainersResponse\x12\xa5\x01\n" +
 	"\x1dGetKubernetesWaitingContainer\x12F.teleport.kubewaitingcontainer.v1.GetKubernetesWaitingContainerRequest\x1a<.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer\x12\xab\x01\n" +

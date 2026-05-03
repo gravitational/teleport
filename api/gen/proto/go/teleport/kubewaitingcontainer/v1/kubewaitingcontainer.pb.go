@@ -50,7 +50,9 @@ type KubernetesWaitingContainer struct {
 	// metadata is resource metadata
 	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// spec is the Kubernetes waiting container spec.
-	Spec          *KubernetesWaitingContainerSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec *KubernetesWaitingContainerSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	// The scope of the KubernetesWaitingcontainer.
+	Scope         string `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -118,6 +120,13 @@ func (x *KubernetesWaitingContainer) GetSpec() *KubernetesWaitingContainerSpec {
 		return x.Spec
 	}
 	return nil
+}
+
+func (x *KubernetesWaitingContainer) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
 }
 
 // KubernetesWaitingContainerSpec is the Kubernetes waiting ephemeral container spec.
@@ -225,13 +234,14 @@ var File_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto protoreflec
 
 const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc = "" +
 	"\n" +
-	";teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x12 teleport.kubewaitingcontainer.v1\x1a!teleport/header/v1/metadata.proto\"\xf5\x01\n" +
+	";teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x12 teleport.kubewaitingcontainer.v1\x1a!teleport/header/v1/metadata.proto\"\x8b\x02\n" +
 	"\x1aKubernetesWaitingContainer\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12T\n" +
-	"\x04spec\x18\x05 \x01(\v2@.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerSpecR\x04spec\"\xeb\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2@.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerSpecR\x04spec\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scope\"\xeb\x01\n" +
 	"\x1eKubernetesWaitingContainerSpec\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1c\n" +

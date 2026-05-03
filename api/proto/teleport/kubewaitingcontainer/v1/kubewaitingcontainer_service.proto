@@ -68,6 +68,8 @@ message GetKubernetesWaitingContainerRequest {
   string pod_name = 4;
   // container_name is the name of the ephemeral container
   string container_name = 5;
+  // The scope of the ephemeral container
+  string scope = 6;
 }
 
 // CreateKubernetesWaitingContainerRequest is the request for CreateKubernetesWaitingContainer.
@@ -88,4 +90,6 @@ message DeleteKubernetesWaitingContainerRequest {
   string pod_name = 4;
   // container_name is the name of the ephemeral container
   string container_name = 5;
+  // The scope of the ephemeral container
+  string scope = 6;
 }

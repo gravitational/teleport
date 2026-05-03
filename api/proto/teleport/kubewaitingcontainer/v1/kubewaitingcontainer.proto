@@ -34,6 +34,8 @@ message KubernetesWaitingContainer {
   teleport.header.v1.Metadata metadata = 4;
   // spec is the Kubernetes waiting container spec.
   KubernetesWaitingContainerSpec spec = 5;
+  // The scope of the KubernetesWaitingcontainer.
+  string scope = 6;
 }
 
 // KubernetesWaitingContainerSpec is the Kubernetes waiting ephemeral container spec.
