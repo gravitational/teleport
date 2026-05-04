@@ -1862,6 +1862,12 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
+	// server applications.
+	ApplicationProtocolMCP = "MCP"
+	// ApplicationProtocolLLM is the protocol for applications that expose an
+	// LLM inference endpoint.
+	ApplicationProtocolLLM = "LLM"
 )
 
 const (
