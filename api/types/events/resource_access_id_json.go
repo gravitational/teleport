@@ -22,9 +22,10 @@ import "encoding/json"
 // constraints field in [ResourceAccessID]. Each variant maps to one of the
 // concrete oneof wrapper types.
 type constraintsJSON struct {
-	UnknownConstraints *UnknownConstraints    `json:"unknown_constraints,omitempty"`
-	AWSConsole         *AWSConsoleConstraints `json:"aws_console,omitempty"`
-	SSH                *SSHConstraints        `json:"ssh,omitempty"`
+	UnknownConstraints *UnknownConstraints        `json:"unknown_constraints,omitempty"`
+	AWSConsole         *AWSConsoleConstraints     `json:"aws_console,omitempty"`
+	SSH                *SSHConstraints            `json:"ssh,omitempty"`
+	WindowsDesktop     *WindowsDesktopConstraints `json:"windows_desktop,omitempty"`
 }
 
 // resourceAccessIDJSON mirrors [ResourceAccessID] with a concrete Constraints
@@ -45,6 +46,8 @@ func (r *ResourceAccessID) MarshalJSON() ([]byte, error) {
 		out.Constraints = &constraintsJSON{AWSConsole: c.AwsConsole}
 	case *ResourceAccessID_Ssh:
 		out.Constraints = &constraintsJSON{SSH: c.Ssh}
+	case *ResourceAccessID_WindowsDesktop:
+		out.Constraints = &constraintsJSON{WindowsDesktop: c.WindowsDesktop}
 	}
 	return json.Marshal(out)
 }
@@ -66,6 +69,8 @@ func (r *ResourceAccessID) UnmarshalJSON(data []byte) error {
 		r.Constraints = &ResourceAccessID_AwsConsole{AwsConsole: tmp.Constraints.AWSConsole}
 	case tmp.Constraints.SSH != nil:
 		r.Constraints = &ResourceAccessID_Ssh{Ssh: tmp.Constraints.SSH}
+	case tmp.Constraints.WindowsDesktop != nil:
+		r.Constraints = &ResourceAccessID_WindowsDesktop{WindowsDesktop: tmp.Constraints.WindowsDesktop}
 	}
 	return nil
 }

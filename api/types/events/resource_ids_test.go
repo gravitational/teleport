@@ -66,15 +66,15 @@ func TestToEventResourceAccessID(t *testing.T) {
 				Constraints: &types.ResourceConstraints{
 					Details: &types.ResourceConstraints_AwsConsole{
 						AwsConsole: &types.AWSConsoleResourceConstraints{
-							RoleArns: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, MaxAuditRoleARNPreview+5),
+							RoleArns: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, MaxAuditConstraintsListPreview+5),
 						},
 					},
 				},
 			},
 			wantConstraints: &ResourceAccessID_AwsConsole{
 				AwsConsole: &AWSConsoleConstraints{
-					RoleArnsCount:   MaxAuditRoleARNPreview + 5,
-					RoleArnsPreview: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, MaxAuditRoleARNPreview),
+					RoleArnsCount:   MaxAuditConstraintsListPreview + 5,
+					RoleArnsPreview: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, MaxAuditConstraintsListPreview),
 				},
 			},
 		},

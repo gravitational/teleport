@@ -98,6 +98,16 @@ export interface ResourceConstraints {
          */
         ssh: SSHResourceConstraints;
     } | {
+        oneofKind: "windowsDesktop";
+        /**
+         * 12 reserved for DatabaseResourceConstraints.
+         * windows_desktop scopes a Windows Desktop to a subset of logins
+         * the requester is allowed to use.
+         *
+         * @generated from protobuf field: types.WindowsDesktopResourceConstraints windows_desktop = 13;
+         */
+        windowsDesktop: WindowsDesktopResourceConstraints;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -120,6 +130,18 @@ export interface AWSConsoleResourceConstraints {
  * @generated from protobuf message types.SSHResourceConstraints
  */
 export interface SSHResourceConstraints {
+    /**
+     * @generated from protobuf field: repeated string logins = 1;
+     */
+    logins: string[];
+}
+/**
+ * WindowsDesktopResourceConstraints scopes a Windows Desktop to a subset
+ * of logins the requester is allowed to use.
+ *
+ * @generated from protobuf message types.WindowsDesktopResourceConstraints
+ */
+export interface WindowsDesktopResourceConstraints {
     /**
      * @generated from protobuf field: repeated string logins = 1;
      */
@@ -229,7 +251,8 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         super("types.ResourceConstraints", [
             { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints },
-            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints }
+            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints },
+            { no: 13, name: "windows_desktop", kind: "message", oneof: "details", T: () => WindowsDesktopResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<ResourceConstraints>): ResourceConstraints {
@@ -260,6 +283,12 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
                         ssh: SSHResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).ssh)
                     };
                     break;
+                case /* types.WindowsDesktopResourceConstraints windows_desktop */ 13:
+                    message.details = {
+                        oneofKind: "windowsDesktop",
+                        windowsDesktop: WindowsDesktopResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).windowsDesktop)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -281,6 +310,9 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         /* types.SSHResourceConstraints ssh = 11; */
         if (message.details.oneofKind === "ssh")
             SSHResourceConstraints.internalBinaryWrite(message.details.ssh, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* types.WindowsDesktopResourceConstraints windows_desktop = 13; */
+        if (message.details.oneofKind === "windowsDesktop")
+            WindowsDesktopResourceConstraints.internalBinaryWrite(message.details.windowsDesktop, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -385,6 +417,53 @@ class SSHResourceConstraints$Type extends MessageType<SSHResourceConstraints> {
  * @generated MessageType for protobuf message types.SSHResourceConstraints
  */
 export const SSHResourceConstraints = new SSHResourceConstraints$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class WindowsDesktopResourceConstraints$Type extends MessageType<WindowsDesktopResourceConstraints> {
+    constructor() {
+        super("types.WindowsDesktopResourceConstraints", [
+            { no: 1, name: "logins", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<WindowsDesktopResourceConstraints>): WindowsDesktopResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.logins = [];
+        if (value !== undefined)
+            reflectionMergePartial<WindowsDesktopResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: WindowsDesktopResourceConstraints): WindowsDesktopResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string logins */ 1:
+                    message.logins.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: WindowsDesktopResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string logins = 1; */
+        for (let i = 0; i < message.logins.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.logins[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.WindowsDesktopResourceConstraints
+ */
+export const WindowsDesktopResourceConstraints = new WindowsDesktopResourceConstraints$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceAccessID$Type extends MessageType<ResourceAccessID> {
     constructor() {

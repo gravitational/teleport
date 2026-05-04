@@ -53,6 +53,10 @@ message ResourceConstraints {
     // ssh scopes an SSH node to a subset of logins the requester is
     // allowed to use.
     SSHResourceConstraints ssh = 11;
+    // 12 reserved for DatabaseResourceConstraints.
+    // windows_desktop scopes a Windows Desktop to a subset of logins
+    // the requester is allowed to use.
+    WindowsDesktopResourceConstraints windows_desktop = 13;
   }
 }
 
@@ -65,6 +69,12 @@ message AWSConsoleResourceConstraints {
 // SSHResourceConstraints scopes an SSH node to a subset of logins the
 // requester is allowed to use.
 message SSHResourceConstraints {
+  repeated string logins = 1;
+}
+
+// WindowsDesktopResourceConstraints scopes a Windows Desktop to a subset
+// of logins the requester is allowed to use.
+message WindowsDesktopResourceConstraints {
   repeated string logins = 1;
 }
 
