@@ -142,7 +142,7 @@ No single signal answers every question about agent health. We recommend combini
 | Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes readiness probe) |
 | Is the cluster aware of this agent right now? | `tctl inventory status --connected` |
 | Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
-| Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.login`, `instance.join`, `instance.token.create`, `cert.create` |
+| Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.join`, `bot.join`, `join_token.create`, `cert.create` |
 
 For Kubernetes deployments, configure `/healthz` as the liveness probe and
 `/readyz` as the readiness probe on agent pods. Do not use `/readyz` as a
