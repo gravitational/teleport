@@ -58,12 +58,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	tkm "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestListPodRBAC(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	const (
 		usernameWithFullAccess        = "full_user"
 		usernameWithNamespaceAccess   = "default_user"
@@ -89,6 +89,10 @@ func TestListPodRBAC(t *testing.T) {
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			Scope:    scope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
 		},
 	)
 	// close tests
@@ -1123,7 +1127,6 @@ func (f *fakeResponseWriter) Write(b []byte) (int, error) {
 }
 
 func TestDeletePodCollectionRBAC(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
@@ -1145,6 +1148,10 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			Scope:    scope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
 		},
 	)
 	// close tests
@@ -1357,7 +1364,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 }
 
 func TestDeleteCRDCollectionRBAC(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
@@ -1379,6 +1385,10 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			Scope:    scope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
 		},
 	)
 	// close tests
@@ -1599,8 +1609,6 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 }
 
 func TestListClusterRoleRBAC(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
 	const (
 		usernameWithFullAccess    = "full_user"
 		usernameWithLimitedAccess = "limited_user"
@@ -1622,6 +1630,10 @@ func TestListClusterRoleRBAC(t *testing.T) {
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			Scope:    scope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
 		},
 	)
 	// close tests
@@ -1850,8 +1862,6 @@ func TestListClusterRoleRBAC(t *testing.T) {
 }
 
 func TestGenericCustomResourcesRBAC(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
 	const (
 		usernameWithFullAccess     = "full_user"
 		usernameWithLimitedAccess  = "limited_user"
@@ -3806,6 +3816,10 @@ func newTestKubeCRDMock(t *testing.T, scope string, opts ...tkm.Option) (*runtim
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			Scope:    scope,
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
 		},
 	)
 	// Close tests.
