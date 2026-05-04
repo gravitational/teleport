@@ -412,7 +412,7 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
-	sess, _, err := newSession(ctx, s, scx, channel, sessionTypeNonInteractive)
+	sess, p, err := newSession(ctx, s, scx, channel, sessionTypeNonInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -443,7 +443,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	// occurs, otherwise it will be closed by the callee.
 	scx.setSession(ctx, sess)
 
-	err = sess.startExec(ctx, channel, scx)
+	err = sess.startExec(ctx, channel, scx, p)
 	if err != nil {
 		sess.Close()
 		return trace.Wrap(err)
@@ -1633,7 +1633,7 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 	return rec, nil
 }
 
-func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
+func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext, p *party) error {
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
@@ -1645,6 +1645,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	if err := execRequest.Start(ctx, channel); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Add the party to the session once it is running.
+	s.mu.Lock()
+	s.parties[p.id] = p
+	s.participants[p.id] = p
+	s.mu.Unlock()
 
 	bpfEnabled := scx.srv.GetBPF().Enabled()
 	var eventsMap map[string]struct{}
