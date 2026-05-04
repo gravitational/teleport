@@ -40,6 +40,7 @@ import (
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -54,6 +55,7 @@ type client struct {
 	bk backend.Backend
 	services.Presence
 	services.WindowsDesktops
+	services.LinuxDesktops
 	services.SAMLIdPServiceProviders
 	services.GitServers
 	services.IdentityCenterAccounts
@@ -74,11 +76,14 @@ func newClient(t *testing.T) *client {
 		Backend: bk,
 	})
 	require.NoError(t, err)
+	linuxDesktopService, err := local.NewLinuxDesktopService(bk)
+	require.NoError(t, err)
 
 	return &client{
 		bk:                      bk,
 		Presence:                local.NewPresenceService(bk),
 		WindowsDesktops:         local.NewWindowsDesktopService(bk),
+		LinuxDesktops:           linuxDesktopService,
 		SAMLIdPServiceProviders: samlService,
 		Events:                  local.NewEventsService(bk),
 		GitServers:              gitService,
@@ -89,7 +94,7 @@ func newClient(t *testing.T) *client {
 func TestUnifiedResourceWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	// Add node to the backend.
@@ -185,9 +190,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		gitServer, gitServer2,
 		services.IdentityCenterAccountToAppServer(icAcct),
 	}
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
-		return len(res) == len(expectedRes)
+		require.NoError(t, err)
+		require.Len(t, res, len(expectedRes))
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
@@ -213,14 +219,15 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		services.IdentityCenterAccountToAppServer(icAcct),
 	}
 
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
 		serverUpdated := slices.ContainsFunc(res, func(r types.ResourceWithLabels) bool {
 			node, ok := r.(types.Server)
 			return ok && node.GetAddr() == "192.168.0.1:22"
 		})
-		return len(res) == len(expectedRes) && serverUpdated
+		require.True(t, serverUpdated)
+		require.Len(t, res, len(expectedRes))
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be updated")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
@@ -238,7 +245,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
@@ -425,7 +432,7 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 func TestUnifiedResourceCacheIteration(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const resourceCount = 1234
 	ids := make([]string, 0, resourceCount)
@@ -820,7 +827,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -836,9 +843,10 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 1
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, res, 1)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// update a node
@@ -846,10 +854,11 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, updatedNode)
 	require.NoError(t, err)
 
-	// only one resource should still exists with the name "node1" (with hostname updated)
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 1
+	// only one resource should still exist with the name "node1" (with hostname updated)
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, res, 1)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 }
@@ -975,7 +984,7 @@ func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1094,9 +1103,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	_, err = clt.CreateGitServer(ctx, gitServer)
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 8
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, res, 8)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// delete just one of each of the HA servers
@@ -1222,7 +1232,7 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 func TestOktaAppServers(t *testing.T) {
 	clt := newClient(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	appsServer := []*types.AppServerV3{
 		mustCreateOktaAppServer(t, uuid.NewString(), "App 1"),
@@ -1234,7 +1244,7 @@ func TestOktaAppServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	w, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+	w, err := services.NewUnifiedResourceCache(t.Context(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
 			Client:    clt,
@@ -1309,7 +1319,7 @@ func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
 func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	app, err := types.NewAppServerV3(
@@ -1411,6 +1421,293 @@ func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 				compareResourceOpts...,
 			))
 
+		})
+	}
+}
+
+func TestUnifiedResourceLinuxDesktop(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clt := newClient(t)
+
+	// Create a unified resource cache
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Client:    clt,
+			Component: teleport.ComponentUnifiedResource,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	// Create and upsert a Linux desktop
+	linuxDesktop1 := &linuxdesktopv1.LinuxDesktop{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V3,
+		Metadata: &headerv1.Metadata{
+			Name: "linux-desktop-1",
+			Labels: map[string]string{
+				"env":    "production",
+				"region": "us-west-1",
+			},
+		},
+		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+			Addr:     "10.0.0.1:22",
+			Hostname: "linux-host-1",
+			ProxyIds: []string{"proxy-1"},
+		},
+	}
+	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop1)
+	require.NoError(t, err)
+
+	// Wait for the resource to appear in the cache
+	var resources []types.ResourceWithLabels
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		resources, err = w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for Linux desktop to be added")
+
+	// Verify the resource is a Linux desktop with correct properties
+	require.Len(t, resources, 1)
+	resource := resources[0]
+	require.Equal(t, types.KindLinuxDesktop, resource.GetKind())
+	require.Equal(t, "linux-desktop-1", resource.GetName())
+	require.Contains(t, resource.GetAllLabels(), "env")
+	require.Equal(t, "production", resource.GetAllLabels()["env"])
+
+	// Verify it can be unwrapped
+	unwrapper, ok := resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
+	require.True(t, ok, "resource should be unwrappable to LinuxDesktop")
+	unwrapped := unwrapper.UnwrapT()
+	require.Equal(t, "linux-desktop-1", unwrapped.Metadata.Name)
+	require.Equal(t, "10.0.0.1:22", unwrapped.Spec.Addr)
+	require.Equal(t, "linux-host-1", unwrapped.Spec.Hostname)
+
+	// Add a second Linux desktop
+	linuxDesktop2 := &linuxdesktopv1.LinuxDesktop{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V3,
+		Metadata: &headerv1.Metadata{
+			Name: "linux-desktop-2",
+			Labels: map[string]string{
+				"env": "staging",
+			},
+		},
+		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+			Addr:     "10.0.0.2:22",
+			Hostname: "linux-host-2",
+			ProxyIds: []string{"proxy-2"},
+		},
+	}
+	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop2)
+	require.NoError(t, err)
+
+	// Wait for both resources to appear
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		resources, err = w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, resources, 2)
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for second Linux desktop")
+
+	// Verify both desktops are present
+	require.Len(t, resources, 2)
+	names := []string{resources[0].GetName(), resources[1].GetName()}
+	require.ElementsMatch(t, []string{"linux-desktop-1", "linux-desktop-2"}, names)
+
+	// Delete the first desktop
+	err = clt.DeleteLinuxDesktop(ctx, "linux-desktop-1")
+	require.NoError(t, err)
+
+	// Wait for deletion to be reflected
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		resources, err = w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		require.Equal(t, "linux-desktop-2", resources[0].GetName())
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for Linux desktop deletion")
+}
+
+func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clt := newClient(t)
+
+	// Create a unified resource cache
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Client:    clt,
+			Component: teleport.ComponentUnifiedResource,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	// Wait for cache initialization to avoid test flakiness
+	assert.Eventually(t, w.IsInitialized, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources cache initialization")
+
+	// Add a Linux desktop
+	linuxDesktop := &linuxdesktopv1.LinuxDesktop{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V3,
+		Metadata: &headerv1.Metadata{
+			Name: "linux-desktop",
+			Labels: map[string]string{
+				"env": "test",
+			},
+		},
+		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+			Addr:     "10.0.0.10:22",
+			Hostname: "test-host",
+		},
+	}
+	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop)
+	require.NoError(t, err)
+
+	// Add a Windows desktop for comparison
+	windowsDesktop, err := types.NewWindowsDesktopV3(
+		"windows-desktop",
+		map[string]string{"env": "test"},
+		types.WindowsDesktopSpecV3{
+			Addr:   "10.0.0.20:3389",
+			HostID: "windows-host",
+		},
+	)
+	require.NoError(t, err)
+	err = clt.UpsertWindowsDesktop(ctx, windowsDesktop)
+	require.NoError(t, err)
+
+	// Add a node for comparison
+	node := newNodeServer(t, "node", "node-host", "10.0.0.30:22", false)
+	_, err = clt.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// Wait for all resources
+	var allResources []types.ResourceWithLabels
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		allResources, err = w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allResources, 3)
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources")
+
+	// Helper to collect resources from iterator
+	collect := func(t *testing.T, iter iter.Seq2[types.ResourceWithLabels, error]) (collected []types.ResourceWithLabels) {
+		for r, err := range iter {
+			require.NoError(t, err)
+			collected = append(collected, r)
+		}
+		return collected
+	}
+
+	// Test filtering by Linux desktop kind only
+	linuxOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindLinuxDesktop))
+	require.Len(t, linuxOnly, 1)
+	require.Equal(t, types.KindLinuxDesktop, linuxOnly[0].GetKind())
+	require.Equal(t, "linux-desktop", linuxOnly[0].GetName())
+
+	// Test filtering by Windows desktop kind only
+	windowsOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindWindowsDesktop))
+	require.Len(t, windowsOnly, 1)
+	require.Equal(t, types.KindWindowsDesktop, windowsOnly[0].GetKind())
+	require.Equal(t, "windows-desktop", windowsOnly[0].GetName())
+
+	// Test filtering by both desktop kinds
+	bothDesktops := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindLinuxDesktop, types.KindWindowsDesktop))
+	require.Len(t, bothDesktops, 2)
+	kinds := []string{bothDesktops[0].GetKind(), bothDesktops[1].GetKind()}
+	require.ElementsMatch(t, []string{types.KindLinuxDesktop, types.KindWindowsDesktop}, kinds)
+
+	// Test filtering by node kind (should not include desktops)
+	nodesOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindNode))
+	require.Len(t, nodesOnly, 1)
+	require.Equal(t, types.KindNode, nodesOnly[0].GetKind())
+}
+
+func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		desktop         *linuxdesktopv1.LinuxDesktop
+		requiresRequest bool
+		logins          []string
+	}{
+		{
+			name: "basic linux desktop",
+			desktop: &linuxdesktopv1.LinuxDesktop{
+				Kind:    types.KindLinuxDesktop,
+				Version: types.V3,
+				Metadata: &headerv1.Metadata{
+					Name: "test-desktop",
+					Labels: map[string]string{
+						"env": "production",
+					},
+				},
+				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Addr:     "192.168.1.100:22",
+					Hostname: "desktop-host",
+					ProxyIds: []string{"proxy-1"},
+				},
+			},
+			requiresRequest: false,
+			logins:          []string{"ubuntu", "root"},
+		},
+		{
+			name: "linux desktop requiring request",
+			desktop: &linuxdesktopv1.LinuxDesktop{
+				Kind:    types.KindLinuxDesktop,
+				Version: types.V3,
+				Metadata: &headerv1.Metadata{
+					Name: "protected-desktop",
+				},
+				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					Addr:     "10.0.0.50:22",
+					Hostname: "protected-host",
+				},
+			},
+			requiresRequest: true,
+			logins:          []string{"admin"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Convert to ResourceWithLabels
+			wrapped := types.ProtoResource153ToLegacy(tt.desktop)
+
+			// Create paginated resource
+			paginated, err := services.MakePaginatedResource(types.KindLinuxDesktop, wrapped, tt.requiresRequest)
+			require.NoError(t, err)
+			require.NotNil(t, paginated)
+
+			// Verify the paginated resource contains a LinuxDesktop
+			wireDesktop := paginated.GetLinuxDesktop()
+			require.NotNil(t, wireDesktop, "paginated resource should contain LinuxDesktop")
+
+			// Verify fields match
+			require.Equal(t, tt.desktop.Kind, wireDesktop.Kind)
+			require.Equal(t, tt.desktop.Version, wireDesktop.Version)
+			require.Equal(t, tt.desktop.Metadata.Name, wireDesktop.Metadata.Name)
+			require.Equal(t, tt.desktop.Spec.Addr, wireDesktop.Addr)
+			require.Equal(t, tt.desktop.Spec.Hostname, wireDesktop.Hostname)
+			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIds)
+			require.Equal(t, tt.requiresRequest, paginated.RequiresRequest)
+
+			// Test unpacking
+			unpacked := proto.UnpackLinuxDesktop(wireDesktop)
+			require.NotNil(t, unpacked)
+			require.Equal(t, types.KindLinuxDesktop, unpacked.GetKind())
+			require.Equal(t, tt.desktop.Metadata.Name, unpacked.GetName())
+
+			// Verify it can be unwrapped back to the original type
+			unwrapper, ok := unpacked.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
+			require.True(t, ok, "unpacked resource should be unwrappable")
+			unpackedDesktop := unwrapper.UnwrapT()
+			require.Equal(t, tt.desktop.Metadata.Name, unpackedDesktop.Metadata.Name)
+			require.Equal(t, tt.desktop.Spec.Addr, unpackedDesktop.Spec.Addr)
+			require.Equal(t, tt.desktop.Spec.Hostname, unpackedDesktop.Spec.Hostname)
 		})
 	}
 }

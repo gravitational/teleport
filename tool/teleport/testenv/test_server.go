@@ -508,8 +508,8 @@ func (p *cliModules) Features() modules.Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func (p *cliModules) IsBoringBinary() bool {
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *cliModules) IsFIPSBuild() bool {
 	return false
 }
 

@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestOSSModules(t *testing.T) {
-	require.False(t, modules.GetModules().IsBoringBinary())
+	require.False(t, modules.GetModules().IsFIPSBuild())
 	require.Equal(t, modules.BuildOSS, modules.GetModules().BuildType())
 }
 

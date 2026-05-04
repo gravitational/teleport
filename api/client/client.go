@@ -74,6 +74,7 @@ import (
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -990,6 +991,11 @@ func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSession
 	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
+// BeamServiceClient returns a client for the beam service.
+func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
+	return beamsv1.NewBeamServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -1668,13 +1674,25 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	return resp.GetSession(), nil
 }
 
-// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+// resulting public key to an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
 	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
 		SessionId: sessionID,
-		PublicKey: publicKey,
+		PublicKey: responseJWT,
 	})
 	return trace.Wrap(err)
+}
+
+// SignDBSCChallenge signs a DBSC challenge.
+func (c *Client) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	resp, err := c.grpc.SignDBSCChallenge(ctx, &proto.SignDBSCChallengeRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.Challenge, nil
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.
@@ -4521,6 +4539,9 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetLinuxDesktop(); r != nil {
+		desktop := proto.UnpackLinuxDesktop(r)
+		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}

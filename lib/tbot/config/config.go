@@ -103,7 +103,7 @@ type BotConfig struct {
 
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
-	// - Refuse to run if not compiled with boringcrypto
+	// - Refuse to run if not compiled in FIPS140 mode
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - RSA2048 or ECDSA with NIST-P256 curve should be used for private key generation

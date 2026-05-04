@@ -1,0 +1,7 @@
+Beam "charlie" successfully published.
+
+Connect to your TCP application via VNet at:
+  tcp://charlie-app.proxy.example.com:8080
+
+Or start a local tunnel to the application with:
+  tsh proxy app charlie-app

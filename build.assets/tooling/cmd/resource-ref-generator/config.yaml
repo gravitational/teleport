@@ -133,6 +133,10 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: node
     yaml_version: v2
+  - type: WorkloadCluster
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1
+    yaml_kind: workload_cluster
+    yaml_version: v1
 
 camel_case_exceptions:
   - AWS
