@@ -263,7 +263,10 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	for _, r := range page.Resources {
 		switch desktop := r.ResourceWithLabels.(type) {
 		case types.WindowsDesktop:
-			uiDesktops = append(uiDesktops, webui.MakeWindowsDesktop(desktop, r.Logins, false /* requiresRequest */))
+			loginSet := set.New(r.Logins...)
+			uiDesktops = append(uiDesktops, webui.MakeWindowsDesktop(desktop, webui.MakeWindowsDesktopConfig{
+				Logins: &webui.PrincipalSet{All: loginSet, Granted: loginSet},
+			}))
 		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
 			uiDesktops = append(uiDesktops, webui.MakeLinuxDesktop(desktop.UnwrapT(), r.Logins, false /* requiresRequest */))
 		}
@@ -334,7 +337,10 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeWindowsDesktop(desktop, logins, false /* requiresRequest */), nil
+	loginSet := set.New(logins...)
+	return webui.MakeWindowsDesktop(desktop, webui.MakeWindowsDesktopConfig{
+		Logins: &webui.PrincipalSet{All: loginSet, Granted: loginSet},
+	}), nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.

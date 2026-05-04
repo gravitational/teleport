@@ -458,7 +458,7 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	desktop := MakeWindowsDesktop(windowsDesktop, nil, false)
+	desktop := MakeWindowsDesktop(windowsDesktop, MakeWindowsDesktopConfig{})
 	labels := []ui.Label{
 		{
 			Name:  "label3",

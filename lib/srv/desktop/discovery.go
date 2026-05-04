@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -410,6 +411,8 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		return nil, trace.Wrap(err)
 	}
 
+	desktop.SetComponentFeatures(componentfeatures.ForWindowsDesktopService())
+
 	description := entry.GetAttributeValue(attrDescription)
 	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]
 
@@ -527,7 +530,7 @@ func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDes
 	maps.Copy(labels, desktopLabels)
 	labels[types.OriginLabel] = types.OriginDynamic
 
-	return types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
+	desktop, err := types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
 		Addr:   dynamicDesktop.GetAddr(),
 		Domain: dynamicDesktop.GetDomain(),
 		HostID: s.cfg.Heartbeat.HostUUID,
@@ -537,4 +540,9 @@ func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDes
 			Height: height,
 		},
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	desktop.SetComponentFeatures(componentfeatures.ForWindowsDesktopService())
+	return desktop, nil
 }

@@ -112,6 +112,10 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 			if kind != types.KindNode {
 				return trace.BadParameter("ssh constraints are not valid for resource kind %q", kind)
 			}
+		case *types.ResourceConstraints_WindowsDesktop:
+			if kind != types.KindWindowsDesktop {
+				return trace.BadParameter("windows_desktop constraints are not valid for resource kind %q", kind)
+			}
 		default:
 			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)
 		}

@@ -3589,7 +3589,22 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, enriched.Logins, enriched.RequiresRequest))
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			desktopComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, ui.MakeWindowsDesktopConfig{
+				Logins:            principals.WindowsDesktopLogins,
+				RequiresRequest:   enriched.RequiresRequest,
+				SupportedFeatures: desktopComponentFeatures,
+			}))
 		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
 			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:

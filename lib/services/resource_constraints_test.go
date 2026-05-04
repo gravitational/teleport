@@ -266,8 +266,120 @@ func TestValidateAccessRequest_ConstraintKinds(t *testing.T) {
 		require.Contains(t, err.Error(), "ssh constraints are not valid for resource kind")
 	})
 
+	windowsDesktopConstraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_WindowsDesktop{
+			WindowsDesktop: &types.WindowsDesktopResourceConstraints{
+				Logins: []string{"Administrator"},
+			},
+		},
+	}
+
+	t.Run("KindWindowsDesktop with windows_desktop constraints is accepted", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindWindowsDesktop, windowsDesktopConstraints))
+		require.NoError(t, err)
+	})
+
+	t.Run("KindNode with windows_desktop constraints is rejected", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindNode, windowsDesktopConstraints))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "windows_desktop constraints are not valid for resource kind")
+	})
+
+	t.Run("KindWindowsDesktop with SSH constraints is rejected", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindWindowsDesktop, sshConstraints))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ssh constraints are not valid for resource kind")
+	})
+
 	t.Run("nil constraints are accepted for any kind", func(t *testing.T) {
 		err := ValidateAccessRequest(makeRequest(types.KindDatabase, nil))
 		require.NoError(t, err)
 	})
+}
+
+func roleAllowingWindowsDesktopLogins(logins ...string) types.Role {
+	return newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WindowsDesktopLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.WindowsDesktopLogins = append([]string{}, logins...)
+	})
+}
+
+func TestWithConstraints_WindowsDesktop_ScopesLoginMatcher(t *testing.T) {
+	const (
+		adminLogin = "Administrator"
+		userLogin  = "User"
+	)
+
+	role := roleAllowingWindowsDesktopLogins(adminLogin, userLogin)
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_WindowsDesktop{
+			WindowsDesktop: &types.WindowsDesktopResourceConstraints{
+				Logins: []string{userLogin},
+			},
+		},
+	}
+	guard := WithConstraints(rc)
+
+	adminMatcher := NewWindowsLoginMatcher(adminLogin)
+	userMatcher := NewWindowsLoginMatcher(userLogin)
+	adminMatcherScoped := guard(adminMatcher)
+	userMatcherScoped := guard(userMatcher)
+
+	ok, err := adminMatcherScoped.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok, "Administrator login should be denied by constraint scoping")
+
+	ok, err = userMatcherScoped.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok, "User login should be allowed by role and constraint")
+}
+
+func TestWithConstraints_WindowsDesktop_NoOpForNonPrincipalMatchers(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_WindowsDesktop{
+			WindowsDesktop: &types.WindowsDesktopResourceConstraints{Logins: []string{"Administrator"}},
+		},
+	}
+	dummy := RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+		return true, nil
+	})
+	wrapped := WithConstraints(rc)(dummy)
+	ok, err := wrapped.Match(roleAllowingWindowsDesktopLogins("other"), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestWithConstraints_WindowsDesktop_ErrorCases(t *testing.T) {
+	rcEmpty := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_WindowsDesktop{
+			WindowsDesktop: &types.WindowsDesktopResourceConstraints{Logins: nil},
+		},
+	}
+	_, err := WithConstraints(rcEmpty)(NewWindowsLoginMatcher("Administrator")).Match(roleAllowingWindowsDesktopLogins("Administrator"), types.Allow)
+	require.ErrorIs(t, err, trace.BadParameter("windows_desktop constraints require logins, none provided"))
+}
+
+func TestMatcherFromConstraints_WindowsDesktop_BuildsAnyOf(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_WindowsDesktop{
+			WindowsDesktop: &types.WindowsDesktopResourceConstraints{
+				Logins: []string{"Administrator", "User"},
+			},
+		},
+	}
+
+	m, err := MatcherFromConstraints(rc)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+
+	role1 := roleAllowingWindowsDesktopLogins("Administrator")
+	ok, err := m.Match(role1, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	role2 := roleAllowingWindowsDesktopLogins("other")
+	ok, err = m.Match(role2, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
 }

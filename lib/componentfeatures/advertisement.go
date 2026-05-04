@@ -37,6 +37,11 @@ type appServerInfoGetter interface {
 	GetApp() types.Application
 }
 
+// ForWindowsDesktopService returns features that a Windows Desktop service can support/participate in.
+func ForWindowsDesktopService() *componentfeaturesv1.ComponentFeatures {
+	return New(FeatureResourceConstraintsV1)
+}
+
 // ForAppServer returns features that an App server can support/participate in.
 func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures {
 	// Resource Constraints are only supported for AWS Console apps.

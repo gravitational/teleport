@@ -505,6 +505,14 @@ func MakeDatabaseServices(databaseServices []types.DatabaseService) []DatabaseSe
 	return dbServices
 }
 
+// DesktopLogin describes a desktop login available on a desktop.
+type DesktopLogin struct {
+	// Login is the desktop login name.
+	Login string `json:"login"`
+	// RequiresRequest indicates whether this login requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
 // Desktop describes a desktop to pass to the ui.
 type Desktop struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
@@ -521,8 +529,13 @@ type Desktop struct {
 	HostID string `json:"host_id"`
 	// Logins is the list of logins this user can use on this desktop.
 	Logins []string `json:"logins"`
+	// DesktopLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
+	// Only populated when the handler has requestable login info.
+	DesktopLoginDetails []DesktopLogin `json:"desktopLoginDetails,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportedFeatureIDs contains ComponentFeatureIDs supported by this Desktop and all other involved components.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
@@ -540,8 +553,18 @@ func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string
 	}
 }
 
+// MakeWindowsDesktopConfig contains parameters for converting Windows Desktops to UI representation.
+type MakeWindowsDesktopConfig struct {
+	// Logins is the set of granted and/or requestable logins.
+	Logins *PrincipalSet
+	// RequiresRequest is whether the Desktop resource requires an Access Request to be usable.
+	RequiresRequest bool
+	// SupportedFeatures contains FeatureIDs supported by the Desktop.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+}
+
 // MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
-func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
+func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, c MakeWindowsDesktopConfig) Desktop {
 	// stripRDPPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRDPPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -553,16 +576,40 @@ func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, re
 
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(windowsDesktop.GetAllLabels())
 
-	return Desktop{
-		Kind:            windowsDesktop.GetKind(),
-		OS:              constants.WindowsOS,
-		Name:            windowsDesktop.GetName(),
-		Addr:            stripRDPPort(windowsDesktop.GetAddr()),
-		Labels:          uiLabels,
-		HostID:          windowsDesktop.GetHostID(),
-		Logins:          logins,
-		RequiresRequest: requiresRequest,
+	var logins []string
+	if c.Logins != nil {
+		logins = c.Logins.All.Elements()
 	}
+
+	uiDesktop := Desktop{
+		Kind:                windowsDesktop.GetKind(),
+		OS:                  constants.WindowsOS,
+		Name:                windowsDesktop.GetName(),
+		Addr:                stripRDPPort(windowsDesktop.GetAddr()),
+		Labels:              uiLabels,
+		HostID:              windowsDesktop.GetHostID(),
+		Logins:              logins,
+		DesktopLoginDetails: buildDesktopLoginDetails(c.Logins),
+		RequiresRequest:     c.RequiresRequest,
+	}
+
+	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
+		uiDesktop.SupportedFeatureIDs = f
+	}
+
+	return uiDesktop
+}
+
+func buildDesktopLoginDetails(logins *PrincipalSet) []DesktopLogin {
+	if logins == nil {
+		return nil
+	}
+	return slices.Map(logins.All.Elements(), func(login string) DesktopLogin {
+		return DesktopLogin{
+			Login:           login,
+			RequiresRequest: !logins.Granted.Contains(login),
+		}
+	})
 }
 
 // DesktopService describes a desktop service to pass to the ui.

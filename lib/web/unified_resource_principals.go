@@ -34,6 +34,8 @@ type UnifiedResourcePrincipals struct {
 	Logins *webui.PrincipalSet
 	// AWSRoleARNs is populated for AWS Console apps.
 	AWSRoleARNs *webui.PrincipalSet
+	// WindowsDesktopLogins is populated for Windows Desktops.
+	WindowsDesktopLogins *webui.PrincipalSet
 }
 
 // PrincipalsForUnifiedResourceOpts configures PrincipalsForUnifiedResource.
@@ -71,6 +73,12 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 			return nil, trace.Wrap(err)
 		}
 		result.AWSRoleARNs = arns
+	case types.WindowsDesktop:
+		logins, err := windowsDesktopPrincipals(opts, r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result.WindowsDesktopLogins = logins
 	}
 
 	return result, nil
@@ -128,6 +136,37 @@ func appPrincipals(opts PrincipalsForUnifiedResourceOpts, appServer types.AppSer
 
 	if opts.IncludeRequestable {
 		granted, err := opts.AccessChecker.GetAllowedLoginsForResource(appServer.GetApp())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ps.Granted = set.New(granted...)
+	} else {
+		ps.Granted = allSet
+	}
+
+	return ps, nil
+}
+
+// windowsDesktopPrincipals computes login principals for a Windows Desktop.
+//
+// Unlike SSH, desktop logins are not filtered by cert principals because
+// they are not embedded in certificates. When IncludeRequestable is set,
+// granted logins are computed using the base access checker.
+func windowsDesktopPrincipals(opts PrincipalsForUnifiedResourceOpts, desktop types.WindowsDesktop) (*webui.PrincipalSet, error) {
+	all := opts.Resource.Logins
+	if len(all) == 0 {
+		var err error
+		all, err = opts.AccessChecker.GetAllowedLoginsForResource(desktop)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	allSet := set.New(all...)
+	ps := &webui.PrincipalSet{All: allSet}
+
+	if opts.IncludeRequestable {
+		granted, err := opts.AccessChecker.GetAllowedLoginsForResource(desktop)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

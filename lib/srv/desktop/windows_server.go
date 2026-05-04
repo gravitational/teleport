@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
@@ -1153,6 +1154,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.SetComponentFeatures(componentfeatures.ForWindowsDesktopService())
 	srv.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	return srv, nil
 }
@@ -1197,6 +1199,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		desktop.SetComponentFeatures(componentfeatures.ForWindowsDesktopService())
 		desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 		return desktop, nil
 	}
