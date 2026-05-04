@@ -111,7 +111,16 @@ func (s *BeamService) IterateBeams(ctx context.Context, pageToken string, option
 		}
 	}
 
-	return s.svc.Resources(ctx, pageToken, "")
+	filterFn := services.MakeBeamFilterFunc(options)
+	seq := s.svc.Resources(ctx, pageToken, "")
+
+	return func(yield func(*beamsv1.Beam, error) bool) {
+		for beam := range seq {
+			if filterFn(beam) {
+				yield(beam, nil)
+			}
+		}
+	}
 }
 
 func validateListOptions(options *services.ListBeamsRequestOptions) error {
