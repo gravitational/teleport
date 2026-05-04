@@ -9830,10 +9830,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: cfg.authServer.ClusterName(),
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
+	proxyAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      cfg.authServer.ClusterName(),
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -9904,7 +9905,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Namespace:         apidefaults.Namespace,
 			Keygen:            keyGen,
 			ClusterName:       cfg.authServer.ClusterName(),
-			Authz:             proxyAuthorizer,
+			ScopedAuthz:       proxyAuthorizer,
 			AuthClient:        client,
 			Emitter:           client,
 			DataDir:           t.TempDir(),
