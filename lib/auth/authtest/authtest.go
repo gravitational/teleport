@@ -35,6 +35,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/teleport"
@@ -945,6 +946,14 @@ func WithoutJoinV1() TestTLSServerOption {
 	}
 }
 
+// WithAdditionalUnaryInterceptors prepends interceptors to the gRPC unary
+// interceptor chain. Useful for injecting a recovery interceptor in tests.
+func WithAdditionalUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) TestTLSServerOption {
+	return func(cfg *TLSServerConfig) {
+		cfg.AdditionalUnaryInterceptors = append(cfg.AdditionalUnaryInterceptors, interceptors...)
+	}
+}
+
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *AuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
@@ -984,6 +993,9 @@ type TLSServerConfig struct {
 	AuthDialer client.ContextDialer
 	// AcceptedUsage is a list of accepted usage restrictions
 	AcceptedUsage []string
+	// AdditionalUnaryInterceptors are prepended to the gRPC unary interceptor
+	// chain. Useful for injecting a recovery interceptor in tests.
+	AdditionalUnaryInterceptors []grpc.UnaryServerInterceptor
 }
 
 // Auth returns auth server used by this TLS server
@@ -1082,13 +1094,14 @@ func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 	srv.Mux = mux
 	srv.TLSServer, err = auth.NewTLSServer(context.Background(), auth.TLSServerConfig{
-		Listener:             mux.TLS(),
-		AccessPoint:          srv.AuthServer.AuthServer.Cache,
-		TLS:                  tlsConfig,
-		GetClientCertificate: func() (*tls.Certificate, error) { return &tlsCert, nil },
-		APIConfig:            *srv.APIConfig,
-		LimiterConfig:        *srv.Limiter,
-		AcceptedUsage:        cfg.AcceptedUsage,
+		Listener:                    mux.TLS(),
+		AccessPoint:                 srv.AuthServer.AuthServer.Cache,
+		TLS:                         tlsConfig,
+		GetClientCertificate:        func() (*tls.Certificate, error) { return &tlsCert, nil },
+		APIConfig:                   *srv.APIConfig,
+		LimiterConfig:               *srv.Limiter,
+		AcceptedUsage:               cfg.AcceptedUsage,
+		AdditionalUnaryInterceptors: cfg.AdditionalUnaryInterceptors,
 	})
 	if err != nil {
 		mux.Close()

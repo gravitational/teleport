@@ -88,6 +88,10 @@ type TLSServerConfig struct {
 	ID string
 	// Metrics are optional TLSServer metrics
 	Metrics *Metrics
+	// AdditionalUnaryInterceptors are prepended to the gRPC unary interceptor
+	// chain. This is useful in tests to inject a recovery interceptor so that
+	// handler panics don't crash the test process.
+	AdditionalUnaryInterceptors []grpc.UnaryServerInterceptor
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -238,7 +242,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		TLS:                tlsConfig,
 		Middleware:         authMiddleware,
 		APIConfig:          cfg.APIConfig,
-		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
+		UnaryInterceptors:  append(cfg.AdditionalUnaryInterceptors, authMiddleware.UnaryInterceptors()...),
 		StreamInterceptors: authMiddleware.StreamInterceptors(),
 	})
 	if err != nil {
