@@ -231,6 +231,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	}
 
 	if p.Config.AccessGraph != nil {
+		setProxyAccessGraphConnected(false)
+		go p.monitorAccessGraphConnection()
+
 		// If proxy is configured to use AccessGraph, check if it supports HTTP.
 		// If it does, build the forwarder now. Otherwise, periodically check if/when it does.
 		if err := p.checkAndBuildAccessGraphHTTPTransport(); err != nil {
@@ -607,6 +610,16 @@ func buildAccessGraphForwarder(tlsConfig *tls.Config) (*reverseproxy.Forwarder, 
 	)
 
 	return accessGraphForwarder, trace.Wrap(err)
+}
+
+// monitorAccessGraphConnection periodically probes the Access Graph service by
+// fetching features.json and updates the proxy_connected gauge every minute.
+func (p *Plugin) monitorAccessGraphConnection() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		setProxyAccessGraphConnected(p.accessGraphSupportsHTTP())
+	}
 }
 
 // checkAndBuildAccessGraphHTTPTransport checks if the access graph supports

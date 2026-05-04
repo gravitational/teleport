@@ -19,7 +19,7 @@ var accessGraphConnected = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: accessGraphMetricSubsystem,
-		Name:      "connected",
+		Name:      "auth_connected",
 		Help:      "Whether this Teleport Auth Service instance is connected to a healthy Access Graph service stream.",
 	},
 	[]string{accessGraphMetricLabel},
