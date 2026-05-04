@@ -1,4 +1,4 @@
-package schema
+package schematypes
 
 import (
 	"time"

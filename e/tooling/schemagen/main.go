@@ -8,7 +8,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 
-	schema "github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema/schematypes"
 )
 
 func main() {
@@ -16,13 +16,14 @@ func main() {
 	must(os.RemoveAll(outDir))
 	must(os.MkdirAll(outDir, 0o755))
 
-	must(generateSchemaFile[schema.CommandAnalysis](filepath.Join(outDir, "command_analysis.json")))
-	must(generateSchemaFile[schema.ProseEmbedding](filepath.Join(outDir, "prose_embedding.json")))
-	must(generateSchemaFile[schema.SessionAnalysis](filepath.Join(outDir, "session_analysis.json")))
+	must(generateSchemaFile[schematypes.CommandAnalysis](filepath.Join(outDir, "command_analysis.json")))
+	must(generateSchemaFile[schematypes.ProseEmbedding](filepath.Join(outDir, "prose_embedding.json")))
+	must(generateSchemaFile[schematypes.SessionAnalysis](filepath.Join(outDir, "session_analysis.json")))
 }
 
 func generateSchemaFile[T any](out string) error {
 	reflector := jsonschema.Reflector{
+		BaseSchemaID:              "https://github.com/gravitational/teleport/e/lib/auth/summarizer/schema",
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
 	}

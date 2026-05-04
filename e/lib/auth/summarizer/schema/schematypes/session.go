@@ -1,4 +1,4 @@
-package schema
+package schematypes
 
 // SessionAnalysis is the structured output schema for analyzing a single command execution.
 type SessionAnalysis struct {
