@@ -37,6 +37,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -130,9 +131,9 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	set := utils.StringsSet(i.Cert.ValidPrincipals)
+	strset := set.New(i.Cert.ValidPrincipals...)
 	for _, principal := range additionalPrincipals {
-		if _, ok := set[principal]; !ok {
+		if !strset.Contains(principal) {
 			return false
 		}
 	}

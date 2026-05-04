@@ -54,11 +54,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
-import {
-  AppUpdater,
-  AppUpdaterStorage,
-  TELEPORT_TOOLS_VERSION_ENV_VAR,
-} from 'teleterm/services/appUpdater';
+import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -190,22 +186,28 @@ export default class MainProcess {
     this.initResolvingChildProcessAddressesAndTshdClients();
     this.initIpc();
 
-    const getClusterVersions = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const { response } = await autoUpdateService.getClusterVersions({});
-      return response;
-    };
-    const getDownloadBaseUrl = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const {
-        response: { baseUrl },
-      } = await autoUpdateService.getDownloadBaseUrl({});
-      return baseUrl;
-    };
     this.appUpdater = new AppUpdater(
+      this.settings.tshd.binaryPath,
       makeAppUpdaterStorage(this.appStateFileStorage),
-      getClusterVersions,
-      getDownloadBaseUrl,
+      {
+        getConfig: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getConfig({});
+          return response;
+        },
+        getClusterVersions: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getClusterVersions({});
+          return response;
+        },
+        getInstallationMetadata: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getInstallationMetadata(
+            {}
+          );
+          return response;
+        },
+      },
       event => {
         if (event.kind === 'error') {
           event.error = serializeError(event.error);
@@ -213,8 +215,7 @@ export default class MainProcess {
         this.windowsManager
           .getWindow()
           .webContents.send(RendererIpc.AppUpdateEvent, event);
-      },
-      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
+      }
     );
     this.clusterStore = new ClusterStore(
       () => this.tshdClients.then(c => c.terminalService),
@@ -282,6 +283,7 @@ export default class MainProcess {
           ...process.env,
           TELEPORT_HOME: this.configService.get('tshHome').value,
           [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+          FORWARDED_TELEPORT_TOOLS_VERSION: process.env[TSH_AUTOUPDATE_ENV_VAR],
         },
       }
     );
@@ -928,6 +930,9 @@ async function setUpTshdClients({
     host: tshdAddress,
     channelCredentials: creds,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
   return {
     terminalService: new TerminalServiceClient(transport),

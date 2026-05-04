@@ -876,8 +876,8 @@ type ReadDiscoveryAccessPoint interface {
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
-	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
-	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	// DiscoveryConfigsGetter lists and reads discovery config resources.
+	services.DiscoveryConfigsGetter
 
 	// GetIntegration returns the specified integration resource.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
@@ -1075,6 +1075,11 @@ type OktaAccessPoint interface {
 
 	// DeleteLock deletes a given lock
 	DeleteLock(ctx context.Context, name string) error
+
+	// ConditionalUpdateOktaAssignment updates an Okta assignment, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
+	// UpsertOktaAssignment creates or updates an Okta assignment resource.
+	UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1763,6 +1768,12 @@ func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
+// GetDiscoveryConfig retrieves a discovery config by name.
+// This method is not cached to ensure that updating the DiscoveryConfig Status does not use (possibly) stale cache data.
+func (w *DiscoveryWrapper) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.GetDiscoveryConfig(ctx, name)
+}
+
 // UpserUserTask creates or updates an User Task.
 func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
 	return w.NoCache.UpsertUserTask(ctx, req)
@@ -1858,6 +1869,16 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// UpsertOktaAssignment creates or updates an Okta assignment resource.
+func (w *OktaWrapper) UpsertOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.UpsertOktaAssignment(ctx, item)
+}
+
+// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalUpdateOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.ConditionalUpdateOktaAssignment(ctx, item)
 }
 
 // GetLocks fetches locks that target a given set of resources

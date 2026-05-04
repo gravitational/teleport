@@ -41,7 +41,7 @@ resources:
         There can be multiple instances of an `app_server` for a single
         application, each corresponding to a different Teleport Application
         Service instance that proxies the application. Read more about [High
-        Availability](../../../enroll-resources/agents/high-availability.mdx)
+        Availability](../../../installation/agents/high-availability.mdx)
         for the Teleport Application Service. Read the [reference
         guide](./app-v3.mdx) for the `app` resource.
   - type: BotInstance
@@ -81,6 +81,10 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: node
     yaml_version: v2
+  - type: WorkloadCluster
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1
+    yaml_kind: workload_cluster
+    yaml_version: v1
 
 camel_case_exceptions:
   - AWS

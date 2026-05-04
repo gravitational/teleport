@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
@@ -768,11 +769,15 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindAutoUpdateConfig, RW()),
 							types.NewRule(types.KindAutoUpdateVersion, RW()),
 							types.NewRule(types.KindHealthCheckConfig, RW()),
+							types.NewRule(types.KindVnetConfig, RW()),
 							types.NewRule(types.KindIntegration, RW()),
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
 							types.NewRule(types.KindScopedToken, RW()),
+							types.NewRule(access.KindScopedRole, RW()),
+							types.NewRule(access.KindScopedRoleAssignment, RW()),
+							types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 						},
 					},
 				},

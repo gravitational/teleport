@@ -529,6 +529,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) newDiscoveryConfigStatusUpdaterFromServer() *discoveryConfigStatusUpdater {
+	return newDiscoveryConfigStatusUpdater(s.Config)
+}
+
 func (s *Server) runDynamicMatchersWatcher(ctx context.Context) error {
 	watcher, err := s.AccessPoint.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
@@ -1584,7 +1588,7 @@ func (s *Server) startAzureServerDiscovery() {
 		// in case of API calls, e.g., to expand subscription wildcard.
 		dynamicConfigs := make(map[string][]types.AzureMatcher, len(s.dynamicDiscoveryConfig))
 		for _, config := range s.dynamicDiscoveryConfig {
-			dynamicConfigs[config.GetName()] = config.Spec.Azure
+			dynamicConfigs[config.GetName()] = services.SimplifyAzureMatchers(config.Spec.Azure)
 		}
 		s.dynamicDiscoveryConfigMu.RUnlock()
 

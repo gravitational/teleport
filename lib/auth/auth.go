@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -147,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -155,6 +155,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -332,6 +333,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.DatabaseServices == nil {
 		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
+	}
+	if cfg.DelegationSessions == nil {
+		cfg.DelegationSessions, err = local.NewDelegationSessionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
@@ -642,6 +649,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
+		DelegationSessions:              cfg.DelegationSessions,
 		AuditLogSessionStreamer:         cfg.AuditLog,
 		Events:                          cfg.Events,
 		WindowsDesktops:                 cfg.WindowsDesktops,
@@ -937,6 +945,7 @@ type Services struct {
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
+	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
@@ -2566,6 +2575,32 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
+// OnUploadComplete is called after a session recording upload completes. It
+// streams the session events to find the existing session end event, or
+// reconstructs and emits one from the session start event if none is found.
+// It is the canonical OnUploadComplete callback used by the ProtoStreamer,
+// AuditLog, and recording encryption service.
+//
+// TODO(tigrato): this check is not 100% correct. Instead of streaming the file,
+// one should query the audit log to ensure the event exists. The file can contain
+// the session end event but for some reason the the audit log event was lost.
+// There are many reasons for that to happen such as audit queue in the agent being
+// full, audit backend being down, agent restarting after writing the session complete.
+func (a *Server) OnUploadComplete(ctx context.Context, sessionID libsession.ID) (apievents.AuditEvent, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events.FindOrRecoverSessionEnd(ctx, events.FindOrRecoverSessionEndConfig{
+		ClusterName: clusterName.GetClusterName(),
+		Streamer:    a,
+		SessionID:   sessionID,
+		AuditLog:    a,
+		Log:         a.logger,
+		Clock:       a.clock,
+	})
+}
+
 // SetBcryptCost sets bcryptCostOverride, used in tests
 func (a *Server) SetBcryptCost(cost int) {
 	a.lock.Lock()
@@ -2851,7 +2886,10 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
-		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		roles[i], err = services.ApplyTraitsWithContext(req.Roles[i], services.RoleTemplateContext{
+			Username: req.User.GetName(),
+			Traits:   req.User.GetTraits(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3836,6 +3874,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
 				AllowedResourceAccessIDs: allowedResourceAccessIDs,
@@ -3979,6 +4018,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
 		BotInternal:              req.BotInternal,
+		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
@@ -5100,7 +5140,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		allowedResourceAccessIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
+		roleSet, err := services.FetchRolesForUser(userState, a)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6049,7 +6089,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
-	addedApps := utils.NewSet[string]()
+	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -6083,7 +6123,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 	}
 
-	icAccounts := utils.NewSet[string]()
+	icAccounts := set.New[string]()
 	for _, resource := range accountAssignments {
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
@@ -6174,15 +6214,15 @@ func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggest
 	}
 
 	// Add additional suggested reviewers and ensure deduplicated.
-	additionalReviewers := map[string]struct{}{}
+	additionalReviewers := set.New[string]()
 
 	for _, suggestedReviewer := range slices.Concat(req.GetSuggestedReviewers(), suggestedReviewers) {
-		additionalReviewers[suggestedReviewer] = struct{}{}
+		additionalReviewers.Add(suggestedReviewer)
 	}
 
 	// Only modify the original request if additional reviewers were found.
-	if len(additionalReviewers) > len(req.GetSuggestedReviewers()) {
-		req.SetSuggestedReviewers(slices.Collect(maps.Keys(additionalReviewers)))
+	if additionalReviewers.Len() > len(req.GetSuggestedReviewers()) {
+		req.SetSuggestedReviewers(additionalReviewers.Elements())
 	}
 }
 
@@ -7118,11 +7158,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 			identifiers = append(identifiers, identifiersResp)
 		}
 
-		// Create a map of identifiers for quick lookup
-		identifiersMap := make(map[string]struct{})
+		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
-			identifiersMap[id.Spec.UniqueIdentifier] = struct{}{}
+			accessListIDs.Add(id.Spec.UniqueIdentifier)
 		}
 
 		// owners is the combined list of owners for relevant access lists we are creating the notification for.
@@ -7139,7 +7178,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 				return
 			}
 
-			if _, exists := identifiersMap[accessList.GetName()]; !exists {
+			if !accessListIDs.Contains(accessList.GetName()) {
 				needsNotification = true
 				// Create a unique identifier for this access list so that we know it has been accounted for.
 				// Note that if the auth server crashes between creating this identifier and creating the notification,

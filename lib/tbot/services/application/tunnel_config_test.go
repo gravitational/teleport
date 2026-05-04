@@ -34,8 +34,9 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: TunnelConfig{
-				Listen:  "tcp://0.0.0.0:3621",
-				AppName: "my-app",
+				Listen:              "tcp://0.0.0.0:3621",
+				AppName:             "my-app",
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -111,6 +112,18 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					Roles:               []string{"role1", "role2"},
+					AppName:             "my-app",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

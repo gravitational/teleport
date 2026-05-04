@@ -578,12 +578,12 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "malformed name",
+			name: "malformed name - long name",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
-					Name: "not-a-uuid",
+					Name: "thisiswaytoolongofanameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 				Scope: "/",
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
@@ -1244,6 +1244,14 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			},
 			HostSudoers: []string{"ALL=(ALL) NOPASSWD:ALL"},
 			MaxSessions: proto.Int64(10),
+		},
+		Kube: &scopedaccessv1.ScopedRoleKube{
+			Groups: []string{"viewer"},
+			Users:  []string{"alice"},
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+			ClientIdleTimeout: "1h",
 		},
 	}
 

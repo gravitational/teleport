@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -33,6 +34,7 @@ type labelExpression typical.Expression[labelExpressionEnv, bool]
 
 type labelExpressionEnv struct {
 	resourceLabelGetter LabelGetter
+	username            string
 	userTraits          map[string][]string
 }
 
@@ -58,6 +60,13 @@ func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bo
 func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool], error) {
 	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec[labelExpressionEnv]{
 		Variables: map[string]typical.Variable{
+			"user.metadata.name": typical.DynamicVariable(
+				func(env labelExpressionEnv) (string, error) {
+					if env.username == "" {
+						return "", trace.NotFound("user.metadata.name is not available in this context")
+					}
+					return env.username, nil
+				}),
 			"user.spec.traits": typical.DynamicVariable(
 				func(env labelExpressionEnv) (map[string][]string, error) {
 					return env.userTraits, nil
@@ -129,9 +138,9 @@ func labelsMatching(env labelExpressionEnv, keyExpr string) ([]string, error) {
 
 // containsAny returns true if [list] contains any element of [items].
 func containsAny(list []string, items []string) (bool, error) {
-	s := set(list)
+	s := set.New(list...)
 	for _, item := range items {
-		if _, ok := s[item]; ok {
+		if s.Contains(item) {
 			return true, nil
 		}
 	}
@@ -145,19 +154,11 @@ func containsAll(list []string, items []string) (bool, error) {
 	if len(items) == 0 {
 		return false, nil
 	}
-	s := set(list)
+	s := set.New(list...)
 	for _, item := range items {
-		if _, ok := s[item]; !ok {
+		if !s.Contains(item) {
 			return false, nil
 		}
 	}
 	return true, nil
-}
-
-func set(list []string) map[string]struct{} {
-	m := make(map[string]struct{}, len(list))
-	for _, l := range list {
-		m[l] = struct{}{}
-	}
-	return m
 }

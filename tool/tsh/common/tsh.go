@@ -1514,7 +1514,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	connectUpdater := app.Command("connect-updater", "Teleport Connect updater commands.").Hidden()
+	connectUpdaterServiceCommand := newConnectUpdaterServiceRunCommand(connectUpdater)
+	connectUpdaterServiceInstallCommand := newConnectUpdaterServiceInstallCommand(connectUpdater)
+	connectUpdaterServiceUninstallCommand := newConnectUpdaterServiceUninstallCommand(connectUpdater)
+	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
+
 	gitCmd := newGitCommands(app)
+	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
@@ -1958,6 +1965,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallCommand.FullCommand():
+		err = connectUpdaterServiceInstallCommand.run(&cf)
+	case connectUpdaterServiceUninstallCommand.FullCommand():
+		err = connectUpdaterServiceUninstallCommand.run(&cf)
+	case connectUpdaterServiceCommand.FullCommand():
+		err = connectUpdaterServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallUpdateCommand.FullCommand():
+		err = connectUpdaterServiceInstallUpdateCommand.run(&cf)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
@@ -1970,6 +1985,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case beamsCmd.ls.FullCommand():
+		err = beamsCmd.ls.run(&cf)
+	case beamsCmd.add.FullCommand():
+		err = beamsCmd.add.run(&cf)
+	case beamsCmd.rm.FullCommand():
+		err = beamsCmd.rm.run(&cf)
+	case beamsCmd.ssh.FullCommand():
+		err = beamsCmd.ssh.run(&cf)
+	case beamsCmd.exec.FullCommand():
+		err = beamsCmd.exec.run(&cf)
+	case beamsCmd.publish.FullCommand():
+		err = beamsCmd.publish.run(&cf)
+	case beamsCmd.unpublish.FullCommand():
+		err = beamsCmd.unpublish.run(&cf)
+	case beamsCmd.scp.FullCommand():
+		err = beamsCmd.scp.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case updateCommand.update.FullCommand():
@@ -5570,6 +5601,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
+	if p.DelegationSessionID != "" {
+		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
+	}
+
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
@@ -5736,6 +5771,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5789,6 +5825,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		DelegationSessionID:      p.DelegationSessionID,
 	}
 
 	// update active profile info from env

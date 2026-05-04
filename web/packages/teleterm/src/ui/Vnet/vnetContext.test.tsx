@@ -26,6 +26,8 @@ import {
   useImperativeHandle,
 } from 'react';
 
+import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
@@ -106,12 +108,84 @@ describe('autostart', () => {
       ...appContext.statePersistenceService.getState(),
       vnet: { autoStart: false, hasEverStarted: false },
     });
-
+    const { promise, resolve } = Promise.withResolvers();
+    appContext.vnet.checkInstallTimeRequirements = async () => {
+      const response = new MockedUnaryCall({
+        status: {
+          oneofKind: undefined,
+        },
+      });
+      resolve(response);
+      return response;
+    };
     const { result } = renderHook(() => useVnetContext(), {
       wrapper: createWrapper(Wrapper, { appContext }),
     });
+    await act(() => promise);
 
     expect(result.current.startAttempt.status).toEqual('');
+  });
+
+  it('does not start VNet if Windows system service does not exist', async () => {
+    const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true, hasEverStarted: true },
+    });
+    const { promise, resolve } = Promise.withResolvers();
+    appContext.vnet.checkInstallTimeRequirements = async () => {
+      const response = new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
+        },
+      });
+      resolve(response);
+      return response;
+    };
+    const { result } = renderHook(() => useVnetContext(), {
+      wrapper: createWrapper(Wrapper, { appContext }),
+    });
+    await act(() => promise);
+
+    expect(result.current.startAttempt.status).toEqual('');
+  });
+
+  it('does not start VNet if Windows system service version does not match client version', async () => {
+    const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true, hasEverStarted: true },
+    });
+    const { promise, resolve } = Promise.withResolvers();
+    appContext.vnet.checkInstallTimeRequirements = async () => {
+      const response = new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.VERSION_MISMATCH,
+        },
+      });
+      resolve(response);
+      return response;
+    };
+    const { result } = renderHook(() => useVnetContext(), {
+      wrapper: createWrapper(Wrapper, { appContext }),
+    });
+    await act(() => promise);
+
+    expect(result.current.startAttempt.status).toEqual('');
+    expect(result.current.installTimeRequirementsCheck).toEqual({
+      status: 'failed',
+      reason: {
+        kind: 'windows-service-version-mismatch',
+      },
+    });
   });
 
   it('switches off if start fails', async () => {

@@ -220,6 +220,7 @@ const cfg = {
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
+    loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
     samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
     userInviteContinue: '/web/invite/:tokenId/continue',

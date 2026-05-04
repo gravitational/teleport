@@ -194,7 +194,7 @@ func (s *MultiplexerService) writeArtifacts(
 ) error {
 	dest := s.cfg.Destination.(*destination.Directory)
 
-	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName)
+	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName, s.cfg.DelegationSessionID != "")
 	if err != nil {
 		return trace.Wrap(err, "fetching cluster names")
 	}
@@ -395,10 +395,14 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 // the destination.
 func (s *MultiplexerService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	facade, err := s.identityGenerator.GenerateFacade(ctx,
+	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+	if s.cfg.DelegationSessionID != "" {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	facade, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
 	}

@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
@@ -224,10 +224,11 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
-					types.NewRule(scopedaccess.KindScopedRole, RW()),
-					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
+					types.NewRule(types.KindRecordingEncryption, RW()),
 				},
 			},
 		},
@@ -830,12 +831,16 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(access.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 				},
 			},
 		},
@@ -1222,7 +1227,7 @@ func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (ty
 }
 
 func mergeStrings(dst, src []string) (merged []string, changed bool) {
-	items := utils.NewSet[string](dst...)
+	items := set.New[string](dst...)
 	items.Add(src...)
 	if len(items) == len(dst) {
 		return dst, false
@@ -1328,12 +1333,12 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalGitHubOrgs},
 	}
 }
 
 func defaultMCPTools() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalMCPTools},
 	}
 }

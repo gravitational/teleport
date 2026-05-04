@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.7.2
+VERSION=18.7.6
 
 DOCKER_IMAGE ?= teleport
 
@@ -1299,7 +1299,7 @@ lint-backport:
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
-	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+	cd api && golangci-lint run -c ../.golangci.yml  --build-tags='$(PIV_LINT_TAG)' $(GO_LINT_API_FLAGS)
 
 .PHONY: lint-kube-agent-updater
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=

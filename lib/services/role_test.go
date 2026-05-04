@@ -1225,6 +1225,88 @@ func BenchmarkValidateRole(b *testing.B) {
 	}
 }
 
+func TestUnmarshalRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		json                string
+		disallowUnknown     bool
+		expectErrorContains string
+	}{
+		{
+			name: "valid role accepted with DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_groups": ["system:masters"]
+					}
+				}
+			}`,
+			disallowUnknown: true,
+		},
+		{
+			name: "unknown field rejected with DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_group": ["system:masters"]
+					}
+				}
+			}`,
+			disallowUnknown:     true,
+			expectErrorContains: "kubernetes_group",
+		},
+		{
+			name: "valid role accepted without DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_groups": ["system:masters"]
+					}
+				}
+			}`,
+		},
+		{
+			name: "unknown field silently accepted without DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_group": ["system:masters"]
+					}
+				}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []MarshalOption
+			if tt.disallowUnknown {
+				opts = append(opts, DisallowUnknown())
+			}
+			_, err := UnmarshalRole([]byte(tt.json), opts...)
+			if tt.expectErrorContains != "" {
+				require.ErrorContains(t, err, tt.expectErrorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateRoleName(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -3920,6 +4002,23 @@ func TestApplyTraits(t *testing.T) {
 	}
 }
 
+func TestFetchRolesForUser_ExpandsUserMetadataName(t *testing.T) {
+	role := newRole(func(r *types.RoleV6) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{user.metadata.name}}"}
+	})
+
+	roleSet, err := FetchRolesForUser(mockCurrentUser{
+		roles: []string{"dev"},
+	}, mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev": role,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mockCurrentUser"}, roleSet[0].GetLogins(types.Allow))
+}
+
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
 // certificates not services.User.
 func TestExtractFrom(t *testing.T) {
@@ -4320,7 +4419,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, tc.state,
+				err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -4533,7 +4632,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -5327,7 +5426,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.outRoles, roles)
+				require.ElementsMatch(t, test.outRoles, roles)
 			}
 
 			allow, deny, err := accessChecker.GetDatabasePermissions(database)
@@ -5653,7 +5752,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, userTraits, AccessState{})
+				err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -5761,6 +5860,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 			for _, access := range test.access {
 				err := test.roles.checkAccess(
 					app,
+					"",
 					wrappers.Traits{},
 					AccessState{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
@@ -5861,7 +5961,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -5959,7 +6059,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -6346,7 +6446,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			accounts, err := tt.roles.CheckGCPServiceAccounts(tt.ttl, tt.overrideTTL)
-			require.Equal(t, tt.wantAccounts, accounts)
+			require.ElementsMatch(t, tt.wantAccounts, accounts)
 			tt.wantError(t, err)
 		})
 	}
@@ -7296,7 +7396,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7403,7 +7503,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.userGroup, wrappers.Traits{}, AccessState{})
+				err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7495,6 +7595,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 				// is testing the performance of failed RBAC checks
 				_ = set.checkAccess(
 					servers[i],
+					"",
 					userTraits,
 					AccessState{},
 					NewLoginMatcher(login),
@@ -7975,7 +8076,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, userTraits)
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, "alice", userTraits)
 			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
@@ -8127,6 +8228,17 @@ func TestGetKubeResources(t *testing.T) {
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "labels expression matches username",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["owner"] == user.metadata.name`
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+				}),
+			},
+			clusterLabels: map[string]string{"owner": "alice"},
 			expectAllowed: []types.KubernetesResource{podA, podB},
 		},
 		{
@@ -8351,7 +8463,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 			info, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.Equal(t, tc.groups, info.Groups)
+			require.ElementsMatch(t, tc.groups, info.Groups)
 		})
 	}
 }
@@ -9771,6 +9883,21 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestCheckAccess_WithLabelExpressionUsername(t *testing.T) {
+	t.Parallel()
+
+	role := newRole(func(r *types.RoleV6) {
+		r.Spec.Allow.NodeLabelsExpression = `labels["owner"] == user.metadata.name`
+	})
+
+	server := &types.ServerV2{Kind: types.KindNode}
+	server.SetStaticLabels(map[string]string{"owner": "alice"})
+
+	accessChecker := makeAccessCheckerWithRoleSet(NewRoleSet(role))
+	err := accessChecker.CheckAccess(server, AccessState{})
+	require.NoError(t, err)
 }
 
 func TestCheckSPIFFESVID(t *testing.T) {

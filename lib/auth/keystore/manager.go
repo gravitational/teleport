@@ -33,9 +33,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"maps"
 	"math/big"
-	"slices"
 	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
@@ -53,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -231,6 +230,8 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	if err := metrics.RegisterPrometheusCollectors(
 		signCounter,
 		signErrorCounter,
+		decryptCounter,
+		decryptErrorCounter,
 		createCounter,
 		createErrorCounter,
 	); err != nil {
@@ -271,12 +272,24 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableBackends = []backend{awsBackend, softwareBackend}
 	}
 
-	return &Manager{
+	m := &Manager{
 		backendForNewKeys:  backendForNewKeys,
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
-	}, nil
+	}
+
+	// Initialize metrics to zero so they exist in Prometheus from startup.
+	for _, b := range usableBackends {
+		for _, keyType := range []string{keyTypeTLS, keyTypeSSH, keyTypeJWT} {
+			signCounter.WithLabelValues(keyType, b.name())
+			signErrorCounter.WithLabelValues(keyType, b.name())
+		}
+		decryptCounter.WithLabelValues(keyTypeEncryption, b.name())
+		decryptErrorCounter.WithLabelValues(keyTypeEncryption, b.name())
+	}
+
+	return m, nil
 }
 
 type cryptoCountSigner struct {
@@ -864,15 +877,15 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	caKeyTypes := make(map[string]struct{})
+	caKeyTypes := set.New[string]()
 	for _, rawKey := range allRawKeys {
 		desc, err := keyDescription(rawKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		caKeyTypes[desc] = struct{}{}
+		caKeyTypes.Add(desc)
 	}
-	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
+	result.CAKeyTypes = caKeyTypes.Elements()
 	return result, nil
 }
 

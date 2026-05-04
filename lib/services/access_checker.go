@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -295,6 +296,9 @@ type AccessChecker interface {
 
 	// AccessInfo returns the AccessInfo that this access checker is based on.
 	AccessInfo() *AccessInfo
+
+	// DelegationSessionID returns the ID of the current Delegation Session.
+	DelegationSessionID() string
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -314,6 +318,9 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceAccessIDs []types.ResourceAccessID
+	// DelegationSessionID is the ID of the Delegation Session this identity was
+	// created for, if any.
+	DelegationSessionID string
 	// Username is the Teleport username.
 	Username string
 }
@@ -344,7 +351,10 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 	if info.ScopePin != nil {
 		return nil, trace.Errorf("cannot create standard access checker: %w", ErrScopedIdentity)
 	}
-	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	roleSet, err := FetchRolesWithContext(info.Roles, access, RoleTemplateContext{
+		Username: info.Username,
+		Traits:   info.Traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -357,7 +367,10 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 // a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
 // failures.
 func NewAccessCheckerForUserSession(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
-	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	roleSet, err := FetchRolesWithContext(info.Roles, access, RoleTemplateContext{
+		Username: info.Username,
+		Traits:   info.Traits,
+	})
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was encountered fetching
@@ -427,10 +440,14 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 		Roles: make([]string, 0, len(remoteRoles)),
 		// AllowedResourceAccessIDs are always the same across clusters.
 		AllowedResourceAccessIDs: localAccessInfo.AllowedResourceAccessIDs,
+		DelegationSessionID:      localAccessInfo.DelegationSessionID,
 	}
 
 	for i := range remoteRoles {
-		remoteRoles[i], err = ApplyTraits(remoteRoles[i], remoteAccessInfo.Traits)
+		remoteRoles[i], err = ApplyTraitsWithContext(remoteRoles[i], RoleTemplateContext{
+			Username: remoteAccessInfo.Username,
+			Traits:   remoteAccessInfo.Traits,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -531,8 +548,83 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 	return a.info
 }
 
-// CheckAccess checks if the identity for this AccessChecker has access to the
-// given resource.
+// DelegationSessionID returns the ID of the current Delegation Session.
+func (a *accessChecker) DelegationSessionID() string {
+	return a.info.DelegationSessionID
+}
+
+// blockedInDelegationSession checks whether the given action is disallowed
+// because the caller is in a Delegation Session with restricted access to
+// specific resources only.
+//
+// Without this check, the `AllowedResourceAccessIDs` would only restrict
+// regular access (e.g. SSH-ing into a node), not administrative actions,
+// so if the delegating user has a role that allows them to mutate resources,
+// the session user would also be able to do this on their behalf.
+//
+// If the Delegation Session has a "wildcard" resource selector, the user
+// has explicitly allowed the session user to take on *all* of their
+// permissions, including destructive administrative actions.
+func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
+	if a.DelegationSessionID() == "" || len(a.GetAllowedResourceAccessIDs()) == 0 {
+		return false
+	}
+
+	// Collect all the resource kinds the session has access to.
+	allowedKinds := utils.NewSet[string]()
+	for _, id := range a.GetAllowedResourceAccessIDs() {
+		allowedKinds.Add(id.GetResourceID().Kind)
+	}
+
+	// Also add the implied resource kinds (e.g. app -> app_server).
+	impliedKinds := map[string][]string{
+		types.KindApp:               []string{types.KindAppServer},
+		types.KindDatabase:          []string{types.KindDatabaseServer},
+		types.KindKubernetesCluster: []string{types.KindKubeServer},
+		types.KindWindowsDesktop:    []string{types.KindWindowsDesktopService},
+	}
+	for parent, children := range impliedKinds {
+		if allowedKinds.Contains(parent) {
+			allowedKinds.Add(children...)
+		}
+	}
+
+	// These verbs are allowed to enable `tsh ls`, etc.
+	allowedVerbs := utils.NewSet(types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
+	return !allowedKinds.Contains(kind) || !allowedVerbs.Contains(verb)
+}
+
+// CheckAccessToRule checks access to a rule within a namespace.
+//
+// It extends [RoleSet.CheckAccessToRule] to prevent Delegation Sessions with
+// restricted access to specific resources from inheriting the user's destructive
+// admin/rule based privileges
+func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
+	if a.blockedInDelegationSession(resource, verb) {
+		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	}
+	return a.RoleSet.CheckAccessToRule(ctx, namespace, resource, verb)
+}
+
+// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// of resources.
+func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
+	if a.blockedInDelegationSession(resource, verb) {
+		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	}
+	return a.RoleSet.GuessIfAccessIsPossible(ctx, namespace, resource, verb)
+}
+
+// ExtractConditionForIdentifier returns a restrictive filter expression
+// for list queries based on the rules' `where` conditions.
+func (a *accessChecker) ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error) {
+	if a.blockedInDelegationSession(resource, verb) {
+		return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	}
+	return a.RoleSet.ExtractConditionForIdentifier(ctx, namespace, resource, verb, identifier)
+}
+
+// CheckAccess checks if the identity for this AccessChecker has access to the given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Enforce AllowedResourceAccessIDs if present; capture match
 	res, err := a.checkAllowedResources(r)
@@ -555,7 +647,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 		}
 	}
 
-	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
+	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...))
 }
 
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
@@ -567,17 +659,17 @@ func (a *accessChecker) CheckAccessToSAMLIdP(r AccessCheckable, authPref readonl
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdP(r, a.info.Traits, authPref, state, matchers...))
+	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdP(r, a.info.Username, a.info.Traits, authPref, state, matchers...))
 }
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
 // for a user.
 func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
 	if len(a.info.AllowedResourceAccessIDs) == 0 {
-		return a.RoleSet.GetKubeResources(cluster, a.info.Traits)
+		return a.RoleSet.GetKubeResources(cluster, a.info.Username, a.info.Traits)
 	}
 	var err error
-	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
+	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Username, a.info.Traits)
 
 	// If we have a legacy 'namespace' in the allowedResourceIDs, we need to add the new 'namespaces' one.
 	// The old one will get mapped to wildcard later.
@@ -762,18 +854,20 @@ func (result *checkDatabaseRolesResult) allowedRoles() []string {
 		return nil
 	}
 
-	rolesMap := make(map[string]struct{})
+	rolesMap := set.New[string]()
 	for _, role := range result.allowedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
-			rolesMap[dbRole] = struct{}{}
+			rolesMap.Add(dbRole)
 		}
 	}
 	for _, role := range result.deniedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
-			delete(rolesMap, dbRole)
+			rolesMap.Remove(dbRole)
 		}
 	}
-	return utils.StringsSliceFromSet(rolesMap)
+	// The database user provisioning code is picky - it requires a non-nil
+	// slice of roles, because this value is passed directly to a SQL query.
+	return rolesMap.ElementsNotNil()
 }
 
 func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatabaseRolesResult, error) {
@@ -793,7 +887,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 	// assigned.
 	var allowedRoleSet RoleSet
 	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database, false)
+		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Username, a.info.Traits, database, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -805,7 +899,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 	}
 	var deniedRoleSet RoleSet
 	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database, false)
+		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Username, a.info.Traits, database, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -813,7 +907,6 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 			continue
 		}
 		deniedRoleSet = append(deniedRoleSet, role)
-
 	}
 
 	// The collected role list can be empty and that should be ok, we want to
@@ -932,7 +1025,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		// if the role allows the resource without any matcher confirms
 		// namespace and label matching has passed.
 		var resourceAllowedByRole bool
-		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if err := NewRoleSet(role).checkAccess(resource, a.info.Username, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
 			resourceAllowedByRole = true
 		}
 
@@ -1098,7 +1191,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 	// the deny role set prohibits access.
 	var errs []error
 	for _, role := range a.RoleSet {
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, rc, isLoggingEnabled)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, a.info.Username, a.info.Traits, rc, isLoggingEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1115,7 +1208,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 	// Check allow rules: label has to match in any role in the role set to be granted access.
 	for _, role := range a.RoleSet {
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, rc, isLoggingEnabled)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, a.info.Username, a.info.Traits, rc, isLoggingEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1152,9 +1245,9 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 // DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
-	groups := make(map[string]struct{})
+	groups := set.New[string]()
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1169,11 +1262,11 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
 		for _, group := range role.GetDesktopGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1181,11 +1274,11 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			continue
 		}
 		for _, group := range role.GetDesktopGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
-	return utils.StringsSliceFromSet(groups), nil
+	return groups.Elements(), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
@@ -1202,13 +1295,13 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
-	groups := make(map[string]struct{})
+	groups := set.New[string]()
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
 
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1249,7 +1342,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		}
 
 		for _, group := range role.GetHostGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 
@@ -1266,7 +1359,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 	}
 
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1274,7 +1367,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 			continue
 		}
 		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
@@ -1291,7 +1384,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 	}
 
 	return &decisionpb.HostUsersInfo{
-		Groups: utils.StringsSliceFromSet(groups),
+		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
@@ -1310,7 +1403,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 
 	seenSudoers := make(map[string]struct{})
 	for _, role := range roleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1330,7 +1423,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 
 	var finalSudoers []string
 	for _, role := range roleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1366,6 +1459,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 		Roles:                    ident.Roles,
 		Traits:                   ident.Traits,
 		AllowedResourceAccessIDs: ident.AllowedResourceAccessIDs,
+		DelegationSessionID:      ident.DelegationSessionID,
 	}
 }
 
@@ -1408,6 +1502,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
+		DelegationSessionID:      unmappedIdentity.DelegationSessionID,
 	}, nil
 }
 
@@ -1425,6 +1520,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 		Roles:                    identity.Groups,
 		Traits:                   identity.Traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, nil
 }
 
@@ -1482,6 +1578,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, nil
 }
 

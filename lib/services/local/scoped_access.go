@@ -268,7 +268,7 @@ func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopeda
 		if err := s.bk.Delete(ctx, scopedRoleKey(roleName)); err != nil {
 			if trace.IsNotFound(err) {
 				// generic condition failure keeps error handling simpler
-				return nil, trace.CompareFailed("scoped role %q not found", roleName)
+				return nil, trace.NotFound("scoped role %q not found", roleName)
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -622,7 +622,7 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 		if err := s.bk.Delete(ctx, key); err != nil {
 			if trace.IsNotFound(err) {
 				// generic condition failure keeps error handling simpler
-				return nil, trace.CompareFailed("scoped role assignment %q not found", assignmentName)
+				return nil, trace.NotFound("scoped role assignment %q not found", assignmentName)
 			}
 			return nil, trace.Wrap(err)
 		}

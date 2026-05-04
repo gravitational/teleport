@@ -41,8 +41,10 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
@@ -175,6 +177,11 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		TLS:                        httpTLS,
 		Dialer:                     httpDialer,
 		ALPNSNIAuthDialClusterName: cfg.ALPNSNIAuthDialClusterName,
+		// we are ok with the HTTP client using a separate circuit breaker with
+		// the same configuration, since there's so few auth API calls using
+		// HTTP and most of them are used by the Proxy, which is going to have a
+		// no-op circuit breaker to begin with
+		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
 	}
 	httpClient, err := NewHTTPClient(httpClientCfg, params...)
 	if err != nil {
@@ -1848,4 +1855,11 @@ type ClientI interface {
 	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
 	// are of the scoped access API available in agent access points to only what is necessary.
 	ScopedRoleReader() services.ScopedRoleReader
+
+	// BeamServiceClient returns a client for the beam service.
+	BeamServiceClient() beamsv1.BeamServiceClient
+
+	// DelegationSessionServiceClient returns a client for the delegation
+	// session service.
+	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
 }

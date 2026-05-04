@@ -66,17 +66,20 @@ import (
 	"github.com/gravitational/teleport/api/client/summarizer"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
+	"github.com/gravitational/teleport/api/client/vnetconfig"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -940,6 +943,8 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 }
 
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
+//
+// Deprecated: Prefer VnetConfigClient.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
@@ -972,6 +977,17 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 // recording encryption service.
 func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
 	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
+// BeamServiceClient returns a client for the beam service.
+func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
+	return beamsv1.NewBeamServiceClient(c.conn)
+}
+
+// DelegationSessionServiceClient returns a client for the delegation session
+// service.
+func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
+	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -5446,6 +5462,17 @@ func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
 // (as per the default gRPC behavior).
 func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
+}
+
+// VnetConfigClient returns a VnetConfig client.
+// Clients connecting to older Teleport versions, still get an VnetConfig client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+//
+// TODO: Add this method to lib/auth/authclient.ClientI so higher-level callers
+// can use the wrapper without reaching for the raw gRPC client.
+func (c *Client) VnetConfigClient() *vnetconfig.Client {
+	return vnetconfig.NewClient(vnet.NewVnetConfigServiceClient(c.conn))
 }
 
 // CrownJewelServiceClient returns a CrownJewel client.

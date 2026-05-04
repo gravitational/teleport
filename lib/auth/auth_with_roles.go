@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -57,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -248,6 +248,15 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		}
 		servicesCtx.ExtendWithSessionEnd(sessionEnd, a.context.Checker)
 		return nil
+	}
+
+	// Fast pre-check: if no role even mentions KindSession/VerbRead, skip the
+	// more expensive predicate evaluation below.
+	if err := a.context.Checker.GuessIfAccessIsPossible(
+		&services.Context{User: a.context.User},
+		apidefaults.Namespace, types.KindSession, types.VerbRead,
+	); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// First try a simple check without the extended context.
@@ -489,7 +498,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 	}
 
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -515,7 +524,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -543,7 +552,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRolesForUser(user, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -863,7 +872,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// unauthenticated clients can never check for alerts. we don't normally explicitly
 	// check for this kind of thing, but since alerts use an unusual access-control
 	// pattern, explicitly rejecting the nop role makes things easier.
-	if a.hasBuiltinRole(types.RoleNop) {
+	if authz.HasUnauthenticatedRole(a.context, string(types.RoleNop)) {
 		return nil, trace.AccessDenied("alerts not available to unauthenticated clients")
 	}
 
@@ -2964,7 +2973,6 @@ func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start st
 	}
 
 	return tokens, next, nil
-
 }
 
 // DeleteWebToken removes the web token specified with req.
@@ -3415,7 +3423,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
 			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 		}
-		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
+		return a.desiredAccessInfoForRoleRequest(req, user)
 	}
 	return a.desiredAccessInfoForUser(ctx, req, user)
 }
@@ -3424,13 +3432,14 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 // impersonation request.
 func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
+		Username: user.GetName(),
+		Roles:    user.GetRoles(),
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
 // desiredAccessInfoForRoleRequest returns the desired roles for a role request.
-func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
 	if len(req.RoleRequests) == 0 {
@@ -3446,8 +3455,9 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// Traits are copied across from the impersonating user so that role
 	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Roles:  req.RoleRequests,
-		Traits: traits,
+		Username: user.GetName(),
+		Roles:    req.RoleRequests,
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
@@ -3693,7 +3703,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
-			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+			roleSet, err := services.FetchRolesForUser(user, a)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3736,7 +3746,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
-	parsedRoles, err := services.FetchRoleList(accessInfo.Roles, a.authServer, accessInfo.Traits)
+	parsedRoles, err := services.FetchRoleListWithContext(accessInfo.Roles, a.authServer, services.RoleTemplateContext{
+		Username: accessInfo.Username,
+		Traits:   accessInfo.Traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3820,8 +3833,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-			NewWebSessionRequest: NewWebSessionRequest{
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
+			NewWebSessionRequest: sessionreq.NewWebSessionRequest{
 				User:           req.Username,
 				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
 				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
@@ -3845,7 +3858,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AzureIdentity:     req.RouteToApp.AzureIdentity,
 			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 			MFAVerified:       verifiedMFADeviceID,
-			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			DeviceExtensions:  a.context.Identity.GetIdentity().DeviceExtensions,
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
@@ -6665,15 +6678,6 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	err := a.localServerAction()
-	isTeleportServer := err == nil
-
-	// StreamSessionEvents can be called internally, and when that
-	// happens we don't want to emit an event or check for permissions.
-	if isTeleportServer {
-		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
-	}
-
 	if err := a.actionForKindSession(ctx, sessionID); err != nil {
 		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 		e <- trace.Wrap(err)
@@ -6924,10 +6928,8 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
-
 	}
 
 	return out, nil

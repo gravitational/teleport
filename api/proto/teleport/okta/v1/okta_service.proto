@@ -51,7 +51,10 @@ service OktaService {
   rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
   // DeleteAllOktaAssignments removes all Okta assignments.
   rpc DeleteAllOktaAssignments(DeleteAllOktaAssignmentsRequest) returns (google.protobuf.Empty);
-
+  // ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+  rpc ConditionalUpdateOktaAssignment(ConditionalUpdateOktaAssignmentRequest) returns (ConditionalUpdateOktaAssignmentResponse);
+  // UpsertOktaAssignment upserts an Okta assignment resource.
+  rpc UpsertOktaAssignment(UpsertOktaAssignmentRequest) returns (UpsertOktaAssignmentResponse);
   // ValidateClientCredentials checks if the provided client credentials are valid.
   rpc ValidateClientCredentials(ValidateClientCredentialsRequest) returns (ValidateClientCredentialsResponse);
   // EnrollIntegration enrolls a new integration with the specified parameters.
@@ -62,6 +65,27 @@ service OktaService {
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // GetGroups retrieves a list of apps from Okta based on specified filter criteria.
   rpc GetGroups(GetGroupsRequest) returns (GetGroupsResponse);
+}
+
+// ConditionalUpdateOktaAssignmentRequest is a request for updating an Okta assignment resource, protected by optimistic locking.
+message ConditionalUpdateOktaAssignmentRequest {
+  types.OktaAssignmentV1 assignment = 1;
+}
+
+// ConditionalUpdateOktaAssignmentResponse is a response for updating an Okta assignment resource, protected by optimistic locking.
+message ConditionalUpdateOktaAssignmentResponse {
+  types.OktaAssignmentV1 assignment = 1;
+}
+
+// UpsertOktaAssignmentRequest is a request for upserting an Okta assignment resource.
+message UpsertOktaAssignmentResponse {
+  types.OktaAssignmentV1 assignment = 1;
+}
+
+// UpsertOktaAssignmentRequest is a request for upserting an Okta assignment resource.
+message UpsertOktaAssignmentRequest {
+  // assignment is the Okta assignment to upsert.
+  types.OktaAssignmentV1 assignment = 1;
 }
 
 // GetAppsRequest is the request message for filtering apps.
