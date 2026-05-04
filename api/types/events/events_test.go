@@ -160,6 +160,94 @@ func TestTrimToMaxSize(t *testing.T) {
 			},
 		},
 		{
+			name:    "AzureRun fields trimmed",
+			maxSize: 300,
+			in: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 500),
+				StandardError:  strings.Repeat("B", 500),
+				APIError:       strings.Repeat("E", 500),
+			},
+			want: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 60),
+				StandardError:  strings.Repeat("B", 60),
+				APIError:       strings.Repeat("E", 60),
+			},
+		},
+		{
+			name:    "AzureRun one field trimmed",
+			maxSize: 300,
+			in: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 10),
+				StandardError:  strings.Repeat("B", 10),
+				APIError:       strings.Repeat("E", 500),
+			},
+			want: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 10),
+				StandardError:  strings.Repeat("B", 10),
+				APIError:       strings.Repeat("E", 60),
+			},
+		},
+		{
 			name:    "SCIM Resource Event trimmed",
 			maxSize: 200,
 			in: &SCIMResourceEvent{

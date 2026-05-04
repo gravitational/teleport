@@ -1563,6 +1563,29 @@ func (m *SSMRun) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *AzureRun) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.StandardOutput = ""
+	out.StandardError = ""
+	out.APIError = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.StandardOutput, m.StandardError, m.APIError)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
+	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
+	out.APIError = trimStr(m.APIError, maxFieldsSize)
+
+	return out
+}
+
 func (m *KubernetesClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
