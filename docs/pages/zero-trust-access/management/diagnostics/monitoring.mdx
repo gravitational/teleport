@@ -64,27 +64,6 @@ report OK again. Note that custom intervals may apply if `health_check_config` i
 The same state information is also available via the `process_state` metric
 under the `/metrics` endpoint.
 
-## Known limitations of readyz
-
-`/readyz` reports the result of the agent's most recent heartbeat with the
-Auth Service. It does not currently reflect:
-
-- **Per-service health.** If an agent is configured to run multiple services
-  (for example, `app_service` and `ssh_service`), `/readyz` can return 200 OK
-  even when one of those services has failed to start. See
-  [#43440](https://github.com/gravitational/teleport/issues/43440).
-- **Auth backend connectivity.** The Auth Service can transition out of a
-  degraded state quickly enough that `/readyz` returns 200 OK between
-  heartbeat failures, even when the backend remains unreachable. See
-  [#52273](https://github.com/gravitational/teleport/issues/52273).
-- **Bidirectional cluster communication.** `/readyz` reflects what the agent
-  knows about its own outbound heartbeats, not whether the cluster can reach
-  back to the agent. See
-  [#2276](https://github.com/gravitational/teleport/issues/2276).
-
-For higher-confidence monitoring, combine `/readyz` with the cluster-side
-checks described in [Monitoring agent join from the control plane](#monitoring-agent-join-from-the-control-plane).
-
 ### Querying `/readyz` from inside a running agent
 
 If exposing the diagnostic endpoint on a network address is not practical (for
@@ -177,3 +156,24 @@ runs `tctl inventory status --connected` against the control plane and
 alerts on agents that disappear from the connected list. This catches both
 local-process failures (caught by the liveness probe) and cluster-side
 disconnects (caught by the inventory check) that the probes alone would miss.
+
+## Known limitations of readyz
+
+`/readyz` reports the result of the agent's most recent heartbeat with the
+Auth Service. It does not currently reflect:
+
+- **Per-service health.** If an agent is configured to run multiple services
+  (for example, `app_service` and `ssh_service`), `/readyz` can return 200 OK
+  even when one of those services has failed to start. See
+  [#43440](https://github.com/gravitational/teleport/issues/43440).
+- **Auth backend connectivity.** The Auth Service can transition out of a
+  degraded state quickly enough that `/readyz` returns 200 OK between
+  heartbeat failures, even when the backend remains unreachable. See
+  [#52273](https://github.com/gravitational/teleport/issues/52273).
+- **Bidirectional cluster communication.** `/readyz` reflects what the agent
+  knows about its own outbound heartbeats, not whether the cluster can reach
+  back to the agent. See
+  [#2276](https://github.com/gravitational/teleport/issues/2276).
+
+For higher-confidence monitoring, combine `/readyz` with the cluster-side
+checks described in [Monitoring agent join from the control plane](#monitoring-agent-join-from-the-control-plane).
