@@ -21,7 +21,6 @@ package filesessions
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -235,12 +234,7 @@ func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID,
 	}
 
 	h := sha256.New()
-	if err := binary.Write(h, binary.NativeEndian, info.ModTime().UnixMicro()); err != nil {
-		return "", trace.Wrap(err)
-	}
-	// In case mod time isn't high enough resolution. Recording files are append
-	// only, so if two files have the same size they should have the same contents.
-	if err := binary.Write(h, binary.NativeEndian, info.Size()); err != nil {
+	if err := computeVersion(path, info, h); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil

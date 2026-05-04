@@ -473,6 +473,7 @@ func TestAppendUpload(t *testing.T) {
 				SessionTracker: &mockSessionTrackerService{},
 				ClusterName:    "teleport-cluster",
 			})
+			require.NoError(t, err)
 			tc.assert(t, completer.AppendUpload(t.Context(), events.StreamUpload{
 				ID:        secondUploadID,
 				SessionID: sessionID,
