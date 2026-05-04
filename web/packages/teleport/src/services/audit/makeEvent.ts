@@ -136,8 +136,15 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state }) =>
-      `Access request [${id}] has been created and is ${state}`,
+    format: ({ id, state, RequestedResourceAccessIDs }) => {
+      if (RequestedResourceAccessIDs?.length) {
+        const resources = RequestedResourceAccessIDs.map(
+          r => `${r.id.kind}/${r.id.name}`
+        ).join(', ');
+        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
+      }
+      return `Access request [${id}] has been created and is ${state}`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
@@ -1469,6 +1476,20 @@ export const formatters: Formatters = {
     desc: 'SSM Command Execution Failed',
     format: ({ account_id, instance_id, region, command_id }) => {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
+    },
+  },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
     },
   },
   [eventCodes.BOT_JOIN]: {

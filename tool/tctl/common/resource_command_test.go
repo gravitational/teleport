@@ -1681,6 +1681,7 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	}
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Namespace", "Expires"),
+		cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
 	))
 }
 

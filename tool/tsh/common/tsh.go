@@ -282,6 +282,9 @@ type CLIConf struct {
 
 	// AppName specifies proxied application name.
 	AppName string
+	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
+	// Mainly used for debugging purpose so the flag should be hidden.
+	AppHTTPSTunnel bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -920,7 +923,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
 	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
-	if !moduleCfg.IsBoringBinary() {
+	if !moduleCfg.IsFIPSBuild() {
 		// The user is *never* allowed to do this in FIPS mode.
 		app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments.").
 			Default("false").
@@ -1123,6 +1126,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
@@ -1525,6 +1529,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
@@ -1986,6 +1991,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case beamsCmd.ls.FullCommand():
+		err = beamsCmd.ls.run(&cf)
+	case beamsCmd.add.FullCommand():
+		err = beamsCmd.add.run(&cf)
+	case beamsCmd.rm.FullCommand():
+		err = beamsCmd.rm.run(&cf)
+	case beamsCmd.ssh.FullCommand():
+		err = beamsCmd.ssh.run(&cf)
+	case beamsCmd.exec.FullCommand():
+		err = beamsCmd.exec.run(&cf)
+	case beamsCmd.publish.FullCommand():
+		err = beamsCmd.publish.run(&cf)
+	case beamsCmd.unpublish.FullCommand():
+		err = beamsCmd.unpublish.run(&cf)
+	case beamsCmd.scp.FullCommand():
+		err = beamsCmd.scp.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
@@ -2019,7 +2040,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
 	var fipsErr *sshutils.FIPSError
-	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+	if moduleCfg.IsFIPSBuild() && errors.As(err, &fipsErr) {
 		return trace.Wrap(err,
 			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
 		)

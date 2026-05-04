@@ -1,0 +1,364 @@
+---
+title: Terraform EKS Auto-Discovery Configuration
+sidebar_label: Terraform
+description: How to configure Teleport EKS auto-discovery with Terraform
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
+---
+
+This guide shows you how to use Terraform to configure Teleport and AWS to
+automatically enroll EKS clusters in your Teleport cluster.
+
+## How it works
+
+(!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
+
+The [teleport-discovery-aws](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx)
+Terraform module creates the AWS IAM resources and the Teleport integration,
+`discovery_config`, and provision token that configure the Discovery Service
+to enroll EKS clusters. When the Discovery Service has the required IAM
+permissions, it also provisions an EKS Access Entry for each discovered
+cluster so the Kubernetes Service can forward traffic to it.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- An AWS account with IAM permissions to create roles, policies, and an OIDC
+  provider. See the next step for the full permissions Terraform needs.
+
+- [Terraform v(=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli).
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
+
+- A host to run the Teleport Discovery and Kubernetes services. Teleport Cloud
+  runs the Discovery Service for you, but you still need to run your own
+  Kubernetes Service. See the [manual guide](eks-discovery-manual.mdx) for
+  service setup.
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Use the `teleport-discovery-aws` Terraform module
+
+### Step 1/5. Configure AWS Terraform provider
+
+Configure the [AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+and AWS IAM permissions for Terraform to manage AWS resources.
+
+<details>
+<summary>AWS IAM permissions required for AWS Terraform provider</summary>
+
+The AWS Terraform provider will need the following AWS IAM permissions to
+manage AWS resources created by the `teleport-discovery-aws` module:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TerraformIdentity",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageIamRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRolePolicies",
+        "iam:ListRoles",
+        "iam:ListRoleTags",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageIamPolicy",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListPolicies",
+        "iam:ListPolicyTags",
+        "iam:ListPolicyVersions",
+        "iam:TagPolicy",
+        "iam:UntagPolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageRolePolicyAttachments",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageOidcProvider",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateOpenIDConnectProvider",
+        "iam:DeleteOpenIDConnectProvider",
+        "iam:GetOpenIDConnectProvider",
+        "iam:ListOpenIDConnectProviders",
+        "iam:TagOpenIDConnectProvider",
+        "iam:UntagOpenIDConnectProvider",
+        "iam:UpdateOpenIDConnectProviderThumbprint"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+</details>
+
+### Step 2/5. Configure Teleport Terraform provider
+
+For a local quick start, log in with `tsh` and run `tctl terraform env` in
+the same shell you use for `terraform` commands:
+
+```code
+$ tsh login
+$ eval "$(tctl terraform env)"
+```
+
+See the [Local Demo](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/local.mdx)
+guide for more detail on local setup. If you are running Terraform in CI,
+Spacelift, or another remote environment, refer to [Using the Teleport
+Terraform Provider](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+for the appropriate guide.
+
+### Step 3/5. Configure the Terraform module inputs
+
+Add the `teleport-discovery-aws` module to your Terraform configuration.
+
+<Tabs>
+
+<TabItem label="cloud">
+```hcl
+module "aws_discovery" {
+  source = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "~> (=cloud.major_version=).0"
+
+  # Required inputs:
+  # Assign <Var name="example.teleport.sh:443" /> to your Teleport cluster's proxy public address in host:port form.
+  teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
+  # teleport_discovery_group_name must match the discovery group name in your Discovery Service config file.
+  # Teleport Cloud clusters run the Discovery Service in the group name "cloud-discovery-group".
+  # Do not modify this input unless you intend to run your own Discovery Service.
+  teleport_discovery_group_name = "cloud-discovery-group"
+
+  aws_matchers = [
+    {
+      types   = ["eks"]
+      # EKS discovery supports "*" to discover clusters across all enabled regions.
+      regions = ["*"]
+      # tags filter which EKS clusters are enrolled. The wildcard matches all tags.
+      tags    = { "*" : ["*"] }
+      # Also enroll HTTP applications running inside discovered clusters.
+      kube_app_discovery = true
+    }
+  ]
+
+  # Optional inputs:
+  # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
+  apply_aws_tags = { origin = "example" }
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = { origin = "example" }
+}
+```
+</TabItem>
+
+<TabItem label="self-hosted">
+```hcl
+module "aws_discovery" {
+  source = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "~> (=teleport.major_version=).0"
+
+  # Required inputs:
+  # Edit this input to the host and port of the Teleport Proxy Service in your cluster
+  teleport_proxy_public_addr = "<Var name="teleport.example.com:443" />"
+  # Assign <Var name="discovery-group-name" /> to the discovery group name in your Discovery Service config file.
+  teleport_discovery_group_name = "<Var name="discovery-group-name" />"
+
+  aws_matchers = [
+    {
+      types   = ["eks"]
+      # EKS discovery supports "*" to discover clusters across all enabled regions.
+      regions = ["*"]
+      # tags filter which EKS clusters are enrolled. The wildcard matches all tags.
+      tags    = { "*" : ["*"] }
+      # Also enroll HTTP applications running inside discovered clusters.
+      kube_app_discovery = true
+    }
+  ]
+
+  # Optional inputs:
+  # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
+  apply_aws_tags = { origin = "example" }
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = { origin = "example" }
+}
+```
+</TabItem>
+
+</Tabs>
+
+Add a Terraform output for the module so that Terraform will display its
+outputs:
+
+```hcl
+output "aws_discovery" {
+  value = module.aws_discovery
+}
+```
+
+See the [teleport-discovery-aws
+reference](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx)
+for a complete description of the module inputs and outputs.
+
+#### Granting access to discovered EKS clusters
+
+The IAM role created by this module includes permissions for the Discovery
+Service to create and update EKS Access Entries. When the Discovery Service
+finds a new EKS cluster, it automatically provisions an Access Entry so the
+Teleport Kubernetes Service can forward traffic.
+
+By default, the Discovery Service grants access to its own IAM role. If your
+Kubernetes Service runs with a different IAM role, add `setup_access_for_arn`
+to the EKS matcher with that role's ARN:
+
+```hcl
+aws_matchers = [
+  {
+    types                = ["eks"]
+    regions              = ["*"]
+    tags                 = { "*" : ["*"] }
+    setup_access_for_arn = "arn:aws:iam::123456789012:role/teleport-kube-service"
+  }
+]
+```
+
+### Step 4/5. Apply the Terraform module
+
+```code
+$ terraform init
+$ terraform apply
+```
+
+Terraform should plan to create the following resources:
+- AWS IAM role for Teleport Discovery Service to assume
+- AWS IAM policy that grants the AWS permissions necessary for Teleport to discover resources in AWS
+- AWS IAM policy attachment to attach the IAM policy to the Discovery Service IAM role
+- AWS OIDC Provider for Teleport Discovery Service to assume an IAM role using OIDC
+- Teleport `discovery_config` cluster resource that configures Teleport for AWS resource discovery
+- Teleport `integration` cluster resource for AWS OIDC
+- Teleport `token` cluster resource that allows Teleport nodes to use AWS IAM credentials to join the cluster
+
+Review the Terraform plan and confirm the plan actions.
+
+After Terraform finishes applying the plan, it should display the module
+outputs:
+
+```
+aws_discovery = {
+  "aws_oidc_provider_arn" = "arn:aws:iam::123456789012:oidc-provider/example.teleport.sh"
+  "teleport_discovery_config_name" = "discovery-aws-account-123456789012"
+  "teleport_discovery_service_iam_policy_arn" = "arn:aws:iam::123456789012:policy/teleport-discovery-<timestamp>"
+  "teleport_discovery_service_iam_role_arn" = "arn:aws:iam::123456789012:role/teleport-discovery-<timestamp>"
+  "teleport_integration_name" = "discovery-aws-account-123456789012"
+  "teleport_provision_token_name" = "discovery-aws-account-123456789012"
+}
+```
+
+The AWS resources should have the following tags:
+- `origin=example`
+- `teleport.dev/cluster=<cluster-name>`
+- `teleport.dev/integration=discovery-aws-account-<account-id>`
+- `teleport.dev/iac-tool=terraform`
+
+The Teleport resources should have the following labels:
+- `origin=example`
+- `teleport.dev/iac-tool=terraform`
+
+### Step 5/5. Check discovery status
+
+After applying the Terraform module, the Teleport Discovery Service should
+start to discover EKS clusters in your AWS account and enroll them in your
+Teleport cluster as `kube_cluster` resources.
+
+<Admonition type="note">
+
+It may take a few minutes for EKS clusters to be discovered and enrolled.
+
+</Admonition>
+
+Navigate to the Teleport Web UI and select `Zero Trust Access > Integrations`.
+By default, the integration created by the `teleport-discovery-aws` Terraform
+module is named `discovery-aws-account-<aws-account-id>`.
+
+Click on the integration for your AWS account to review the discovery status.
+
+The integration page provides an overview of how many EKS clusters have been
+discovered and any issues encountered during the discovery process.
+
+## Updating module configuration
+
+The module inputs can be changed and re-applied to adjust the AWS discovery
+integration.
+
+For example, if you had previously configured specific AWS regions, you can
+switch to the wildcard to discover EKS clusters in all enabled regions:
+
+```diff
+-regions = ["us-west-1"]
++regions = ["*"]
+```
+
+Apply Terraform again:
+
+```code
+$ terraform apply
+```
+
+Review the Terraform plan before confirming the changes.
+
+After Terraform finishes applying its plan, the Discovery Service will pick up
+the change to the dynamic `discovery_config` and begin to enroll EKS clusters
+in the newly-configured regions.
+
+## Troubleshooting
+
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" !)
+
+(!docs/pages/includes/discovery/kubernetes-service-troubleshooting.mdx!)
+
+## Next steps
+
+- Read the [teleport-discovery-aws module reference](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx)
+  for a complete description of the module's inputs and outputs.
+- Learn how Teleport can also [discover HTTP applications running inside your
+  Kubernetes clusters](../../kubernetes-applications/kubernetes-applications.mdx).
+- Review the [auto-discovery labels
+  reference](../../reference/labels.mdx) for the cloud tags that Teleport
+  imports as Kubernetes cluster labels.

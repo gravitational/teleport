@@ -247,7 +247,9 @@ func TestMFACeremony_BrowserMFA(t *testing.T) {
 
 type mockMFACeremony struct {
 	clientCallbackURL string
+	proxyAddress      string
 	prompt            mfa.PromptFunc
+	closeFunc         func()
 }
 
 // GetClientCallbackURL returns the client callback URL.
@@ -256,7 +258,7 @@ func (m *mockMFACeremony) GetClientCallbackURL() string {
 }
 
 func (m *mockMFACeremony) GetProxyAddress() string {
-	return ""
+	return m.proxyAddress
 }
 
 // Run the SSO MFA ceremony.
@@ -264,4 +266,8 @@ func (m *mockMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateCh
 	return m.prompt(ctx, chal)
 }
 
-func (m *mockMFACeremony) Close() {}
+func (m *mockMFACeremony) Close() {
+	if m.closeFunc != nil {
+		m.closeFunc()
+	}
+}

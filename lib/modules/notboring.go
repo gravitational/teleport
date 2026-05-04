@@ -18,7 +18,7 @@
 
 package modules
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func IsBoringBinary() bool {
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func IsFIPSBuild() bool {
 	return false
 }

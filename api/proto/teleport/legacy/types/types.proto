@@ -379,6 +379,9 @@ message DatabaseStatusV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure"
   ];
+  // VNetDNSName is a DNS-safe, deterministic hash of the database name
+  // used by VNet for database FQDN resolution.
+  string VNetDNSName = 6 [(gogoproto.jsontag) = "vnet_dns_name,omitempty"];
 }
 
 // IAMPolicyStatus represents states that describe if an AWS database
@@ -1507,6 +1510,10 @@ message TokenRule {
   // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
   // must belong to this organization.
   string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
+  // AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units.
+  // Requires AWS Organization ID to be specified.
+  // The account's root ID is considered an Organizational Unit when validating the rule.
+  AWSOrganizationUnitsMatcher AWSOrganizationalUnits = 6 [(gogoproto.jsontag) = "aws_organizational_units,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -6432,6 +6439,9 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
+
+  // LinuxDesktop specifies the name of a Linux desktop.
+  string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources
@@ -9050,7 +9060,7 @@ message JamfSpecV1 {
   // Defaults to a random delay (a few minutes max).
   int64 sync_delay = 3 [
     (gogoproto.jsontag) = "sync_delay,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // Jamf Pro API endpoint.
   // Example: "https://yourtenant.jamfcloud.com/api".
@@ -9075,7 +9085,7 @@ message JamfInventoryEntry {
   // Set to zero or negative to disable PARTIAL syncs.
   int64 sync_period_partial = 2 [
     (gogoproto.jsontag) = "sync_period_partial,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // Sync period for FULL syncs.
   // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
@@ -9083,7 +9093,7 @@ message JamfInventoryEntry {
   // Set to zero or negative to disable FULL syncs.
   int64 sync_period_full = 3 [
     (gogoproto.jsontag) = "sync_period_full,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // on_missing is the trigger used on devices missing from the MDM view in a
   // FULL sync.

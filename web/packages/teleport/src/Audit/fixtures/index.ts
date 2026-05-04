@@ -235,6 +235,51 @@ export const events = [
     roles: ['admin'],
   },
   {
+    id: '77c938c3-2c1c-623c-076e-7d8a0499e9a0',
+    code: 'T5000I',
+    event: 'access_request.create',
+    time: '2020-06-05T19:26:53Z',
+    uid: '79b0d4bb-11f7-5ff7-9909-48g2a0584g2b',
+    user: 'Carrie_Sandoval',
+    state: 'PENDING',
+    RequestedResourceAccessIDs: [
+      {
+        id: {
+          cluster: 'example.teleport.sh',
+          kind: 'node',
+          name: 'server-01',
+        },
+        Constraints: {
+          ssh: { logins: ['alice', 'root'] },
+        },
+      },
+      {
+        id: {
+          cluster: 'example.teleport.sh',
+          kind: 'app',
+          name: 'aws-console',
+        },
+        Constraints: {
+          aws_console: {
+            role_arns_count: 3,
+            role_arns_preview: [
+              'arn:aws:iam::123456789012:role/Admin',
+              'arn:aws:iam::123456789012:role/Developer',
+            ],
+          },
+        },
+      },
+      {
+        id: {
+          cluster: 'example.teleport.sh',
+          kind: 'node',
+          name: 'legacy-server',
+        },
+        Constraints: { unknown_constraints: {} },
+      },
+    ],
+  },
+  {
     id: '66b827b2-1b0b-512b-965d-6c789388d3c9',
     code: 'T5001I',
     event: 'access_request.update',
@@ -2812,6 +2857,71 @@ export const events = [
     status: 'Failure',
     time: '2022-09-14T14:45:38.122Z',
     uid: 'ad123558-1d20-42dd-bf82-a7c544d76550',
+  },
+  {
+    cluster_name: 'example.teleport.sh',
+    code: 'TDA00I',
+    ei: 0,
+    event: 'azure.run',
+    subscription_id: '00000000-0000-0000-0000-000000000000',
+    resource_group: 'example-dev-a1b2c3d4-workload-rg',
+    vm_id: '11111111-1111-1111-1111-111111111111',
+    vm_name: 'example-dev-a1b2c3d4-vm-0',
+    resource_id:
+      '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-a1b2c3d4-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-a1b2c3d4-vm-0',
+    region: 'eastus',
+    exit_code: 0,
+    execution_state: 'Succeeded',
+    stdout: 'teleport has been installed successfully',
+    stderr: '',
+    status: 'Installation completed successfully.',
+    time: '2026-04-01T00:00:00.000Z',
+    uid: '11111111-1111-1111-1111-111111111110',
+  },
+  {
+    cluster_name: 'example.teleport.sh',
+    code: 'TDA00W',
+    ei: 0,
+    event: 'azure.run',
+    api_error:
+      "PUT https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-a1b2c3d4-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-a1b2c3d4-vm-1/runCommands/teleport-install: 403 Forbidden: AuthorizationFailed: The client does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write' over scope.",
+    subscription_id: '00000000-0000-0000-0000-000000000000',
+    resource_group: 'example-dev-a1b2c3d4-workload-rg',
+    vm_id: '22222222-2222-2222-2222-222222222222',
+    vm_name: 'example-dev-a1b2c3d4-vm-1',
+    resource_id:
+      '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-a1b2c3d4-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-a1b2c3d4-vm-1',
+    region: 'eastus',
+    exit_code: 0,
+    execution_state: '',
+    stdout: '',
+    stderr: '',
+    status: 'API call failed',
+    time: '2026-04-01T00:00:01.000Z',
+    uid: '22222222-2222-2222-2222-222222222220',
+  },
+  {
+    cluster_name: 'example.teleport.sh',
+    code: 'TDA00W',
+    ei: 0,
+    event: 'azure.run',
+    subscription_id: '00000000-0000-0000-0000-000000000000',
+    resource_group: 'example-dev-e5f6a7b8-workload-rg',
+    vm_id: '33333333-3333-3333-3333-333333333333',
+    vm_name: 'example-dev-e5f6a7b8-vm-0',
+    resource_id:
+      '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-dev-e5f6a7b8-workload-rg/providers/Microsoft.Compute/virtualMachines/example-dev-e5f6a7b8-vm-0',
+    region: 'polandcentral',
+    exit_code: 1,
+    execution_state: 'Failed',
+    stdout:
+      'Downloading from https://cdn.teleport.dev/teleport-ent-v18.7.4-linux-amd64-bin.tar.gz and extracting teleport to /tmp ...',
+    stderr:
+      'Proxy specified in update.yaml does not match teleport.yaml. refusing to install with conflicting proxy addresses',
+    status:
+      'Installation failed with exit code 1. Please check stdout and stderr and try again.',
+    time: '2026-04-01T00:00:02.000Z',
+    uid: '33333333-3333-3333-3333-333333333330',
   },
   {
     attributes: {

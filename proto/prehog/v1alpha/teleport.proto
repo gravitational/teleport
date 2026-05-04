@@ -1582,6 +1582,31 @@ message UIAccessGraphCrownJewelDiffViewEvent {
   string affected_resource_type = 2;
 }
 
+// UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+message UIPageViewEvent {
+  // anonymized
+  string user_name = 1;
+  // path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+  string path = 2;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 3;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 4;
+}
+
+// UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+// a usage reporting alert (e.g. an overage notification).
+message UIUsageReportingAlertCtaClickEvent {
+  // anonymized
+  string user_name = 1;
+  // alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+  string alert = 2;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 3;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 4;
+}
+
 // AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
 // Crown Jewel Resource.
 message AccessGraphCrownJewelCreateEvent {}
@@ -2240,6 +2265,10 @@ message SubmitEventRequest {
     UIAccessListCompleteEvent ui_access_list_complete_event = 116;
     UIAccessListIntegrateEvent ui_access_list_integrate_event = 117;
     UIAccessListCustomEvent ui_access_list_custom_event = 118;
+
+    UIPageViewEvent ui_page_view = 119;
+    UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
+
     SessionSummarySearchEvent session_summary_search_event = 121;
   }
 

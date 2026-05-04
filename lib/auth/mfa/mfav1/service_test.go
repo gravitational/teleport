@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -942,7 +943,78 @@ func TestReplicateValidatedMFAChallenge_NonRemoteProxyDenied(t *testing.T) {
 		Username:      "test-user",
 	})
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges"))
+	require.ErrorIs(t, err, trace.AccessDenied("identity is not a remote builtin role, cannot be a remote proxy"))
+	require.Nil(t, resp)
+}
+
+func TestReplicateValidatedMFAChallenge_RemoteBuiltinWrongRoleDenied(t *testing.T) {
+	t.Parallel()
+
+	authServer, _, _, _ := setupAuthServer(t, nil)
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			identity := authz.RemoteBuiltinRole{
+				Role:        types.RoleNode,
+				Username:    string(types.RoleNode),
+				ClusterName: sourceCluster,
+			}
+
+			return &authz.Context{
+				Identity:         identity,
+				UnmappedIdentity: identity,
+				Checker:          mockAccessChecker{},
+			}, nil
+		}),
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().IdentityInternal,
+		Storage:    &mockMFAService{},
+	})
+	require.NoError(t, err)
+
+	resp, err := service.ReplicateValidatedMFAChallenge(t.Context(), &mfav1.ReplicateValidatedMFAChallengeRequest{
+		Name:          chalName,
+		Payload:       payload,
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
+		Username:      "test-user",
+	})
+	require.Error(t, err)
+	require.ErrorIs(
+		t,
+		err,
+		trace.AccessDenied("role %q does not have permission to replicate validated MFA challenges", types.RoleNode),
+	)
+	require.Nil(t, resp)
+}
+
+func TestReplicateValidatedMFAChallenge_RemoteProxyWrongClusterDenied(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, _ := setupAuthServer(t, nil)
+
+	// Use a context with a remote proxy identity, but for a different source cluster than the one in the request.
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, "different-source-cluster").I)
+
+	resp, err := service.ReplicateValidatedMFAChallenge(ctx, &mfav1.ReplicateValidatedMFAChallengeRequest{
+		Name:          chalName,
+		Payload:       payload,
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
+		Username:      "test-user",
+	})
+	require.Error(t, err)
+	require.ErrorIs(
+		t,
+		err,
+		trace.AccessDenied(
+			"remote proxy cluster %q does not match request source cluster %q",
+			"different-source-cluster",
+			sourceCluster,
+		),
+	)
 	require.Nil(t, resp)
 }
 
@@ -1467,4 +1539,14 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	require.NoError(t, err)
 
 	return authServer, service, emitter, user
+}
+
+type mockAccessChecker struct {
+	services.AccessChecker
+
+	roles map[string]bool
+}
+
+func (f mockAccessChecker) HasRole(role string) bool {
+	return f.roles[role]
 }

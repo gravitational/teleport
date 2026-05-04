@@ -108,6 +108,7 @@ linters:
             - '!**/integrations/operator/controllers/resources/testlib/**'
             - '!**/lib/auth/test/**'
             - '!**/lib/services/suite/**'
+            - '!**/build.assets/tooling/**'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
@@ -153,6 +154,12 @@ linters:
               desc: 'use "aws-sdk-go-v2" instead'
             - pkg: github.com/aws/aws-sdk-go$
               desc: 'use "aws-sdk-go-v2" instead'
+        template:
+          deny:
+            - pkg: text/template
+              desc: 'text/template prevents DCE, use the following instead: template "github.com/DataDog/datadog-agent/pkg/template/text" instead'
+            - pkg: html/template
+              desc: 'html/template prevents DCE, use the following instead: template "github.com/DataDog/datadog-agent/pkg/template/html" instead'
         main:
           deny:
             - pkg: io/ioutil

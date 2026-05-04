@@ -14,11 +14,22 @@
      request to the Proxy Service at `/v1/webapi/find` and use a JSON query tool
      to obtain your cluster version. Replace <Var name="teleport.example.com:443" />
      with the web address of your Teleport Proxy Service:
-  
-     ```code
-     $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
-     $ TELEPORT_VERSION="$(curl -s https://$TELEPORT_DOMAIN/v1/webapi/find | jq -r '.server_version')"
-     ```
+
+     <Tabs>
+       <TabItem label="Mac/Linux">
+        ```code
+        $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
+        $ TELEPORT_VERSION="$(curl -s https://$TELEPORT_DOMAIN/v1/webapi/find | jq -r '.server_version')"
+        ```
+       </TabItem>
+       <TabItem label="Windows - Powershell">
+        ```code
+        $ $TELEPORT_DOMAIN = "<Var name="teleport.example.com:443" />"
+        $ $TELEPORT_VERSION = (Invoke-RestMethod -Uri "https://${TELEPORT_DOMAIN}/v1/webapi/find").server_version
+        ```
+       </TabItem>
+      </Tabs>
+
 
   1. Follow the instructions for your platform to install {{ clients }}:
 
@@ -44,7 +55,7 @@
        <TabItem label="Windows - Powershell">
      
          ```code
-         $ curl.exe -O https://cdn.teleport.dev/teleport-v${TELEPORT_VERSION?}-windows-amd64-bin.zip
+         $ curl.exe -O https://cdn.teleport.dev/teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip
          # Unzip the archive and move the {{ clients }} to your %PATH%
          # NOTE: Do not place the {{ clients }} in the System32 directory, as this can cause issues when using WinSCP.
          # Use %SystemRoot% (C:\Windows) or %USERPROFILE% (C:\Users\<username>) instead.
