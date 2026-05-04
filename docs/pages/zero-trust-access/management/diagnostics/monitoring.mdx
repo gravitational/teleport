@@ -51,10 +51,13 @@ metric-based monitoring.
 
 | State | HTTP code | `/readyz` body status | `process_state` value | When it applies |
 |-------|-----------|------------------------|------------------------|------------------|
-| Starting / not yet joined | 400 | "teleport is starting and hasn't joined the cluster yet" | starting | The process has launched but has not yet completed an initial heartbeat with the Auth Service. New agents sit in this state until they have successfully joined. |
-| Degraded | 503 | indicates the failing component | degraded | A component has failed its heartbeat. The most common cause is loss of connectivity to the Auth Service. |
-| Recovering | 400 | indicates the recovering component | recovering | A previously degraded component completed one successful heartbeat. A second consecutive successful heartbeat returns the component to OK. |
-| OK | 200 | "ok" | ok | All heartbeats are succeeding. |
+| Starting / not yet joined | 400 | "teleport is starting and hasn't joined the cluster yet" | `3` (starting) | The process has launched but has not yet completed an initial heartbeat with the Auth Service. New agents sit in this state until they have successfully joined. |
+| Degraded | 503 | indicates the failing component | `2` (degraded) | A component has failed its heartbeat. The most common cause is loss of connectivity to the Auth Service. |
+| Recovering | 400 | indicates the recovering component | `1` (recovering) | A previously degraded component completed one successful heartbeat. A second consecutive successful heartbeat returns the component to OK. |
+| OK | 200 | "ok" | `0` (ok) | All heartbeats are succeeding. |
+
+The numeric `process_state` values are stable across Teleport versions and form part of the public metrics API. 
+Use them directly in Prometheus alert rules — for example, `process_state == 2` to detect a degraded process.
 
 Heartbeats run approximately every 60 seconds when healthy and are retried
 approximately every 5 seconds after a failure. Depending on heartbeat timing,
@@ -110,13 +113,30 @@ reflect in the output.
 
 ### Show only currently connected agents
 
-`tctl inventory status --connected` shows agents with an active connection to
-the Auth Service right now, along with the services they are running and the
-services that have a successful heartbeat:
+`tctl inventory status --connected` shows the agents that are **currently
+connected to the Auth Service instance handling this request**, along with
+the services they are running and the services that have heartbeated
+successfully:
 
 ```code
 $ tctl inventory status --connected
 ```
+
+In high-availability deployments with multiple Auth Service instances, each
+Auth instance only sees the control streams of the agents directly connected
+to it. An agent connected to a different Auth instance will not appear in
+this output, even though it is healthy. Successive `tctl` calls may land on
+different Auth instances and return different sets of agents.
+
+For ad-hoc troubleshooting on a single-Auth deployment or when run directly
+on a specific Auth host, this is a useful "what is connected to me right
+now" view. For cluster-wide monitoring in HA deployments, use:
+
+```
+$ tctl inventory ls
+```
+
+which returns the full heartbeat-based inventory the cluster shares across Auth instances.
 
 ### Ping a specific agent
 
@@ -140,7 +160,7 @@ No single signal answers every question about agent health. We recommend combini
 |----------|-----|
 | Is the agent process running? | `/healthz` (Kubernetes liveness probe, or a host-level check such as `systemctl status teleport`) |
 | Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes readiness probe) |
-| Is the cluster aware of this agent right now? | `tctl inventory status --connected` |
+| Is the cluster aware of this agent right now? | `tctl inventory ls` |
 | Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
 | Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.join`, `bot.join`, `join_token.create`, `cert.create` |
 
@@ -152,10 +172,11 @@ normal join and recovery windows. `/healthz` returns HTTP 200 whenever the
 process is running, which is the correct signal for liveness.
 
 Pair these probes with a periodic check from your monitoring system that
-runs `tctl inventory status --connected` against the control plane and
-alerts on agents that disappear from the connected list. This catches both
-local-process failures (caught by the liveness probe) and cluster-side
-disconnects (caught by the inventory check) that the probes alone would miss.
+runs `tctl inventory ls` against the control plane and alerts on agents
+that disappear from the inventory. `tctl inventory status --connected` is
+not suitable for this check in HA deployments, because each Auth Service
+instance only sees the agents directly connected to it, and agents connected
+to other Auth instances would intermittently appear missing.
 
 ## Known limitations of readyz
 
