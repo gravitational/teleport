@@ -3887,6 +3887,8 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
+// TODO(kiosion) DELETE IN 21.0.0
+// Deprecated: Use [clusterconfigv1.Service.GetClusterAuditConfig] instead.
 func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterAuditConfigV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

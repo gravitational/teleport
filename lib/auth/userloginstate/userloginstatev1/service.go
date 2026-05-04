@@ -82,6 +82,33 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
+// ListUserLoginStates returns a paginated list of all user login states.
+func (s *Service) ListUserLoginStates(ctx context.Context, req *userloginstatev1.ListUserLoginStatesRequest) (*userloginstatev1.ListUserLoginStatesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindUserLoginState, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results, nextToken, err := s.userLoginStates.ListUserLoginStates(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ulsList := make([]*userloginstatev1.UserLoginState, len(results))
+	for i, r := range results {
+		ulsList[i] = conv.ToProto(r)
+	}
+
+	return &userloginstatev1.ListUserLoginStatesResponse{
+		UserLoginStates: ulsList,
+		NextPageToken:   nextToken,
+	}, nil
+}
+
 // GetUserLoginStates returns a list of all user login states.
 // deprecated: Use paginated version ListUserLoginStates
 // TODO(smallinsky) Remove in v21.0.0

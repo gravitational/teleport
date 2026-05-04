@@ -38,6 +38,7 @@ import (
 // Cache is used by the [Service] to query cluster config resources.
 type Cache interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
+	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
@@ -711,6 +712,32 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 	}
 
 	return nil
+}
+
+// GetClusterAuditConfig returns the cluster audit configuration.
+func (s *Service) GetClusterAuditConfig(ctx context.Context, _ *clusterconfigpb.GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindClusterAuditConfig, types.VerbRead); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	auditConfig, err := s.cache.GetClusterAuditConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := auditConfig.(*types.ClusterAuditConfigV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected cluster audit config type %T", auditConfig)
+	}
+
+	return cfgV2, nil
 }
 
 // GetSessionRecordingConfig returns the locally cached networking configuration.
