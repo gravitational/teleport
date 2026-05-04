@@ -164,7 +164,8 @@ func (rc *ResourceCommand) createCAOverride(
 	var action string
 	if rc.force {
 		resp, err1 := subCA.UpsertCertAuthorityOverride(ctx, &subcav1.UpsertCertAuthorityOverrideRequest{
-			CaOverride: caOverride,
+			CaOverride:            caOverride,
+			ForceImmediateDisable: true,
 		})
 		created = resp.GetCaOverride()
 		err = err1
