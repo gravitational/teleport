@@ -248,6 +248,85 @@ To create the connector using the `tctl` tool, run the following command:
 $ tctl create -f azure-connector.yaml
 ```
 
+### (Optional) Groups overage
+
+{/* vale 3rd-party-products.former-names = NO */}
+
+If a user's group membership exceeds the 150 group limit,
+Microsoft Entra ID issues a SAML assertion with a groups link attribute instead of the expected groups attribute.
+The groups link attribute contains an Azure AD Graph link which indicates that the user's group membership
+needs to be queried from the Microsoft Graph API.
+
+{/* vale 3rd-party-products.former-names = YES */}
+
+If your users' group memberships do not exceed the 150 group limit, you can skip this step.
+
+If the SAML connector was created using the Entra ID Integration,
+then Teleport will already be configured to authenticate to Microsoft Graph API and you can skip **Configure connector credentials** and go to [Grant Microsoft Graph API permission](#grant-microsoft-graph-api-permission).
+To check if the SAML connector was created using the Entra ID Integration, navigate to **Zero Trust Access -> Integrations -> Microsoft Entra ID -> SSO Connector** and look for the **Enabled** badge.
+
+If the SAML connector was not created using the Entra ID Integration,
+then you will need to create client credentials in Entra ID and configure those credentials on the SAML connector to
+enable Teleport to authenticate to Microsoft Graph API.
+
+#### Configure connector credentials
+
+For the same app registration created in Step 1:
+
+<Tabs>
+<TabItem label="Azure Portal">
+1. From the **Overview** page, copy the **Application (client) ID**.
+   ![Entra ID SAML client ID](../../../../img/sso/entraid/entra-id-client-id.png)
+2. Select **Manage -> Certificates & secrets**, click on **New client secret**, set a description and expiry, then click **Add**.
+   ![Entra ID SAML client credential](../../../../img/sso/entraid/entra-id-client-credential.png)
+3. Copy the secret value before moving to the next step, as it won't be shown again.
+   ![Entra ID SAML client secret](../../../../img/sso/entraid/entra-id-client-secret.png)
+</TabItem>
+<TabItem label="Azure CLI">
+1. Get the client ID, replacing <Var name="app-name" /> with the name of the Entra ID application.
+   ```code
+$ az ad app list --display-name <Var name="app-name" /> --query "[0].appId" -o tsv
+   ```
+2. Create a client secret, replacing <Var name="client-id" /> with the client ID from step 1 and <Var name="display-name" /> with a name for the client secret.
+   ```code
+   $ az ad app credential reset --append \
+     --id <Var name="client-id" description="The client ID from the previous step" />\
+     --display-name <Var name="display-name" description="The display name for the client secret" />\
+     --query "password" \
+     -o tsv
+   ```
+3. Copy the client secret value before moving to the next step, as it won't be shown again.
+</TabItem>
+</Tabs>
+
+4. Update the connector with the credentials.
+   ```yaml
+   kind: saml
+   metadata:
+     name: entra-id
+   spec:
+     ... # other fields not displayed for brevity
+     credentials:
+       oauth:
+         client_id: <client_id>
+         client_secret: <client_secret>
+   ```
+
+#### Grant Microsoft Graph API permission
+
+(!docs/pages/includes/sso/entraid-graph-permission.mdx!)
+
+Should a user's group membership exceed 150 groups, Teleport will follow through
+the groups link attribute issued by Entra ID and fetch user's group details using the
+Microsoft Graph API. 
+
+<details>
+<summary>Customize how Teleport follows the groups overage claim</summary>
+
+(!docs/pages/includes/sso/entraid-groups-provider.mdx type="saml"!)
+</details>
+
+
 ## Step 3/3. Configure authentication preferences
 
 (!docs/pages/includes/sso/cap.mdx type="saml"!)
