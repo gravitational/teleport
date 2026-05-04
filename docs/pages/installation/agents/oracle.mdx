@@ -37,7 +37,7 @@ self-authentication request to the OCI API for the Auth Service to execute.
 - An OCI Compute instance to host a Teleport service.
 - (!docs/pages/includes/iac-clients.mdx!)
 
-## Step 1/5. Create the Oracle joining token
+## Step 1/3. Create the Oracle joining token
 
 Configure your Teleport Auth Service with a special dynamic token which will
 allow services from your OCI tenants to join your Teleport cluster. You can
@@ -79,7 +79,7 @@ Add the following Kubernetes resource manifest, replacing values as indicated:
 </TabItem>
 </Tabs>
 
-## Step 2/5. Configure permissions
+## Step 2/3. Configure permissions
 
 On Teleport versions older than v18.4.0, every OCI compute instance needs IAM
 permissions to authenticate itself with the Oracle Cloud API.
@@ -127,44 +127,42 @@ Allow dynamic-group '<Var name="identity-domain" />'/'join-teleport' to inspect 
 
 </details>
 
-## Step 3/5. Install Teleport
-
-Install Teleport on your OCI Compute instance.
-
-(!docs/pages/includes/install-linux.mdx!)
-
-## Step 4/5. Configure your services
+## Step 3/3. Install and Configure Teleport
 
 The Oracle join method can be used for Teleport processes running the SSH (`Node`), Proxy,
 Kubernetes, Application, Database, or Windows Desktop Services. The Teleport
 process should be run directly on an OCI Compute instance.
 
-Configure your Teleport process with a custom `teleport.yaml` file. Use the
-`join_params` section with `token_name` matching your token created in Step 1
-and `method: oracle` as shown in the following example config:
+1. Install Teleport on your OCI Compute instance.
 
-```yaml
-# /etc/teleport.yaml
-version: v3
-teleport:
-  join_params:
-    token_name: oracle-token
-    method: oracle
-  proxy_server: https://teleport.example.com:443
-ssh_service:
-  enabled: true
-auth_service:
-  enabled: false
-proxy_service:
-  enabled: false
-```
+   (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/5. Launch your Teleport process
+1. Configure your Teleport process with a custom `teleport.yaml` file. Use the
+   `join_params` section with `token_name` matching your token created in Step 1
+   and `method: oracle` as shown in the following example config:
 
-(!docs/pages/includes/start-teleport.mdx!)
+   ```yaml
+   # /etc/teleport.yaml
+   version: v3
+   teleport:
+     join_params:
+       token_name: oracle-token
+       method: oracle
+     proxy_server: https://teleport.example.com:443
+   ssh_service:
+     enabled: true
+   auth_service:
+     enabled: false
+   proxy_service:
+     enabled: false
+   ```
 
-Once you have started Teleport, confirm that your service is able to connect to
-and join your cluster.
+1. Start the Teleport process on your machine:
+
+   (!docs/pages/includes/start-teleport.mdx!)
+
+1. Once you have started Teleport, confirm that your service is able to connect
+   to and join your cluster.
 
 ## Troubleshooting
 
