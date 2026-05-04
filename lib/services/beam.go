@@ -188,8 +188,8 @@ func (o *ListBeamsRequestOptions) GetSortOrder() beamsv1.BeamSortOrder {
 	return o.SortOrder
 }
 
-// GetFilterOwners is a nil-safe getter for FilterOwners
-func (o *ListBeamsRequestOptions) GetFilterOwners() set.Set[string] {
+// GetFilterUsers is a nil-safe getter for FilterOwners
+func (o *ListBeamsRequestOptions) GetFilterUsers() set.Set[string] {
 	if o == nil {
 		return set.Set[string]{}
 	}
