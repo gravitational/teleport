@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
-func TestBeam(t *testing.T) {
+func TestBeamCache(t *testing.T) {
 	t.Parallel()
 
 	p := newTestPack(t, ForAuth)
@@ -80,7 +80,7 @@ func TestBeam(t *testing.T) {
 	})
 }
 
-func TestBeam_GetBeamByAlias(t *testing.T) {
+func TestBeamCache_GetBeamByAlias(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
@@ -102,7 +102,7 @@ func TestBeam_GetBeamByAlias(t *testing.T) {
 	}, 2*time.Second, 100*time.Millisecond)
 }
 
-func TestBeamCachePaging(t *testing.T) {
+func TestBeamCache_ListPaging(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -152,7 +152,7 @@ func TestBeamCachePaging(t *testing.T) {
 	require.Equal(t, "beam-5", results[1].GetMetadata().GetName())
 }
 
-func TestBeamCacheSorting(t *testing.T) {
+func TestBeamCache_ListSorting(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -231,7 +231,7 @@ func TestBeamCacheSorting(t *testing.T) {
 	})
 }
 
-func TestBeamCacheFilterByUser(t *testing.T) {
+func TestBeamCacheList_FilterByUser(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -265,7 +265,7 @@ func TestBeamCacheFilterByUser(t *testing.T) {
 	assert.Equal(t, "beam-2", results[0].GetMetadata().GetName())
 }
 
-func TestBeamCacheFallback(t *testing.T) {
+func TestBeamCache_ListFallback(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
