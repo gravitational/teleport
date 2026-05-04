@@ -1,0 +1,248 @@
+---
+title: Session Recording Search
+sidebar_label: Session Recording Search
+description: Configure and use Teleport Identity Security Session Recording Search to find summarized session recordings.
+tags:
+  - session-recording
+  - how-to
+  - conceptual
+  - identity-security
+  - ai
+enterprise: Identity Security
+---
+
+Session Recording Search lets you find relevant session recordings by searching their
+summaries and session metadata. You can search with a natural
+language description, exact keywords, or filters such as user, role, resource,
+label, access request, session kind, time range, and severity.
+
+Session Recording Search searches session summaries, not raw recording data. A
+recording appears in search results only after Teleport has generated a
+successful [session recording summary](./session-summaries.mdx) for that
+session.
+
+## How it works
+
+When a session summary is generated, Teleport indexes the summary and related
+session metadata in Access Graph. Teleport also generates vector embeddings for
+summary chunks using the configured `retrieval_model` resource. When a user
+runs a search, Teleport Auth Service embeds the search query, asks Access Graph
+for matching summaries, applies Teleport RBAC checks, and returns only the
+sessions the user is allowed to view.
+
+The default search mode is hybrid search, which combines keyword search and
+vector similarity search. You can also run keyword-only or embeddings-only
+searches.
+
+<Admonition type="note" title="AI and embeddings">
+Session Recording Search sends session summary text and user search queries to
+the embeddings provider configured in the `retrieval_model` resource. Review
+the same data handling and provider considerations that apply to
+[Session Recording Summaries](./session-summaries.mdx).
+</Admonition>
+
+## Prerequisites
+
+- A Teleport Enterprise cluster v18.8.0 or later with Identity Security enabled.
+- [Session Recording Summaries](./session-summaries.mdx) enabled and generating
+  successful summaries.
+- For self-hosted deployments, Access Graph v1.30.0 or later.
+- For self-hosted deployments, a PostgreSQL v14 or later database for Access
+  Graph where these extensions are available:
+  - `pg_trgm`, required for keyword search.
+  - `pgvector`, required for vector similarity search. Its PostgreSQL extension
+    name is `vector`.
+- Permission to read the session recordings you want to search. Search results
+  are filtered with the same `session` RBAC rules used for session recordings
+  and summaries.
+
+Teleport Enterprise Cloud manages Access Graph and its backing database. For
+self-hosted clusters, follow the [Docker](./access-graph/self-hosted.mdx) or
+[Helm](./access-graph/self-hosted-helm.mdx) Access Graph deployment guide and
+run Access Graph v1.30.0 or later.
+
+Access Graph enables and manages the required PostgreSQL extensions automatically;
+you do not need to run `CREATE EXTENSION` manually.
+
+## Step 1/3. Configure the retrieval model
+
+The `retrieval_model` resource is a cluster-wide singleton named
+`retrieval-model`. It tells Teleport which embeddings provider to use for
+Session Recording Search and which inference model to use to convert natural
+language search queries into API requests and generate prose from session
+summaries.
+
+The preset `editor` role can manage `retrieval_model` resources. If you use a
+custom administration role, grant `read`, `list`, `create`, `update`, and
+`delete` on `retrieval_model`.
+
+Session Recording Search needs both an embeddings provider and an inference
+model. The embeddings provider converts session summaries and search queries
+into vectors for semantic matching. The `inference_model_name` field points to
+an existing `inference_model` resource that Teleport uses to convert natural
+language search queries into API requests and generate prose from session
+summaries. In most deployments, this can be the same inference model you
+already configured for Session Recording Summaries.
+
+<Tabs>
+<TabItem label="OpenAI">
+
+You can reuse an existing `inference_secret` that contains your OpenAI or
+OpenAI-compatible API key. The following example uses the `openai-key` secret
+from the Session Recording Summaries setup and the `shell-summary-model`
+inference model:
+
+Session Recording Search supports the `text-embedding-3-large` and
+`text-embedding-3-small` OpenAI embedding models.
+
+```yaml
+kind: retrieval_model
+version: v1
+metadata:
+  name: retrieval-model
+spec:
+  openai:
+    openai_model_id: text-embedding-3-large
+    api_key_secret_ref: openai-key
+  inference_model_name: shell-summary-model
+```
+
+</TabItem>
+<TabItem label="Amazon Bedrock">
+
+The following example uses Amazon Titan Text Embeddings. Replace the region
+with a region available in your AWS account. Session Recording Search supports
+only the `amazon.titan-embed-text-v2:0` Bedrock embedding model.
+
+```yaml
+kind: retrieval_model
+version: v1
+metadata:
+  name: retrieval-model
+spec:
+  bedrock:
+    region: us-east-1
+    bedrock_model_id: amazon.titan-embed-text-v2:0
+  inference_model_name: shell-summary-model
+```
+
+</TabItem>
+</Tabs>
+
+Save the configuration as `retrieval-model.yaml`, then apply it:
+
+```code
+$ tctl create -f retrieval-model.yaml
+```
+
+For infrastructure-as-code workflows, see the
+[`teleport_retrieval_model` Terraform resource](../reference/infrastructure-as-code/terraform-provider/resources/retrieval_model.mdx)
+or the
+[`TeleportRetrievalModelV1` Kubernetes operator resource](../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-retrievalmodelsv1.mdx).
+
+## Step 2/3. Generate searchable summaries
+
+Conduct a new SSH, Kubernetes, or database session that matches one of your
+session summary inference policies. After the session ends, wait for Teleport
+to generate its summary. New successful summaries are indexed for Session
+Recording Search.
+
+## Step 3/3. Search recordings
+
+Use `tctl recordings search` to search summarized recordings. By default, the
+command searches the last 24 hours and opens an interactive terminal UI.
+
+```code
+$ tctl recordings search "SSH sessions downloading archives from production"
+```
+
+Search with filters:
+
+```code
+$ tctl recordings search \
+    --from=2026-05-01 \
+    --to=2026-05-04 \
+    --kind=ssh \
+    --username=alice \
+    --label=env=prod \
+    --severity=high \
+    "external endpoint"
+```
+
+Use JSON or YAML output for automation:
+
+```code
+$ tctl recordings search --format=json --limit=25 "DROP TABLE"
+```
+
+Choose a search mode:
+
+```code
+$ tctl recordings search --search-mode=keyword "rm -rf"
+$ tctl recordings search --search-mode=embeddings "credential harvesting"
+```
+
+Supported search modes are:
+
+| Mode | Description |
+| --- | --- |
+| `hybrid` | Default. Combines keyword search and vector similarity search. |
+| `keyword` | Uses keyword matching only. |
+| `embeddings` | Uses vector similarity search only. |
+
+Common filters include:
+
+| Flag | Description |
+| --- | --- |
+| `--from`, `--to` | Search time range in `YYYY-MM-DD` format. |
+| `--kind` | Session kind, such as `ssh`, `k8s`, or `db`. Can be repeated. |
+| `--username` | Teleport user who initiated the session. |
+| `--role` | Role held by the user during the session. Can be repeated. |
+| `--access-request` | Access request ID associated with the session. Can be repeated. |
+| `--resource-kind` | Teleport resource kind, such as `node`, `kube_cluster`, or `db`. |
+| `--resource-name` | Name of the accessed resource. |
+| `--label` | Resource labels in `key=value` form. |
+| `--severity` | Minimum summary severity: `low`, `medium`, `high`, or `critical`. |
+
+## Troubleshooting
+
+### Session Recording Search requires Access Graph to be enabled with session recording support
+
+Make sure your cluster is connected to Access Graph and that self-hosted
+deployments run Access Graph v1.30.0 or later.
+
+### Check PostgreSQL extension availability
+
+Connect to the PostgreSQL database used by Access Graph and query
+`pg_available_extensions`:
+
+```sql
+SELECT name, default_version, installed_version
+FROM pg_available_extensions
+WHERE name IN ('pg_trgm', 'vector')
+ORDER BY name;
+```
+
+`pg_trgm` should appear as `pg_trgm`. `pgvector` should appear as `vector`,
+which is the PostgreSQL extension name. If a row is missing, that extension is
+not available in the PostgreSQL instance. If `installed_version` is empty, the
+extension is available but is not enabled in the current database yet; Access
+Graph enables required extensions automatically when it initializes the
+database.
+
+### Session Recording Search requires the pg_trgm PostgreSQL extension
+
+Use a PostgreSQL instance where `pg_trgm` is available to the Access Graph
+database. Access Graph enables the extension automatically.
+
+### Session Recording Search requires the pgvector PostgreSQL extension
+
+Use a PostgreSQL instance where `pgvector` is available to the Access Graph
+database. Access Graph enables the `vector` extension automatically.
+
+### No sessions found
+
+Check that the search time range includes the session, that the session has a
+successful summary, and that your Teleport roles allow you to read the
+recording. Session Recording Search does not return recordings that have not
+been summarized.

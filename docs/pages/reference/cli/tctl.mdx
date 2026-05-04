@@ -1680,7 +1680,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
+|`--format`|`text`|Format output (text, json, yaml). Defaults to 'text'.|
 
 ## tctl recordings ls
 
@@ -1701,6 +1701,40 @@ Flags:
 |`--last`|none|Duration into the past from which session recordings should be listed. Format 5h30m40s|
 |`--limit`|`50`|Maximum number of recordings to show. Default 50.|
 |`--to-utc`|none|End of time range in which recordings are listed. Format 2006-01-02. Defaults to current time.|
+
+## tctl recordings search
+
+Search session recordings with Session Recording Search.
+
+Usage:
+
+```code
+$ tctl recordings search [<flags>] [<query>...]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--access-request`|none|Filter by access request ID. Can be specified multiple times.|
+|`--format`|`text`|Format output (text, json, yaml). Defaults to 'text'.|
+|`--from`|none|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
+|`--kind`|none|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
+|`--label`|none|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
+|`--limit`|`50`|Maximum number of results to return.|
+|`--resource-kind`|none|Filter by Teleport resource type (node, kube_cluster, db).|
+|`--resource-name`|none|Filter by resource name.|
+|`--role`|none|Filter by role held during the session. Can be specified multiple times.|
+|`--search-mode`|`hybrid`|Search strategy to use when search queries are provided. One of: `hybrid`, `keyword`, `embeddings`.|
+|`--severity`|none|Minimum severity level to include (low, medium, high, critical).|
+|`--to`|none|End of time range. Format 2006-01-02. Defaults to current time.|
+|`--username`|none|Filter by the Teleport username that initiated the session.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|query|none (optional)|Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").|
 
 ## tctl requests approve
 
@@ -2511,4 +2545,3 @@ Flags:
 |---|---|---|
 |`--creation-mode`|`same`|How the attributes of the issuer are encoded in the CSR: "same", "empty".|
 |`-f`, `--[no-]force`|`false`|Attempt to sign as many CSRs as possible even in the presence of errors.|
-
