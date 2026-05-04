@@ -19,7 +19,16 @@
 import type { Desktop } from './types';
 
 export function makeDesktop(json): Desktop {
-  const { os, name, addr, host_id, requiresRequest, kind } = json;
+  const {
+    os,
+    name,
+    addr,
+    host_id,
+    requiresRequest,
+    kind,
+    desktopLoginDetails,
+    supportedFeatureIds,
+  } = json;
 
   const labels = json.labels || [];
   const logins = json.logins || [];
@@ -32,6 +41,8 @@ export function makeDesktop(json): Desktop {
     labels,
     host_id,
     logins,
+    desktopLoginDetails,
+    supportedFeatureIds,
     requiresRequest,
   };
 }

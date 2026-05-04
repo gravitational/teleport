@@ -153,6 +153,10 @@ type SshConstraints = {
   logins: string[];
 };
 
+type WindowsDesktopConstraints = {
+  logins: string[];
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -166,14 +170,22 @@ export type ResourceConstraints = BaseResourceConstraints &
     | {
         aws_console: AwsConsoleConstraints;
         ssh?: never;
+        windows_desktop?: never;
       }
     | {
         aws_console?: never;
         ssh: SshConstraints;
+        windows_desktop?: never;
       }
     | {
         aws_console?: never;
         ssh?: never;
+        windows_desktop: WindowsDesktopConstraints;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
+        windows_desktop?: never;
       }
   );
 

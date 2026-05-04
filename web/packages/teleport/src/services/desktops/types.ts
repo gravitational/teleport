@@ -18,6 +18,12 @@
 
 import { ResourceLabel } from 'teleport/services/agents';
 
+// DesktopLogin describes a desktop login with metadata about whether it requires a request.
+export type DesktopLogin = {
+  login: string;
+  requiresRequest?: boolean;
+};
+
 // Desktop is a remote desktop.
 export type Desktop = {
   kind: 'windows_desktop' | 'linux_desktop';
@@ -31,8 +37,12 @@ export type Desktop = {
   labels: ResourceLabel[];
   // The list of logins this user can use on this desktop.
   logins: string[];
+  // DesktopLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
+  desktopLoginDetails?: DesktopLogin[];
 
   host_id?: string;
   host_addr?: string;
   requiresRequest?: boolean;
+  // SupportedFeatureIDs contains ComponentFeatureIDs supported by this Desktop.
+  supportedFeatureIds?: number[];
 };

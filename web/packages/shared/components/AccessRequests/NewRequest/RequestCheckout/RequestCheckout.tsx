@@ -66,6 +66,7 @@ import {
   formatAWSRoleARNForDisplay,
   toggleAWSConsoleConstraint,
   toggleSSHConstraint,
+  toggleWindowsDesktopConstraint,
 } from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
@@ -263,6 +264,51 @@ const SSHConstraintsList = <T extends PendingListItem>({
             onClick={() => {
               clearAttempt();
               toggleSSHConstraint(item, login, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
+const WindowsDesktopConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'windows_desktop', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>Desktop Logins</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.windows_desktop.logins.map((login, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={login}
+          $idx={idx}
+          $len={item.constraints.windows_desktop.logins.length}
+        >
+          <Text style={{ alignContent: 'center' }}>{login}</Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Login"
+            onClick={() => {
+              clearAttempt();
+              toggleWindowsDesktopConstraint(
+                item,
+                login,
+                setResourceConstraints
+              );
             }}
             disabled={createAttempt.status === 'processing'}
             css={`
@@ -483,6 +529,22 @@ export function RequestCheckout<T extends PendingListItem>({
           <td colSpan={showClusterNameColumn ? 4 : 3}>
             <Flex justifyContent="space-between" alignItems="center" mt={-2}>
               <SSHConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'windows_desktop')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <WindowsDesktopConstraintsList
                 item={item}
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}

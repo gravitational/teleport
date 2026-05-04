@@ -122,3 +122,36 @@ export const toggleSSHConstraint = <T extends PendingListItem>(
   };
   set(key, newRc.ssh.logins.length ? newRc : undefined);
 };
+
+/**
+ * Toggles a Windows Desktop constraint by removing the specified login from the current constraints.
+ * If no logins remain after removal, it clears the constraint.
+ */
+export const toggleWindowsDesktopConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'windows_desktop',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  login: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const newRc = {
+    windows_desktop: {
+      logins: item.constraints.windows_desktop.logins.filter(
+        l => l !== login
+      ),
+    },
+  };
+  set(
+    key,
+    newRc.windows_desktop.logins.length ? newRc : undefined
+  );
+};
