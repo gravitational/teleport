@@ -88,7 +88,7 @@ func (tbs *TokenBucketSet) IsRateLimited() bool {
 // how much time the caller needs to wait until the desired number of tokens
 // will become available for consumption.
 func (tbs *TokenBucketSet) Consume(tokens int64) (time.Duration, error) {
-	now := tbs.clock.Now().UTC()
+	now := tbs.clock.Now()
 	if len(tbs.buckets) == 1 {
 		// Fast path. Range over a single-element map costs the same
 		// as a struct field access in practice.

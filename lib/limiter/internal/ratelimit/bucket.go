@@ -19,9 +19,10 @@
 package ratelimit
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	xrate "golang.org/x/time/rate"
 )
@@ -56,7 +57,7 @@ func limitFromRate(r *rate) xrate.Limit {
 //   - (0, nil) when n tokens are available
 func (b *bucket) peek(n int64, now time.Time) (time.Duration, error) {
 	if n > b.burst {
-		return UndefinedDelay, fmt.Errorf("requested tokens larger than max tokens")
+		return UndefinedDelay, trace.LimitExceeded("requested tokens larger than max tokens")
 	}
 	return b.durationUntilAvailable(n, now)
 }
@@ -64,7 +65,7 @@ func (b *bucket) peek(n int64, now time.Time) (time.Duration, error) {
 // consume consumes n tokens if they are available.
 func (b *bucket) consume(n int64, now time.Time) (time.Duration, error) {
 	if n > b.burst {
-		return UndefinedDelay, fmt.Errorf("requested tokens larger than max tokens")
+		return UndefinedDelay, trace.LimitExceeded("requested tokens larger than max tokens")
 	}
 	if b.limiter.AllowN(now, int(n)) {
 		return 0, nil
@@ -74,7 +75,7 @@ func (b *bucket) consume(n int64, now time.Time) (time.Duration, error) {
 
 // update changes the bucket's rate.
 func (b *bucket) update(r *rate) {
-	now := b.clock.Now().UTC()
+	now := b.clock.Now()
 	b.limiter.SetLimitAt(now, limitFromRate(r))
 	b.limiter.SetBurstAt(now, int(r.burst))
 	b.burst = r.burst
@@ -82,7 +83,7 @@ func (b *bucket) update(r *rate) {
 
 // isLimited reports whether the bucket has no tokens.
 func (b *bucket) isLimited() bool {
-	return b.limiter.TokensAt(b.clock.Now().UTC()) < 1.0
+	return b.limiter.TokensAt(b.clock.Now()) < 1.0
 }
 
 // durationUntilAvailable returns the delay before n tokens can be consumed.
@@ -94,7 +95,7 @@ func (b *bucket) durationUntilAvailable(n int64, now time.Time) (time.Duration, 
 	limit := b.limiter.Limit()
 	if limit <= 0 {
 		// RateSet.Add rejects average <= 0, so this is defensive.
-		return UndefinedDelay, fmt.Errorf("rate limit is non-positive")
+		return UndefinedDelay, errors.New("rate limit is non-positive")
 	}
 	delay := time.Duration((float64(n) - available) / float64(limit) * float64(time.Second))
 	return max(delay, time.Nanosecond), nil
