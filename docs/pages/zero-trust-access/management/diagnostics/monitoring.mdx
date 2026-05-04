@@ -12,8 +12,6 @@ Kubernetes probes to monitor the health of a Teleport process.
 
 ## Enable health monitoring
 
-Teleport's diagnostic HTTP endpoints are disabled by default. You can enable them via:
-
 (!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
 
 Now you can collect monitoring information from several endpoints.
@@ -40,7 +38,7 @@ The response body is a JSON object of the form:
 Example:
 
 ```code
-% curl http://127.0.0.1:3000/readyz
+$ curl http://127.0.0.1:3000/readyz
 {"status":"ok","pid":47092}
 ```
 
@@ -53,10 +51,10 @@ metric-based monitoring.
 
 | State | HTTP code | `/readyz` body status | `process_state` value | When it applies |
 |-------|-----------|------------------------|------------------------|------------------|
-| Starting / not yet joined | 400 | `teleport is starting and hasn't joined the cluster yet` | starting | The process has launched but has not yet completed an initial heartbeat with the Auth Service. New agents sit in this state until they have successfully joined. |
+| Starting / not yet joined | 400 | "teleport is starting and hasn't joined the cluster yet" | starting | The process has launched but has not yet completed an initial heartbeat with the Auth Service. New agents sit in this state until they have successfully joined. |
 | Degraded | 503 | indicates the failing component | degraded | A component has failed its heartbeat. The most common cause is loss of connectivity to the Auth Service. |
 | Recovering | 400 | indicates the recovering component | recovering | A previously degraded component completed one successful heartbeat. A second consecutive successful heartbeat returns the component to OK. |
-| OK | 200 | `ok` | ok | All heartbeats are succeeding. |
+| OK | 200 | "ok" | ok | All heartbeats are succeeding. |
 
 Heartbeats run approximately every 60 seconds when healthy and are retried
 approximately every 5 seconds after a failure. Depending on heartbeat timing,
@@ -66,7 +64,8 @@ report OK again. Note that custom intervals may apply if `health_check_config` i
 The same state information is also available via the `process_state` metric
 under the `/metrics` endpoint.
 
-<Admonition type="warning" title="Known limitations of /readyz">
+## Known limitations of readyz
+
 `/readyz` reports the result of the agent's most recent heartbeat with the
 Auth Service. It does not currently reflect:
 
@@ -85,7 +84,6 @@ Auth Service. It does not currently reflect:
 
 For higher-confidence monitoring, combine `/readyz` with the cluster-side
 checks described in [Monitoring agent join from the control plane](#monitoring-agent-join-from-the-control-plane).
-</Admonition>
 
 ### Querying `/readyz` from inside a running agent
 
@@ -157,18 +155,25 @@ cannot complete a round-trip to it.
 
 ## Recommended monitoring approach
 
-No single signal answers every question about agent health. We recommend
-combining the following:
+No single signal answers every question about agent health. We recommend combining the following:
 
 | Question | Use |
 |----------|-----|
-| Is the agent process running? | `/healthz` (or a host-level check such as `systemctl status teleport`) |
-| Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes liveness probe) |
+| Is the agent process running? | `/healthz` (Kubernetes liveness probe, or a host-level check such as `systemctl status teleport`) |
+| Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes readiness probe) |
 | Is the cluster aware of this agent right now? | `tctl inventory status --connected` |
 | Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
 | Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.login`, `instance.join`, `instance.token.create`, `cert.create` |
 
-For Kubernetes deployments, configure `/readyz` as the readiness probe on agent pods, and pair it with a periodic 
-check from your monitoring system that runs `tctl inventory status --connected` against the control plane and alerts 
-on agents that disappear from the connected list.This catches both local-process failures (caught by the probe) and
-cluster-side disconnects (caught by the inventory check) that `/readyz` alone would miss.
+For Kubernetes deployments, configure `/healthz` as the liveness probe and
+`/readyz` as the readiness probe on agent pods. Do not use `/readyz` as a
+liveness probe — it returns HTTP 400 during the normal Starting and
+Recovering states, which would cause the kubelet to restart pods during
+normal join and recovery windows. `/healthz` returns HTTP 200 whenever the
+process is running, which is the correct signal for liveness.
+
+Pair these probes with a periodic check from your monitoring system that
+runs `tctl inventory status --connected` against the control plane and
+alerts on agents that disappear from the connected list. This catches both
+local-process failures (caught by the liveness probe) and cluster-side
+disconnects (caught by the inventory check) that the probes alone would miss.
