@@ -123,7 +123,9 @@ const (
 	ProtocolMCP Protocol = "teleport-mcp"
 
 	// ProtocolAppHTTPS tunnels HTTPS (currently http/1.1) inside a mTLS tunnel
-	// for HTTP apps, mainly for VNet. This tunnel always uses ping protocol.
+	// for HTTP apps, mainly for VNet. This tunnel always uses ping protocol so
+	// it always has the "-ping" suffix. See callers to IsPingProtocol for more
+	// details on ping handling.
 	ProtocolAppHTTPS Protocol = "teleport-app-https-ping"
 )
 

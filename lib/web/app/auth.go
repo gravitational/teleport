@@ -206,6 +206,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	// TODO(greedy52) add browser support by validating the subject token
 	// against the outer mTLS identity
 	if IsHTTPSTunnelConn(r) {
+		h.logger.DebugContext(r.Context(), "Browser access through the HTTPS tunnel is not supported", "user", ws.GetUser())
 		return trace.AccessDenied("access denied")
 	}
 

@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1353,12 +1354,15 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 			},
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+pack.RootAppPublicAddr(), nil)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+pack.RootAppPublicAddr(), nil)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), pack.RootAppMessage())
 	})
 
 	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
