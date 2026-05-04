@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/relaytunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -167,6 +167,10 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		if c.KubernetesServersWatcher == nil {
 			return trace.BadParameter("missing parameter KubernetesServersWatcher")
 		}
+	case KubeService:
+		if c.Scope != "" && c.KubernetesServersWatcher != nil {
+			return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
+		}
 	}
 
 	if c.Log == nil {
@@ -238,11 +242,17 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(eriktate/scopes): remove this validation once dynamic cluster registration supports scopes
+	if cfg.Scope != "" && len(cfg.ResourceMatchers) > 0 {
+		return nil, trace.BadParameter("dynamic cluster registration not supported for scoped kube_service, resource matchers must be empty")
+	}
 	cfg.ForwarderConfig.log = log
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	} else if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+	}
+
+	if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
 		len(cfg.ResourceMatchers) == 0 {
 		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
 		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
@@ -652,7 +662,7 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 			// This should only happen if there's a bug in scoped access checking for KubernetesCluster resources.
 			// The kube proxy should never have access to clusters from orthogonal scopes. We also block access
 			// to clusters in child scopes but this may be relaxed in the future.
-			return nil, trace.AccessDenied("kube forwarder found kube cluster from different scope, this is a bug")
+			return nil, trace.AccessDenied("kube forwarder found kube cluster from different scope")
 		}
 	}
 
