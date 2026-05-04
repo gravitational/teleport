@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
@@ -28,6 +28,7 @@ import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
 import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { storageService } from 'teleport/services/storageService';
 
 export function AppLauncher({
   windowLocation = window.location,
@@ -42,7 +43,23 @@ export function AppLauncher({
   const clusterId = pathParams.clusterId;
   const publicAddr = pathParams.publicAddr;
   const arn = pathParams.arn;
-  const { search, hash } = useLocation();
+  const { pathname, search, hash: urlHash } = useLocation();
+
+  // If the user reached the launcher while logged out, the
+  // Authenticated wrapper redirects to /web/login and drops the
+  // hash on the way (goToLogin builds redirect_uri from
+  // pathname+search only, and the JS-driven navigation does not
+  // inherit fragments). Authenticated stashes the hash in
+  // sessionStorage before that redirect; consume it here on the
+  // post-login launcher load so the existing fragment-forwarding
+  // logic below works for the logged-out case too.
+  //
+  // useState initializer runs once on mount, so the stash is read
+  // (and cleared) exactly once per launcher render.
+  const [stashedHash] = useState(() =>
+    urlHash ? '' : storageService.consumeAppLauncherFragment(pathname)
+  );
+  const hash = urlHash || stashedHash;
 
   const mfa = useMfa({
     req: {

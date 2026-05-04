@@ -23,6 +23,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import cfg, { UrlLauncherParams } from 'teleport/config';
 import api from 'teleport/services/api';
 import service from 'teleport/services/apps';
+import { storageService } from 'teleport/services/storageService';
 
 import { AppLauncher } from './AppLauncher';
 
@@ -419,6 +420,166 @@ describe('fqdn is matched', () => {
     await screen.findByText(/access denied/i);
     expect(screen.getByText(/Failed to parse URL:/i)).toBeInTheDocument();
     expect(windowLocation.replace).not.toHaveBeenCalled();
+  });
+});
+
+// stashedFragmentTestCases cover the logged-out flow: the
+// Authenticated wrapper stashes the hash in sessionStorage before
+// redirecting to /web/login, and the launcher consumes it after
+// the post-login navigation. The launcher cannot read the original
+// hash from `useLocation()` at this point because goToLogin
+// dropped it from `redirect_uri` and the JS-driven navigation back
+// to the launcher does not inherit fragments.
+const stashedFragmentTestCases: {
+  name: string;
+  path: string;
+  stashedPath: string;
+  stashedHash: string;
+  expectedPath: string;
+}[] = [
+  {
+    // Stashed fragment threads through the first leg.
+    name: 'no state with stashed fragment',
+    path: '?path=%2Ffoo%2Fbar',
+    stashedPath: '/web/launch/grafana.localhost',
+    stashedHash: '#my-section',
+    expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar#my-section',
+  },
+  {
+    // Stashed fragment threads through the second leg, packed
+    // alongside the session cookie.
+    name: 'with state and stashed fragment',
+    path: '?state=ABC&path=%2Ffoo%2Fbar',
+    stashedPath: '/web/launch/grafana.localhost',
+    stashedHash: '#my-section',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value&fragment=my-section',
+  },
+  {
+    // Stash for a different launcher path is ignored.
+    name: 'stash for a different path is ignored',
+    path: '?path=%2Ffoo%2Fbar',
+    stashedPath: '/web/launch/other.localhost',
+    stashedHash: '#my-section',
+    expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar',
+  },
+  {
+    // Required-apps chain drops the stashed fragment, same as for
+    // a URL fragment on the logged-in path.
+    name: 'required-apps chain drops stashed fragment',
+    path: '?state=ABC&path=%2Ffoo&required-apps=app1,app2',
+    stashedPath: '/web/launch/grafana.localhost',
+    stashedHash: '#secret',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&required-apps=app1%2Capp2&path=%2Ffoo#value=cookie-value',
+  },
+];
+
+describe('app launcher consumes a stashed fragment when the URL has none', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
+    jest.spyOn(api, 'get').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+      fqdn: 'grafana.localhost',
+    });
+    jest.spyOn(service, 'createAppSession').mockResolvedValue({
+      cookieValue: 'cookie-value',
+      subjectCookieValue: 'subject-cookie-value',
+      fqdn: '',
+    });
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  test.each(stashedFragmentTestCases)(
+    '$name',
+    async ({ path: query, stashedPath, stashedHash, expectedPath }) => {
+      storageService.setAppLauncherFragment(stashedPath, stashedHash);
+
+      const windowLocation = {
+        replace: jest.fn(),
+      };
+      render(
+        <MemoryRouter
+          initialEntries={[`/web/launch/grafana.localhost${query}`]}
+        >
+          <Routes>
+            <Route
+              path={appLauncherRoute}
+              element={<AppLauncher windowLocation={windowLocation} />}
+            />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      await waitFor(() =>
+        expect(windowLocation.replace).toHaveBeenCalledWith(
+          `https://grafana.localhost/${expectedPath}`
+        )
+      );
+      expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
+    }
+  );
+
+  test('the URL fragment wins when both are present', async () => {
+    storageService.setAppLauncherFragment(
+      '/web/launch/grafana.localhost',
+      '#stashed'
+    );
+
+    const windowLocation = {
+      replace: jest.fn(),
+    };
+    render(
+      <MemoryRouter
+        initialEntries={[`/web/launch/grafana.localhost?path=%2Ffoo#fromurl`]}
+      >
+        <Routes>
+          <Route
+            path={appLauncherRoute}
+            element={<AppLauncher windowLocation={windowLocation} />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(windowLocation.replace).toHaveBeenCalledWith(
+        `https://grafana.localhost/x-teleport-auth?path=%2Ffoo#fromurl`
+      )
+    );
+  });
+
+  test('the stash is cleared after the launcher reads it', async () => {
+    storageService.setAppLauncherFragment(
+      '/web/launch/grafana.localhost',
+      '#my-section'
+    );
+
+    const windowLocation = {
+      replace: jest.fn(),
+    };
+    render(
+      <MemoryRouter
+        initialEntries={[`/web/launch/grafana.localhost?path=%2Ffoo`]}
+      >
+        <Routes>
+          <Route
+            path={appLauncherRoute}
+            element={<AppLauncher windowLocation={windowLocation} />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(windowLocation.replace).toHaveBeenCalled());
+    expect(
+      storageService.consumeAppLauncherFragment('/web/launch/grafana.localhost')
+    ).toBe('');
   });
 });
 
