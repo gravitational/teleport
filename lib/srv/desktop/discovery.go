@@ -111,6 +111,8 @@ func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.W
 			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
 				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
 				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+				Limit:                pageSize,
+				StartKey:             pageToken,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -410,8 +412,6 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL * 3))
 
 	description := entry.GetAttributeValue(attrDescription)
 	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]
