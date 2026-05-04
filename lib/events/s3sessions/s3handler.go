@@ -629,8 +629,7 @@ func (h *Handler) thumbnailPath(sessionID session.ID) string {
 }
 
 func (h *Handler) uploadMetadataPath(uploadID string) string {
-	subPath := path.Join(uploadID + ".upload.json")
-	return strings.TrimPrefix(path.Join(h.Path, subPath), "/")
+	return strings.TrimPrefix(path.Join(h.Path, "uploadMetadata", uploadID+".upload.json"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {

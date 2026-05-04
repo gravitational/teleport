@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -66,6 +67,11 @@ func ConvertS3Error(err error) error {
 	var opError *smithy.OperationError
 	if errors.As(err, &opError) && strings.Contains(opError.Err.Error(), "FIPS") {
 		return trace.BadParameter("%s", opError)
+	}
+
+	var responseErr *awshttp.ResponseError
+	if errors.As(err, &responseErr) {
+		return trace.ReadError(responseErr.HTTPStatusCode(), []byte(err.Error()))
 	}
 
 	return err

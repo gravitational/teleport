@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -318,6 +319,32 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			}
 			up.Initiated = aws.ToTime(upload.Initiated)
 			uploads = append(uploads, up)
+		}
+	}
+
+	var continuationToken *string
+	for {
+		listObjResponse, err := h.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(h.Bucket),
+			Prefix:            aws.String(path.Join(h.Path, "uploadMetadata")),
+			ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			// TODO log
+			break
+		}
+		for _, s3Object := range listObjResponse.Contents {
+			uploadID := path.Base(aws.ToString(s3Object.Key))
+			upload, err := h.readMetadata(ctx, uploadID)
+			if err != nil {
+				// TODO log
+				continue
+			}
+			if upload.Temporary && !slices.ContainsFunc(uploads, func(u events.StreamUpload) bool {
+				return upload.ID == u.ID
+			}) {
+				uploads = append(uploads, upload)
+			}
 		}
 	}
 
