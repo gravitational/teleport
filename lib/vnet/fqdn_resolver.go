@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"net"
 	"slices"
 	"strings"
 
@@ -177,10 +176,6 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 		// checking configured DNS zones.
 		shouldYieldAllCandidates := isDirectSubdomain(fqdn, profileName)
 
-		// Check if fqdn looks like a database FQDN using the root proxy address
-		rootProxyHost := rootProxyHostFromProfile(profileName)
-		fqdnMatchesDBZone := db.HasZoneSuffix(fqdn, rootProxyHost)
-
 		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
 			if shouldYieldAllCandidates {
 				return true
@@ -188,13 +183,6 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 
 			if isDescendantSubdomain(fqdn, candidate.clusterName) {
 				// This may match an SSH server, must yield the client.
-				return true
-			}
-
-			if fqdnMatchesDBZone {
-				// Database FQDNs are addressed at the root proxy zone, so a
-				// leaf cluster whose own name is not in the FQDN may still
-				// own the database
 				return true
 			}
 
@@ -400,26 +388,8 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	if clusterConfig.ProxyPublicAddr == "" {
 		return nil, errNoMatch
 	}
-	zones := []string{clusterConfig.ProxyPublicAddr}
-	// For leaf clusters, the FQDN uses the root proxy address (e.g.
-	// reader.my-db.db.root-proxy.example.com), but the leaf cluster's
-	// ProxyPublicAddr may differ. Also try the root proxy address (the
-	// profileName with port stripped) so leaf cluster databases resolve.
-	rootProxyHost := rootProxyHostFromProfile(candidate.profileName)
-	if rootProxyHost != clusterConfig.ProxyPublicAddr {
-		zones = append(zones, rootProxyHost)
-	}
-
-	var identifier string
-	var matched bool
-	for _, zone := range zones {
-		if id, ok := db.Parse(fqdn, zone); ok {
-			identifier = id
-			matched = true
-			break
-		}
-	}
-	if !matched {
+	identifier, ok := db.Parse(fqdn, clusterConfig.ProxyPublicAddr)
+	if !ok {
 		return nil, errNoMatch
 	}
 
@@ -429,10 +399,12 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		`resource.status.vnet_dns_name == %q || name == %q`,
 		identifier, identifier,
 	)
+	// Fetch up to 2 results so a collision (very unlikely) surfaces a warning
+	const maxDBMatches = 2
 	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: expr,
-		Limit:               1,
+		Limit:               maxDBMatches,
 	})
 	if err != nil {
 		if ctx.Err() != nil {
@@ -444,6 +416,17 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	if len(resp.Resources) == 0 {
 		log.DebugContext(ctx, "Found no matching database servers")
 		return nil, errNoMatch
+	}
+
+	if len(resp.Resources) > 1 {
+		matchedNames := make([]string, 0, len(resp.Resources))
+		for _, r := range resp.Resources {
+			matchedNames = append(matchedNames, r.GetDatabase().GetName())
+		}
+		log.WarnContext(ctx, "VNet identifier matched multiple databases, picking the first one",
+			"identifier", identifier,
+			"matched_db_names", matchedNames,
+		)
 	}
 
 	dbResource := resp.Resources[0].GetDatabase()
@@ -536,12 +519,4 @@ func isDirectSubdomain(fqdn, zone string) bool {
 		return false
 	}
 	return !strings.ContainsRune(trimmed, '.')
-}
-
-// rootProxyHostFromProfile returns the root proxy hostname from a profile name,
-func rootProxyHostFromProfile(profileName string) string {
-	if host, _, err := net.SplitHostPort(profileName); err == nil {
-		return host
-	}
-	return profileName
 }

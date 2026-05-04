@@ -1307,8 +1307,8 @@ func TestDialFakeDatabase(t *testing.T) {
 			},
 		},
 		{
-			name:       "leaf cluster postgres via root proxy",
-			fqdn:       dbvnet.DNSName("leaf-postgres") + ".db.root1.example.com",
+			name:       "leaf cluster postgres via leaf proxy",
+			fqdn:       dbvnet.DNSName("leaf-postgres") + ".db.leaf1.example.com",
 			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "leaf-postgres",
