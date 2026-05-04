@@ -545,7 +545,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	cfg.SetDefaults()
 
 	if cfg.MetricsRegistry == nil {
-		return nil, trace.BadParameter("MetricsRegistry must be provided")
+		// TODO(tigrato): remove this defaulting and require the registry to be passed in.
+		cfg.MetricsRegistry = prometheus.DefaultRegisterer
 	}
 	h := &Handler{
 		cfg:                  cfg,
