@@ -1131,7 +1131,7 @@ func TestDBSCRefresh(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr)
+	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr, "testapp")
 	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	deviceJWK := jose.JSONWebKey{Key: deviceKey.Public()}
@@ -1244,7 +1244,7 @@ func TestDBSCRegistration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr)
+	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr, "testapp")
 
 	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
