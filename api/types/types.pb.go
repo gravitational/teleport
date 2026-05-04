@@ -4356,6 +4356,11 @@ var xxx_messageInfo_LLM_Model proto.InternalMessageInfo
 // AppTLS contains the app TLS configuration.
 type AppTLS struct {
 	// Mode defines the TLS verification.
+	// Supported values:
+	//   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),
+	//   "verify-server-name" (performs certificate validation, and asserts server name),
+	//   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),
+	//   "insecure": (accepts any certificate provided by app)
 	Mode string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	// ServerName specifies a custom hostname used for TLS verification against
 	// the upstream certificate.
@@ -4366,9 +4371,14 @@ type AppTLS struct {
 	// AllowedCas is the list of user provided CAs used for verifying upstream
 	// certificates. Accepted values are PEM-encoded CA certificates and
 	// Teleport CA aliases.
+	// Supported aliases:
+	//   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).
 	AllowedCas []string `protobuf:"bytes,4,rep,name=allowed_cas,json=allowedCas,proto3" json:"allowed_cas,omitempty"`
 	// ClientCertMode specifies which client certificate mode to use for the
 	// upstream connection.
+	// Supported values:
+	//   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),
+	//   "disabled" (app upstream connection won't use client certificates).
 	ClientCertMode       string   `protobuf:"bytes,5,opt,name=client_cert_mode,json=clientCertMode,proto3" json:"client_cert_mode,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
