@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1487,6 +1488,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			PublicProxyAddr: addr,
 			ProxyClient:     clt,
 			Modules:         config.testModules,
+			MetricsRegistry: prometheus.NewRegistry(),
 		},
 		logger:             log,
 		autoUpdateResolver: r,

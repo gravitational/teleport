@@ -63,6 +63,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pquerna/otp/totp"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -602,6 +603,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DatabaseREPLRegistry:      cfg.databaseREPLGetter,
 		ALPNHandler:               cfg.alpnHandler,
 		PROXYSigner:               proxySigner,
+		MetricsRegistry:           prometheus.NewRegistry(),
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -5037,6 +5039,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			FeatureWatchInterval:  featureWatcherInterval,
 			CipherSuites:          utils.DefaultCipherSuites(),
 			IntegrationAppHandler: &mockIntegrationAppHandler{},
+			MetricsRegistry:       prometheus.NewRegistry(),
 		})
 		require.NoError(t, err)
 
@@ -5261,6 +5264,7 @@ func TestGetWebConfig_Beams(t *testing.T) {
 			FeatureWatchInterval:  featureWatcherInterval,
 			CipherSuites:          utils.DefaultCipherSuites(),
 			IntegrationAppHandler: &mockIntegrationAppHandler{},
+			MetricsRegistry:       prometheus.NewRegistry(),
 		})
 		require.NoError(t, err)
 
@@ -9219,6 +9223,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Modules:               m,
 		ClusterFeatures:       *m.TestFeatures.ToProto(),
 		InsecureMode:          insecureMode,
+		MetricsRegistry:       prometheus.NewRegistry(),
 	}, SetClock(clock))
 	require.NoError(t, err)
 

@@ -33,6 +33,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -138,7 +139,8 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 			// connection upgrade portion.
 			h := &Handler{
 				cfg: Config{
-					ALPNHandler: test.inputALPNHandler(t),
+					ALPNHandler:     test.inputALPNHandler(t),
+					MetricsRegistry: prometheus.NewRegistry(),
 				},
 				logger: slog.Default(),
 				clock:  clockwork.NewRealClock(),

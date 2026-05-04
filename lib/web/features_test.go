@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -72,6 +73,7 @@ func TestFeaturesWatcher(t *testing.T) {
 				FeatureWatchInterval: 100 * time.Millisecond,
 				ProxyClient:          mockClient,
 				Context:              ctx,
+				MetricsRegistry:      prometheus.NewRegistry(),
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: proto.Features{},

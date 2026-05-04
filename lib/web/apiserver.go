@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -348,6 +349,9 @@ type Config struct {
 
 	// DatabaseREPLRegistry is used for retrieving database REPL.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// MetricsRegistry is used for registering plugin metrics.
+	MetricsRegistry prometheus.Registerer
 }
 
 // SetDefaults ensures proper default values are set if
@@ -540,6 +544,9 @@ func (h *APIHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	cfg.SetDefaults()
 
+	if cfg.MetricsRegistry == nil {
+		return nil, trace.BadParameter("MetricsRegistry must be provided")
+	}
 	h := &Handler{
 		cfg:                  cfg,
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
@@ -827,6 +834,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
+}
+
+func (h *Handler) MetricsRegistry() prometheus.Registerer {
+	return h.cfg.MetricsRegistry
 }
 
 type webSession struct {
