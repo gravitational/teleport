@@ -99,6 +99,8 @@ func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.W
 			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
 				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
 				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+				Limit:                pageSize,
+				StartKey:             pageToken,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -178,13 +180,17 @@ func (s *WindowsService) getDesktopsFromLDAP() (result map[string]types.WindowsD
 	// the reconciler from deleting resources due to transient network errors.
 	defer func() {
 		for _, d := range s.lastDiscoveryResults {
+			// Enforce a TTL of at least 5 minutes to avoid thrashing
+			// when a very small discovery interval is configured.
+			ttl := max(s.cfg.DiscoveryInterval*3, 5*time.Minute)
+
 			// Bump the TTL out even in the error case. This will keep desktops in
 			// the inventory until we get confirmation from LDAP that the desktop
 			// is no longer present.
 			//
 			// Note that if there is an issue with LDAP connectivity, the RDP connection
 			// to the host will only succeed if we've already cached the user's SID.
-			d.SetExpiry(s.cfg.Clock.Now().UTC().Add(s.cfg.DiscoveryInterval * 3))
+			d.SetExpiry(s.cfg.Clock.Now().UTC().Add(ttl))
 		}
 		result = s.lastDiscoveryResults
 	}()
@@ -403,8 +409,6 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(s.cfg.DiscoveryInterval * 3))
 
 	description := entry.GetAttributeValue(attrDescription)
 	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]

@@ -1723,11 +1723,13 @@ message ResourceAccessID {
   ResourceID id = 1 [(gogoproto.nullable) = false];
 
   oneof constraints {
-    // unknown_constraints represents that constraints were present on the internal ResourceAccessID,
-    // but are of an unknown type.
+    // unknown_constraints represents that constraints were present on the internal
+    // ResourceAccessID, but are of an unknown or unsupported type.
     UnknownConstraints unknown_constraints = 10;
     // aws_console captures audit-log–friendly data for AWS Console scoping constraints.
     AWSConsoleConstraints aws_console = 11;
+    // ssh captures audit-log-friendly data for SSH node scoping constraints.
+    SSHConstraints ssh = 12;
   }
 }
 
@@ -1745,6 +1747,14 @@ message AWSConsoleConstraints {
 
   // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
   repeated string role_arns_preview = 2;
+}
+
+// SSHConstraints is an audit-log-friendly view of SSH node constraints.
+message SSHConstraints {
+  // logins_count is the total number of logins requested.
+  uint32 logins_count = 1;
+  // logins_preview contains up to N logins for inspection; it may be truncated.
+  repeated string logins_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
