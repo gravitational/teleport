@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"encoding/base32"
 	"iter"
 	"strings"
 
@@ -117,9 +118,15 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 		pageSize = defaults.DefaultChunkSize
 	}
 
-	_, keyFn, err := beamIndexForSortField(options.GetSortField())
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	_, keyFn, utf8Safe := beamIndexForSortField(options.GetSortField())
+
+	if !utf8Safe {
+		// Decode the PageToken from base32hex
+		decodedPageToken, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(pageToken)
+		if err != nil {
+			return nil, "", trace.BadParameter("invalid page token: %v", err)
+		}
+		pageToken = string(decodedPageToken)
 	}
 
 	var (
@@ -134,7 +141,13 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 		// Read one more than pageSize results, so we can point nextToken at the
 		// next result in the set.
 		if len(results) == pageSize {
-			nextToken = keyFn(beam)
+			rawKey := keyFn(beam)
+			if utf8Safe {
+				nextToken = rawKey
+			} else {
+				// Encode the next page token to base32hex
+				nextToken = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(rawKey))
+			}
 			break
 		}
 
@@ -146,12 +159,7 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
 func (c *Cache) IterateBeams(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
-	index, keyFn, err := beamIndexForSortField(options.GetSortField())
-	if err != nil {
-		return func(yield func(*beamsv1.Beam, error) bool) {
-			yield(nil, trace.Wrap(err))
-		}
-	}
+	index, keyFn, _ := beamIndexForSortField(options.GetSortField())
 	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
@@ -194,15 +202,15 @@ func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
 	return string(ordered.Encode(expires.AsTime().UnixMilli(), name))
 }
 
-func beamIndexForSortField(sortField beamsv1.BeamSortField) (beamIndex, func(*beamsv1.Beam) string, error) {
+func beamIndexForSortField(sortField beamsv1.BeamSortField) (index beamIndex, keyFn func(*beamsv1.Beam) string, utf8Safe bool) {
 	switch sortField {
 	case beamsv1.BeamSortField_BEAM_SORT_FIELD_ALIAS:
-		return beamAliasIndex, keyForBeamAliasIndex, nil
+		return beamAliasIndex, keyForBeamAliasIndex, true
 	case beamsv1.BeamSortField_BEAM_SORT_FIELD_USER:
-		return beamUserIndex, keyForBeamUserIndex, nil
+		return beamUserIndex, keyForBeamUserIndex, true
 	case beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES:
-		return beamExpiresIndex, keyForBeamExpiresIndex, nil
+		return beamExpiresIndex, keyForBeamExpiresIndex, false
 	default:
-		return beamNameIndex, keyForBeamNameIndex, nil
+		return beamNameIndex, keyForBeamNameIndex, false
 	}
 }

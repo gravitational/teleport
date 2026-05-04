@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"encoding/base32"
 	"testing"
 	"time"
 
@@ -99,6 +100,56 @@ func TestBeam_GetBeamByAlias(t *testing.T) {
 		_, err := p.cache.GetBeamByAlias(t.Context(), "tepid-spin")
 		return !trace.IsNotFound(err)
 	}, 2*time.Second, 100*time.Millisecond)
+}
+
+func TestBeamCachePaging(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	for _, beam := range []*beamsv1.Beam{
+		newBeamResource("beam-5", "gold-valley", time.Now().Add(5*time.Hour)),
+		newBeamResource("beam-1", "amber-forest", time.Now().Add(1*time.Hour)),
+		newBeamResource("beam-3", "quiet-meadow", time.Now().Add(3*time.Hour)),
+		newBeamResource("beam-4", "steady-river", time.Now().Add(4*time.Hour)),
+		newBeamResource("beam-2", "brisk-harbor", time.Now().Add(2*time.Hour)),
+	} {
+		require.NoError(t, createBeamForCacheTest(ctx, p, beam))
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 5)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	results, nextPageToken, err := p.cache.ListBeams(ctx, 0, "", nil)
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, results, 5)
+	require.Equal(t, "beam-1", results[0].GetMetadata().GetName())
+	require.Equal(t, "beam-2", results[1].GetMetadata().GetName())
+	require.Equal(t, "beam-3", results[2].GetMetadata().GetName())
+	require.Equal(t, "beam-4", results[3].GetMetadata().GetName())
+	require.Equal(t, "beam-5", results[4].GetMetadata().GetName())
+
+	results, nextPageToken, err = p.cache.ListBeams(ctx, 3, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte("beam-4")), nextPageToken)
+	require.Len(t, results, 3)
+	require.Equal(t, "beam-1", results[0].GetMetadata().GetName())
+	require.Equal(t, "beam-2", results[1].GetMetadata().GetName())
+	require.Equal(t, "beam-3", results[2].GetMetadata().GetName())
+
+	results, nextPageToken, err = p.cache.ListBeams(ctx, 3, nextPageToken, nil)
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, results, 2)
+	require.Equal(t, "beam-4", results[0].GetMetadata().GetName())
+	require.Equal(t, "beam-5", results[1].GetMetadata().GetName())
 }
 
 func TestBeamCacheSorting(t *testing.T) {
