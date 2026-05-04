@@ -71,6 +71,35 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// TestPresenceServiceEndpointsImplemented verifies that every RPC method
+// defined in the PresenceService proto has an actual implementation registered
+// on the gRPC server, rather than falling through to the Unimplemented stub.
+// This catches cases where a method is accidentally implemented on the wrong
+// service (e.g. on GRPCServer instead of presencev1.Service).
+func TestPresenceServiceEndpointsImplemented(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	// Use an admin identity so authz doesn't mask the Unimplemented error.
+	client, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	conn := client.GetConnection()
+
+	for _, method := range presencev1pb.PresenceService_ServiceDesc.Methods {
+		t.Run(method.MethodName, func(t *testing.T) {
+			fullMethod := "/" + presencev1pb.PresenceService_ServiceDesc.ServiceName + "/" + method.MethodName
+			// Invoke with an empty request. The call may fail with bad
+			// parameter, not found, etc. That's fine; the only failure
+			// we're guarding against is Unimplemented, meaning the
+			// method is not implemented on the registered service.
+			err := conn.Invoke(ctx, fullMethod, &presencev1pb.ListRemoteClustersRequest{}, &presencev1pb.ListRemoteClustersResponse{})
+			require.False(t, trace.IsNotImplemented(err),
+				"RPC %s returned Unimplemented. The method may be missing from presencev1.Service", method.MethodName)
+		})
+	}
+}
+
 // TestGetRemoteCluster is an integration test that uses a real gRPC
 // client/server.
 func TestGetRemoteCluster(t *testing.T) {
