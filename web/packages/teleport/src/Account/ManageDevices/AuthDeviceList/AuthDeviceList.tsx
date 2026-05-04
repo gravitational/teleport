@@ -64,21 +64,21 @@ export function AuthDeviceList({
           <StyledTable
             columns={[
               {
-                key: 'usage',
-                headerText: 'Device Usage',
+                key: 'description',
+                headerText: 'Device Type',
                 isSortable: true,
                 render: device => {
                   switch (device.usage) {
                     case 'mfa':
-                      return <Cell>MFA</Cell>;
+                      return <Cell>{device.description}</Cell>;
                     case 'passwordless':
                       return (
                         <Cell>
                           {passkeysEnabled ? (
-                            'Passkey'
+                            device.description
                           ) : (
                             <Flex alignItems="center" gap={1}>
-                              MFA{' '}
+                              {device.description}
                               <IconTooltip>
                                 This device can be a passkey, but passwordless
                                 authentication is disabled
@@ -91,11 +91,6 @@ export function AuthDeviceList({
                       return device.usage;
                   }
                 },
-              },
-              {
-                key: 'description',
-                headerText: 'Device Type',
-                isSortable: true,
               },
               { key: 'name', headerText: 'Nickname', isSortable: true },
               {

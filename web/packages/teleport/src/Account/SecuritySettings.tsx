@@ -93,12 +93,10 @@ export function SecuritySettings({
   }
 
   let passkeysPillState: AuthMethodState | undefined = undefined;
-  if (fetchDevicesAttempt.status !== 'processing') {
-    if (!canAddPasskeys) {
-      passkeysPillState = 'disabled';
-    } else {
-      passkeysPillState = hasPasskeys ? 'active' : 'inactive';
-    }
+  if (!canAddPasskeys) {
+    passkeysPillState = 'disabled';
+  } else if (fetchDevicesAttempt.status !== 'processing') {
+    passkeysPillState = hasPasskeys ? 'active' : 'inactive';
   }
 
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');

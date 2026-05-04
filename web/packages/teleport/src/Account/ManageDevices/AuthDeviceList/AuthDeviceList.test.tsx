@@ -18,7 +18,7 @@
 
 import { within } from '@testing-library/react';
 
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
@@ -27,7 +27,7 @@ import { AuthDeviceList } from './AuthDeviceList';
 const devices: MfaDevice[] = [
   {
     id: '1',
-    description: 'Hardware Key',
+    description: 'Passkey',
     name: 'touch_id',
     registeredDate: new Date(1628799417000),
     lastUsedDate: new Date(1628799417000),
@@ -82,17 +82,10 @@ test('renders devices', () => {
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(getTableCellContents()).toEqual({
-    header: [
-      'Device Usage',
-      'Device Type',
-      'Nickname',
-      'Added',
-      'Last Used',
-      'Actions',
-    ],
+    header: ['Device Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
     rows: [
-      ['Passkey', 'Hardware Key', 'touch_id', '2021-08-12', '2021-08-12', ''],
-      ['MFA', 'Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
+      ['Passkey', 'touch_id', '2021-08-12', '2021-08-12', ''],
+      ['Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
     ],
   });
 
@@ -102,9 +95,15 @@ test('renders devices', () => {
   buttons.forEach(button => {
     expect(button).toBeEnabled();
   });
+  // No additional info icons expected
+  expect(
+    screen.queryAllByRole('graphics-symbol', { name: 'information' })
+  ).toHaveLength(0);
 });
 
-test('renders devices with passkeys disabled', () => {
+test('renders devices with passkeys disabled', async () => {
+  const user = userEvent.setup();
+
   render(
     <AuthDeviceList
       header="Header"
@@ -113,10 +112,17 @@ test('renders devices with passkeys disabled', () => {
       passkeysEnabled={false}
     />
   );
-  expect(getTableCellContents().rows).toEqual([
-    ['MFA', 'Hardware Key', 'touch_id', '2021-08-12', '2021-08-12', ''],
-    ['MFA', 'Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
-  ]);
+
+  const infoIcons = screen.getAllByRole('graphics-symbol', {
+    name: 'Information',
+  });
+  expect(infoIcons).toHaveLength(1);
+  await user.hover(infoIcons[0]);
+  expect(
+    screen.getByText(
+      'This device can be a passkey, but passwordless authentication is disabled'
+    )
+  ).toBeVisible();
 });
 
 test('delete button is disabled for sso devices', () => {
@@ -130,15 +136,8 @@ test('delete button is disabled for sso devices', () => {
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(getTableCellContents()).toEqual({
-    header: [
-      'Device Usage',
-      'Device Type',
-      'Nickname',
-      'Added',
-      'Last Used',
-      'Actions',
-    ],
-    rows: [['MFA', 'SSO Provider', 'okta', '2021-08-12', '2021-08-12', '']],
+    header: ['Device Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
+    rows: [['SSO Provider', 'okta', '2021-08-12', '2021-08-12', '']],
   });
 
   const button = screen.getByTitle('SSO device cannot be deleted');
