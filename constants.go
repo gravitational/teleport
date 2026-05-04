@@ -171,9 +171,6 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
-	// ComponentSubsystemSFTP is the SFTP subsystem.
-	ComponentSubsystemSFTP = "subsystem:sftp"
-
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -214,9 +211,6 @@ const (
 
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
-
-	// Component pluggable authentication module (PAM)
-	ComponentPAM = "pam"
 
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
@@ -583,27 +577,6 @@ const (
 	JumpCloud = "jumpcloud"
 )
 
-const (
-	// RemoteCommandSuccess is returned when a command has successfully executed.
-	RemoteCommandSuccess = 0
-	// RemoteCommandFailure is returned when a command has failed to execute and
-	// we don't have another status code for it.
-	RemoteCommandFailure = 255
-	// HomeDirNotFound is returned when the "teleport checkhomedir" command cannot
-	// find the user's home directory.
-	HomeDirNotFound = 254
-	// HomeDirNotAccessible is returned when the "teleport checkhomedir" command has
-	// found the user's home directory, but the user does NOT have permissions to
-	// access it.
-	HomeDirNotAccessible = 253
-	// UnexpectedCredentials is returned when a command is no longer running with the expected
-	// credentials.
-	UnexpectedCredentials = 252
-)
-
-// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
-const MaxEnvironmentFileLines = 1000
-
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
@@ -963,28 +936,6 @@ const (
 )
 
 const (
-	// ExecSubCommand is the sub-command Teleport uses to re-exec itself for
-	// command execution (exec and shells).
-	ExecSubCommand = "exec"
-
-	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
-	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
-	// or x11 forwarding.
-	NetworkingSubCommand = "networking"
-
-	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
-	// to check if the user's home directory exists.
-	CheckHomeDirSubCommand = "checkhomedir"
-
-	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
-	// specific UID to prevent the matching user from being deleted before
-	// spawning the intended child process.
-	ParkSubCommand = "park"
-
-	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
-	// handle SFTP connections.
-	SFTPSubCommand = "sftp"
-
 	// WaitSubCommand is the sub-command Teleport uses to wait
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
@@ -1007,10 +958,6 @@ const (
 )
 
 const (
-	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
-	// uses to get the home directory of a remote user.
-	GetHomeDirSubsystem = "gethomedir"
-
 	// SFTPSubsystem is the SFTP SSH subsystem.
 	SFTPSubsystem = "sftp"
 )

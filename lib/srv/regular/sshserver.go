@@ -73,9 +73,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -156,7 +159,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pamcfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -304,7 +307,7 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
 	return s.pamConfig
 }
 
@@ -370,7 +373,7 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,
@@ -635,7 +638,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pamcfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -826,7 +829,7 @@ func SetImmutableLabels(labels map[string]string) ServerOption {
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			ExecLogConfig: reexec.ExecLogConfig{
 				Level:        cfg.LoggerLevel,
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
@@ -1304,7 +1307,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
-	nsctx.ExecType = teleport.NetworkingSubCommand
+	nsctx.ExecType = reexecconstants.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The
@@ -2543,9 +2546,6 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 	}
 
 	switch r.Name {
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {
