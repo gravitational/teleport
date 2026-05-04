@@ -96,6 +96,20 @@ func newBeamServiceTestPack(t *testing.T, cfg beamServiceTestPackConfig) *beamSe
 	return pack
 }
 
+func (p *beamServiceTestPack) admin(t *testing.T) types.User {
+	t.Helper()
+
+	role := beamAdminRole(t)
+	_, err := p.role.CreateRole(t.Context(), role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("admin")
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+
+	return user
+}
+
 func (p *beamServiceTestPack) user(t *testing.T, name string) types.User {
 	t.Helper()
 
@@ -107,6 +121,20 @@ func (p *beamServiceTestPack) user(t *testing.T, name string) types.User {
 
 	_, err = p.role.CreateRole(t.Context(), role)
 	require.NoError(t, err)
+
+	return user
+}
+
+func (p *beamServiceTestPack) nonBeamUser(t *testing.T) types.User {
+	t.Helper()
+
+	role := nonBeamUserRole(t)
+	_, err := p.role.CreateRole(t.Context(), role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("non-beam-user")
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
 
 	return user
 }
@@ -222,6 +250,26 @@ func sequenceAliasGenerator(aliases ...string) func() (string, error) {
 	}
 }
 
+func nonBeamUserRole(t *testing.T) types.Role {
+	t.Helper()
+
+	// This role is missing the rules that allow the user to access any beams
+	// at all (despite the label wildcard).
+	role, err := types.NewRole(
+		"non-beam-user",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {types.Wildcard},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return role
+}
+
 func beamUserRole(t *testing.T, user string) types.Role {
 	t.Helper()
 
@@ -231,6 +279,30 @@ func beamUserRole(t *testing.T, user string) types.Role {
 			Allow: types.RoleConditions{
 				BeamLabels: types.Labels{
 					types.BeamOwnerLabel: {user},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return role
+}
+
+func beamAdminRole(t *testing.T) types.Role {
+	t.Helper()
+
+	role, err := types.NewRole(
+		"beam-admin",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {types.Wildcard},
 				},
 				Rules: []types.Rule{
 					{
