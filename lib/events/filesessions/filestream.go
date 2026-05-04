@@ -201,9 +201,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	defer func() {
 		_ = tempFile.Close()
-		if err := os.Remove(tempFile.Name()); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to remove temp file", "path", tempFile.Name(), "error", err)
-		}
+		_ = os.Remove(tempFile.Name())
 	}()
 
 	if err := h.fileRecorder.CombineParts(ctx, tempFile, func(yield func(string) bool) {
