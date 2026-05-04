@@ -6,8 +6,9 @@ package models
 import (
 	"encoding/json"
 	"fmt"
-	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/runtime"
 	"time"
+
+	jsonmerge "github.com/gravitational/teleport/lib/accessgraph/apiclient/jsonmerge"
 )
 
 // Defines values for EventSource.
@@ -2935,7 +2936,7 @@ func (t *AccessgraphStorageV1alphaEvent_EventData) MergeOktaLogEvent(v OktaLogEv
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2961,7 +2962,7 @@ func (t *AccessgraphStorageV1alphaEvent_EventData) MergeGithubAuditLog(v GithubA
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2987,7 +2988,7 @@ func (t *AccessgraphStorageV1alphaEvent_EventData) MergeTeleportAuditLog(v Telep
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -3013,7 +3014,7 @@ func (t *AccessgraphStorageV1alphaEvent_EventData) MergeAWSCloudTrailAuditLog(v 
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -3039,7 +3040,7 @@ func (t *AccessgraphStorageV1alphaEvent_EventData) MergeKubernetesAuditLog(v Kub
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }

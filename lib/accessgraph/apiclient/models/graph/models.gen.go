@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/runtime"
+
+	jsonmerge "github.com/gravitational/teleport/lib/accessgraph/apiclient/jsonmerge"
 )
 
 // Defines values for NodeKind.
@@ -708,7 +709,7 @@ func (t *ActionProperties_Properties) MergeActionTeleportProperties(v ActionTele
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -734,7 +735,7 @@ func (t *ActionProperties_Properties) MergeActionAWSProperties(v ActionAWSProper
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -760,7 +761,7 @@ func (t *ActionProperties_Properties) MergeActionAzureProperties(v ActionAzurePr
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -786,7 +787,7 @@ func (t *ActionProperties_Properties) MergeActionGitlabProperties(v ActionGitlab
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -812,7 +813,7 @@ func (t *ActionProperties_Properties) MergeActionOktaProperties(v ActionOktaProp
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -838,7 +839,7 @@ func (t *ActionProperties_Properties) MergeActionGithubProperties(v ActionGithub
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -874,7 +875,7 @@ func (t *Edge_Properties) MergeEdgeTeleportProperties(v EdgeTeleportProperties) 
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -910,7 +911,7 @@ func (t *IdentityGroupProperties_Properties) MergeIdentityGroupTeleportPropertie
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -936,7 +937,7 @@ func (t *IdentityGroupProperties_Properties) MergeIdentityGroupAWSProperties(v I
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -962,7 +963,7 @@ func (t *IdentityGroupProperties_Properties) MergeIdentityGroupAzureProperties(v
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -988,7 +989,7 @@ func (t *IdentityGroupProperties_Properties) MergeIdentityGroupEntraProperties(v
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1014,7 +1015,7 @@ func (t *IdentityGroupProperties_Properties) MergeIdentityGroupNetIQProperties(v
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1050,7 +1051,7 @@ func (t *IdentityProperties_Properties) MergeIdentityAWSProperties(v IdentityAWS
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1076,7 +1077,7 @@ func (t *IdentityProperties_Properties) MergeIdentityAzureProperties(v IdentityA
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1102,7 +1103,7 @@ func (t *IdentityProperties_Properties) MergeIdentityGitlabProperties(v Identity
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1128,7 +1129,7 @@ func (t *IdentityProperties_Properties) MergeIdentityEntraProperties(v IdentityE
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1154,7 +1155,7 @@ func (t *IdentityProperties_Properties) MergeIdentityNetIQProperties(v IdentityN
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1180,7 +1181,7 @@ func (t *IdentityProperties_Properties) MergeIdentityOktaProperties(v IdentityOk
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1206,7 +1207,7 @@ func (t *IdentityProperties_Properties) MergeIdentityGithubProperties(v Identity
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1242,7 +1243,7 @@ func (t *Node_Properties) MergeActionProperties(v ActionProperties) error {
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1268,7 +1269,7 @@ func (t *Node_Properties) MergeDummyNodeProperties(v DummyNodeProperties) error 
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1294,7 +1295,7 @@ func (t *Node_Properties) MergeMergedActionProperties(v MergedActionProperties) 
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1320,7 +1321,7 @@ func (t *Node_Properties) MergeResourceProperties(v ResourceProperties) error {
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1346,7 +1347,7 @@ func (t *Node_Properties) MergeIdentityGroupProperties(v IdentityGroupProperties
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1372,7 +1373,7 @@ func (t *Node_Properties) MergeResourceGroupProperties(v ResourceGroupProperties
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1398,7 +1399,7 @@ func (t *Node_Properties) MergeIdentityProperties(v IdentityProperties) error {
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1424,7 +1425,7 @@ func (t *Node_Properties) MergeSubResourceProperties(v SubResourceProperties) er
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1450,7 +1451,7 @@ func (t *Node_Properties) MergeAuthorizedKeyProperties(v AuthorizedKeyProperties
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1476,7 +1477,7 @@ func (t *Node_Properties) MergePrivateKeyProperties(v PrivateKeyProperties) erro
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1502,7 +1503,7 @@ func (t *Node_Properties) MergeDeviceProperties(v DeviceProperties) error {
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1528,7 +1529,7 @@ func (t *Node_Properties) MergeHostUserProperties(v HostUserProperties) error {
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1554,7 +1555,7 @@ func (t *Node_Properties) MergeRequestAccessProperties(v RequestAccessProperties
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1580,7 +1581,7 @@ func (t *Node_Properties) MergeReviewAccessProperties(v ReviewAccessProperties) 
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1606,7 +1607,7 @@ func (t *Node_Properties) MergeDatabaseObjectProperties(v DatabaseObjectProperti
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1642,7 +1643,7 @@ func (t *ResourceAWSProperties_Properties) MergeResourceAWSPropertiesEC2(v Resou
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1668,7 +1669,7 @@ func (t *ResourceAWSProperties_Properties) MergeResourceAWSPropertiesRDS(v Resou
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1694,7 +1695,7 @@ func (t *ResourceAWSProperties_Properties) MergeResourceAWSPropertiesS3(v Resour
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1720,7 +1721,7 @@ func (t *ResourceAWSProperties_Properties) MergeResourceAWSPropertiesKMS(v Resou
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1746,7 +1747,7 @@ func (t *ResourceAWSProperties_Properties) MergeResourceAWSPropertiesEKS(v Resou
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1782,7 +1783,7 @@ func (t *ResourceAzureProperties_Properties) MergeResourceAzurePropertiesVM(v Re
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1818,7 +1819,7 @@ func (t *ResourceGroupProperties_Properties) MergeResourceGroupTeleportPropertie
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1844,7 +1845,7 @@ func (t *ResourceGroupProperties_Properties) MergeResourceGroupAWSProperties(v R
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1870,7 +1871,7 @@ func (t *ResourceGroupProperties_Properties) MergeResourceGroupAzureProperties(v
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1896,7 +1897,7 @@ func (t *ResourceGroupProperties_Properties) MergeResourceGroupGitlabProperties(
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1922,7 +1923,7 @@ func (t *ResourceGroupProperties_Properties) MergeResourceGroupNetIQProperties(v
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1958,7 +1959,7 @@ func (t *ResourceProperties_Properties) MergeResourceTeleportProperties(v Resour
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -1984,7 +1985,7 @@ func (t *ResourceProperties_Properties) MergeResourceAWSProperties(v ResourceAWS
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2010,7 +2011,7 @@ func (t *ResourceProperties_Properties) MergeResourceAzureProperties(v ResourceA
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2036,7 +2037,7 @@ func (t *ResourceProperties_Properties) MergeResourceGitlabProperties(v Resource
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2062,7 +2063,7 @@ func (t *ResourceProperties_Properties) MergeResourceNetIQProperties(v ResourceN
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2088,7 +2089,7 @@ func (t *ResourceProperties_Properties) MergeResourceOktaProperties(v ResourceOk
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }
@@ -2114,7 +2115,7 @@ func (t *ResourceProperties_Properties) MergeResourceGithubProperties(v Resource
 		return err
 	}
 
-	merged, err := runtime.JSONMerge(t.union, b)
+	merged, err := jsonmerge.JSONMerge(t.union, b)
 	t.union = merged
 	return err
 }

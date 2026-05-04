@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	externalRef0 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
 	externalRef1 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff"
 	externalRef2 "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
@@ -1020,7 +1021,6 @@ func NewCreateAccountAliasRequestWithBody(server string, contentType string, bod
 // NewDeleteAccountAliasRequest generates requests for DeleteAccountAlias
 func NewDeleteAccountAliasRequest(server string, accountType string, accountId string) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(accountType)
 	pathParam1 := url.PathEscape(accountId)
 
@@ -1151,7 +1151,6 @@ func NewListAlertsV1Request(server string, params *ListAlertsV1Params) (*http.Re
 // NewGetAlertV1Request generates requests for GetAlertV1
 func NewGetAlertV1Request(server string, id uuid.UUID) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(id.String())
 
 	serverURL, err := url.Parse(server)
@@ -1191,7 +1190,6 @@ func NewUpdateAlertStatusV1Request(server string, id uuid.UUID, body UpdateAlert
 // NewUpdateAlertStatusV1RequestWithBody generates requests for UpdateAlertStatusV1 with any type of body
 func NewUpdateAlertStatusV1RequestWithBody(server string, id uuid.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(id.String())
 
 	serverURL, err := url.Parse(server)
@@ -1222,7 +1220,6 @@ func NewUpdateAlertStatusV1RequestWithBody(server string, id uuid.UUID, contentT
 // NewGetNodeConnectionsRequest generates requests for GetNodeConnections
 func NewGetNodeConnectionsRequest(server string, id uuid.UUID, params *GetNodeConnectionsParams) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(id.String())
 
 	serverURL, err := url.Parse(server)
@@ -1315,7 +1312,6 @@ func NewListCrownJewelAccessPathsRequest(server string, params *ListCrownJewelAc
 // NewGetCrownJewelAccessPathsRequest generates requests for GetCrownJewelAccessPaths
 func NewGetCrownJewelAccessPathsRequest(server string, id string) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(id)
 
 	serverURL, err := url.Parse(server)
@@ -1454,7 +1450,6 @@ func NewCreateInvestigateViewRequestWithBody(server string, contentType string, 
 // NewDeleteInvestigateViewRequest generates requests for DeleteInvestigateView
 func NewDeleteInvestigateViewRequest(server string, viewId string) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(viewId)
 
 	serverURL, err := url.Parse(server)
@@ -1494,7 +1489,6 @@ func NewUpdateInvestigateViewRequest(server string, viewId string, body UpdateIn
 // NewUpdateInvestigateViewRequestWithBody generates requests for UpdateInvestigateView with any type of body
 func NewUpdateInvestigateViewRequestWithBody(server string, viewId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(viewId)
 
 	serverURL, err := url.Parse(server)
@@ -1691,7 +1685,6 @@ func NewExecuteLogsStatsQueryV1Request(server string, params *ExecuteLogsStatsQu
 // NewGetNodeByIDRequest generates requests for GetNodeByID
 func NewGetNodeByIDRequest(server string, id string) (*http.Request, error) {
 	var err error
-
 	pathParam0 := url.PathEscape(id)
 
 	serverURL, err := url.Parse(server)

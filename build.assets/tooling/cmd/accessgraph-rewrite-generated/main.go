@@ -101,6 +101,9 @@ func rewriteGeneratedFile(source []byte, mode rewriteMode) ([]byte, error) {
 		addImport(file, "strconv", "")
 	}
 	rewriteUUIDSelectors(file)
+	if mode == rewriteModel {
+		rewriteRuntimeSelectors(file)
+	}
 	if mode == rewriteClient {
 		for _, decl := range file.Decls {
 			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil {
@@ -176,12 +179,12 @@ func rewriteImports(file *ast.File, mode rewriteMode) {
 				importSpec.Name = nil
 			case "github.com/google/uuid":
 				importSpec.Name = nil
-			case "github.com/oapi-codegen/runtime", teleportModule + "/runtime":
+			case "github.com/oapi-codegen/runtime", teleportModule + "/jsonmerge":
 				if mode == rewriteClient {
 					remove = true
 				} else {
-					setImportPath(importSpec, teleportModule+"/runtime")
-					importSpec.Name = ast.NewIdent("runtime")
+					setImportPath(importSpec, teleportModule+"/jsonmerge")
+					importSpec.Name = ast.NewIdent("jsonmerge")
 				}
 			}
 			if remove {
@@ -261,6 +264,19 @@ func rewriteUUIDSelectors(file *ast.File) {
 		}
 		if ident, ok := selector.X.(*ast.Ident); ok && ident.Name == "openapi_types" {
 			selector.X = ast.NewIdent("uuid")
+		}
+		return true
+	})
+}
+
+func rewriteRuntimeSelectors(file *ast.File) {
+	ast.Inspect(file, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if ident, ok := selector.X.(*ast.Ident); ok && ident.Name == "runtime" {
+			selector.X = ast.NewIdent("jsonmerge")
 		}
 		return true
 	})

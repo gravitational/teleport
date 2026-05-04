@@ -72,17 +72,17 @@ type T struct {
 	ID openapi_types.UUID
 }
 
-var _ = runtime.ParamLocationQuery
+var _ = runtime.JSONMerge
 `
 
 	got := rewrite(t, src, rewriteModel)
 
 	require.Contains(t, got, "package graph")
-	require.Contains(t, got, `runtime "github.com/gravitational/teleport/lib/accessgraph/apiclient/runtime"`)
+	require.Contains(t, got, `jsonmerge "github.com/gravitational/teleport/lib/accessgraph/apiclient/jsonmerge"`)
 	require.Contains(t, got, `"github.com/google/uuid"`)
 	require.Contains(t, got, "uuid.UUID")
-	// Model files keep referencing runtime.* — only the import path moves.
-	require.Contains(t, got, "runtime.ParamLocationQuery")
+	require.Contains(t, got, "jsonmerge.JSONMerge")
+	require.NotContains(t, got, "runtime.JSONMerge")
 }
 
 func TestRewriteGeneratedFile_PathParamInlined(t *testing.T) {
