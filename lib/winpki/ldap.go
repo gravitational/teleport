@@ -641,7 +641,7 @@ referralLoop:
 				defer newClient.Close()
 
 				entries, err := r.run(ctx, newClient, newRequestFromReferral(request, ref), depth+1)
-				if err != nil {
+				if err != nil && !trace.IsNotFound(err) {
 					r.logger.WarnContext(ctx, "Failed to execute LDAPS query while chasing referral", "error", err, "hostname", host)
 					return nil, err
 				}
