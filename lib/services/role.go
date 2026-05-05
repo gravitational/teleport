@@ -3928,6 +3928,26 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 	return state, nil
 }
 
+// AccessStateFromTLSIdentity populates access state based on user's TLS
+// identity and auth preference.
+func AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	state.MFAVerified = ident.MFAVerified != ""
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if ident.PrivateKeyPolicy.MFAVerified() {
+		state.MFAVerified = true
+	}
+
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions)
+	state.IsBot = ident.IsBot()
+	return state, nil
+}
+
 // MCPToolMatcher matches a role against MCP tool.
 type MCPToolMatcher struct {
 	Name string

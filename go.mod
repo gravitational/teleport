@@ -157,7 +157,7 @@ require (
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1
 	github.com/gravitational/roundtrip v1.0.3
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
-	github.com/gravitational/trace v1.5.3
+	github.com/gravitational/trace v1.5.4
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/guptarohit/asciigraph v0.7.3

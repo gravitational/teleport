@@ -93,7 +93,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
 func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
+	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService || s.Scope != "" {
 		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil, nil
 	}

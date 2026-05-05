@@ -390,18 +390,18 @@ describe('AppAccessSection', () => {
   };
 
   const awsRoleArns = () =>
-    screen.getByRole('group', { name: 'AWS Role ARNs' });
+    screen.getByRole('group', { name: /^AWS Role ARNs/ });
   const awsRoleArnTextBoxes = () =>
     within(awsRoleArns()).getAllByRole('textbox');
   const azureIdentities = () =>
-    screen.getByRole('group', { name: 'Azure Identities' });
+    screen.getByRole('group', { name: /^Azure Identities/ });
   const azureIdentityTextBoxes = () =>
     within(azureIdentities()).getAllByRole('textbox');
   const gcpServiceAccounts = () =>
-    screen.getByRole('group', { name: 'GCP Service Accounts' });
+    screen.getByRole('group', { name: /^GCP Service Accounts/ });
   const gcpServiceAccountTextBoxes = () =>
     within(gcpServiceAccounts()).getAllByRole('textbox');
-  const mcpTools = () => screen.getByRole('group', { name: 'MCP Tools' });
+  const mcpTools = () => screen.getByRole('group', { name: /^MCP Tools/ });
   const mcpToolsTextBoxes = () => within(mcpTools()).getAllByRole('textbox');
 
   test('editing', async () => {
@@ -570,7 +570,7 @@ describe('DatabaseAccessSection', () => {
     });
 
     const dbServiceLabels = within(
-      screen.getByRole('group', { name: 'Database Service Labels' })
+      screen.getByRole('group', { name: /^Database Service Labels/ })
     );
     await user.type(dbServiceLabels.getByPlaceholderText('label key'), 'foo');
     await user.type(dbServiceLabels.getByPlaceholderText('label value'), 'bar');
@@ -600,7 +600,7 @@ describe('DatabaseAccessSection', () => {
     const labels = within(screen.getByRole('group', { name: 'Labels' }));
     await user.type(labels.getByPlaceholderText('label value'), 'some-value');
     const dbServiceLabelsGroup = within(
-      screen.getByRole('group', { name: 'Database Service Labels' })
+      screen.getByRole('group', { name: /^Database Service Labels/ })
     );
     await user.type(
       dbServiceLabelsGroup.getByPlaceholderText('label value'),
@@ -649,7 +649,7 @@ describe('DatabaseAccessSection', () => {
     expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
     expect(
-      screen.queryByLabelText('Database Service Labels')
+      screen.queryByLabelText(/^Database Service Labels/)
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/database names/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/database users/i)).toBeInTheDocument();

@@ -65,6 +65,14 @@ service ClientApplicationService {
   // ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
   // returns the user public key.
   rpc ExchangeSSHKeys(ExchangeSSHKeysRequest) returns (ExchangeSSHKeysResponse);
+  // ReissueDBCert issues a new database cert.
+  rpc ReissueDBCert(ReissueDBCertRequest) returns (ReissueDBCertResponse);
+  // SignForDB issues a signature with the private key associated with an x509
+  // certificate previously issued for a requested database.
+  rpc SignForDB(SignForDBRequest) returns (SignForDBResponse);
+  // OnNewDBConnection gets called whenever a new database connection is about to
+  // be established through VNet for observability.
+  rpc OnNewDBConnection(OnNewDBConnectionRequest) returns (OnNewDBConnectionResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -123,6 +131,8 @@ message ResolveFQDNResponse {
     // match a subdomain of a proxy address. VNet will resolve the DNS query to
     // a handler that may later resolve the FQDN to an app or SSH server.
     MatchedCluster matched_cluster = 3;
+    // MatchedDatabase will be set when the query matched a database resource.
+    MatchedDatabase matched_database = 4;
   }
 }
 
@@ -394,3 +404,77 @@ message ExchangeSSHKeysResponse {
   // connections from SSH clients. It is encoded in OpenSSH wire format.
   bytes user_public_key = 1;
 }
+
+// MatchedDatabase holds info about a database that matched a query.
+message MatchedDatabase {
+  // DatabaseInfo holds all necessary info for making connections to the resolved database.
+  DatabaseInfo database_info = 1;
+}
+
+// DatabaseInfo holds all necessary info for making connections to VNet databases.
+message DatabaseInfo {
+  // DatabaseKey uniquely identifies a database.
+  DatabaseKey database_key = 1;
+  // Cluster is the name of the cluster in which the database is found.
+  // Iff the database is in a leaf cluster, this will match database_key.leaf_cluster.
+  string cluster = 2;
+  // Protocol is the database wire protocol (e.g. "postgres", "mysql").
+  string protocol = 3;
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+  // assigned to the database.
+  string ipv4_cidr_range = 4;
+  // DialOptions holds options that should be used when dialing the root cluster
+  // of the database.
+  DialOptions dial_options = 5;
+}
+
+// DatabaseKey uniquely identifies a database in a specific profile and cluster.
+message DatabaseKey {
+  // Profile is the profile in which the database is found.
+  string profile = 1;
+  // LeafCluster is the leaf cluster in which the database is found. If empty,
+  // the database is in the root cluster for the profile.
+  string leaf_cluster = 2;
+  // Name is the name of the database resource.
+  string name = 3;
+}
+
+// ReissueDBCertRequest is a request for ReissueDBCert.
+message ReissueDBCertRequest {
+  // DatabaseInfo contains info about the database, every ReissueDBCertRequest
+  // must include a database_info as returned from ResolveFQDN.
+  DatabaseInfo database_info = 1;
+}
+
+// ReissueDBCertResponse is a response for ReissueDBCert.
+message ReissueDBCertResponse {
+  // Cert is the issued database certificate in x509 DER format.
+  bytes cert = 1;
+}
+
+// SignForDBRequest is a request to sign data with a private key that the
+// server has cached for the database_key. The database_key must match a
+// previous successful call to ReissueDBCert. The private key used for the
+// signature will match the subject public key of the issued x509 certificate.
+message SignForDBRequest {
+  // DatabaseKey uniquely identifies a database, it must match the key of a
+  // database from a previous successful call to ReissueDBCert.
+  DatabaseKey database_key = 1;
+  // Sign holds signature request details.
+  SignRequest sign = 2;
+}
+
+// SignForDBResponse is a response for SignForDB.
+message SignForDBResponse {
+  // Signature is the signature.
+  bytes signature = 1;
+}
+
+// OnNewDBConnectionRequest is a request for OnNewDBConnection.
+message OnNewDBConnectionRequest {
+  // DatabaseKey identifies the database the connection is being made for.
+  DatabaseKey database_key = 1;
+}
+
+// OnNewDBConnectionResponse is a response for OnNewDBConnection.
+message OnNewDBConnectionResponse {}

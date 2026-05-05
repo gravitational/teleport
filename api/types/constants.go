@@ -1057,6 +1057,10 @@ const (
 	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
 	SchemeLLMEndpoint = "llm"
 
+	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
+	// connections with upstream.
+	SchemeTLS = "tls"
+
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.

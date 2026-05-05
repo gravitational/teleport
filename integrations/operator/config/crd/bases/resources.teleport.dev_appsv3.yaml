@@ -288,6 +288,44 @@ spec:
                   type: object
                 nullable: true
                 type: array
+              tls:
+                description: TLS contains the app TLS configuration.
+                nullable: true
+                properties:
+                  allowed_cas:
+                    description: 'AllowedCas is the list of user provided CAs used
+                      for verifying upstream certificates. Accepted values are PEM-encoded
+                      CA certificates and Teleport CA aliases. Supported aliases:
+                      "workload_identity" (workload Identity CA. Allows accepting
+                      certificates issued by `tbot`).'
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  client_cert_mode:
+                    description: 'ClientCertMode specifies which client certificate
+                      mode to use for the upstream connection. Supported values: "managed"
+                      (app service will issue client certificates to use in the app
+                      upstream connection, establishing mTLS connections), "disabled"
+                      (app upstream connection won''t use client certificates).'
+                    type: string
+                  mode:
+                    description: 'Mode defines the TLS verification. Supported values:
+                      "verify-full" (performs certificate validation, and asserts
+                      server name and SPIFFE ID), "verify-server-name" (performs certificate
+                      validation, and asserts server name), "verify-spiffe-id": (performs
+                      certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id`
+                      option), "insecure": (accepts any certificate provided by app)'
+                    type: string
+                  server_name:
+                    description: ServerName specifies a custom hostname used for TLS
+                      verification against the upstream certificate.
+                    type: string
+                  server_spiffe_id:
+                    description: ServerSpiffeId specifies a SPIFFE ID that must be
+                      present on the server certificate.
+                    type: string
+                type: object
               uri:
                 description: URI is the web app endpoint.
                 type: string

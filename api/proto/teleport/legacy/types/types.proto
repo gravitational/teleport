@@ -1172,6 +1172,8 @@ message AppSpecV3 {
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
   // LLM contains LLM inference endpoint related configurations.
   LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
+  // TLS contains the app TLS configuration.
+  AppTLS TLS = 17 [(gogoproto.jsontag) = "tls,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
@@ -1239,6 +1241,35 @@ message LLM {
   // Defines a model that will be used if the model requested is not on the list.
   // The fallback model must be in the "models" list.
   string fallback_model = 4;
+}
+
+// AppTLS contains the app TLS configuration.
+message AppTLS {
+  // Mode defines the TLS verification.
+  // Supported values:
+  //   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),
+  //   "verify-server-name" (performs certificate validation, and asserts server name),
+  //   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),
+  //   "insecure": (accepts any certificate provided by app)
+  string mode = 1;
+  // ServerName specifies a custom hostname used for TLS verification against
+  // the upstream certificate.
+  string server_name = 2;
+  // ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+  // certificate.
+  string server_spiffe_id = 3;
+  // AllowedCas is the list of user provided CAs used for verifying upstream
+  // certificates. Accepted values are PEM-encoded CA certificates and
+  // Teleport CA aliases.
+  // Supported aliases:
+  //   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).
+  repeated string allowed_cas = 4;
+  // ClientCertMode specifies which client certificate mode to use for the
+  // upstream connection.
+  // Supported values:
+  //   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),
+  //   "disabled" (app upstream connection won't use client certificates).
+  string client_cert_mode = 5;
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

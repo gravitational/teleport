@@ -81,7 +81,7 @@ type TestContext struct {
 	TLSServer          *authtest.TLSServer
 	AuthServer         *auth.Server
 	AuthClient         *authclient.Client
-	Authz              authz.Authorizer
+	ScopedAuthz        authz.ScopedAuthorizer
 	KubeServer         *TLSServer
 	KubeProxy          *TLSServer
 	Emitter            *eventstest.ChannelEmitter
@@ -199,10 +199,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
 	})
-	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: testCtx.ClusterName,
-		AccessPoint: proxyAuthClient,
-		LockWatcher: testCtx.lockWatcher,
+	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      testCtx.ClusterName,
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      testCtx.lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -283,7 +284,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -367,7 +368,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
