@@ -399,12 +399,10 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		`resource.status.vnet_dns_name == %q || name == %q`,
 		identifier, identifier,
 	)
-	// Fetch up to 2 results so a collision (very unlikely) surfaces a warning
-	const maxDBMatches = 2
+
 	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: expr,
-		Limit:               maxDBMatches,
 	})
 	if err != nil {
 		if ctx.Err() != nil {
@@ -418,10 +416,11 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	if len(resp.Resources) > 1 {
-		matchedNames := make([]string, 0, len(resp.Resources))
-		for _, r := range resp.Resources {
-			matchedNames = append(matchedNames, r.GetDatabase().GetName())
+	databases := types.DatabaseServers(resp.Resources).ToDatabases()
+	if len(databases) > 1 {
+		matchedNames := make([]string, 0, len(databases))
+		for _, db := range databases {
+			matchedNames = append(matchedNames, db.GetName())
 		}
 		log.WarnContext(ctx, "VNet identifier matched multiple databases, picking the first one",
 			"identifier", identifier,
@@ -429,7 +428,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		)
 	}
 
-	dbResource := resp.Resources[0].GetDatabase()
+	dbResource := databases[0]
 	dbName := dbResource.GetName()
 	protocol := dbResource.GetProtocol()
 
