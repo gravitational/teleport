@@ -1,7 +1,7 @@
 ---
 title: Database Access with Cloud Spanner
 sidebar_label: Spanner
-description: How to configure Teleport database access with GCP's Cloud Spanner.
+description: Configure Teleport database access with Google Cloud Spanner.
 tags:
  - how-to
  - zero-trust
@@ -18,11 +18,11 @@ tags:
 <Tabs>
 
 <TabItem label="Self-Hosted">
-![Self-Hosted Teleport Architecture for Cloud Spanner Access](../../../../../img/database-access/guides/spanner_selfhosted.png)
+![Self-Hosted Teleport Architecture for Cloud Spanner Access](https://website.goteleport.com/_uploads/spanner_selfhosted_bf0e74fb75.png)
 </TabItem>
 
 <TabItem label="Cloud-Hosted">
-![Cloud-Hosted Teleport Architecture for Cloud Spanner Access](../../../../../img/database-access/guides/spanner_cloud.png)
+![Cloud-Hosted Teleport Architecture for Cloud Spanner Access](https://website.goteleport.com/_uploads/spanner_cloud_a781090c6a.png)
 </TabItem>
 
 </Tabs>
@@ -31,184 +31,243 @@ tags:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- Google Cloud account
-- Google Cloud Spanner database.
-- A host where you will run the Teleport Database Service, e.g. a Compute Engine
-  instance.
+- A Google Cloud account
+- A Cloud Spanner instance and database
+- A host to run the Teleport Database Service (for example, a Compute Engine instance) 
+  with outbound HTTPS access to `spanner.googleapis.com:443`
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Create a service account for the Teleport Database Service
+## Step 1/6. Create service accounts
 
-(!docs/pages/includes/database-access/cloudsql-create-service-account-for-db-service.mdx !)
+Teleport requires two types of Google Cloud service accounts:
 
-Ignore the optional steps - click "Done".
-We will grant permissions to this service account later in this guide.
+- **Database Service**: a single service account used by the Teleport Database Service to access Google Cloud and impersonate database user service accounts
+- **Database user**: one or more service accounts impersonated per connection to represent database users
 
-## Step 2/8. Create a service account for a database user
+For example, in the following steps, we create `teleport-db-service` (Database Service service account) and `spanner-user` (a Database user service account).
 
-When a user connects to Spanner via Teleport, they will specify a service
-account name as the database user and the Teleport Database service will
-impersonate that service account to authenticate to GCP.
+### Create the Database Service account
 
-You can create multiple service accounts to provide different access levels to
-Teleport users, but for this guide we will just create one. 
+This account is used by the Teleport Database Service to access Google Cloud and impersonate the database user account.
 
-### Create a service account
+<Tabs>
+<TabItem label="Google Cloud console">
 
-Go to the IAM & Admin [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
-page and create a new service account named "spanner-user":
+1. Navigate to **IAM & Admin** → **Service Accounts**.
+1. Click **Create Service Account**.
+1. Set the name to `teleport-db-service`.
+1. Skip optional steps and click **Done**. You will grant permissions later.
 
-![Create Service Account](../../../../../img/database-access/guides/spanner/create-spanner-user@2x.png)
+</TabItem>
 
-Ignore the optional steps - just click "Done".
-Rather than granting access at the project level, we will grant this service
-account permissions to just the databases it will be used to access.
+<TabItem label="gcloud CLI">
 
-### Grant permissions
+```code
+$ gcloud iam service-accounts create teleport-db-service --display-name="Teleport Database Service"
+```
 
-Navigate to the
-[Spanner instance overview page](https://console.cloud.google.com/spanner/instances)
-and check the box of your Spanner instance, then click "Permissions".
+</TabItem>
+</Tabs>
 
-![Open Cloud Spanner Instance Permissions](../../../../../img/database-access/guides/spanner/select-instance@2x.png)
+### Create the database user account
 
-In the permissions blade, click "Add Principal" then add the "spanner-user" service
-account as a principal and assign it the "Cloud Spanner Database User" role:
+This account represents a database user. Teleport users specify this name when connecting.
 
-![Grant Cloud Spanner Database User to Service Account](../../../../../img/database-access/guides/spanner/grant-service-account-access-to-instance@2x.png)
+<Tabs>
+<TabItem label="Google Cloud console">
 
-Click "Save".
+1. Navigate to **IAM & Admin** → **Service Accounts**.
+1. Click **Create Service Account**.
+1. Set the name to `spanner-user`.
+1. Skip optional steps and click **Done**. You will grant permissions later.
+=
+</TabItem>
 
-<Admonition type="note">
-[Cloud Spanner Database User](https://cloud.google.com/spanner/docs/iam#spanner.databaseUser)
-is a pre-defined role.
-You can use a different pre-defined role or create and customize your own role
-permissions with
-[custom IAM roles](https://cloud.google.com/spanner/docs/iam#custom-roles).
+<TabItem label="gcloud CLI">
+
+```code
+$ gcloud iam service-accounts create spanner-user --display-name="Spanner User"
+```
+
+</TabItem>
+</Tabs>
+
+## Step 2/6. Grant permissions
+
+Grant the database user account access to Spanner, then allow the Database Service account 
+to impersonate the database user account.
+
+### Grant Spanner access
+
+<Tabs>
+<TabItem label="Google Cloud console">
+
+1. Navigate to **Spanner** → **Instances**
+1. Select your instance
+1. Click **Permissions** → **Add Principal**
+1. Enter the `spanner-user` service account
+1. Assign **Cloud Spanner Database User**
+1. Click **Save**
+
+</TabItem>
+
+<TabItem label="gcloud CLI">
+
+```code
+$ gcloud spanner instances add-iam-policy-binding <Var name="instance-id" /> \
+  --member="serviceAccount:spanner-user@<Var name="project-id" />.iam.gserviceaccount.com" \
+  --role="roles/spanner.databaseUser"
+```
+
+</TabItem>
+</Tabs>
+
+<Admonition type="note" title="Custom Spanner role">
+The **Cloud Spanner Database User** role is predefined. You can create custom IAM roles to further restrict access if needed.
 </Admonition>
 
-### Grant access to the service account
+### Allow service account impersonation
 
-The Teleport Database Service must be able to impersonate this service account.
-Navigate to the "spanner-user" service account overview page and select the
-"permissions" tab:
+Grant the Database Service account permission to impersonate the database user account.
 
-![Select Service Account Permissions Tab](../../../../../img/database-access/guides/spanner/service-account-permissions-tab@2x.png)
+<Tabs>
+<TabItem label="Google Cloud console">
 
-Click "Grant Access" and add the "teleport-db-service" principal ID.
-Select the "Service Account Token Creator" role and save the change:
+1. Navigate to **IAM & Admin** → **Service Accounts**
+1. Select `spanner-user`
+1. Open the **Permissions** tab
+1. Click **Grant Access**
+1. Add the `teleport-db-service` account
+1. Assign **Service Account Token Creator**
+1. Click **Save**
 
-![Grant Service Account Token Creator to Database Service](../../../../../img/database-access/guides/spanner/grant-token-creator@2x.png)
+</TabItem>
 
-<Admonition type="note" title="Service account permissions">
-  The "Service Account Token Creator" IAM role includes more permissions than
-  the Database Service needs. To further restrict the service account, you can
-  create a role that includes only the following permission:
-  ```ini
-  # Used to generate IAM auth tokens when connecting to a database instance.
-  iam.serviceAccounts.getAccessToken
-  ```
-</Admonition>
+<TabItem label="gcloud CLI">
 
-## Step 3/8. Install Teleport
+```code
+$ gcloud iam service-accounts add-iam-policy-binding \
+  spanner-user@<Var name="project-id" />.iam.gserviceaccount.com \
+  --member="serviceAccount:teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
+</TabItem>
+</Tabs>
+
+<Checkpoint
+  title="Verify GCP permissions"
+  description="Confirm that the Database Service account can impersonate the database user account."
+>
+
+Run:
+
+```code
+$ gcloud iam service-accounts get-iam-policy \
+  spanner-user@<Var name="project-id" />.iam.gserviceaccount.com
+```
+The output should include a binding that pairs `teleport-db-service` with `roles/iam.serviceAccountTokenCreator`:
+
+```yaml
+bindings:
+- members:
+  - serviceAccount:teleport-db-service@<project-id>.iam.gserviceaccount.com
+  role: roles/iam.serviceAccountTokenCreator
+```
+
+</Checkpoint>
+
+## Step 3/6. Install and configure the Teleport Database Service
 
 (!docs/pages/includes/install-linux.mdx!)
-
-## Step 4/8. Configure the Teleport Database Service
 
 (!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token" !)
 
 Provide the following information and then generate a configuration file for the
 Teleport Database Service:
-- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport
-Proxy Service or cloud-hosted Teleport Enterprise site
+
+- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport Proxy Service
+or cloud-hosted Teleport Enterprise site.
 - <Var name="project-id"/> The GCP project ID. You can normally see it in the
 organization view at the top of the GCP dashboard.
 - <Var name="instance-id"/> The name of your Cloud Spanner instance.
 
 ```code
 $ sudo teleport db configure create \
-   -o file \
-   --name=spanner-example \
-   --protocol=spanner \
-   --labels=env=dev \
-   --token=/tmp/token \
-   --uri=spanner.googleapis.com:443 \
-   --proxy=<Var name="example.teleport.sh:443" />  \
-   --gcp-project-id=<Var name="project-id" /> \
-   --gcp-instance-id=<Var name="instance-id" /> 
+  -o file \
+  --name=spanner-example \
+  --protocol=spanner \
+  --labels=env=dev \
+  --token=/tmp/token \
+  --uri=spanner.googleapis.com:443 \
+  --proxy=<Var name="example.teleport.sh:443" /> \
+  --gcp-project-id=<Var name="project-id" /> \
+  --gcp-instance-id=<Var name="instance-id" />
 ```
 
-## Step 5/8. Configure GCP credentials
+## Step 4/6. Configure GCP credentials
 
 (!docs/pages/includes/database-access/cloudsql_service_credentials.mdx serviceAccount="teleport-db-service"!)
 
-## Step 6/8. Start the Teleport Database Service
+## Step 5/6. Start the Teleport Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-## Step 7/8. Create a Teleport user
+<Checkpoint
+  title="Verify database availability"
+  description="Confirm that the Spanner database appears in Teleport."
+>
+
+Replace <Var name="example.teleport.sh" /> and <Var name="example-user" /> with the proxy and username in question.
+
+```code
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="example-user" />
+$ tsh db ls
+```
+
+You should see:
+
+```
+Name            Description       Allowed Users Labels  Connect
+--------------- ----------------- ------------- ------- -------
+spanner-example GCP Cloud Spanner [*]           env=dev
+```
+
+If the database does not appear, verify your Teleport role permissions. See the [RBAC](../../rbac.mdx) guide.
+
+</Checkpoint>
+
+## Step 6/6. Connect using the service account
+
+In this step, you will create a Teleport user with access to the Spanner
+database, connect using the database user service account, and optionally
+remove stored credentials when you are done.
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-
-## Step 8/8. Connect
-
-Once the Teleport Database Service has joined the cluster, log in to see the
-available databases:
-
-<Tabs>
-<TabItem label="Self-Hosted">
-
+Log in to your Teleport cluster as the new user that you just created:
 ```code
-$ tsh login --proxy=teleport.example.com --user=<Var name="example-user" />
-$ tsh db ls
-Name            Description       Allowed Users Labels  Connect 
---------------- ----------------- ------------- ------- ------- 
-spanner-example GCP Cloud Spanner [*]           env=dev
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="example-user" />
 ```
 
-</TabItem>
-<TabItem label="Cloud-Hosted">
+Connect using the service account name (without the domain suffix):
+(Note: `--db-name` here refers to the specific database ID within your Spanner instance.)
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=<Var name="example-user" />
-$ tsh db ls
-Name            Description       Allowed Users Labels  Connect 
---------------- ----------------- ------------- ------- ------- 
-spanner-example GCP Cloud Spanner [*]           env=dev
+$ tsh db connect --db-user=spanner-user --db-name=database-name spanner-example
 ```
 
-</TabItem>
+You should now have an authenticated connection using the impersonated service account.
 
-</Tabs>
-
-<Admonition
-  type="note"
->
-You will only be able to see databases that your Teleport role has
-access to. See our [RBAC](../../rbac.mdx) guide for more details.
-</Admonition>
-
-When connecting to the database, use the name of the service account
-that you created for a database user 
-[above](#step-28-create-a-service-account-for-a-database-user),
-(minus the "@project-id.iam.gserviceaccount.com" suffix).
-Retrieve credentials for a database in the Cloud Spanner instance and connect to
-it:
+To remove credentials:
 
 ```code
-$ tsh db connect --db-user=spanner-user --db-name=example-db spanner-example
-```
-
-(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="spanner-example" dbArgs="--db-user=spanner-user --db-name=example-db"!)
-
-To log out of the database and remove credentials:
-
-```code
-# Remove credentials for a particular database instance:
 $ tsh db logout spanner-example
-# Or remove credentials for all databases:
+```
+
+To remove all database credentials:
+
+```code
 $ tsh db logout
 ```
 
@@ -221,6 +280,4 @@ $ tsh db logout
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 
 - Learn how to [connect with a GUI client](../../../../connect-your-client/third-party/gui-clients.mdx#cloud-spanner-datagrip).
-- Learn more about [authenticating as a service
-  account](https://cloud.google.com/docs/authentication#service-accounts) in
-  Google Cloud.
+- Learn more about [service account authentication](https://cloud.google.com/docs/authentication#service-accounts).

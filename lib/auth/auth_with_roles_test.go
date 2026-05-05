@@ -22,15 +22,20 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -93,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1093,7 +1099,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 }
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1125,11 +1131,17 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test user1.
-	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
+	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	// Create test user2.
-	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
+	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	role2Opts := role2.GetOptions()
@@ -1147,31 +1159,101 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
+	getScopeAsName := func(scope string) string {
+		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
+	}
+
+	scope := "/test"
+	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: getScopeAsName(scope) + "-role",
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"scoped_kube_user"},
+					Groups: []string{"scoped_kube_group"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	role := roleResp.GetRole()
+	sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user1.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: role.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra)
+
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
 
 	testCases := []struct {
-		desc       string
-		user       types.User
-		expiration time.Time
+		desc             string
+		user             types.User
+		scope            string
+		expiration       time.Time
+		expectKubeUsers  []string
+		expectKubeGroups []string
 	}{
 		{
-			desc:       "Roles don't have max_session_ttl set",
-			user:       user1,
-			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+			desc:             "Roles don't have max_session_ttl set",
+			user:             user1,
+			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
 		},
 		{
-			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
-			user:       user2,
-			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			desc:             "Roles have max_session_ttl set, cert expiration adjusted",
+			user:             user2,
+			expiration:       srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
+		},
+		{
+			// scopes don't support max_session_ttl
+			desc:       "Scoped role, no max_session_ttl set",
+			user:       user1,
+			scope:      scope,
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			user := authtest.TestUser(tt.user.GetName())
-			user.TTL = defaultDuration
-			client, err := srv.NewClient(user)
+			var ident authtest.TestIdentity
+			if tt.scope != "" {
+				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope)
+			} else {
+				ident = authtest.TestUser(tt.user.GetName())
+			}
+			ident.TTL = defaultDuration
+			client, err := srv.NewClient(ident)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1190,6 +1272,15 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
+			if tt.scope != "" {
+				require.Equal(t, tt.scope, identity.ScopePin.Scope)
+			} else {
+				require.Nil(t, identity.ScopePin)
+			}
+
+			// Verify kube fields are set
+			require.ElementsMatch(t, tt.expectKubeUsers, identity.KubernetesUsers)
+			require.ElementsMatch(t, tt.expectKubeGroups, identity.KubernetesGroups)
 
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
@@ -3581,6 +3672,11 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
+	for _, server := range testServers {
+		db := server.GetDatabase()
+		require.Equal(t, dbvnet.DNSName(db.GetName()), db.GetStatusVNetDNSName())
+	}
+
 	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
@@ -5316,8 +5412,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleNop,
-						Username:    string(types.RoleNop),
+						Role:        types.RoleProxy,
+						Username:    string(types.RoleProxy),
 						ClusterName: "remote-cluster",
 					},
 				}
@@ -5330,8 +5426,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleNop,
-						Username:    string(types.RoleNop),
+						Role:        types.RoleProxy,
+						Username:    string(types.RoleProxy),
 						ClusterName: "remote-cluster",
 					},
 				}
@@ -5869,6 +5965,13 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 	// Register users.
 	aliceClt := userClient("alice")
 	bobClt := userClient("bob")
+	proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	serverWithRoles := func(identity authtest.TestIdentity) *auth.ServerWithRoles {
+		authContext, err := srv.AuthServer.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
+		require.NoError(t, err)
+		return auth.NewServerWithRoles(srv.Auth(), srv.AuthServer.AuditLog, *authContext)
+	}
 
 	// Register an application.
 	app, err := types.NewAppV3(types.Metadata{
@@ -5898,26 +6001,118 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 		ClusterName: "localhost",
 	})
 	require.NoError(t, err)
-
-	// Alice can set the DBSC public key on her own session.
-	testDBSCPublicKey := []byte(`{"kty":"EC","crv":"P-256","x":"test","y":"test"}`)
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	claimsOnlySession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
 	require.NoError(t, err)
+	mismatchedKeySession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	leafSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "leaf",
+	})
+	require.NoError(t, err)
+	leafSessionBlocked, err := bobClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "bob",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "leaf",
+	})
+	require.NoError(t, err)
+
+	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	challenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.NoError(t, err)
+
+	responseJWT, expectedPublicKey := makeDBSCResponseJWT(t, deviceKey, challenge)
+
+	// Proxy can verify the response and bind the public key to the session.
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
+	require.NoError(t, err)
+
+	// A missing session is rejected before the DBSC response is parsed or verified.
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, "missing-session", []byte("not-a-jwt"))
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 
 	// Verify the update persisted.
 	updatedSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
 		SessionID: aliceSession.GetName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, testDBSCPublicKey, updatedSession.GetDBSCPublicKey())
+	require.Equal(t, expectedPublicKey, updatedSession.GetDBSCPublicKey())
 
-	// Setting the same key again should succeed (idempotent retry).
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	// Standards-compliant clients may carry the public key only in claims.
+	claimsOnlyChallenge, err := proxyClt.SignDBSCChallenge(ctx, claimsOnlySession.GetName())
+	require.NoError(t, err)
+	claimsOnlyJWK := jose.JSONWebKey{Key: deviceKey.Public()}
+	claimsOnlySigner, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       deviceKey,
+	}, (&jose.SignerOptions{}).WithType("dbsc+jwt"))
+	require.NoError(t, err)
+	claimsOnlyResponseJWT, err := josejwt.Signed(claimsOnlySigner).Claims(struct {
+		josejwt.Claims
+		Key jose.JSONWebKey `json:"key"`
+	}{
+		Claims: josejwt.Claims{
+			ID: claimsOnlyChallenge,
+		},
+		Key: claimsOnlyJWK.Public(),
+	}).CompactSerialize()
+	require.NoError(t, err)
+	expectedClaimsOnlyPublicKey, err := claimsOnlyJWK.Public().MarshalJSON()
+	require.NoError(t, err)
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, claimsOnlySession.GetName(), []byte(claimsOnlyResponseJWT))
+	require.NoError(t, err)
+	updatedClaimsOnlySession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: claimsOnlySession.GetName(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsOnlyPublicKey, updatedClaimsOnlySession.GetDBSCPublicKey())
+
+	// If a client sends both header and claim keys, they must match.
+	mismatchedKeyChallenge, err := proxyClt.SignDBSCChallenge(ctx, mismatchedKeySession.GetName())
+	require.NoError(t, err)
+	mismatchedClaimKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	mismatchedHeaderJWK := jose.JSONWebKey{Key: deviceKey.Public()}
+	mismatchedClaimsJWK := jose.JSONWebKey{Key: mismatchedClaimKey.Public()}
+	mismatchedSigner, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       deviceKey,
+	}, (&jose.SignerOptions{}).WithType("dbsc+jwt").WithHeader("jwk", mismatchedHeaderJWK.Public()))
+	require.NoError(t, err)
+	mismatchedResponseJWT, err := josejwt.Signed(mismatchedSigner).Claims(struct {
+		josejwt.Claims
+		Key jose.JSONWebKey `json:"key"`
+	}{
+		Claims: josejwt.Claims{
+			ID: mismatchedKeyChallenge,
+		},
+		Key: mismatchedClaimsJWK.Public(),
+	}).CompactSerialize()
+	require.NoError(t, err)
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, mismatchedKeySession.GetName(), []byte(mismatchedResponseJWT))
+	require.Error(t, err)
+
+	// Setting the same response again should succeed (idempotent retry).
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
 	require.NoError(t, err)
 
-	// Alice cannot set a different DBSC public key (one-time binding).
-	differentKey := []byte(`{"kty":"EC","crv":"P-256","x":"different","y":"different"}`)
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), differentKey)
+	// A different browser key cannot be rebound onto the same session.
+	differentDeviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	differentResponseJWT, _ := makeDBSCResponseJWT(t, differentDeviceKey, challenge)
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(differentResponseJWT))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -5926,15 +6121,166 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 		SessionID: aliceSession.GetName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, testDBSCPublicKey, unchangedSession.GetDBSCPublicKey())
+	require.Equal(t, expectedPublicKey, unchangedSession.GetDBSCPublicKey())
 
-	// Alice cannot set the DBSC public key on bob's session.
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, bobSession.GetName(), testDBSCPublicKey)
+	// A response bound to bob's challenge cannot be replayed onto alice's session.
+	bobChallenge, err := proxyClt.SignDBSCChallenge(ctx, bobSession.GetName())
+	require.NoError(t, err)
+	bobResponseJWT, _ := makeDBSCResponseJWT(t, deviceKey, bobChallenge)
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(bobResponseJWT))
+	require.Error(t, err)
+
+	// Human users cannot call this RPC directly.
+	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// Bob cannot set the DBSC public key on alice's session.
-	err = bobClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	err = bobClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	leafRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "leaf"))
+	otherRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "other-leaf"))
+
+	leafChallenge, err := leafRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
+	require.NoError(t, err)
+	leafResponseJWT, leafPublicKey := makeDBSCResponseJWT(t, deviceKey, leafChallenge)
+	err = leafRemoteProxy.SetAppSessionDBSCPublicKey(ctx, leafSession.GetName(), []byte(leafResponseJWT))
+	require.NoError(t, err)
+
+	updatedLeafSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: leafSession.GetName(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, leafPublicKey, updatedLeafSession.GetDBSCPublicKey())
+
+	_, err = otherRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = leafRemoteProxy.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	blockedChallenge, err := proxyClt.SignDBSCChallenge(ctx, leafSessionBlocked.GetName())
+	require.NoError(t, err)
+	blockedResponseJWT, _ := makeDBSCResponseJWT(t, deviceKey, blockedChallenge)
+	err = otherRemoteProxy.SetAppSessionDBSCPublicKey(ctx, leafSessionBlocked.GetName(), []byte(blockedResponseJWT))
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func makeDBSCResponseJWT(t *testing.T, deviceKey crypto.Signer, challenge string) (string, []byte) {
+	t.Helper()
+
+	jwk := jose.JSONWebKey{Key: deviceKey.Public()}
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       deviceKey,
+	}, (&jose.SignerOptions{}).WithType("dbsc+jwt").WithHeader("jwk", jwk.Public()))
+	require.NoError(t, err)
+
+	token, err := josejwt.Signed(signer).Claims(struct {
+		josejwt.Claims
+		Key jose.JSONWebKey `json:"key"`
+	}{
+		Claims: josejwt.Claims{
+			ID: challenge,
+		},
+		Key: jwk.Public(),
+	}).CompactSerialize()
+	require.NoError(t, err)
+
+	publicKeyJSON, err := jwk.Public().MarshalJSON()
+	require.NoError(t, err)
+
+	return token, publicKeyJSON
+}
+
+func TestSignDBSCChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	userClient := func(username string) *authclient.Client {
+		user, _, err := authtest.CreateUserAndRole(srv.Auth(), username, nil, nil)
+		require.NoError(t, err)
+		clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+		return clt
+	}
+
+	aliceClt := userClient("alice")
+	proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	appClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	require.NoError(t, err)
+	serverWithRoles := func(identity authtest.TestIdentity) *auth.ServerWithRoles {
+		authContext, err := srv.AuthServer.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
+		require.NoError(t, err)
+		return auth.NewServerWithRoles(srv.Auth(), srv.AuthServer.AuditLog, *authContext)
+	}
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+	require.NoError(t, err)
+
+	aliceSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	leafSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "leaf",
+	})
+	require.NoError(t, err)
+
+	challenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.NoError(t, err)
+	require.NotEmpty(t, challenge)
+
+	anotherChallenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.NoError(t, err)
+	require.NotEmpty(t, anotherChallenge)
+
+	// Signing a challenge for a non-existent session should fail.
+	_, err = proxyClt.SignDBSCChallenge(ctx, "missing-session")
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+
+	_, err = aliceClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = appClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	leafRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "leaf"))
+	otherRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "other-leaf"))
+
+	leafChallenge, err := leafRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
+	require.NoError(t, err)
+	require.NotEmpty(t, leafChallenge)
+
+	_, err = otherRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = leafRemoteProxy.SignDBSCChallenge(ctx, aliceSession.GetName())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -12249,6 +12595,232 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 			result := <-resultCh
 			require.NoError(t, result.err)
 			require.NotNil(t, result.hello)
+		})
+	}
+}
+
+// assert that common user cert generation cases are properly handled for scoped identities
+func TestScopedUserCertGeneration(t *testing.T) {
+	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "true")
+	clock := clockwork.NewFakeClock()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				entitlements.K8s:    {Enabled: true},
+			},
+		},
+	}), withClock(clock))
+	ctx := t.Context()
+
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	username := "scoped-user"
+	scope := "/test"
+	scopedAccess := srv.Auth().ScopedAccess()
+	roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: username,
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"kube_user"},
+					Groups: []string{"kube_group"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, role, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	require.NoError(t, err)
+
+	scopedRole := roleResp.GetRole()
+	sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra)
+
+	ident := authtest.TestScopedUser(username, scope)
+	client, err := srv.NewClient(ident)
+	require.NoError(t, err)
+
+	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	tts := []struct {
+		name       string
+		req        proto.UserCertsRequest
+		assertErr  func(t *testing.T, err error)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "valid request",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+			},
+		},
+		{
+			name: "session TTL for non-disk flow",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour * 24 * 7),
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				roAuthPref, err := srv.Auth().GetReadOnlyAuthPreference(ctx)
+				require.NoError(t, err)
+
+				// expiry should get shortened to default set for the cluster
+				notAfter := clock.Now().UTC().Add(roAuthPref.GetDefaultSessionTTL().Duration())
+				diff := notAfter.Sub(cert.NotAfter)
+				// ignore small differences from parsing
+				require.Less(t, max(diff, -diff), time.Second)
+			},
+		},
+		{
+			name: "with impersonation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          "some-other-user",
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.ErrorContains(t, err, "impersonation is not allowed")
+			},
+		},
+		{
+			name: "with role impersonation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+				UseRoleRequests:   true,
+				RoleRequests:      []string{role.GetName()},
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "impersonation not permitted")
+			},
+		},
+		{
+			name: "app session creation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name: "app-name",
+				},
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "creating app session")
+				require.ErrorContains(t, err, "scoped identities not supported")
+			},
+		},
+		{
+			name: "for non-kube usage",
+			req: proto.UserCertsRequest{
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     username,
+				Expires:      time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+			},
+		},
+		{
+			// this is a separate test case from the previous because there are other
+			// checks specific to access graph that should start failing  if the restriction
+			// on usage is every removed
+			name: "for access graph",
+			req: proto.UserCertsRequest{
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     username,
+				Expires:      time.Now().Add(time.Hour),
+				Usage:        proto.UserCertsRequest_AccessGraphAPI,
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
+				// user cert gen
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
+				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			certs, err := client.GenerateUserCerts(ctx, tt.req)
+			if tt.assertErr != nil {
+				tt.assertErr(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.assertCert != nil {
+				b, _ := pem.Decode(certs.TLS)
+				cert, err := x509.ParseCertificate(b.Bytes)
+				require.NoError(t, err)
+
+				tt.assertCert(t, cert)
+			}
 		})
 	}
 }

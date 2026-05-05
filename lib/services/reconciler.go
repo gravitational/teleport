@@ -21,10 +21,13 @@ package services
 import (
 	"context"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -74,6 +77,13 @@ type GenericReconcilerConfig[K comparable, T any] struct {
 	// disallowed to enforce segregation between of resources from different
 	// sources.
 	AllowOriginChanges bool
+	// Concurrency sets the number of goroutines used to process resources
+	// during reconciliation. When set to 0 or 1, resources are processed
+	// sequentially. When set to a value greater than 1, resources are
+	// processed concurrently using up to that many goroutines.
+	// The OnCreate, OnUpdate, OnDelete, Matcher, and CompareResources
+	// callbacks must be safe for concurrent use when Concurrency > 1.
+	Concurrency int
 }
 
 // CheckAndSetDefaults validates the reconciler configuration and sets defaults.
@@ -101,6 +111,9 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "reconciler")
+	}
+	if c.Concurrency < 1 {
+		c.Concurrency = 1
 	}
 	if c.Metrics == nil {
 		var err error
@@ -178,6 +191,7 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 		cfg:     cfg,
 		logger:  cfg.Logger,
 		metrics: cfg.Metrics,
+		stats:   &reconcileStats{},
 	}, nil
 }
 
@@ -190,36 +204,169 @@ type GenericReconciler[K comparable, T any] struct {
 	cfg     GenericReconcilerConfig[K, T]
 	logger  *slog.Logger
 	metrics *ReconcilerMetrics
+	stats   *reconcileStats
+}
+
+// reconcileStats tracks the number of resources created, updated, and deleted
+// during a reconciliation cycle.
+type reconcileStats struct {
+	created atomic.Int64
+	updated atomic.Int64
+	deleted atomic.Int64
+}
+
+func (s *reconcileStats) reset() {
+	s.created.Store(0)
+	s.updated.Store(0)
+	s.deleted.Store(0)
+}
+
+func (s *reconcileStats) hasChanges() bool {
+	return s.created.Load() > 0 || s.updated.Load() > 0 || s.deleted.Load() > 0
+}
+
+// LogValue implements [slog.LogValuer].
+func (s *reconcileStats) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int64("created", s.created.Load()),
+		slog.Int64("updated", s.updated.Load()),
+		slog.Int64("deleted", s.deleted.Load()),
+	)
+}
+
+// onCreate wraps the OnCreate callback with metrics and stats observation.
+func (r *GenericReconciler[K, T]) onCreate(ctx context.Context, kind string, newT T) error {
+	start := time.Now()
+	err := r.cfg.OnCreate(ctx, newT)
+	if err == nil {
+		r.stats.created.Add(1)
+	}
+	r.observeMetrics(kind, metricLabelOperationCreate, start, err)
+	return trace.Wrap(err)
+}
+
+// onUpdate wraps the OnUpdate callback with metrics and stats observation.
+func (r *GenericReconciler[K, T]) onUpdate(ctx context.Context, kind string, newT, registered T) error {
+	start := time.Now()
+	err := r.cfg.OnUpdate(ctx, newT, registered)
+	if err == nil {
+		r.stats.updated.Add(1)
+	}
+	r.observeMetrics(kind, metricLabelOperationUpdate, start, err)
+	return trace.Wrap(err)
+}
+
+// onDelete wraps the OnDelete callback with metrics and stats observation.
+func (r *GenericReconciler[K, T]) onDelete(ctx context.Context, kind string, registered T) error {
+	start := time.Now()
+	err := r.cfg.OnDelete(ctx, registered)
+	if err == nil {
+		r.stats.deleted.Add(1)
+	}
+	r.observeMetrics(kind, metricLabelOperationDelete, start, err)
+	return trace.Wrap(err)
+}
+
+func (r *GenericReconciler[K, T]) observeMetrics(kind, operation string, start time.Time, err error) {
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelKind:      kind,
+		metricLabelOperation: operation,
+	}).Observe(time.Since(start).Seconds())
+
+	var result string
+	switch {
+	case err == nil:
+		result = metricLabelResultSuccess
+	// Only delete-not-found is a noop (resource already gone).
+	// For create/update, NotFound is a real error (e.g. backend race).
+	case operation == metricLabelOperationDelete && trace.IsNotFound(err):
+		result = metricLabelResultNoop
+	default:
+		result = metricLabelResultError
+	}
+	r.metrics.reconciliationTotal.With(prometheus.Labels{
+		metricLabelKind:      kind,
+		metricLabelOperation: operation,
+		metricLabelResult:    result,
+	}).Inc()
 }
 
 // Reconcile reconciles currently registered resources with new resources and
 // creates/updates/deletes them appropriately.
 func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
+	r.stats.reset()
+
 	currentResources := r.cfg.GetCurrentResources()
 	newResources := r.cfg.GetNewResources()
 
 	r.logger.DebugContext(ctx, "Reconciling current resources with new resources",
 		"current_resource_count", len(currentResources), "new_resource_count", len(newResources))
 
-	var errs []error
+	start := time.Now()
+
+	var g errgroup.Group
+	g.SetLimit(r.cfg.Concurrency)
+
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
 
 	// Process already registered resources to see if any of them were removed.
 	for key, current := range currentResources {
-		if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
-			errs = append(errs, trace.Wrap(err))
-		}
+		g.Go(func() error {
+			if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
+				mu.Lock()
+				errs = append(errs, trace.Wrap(err))
+				mu.Unlock()
+			}
+			return nil
+		})
 	}
 
 	// Add new resources if there are any or refresh those that were updated.
 	for key, newResource := range newResources {
-		if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
-			errs = append(errs, trace.Wrap(err))
-		}
+		g.Go(func() error {
+			if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
+				mu.Lock()
+				errs = append(errs, trace.Wrap(err))
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+
+	// Error are collected separately.
+	_ = g.Wait()
+
+	if r.stats.hasChanges() {
+		r.logger.InfoContext(ctx, "Reconciliation completed",
+			"kind", r.resourceKind(currentResources, newResources),
+			"took", time.Since(start),
+			"stats", r.stats,
+		)
 	}
 
 	// TODO(zmb3): with a large number of resources, this can return a lengthy
 	// error message that is difficult to parse
 	return trace.NewAggregate(errs...)
+}
+
+// resourceKind extracts the resource kind from the first available resource.
+func (r *GenericReconciler[K, T]) resourceKind(currentResources, newResources map[K]T) string {
+	for _, res := range currentResources {
+		kind, err := types.GetKind(res)
+		if err == nil {
+			return kind
+		}
+	}
+	for _, res := range newResources {
+		kind, err := types.GetKind(res)
+		if err == nil {
+			return kind
+		}
+	}
+	return "unknown"
 }
 
 // processRegisteredResource checks the specified registered resource against the
@@ -235,35 +382,14 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 		return trace.Wrap(err)
 	}
 	r.logger.InfoContext(ctx, "Resource was removed, deleting", "kind", kind, "name", key)
-	start := time.Now()
-	err = r.cfg.OnDelete(ctx, registered)
-	r.metrics.reconciliationDuration.With(prometheus.Labels{
-		metricLabelKind:      kind,
-		metricLabelOperation: metricLabelOperationDelete,
-	}).Observe(time.Since(start).Seconds())
+	err = r.onDelete(ctx, kind, registered)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			r.logger.Log(ctx, logutils.TraceLevel, "Failed to delete resource", "kind", kind, "name", key, "err", err)
-			r.metrics.reconciliationTotal.With(prometheus.Labels{
-				metricLabelKind:      kind,
-				metricLabelOperation: metricLabelOperationDelete,
-				metricLabelResult:    metricLabelResultNoop,
-			}).Inc()
 			return nil
 		}
-		r.metrics.reconciliationTotal.With(prometheus.Labels{
-			metricLabelKind:      kind,
-			metricLabelOperation: metricLabelOperationDelete,
-			metricLabelResult:    metricLabelResultError,
-		}).Inc()
-		return trace.Wrap(err, "failed to delete  %v %v", kind, key)
+		return trace.Wrap(err, "failed to delete %v %v", kind, key)
 	}
-
-	r.metrics.reconciliationTotal.With(prometheus.Labels{
-		metricLabelKind:      kind,
-		metricLabelOperation: metricLabelOperationDelete,
-		metricLabelResult:    metricLabelResultSuccess,
-	}).Inc()
 	return nil
 }
 
@@ -280,27 +406,9 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 		}
 		if r.cfg.Matcher(newT) {
 			r.logger.InfoContext(ctx, "New resource matches, creating", "kind", kind, "name", key)
-			start := time.Now()
-			err = r.cfg.OnCreate(ctx, newT)
-			r.metrics.reconciliationDuration.With(prometheus.Labels{
-				metricLabelKind:      kind,
-				metricLabelOperation: metricLabelOperationCreate,
-			}).Observe(time.Since(start).Seconds())
-
-			if err != nil {
-				r.metrics.reconciliationTotal.With(prometheus.Labels{
-					metricLabelKind:      kind,
-					metricLabelOperation: metricLabelOperationCreate,
-					metricLabelResult:    metricLabelResultError,
-				}).Inc()
+			if err := r.onCreate(ctx, kind, newT); err != nil {
 				return trace.Wrap(err, "failed to create %v %v", kind, key)
 			}
-			r.metrics.reconciliationTotal.With(
-				prometheus.Labels{
-					metricLabelKind:      kind,
-					metricLabelOperation: metricLabelOperationCreate,
-					metricLabelResult:    metricLabelResultSuccess,
-				}).Inc()
 			return nil
 		}
 		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "kind", kind, "name", key)
@@ -334,56 +442,20 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 	if r.cfg.CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
 			r.logger.InfoContext(ctx, "Existing resource updated, updating", "kind", kind, "name", key)
-			start := time.Now()
-			err := r.cfg.OnUpdate(ctx, newT, registered)
-			r.metrics.reconciliationDuration.With(prometheus.Labels{
-				metricLabelKind:      kind,
-				metricLabelOperation: metricLabelOperationUpdate,
-			}).Observe(time.Since(start).Seconds())
-			if err != nil {
-				r.metrics.reconciliationTotal.With(prometheus.Labels{
-					metricLabelKind:      kind,
-					metricLabelOperation: metricLabelOperationUpdate,
-					metricLabelResult:    metricLabelResultError,
-				}).Inc()
+			if err := r.onUpdate(ctx, kind, newT, registered); err != nil {
 				return trace.Wrap(err, "failed to update %v %v", kind, key)
 			}
-			r.metrics.reconciliationTotal.With(prometheus.Labels{
-				metricLabelKind:      kind,
-				metricLabelOperation: metricLabelOperationUpdate,
-				metricLabelResult:    metricLabelResultSuccess,
-			}).Inc()
 			return nil
 		}
 		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "kind", kind, "name", key)
-		start := time.Now()
-		err := r.cfg.OnDelete(ctx, registered)
-		r.metrics.reconciliationDuration.With(prometheus.Labels{
-			metricLabelKind:      kind,
-			metricLabelOperation: metricLabelOperationDelete,
-		}).Observe(time.Since(start).Seconds())
+		err := r.onDelete(ctx, kind, registered)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				r.logger.Log(ctx, logutils.TraceLevel, "Failed to delete resource", "kind", kind, "name", key, "err", err)
-				r.metrics.reconciliationTotal.With(prometheus.Labels{
-					metricLabelKind:      kind,
-					metricLabelOperation: metricLabelOperationDelete,
-					metricLabelResult:    metricLabelResultNoop,
-				}).Inc()
 				return nil
 			}
-			r.metrics.reconciliationTotal.With(prometheus.Labels{
-				metricLabelKind:      kind,
-				metricLabelOperation: metricLabelOperationDelete,
-				metricLabelResult:    metricLabelResultError,
-			}).Inc()
 			return trace.Wrap(err, "failed to delete %v %v", kind, key)
 		}
-		r.metrics.reconciliationTotal.With(prometheus.Labels{
-			metricLabelKind:      kind,
-			metricLabelOperation: metricLabelOperationDelete,
-			metricLabelResult:    metricLabelResultSuccess,
-		}).Inc()
 		return nil
 	}
 

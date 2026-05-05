@@ -107,6 +107,7 @@ const (
 	AuthService_DeleteAllAppSessions_FullMethodName                = "/proto.AuthService/DeleteAllAppSessions"
 	AuthService_DeleteUserAppSessions_FullMethodName               = "/proto.AuthService/DeleteUserAppSessions"
 	AuthService_SetAppSessionDBSCPublicKey_FullMethodName          = "/proto.AuthService/SetAppSessionDBSCPublicKey"
+	AuthService_SignDBSCChallenge_FullMethodName                   = "/proto.AuthService/SignDBSCChallenge"
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
@@ -492,6 +493,8 @@ type AuthServiceClient interface {
 	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
 	SetAppSessionDBSCPublicKey(ctx context.Context, in *SetAppSessionDBSCPublicKeyRequest, opts ...grpc.CallOption) (*SetAppSessionDBSCPublicKeyResponse, error)
+	// SignDBSCChallenge signs a DBSC challenge for registration or refresh.
+	SignDBSCChallenge(ctx context.Context, in *SignDBSCChallengeRequest, opts ...grpc.CallOption) (*SignDBSCChallengeResponse, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
@@ -1861,6 +1864,16 @@ func (c *authServiceClient) SetAppSessionDBSCPublicKey(ctx context.Context, in *
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetAppSessionDBSCPublicKeyResponse)
 	err := c.cc.Invoke(ctx, AuthService_SetAppSessionDBSCPublicKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SignDBSCChallenge(ctx context.Context, in *SignDBSCChallengeRequest, opts ...grpc.CallOption) (*SignDBSCChallengeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignDBSCChallengeResponse)
+	err := c.cc.Invoke(ctx, AuthService_SignDBSCChallenge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4141,6 +4154,8 @@ type AuthServiceServer interface {
 	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error)
 	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
 	SetAppSessionDBSCPublicKey(context.Context, *SetAppSessionDBSCPublicKeyRequest) (*SetAppSessionDBSCPublicKeyResponse, error)
+	// SignDBSCChallenge signs a DBSC challenge for registration or refresh.
+	SignDBSCChallenge(context.Context, *SignDBSCChallengeRequest) (*SignDBSCChallengeResponse, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
@@ -4931,6 +4946,9 @@ func (UnimplementedAuthServiceServer) DeleteUserAppSessions(context.Context, *De
 }
 func (UnimplementedAuthServiceServer) SetAppSessionDBSCPublicKey(context.Context, *SetAppSessionDBSCPublicKeyRequest) (*SetAppSessionDBSCPublicKeyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetAppSessionDBSCPublicKey not implemented")
+}
+func (UnimplementedAuthServiceServer) SignDBSCChallenge(context.Context, *SignDBSCChallengeRequest) (*SignDBSCChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignDBSCChallenge not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSnowflakeSession not implemented")
@@ -6728,6 +6746,24 @@ func _AuthService_SetAppSessionDBSCPublicKey_Handler(srv interface{}, ctx contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).SetAppSessionDBSCPublicKey(ctx, req.(*SetAppSessionDBSCPublicKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SignDBSCChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignDBSCChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SignDBSCChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SignDBSCChallenge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SignDBSCChallenge(ctx, req.(*SignDBSCChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10560,6 +10596,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetAppSessionDBSCPublicKey",
 			Handler:    _AuthService_SetAppSessionDBSCPublicKey_Handler,
+		},
+		{
+			MethodName: "SignDBSCChallenge",
+			Handler:    _AuthService_SignDBSCChallenge_Handler,
 		},
 		{
 			MethodName: "CreateSnowflakeSession",

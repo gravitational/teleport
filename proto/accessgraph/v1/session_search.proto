@@ -94,6 +94,29 @@ message SearchSessionSummariesRequest {
   }
 }
 
+// SearchMode controls which search strategy the access graph applies when
+// search_queries are present. SEARCH_MODE_UNSPECIFIED behaves as HYBRID.
+enum SearchMode {
+  // SEARCH_MODE_UNSPECIFIED is the default value and behaves identically to
+  // SEARCH_MODE_HYBRID: both keyword and vector similarity search are executed
+  // and their results are merged before being returned.
+  SEARCH_MODE_UNSPECIFIED = 0;
+  // SEARCH_MODE_HYBRID executes both full-text and vector similarity
+  // search in parallel and merges the results, providing the best recall at the
+  // cost of slightly higher latency compared to single-strategy modes.
+  SEARCH_MODE_HYBRID = 1;
+  // SEARCH_MODE_KEYWORD_ONLY executes only full-text search against
+  // session content. No vector embeddings are generated or queried.
+  // Use this mode when exact keyword matching is preferred or when the
+  // pgvector extension is unavailable.
+  SEARCH_MODE_KEYWORD_ONLY = 2;
+  // SEARCH_MODE_EMBEDDING_ONLY executes only vector similarity search using
+  // pre-generated embeddings. No full-text matching is performed.
+  // Use this mode for purely semantic queries where keyword overlap is
+  // unlikely to add value.
+  SEARCH_MODE_EMBEDDING_ONLY = 3;
+}
+
 // SearchSessionSummariesParams defines the filter criteria and batch settings
 // for a session summary search.
 message SearchSessionSummariesParams {
@@ -168,6 +191,12 @@ message SearchSessionSummariesParams {
   // all other filter fields in this message are ignored when resume_token is set.
   // An empty value starts a new search from the beginning of the result set.
   string resume_token = 14;
+
+  // search_mode controls which search strategy to apply when search_queries
+  // are present. SEARCH_MODE_UNSPECIFIED and SEARCH_MODE_HYBRID both execute
+  // the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
+  // matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
+  SearchMode search_mode = 15;
 }
 
 // EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,

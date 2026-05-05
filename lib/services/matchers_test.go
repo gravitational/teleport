@@ -196,6 +196,77 @@ func TestSimplifyAzureMatchers(t *testing.T) {
 	require.Equal(t, want, simplified)
 }
 
+// TestSimplifyAzureMatchersDoesNotMutateInput guards against a regression where
+// SimplifyAzureMatchers normalized regions through an aliased input slice,
+// mutating the caller's matcher and racing with concurrent readers.
+func TestSimplifyAzureMatchersDoesNotMutateInput(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{"sub-1"},
+			ResourceGroups: []string{"rg-1"},
+			// "East US" normalizes to "eastus", so any in-place write is observable by value comparison.
+			Regions: []string{"East US"},
+			Types:   []string{"vm"},
+		},
+	}
+	regionsBackingArray := matchers[0].Regions
+
+	simplified := SimplifyAzureMatchers(matchers)
+
+	require.Equal(t, []string{"East US"}, matchers[0].Regions,
+		"input regions slice must not be mutated")
+	require.Equal(t, "East US", regionsBackingArray[0],
+		"input regions backing array must not be mutated")
+	require.Equal(t, []string{"eastus"}, simplified[0].Regions,
+		"output regions must be normalized")
+}
+
+// TestSimplifyAzureMatchersDeduplicatesNormalizedRegions guards against a
+// regression where deduplication ran before normalization, leaving case-variant
+// inputs like "East US" and "eastus" as distinct entries in the output.
+func TestSimplifyAzureMatchersDeduplicatesNormalizedRegions(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{"sub-1"},
+			ResourceGroups: []string{"rg-1"},
+			// Four inputs, three of which normalize to "eastus", one to "eastus2".
+			// Byte-equality dedup before normalization would let all four through.
+			Regions: []string{"East US", "eastus", "EASTUS", "East US 2"},
+			Types:   []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+
+	require.ElementsMatch(t, []string{"eastus", "eastus2"}, simplified[0].Regions,
+		"case-variant regions must collapse to one normalized entry per location")
+}
+
+// TestSimplifyAzureMatchersCollapsesRegionsWildcard locks in the Regions
+// wildcard branch: when any region entry is the wildcard, the output must
+// collapse to a single wildcard rather than keep the explicit entries
+// alongside it. Without this test the wildcard collapse for Regions has no
+// fixture coverage (existing tests only exercise the wildcard branch via an
+// empty Regions slice).
+func TestSimplifyAzureMatchersCollapsesRegionsWildcard(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{"sub-1"},
+			ResourceGroups: []string{"rg-1"},
+			Regions:        []string{"East US", types.Wildcard, "westus"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+
+	require.Equal(t, []string{types.Wildcard}, simplified[0].Regions,
+		"any wildcard in regions must collapse the slice to a single wildcard")
+}
+
 func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 

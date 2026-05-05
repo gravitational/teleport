@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
-	github.com/gravitational/trace v1.5.3
+	github.com/gravitational/trace v1.5.4
 	github.com/hashicorp/terraform-plugin-framework v0.10.0
 	github.com/hashicorp/terraform-plugin-go v0.18.0
 	github.com/hashicorp/terraform-plugin-log v0.10.0
@@ -20,6 +20,13 @@ require (
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
+)
+
+require (
+	github.com/mailgun/errors v0.4.0
+	github.com/mailgun/mailgun-go/v4 v4.23.0
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc
+	gopkg.in/mail.v2 v2.3.1
 )
 
 require (
