@@ -826,7 +826,7 @@ func TestService_Create_fromCSR(t *testing.T) {
 	certDER, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
 		Subject:               csr.Subject,
 		NotBefore:             now.Add(-1 * time.Minute),
-		NotAfter:              now.Add(1 * time.Hour),
+		NotAfter:              now.Add(10 * time.Minute), // < self-signed CA NotAfter
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -966,9 +966,9 @@ func TestService_Update_errors(t *testing.T) {
 				}
 			},
 			assertErr: func(t *testing.T, err error) {
-				// Backend returns ErrIncorrectRevision for both NotFound and revision
-				// mismatch. The RPC layer doesn't control that.
-				assert.ErrorIs(t, err, backend.ErrIncorrectRevision, "revision error mismatch")
+				// This differs from a pure backend Update, which returns
+				// ErrIncorrectRevision for both "not found" and "incorrect revision"
+				assert.ErrorAs(t, err, new(*trace.NotFoundError), "error mismatch")
 			},
 		},
 		{
@@ -999,6 +999,76 @@ func TestService_Update_errors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestService_Update_enableInvalidOverride(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	subCA := env.SubCAClient
+
+	// Fetch our target CA, plus keys.
+	const loadKeys = true
+	ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+		Type:       caType,
+		DomainName: env.ClusterName,
+	}, loadKeys)
+	require.NoError(t, err, "GetCertAuthority errored")
+
+	// Prepare a CA override.
+	caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
+	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		CaOverride: caOverride,
+	})
+	require.NoError(t, err, "CreateCertAuthorityOverride errored")
+	caOverride = createResp.CaOverride
+
+	// Simulate a rotation, so now the override has no target.
+	keyPEM, certPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+		ClusterName: env.ClusterName,
+	})
+	require.NoError(t, err, "GenerateSelfSignedCA errored")
+	activeKeys := ca.GetActiveKeys()
+	activeKeys.TLS = []*types.TLSKeyPair{
+		{
+			Cert:    certPEM,
+			Key:     keyPEM,
+			KeyType: types.PrivateKeyType_RAW,
+		},
+	}
+	ca.SetActiveKeys(activeKeys)
+	_, err = env.Trust.UpdateCertAuthority(t.Context(), ca)
+	require.NoError(t, err, "UpdateCertAuthority errored")
+
+	// Attempt to enable the poorly-targeted override. This should fail.
+	caOverride.Spec.CertificateOverrides[0].Disabled = false
+	const wantErr = "targets unknown CA certificate"
+	t.Run("Update", func(t *testing.T) {
+		_, err := subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+			CaOverride: caOverride,
+		})
+		assert.ErrorContains(t, err, wantErr)
+	})
+	t.Run("Upsert", func(t *testing.T) {
+		_, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+			CaOverride: caOverride,
+		})
+		assert.ErrorContains(t, err, wantErr)
+	})
+
+	t.Run("remove override", func(t *testing.T) {
+		// This should work, the override isn't valid anymore.
+		caOverride.Spec.CertificateOverrides = nil
+		_, err = subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+			CaOverride: caOverride,
+		})
+		assert.NoError(t, err, "Update failed to remove invalid override")
+	})
 }
 
 func TestService_Upsert(t *testing.T) {
@@ -1106,6 +1176,7 @@ func TestService_Write_errors(t *testing.T) {
 	type testCase struct {
 		name           string
 		makeCAOverride func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride
+		skipUpdate     bool
 		assertErr      func(t *testing.T, err error) // takes precedence over wantErr
 		wantErr        string
 	}
@@ -1131,12 +1202,14 @@ func TestService_Write_errors(t *testing.T) {
 			})
 			assertTestCae(t, tc, err)
 		})
-		t.Run("update", func(t *testing.T) {
-			_, err := subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
-				CaOverride: caOverride,
+		if !tc.skipUpdate {
+			t.Run("update", func(t *testing.T) {
+				_, err := subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+					CaOverride: caOverride,
+				})
+				assertTestCae(t, tc, err)
 			})
-			assertTestCae(t, tc, err)
-		})
+		}
 		t.Run("upsert", func(t *testing.T) {
 			_, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
 				CaOverride: caOverride,
@@ -1173,8 +1246,52 @@ func TestService_Write_errors(t *testing.T) {
 		}
 
 		runTestCase(t, &testCase{
-			name:    badClusterName,
 			wantErr: `only "` + env.ClusterName + `" is allowed`,
+		}, caOverride)
+	})
+
+	t.Run("override certificate lasts too long", func(t *testing.T) {
+		t.Parallel()
+
+		// Fetch the CA we want to override.
+		const loadKeys = false
+		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       caType,
+			DomainName: env.ClusterName,
+		}, loadKeys)
+		require.NoError(t, err)
+		require.Len(t, ca.GetActiveKeys().TLS, 1, "Unexpected number of CA active keys")
+		kp := ca.GetActiveKeys().TLS[0]
+		caCert, err := tlsutils.ParseCertificatePEM(kp.Cert)
+		require.NoError(t, err)
+
+		// Create an override that lasts more than the self-signed cert.
+		overrideCA, err := env.ExternalRoot.NewIntermediateCA(&subcaenv.CAParams{
+			Clock: env.Clock,
+			Pub:   caCert.PublicKey,
+			Template: &x509.Certificate{
+				Subject: pkix.Name{
+					Organization: []string{env.ClusterName},
+				},
+				NotAfter: caCert.NotAfter.Add(1 * time.Minute),
+			},
+		})
+		require.NoError(t, err, "NewIntermediateCA errored")
+
+		// Create an "empty" CA override...
+		ca.SetActiveKeys(types.CAKeySet{})
+		ca.SetAdditionalTrustedKeys(types.CAKeySet{})
+		caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
+		// ...then add our override certificate to it.
+		caOverride.Spec.CertificateOverrides = []*subcapb.CertificateOverride{
+			{
+				Certificate: string(overrideCA.CertPEM),
+			},
+		}
+
+		runTestCase(t, &testCase{
+			skipUpdate: true, // Update wants an existing resource
+			wantErr:    "expires after self-signed CA certificate",
 		}, caOverride)
 	})
 
@@ -1202,11 +1319,206 @@ func TestService_Write_errors(t *testing.T) {
 			},
 			wantErr: "sub_kind required",
 		},
+		{
+			name: "new override targets unknown certificate",
+			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+				caOverride.Spec.CertificateOverrides = append(caOverride.Spec.CertificateOverrides,
+					&subcapb.CertificateOverride{
+						PublicKey: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						Disabled:  true,
+					},
+				)
+				return caOverride
+			},
+			skipUpdate: true, // Update wants an existing resource
+			wantErr:    "targets unknown CA certificate",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			runTestCase(t, &test, baseCAOverride)
+		})
+	}
+}
+
+// TestService_ForcedWrites tests writes that require
+// force_immediate_disable/--force to succeed.
+func TestService_ForcedWrites(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		makeRPC  func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error
+		isDelete bool
+	}{
+		{
+			name: "Update",
+			makeRPC: func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error {
+				_, err := subCA.UpdateCertAuthorityOverride(ctx, &subcapb.UpdateCertAuthorityOverrideRequest{
+					CaOverride:            cao,
+					ForceImmediateDisable: force,
+				})
+				return err
+			},
+		},
+		{
+			name: "Upsert",
+			makeRPC: func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error {
+				_, err := subCA.UpsertCertAuthorityOverride(ctx, &subcapb.UpsertCertAuthorityOverrideRequest{
+					CaOverride:            cao,
+					ForceImmediateDisable: force,
+				})
+				return err
+			},
+		},
+		{
+			name: "Delete",
+			makeRPC: func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error {
+				_, err := subCA.DeleteCertAuthorityOverride(ctx, &subcapb.DeleteCertAuthorityOverrideRequest{
+					CaId: &subcapb.CertAuthorityOverrideID{
+						CaType: cao.SubKind,
+					},
+					ForceImmediateDelete: force,
+				})
+				return err
+			},
+			isDelete: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			const caType = types.WindowsCA
+			env := subcav1.NewEnv(t, subcav1.EnvParams{
+				StorageParams: subcaenv.EnvParams{
+					CATypesToCreate: []types.CertAuthType{
+						caType,
+					},
+				},
+			})
+			subCA := env.SubCAClient
+
+			// Add additional CA keys for testing.
+			key1PEM, cert1PEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+				ClusterName: env.ClusterName,
+			})
+			require.NoError(t, err, "GenerateSelfSignedCA errored")
+			key2PEM, cert2PEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+				ClusterName: env.ClusterName,
+			})
+			require.NoError(t, err, "GenerateSelfSignedCA errored")
+			const loadKeys = true
+			ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+				Type:       caType,
+				DomainName: env.ClusterName,
+			}, loadKeys)
+			require.NoError(t, err, "GetCertAuthority errored")
+			additionalKeys := ca.GetAdditionalTrustedKeys()
+			additionalKeys.TLS = append(additionalKeys.TLS,
+				&types.TLSKeyPair{
+					Cert:    cert1PEM,
+					Key:     key1PEM,
+					KeyType: types.PrivateKeyType_RAW,
+				},
+				&types.TLSKeyPair{
+					Cert:    cert2PEM,
+					Key:     key2PEM,
+					KeyType: types.PrivateKeyType_RAW,
+				},
+			)
+			ca.SetAdditionalTrustedKeys(additionalKeys)
+			_, err = env.Trust.UpdateCertAuthority(t.Context(), ca)
+			require.NoError(t, err, "UpdateCertAuthority errored")
+
+			// Parse new CA certificates.
+			cert1, err := tlsutils.ParseCertificatePEM(cert1PEM)
+			require.NoError(t, err, "ParseCertificatePEM errored")
+			cert2, err := tlsutils.ParseCertificatePEM(cert2PEM)
+			require.NoError(t, err, "ParseCertificatePEM errored")
+
+			// Prepare an all-enabled CA override.
+			caOverride := env.NewOverrideForCAType(t, caType)
+			caOverride.Spec.CertificateOverrides = append(caOverride.Spec.CertificateOverrides,
+				env.NewDisabledCertificateOverride(t, cert1, nil /* externalRoot */),
+				env.NewDisabledCertificateOverride(t, cert2, nil /* externalRoot */),
+			)
+			for _, co := range caOverride.Spec.CertificateOverrides {
+				co.Disabled = false
+			}
+			createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+				CaOverride: caOverride,
+			})
+			require.NoError(t, err, "Create errored")
+
+			// Change override so it disables an enabled, active override.
+			caOverride = createResp.CaOverride
+			caOverride.Spec.CertificateOverrides[0].Disabled = true
+
+			// Attempt to write. It should fail because we are changing an enabled,
+			// active override.
+			const force = false
+			require.ErrorContains(t,
+				test.makeRPC(t.Context(), subCA, caOverride, force),
+				"enabled override",
+				"error mismatch",
+			)
+
+			t.Run("force", func(t *testing.T) {
+				// Attempt forced write.
+				const force = true
+				require.NoError(t,
+					test.makeRPC(t.Context(), subCA, caOverride, force),
+					"unexpected error",
+				)
+
+				// Assert modification (Update/Upsert) or deletion.
+				id := &subcapb.CertAuthorityOverrideID{
+					CaType: string(caType),
+				}
+				getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
+					CaId: id,
+				})
+				if test.isDelete {
+					assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch")
+					return
+				}
+				require.NoError(t, err, "Get errored")
+
+				got := getResp.CaOverride
+				want := caOverride
+				want.Metadata.Revision = got.GetMetadata().GetRevision()
+				if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+					t.Errorf("CA override mismatch (-want +got)\n%s", diff)
+				}
+
+				// Show that additional keys can be disabled without forcing.
+				t.Run("additional keys disable", func(t *testing.T) {
+					caOverride := got
+					for _, co := range caOverride.Spec.CertificateOverrides {
+						co.Disabled = true
+					}
+
+					// Update.
+					const force = false
+					assert.NoError(t,
+						test.makeRPC(t.Context(), subCA, caOverride, force),
+					)
+
+					// Verify update.
+					getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
+						CaId: id,
+					})
+					require.NoError(t, err)
+					got := getResp.CaOverride
+					want := caOverride
+					want.Metadata.Revision = got.GetMetadata().GetRevision()
+					if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+						t.Errorf("CA override mismatch (-want +got)\n%s", diff)
+					}
+				})
+			})
 		})
 	}
 }

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -60,6 +61,8 @@ type CachedSubCAStorage interface {
 //
 // See lib/services/local.SubCAService.
 type SubCAStorage interface {
+	GetCertAuthorityOverride(
+		ctx context.Context, id local.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error)
 	CreateCertAuthorityOverride(
 		ctx context.Context,
 		resource *subcav1.CertAuthorityOverride,
@@ -90,15 +93,20 @@ type KeystoreManager interface {
 type ServiceParams struct {
 	Logger *slog.Logger
 
+	// CachedClusterNameGetter is a cached ClusterNameGetter.
 	CachedClusterNameGetter services.ClusterNameGetter
 	// CachedSubCA is a cached Sub CA storage service.
 	// Used by read-only RPC.
 	CachedSubCA CachedSubCAStorage
-	// CachedTrust is a cached Trust storage service.
-	CachedTrust services.AuthorityGetter
 	// SubCA is a non-cached Sub CA storage service.
 	// Used by write RPCs.
 	SubCA SubCAStorage
+	// Trust is the Trust storage service.
+	// A non-cached trust is used so CSRs and lateral validation are always
+	// executed against fresh data. (Writes are infrequent enough that it's not a
+	// burden)
+	// Used by CSR generation and write RPCs.
+	Trust services.AuthorityGetter
 
 	// KeystoreManager is the interface to the Auth TLS private keys.
 	// Used on CRL and CSR signing.
@@ -116,8 +124,8 @@ type Service struct {
 
 	cachedClusterNameGetter services.ClusterNameGetter
 	cachedSubCA             CachedSubCAStorage
-	cachedTrust             services.AuthorityGetter
 	subCA                   SubCAStorage
+	trust                   services.AuthorityGetter
 
 	keystoreManager KeystoreManager
 
@@ -134,10 +142,10 @@ func New(p ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("param CachedClusterNameGetter required")
 	case p.CachedSubCA == nil:
 		return nil, trace.BadParameter("param CachedSubCA required")
-	case p.CachedTrust == nil:
-		return nil, trace.BadParameter("param CachedTrust required")
 	case p.SubCA == nil:
 		return nil, trace.BadParameter("param SubCA required")
+	case p.Trust == nil:
+		return nil, trace.BadParameter("param Trust required")
 	case p.KeystoreManager == nil:
 		return nil, trace.BadParameter("param KeystoreManager required")
 	case p.Authorizer == nil:
@@ -150,8 +158,8 @@ func New(p ServiceParams) (*Service, error) {
 		logger:                  p.Logger,
 		cachedClusterNameGetter: p.CachedClusterNameGetter,
 		cachedSubCA:             p.CachedSubCA,
-		cachedTrust:             p.CachedTrust,
 		subCA:                   p.SubCA,
+		trust:                   p.Trust,
 		keystoreManager:         p.KeystoreManager,
 		authorizer:              p.Authorizer,
 		emitter:                 p.Emitter,
@@ -194,7 +202,7 @@ func (s *Service) CreateCSR(
 	}
 
 	// Read CA.
-	ca, err := s.cachedTrust.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.CertAuthType(req.CaType),
 		DomainName: cn.GetClusterName(),
 	}, true /* loadKeys */)
@@ -455,7 +463,16 @@ func (s *Service) writeCAOverride(
 		)
 	}
 
-	// TODO(codingllama): Cross-validation (CA and certs, existing override).
+	// If --force is set we allow overrides to be created as long as they are
+	// internally consistent (ValidateAndParseCAOverride passes), regardless of
+	// the system state.
+	// This allows "tctl create -f" (and similar) to reconstruct a previous
+	// system state.
+	if !forceImmediateDisable {
+		if err := s.performWriteLateralValidation(ctx, mode, cn.GetClusterName(), parsed); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// TODO(codingllama): Create CRLs.
 
@@ -482,6 +499,214 @@ func (s *Service) writeCAOverride(
 	)
 
 	return updated, nil
+}
+
+// Write lateral validation checks the new CA override against its sibling CA
+// resource, as well against a possibly-existing CA override, in an attempt to
+// prevent a multitude of invalid, ineffective or dangerous changes.
+func (s *Service) performWriteLateralValidation(
+	ctx context.Context,
+	mode writeMode,
+	clusterName string,
+	parsedNew *subca.ParsedCertAuthorityOverride,
+) error {
+	// Read CA.
+	const loadKeys = false
+	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.CertAuthType(parsedNew.CAOverride.SubKind),
+		DomainName: clusterName,
+	}, loadKeys)
+	if err != nil {
+		return trace.Wrap(err, "read CA")
+	}
+	parsedCA, err := parseCA(ctx, ca)
+	if err != nil {
+		return trace.Wrap(err, "parse CA")
+	}
+
+	// Read existing CA override.
+	var parsedExisting *subca.ParsedCertAuthorityOverride
+	if mode != writeCreate {
+		id := local.CertAuthorityOverrideIDFromResource(parsedNew.CAOverride)
+		existingOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
+		switch {
+		case mode == writeUpsert && err != nil && trace.IsNotFound(err):
+			// OK, new resource. Let parsedExisting be nil.
+		case err != nil:
+			return trace.Wrap(err, "read existing override")
+		case mode == writeUpdate && parsedNew.CAOverride.Metadata.Revision != existingOverride.Metadata.Revision:
+			// Don't bother continuing, doomed to fail.
+			return trace.Wrap(backend.ErrIncorrectRevision)
+		default:
+			parsedExisting, err = subca.ParseCAOverride(existingOverride)
+			if err != nil {
+				return trace.Wrap(err, "parse existing override")
+			}
+		}
+	}
+
+	// Prepare data for cross-validation.
+	correlatedData := correlateOverrides(parsedNew, parsedExisting)
+
+	// Note: We can't truly keep validation invariants on Upsert, as it could be
+	// racing and doing something ungainly (like disabling an enabled override).
+	// Either we follow Upsert invariants, or validation invariants. For
+	// consistency with the rest of the Teleport we choose the former.
+	//
+	// (We can't keep validation invariants against CAs either, as they can
+	// change independently from their overrides.)
+	return trace.Wrap(
+		validateCAOverrideAgainstSystemState(parsedCA, correlatedData),
+	)
+}
+
+// correlateOverrideData is created by comparing 2 versions of the same CA
+// override resource.
+//
+// See [correlateOverrides].
+type correlateOverrideData struct {
+	New     []*subca.ParsedCertificateOverride
+	Updated []*correlateOverrideCertificateData
+	Deleted []*subca.ParsedCertificateOverride
+}
+
+type correlateOverrideCertificateData struct {
+	*subca.ParsedCertificateOverride
+	// IsDisable is true if the existing override is considered disabled by the
+	// new.
+	IsDisable bool
+	// IsEnable is true if the existing override is considered enabled by the
+	// new.
+	IsEnable bool
+}
+
+func correlateOverrides(newCA, existingCA *subca.ParsedCertAuthorityOverride) *correlateOverrideData {
+	data := &correlateOverrideData{}
+
+	// OK, happens when creating new resources. This means all overrides are New.
+	if existingCA == nil {
+		data.New = newCA.CertificateOverrides
+		return data
+	}
+
+	// Discover New and Updated.
+	seenOverrides := make(map[string]struct{})
+	for _, overrideNew := range newCA.CertificateOverrides {
+		seenOverrides[overrideNew.PublicKey] = struct{}{}
+		found := false
+		for _, overrideExisting := range existingCA.CertificateOverrides {
+			if overrideNew.PublicKey == overrideExisting.PublicKey {
+				isDisable := !overrideExisting.CertificateOverride.Disabled &&
+					overrideNew.CertificateOverride.Disabled
+				isEnable := overrideExisting.CertificateOverride.Disabled &&
+					!overrideNew.CertificateOverride.Disabled
+				data.Updated = append(data.Updated, &correlateOverrideCertificateData{
+					ParsedCertificateOverride: overrideNew,
+					IsDisable:                 isDisable,
+					IsEnable:                  isEnable,
+				})
+				found = true
+				break
+			}
+		}
+		if !found {
+			data.New = append(data.New, overrideNew)
+		}
+	}
+
+	// Discover Deleted.
+	for _, overrideExisting := range existingCA.CertificateOverrides {
+		if _, ok := seenOverrides[overrideExisting.PublicKey]; !ok {
+			data.Deleted = append(data.Deleted, overrideExisting)
+		}
+	}
+
+	return data
+}
+
+// Validate the CA override against the CA resource, per rules below:
+//
+//  1. Override certificates may not expire after the self-signed CA
+//     certificate.
+//  2. New certificate overrides must target known CA certificates.
+//  3. Disables are only allowed if a) forced or b) the override doesn't target
+//     a known active certificate. This is true for both Updates and Deletes.
+//  4. Existing certificate overrides may be interacted with, regardless of
+//     matching an existing CA certificate. CAs may change independently of
+//     their overrides. If that happens the user should still be able to
+//     interact with the now-obsolete override.
+//  5. Existing certificate overrides cannot be enabled if they target an
+//     unknown CA certificate. This is special case of (4).
+func validateCAOverrideAgainstSystemState(
+	parsedCA *parsedCA,
+	correlatedData *correlateOverrideData,
+) error {
+	validateTargetAndBounds := func(co *subca.ParsedCertificateOverride, allowUnknown bool) error {
+		c1, ok1 := parsedCA.ActiveKeyHashes[co.PublicKey]
+		c2, ok2 := parsedCA.AdditionalKeyHashes[co.PublicKey]
+		var caCert *x509.Certificate
+		switch {
+		case ok1:
+			caCert = c1
+		case ok2:
+			caCert = c2
+		case allowUnknown:
+			return nil // OK.
+		default:
+			return trace.BadParameter("certificate override %q targets unknown CA certificate", co.PublicKey)
+		}
+
+		if co.Certificate != nil && co.Certificate.NotAfter.After(caCert.NotAfter) {
+			return trace.BadParameter(
+				"certificate override %q expires after self-signed CA certificate, that is not allowed: %v > %v",
+				co.PublicKey,
+				co.Certificate.NotAfter,
+				caCert.NotAfter,
+			)
+		}
+		return nil
+	}
+
+	for _, co := range correlatedData.New {
+		// Validate bounds (1) and known target (2).
+		const allowUnknown = false
+		if err := validateTargetAndBounds(co, allowUnknown); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	for _, co := range correlatedData.Updated {
+		// Validate bounds (1), allow unknown (4) if not enabling (5).
+		allowUnknown := !co.IsEnable
+		if err := validateTargetAndBounds(co.ParsedCertificateOverride, allowUnknown); err != nil {
+			return trace.Wrap(err)
+		}
+		// Validate disable (3).
+		if !co.IsDisable {
+			continue
+		}
+		if _, isActive := parsedCA.ActiveKeyHashes[co.PublicKey]; isActive {
+			return trace.BadParameter(
+				"Attempt to disable enabled override %q of active certificate denied. Retry with --force if you are certain.",
+				co.PublicKey,
+			)
+		}
+	}
+
+	for _, co := range correlatedData.Deleted {
+		// Validate disable (3).
+		if co.CertificateOverride.Disabled {
+			continue
+		}
+		if _, isActive := parsedCA.ActiveKeyHashes[co.PublicKey]; isActive {
+			return trace.BadParameter(
+				"Attempt to delete enabled override %q of active certificate denied. Retry with --force if you are certain.",
+				co.PublicKey,
+			)
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) GetCertAuthorityOverride(
@@ -544,17 +769,24 @@ func (s *Service) DeleteCertAuthorityOverride(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(codingllama): Validate against enabled overrides of the existing CA
-	//  override resource.
-
 	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "read cluster name")
 	}
+
 	id := local.CertAuthorityOverrideID{
 		ClusterName: cn.GetClusterName(),
 		CAType:      req.CaId.CaType,
 	}
+
+	// Skip disable validation on forced deletes.
+	// Disables are always allowed if forced.
+	if !req.ForceImmediateDelete {
+		if err := s.performDeleteLateralValidation(ctx, id); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if err := s.subCA.DeleteCertAuthorityOverride(ctx, id); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -577,6 +809,43 @@ func (s *Service) DeleteCertAuthorityOverride(
 	)
 
 	return &subcav1.DeleteCertAuthorityOverrideResponse{}, nil
+}
+
+// Delete lateral validation checks the to-be-deleted CA override against its
+// sibling CA resource and existing CA override, making sure enabled and active
+// overrides aren't being deleted.
+func (s *Service) performDeleteLateralValidation(ctx context.Context, id local.CertAuthorityOverrideID) error {
+	// Read CA.
+	const loadKeys = false
+	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.CertAuthType(id.CAType),
+		DomainName: id.ClusterName,
+	}, loadKeys)
+	if err != nil {
+		return trace.Wrap(err, "read CA")
+	}
+	parsedCA, err := parseCA(ctx, ca)
+	if err != nil {
+		return trace.Wrap(err, "parse CA")
+	}
+
+	// Read existing CA override.
+	caOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
+	if err != nil {
+		return trace.Wrap(err, "read CA override")
+	}
+	parsedCAO, err := subca.ParseCAOverride(caOverride)
+	if err != nil {
+		return trace.Wrap(err, "parse CA override")
+	}
+	correlatedData := &correlateOverrideData{
+		Deleted: parsedCAO.CertificateOverrides, // all about to be deleted
+	}
+
+	// Validate disables.
+	return trace.Wrap(
+		validateCAOverrideAgainstSystemState(parsedCA, correlatedData),
+	)
 }
 
 type adminActionMode int
