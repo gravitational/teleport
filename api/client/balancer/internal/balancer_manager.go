@@ -44,7 +44,7 @@ func NewBalancerManager(ctx context.Context, b balancer.Balancer, callback func(
 	return bm
 }
 
-// BalancerManager manages the state of a [pickfirst.Balancer].
+// BalancerManager manages the state of a [balancer.Balancer].
 type BalancerManager struct {
 	b   balancer.Balancer
 	ctx context.Context
@@ -59,7 +59,7 @@ type BalancerManager struct {
 	log      *slog.Logger
 }
 
-// GetBalancer returns the underlying [pickfirst.Balancer].
+// GetBalancer returns the underlying [balancer.Balancer].
 func (m *BalancerManager) GetBalancer() balancer.Balancer {
 	return m.b
 }
