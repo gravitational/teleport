@@ -95,7 +95,7 @@ type Balancer struct {
 	// serializer ensures synchronization and ordering of balancer operations.
 	// This was preferred over a mutex to avoid potential issues with deadlocks
 	// and out-of-order events. The main culprit of this is the [balancer.UpdateClientConnState]
-	// which can trigger events which call back into this the [Balancer].
+	// which can trigger events which call back into [Balancer.updateHandlerSerial].
 	serializer *internal.CallbackSerializer
 
 	// All the fields below must be access within the serializer.
