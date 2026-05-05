@@ -392,7 +392,7 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 		awsconfig.WithCredentialsProvider(cred),
 		awsconfig.WithCredentialsCacheOptions(awsCredentialsCacheOptions),
 	}
-	if modules.GetModules().IsBoringBinary() {
+	if modules.GetModules().IsFIPSBuild() {
 		configOpts = append(configOpts, awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
 	if opts.customRetryer != nil {

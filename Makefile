@@ -288,6 +288,7 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
+export
 # This unexport statement is required for make to work with the `-e` flag.
 # With -e, the first Makefile sets HELMJANITOR=$$(go tool ...),
 # passes HELMJANITOR=$(go tool) to the child make process.
@@ -484,6 +485,7 @@ tctl-app:
 .PHONY: test-bpf
 test-bpf:
 	mkdir -p _test
+	gcc ./lib/srv/testdata/bpf_rodata_args.c -o _test/bpf_rodata_args
 	go test -c -tags bpf,pam -o _test/libsrv.test ./lib/srv
 
 	# ignore non bpf-related tests
