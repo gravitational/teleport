@@ -235,6 +235,7 @@ func (env *Env) NewDisabledCertificateOverride(
 			Subject: pkix.Name{
 				Organization: cert.Subject.Organization, // ClusterName.
 			},
+			NotAfter: cert.NotAfter, // Cannot expire after the CA certificate.
 		},
 	})
 	require.NoError(t, err)

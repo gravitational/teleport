@@ -51,7 +51,7 @@ type ScopedCommand struct {
 
 // Initialize allows ScopedCommand to plug itself into the CLI parser
 func (c *ScopedCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
-	scoped := app.Command("scoped", "Run a subcommand using scoped auth").Alias("scopes")
+	scoped := app.Command("scoped", "Run a subcommand using scoped auth.").Alias("scopes")
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
@@ -84,7 +84,7 @@ type scopedStatusCommand struct {
 
 func (c *scopedStatusCommand) initialize(parent *kingpin.CmdClause, stdout io.Writer) {
 	c.stdout = stdout
-	c.cmd = parent.Command("status", "Show the status of scoped resources")
+	c.cmd = parent.Command("status", "Show the status of scoped resources.")
 }
 
 func (c *scopedStatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {

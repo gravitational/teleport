@@ -204,6 +204,13 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		return trace.AccessDenied("access denied")
 	}
 
+	// TODO(greedy52) add browser support by validating the subject token
+	// against the outer mTLS identity
+	if IsHTTPSTunnelConn(r) {
+		h.logger.DebugContext(r.Context(), "Browser access through the HTTPS tunnel is not supported", "user", ws.GetUser())
+		return trace.AccessDenied("access denied")
+	}
+
 	// Set the "Set-Cookie" header on the response.
 	// Set Same-Site policy for the session cookies to None in order to
 	// support redirects that identity providers do during SSO auth.

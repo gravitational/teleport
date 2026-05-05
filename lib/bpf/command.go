@@ -83,7 +83,7 @@ func startExec(bufferSize int) (*exec, error) {
 
 	toClose := make([]io.Closer, 0)
 
-	tracePoints := []struct {
+	tps := []struct {
 		name       string
 		tracepoint *ebpf.Program
 	}{
@@ -104,8 +104,7 @@ func startExec(bufferSize int) (*exec, error) {
 			tracepoint: objs.TracepointSyscallsSysExitExecveat,
 		},
 	}
-
-	for _, tp := range tracePoints {
+	for _, tp := range tps {
 		tp, err := link.Tracepoint("syscalls", tp.name, tp.tracepoint, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -113,6 +112,15 @@ func startExec(bufferSize int) (*exec, error) {
 
 		toClose = append(toClose, tp)
 	}
+
+	lk, err := link.AttachTracing(link.TracingOptions{
+		Program:    objs.BprmExecveExit,
+		AttachType: ebpf.AttachTraceFExit,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	toClose = append(toClose, lk)
 
 	eventBuf, err := ringbuf.NewReader(objs.ExecveEvents)
 	if err != nil {

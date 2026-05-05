@@ -5297,7 +5297,7 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // isFIPS returns if the binary was built with a FIPS validated
 // module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
-	return modules.GetModules().IsBoringBinary()
+	return modules.GetModules().IsFIPSBuild()
 }
 
 func findActiveDatabases(keyRing *KeyRing) ([]tlsca.RouteToDatabase, error) {

@@ -2454,6 +2454,35 @@ type RawDiskEvent<T extends EventCode> = RawEvent<
   }
 >;
 
+// EventResourceId mirrors the JSON encoding of events.ResourceID.
+type EventResourceId = {
+  cluster: string;
+  kind: string;
+  name: string;
+  sub_resource?: string;
+};
+
+// EventResourceConstraints mirrors the JSON encoding of the oneof constraints
+// field in events.ResourceAccessID. Exactly one variant will be present.
+type EventResourceConstraints = {
+  unknown_constraints?: Record<string, never>;
+  aws_console?: {
+    role_arns_count: number;
+    role_arns_preview?: string[];
+  };
+  ssh?: {
+    logins_count: string[];
+    logins_preview?: string[];
+  };
+};
+
+// EventResourceAccessId mirrors the JSON encoding of events.ResourceAccessId.
+type EventResourceAccessId = {
+  id: EventResourceId;
+  // constraints is the JSON key produced by the Go oneof field encoding.
+  constraints?: EventResourceConstraints;
+};
+
 type RawEventAccess<T extends EventCode> = RawEvent<
   T,
   {
@@ -2462,6 +2491,7 @@ type RawEventAccess<T extends EventCode> = RawEvent<
     roles: string[];
     state: string;
     reviewer: string;
+    RequestedResourceAccessIDs?: EventResourceAccessId[];
   }
 >;
 
