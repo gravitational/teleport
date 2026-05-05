@@ -462,6 +462,7 @@ type ResolveFQDNResponse struct {
 	//	*ResolveFQDNResponse_MatchedTcpApp
 	//	*ResolveFQDNResponse_MatchedWebApp
 	//	*ResolveFQDNResponse_MatchedCluster
+	//	*ResolveFQDNResponse_MatchedDatabase
 	//	*ResolveFQDNResponse_MatchedHttpsTunnelApp
 	Match         isResolveFQDNResponse_Match `protobuf_oneof:"match"`
 	unknownFields protoimpl.UnknownFields
@@ -532,6 +533,15 @@ func (x *ResolveFQDNResponse) GetMatchedCluster() *MatchedCluster {
 	return nil
 }
 
+func (x *ResolveFQDNResponse) GetMatchedDatabase() *MatchedDatabase {
+	if x != nil {
+		if x, ok := x.Match.(*ResolveFQDNResponse_MatchedDatabase); ok {
+			return x.MatchedDatabase
+		}
+	}
+	return nil
+}
+
 func (x *ResolveFQDNResponse) GetMatchedHttpsTunnelApp() *MatchedHTTPSTunnelApp {
 	if x != nil {
 		if x, ok := x.Match.(*ResolveFQDNResponse_MatchedHttpsTunnelApp); ok {
@@ -562,10 +572,15 @@ type ResolveFQDNResponse_MatchedCluster struct {
 	MatchedCluster *MatchedCluster `protobuf:"bytes,3,opt,name=matched_cluster,json=matchedCluster,proto3,oneof"`
 }
 
+type ResolveFQDNResponse_MatchedDatabase struct {
+	// MatchedDatabase will be set when the query matched a database resource.
+	MatchedDatabase *MatchedDatabase `protobuf:"bytes,4,opt,name=matched_database,json=matchedDatabase,proto3,oneof"`
+}
+
 type ResolveFQDNResponse_MatchedHttpsTunnelApp struct {
 	// MatchedHTTPSTunnelApp will be set when the query matched an HTTP or LLM
 	// app that should be tunneled via the HTTPS-in-mTLS ALPN protocol.
-	MatchedHttpsTunnelApp *MatchedHTTPSTunnelApp `protobuf:"bytes,4,opt,name=matched_https_tunnel_app,json=matchedHttpsTunnelApp,proto3,oneof"`
+	MatchedHttpsTunnelApp *MatchedHTTPSTunnelApp `protobuf:"bytes,5,opt,name=matched_https_tunnel_app,json=matchedHttpsTunnelApp,proto3,oneof"`
 }
 
 func (*ResolveFQDNResponse_MatchedTcpApp) isResolveFQDNResponse_Match() {}
@@ -573,6 +588,8 @@ func (*ResolveFQDNResponse_MatchedTcpApp) isResolveFQDNResponse_Match() {}
 func (*ResolveFQDNResponse_MatchedWebApp) isResolveFQDNResponse_Match() {}
 
 func (*ResolveFQDNResponse_MatchedCluster) isResolveFQDNResponse_Match() {}
+
+func (*ResolveFQDNResponse_MatchedDatabase) isResolveFQDNResponse_Match() {}
 
 func (*ResolveFQDNResponse_MatchedHttpsTunnelApp) isResolveFQDNResponse_Match() {}
 
@@ -2184,6 +2201,483 @@ func (x *ExchangeSSHKeysResponse) GetUserPublicKey() []byte {
 	return nil
 }
 
+// MatchedDatabase holds info about a database that matched a query.
+type MatchedDatabase struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DatabaseInfo holds all necessary info for making connections to the resolved database.
+	DatabaseInfo  *DatabaseInfo `protobuf:"bytes,1,opt,name=database_info,json=databaseInfo,proto3" json:"database_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchedDatabase) Reset() {
+	*x = MatchedDatabase{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchedDatabase) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchedDatabase) ProtoMessage() {}
+
+func (x *MatchedDatabase) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchedDatabase.ProtoReflect.Descriptor instead.
+func (*MatchedDatabase) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *MatchedDatabase) GetDatabaseInfo() *DatabaseInfo {
+	if x != nil {
+		return x.DatabaseInfo
+	}
+	return nil
+}
+
+// DatabaseInfo holds all necessary info for making connections to VNet databases.
+type DatabaseInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DatabaseKey uniquely identifies a database.
+	DatabaseKey *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
+	// Cluster is the name of the cluster in which the database is found.
+	// Iff the database is in a leaf cluster, this will match database_key.leaf_cluster.
+	Cluster string `protobuf:"bytes,2,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	// Protocol is the database wire protocol (e.g. "postgres", "mysql").
+	Protocol string `protobuf:"bytes,3,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+	// assigned to the database.
+	Ipv4CidrRange string `protobuf:"bytes,4,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
+	// DialOptions holds options that should be used when dialing the root cluster
+	// of the database.
+	DialOptions   *DialOptions `protobuf:"bytes,5,opt,name=dial_options,json=dialOptions,proto3" json:"dial_options,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseInfo) Reset() {
+	*x = DatabaseInfo{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseInfo) ProtoMessage() {}
+
+func (x *DatabaseInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseInfo.ProtoReflect.Descriptor instead.
+func (*DatabaseInfo) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *DatabaseInfo) GetDatabaseKey() *DatabaseKey {
+	if x != nil {
+		return x.DatabaseKey
+	}
+	return nil
+}
+
+func (x *DatabaseInfo) GetCluster() string {
+	if x != nil {
+		return x.Cluster
+	}
+	return ""
+}
+
+func (x *DatabaseInfo) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *DatabaseInfo) GetIpv4CidrRange() string {
+	if x != nil {
+		return x.Ipv4CidrRange
+	}
+	return ""
+}
+
+func (x *DatabaseInfo) GetDialOptions() *DialOptions {
+	if x != nil {
+		return x.DialOptions
+	}
+	return nil
+}
+
+// DatabaseKey uniquely identifies a database in a specific profile and cluster.
+type DatabaseKey struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Profile is the profile in which the database is found.
+	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	// LeafCluster is the leaf cluster in which the database is found. If empty,
+	// the database is in the root cluster for the profile.
+	LeafCluster string `protobuf:"bytes,2,opt,name=leaf_cluster,json=leafCluster,proto3" json:"leaf_cluster,omitempty"`
+	// Name is the name of the database resource.
+	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseKey) Reset() {
+	*x = DatabaseKey{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseKey) ProtoMessage() {}
+
+func (x *DatabaseKey) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseKey.ProtoReflect.Descriptor instead.
+func (*DatabaseKey) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *DatabaseKey) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *DatabaseKey) GetLeafCluster() string {
+	if x != nil {
+		return x.LeafCluster
+	}
+	return ""
+}
+
+func (x *DatabaseKey) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// ReissueDBCertRequest is a request for ReissueDBCert.
+type ReissueDBCertRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DatabaseInfo contains info about the database, every ReissueDBCertRequest
+	// must include a database_info as returned from ResolveFQDN.
+	DatabaseInfo  *DatabaseInfo `protobuf:"bytes,1,opt,name=database_info,json=databaseInfo,proto3" json:"database_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReissueDBCertRequest) Reset() {
+	*x = ReissueDBCertRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReissueDBCertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReissueDBCertRequest) ProtoMessage() {}
+
+func (x *ReissueDBCertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReissueDBCertRequest.ProtoReflect.Descriptor instead.
+func (*ReissueDBCertRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ReissueDBCertRequest) GetDatabaseInfo() *DatabaseInfo {
+	if x != nil {
+		return x.DatabaseInfo
+	}
+	return nil
+}
+
+// ReissueDBCertResponse is a response for ReissueDBCert.
+type ReissueDBCertResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Cert is the issued database certificate in x509 DER format.
+	Cert          []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReissueDBCertResponse) Reset() {
+	*x = ReissueDBCertResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReissueDBCertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReissueDBCertResponse) ProtoMessage() {}
+
+func (x *ReissueDBCertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReissueDBCertResponse.ProtoReflect.Descriptor instead.
+func (*ReissueDBCertResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *ReissueDBCertResponse) GetCert() []byte {
+	if x != nil {
+		return x.Cert
+	}
+	return nil
+}
+
+// SignForDBRequest is a request to sign data with a private key that the
+// server has cached for the database_key. The database_key must match a
+// previous successful call to ReissueDBCert. The private key used for the
+// signature will match the subject public key of the issued x509 certificate.
+type SignForDBRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DatabaseKey uniquely identifies a database, it must match the key of a
+	// database from a previous successful call to ReissueDBCert.
+	DatabaseKey *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
+	// Sign holds signature request details.
+	Sign          *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignForDBRequest) Reset() {
+	*x = SignForDBRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignForDBRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignForDBRequest) ProtoMessage() {}
+
+func (x *SignForDBRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignForDBRequest.ProtoReflect.Descriptor instead.
+func (*SignForDBRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *SignForDBRequest) GetDatabaseKey() *DatabaseKey {
+	if x != nil {
+		return x.DatabaseKey
+	}
+	return nil
+}
+
+func (x *SignForDBRequest) GetSign() *SignRequest {
+	if x != nil {
+		return x.Sign
+	}
+	return nil
+}
+
+// SignForDBResponse is a response for SignForDB.
+type SignForDBResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Signature is the signature.
+	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignForDBResponse) Reset() {
+	*x = SignForDBResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignForDBResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignForDBResponse) ProtoMessage() {}
+
+func (x *SignForDBResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignForDBResponse.ProtoReflect.Descriptor instead.
+func (*SignForDBResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *SignForDBResponse) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+// OnNewDBConnectionRequest is a request for OnNewDBConnection.
+type OnNewDBConnectionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DatabaseKey identifies the database the connection is being made for.
+	DatabaseKey   *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OnNewDBConnectionRequest) Reset() {
+	*x = OnNewDBConnectionRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OnNewDBConnectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OnNewDBConnectionRequest) ProtoMessage() {}
+
+func (x *OnNewDBConnectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OnNewDBConnectionRequest.ProtoReflect.Descriptor instead.
+func (*OnNewDBConnectionRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *OnNewDBConnectionRequest) GetDatabaseKey() *DatabaseKey {
+	if x != nil {
+		return x.DatabaseKey
+	}
+	return nil
+}
+
+// OnNewDBConnectionResponse is a response for OnNewDBConnection.
+type OnNewDBConnectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OnNewDBConnectionResponse) Reset() {
+	*x = OnNewDBConnectionResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OnNewDBConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OnNewDBConnectionResponse) ProtoMessage() {}
+
+func (x *OnNewDBConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OnNewDBConnectionResponse.ProtoReflect.Descriptor instead.
+func (*OnNewDBConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{46}
+}
+
 var File_teleport_lib_vnet_v1_client_application_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
@@ -2204,12 +2698,13 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\vPingRequest\"\x0e\n" +
 	"\fPingResponse\"(\n" +
 	"\x12ResolveFQDNRequest\x12\x12\n" +
-	"\x04fqdn\x18\x01 \x01(\tR\x04fqdn\"\xf5\x02\n" +
+	"\x04fqdn\x18\x01 \x01(\tR\x04fqdn\"\xc9\x03\n" +
 	"\x13ResolveFQDNResponse\x12M\n" +
 	"\x0fmatched_tcp_app\x18\x01 \x01(\v2#.teleport.lib.vnet.v1.MatchedTCPAppH\x00R\rmatchedTcpApp\x12M\n" +
 	"\x0fmatched_web_app\x18\x02 \x01(\v2#.teleport.lib.vnet.v1.MatchedWebAppH\x00R\rmatchedWebApp\x12O\n" +
-	"\x0fmatched_cluster\x18\x03 \x01(\v2$.teleport.lib.vnet.v1.MatchedClusterH\x00R\x0ematchedCluster\x12f\n" +
-	"\x18matched_https_tunnel_app\x18\x04 \x01(\v2+.teleport.lib.vnet.v1.MatchedHTTPSTunnelAppH\x00R\x15matchedHttpsTunnelAppB\a\n" +
+	"\x0fmatched_cluster\x18\x03 \x01(\v2$.teleport.lib.vnet.v1.MatchedClusterH\x00R\x0ematchedCluster\x12R\n" +
+	"\x10matched_database\x18\x04 \x01(\v2%.teleport.lib.vnet.v1.MatchedDatabaseH\x00R\x0fmatchedDatabase\x12f\n" +
+	"\x18matched_https_tunnel_app\x18\x05 \x01(\v2+.teleport.lib.vnet.v1.MatchedHTTPSTunnelAppH\x00R\x15matchedHttpsTunnelAppB\a\n" +
 	"\x05match\"I\n" +
 	"\rMatchedTCPApp\x128\n" +
 	"\bapp_info\x18\x01 \x01(\v2\x1d.teleport.lib.vnet.v1.AppInfoR\aappInfo\"\x0f\n" +
@@ -2301,11 +2796,35 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x16ExchangeSSHKeysRequest\x12&\n" +
 	"\x0fhost_public_key\x18\x01 \x01(\fR\rhostPublicKey\"A\n" +
 	"\x17ExchangeSSHKeysResponse\x12&\n" +
-	"\x0fuser_public_key\x18\x01 \x01(\fR\ruserPublicKey*<\n" +
+	"\x0fuser_public_key\x18\x01 \x01(\fR\ruserPublicKey\"Z\n" +
+	"\x0fMatchedDatabase\x12G\n" +
+	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"\xf8\x01\n" +
+	"\fDatabaseInfo\x12D\n" +
+	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x12\x18\n" +
+	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1a\n" +
+	"\bprotocol\x18\x03 \x01(\tR\bprotocol\x12&\n" +
+	"\x0fipv4_cidr_range\x18\x04 \x01(\tR\ripv4CidrRange\x12D\n" +
+	"\fdial_options\x18\x05 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"^\n" +
+	"\vDatabaseKey\x12\x18\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
+	"\fleaf_cluster\x18\x02 \x01(\tR\vleafCluster\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"_\n" +
+	"\x14ReissueDBCertRequest\x12G\n" +
+	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"+\n" +
+	"\x15ReissueDBCertResponse\x12\x12\n" +
+	"\x04cert\x18\x01 \x01(\fR\x04cert\"\x8f\x01\n" +
+	"\x10SignForDBRequest\x12D\n" +
+	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x125\n" +
+	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"1\n" +
+	"\x11SignForDBResponse\x12\x1c\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"`\n" +
+	"\x18OnNewDBConnectionRequest\x12D\n" +
+	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\"\x1b\n" +
+	"\x19OnNewDBConnectionResponse*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
-	"\vHASH_SHA256\x10\x022\xc5\f\n" +
+	"\vHASH_SHA256\x10\x022\x83\x0f\n" +
 	"\x18ClientApplicationService\x12z\n" +
 	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
 	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
@@ -2321,7 +2840,10 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x0eSignForUserTLS\x12+.teleport.lib.vnet.v1.SignForUserTLSRequest\x1a,.teleport.lib.vnet.v1.SignForUserTLSResponse\x12q\n" +
 	"\x10SessionSSHConfig\x12-.teleport.lib.vnet.v1.SessionSSHConfigRequest\x1a..teleport.lib.vnet.v1.SessionSSHConfigResponse\x12t\n" +
 	"\x11SignForSSHSession\x12..teleport.lib.vnet.v1.SignForSSHSessionRequest\x1a/.teleport.lib.vnet.v1.SignForSSHSessionResponse\x12n\n" +
-	"\x0fExchangeSSHKeys\x12,.teleport.lib.vnet.v1.ExchangeSSHKeysRequest\x1a-.teleport.lib.vnet.v1.ExchangeSSHKeysResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
+	"\x0fExchangeSSHKeys\x12,.teleport.lib.vnet.v1.ExchangeSSHKeysRequest\x1a-.teleport.lib.vnet.v1.ExchangeSSHKeysResponse\x12h\n" +
+	"\rReissueDBCert\x12*.teleport.lib.vnet.v1.ReissueDBCertRequest\x1a+.teleport.lib.vnet.v1.ReissueDBCertResponse\x12\\\n" +
+	"\tSignForDB\x12&.teleport.lib.vnet.v1.SignForDBRequest\x1a'.teleport.lib.vnet.v1.SignForDBResponse\x12t\n" +
+	"\x11OnNewDBConnection\x12..teleport.lib.vnet.v1.OnNewDBConnectionRequest\x1a/.teleport.lib.vnet.v1.OnNewDBConnectionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
 
 var (
 	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescOnce sync.Once
@@ -2336,7 +2858,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP() []
 }
 
 var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(Hash)(0),                                // 0: teleport.lib.vnet.v1.Hash
 	(*AuthenticateProcessRequest)(nil),       // 1: teleport.lib.vnet.v1.AuthenticateProcessRequest
@@ -2377,62 +2899,85 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(*SignForSSHSessionResponse)(nil),        // 36: teleport.lib.vnet.v1.SignForSSHSessionResponse
 	(*ExchangeSSHKeysRequest)(nil),           // 37: teleport.lib.vnet.v1.ExchangeSSHKeysRequest
 	(*ExchangeSSHKeysResponse)(nil),          // 38: teleport.lib.vnet.v1.ExchangeSSHKeysResponse
-	(*types.AppV3)(nil),                      // 39: types.AppV3
+	(*MatchedDatabase)(nil),                  // 39: teleport.lib.vnet.v1.MatchedDatabase
+	(*DatabaseInfo)(nil),                     // 40: teleport.lib.vnet.v1.DatabaseInfo
+	(*DatabaseKey)(nil),                      // 41: teleport.lib.vnet.v1.DatabaseKey
+	(*ReissueDBCertRequest)(nil),             // 42: teleport.lib.vnet.v1.ReissueDBCertRequest
+	(*ReissueDBCertResponse)(nil),            // 43: teleport.lib.vnet.v1.ReissueDBCertResponse
+	(*SignForDBRequest)(nil),                 // 44: teleport.lib.vnet.v1.SignForDBRequest
+	(*SignForDBResponse)(nil),                // 45: teleport.lib.vnet.v1.SignForDBResponse
+	(*OnNewDBConnectionRequest)(nil),         // 46: teleport.lib.vnet.v1.OnNewDBConnectionRequest
+	(*OnNewDBConnectionResponse)(nil),        // 47: teleport.lib.vnet.v1.OnNewDBConnectionResponse
+	(*types.AppV3)(nil),                      // 48: types.AppV3
 }
 var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32{
 	4,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
 	10, // 1: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_tcp_app:type_name -> teleport.lib.vnet.v1.MatchedTCPApp
 	11, // 2: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_web_app:type_name -> teleport.lib.vnet.v1.MatchedWebApp
 	13, // 3: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_cluster:type_name -> teleport.lib.vnet.v1.MatchedCluster
-	12, // 4: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_https_tunnel_app:type_name -> teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
-	14, // 5: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	14, // 6: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	15, // 7: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	39, // 8: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
-	16, // 9: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	14, // 10: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	15, // 11: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	20, // 12: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	0,  // 13: teleport.lib.vnet.v1.SignRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
-	15, // 14: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	14, // 15: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	28, // 16: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
-	16, // 17: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	20, // 18: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	20, // 19: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	1,  // 20: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
-	3,  // 21: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
-	6,  // 22: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
-	8,  // 23: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
-	17, // 24: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
-	19, // 25: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
-	22, // 26: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
-	24, // 27: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	26, // 28: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	29, // 29: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
-	31, // 30: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
-	33, // 31: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
-	35, // 32: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
-	37, // 33: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
-	2,  // 34: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
-	5,  // 35: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
-	7,  // 36: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
-	9,  // 37: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
-	18, // 38: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
-	21, // 39: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	23, // 40: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
-	25, // 41: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	27, // 42: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	30, // 43: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
-	32, // 44: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
-	34, // 45: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
-	36, // 46: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
-	38, // 47: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
-	34, // [34:48] is the sub-list for method output_type
-	20, // [20:34] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	39, // 4: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_database:type_name -> teleport.lib.vnet.v1.MatchedDatabase
+	12, // 5: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_https_tunnel_app:type_name -> teleport.lib.vnet.v1.MatchedHTTPSTunnelApp
+	14, // 6: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	14, // 7: teleport.lib.vnet.v1.MatchedHTTPSTunnelApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	15, // 8: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	48, // 9: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
+	16, // 10: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	14, // 11: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	15, // 12: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	20, // 13: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	0,  // 14: teleport.lib.vnet.v1.SignRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
+	15, // 15: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	14, // 16: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	28, // 17: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
+	16, // 18: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	20, // 19: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	20, // 20: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	40, // 21: teleport.lib.vnet.v1.MatchedDatabase.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
+	41, // 22: teleport.lib.vnet.v1.DatabaseInfo.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	16, // 23: teleport.lib.vnet.v1.DatabaseInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	40, // 24: teleport.lib.vnet.v1.ReissueDBCertRequest.database_info:type_name -> teleport.lib.vnet.v1.DatabaseInfo
+	41, // 25: teleport.lib.vnet.v1.SignForDBRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	20, // 26: teleport.lib.vnet.v1.SignForDBRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	41, // 27: teleport.lib.vnet.v1.OnNewDBConnectionRequest.database_key:type_name -> teleport.lib.vnet.v1.DatabaseKey
+	1,  // 28: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
+	3,  // 29: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	6,  // 30: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
+	8,  // 31: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
+	17, // 32: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
+	19, // 33: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
+	22, // 34: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
+	24, // 35: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	26, // 36: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	29, // 37: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
+	31, // 38: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
+	33, // 39: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
+	35, // 40: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
+	37, // 41: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
+	42, // 42: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:input_type -> teleport.lib.vnet.v1.ReissueDBCertRequest
+	44, // 43: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:input_type -> teleport.lib.vnet.v1.SignForDBRequest
+	46, // 44: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:input_type -> teleport.lib.vnet.v1.OnNewDBConnectionRequest
+	2,  // 45: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
+	5,  // 46: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	7,  // 47: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
+	9,  // 48: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
+	18, // 49: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
+	21, // 50: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
+	23, // 51: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
+	25, // 52: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	27, // 53: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	30, // 54: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
+	32, // 55: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
+	34, // 56: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
+	36, // 57: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
+	38, // 58: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
+	43, // 59: teleport.lib.vnet.v1.ClientApplicationService.ReissueDBCert:output_type -> teleport.lib.vnet.v1.ReissueDBCertResponse
+	45, // 60: teleport.lib.vnet.v1.ClientApplicationService.SignForDB:output_type -> teleport.lib.vnet.v1.SignForDBResponse
+	47, // 61: teleport.lib.vnet.v1.ClientApplicationService.OnNewDBConnection:output_type -> teleport.lib.vnet.v1.OnNewDBConnectionResponse
+	45, // [45:62] is the sub-list for method output_type
+	28, // [28:45] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_v1_client_application_service_proto_init() }
@@ -2444,6 +2989,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 		(*ResolveFQDNResponse_MatchedTcpApp)(nil),
 		(*ResolveFQDNResponse_MatchedWebApp)(nil),
 		(*ResolveFQDNResponse_MatchedCluster)(nil),
+		(*ResolveFQDNResponse_MatchedDatabase)(nil),
 		(*ResolveFQDNResponse_MatchedHttpsTunnelApp)(nil),
 	}
 	file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[19].OneofWrappers = []any{}
@@ -2453,7 +2999,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   38,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
