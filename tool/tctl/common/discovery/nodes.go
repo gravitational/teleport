@@ -175,7 +175,8 @@ func (inst instanceInfo) userTaskTitle() string {
 		case cloudAWS:
 			title, _ = usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
 		case cloudAzure:
-			title, _ = usertasks.DescriptionForDiscoverAzureVMIssue(inst.UserTaskIssue)
+			// TODO(Tener): switch to usertasks.DescriptionForDiscoverAzureVMIssue once the respective v18 backport lands.
+			title, _ = usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
 		}
 	}
 	return cmp.Or(title, inst.UserTaskIssue)
