@@ -52,7 +52,7 @@ func SystemDUpstreamNameserverSource(log *slog.Logger) UpstreamNameserverSource 
 		for _, entry := range dns {
 			addr, ok := netip.AddrFromSlice(entry.Address)
 			if !ok {
-				slog.DebugContext(ctx, "Skipping invalid DNS server address", "address_bytes", entry.Address)
+				log.DebugContext(ctx, "Skipping invalid DNS server address", "address_bytes", entry.Address)
 				continue
 			}
 			if addr.IsUnspecified() || addr.IsLoopback() {
@@ -61,12 +61,12 @@ func SystemDUpstreamNameserverSource(log *slog.Logger) UpstreamNameserverSource 
 			// Link-local IPv6 addresses require a scope to be routable.
 			if addr.Is6() && addr.IsLinkLocalUnicast() {
 				if entry.InterfaceIndex == 0 {
-					slog.DebugContext(ctx, "Skipping link-local DNS server without interface index", "address", addr.String())
+					log.DebugContext(ctx, "Skipping link-local DNS server without interface index", "address", addr.String())
 					continue
 				}
 				iface, err := net.InterfaceByIndex(int(entry.InterfaceIndex))
 				if err != nil {
-					slog.DebugContext(ctx, "Skipping link-local DNS server with unknown interface", "address", addr.String(), "interface_index", entry.InterfaceIndex, "error", err)
+					log.DebugContext(ctx, "Skipping link-local DNS server with unknown interface", "address", addr.String(), "interface_index", entry.InterfaceIndex, "error", err)
 					continue
 				}
 				addr = addr.WithZone(iface.Name)
@@ -74,7 +74,7 @@ func SystemDUpstreamNameserverSource(log *slog.Logger) UpstreamNameserverSource 
 			nameservers = append(nameservers, AddrWithDNSPort(addr))
 		}
 
-		slog.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)
+		log.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)
 		return nameservers, nil
 	})
 }
