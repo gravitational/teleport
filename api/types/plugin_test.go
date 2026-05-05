@@ -1105,9 +1105,9 @@ func TestPluginEntraIDValidation(t *testing.T) {
 		{
 			name: "negative full sync interval",
 			mutateSettings: func(s *PluginSpecV1_EntraId) {
-				s.EntraId.SyncSettings.SyncIntervals.Delta = -1
+				s.EntraId.SyncSettings.SyncIntervals.Full = -1
 			},
-			assertErr: requireNamedBadParameterError("sync_settings.sync_intervals.delta cannot be a negative value"),
+			assertErr: requireNamedBadParameterError("sync_settings.sync_intervals.full cannot be a negative value"),
 		},
 		{
 			name: "zero interval values",
