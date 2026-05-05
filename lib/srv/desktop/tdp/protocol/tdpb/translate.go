@@ -74,10 +74,8 @@ func clampInt32ToInt16(val int32) int16 {
 	}
 }
 
-func clampInt64ToUint32(val int64) uint32 {
+func clampUint64ToUint32(val uint64) uint32 {
 	switch {
-	case val < 0:
-		return 0
 	case val > math.MaxUint32:
 		return math.MaxUint32
 	default:
@@ -215,7 +213,7 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
 				Path:         op.Truncate.Path,
-				EndOfFile:    clampInt64ToUint32(op.Truncate.Size),
+				EndOfFile:    clampUint64ToUint32(op.Truncate.Size),
 			}}, nil
 		default:
 			return nil, trace.BadParameter("Unknown shared directory operation")
@@ -563,7 +561,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
 				Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
 					Path: m.Path,
-					Size: int64(m.EndOfFile),
+					Size: uint64(m.EndOfFile),
 				},
 			},
 		}}, nil
