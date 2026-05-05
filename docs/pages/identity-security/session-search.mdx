@@ -14,7 +14,7 @@ enterprise: Identity Security
 Session Recording Search lets you find relevant session recordings by searching their
 summaries and session metadata. You can search with a natural
 language description, exact keywords, or filters such as user, role, resource,
-label, access request, session kind, time range, and severity.
+label, session kind, time range, and severity.
 
 Session Recording Search searches session summaries, not raw recording data. A
 recording appears in search results only after Teleport has generated a
@@ -214,7 +214,7 @@ Common filters include:
 | `--kind` | Session kind, such as `ssh`, `k8s`, or `db`. Can be repeated. |
 | `--username` | Teleport user who initiated the session. |
 | `--role` | Role held by the user during the session. Can be repeated. |
-| `--access-request` | Access request ID associated with the session. Can be repeated. |
+| `--access-request` | Access Request ID associated with the session. Can be repeated. |
 | `--resource-kind` | Teleport resource kind, such as `node`, `kube_cluster`, or `db`. |
 | `--resource-name` | Name of the accessed resource. |
 | `--label` | Resource labels in `key=value` form. |
