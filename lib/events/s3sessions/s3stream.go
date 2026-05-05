@@ -323,28 +323,30 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 	}
 
 	var continuationToken *string
+	metadataPath := path.Join(h.Path, "uploadMetadata")
 	for {
 		listObjResponse, err := h.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 			Bucket:            aws.String(h.Bucket),
-			Prefix:            aws.String(path.Join(h.Path, "uploadMetadata")),
+			Prefix:            aws.String(metadataPath),
 			ContinuationToken: continuationToken,
 		})
 		if err != nil {
-			// TODO log
+			h.logger.WarnContext(ctx, "unable to list upload metadata files", "path", metadataPath, "error", err)
 			break
 		}
 		for _, s3Object := range listObjResponse.Contents {
 			uploadID := path.Base(aws.ToString(s3Object.Key))
-			upload, err := h.readMetadata(ctx, uploadID)
-			if err != nil {
-				// TODO log
+			if !slices.ContainsFunc(uploads, func(u events.StreamUpload) bool {
+				return uploadID == u.ID
+			}) {
 				continue
 			}
-			if upload.Temporary && !slices.ContainsFunc(uploads, func(u events.StreamUpload) bool {
-				return upload.ID == u.ID
-			}) {
-				uploads = append(uploads, upload)
+			upload, err := h.readMetadata(ctx, uploadID)
+			if err != nil {
+				h.logger.WarnContext(ctx, "unable to read upload metadata", "upload_id", uploadID, "error", err)
+				continue
 			}
+			uploads = append(uploads, upload)
 		}
 	}
 
