@@ -82,7 +82,7 @@ func (s *SessionService) CreateDelegationSession(
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:    uuid.NewString(),
-			Expires: timestamppb.New(time.Now().Add(req.GetTtl().AsDuration())),
+			Expires: timestamppb.New(time.Now().Add(ttl)),
 		},
 		Spec: req.GetSpec(),
 	}
