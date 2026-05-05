@@ -48,8 +48,8 @@ func (s *BeamsService) CreateBeam(ctx context.Context, req *beamsv1.CreateBeamRe
 	}
 
 	// Create the initial beam record before calling the compute service, so
-	// that if a subsequent step fails, we've got a record of the beam and can
-	// clean it up later.
+	// that if a subsequent step fails, we've got a record of the beam and the
+	// garbage collector can clean it up later.
 	var (
 		beam      *beamsv1.Beam
 		regSecret string

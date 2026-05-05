@@ -623,6 +623,19 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 				return trace.Wrap(err, "creating beams service")
 			}
 			beamsv1pb.RegisterBeamServiceServer(gRPCServer, srv)
+
+			gc, err := beamsv1.NewGarbageCollector(beamsv1.GarbageCollectorConfig{
+				Cache:       p.authServer.AuthServer,
+				Backend:     p.authServer.AuthServer.Services,
+				BeamService: srv,
+				Semaphores:  p.authServer.AuthServer,
+				HostID:      p.authServer.AuthServer.ServerID,
+				Logger:      logger.With(teleport.ComponentTeleport, "beams-garbage-collector"),
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating beams garbage collector")
+			}
+			go gc.Run(ctx)
 		}
 	}
 

@@ -42,7 +42,7 @@ func (s *BeamsService) DeleteBeam(ctx context.Context, req *beamsv1.DeleteBeamRe
 	// something goes wrong.
 	if err := s.destroyBeamCompute(ctx, req.GetName()); err != nil {
 		logger.ErrorContext(ctx, "Failed to deprovision beam compute", "error", err)
-		return nil, trace.Errorf("failed to deprovision beam compute")
+		return nil, trace.Wrap(err)
 	}
 
 	if err := s.deleteBeam(ctx, beam); err != nil {
@@ -61,7 +61,7 @@ func (s *BeamsService) destroyBeamCompute(ctx context.Context, beamID string) er
 	case codes.OK, codes.NotFound:
 		return nil
 	default:
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to deprovision beam compute")
 	}
 }
 
