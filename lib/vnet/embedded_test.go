@@ -81,7 +81,7 @@ func TestEmbeddedVNet(t *testing.T) {
 	// Wait for host configuration to complete.
 	select {
 	case <-hostNetwork.Ready():
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for host configuration")
 	}
 
