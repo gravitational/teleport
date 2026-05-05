@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -38,7 +39,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	apiproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -88,6 +93,8 @@ type issuerCache interface {
 	GetProxies() ([]types.Server, error)
 	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error)
+	ListResources(ctx context.Context, req apiproto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
@@ -118,7 +125,8 @@ type IssuanceService struct {
 	overrideGetter             services.WorkloadIdentityX509CAOverrideGetter
 	getSigstorePolicyEvaluator func() SigstorePolicyEvaluator
 
-	clusterName string
+	clusterName         string
+	internalTrustDomain spiffeid.TrustDomain
 }
 
 // NewIssuanceService returns a new instance of the IssuanceService.
@@ -134,11 +142,15 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("key store is required")
 	case cfg.OverrideGetter == nil:
 		return nil, trace.BadParameter("override getter is required")
-
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
 	case cfg.GetSigstorePolicyEvaluator == nil:
 		return nil, trace.BadParameter("sigstore policy evaluator is required")
+	}
+
+	td, err := spiffeid.TrustDomainFromString("_teleport." + cfg.ClusterName)
+	if err != nil {
+		return nil, trace.BadParameter("unable to generate internal trust domain: %v", err)
 	}
 
 	if cfg.Logger == nil {
@@ -157,7 +169,8 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		overrideGetter:             cfg.OverrideGetter,
 		getSigstorePolicyEvaluator: cfg.GetSigstorePolicyEvaluator,
 
-		clusterName: cfg.ClusterName,
+		clusterName:         cfg.ClusterName,
+		internalTrustDomain: td,
 	}, nil
 }
 
@@ -409,6 +422,199 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
 		Credentials: creds,
 	}, nil
+}
+
+func (s *IssuanceService) IssueTeleportWorkloadIdentity(
+	ctx context.Context,
+	req *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest,
+) (*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	builtin, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok {
+		return nil, trace.AccessDenied("this rpc can only be used by Teleport services")
+	}
+
+	switch usage := req.Usage.(type) {
+	case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess:
+		if !authz.HasBuiltinRole(*authCtx, string(types.RoleApp)) {
+			return nil, trace.AccessDenied("only app service can issue workload identity for app access")
+		}
+		switch credParams := req.Credential.(type) {
+		case *workloadidentityv1.IssueTeleportWorkloadIdentityRequest_X509SvidParams:
+			return s.issueAppAccessWorkloadIdentity(ctx, builtin.GetServerID(), req, usage.AppAccess, credParams)
+		default:
+			return nil, trace.BadParameter("app access usage only supports issuing x509 credentials")
+		}
+	default:
+		return nil, trace.BadParameter("invalid identity usage")
+	}
+}
+
+func (s *IssuanceService) issueAppAccessWorkloadIdentity(
+	ctx context.Context,
+	hostID string,
+	req *workloadidentityv1.IssueTeleportWorkloadIdentityRequest,
+	appUsage *workloadidentityv1.AppAccessUsage,
+	credParams *workloadidentityv1.IssueTeleportWorkloadIdentityRequest_X509SvidParams,
+) (*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, error) {
+	userIdentity, err := s.userIdentityFromCert(ctx, appUsage.GetUserCertificate())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	route, err := userIdentity.GetRouteToApp()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	app, err := s.getAppFromPublicAddr(ctx, hostID, route.PublicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pubKey, err := x509.ParsePKIXPublicKey(credParams.X509SvidParams.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing public key")
+	}
+
+	const loadKeysTrue = true
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.AppClientCA,
+		DomainName: s.clusterName,
+	}, loadKeysTrue)
+
+	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting CA cert and key")
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certSerial, err := generateCertSerial()
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certificate serial")
+	}
+	serialString := serialString(certSerial)
+
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		req.RequestedTtl.AsDuration(),
+		time.Hour, // TODO
+	)
+
+	spiffeID := generateAppAccessID(s.internalTrustDomain, app.GetName())
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		x509Template(
+			certSerial,
+			notBefore,
+			notAfter,
+			spiffeID,
+			nil, /* dnsSANs */
+			&workloadidentityv1pb.X509DistinguishedNameTemplate{
+				CommonName: userIdentity.Username,
+			},
+		),
+		tlsCA.Cert,
+		pubKey,
+		tlsCA.Signer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse{
+		Credential: &workloadidentityv1pb.Credential{
+			SpiffeId: spiffeID.String(),
+
+			ExpiresAt: timestamppb.New(notAfter),
+			Ttl:       durationpb.New(ttl),
+
+			Credential: &workloadidentityv1pb.Credential_X509Svid{
+				X509Svid: &workloadidentityv1pb.X509SVIDCredential{
+					Cert:         certBytes,
+					SerialNumber: serialString,
+					// TODO
+					// Chain:        chain,
+				},
+			},
+		},
+	}, nil
+}
+
+func generateAppAccessID(td spiffeid.TrustDomain, appName string) spiffeid.ID {
+	id, _ := spiffeid.FromSegments(td, "app", appName)
+	return id
+}
+
+// userIdentityFromCert validates the certificate was issued by HostCA and
+// extracts the identity.
+func (s *IssuanceService) userIdentityFromCert(ctx context.Context, rawCert []byte) (*tlsca.Identity, error) {
+	cert, err := x509.ParseCertificate(rawCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: s.clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roots := x509.NewCertPool()
+	for _, key := range ca.GetActiveKeys().TLS {
+		if ok := roots.AppendCertsFromPEM(key.Cert); !ok {
+			return nil, trace.BadParameter("")
+		}
+	}
+
+	if _, err := cert.Verify(x509.VerifyOptions{
+		Roots:       roots,
+		CurrentTime: s.clock.Now(),
+		KeyUsages: []x509.ExtKeyUsage{
+			// Extensions added by tlsca.
+			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	return userIdentity, trace.Wrap(err)
+}
+
+func (s *IssuanceService) getAppFromPublicAddr(ctx context.Context, hostID string, publicAddr string) (types.Application, error) {
+	resp, err := s.cache.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == %q`, publicAddr),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, srv := range servers {
+		if srv.GetHostID() == hostID {
+			return srv.GetApp(), nil
+		}
+	}
+	return nil, trace.NotFound("app service %q must be serving application %q", hostID, publicAddr)
 }
 
 func generateCertSerial() (*big.Int, error) {

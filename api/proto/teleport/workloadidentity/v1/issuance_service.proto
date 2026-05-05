@@ -32,6 +32,10 @@ service WorkloadIdentityIssuanceService {
   // IssueWorkloadIdentities can issue multiple workload identity credentials
   // based on label selectors for the WorkloadIdentity resources.
   rpc IssueWorkloadIdentities(IssueWorkloadIdentitiesRequest) returns (IssueWorkloadIdentitiesResponse);
+  // IssueTeleportWorkloadIdentity issues a workload identity credential for the
+  // requested Teleport usage. This request cannot be performed by users, only
+  // by Teleport services.
+  rpc IssueTeleportWorkloadIdentity(IssueTeleportWorkloadIdentityRequest) returns (IssueTeleportWorkloadIdentityResponse);
 }
 
 // The parameters for issuing an X509 SVID.
@@ -157,4 +161,48 @@ message IssueWorkloadIdentitiesRequest {
 message IssueWorkloadIdentitiesResponse {
   // The issued credentials.
   repeated Credential credentials = 1;
+}
+
+// IdentityUsage indicates the generated identity usage.
+enum IdentityUsage {
+  // IDENTITY_USAGE_UNSPECIFIED is the `unset` default value. This should
+  // never be used in practice.
+  IDENTITY_USAGE_UNSPECIFIED = 0;
+  IDENTITY_USAGE_APP_ACCESS = 1;
+}
+
+// The request for the IssueTeleportWorkloadIdentity RPC.
+message IssueTeleportWorkloadIdentityRequest {
+  // The parameters for issuing the credential, varying by credential type.
+  oneof credential {
+    // The parameters for issuing an X509 SVID.
+    X509SVIDParams x509_svid_params = 1;
+    // The parameters for issuing a JWT SVID.
+    JWTSVIDParams jwt_svid_params = 2;
+  }
+  // The TTL that the client is requesting for the resulting credentials.
+  // This may be adjusted by the server and therefore the client MUST check the
+  // returned TTL rather than assuming that the requested TTL was granted.
+  google.protobuf.Duration requested_ttl = 4;
+  // Usage indicates what the identity will be used for.
+  //
+  // Each usage carries the information necessary for authroization and
+  // credentials issue.
+  oneof usage {
+    // Used when the identity will be used for accessing apps.
+    AppAccessUsage app_access = 5;
+  }
+}
+
+// The response for the IssueTeleportWorkloadIdentity RPC.
+message IssueTeleportWorkloadIdentityResponse {
+  // The issued credential.
+  Credential credential = 1;
+}
+
+// AppAccessUsage used when idenitty will be used for accessing apps.
+message AppAccessUsage {
+  // ASN.1 DER user identity certificate that the calling Teleport app
+  // service received from the end user.
+  bytes user_certificate = 1;
 }
