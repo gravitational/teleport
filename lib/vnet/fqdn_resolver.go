@@ -43,6 +43,8 @@ type fqdnResolverConfig struct {
 	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
 	leafClusterCache   *leafClusterCache
+	// allowAppHTTPSTunnel enables HTTPS tunnel support for HTTP and LLM apps.
+	allowAppHTTPSTunnel bool
 }
 
 func newFQDNResolver(cfg *fqdnResolverConfig) *fqdnResolver {
@@ -291,13 +293,13 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 					"name", app.GetName(), "public_addr", app.GetPublicAddr())
 				continue
 			}
-			if app.IsTCP() {
+			if app.IsTCP() || r.isHTTPSTunnelApp(app) {
 				if matchedByPublicAddr {
-					// Greedily prefer to match an arbitrary TCP app by public addr.
+					// Greedily prefer to match a VNet-handled app by public addr.
 					return app, nil
 				}
-				// Skip TCP apps that only matched by name, VNet only handles
-				// TCP apps that match a public addr.
+				// Skip apps that only matched by name, VNet only handles
+				// apps that match a public addr.
 			} else {
 				matchedWebApp = app
 			}
@@ -318,13 +320,16 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	// unexpected and is preventing access to the app and should be returned to
 	// the user.
 	if !app.IsTCP() {
-		log.InfoContext(ctx, "Query matched a web app")
-		// If not a TCP app this must be a web app and we can return early.
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
-				MatchedWebApp: &vnetv1.MatchedWebApp{},
-			},
-		}, nil
+		if r.isHTTPSTunnelApp(app) {
+			log.InfoContext(ctx, "Query matched an HTTPS tunnel app")
+		} else {
+			log.InfoContext(ctx, "Query matched a web app")
+			return &vnetv1.ResolveFQDNResponse{
+				Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
+					MatchedWebApp: &vnetv1.MatchedWebApp{},
+				},
+			}, nil
+		}
 	}
 	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
 	if err != nil {
@@ -336,7 +341,6 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
 		return nil, trace.Wrap(err, "getting dial options for matching app")
 	}
-	log.InfoContext(ctx, "Query matched a TCP app")
 	appInfo := &vnetv1.AppInfo{
 		AppKey: &vnetv1.AppKey{
 			Profile:     candidate.profileName,
@@ -348,9 +352,20 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
 	}
+	if app.IsTCP() {
+		log.InfoContext(ctx, "Query matched a TCP app")
+		return &vnetv1.ResolveFQDNResponse{
+			Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
+				MatchedTcpApp: &vnetv1.MatchedTCPApp{
+					AppInfo: appInfo,
+				},
+			},
+		}, nil
+	}
+	log.InfoContext(ctx, "Query matched an HTTPS tunnel app")
 	return &vnetv1.ResolveFQDNResponse{
-		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
-			MatchedTcpApp: &vnetv1.MatchedTCPApp{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedHttpsTunnelApp{
+			MatchedHttpsTunnelApp: &vnetv1.MatchedHTTPSTunnelApp{
 				AppInfo: appInfo,
 			},
 		},
@@ -419,4 +434,10 @@ func fullyQualify(domain string) string {
 		return domain
 	}
 	return domain + "."
+}
+
+// isHTTPSTunnelApp checks whether the app should be proxied through the
+// HTTPS-in-mTLS tunnel, based on the allowAppHTTPSTunnel config flag.
+func (r *fqdnResolver) isHTTPSTunnelApp(app types.Application) bool {
+	return r.cfg.allowAppHTTPSTunnel && IsHTTPSTunnelApp(app)
 }

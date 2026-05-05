@@ -123,6 +123,9 @@ message ResolveFQDNResponse {
     // match a subdomain of a proxy address. VNet will resolve the DNS query to
     // a handler that may later resolve the FQDN to an app or SSH server.
     MatchedCluster matched_cluster = 3;
+    // MatchedHTTPSTunnelApp will be set when the query matched an HTTP or LLM
+    // app that should be tunneled via the HTTPS-in-mTLS ALPN protocol.
+    MatchedHTTPSTunnelApp matched_https_tunnel_app = 4;
   }
 }
 
@@ -132,8 +135,15 @@ message MatchedTCPApp {
   AppInfo app_info = 1;
 }
 
-// MatchedTCPApp is a placeholder to signify that the query matched a web app.
+// MatchedWebApp is a placeholder to signify that the query matched a web app.
 message MatchedWebApp {}
+
+// MatchedHTTPSTunnelApp holds info about an HTTP or LLM app that should be
+// proxied through the HTTPS-in-mTLS tunnel.
+message MatchedHTTPSTunnelApp {
+  // AppInfo holds all necessary info for making connections to the resolved app.
+  AppInfo app_info = 1;
+}
 
 // MatchedCluster holds info about a cluster that a query matched.
 message MatchedCluster {

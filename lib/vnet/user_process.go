@@ -19,10 +19,12 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -97,10 +99,20 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(greedy52) VNet config should have a flag like
+	// `allow_app_https_tunnel` to opt-in this feature once browser support is
+	// added for app HTTPS tunnel. Use an unstable env var for testing purpose for
+	// now.
+	allowAppHTTPSTunnel, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_VNET_APP_HTTPS_TUNNEL"))
+	if allowAppHTTPSTunnel {
+		log.InfoContext(ctx, "App HTTPS tunnel is enabled")
+	}
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
-		clientApplication:  clientApplication,
-		clusterConfigCache: clusterConfigCache,
-		leafClusterCache:   leafClusterCache,
+		clientApplication:   clientApplication,
+		clusterConfigCache:  clusterConfigCache,
+		leafClusterCache:    leafClusterCache,
+		allowAppHTTPSTunnel: allowAppHTTPSTunnel,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,

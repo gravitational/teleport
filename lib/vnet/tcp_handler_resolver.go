@@ -69,7 +69,19 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		appInfo := matchedTCPApp.GetAppInfo()
 		return &tcpHandlerSpec{
 			ipv4CIDRRange: appInfo.GetIpv4CidrRange(),
-			tcpHandler: newTCPAppHandler(&tcpAppHandlerConfig{
+			tcpHandler: newTCPAppHandler(&appHandlerConfig{
+				appInfo:                  appInfo,
+				appProvider:              r.cfg.appProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+			}),
+		}, nil
+	}
+	if matchedHTTPSTunnelApp := resp.GetMatchedHttpsTunnelApp(); matchedHTTPSTunnelApp != nil {
+		appInfo := matchedHTTPSTunnelApp.GetAppInfo()
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: appInfo.GetIpv4CidrRange(),
+			tcpHandler: newHTTPSTunnelAppHandler(&appHandlerConfig{
 				appInfo:                  appInfo,
 				appProvider:              r.cfg.appProvider,
 				clock:                    r.cfg.clock,
@@ -204,10 +216,10 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	}
 	log := log.With("fqdn", h.cfg.fqdn, "local_port", localPort)
 	if matchedTCPApp := resp.GetMatchedTcpApp(); matchedTCPApp != nil {
-		// If matched a TCP app, build a tcpAppHandler that will be used for this
+		// If matched a TCP app, build an appHandler that will be used for this
 		// and all subsequent connections to this address.
 		log.DebugContext(ctx, "Resolved FQDN to a matched TCP app")
-		tcpAppHandler := newTCPAppHandler(&tcpAppHandlerConfig{
+		tcpAppHandler := newTCPAppHandler(&appHandlerConfig{
 			appInfo:                  matchedTCPApp.GetAppInfo(),
 			appProvider:              h.cfg.appProvider,
 			clock:                    h.cfg.clock,
@@ -215,6 +227,17 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		})
 		h.setDecidedHandler(tcpAppHandler)
 		return tcpAppHandler.handleTCPConnector(ctx, localPort, connector)
+	}
+	if matchedHTTPSTunnelApp := resp.GetMatchedHttpsTunnelApp(); matchedHTTPSTunnelApp != nil {
+		log.DebugContext(ctx, "Resolved FQDN to a matched HTTPS tunnel app")
+		handler := newHTTPSTunnelAppHandler(&appHandlerConfig{
+			appInfo:                  matchedHTTPSTunnelApp.GetAppInfo(),
+			appProvider:              h.cfg.appProvider,
+			clock:                    h.cfg.clock,
+			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+		})
+		h.setDecidedHandler(handler)
+		return handler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedWebApp := resp.GetMatchedWebApp(); matchedWebApp != nil && localPort == h.webProxyPort {
 		// If matched a web app, build a webAppHandler that will be used for this
