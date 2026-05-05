@@ -4513,6 +4513,12 @@ message UserFilter {
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
   // SkipSystemUsers filters out teleport system users from the results.
   bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
+  // Traits is a traits-based matcher if non-empty.
+  wrappers.LabelValues Traits = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "traits,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // UserV2 is version 2 resource spec of the user
