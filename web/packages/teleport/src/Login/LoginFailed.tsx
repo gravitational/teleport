@@ -34,7 +34,9 @@ export function LoginFailed() {
       <Route path={cfg.routes.loginErrorEntraIDGroupsOverage}>
         <LoginFailedComponent message="Your account is a member of more than 150 Entra ID groups. Please contact your SSO administrator to configure Graph API access on the Teleport SAML connector." />
       </Route>
-      <Route component={LoginFailed} />
+      <Route>
+        <LoginFailedComponent />
+      </Route>
     </Switch>
   );
 }
