@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/lib/utils"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -76,13 +77,18 @@ func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
 }
 
 // SimplifyAzureMatchers returns simplified Azure Matchers.
-// Selectors are deduplicated, wildcard in a selector reduces the selector
-// to just the wildcard, and defaults are applied.
+// Selectors are trimmed of whitespace, deduplicated, wildcard in a selector
+// reduces the selector to just the wildcard, and defaults are applied.
+//
+// Trim runs BEFORE dedupe so whitespace variants like " sub-1" and "sub-1"
+// collapse instead of surviving byte-equality dedup as distinct entries.
+// Empty-after-trim entries are dropped silently; an entry list that is
+// empty (or all-empty) collapses to the wildcard.
 func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 	result := make([]types.AzureMatcher, 0, len(matchers))
 	for _, m := range matchers {
-		subs := apiutils.Deduplicate(m.Subscriptions)
-		groups := apiutils.Deduplicate(m.ResourceGroups)
+		subs := libslices.FilterMapUnique(m.Subscriptions, utils.TrimNonEmpty)
+		groups := libslices.FilterMapUnique(m.ResourceGroups, utils.TrimNonEmpty)
 		ts := apiutils.Deduplicate(m.Types)
 		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
 			subs = []string{types.Wildcard}
