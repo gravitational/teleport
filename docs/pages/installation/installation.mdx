@@ -15,13 +15,6 @@ you install Teleport depends on:
 - If you are self-hosting, how you choose to deploy the Teleport Auth Service
   and Proxy Service 
 
-## Client tools
-
-If you want to download client tools to access Teleport from your workstation,
-visit [Download Client Tools](https://goteleport.com/download/client-tools/).
-This page also includes client tool downloads for Windows, which does not
-support the `teleport` daemon.
-
 ## Teleport cluster setup
 
 The easiest way to get started with Teleport is to [sign
@@ -29,29 +22,33 @@ up](https://goteleport.com/signup/) for a Teleport Cloud account. From there,
 you can [install Teleport Agents](agents/agents.mdx) so you can enroll your
 infrastructure with Teleport.
 
-For instructions on installing a `teleport` binary on a single machine, see
-[Install Teleport on a Single Machine](single-machine/single-machine.mdx). The
-Teleport Auth Service, Teleport Proxy Service, and Teleport Agent services all
-share a binary, though you will need to create a configuration file for each
-instance and configure them to communicate with one another as a cluster.
-
-## Self-hosted Teleport clusters
-
-Read [Deploy Teleport Community
-Edition](../get-started/deploy-community.mdx) to get started with a
-small self-hosted demo cluster.
+Read [Deploy Teleport Community Edition](../get-started/deploy-community.mdx) to
+get started with a small self-hosted demo cluster. 
 
 For self-hosted Teleport Enterprise accounts, deployments typically take place
 in conversation with the team at Teleport. We recommend [reaching out to us
 directly](https://goteleport.com/contact-us/) to learn more about getting
-started with this deployment option and start planning your approach.
+started with this deployment option and start planning your approach. You can
+read more about setting up a self-hosted cluster in [Deploy a
+Cluster](self-hosted/self-hosted.mdx).
 
-You can read more about setting up a self-hosted cluster in [Deploy a
-Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).
+## Client tools
 
-## Other installation scenarios
+Visit [Download Client Tools](https://goteleport.com/download/client-tools/) to
+download the latest versions of `tsh` and `tctl` for your platform.
 
-- [Installing `tbot`](../machine-workload-identity/deployment/deployment.mdx)
-- [Teleport Event Handler](../zero-trust-access/export-audit-events/export-audit-events.mdx)
-- [Access Request Plugins](../identity-governance/access-requests/plugins/plugins.mdx)
+You can learn about the available client tool binaries, and other binaries
+available in a Teleport installation, by reading [Installing Teleport on a
+Single Machine](single-machine/single-machine.mdx).
+
+## Cluster components
+
+Besides Teleport Agents, you can install other cluster components to protect your
+infrastructure with Teleport:
+
+|Component|Installation|
+|---|---|
+|[`tbot` daemon](../machine-workload-identity/deployment/deployment.mdx)|Enables automated services and workloads to connect to Teleport-protected resources. |
+|[Teleport Event Handler](../zero-trust-access/export-audit-events/export-audit-events.mdx)|Exports Teleport audit events to a third-party log-management solution|
+|[Access Request Plugins](../identity-governance/access-requests/plugins/plugins.mdx)|Allow users to create and review Access Requests with third-party communication services|
 
