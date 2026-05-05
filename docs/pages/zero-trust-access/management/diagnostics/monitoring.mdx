@@ -148,9 +148,13 @@ verifies bidirectional reachability — something that `/readyz` does not check:
 $ tctl inventory ping <server-id>
 ```
 
-If the ping fails or times out, the agent's outbound connection is up
-(otherwise it would not appear in `inventory ls` as connected) but the cluster
-cannot complete a round-trip to it.
+A failed or timed-out ping means the Auth Service does not currently have
+a live control stream to this agent. This can happen because the agent has
+disconnected, because of a network problem in either direction, or because
+the agent is connected to a different Auth Service instance in an HA
+deployment. `inventory ls` may continue to show the agent for up to the
+instance heartbeat TTL (20 minutes by default) after a disconnect, so its
+presence there does not by itself confirm the agent is currently reachable.
 
 ## Recommended monitoring approach
 
@@ -160,8 +164,8 @@ No single signal answers every question about agent health. We recommend combini
 |----------|-----|
 | Is the agent process running? | `/healthz` (Kubernetes liveness probe, or a host-level check such as `systemctl status teleport`) |
 | Has the agent joined the cluster and completed a recent heartbeat? | `/readyz` (Kubernetes readiness probe) |
-| Is the cluster aware of this agent right now? | `tctl inventory ls` |
-| Can the cluster reach this agent? | `tctl inventory ping <server-id>` |
+| Has the agent heartbeated to the cluster recently? | `tctl inventory ls` (heartbeat-backed, with a TTL of around 20 minutes) |
+| Does an Auth instance currently have a live control stream to this agent? | `tctl inventory ping <server-id>` |
 | Did an agent join, disconnect, or fail to authenticate? | Audit events: `instance.join`, `bot.join`, `join_token.create`, `cert.create` |
 
 For Kubernetes deployments, configure `/healthz` as the liveness probe and
@@ -173,10 +177,11 @@ process is running, which is the correct signal for liveness.
 
 Pair these probes with a periodic check from your monitoring system that
 runs `tctl inventory ls` against the control plane and alerts on agents
-that disappear from the inventory. `tctl inventory status --connected` is
-not suitable for this check in HA deployments, because each Auth Service
-instance only sees the agents directly connected to it, and agents connected
-to other Auth instances would intermittently appear missing.
+that disappear from the inventory. Note that `inventory ls` is
+heartbeat-backed with a TTL of around 20 minutes, so a missing agent
+indicates the cluster has not heard a heartbeat from it within that window
+— useful for catching outages but not real-time. For faster detection of
+local-process failures, rely on the `/readyz` readiness probe.
 
 ## Known limitations of readyz
 

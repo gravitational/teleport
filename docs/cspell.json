@@ -609,6 +609,7 @@
     "healthchecker",
     "healthchecks",
     "healthz",
+    "heartbeated",
     "highavailability",
     "highavailabilitycertmanager",
     "highavailabilitycertmanageraddcommonname",
