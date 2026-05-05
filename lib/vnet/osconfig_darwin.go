@@ -46,6 +46,11 @@ type platformOSConfigState struct {
 	configuredIPv6       bool
 	configuredIPv4       bool
 	configuredCidrRanges []string
+
+	// run executes a command. Tests inject a recorder; production
+	// callers leave it nil and platformConfigureOS defaults it to
+	// runCommand on the first call.
+	run func(ctx context.Context, path string, args ...string) error
 }
 
 // platformConfigureOS configures the host OS according to cfg. It is
@@ -56,6 +61,9 @@ type platformOSConfigState struct {
 // deconfigures everything by resetting the cached state so the next
 // non-empty call re-applies.
 func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	if state.run == nil {
+		state.run = runCommand
+	}
 	// There is no need to remove IP addresses or routes; they are
 	// cleaned up when the process exits and the TUN is deleted. An
 	// empty cfg signals deconfigure: reconcile DNS first, then reset
@@ -65,14 +73,14 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
 			return trace.Wrap(err, "configuring DNS")
 		}
-		*state = platformOSConfigState{}
+		*state = platformOSConfigState{run: state.run}
 		return nil
 	}
 
 	if cfg.tunIPv4 != "" && !state.configuredIPv4 {
 		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
 			"device", cfg.tunName, "address", cfg.tunIPv4)
-		if err := runCommand(ctx,
+		if err := state.run(ctx,
 			"ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up",
 		); err != nil {
 			return trace.Wrap(err)
@@ -84,7 +92,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 			continue
 		}
 		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
-		if err := runCommand(ctx,
+		if err := state.run(ctx,
 			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
 		); err != nil {
 			return trace.Wrap(err)
@@ -95,7 +103,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.",
 			"device", cfg.tunName, "address", cfg.tunIPv6)
-		if err := runCommand(ctx,
+		if err := state.run(ctx,
 			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
 		); err != nil {
 			return trace.Wrap(err)
@@ -107,7 +115,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredIPv6 = true
 
 		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
-		if err := runCommand(ctx,
+		if err := state.run(ctx,
 			"route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName,
 		); err != nil {
 			return trace.Wrap(err)

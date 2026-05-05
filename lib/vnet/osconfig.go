@@ -126,9 +126,8 @@ func tunIPv6ForPrefix(ipv6Prefix string) (string, error) {
 	return addr.Next().String(), nil
 }
 
-// runCommand executes path with args. It is a package-level var so
-// tests can swap in a recorder.
-var runCommand = func(ctx context.Context, path string, args ...string) error {
+// runCommand executes path with args.
+func runCommand(ctx context.Context, path string, args ...string) error {
 	cmdString := strings.Join(append([]string{path}, args...), " ")
 	log.DebugContext(ctx, "Running command", "cmd", cmdString)
 	cmd := exec.CommandContext(ctx, path, args...)
