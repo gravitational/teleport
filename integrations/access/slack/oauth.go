@@ -193,7 +193,7 @@ func (c *OauthTokenRefresherConfig) CheckAndSetDefaults() error {
 type SaveCredsFunc func(context.Context, storage.Credentials) error
 
 // OauthTokenRefresher is an implementation of AccessTokenProvider
-// that uses OAuth2 refresh token flow to renew the acess token.
+// that uses OAuth2 refresh token flow to renew the access token.
 // The credentials are stored in the given persistent store.
 //
 // To have an up-to-date token, one must run RefreshLoop() in a background goroutine.
@@ -292,8 +292,8 @@ func (r *OauthTokenRefresher) RefreshLoop(ctx context.Context) {
 				var tries int
 
 				err = retry.For(criticalCtx, func() error {
-					// We try as long as we can to refresh the token, even if the main context si canceled. But we cannot
-					// block he shutdown procedure entirely.
+					// We try as long as we can to refresh the token, even if the main context is canceled. But we cannot
+					// block the shutdown procedure entirely.
 					// So we retry as long as the parent context is still valid. And if it's not we stop after 10 tries.
 					select {
 					case <-ctx.Done():
@@ -324,7 +324,7 @@ func (r *OauthTokenRefresher) RefreshLoop(ctx context.Context) {
 				interval := r.creds.ExpiresAt.Sub(r.clock.Now()) - r.tokenBufferInterval
 				r.lock.Unlock()
 
-				r.log.InfoContext(ctx, "Successfully refreshed credentials", "next_refresh", interval)
+				r.log.InfoContext(ctx, "Successfully refreshed and persisted credentials, pending plugin restart", "next_refresh", interval)
 			}
 		}
 	}

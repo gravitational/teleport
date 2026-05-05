@@ -206,7 +206,7 @@ func (r *mockAuthorizer) Refresh(ctx context.Context, refreshToken string) (*sto
 	return args.Get(0).(*storage.Credentials), args.Error(1)
 }
 
-func TestRotatedAccessTokenProvider(t *testing.T) {
+func TestOauthTokenRefresher(t *testing.T) {
 	const testCredDuration = 2 * time.Hour
 	t.Run("Init", func(t *testing.T) {
 		clock := clockwork.NewFakeClock()
