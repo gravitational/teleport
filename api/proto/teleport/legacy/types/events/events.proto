@@ -1730,6 +1730,12 @@ message ResourceAccessID {
     AWSConsoleConstraints aws_console = 11;
     // ssh captures audit-log-friendly data for SSH node scoping constraints.
     SSHConstraints ssh = 12;
+    // 13 reserved for Database
+    // 14 reserved for Windows Desktop
+    // azure_app captures audit-log-friendly data for Azure Cloud app scoping constraints.
+    AzureAppConstraints azure_app = 15;
+    // gcp_app captures audit-log-friendly data for GCP Cloud app scoping constraints.
+    GCPAppConstraints gcp_app = 16;
   }
 }
 
@@ -1755,6 +1761,22 @@ message SSHConstraints {
   uint32 logins_count = 1;
   // logins_preview contains up to N logins for inspection; it may be truncated.
   repeated string logins_preview = 2;
+}
+
+// AzureAppConstraints is an audit-log-friendly view of Azure Cloud app constraints.
+message AzureAppConstraints {
+  // azure_identities_count is the total number of Azure identities requested.
+  uint32 azure_identities_count = 1;
+  // azure_identities_preview contains up to N Azure identities for inspection; it may be truncated.
+  repeated string azure_identities_preview = 2;
+}
+
+// GCPAppConstraints is an audit-log-friendly view of GCP Cloud app constraints.
+message GCPAppConstraints {
+  // gcp_service_accounts_count is the total number of GCP service accounts requested.
+  uint32 gcp_service_accounts_count = 1;
+  // gcp_service_accounts_preview contains up to N GCP service accounts for inspection; it may be truncated.
+  repeated string gcp_service_accounts_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.

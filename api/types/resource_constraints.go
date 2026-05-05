@@ -42,6 +42,14 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_AzureApp:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *ResourceConstraints_GcpApp:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}
@@ -83,6 +91,22 @@ func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 func (sshc *ResourceConstraints_Ssh) Validate() error {
 	if sshc == nil || sshc.Ssh == nil || len(sshc.Ssh.Logins) == 0 {
 		return trace.BadParameter("ssh constraints require logins, none provided")
+	}
+	return nil
+}
+
+// Validate ensures AzureIdentities is non-nil and contains identities.
+func (azc *ResourceConstraints_AzureApp) Validate() error {
+	if azc == nil || azc.AzureApp == nil || len(azc.AzureApp.AzureIdentities) == 0 {
+		return trace.BadParameter("azure_app constraints require azure_identities, none provided")
+	}
+	return nil
+}
+
+// Validate ensures GcpServiceAccounts is non-nil and contains service accounts.
+func (gc *ResourceConstraints_GcpApp) Validate() error {
+	if gc == nil || gc.GcpApp == nil || len(gc.GcpApp.GcpServiceAccounts) == 0 {
+		return trace.BadParameter("gcp_app constraints require gcp_service_accounts, none provided")
 	}
 	return nil
 }

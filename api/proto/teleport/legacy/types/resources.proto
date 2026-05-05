@@ -53,6 +53,14 @@ message ResourceConstraints {
     // ssh scopes an SSH node to a subset of logins the requester is
     // allowed to use.
     SSHResourceConstraints ssh = 11;
+    // 12 reserved for DatabaseResourceConstraints.
+    // 13 reserved for WindowsDesktopResourceConstraints.
+    // azure_app scopes an Azure Cloud app to a subset of Azure identities
+    // the requester is allowed to use.
+    AzureAppResourceConstraints azure_app = 14;
+    // gcp_app scopes a GCP Cloud app to a subset of GCP service accounts
+    // the requester is allowed to use.
+    GCPAppResourceConstraints gcp_app = 15;
   }
 }
 
@@ -66,6 +74,18 @@ message AWSConsoleResourceConstraints {
 // requester is allowed to use.
 message SSHResourceConstraints {
   repeated string logins = 1;
+}
+
+// AzureAppResourceConstraints scopes an Azure Cloud app to a subset of
+// Azure identities the requester is allowed to use.
+message AzureAppResourceConstraints {
+  repeated string azure_identities = 1;
+}
+
+// GCPAppResourceConstraints scopes a GCP Cloud app to a subset of GCP
+// service accounts the requester is allowed to use.
+message GCPAppResourceConstraints {
+  repeated string gcp_service_accounts = 1;
 }
 
 // ResourceAccessID represents a ResourceID in an Access Request-related context,

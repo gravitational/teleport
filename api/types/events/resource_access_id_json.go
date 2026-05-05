@@ -25,6 +25,8 @@ type constraintsJSON struct {
 	UnknownConstraints *UnknownConstraints    `json:"unknown_constraints,omitempty"`
 	AWSConsole         *AWSConsoleConstraints `json:"aws_console,omitempty"`
 	SSH                *SSHConstraints        `json:"ssh,omitempty"`
+	AzureApp           *AzureAppConstraints   `json:"azure_app,omitempty"`
+	GcpApp             *GCPAppConstraints     `json:"gcp_app,omitempty"`
 }
 
 // resourceAccessIDJSON mirrors [ResourceAccessID] with a concrete Constraints
@@ -45,6 +47,10 @@ func (r *ResourceAccessID) MarshalJSON() ([]byte, error) {
 		out.Constraints = &constraintsJSON{AWSConsole: c.AwsConsole}
 	case *ResourceAccessID_Ssh:
 		out.Constraints = &constraintsJSON{SSH: c.Ssh}
+	case *ResourceAccessID_AzureApp:
+		out.Constraints = &constraintsJSON{AzureApp: c.AzureApp}
+	case *ResourceAccessID_GcpApp:
+		out.Constraints = &constraintsJSON{GcpApp: c.GcpApp}
 	}
 	return json.Marshal(out)
 }
@@ -66,6 +72,10 @@ func (r *ResourceAccessID) UnmarshalJSON(data []byte) error {
 		r.Constraints = &ResourceAccessID_AwsConsole{AwsConsole: tmp.Constraints.AWSConsole}
 	case tmp.Constraints.SSH != nil:
 		r.Constraints = &ResourceAccessID_Ssh{Ssh: tmp.Constraints.SSH}
+	case tmp.Constraints.AzureApp != nil:
+		r.Constraints = &ResourceAccessID_AzureApp{AzureApp: tmp.Constraints.AzureApp}
+	case tmp.Constraints.GcpApp != nil:
+		r.Constraints = &ResourceAccessID_GcpApp{GcpApp: tmp.Constraints.GcpApp}
 	}
 	return nil
 }

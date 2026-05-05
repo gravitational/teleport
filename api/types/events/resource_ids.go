@@ -96,6 +96,30 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 				LoginsPreview: previewStrings(logins, MaxAuditRoleARNPreview),
 			},
 		}
+	case *types.ResourceConstraints_AzureApp:
+		if d.AzureApp == nil {
+			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
+			break
+		}
+		identities := d.AzureApp.AzureIdentities
+		out.Constraints = &ResourceAccessID_AzureApp{
+			AzureApp: &AzureAppConstraints{
+				AzureIdentitiesCount:   uint32(len(identities)),
+				AzureIdentitiesPreview: previewStrings(identities, MaxAuditConstraintsListPreview),
+			},
+		}
+	case *types.ResourceConstraints_GcpApp:
+		if d.GcpApp == nil {
+			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
+			break
+		}
+		accounts := d.GcpApp.GcpServiceAccounts
+		out.Constraints = &ResourceAccessID_GcpApp{
+			GcpApp: &GCPAppConstraints{
+				GcpServiceAccountsCount:   uint32(len(accounts)),
+				GcpServiceAccountsPreview: previewStrings(accounts, MaxAuditConstraintsListPreview),
+			},
+		}
 	default:
 		out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 	}

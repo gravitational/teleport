@@ -98,6 +98,26 @@ export interface ResourceConstraints {
          */
         ssh: SSHResourceConstraints;
     } | {
+        oneofKind: "azureApp";
+        /**
+         * 12 reserved for DatabaseResourceConstraints.
+         * 13 reserved for WindowsDesktopResourceConstraints.
+         * azure_app scopes an Azure Cloud app to a subset of Azure identities
+         * the requester is allowed to use.
+         *
+         * @generated from protobuf field: types.AzureAppResourceConstraints azure_app = 14;
+         */
+        azureApp: AzureAppResourceConstraints;
+    } | {
+        oneofKind: "gcpApp";
+        /**
+         * gcp_app scopes a GCP Cloud app to a subset of GCP service accounts
+         * the requester is allowed to use.
+         *
+         * @generated from protobuf field: types.GCPAppResourceConstraints gcp_app = 15;
+         */
+        gcpApp: GCPAppResourceConstraints;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -124,6 +144,30 @@ export interface SSHResourceConstraints {
      * @generated from protobuf field: repeated string logins = 1;
      */
     logins: string[];
+}
+/**
+ * AzureAppResourceConstraints scopes an Azure Cloud app to a subset of
+ * Azure identities the requester is allowed to use.
+ *
+ * @generated from protobuf message types.AzureAppResourceConstraints
+ */
+export interface AzureAppResourceConstraints {
+    /**
+     * @generated from protobuf field: repeated string azure_identities = 1;
+     */
+    azureIdentities: string[];
+}
+/**
+ * GCPAppResourceConstraints scopes a GCP Cloud app to a subset of GCP
+ * service accounts the requester is allowed to use.
+ *
+ * @generated from protobuf message types.GCPAppResourceConstraints
+ */
+export interface GCPAppResourceConstraints {
+    /**
+     * @generated from protobuf field: repeated string gcp_service_accounts = 1;
+     */
+    gcpServiceAccounts: string[];
 }
 /**
  * ResourceAccessID represents a ResourceID in an Access Request-related context,
@@ -229,7 +273,9 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         super("types.ResourceConstraints", [
             { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints },
-            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints }
+            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints },
+            { no: 14, name: "azure_app", kind: "message", oneof: "details", T: () => AzureAppResourceConstraints },
+            { no: 15, name: "gcp_app", kind: "message", oneof: "details", T: () => GCPAppResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<ResourceConstraints>): ResourceConstraints {
@@ -260,6 +306,18 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
                         ssh: SSHResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).ssh)
                     };
                     break;
+                case /* types.AzureAppResourceConstraints azure_app */ 14:
+                    message.details = {
+                        oneofKind: "azureApp",
+                        azureApp: AzureAppResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).azureApp)
+                    };
+                    break;
+                case /* types.GCPAppResourceConstraints gcp_app */ 15:
+                    message.details = {
+                        oneofKind: "gcpApp",
+                        gcpApp: GCPAppResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).gcpApp)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -281,6 +339,12 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         /* types.SSHResourceConstraints ssh = 11; */
         if (message.details.oneofKind === "ssh")
             SSHResourceConstraints.internalBinaryWrite(message.details.ssh, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* types.AzureAppResourceConstraints azure_app = 14; */
+        if (message.details.oneofKind === "azureApp")
+            AzureAppResourceConstraints.internalBinaryWrite(message.details.azureApp, writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+        /* types.GCPAppResourceConstraints gcp_app = 15; */
+        if (message.details.oneofKind === "gcpApp")
+            GCPAppResourceConstraints.internalBinaryWrite(message.details.gcpApp, writer.tag(15, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -385,6 +449,100 @@ class SSHResourceConstraints$Type extends MessageType<SSHResourceConstraints> {
  * @generated MessageType for protobuf message types.SSHResourceConstraints
  */
 export const SSHResourceConstraints = new SSHResourceConstraints$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AzureAppResourceConstraints$Type extends MessageType<AzureAppResourceConstraints> {
+    constructor() {
+        super("types.AzureAppResourceConstraints", [
+            { no: 1, name: "azure_identities", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AzureAppResourceConstraints>): AzureAppResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.azureIdentities = [];
+        if (value !== undefined)
+            reflectionMergePartial<AzureAppResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AzureAppResourceConstraints): AzureAppResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string azure_identities */ 1:
+                    message.azureIdentities.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AzureAppResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string azure_identities = 1; */
+        for (let i = 0; i < message.azureIdentities.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.azureIdentities[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.AzureAppResourceConstraints
+ */
+export const AzureAppResourceConstraints = new AzureAppResourceConstraints$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GCPAppResourceConstraints$Type extends MessageType<GCPAppResourceConstraints> {
+    constructor() {
+        super("types.GCPAppResourceConstraints", [
+            { no: 1, name: "gcp_service_accounts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GCPAppResourceConstraints>): GCPAppResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.gcpServiceAccounts = [];
+        if (value !== undefined)
+            reflectionMergePartial<GCPAppResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GCPAppResourceConstraints): GCPAppResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string gcp_service_accounts */ 1:
+                    message.gcpServiceAccounts.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GCPAppResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string gcp_service_accounts = 1; */
+        for (let i = 0; i < message.gcpServiceAccounts.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.gcpServiceAccounts[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.GCPAppResourceConstraints
+ */
+export const GCPAppResourceConstraints = new GCPAppResourceConstraints$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceAccessID$Type extends MessageType<ResourceAccessID> {
     constructor() {

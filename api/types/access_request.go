@@ -264,6 +264,24 @@ func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
 			return av == bv
 		}
 		return deriveTeleportEqualSSHResourceConstraints(av.Ssh, bv.Ssh)
+	case *ResourceConstraints_AzureApp:
+		bv, ok := b.Details.(*ResourceConstraints_AzureApp)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualAzureAppResourceConstraints(av.AzureApp, bv.AzureApp)
+	case *ResourceConstraints_GcpApp:
+		bv, ok := b.Details.(*ResourceConstraints_GcpApp)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualGCPAppResourceConstraints(av.GcpApp, bv.GcpApp)
 	default:
 		return a.Details == nil && b.Details == nil
 	}
