@@ -33,7 +33,7 @@ The following set up is required:
 
 Download the source code for our example:
 ```code
-$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=) --depth=1
 $ cd teleport/examples/aws/terraform/ecs-agent
 ```
 
@@ -116,7 +116,7 @@ Pick an example depending on your use case.
         {
           labels = {
             "region"                                 = "eu-south-2"
-            "account-id"                             = data.aws_caller_identity.current.account_id
+            "account-id"                             = "(=aws.aws_account_id=)"
             "teleport.dev/cloud"                     = "AWS"
             "teleport.dev/discovery-type"            = "eks"
             "teleport.internal/discovery-group-name" = "discover-eks"

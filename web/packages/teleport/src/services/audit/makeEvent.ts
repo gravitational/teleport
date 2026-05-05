@@ -1471,6 +1471,20 @@ export const formatters: Formatters = {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
     },
   },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
@@ -2539,6 +2553,24 @@ export const formatters: Formatters = {
     desc: 'Inference Policy Deleted',
     format: ({ name, user }) =>
       `Inference Policy [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: {
+    type: 'retrieval_model.create',
+    desc: 'Retrieval Model Created',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: {
+    type: 'retrieval_model.update',
+    desc: 'Retrieval Model Updated',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: {
+    type: 'retrieval_model.delete',
+    desc: 'Retrieval Model Deleted',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was deleted by [${user}]`,
   },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',

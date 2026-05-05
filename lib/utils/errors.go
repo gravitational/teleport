@@ -77,6 +77,13 @@ func IsConnectionRefused(err error) bool {
 	return false
 }
 
+// IsConnectionError returns true when the error indicates a socket-level connection failure
+// (e.g. file not found, connection refused), as opposed to an HTTP or application-level error.
+func IsConnectionError(err error) bool {
+	var opErr *net.OpError
+	return errors.As(err, &opErr)
+}
+
 // IsUntrustedCertErr checks if an error is an untrusted cert error.
 func IsUntrustedCertErr(err error) bool {
 	if err == nil {

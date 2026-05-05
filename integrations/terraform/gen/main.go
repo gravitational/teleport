@@ -954,6 +954,29 @@ var (
 		WithoutImportState:    true,
 	}
 
+	retrievalModel = payload{
+		Name:                  "RetrievalModel",
+		VarName:               "retrievalModel",
+		TypeName:              "RetrievalModel",
+		GetMethod:             "SummarizerClient().GetRetrievalModel",
+		CreateMethod:          "SummarizerClient().CreateRetrievalModel",
+		UpdateMethod:          "SummarizerClient().UpsertRetrievalModel",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteRetrievalModel",
+		ID:                    "apitypes.MetaNameRetrievalModel",
+		DefaultName:           "apitypes.MetaNameRetrievalModel",
+		Kind:                  "retrieval_model",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_retrieval_model",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindRetrievalModel",
+	}
+
 	inferencePolicy = payload{
 		Name:                  "InferencePolicy",
 		VarName:               "inferencePolicy",
@@ -1241,6 +1264,8 @@ func genTFSchema() {
 	generateDataSource(scopedRole, pluralDataSource)
 	generateResource(scopedRoleAssignment, pluralResource)
 	generateDataSource(scopedRoleAssignment, pluralDataSource)
+	generateResource(retrievalModel, singularResource)
+	generateDataSource(retrievalModel, singularDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)

@@ -87,7 +87,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -153,7 +152,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -163,7 +161,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
-	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
@@ -193,6 +190,10 @@ import (
 	libwatcher "github.com/gravitational/teleport/lib/watcher"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/session/auditd"
+	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/selinux"
 )
 
 const (
@@ -3127,6 +3128,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Plugin = services.Plugins
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.WorkloadClusterService = services.WorkloadClusterService
+	cfg.Summarizer = services.Summarizer
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3506,6 +3508,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
+		if !cfg.SSH.EnableSELinux {
+			checkEmbeddedReexecAndLog(process.ExitContext(), logger)
+		} else {
+			logger.DebugContext(process.ExitContext(),
+				"The embedded session helper is not supported when SELinux support is enabled.",
+			)
+		}
+
 		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
 
 		// Provide helpful log message if listen_addr or public_addr are not being
@@ -3790,6 +3801,23 @@ func (process *TeleportProcess) initSSH() error {
 	})
 
 	return nil
+}
+
+func checkEmbeddedReexecAndLog(ctx context.Context, logger *slog.Logger) {
+	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
+		logger.WarnContext(ctx,
+			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
+			"error", err,
+		)
+	} else if ok {
+		logger.DebugContext(ctx,
+			"The embedded session helper is available and will be used for user sessions.",
+		)
+	} else {
+		logger.DebugContext(ctx,
+			"This Teleport build does not support the embedded session helper for user sessions.",
+		)
+	}
 }
 
 // RegisterWithAuthServer uses one time provisioning token obtained earlier

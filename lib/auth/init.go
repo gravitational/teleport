@@ -1816,10 +1816,16 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
-		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
-			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
+			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferencePolicy]:
+			_, err = service.Summarizer.UpsertInferencePolicy(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceSecret]:
+			_, err = service.Summarizer.UpsertInferenceSecret(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.RetrievalModel]:
+			_, err = service.Summarizer.UpsertRetrievalModel(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

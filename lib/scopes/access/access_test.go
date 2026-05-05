@@ -1245,6 +1245,14 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			HostSudoers: []string{"ALL=(ALL) NOPASSWD:ALL"},
 			MaxSessions: proto.Int64(10),
 		},
+		Kube: &scopedaccessv1.ScopedRoleKube{
+			Groups: []string{"viewer"},
+			Users:  []string{"alice"},
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+			ClientIdleTimeout: "1h",
+		},
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),

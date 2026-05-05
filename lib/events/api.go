@@ -631,6 +631,10 @@ const (
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
 
+	// AzureRunEvent is emitted when a run of an install script
+	// completes on a discovered Azure VM
+	AzureRunEvent = "azure.run"
+
 	// DeviceEvent is the catch-all event for Device Trust events.
 	// Deprecated: Use one of the more specific event codes below.
 	DeviceEvent = "device"
@@ -1003,6 +1007,13 @@ const (
 	InferencePolicyUpdateEvent = "inference_policy.update"
 	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
 	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
+	RetrievalModelCreateEvent = "retrieval_model.create"
+	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
+	RetrievalModelUpdateEvent = "retrieval_model.update"
+	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
+	RetrievalModelDeleteEvent = "retrieval_model.delete"
 
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"

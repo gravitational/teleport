@@ -33,21 +33,21 @@ func renderText(w io.Writer, instances []instanceInfo) error {
 		return nil
 	}
 
-	columns := []string{"Cloud", "Account", "Region", "Instance ID", "Time", "Status", "Details"}
+	columns := []string{"Cloud", "Account", "Region", "Instance", "Time", "Status", "Details"}
 	rows := make([][]string, 0, len(instances))
 	for _, inst := range instances {
 		ci := inst.cloud()
-		var cloudName, instanceID, accountID string
+		var cloudName, instance, accountID string
 		if ci != nil {
 			cloudName = ci.cloudName()
-			instanceID = ci.cloudInstanceID()
+			instance = ci.instanceText()
 			accountID = ci.cloudAccountID()
 		}
 		rows = append(rows, []string{
 			cloudName,
 			accountID,
 			inst.Region,
-			instanceID,
+			instance,
 			inst.lastTime(),
 			inst.status(),
 			inst.details(),

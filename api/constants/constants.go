@@ -601,3 +601,17 @@ const AutoUpdateAgentReportPeriod = time.Minute
 // AutoUpdateBotInstanceReportPeriod is the period of the autoupdate bot instance
 // reporting routine.
 const AutoUpdateBotInstanceReportPeriod = time.Minute
+
+const (
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
+)

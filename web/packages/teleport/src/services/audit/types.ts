@@ -201,6 +201,8 @@ export const eventCodes = {
   SESSION_RECORDING_ACCESS: 'T2012I',
   SSMRUN_FAIL: 'TDS00W',
   SSMRUN_SUCCESS: 'TDS00I',
+  AZURERUN_FAIL: 'TDA00W',
+  AZURERUN_SUCCESS: 'TDA00I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -380,6 +382,9 @@ export const eventCodes = {
   INFERENCE_POLICY_DELETE: 'INF009I',
   SESSION_SUMMARIZED: 'INF010I',
   SESSION_SUMMARIZED_FAILURE: 'INF010E',
+  RETRIEVAL_MODEL_CREATE: 'INF011I',
+  RETRIEVAL_MODEL_UPDATE: 'INF012I',
+  RETRIEVAL_MODEL_DELETE: 'INF013I',
 } as const;
 
 /**
@@ -1389,6 +1394,40 @@ export type RawEvents = {
       exit_code: number;
     }
   >;
+  [eventCodes.AZURERUN_SUCCESS]: RawEvent<
+    typeof eventCodes.AZURERUN_SUCCESS,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
+  [eventCodes.AZURERUN_FAIL]: RawEvent<
+    typeof eventCodes.AZURERUN_FAIL,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
   [eventCodes.BOT_JOIN]: RawEvent<
     typeof eventCodes.BOT_JOIN,
     {
@@ -2214,6 +2253,18 @@ export type RawEvents = {
   >;
   [eventCodes.INFERENCE_POLICY_DELETE]: RawEvent<
     typeof eventCodes.INFERENCE_POLICY_DELETE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_DELETE,
     HasName
   >;
   [eventCodes.SESSION_SUMMARIZED]: RawEvent<

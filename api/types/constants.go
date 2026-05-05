@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
@@ -671,6 +672,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -686,6 +690,10 @@ const (
 
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
+
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
 
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
@@ -1761,18 +1769,22 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
+// TODO(espadolini): deprecate in v19, delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportDropGroup = "teleport-system"
+	//go:fix inline
+	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	TeleportKeepGroup = "teleport-keep"
+	//go:fix inline
+	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportStaticGroup = "teleport-static"
+	//go:fix inline
+	TeleportStaticGroup = constants.TeleportStaticGroup
 )
 
 const (

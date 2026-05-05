@@ -320,6 +320,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case AzureRunEvent:
+		e = &events.AzureRun{}
 	case KubernetesClusterCreateEvent:
 		e = &events.KubernetesClusterCreate{}
 	case KubernetesClusterUpdateEvent:
@@ -607,6 +609,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.InferencePolicyUpdate{}
 	case InferencePolicyDeleteEvent:
 		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
 
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}
