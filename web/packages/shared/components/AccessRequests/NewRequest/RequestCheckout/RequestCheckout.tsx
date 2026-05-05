@@ -65,6 +65,8 @@ import { RequestableResourceKind } from 'shared/components/AccessRequests/NewReq
 import {
   formatAWSRoleARNForDisplay,
   toggleAWSConsoleConstraint,
+  toggleAzureAppConstraint,
+  toggleGCPAppConstraint,
   toggleSSHConstraint,
 } from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
@@ -263,6 +265,88 @@ const SSHConstraintsList = <T extends PendingListItem>({
             onClick={() => {
               clearAttempt();
               toggleSSHConstraint(item, login, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
+const AzureAppConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'azure_app', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>Azure Identities</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.azure_app.azure_identities.map((identity, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={identity}
+          $idx={idx}
+          $len={item.constraints.azure_app.azure_identities.length}
+        >
+          <Text style={{ alignContent: 'center' }}>{identity}</Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Identity"
+            onClick={() => {
+              clearAttempt();
+              toggleAzureAppConstraint(item, identity, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
+const GCPAppConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'gcp_app', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>GCP Service Accounts</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.gcp_app.gcp_service_accounts.map((account, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={account}
+          $idx={idx}
+          $len={item.constraints.gcp_app.gcp_service_accounts.length}
+        >
+          <Text style={{ alignContent: 'center' }}>{account}</Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Service Account"
+            onClick={() => {
+              clearAttempt();
+              toggleGCPAppConstraint(item, account, setResourceConstraints);
             }}
             disabled={createAttempt.status === 'processing'}
             css={`
@@ -483,6 +567,38 @@ export function RequestCheckout<T extends PendingListItem>({
           <td colSpan={showClusterNameColumn ? 4 : 3}>
             <Flex justifyContent="space-between" alignItems="center" mt={-2}>
               <SSHConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'azure_app')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <AzureAppConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'gcp_app')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <GCPAppConstraintsList
                 item={item}
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}

@@ -21,7 +21,7 @@ import { AwsRole, getAppUriScheme } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, CloudInstance, PermissionSet } from './types';
+import { App, AppPrincipal, CloudInstance, PermissionSet } from './types';
 
 const cloudProtocol = 'cloud://';
 
@@ -81,6 +81,8 @@ export default function makeApp(json: any): App {
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
   const awsRoles: AwsRole[] = json.awsRoles || [];
+  const azureIdentities: AppPrincipal[] = json.azureIdentities || [];
+  const gcpServiceAccounts: AppPrincipal[] = json.gcpServiceAccounts || [];
   const userGroups = json.userGroups || [];
   const permissionSets: PermissionSet[] = json.permissionSets || [];
 
@@ -143,6 +145,8 @@ export default function makeApp(json: any): App {
     fqdn,
     launchUrl,
     awsRoles,
+    azureIdentities,
+    gcpServiceAccounts,
     awsConsole,
     isTcp,
     isCloud,

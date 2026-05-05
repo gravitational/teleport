@@ -122,3 +122,64 @@ export const toggleSSHConstraint = <T extends PendingListItem>(
   };
   set(key, newRc.ssh.logins.length ? newRc : undefined);
 };
+
+/**
+ * Toggles an Azure App constraint by removing the specified identity from the current constraints.
+ * If no identities remain after removal, it clears the constraint.
+ */
+export const toggleAzureAppConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'azure_app',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  identity: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const newRc = {
+    azure_app: {
+      azure_identities: item.constraints.azure_app.azure_identities.filter(
+        i => i !== identity
+      ),
+    },
+  };
+  set(key, newRc.azure_app.azure_identities.length ? newRc : undefined);
+};
+
+/**
+ * Toggles a GCP App constraint by removing the specified service account from the current constraints.
+ * If no accounts remain after removal, it clears the constraint.
+ */
+export const toggleGCPAppConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'gcp_app',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  account: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const newRc = {
+    gcp_app: {
+      gcp_service_accounts:
+        item.constraints.gcp_app.gcp_service_accounts.filter(
+          a => a !== account
+        ),
+    },
+  };
+  set(key, newRc.gcp_app.gcp_service_accounts.length ? newRc : undefined);
+};

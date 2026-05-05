@@ -153,6 +153,14 @@ type SshConstraints = {
   logins: string[];
 };
 
+type AzureAppConstraints = {
+  azure_identities: string[];
+};
+
+type GcpAppConstraints = {
+  gcp_service_accounts: string[];
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -166,14 +174,32 @@ export type ResourceConstraints = BaseResourceConstraints &
     | {
         aws_console: AwsConsoleConstraints;
         ssh?: never;
+        azure_app?: never;
+        gcp_app?: never;
       }
     | {
         aws_console?: never;
         ssh: SshConstraints;
+        azure_app?: never;
+        gcp_app?: never;
       }
     | {
         aws_console?: never;
         ssh?: never;
+        azure_app: AzureAppConstraints;
+        gcp_app?: never;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
+        azure_app?: never;
+        gcp_app: GcpAppConstraints;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
+        azure_app?: never;
+        gcp_app?: never;
       }
   );
 

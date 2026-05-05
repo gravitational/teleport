@@ -49,6 +49,10 @@ export interface App {
   useAnyProxyPublicAddr?: boolean;
   awsRoles: AwsRole[];
   awsConsole: boolean;
+  /** azureIdentities is the list of Azure identities for Azure Cloud apps. */
+  azureIdentities?: AppPrincipal[];
+  /** gcpServiceAccounts is the list of GCP service accounts for GCP Cloud apps. */
+  gcpServiceAccounts?: AppPrincipal[];
   requiresRequest?: boolean;
   isTcp?: boolean;
   /**
@@ -94,6 +98,15 @@ export interface App {
    */
   supportedFeatureIds?: ComponentFeatureID[];
 }
+
+/**
+ * AppPrincipal represents a principal (e.g. Azure identity, GCP service account)
+ * with request metadata.
+ */
+export type AppPrincipal = {
+  name: string;
+  requiresRequest?: boolean;
+};
 
 export type UserGroupAndDescription = {
   name: string;
