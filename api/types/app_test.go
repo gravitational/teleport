@@ -1112,7 +1112,7 @@ func TestAppClientCertMode(t *testing.T) {
 			},
 			expectedMode: AppClientCertModeDisabled,
 		},
-		"explict disable": {
+		"explicit disable": {
 			spec: AppSpecV3{
 				URI: "tls://0.0.0.0:8000",
 				TLS: &AppTLS{
