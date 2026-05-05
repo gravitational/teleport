@@ -2832,7 +2832,7 @@
     },
     {
       "source": "/reference/agent-services/database-access-reference/configuration/",
-      "destination": "/enroll-resources/database-access/reference/configuration/",
+      "destination": "/reference/deployment/config/",
       "permanent": true
     },
     {
@@ -3798,6 +3798,16 @@
     {
       "source": "/zero-trust-access/deploy-a-cluster/self-signed-certs/",
       "destination": "/installation/self-hosted/self-signed-certs/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/reference/configuration/",
+      "destination": "/reference/deployment/config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/infrastructure-as-code/teleport-resources/db/",
+      "destination": "/reference/infrastructure-as-code/teleport-resources/database-v3/",
       "permanent": true
     }
   ]
