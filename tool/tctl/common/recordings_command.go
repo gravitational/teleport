@@ -109,6 +109,16 @@ type RecordingsCommand struct {
 	searchResourceKind string
 	// searchResourceName filters results by the resource name.
 	searchResourceName string
+	// searchServerHostname filters SSH results by server hostname.
+	searchServerHostname string
+	// searchServerAddr filters SSH results by server address.
+	searchServerAddr string
+	// searchPodNamespace filters Kubernetes results by pod namespace.
+	searchPodNamespace string
+	// searchPodName filters Kubernetes results by pod name.
+	searchPodName string
+	// searchDatabaseName filters database results by database name.
+	searchDatabaseName string
 	// searchSeverity filters results by minimum severity level (low/medium/high/critical).
 	searchSeverity string
 	// searchMode controls which search strategy to use: hybrid (default), keyword, or embedding.
@@ -143,6 +153,11 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("role", "Filter by role held during the session. Can be specified multiple times.").StringsVar(&c.searchRoles)
 	c.recordingsSearch.Flag("resource-kind", "Filter by Teleport resource type (node, kube_cluster, db).").StringVar(&c.searchResourceKind)
 	c.recordingsSearch.Flag("resource-name", "Filter by resource name.").StringVar(&c.searchResourceName)
+	c.recordingsSearch.Flag("server-hostname", "Filter SSH sessions by server hostname.").StringVar(&c.searchServerHostname)
+	c.recordingsSearch.Flag("server-addr", "Filter SSH sessions by server address.").StringVar(&c.searchServerAddr)
+	c.recordingsSearch.Flag("pod-namespace", "Filter Kubernetes sessions by pod namespace.").StringVar(&c.searchPodNamespace)
+	c.recordingsSearch.Flag("pod-name", "Filter Kubernetes sessions by pod name.").StringVar(&c.searchPodName)
+	c.recordingsSearch.Flag("database-name", "Filter database sessions by database name.").StringVar(&c.searchDatabaseName)
 	c.recordingsSearch.Flag("severity", "Minimum severity level to include (low, medium, high, critical).").StringVar(&c.searchSeverity)
 	c.recordingsSearch.Flag("search-mode", "Search strategy to use when search queries are provided.").Default(searchModeHybrid).EnumVar(&c.searchMode, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
@@ -290,6 +305,11 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		UserRoles:        c.searchRoles,
 		MaxResults:       c.searchLimit,
 	}
+	resourceProperties, err := c.buildSearchResourceProperties()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.ResourceProperties = resourceProperties
 	if c.searchUsername != "" {
 		req.Username = &c.searchUsername
 	}
@@ -351,6 +371,65 @@ func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.Ses
 			return nil
 		}
 		return recordingstui.RunSearchTUI(ctx, sessions, nextToken, summaryGetter, fetcher)
+	}
+}
+
+func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.ResourceProperties, error) {
+	sshSet := c.searchServerHostname != "" || c.searchServerAddr != ""
+	kubernetesSet := c.searchPodNamespace != "" || c.searchPodName != ""
+	databaseSet := c.searchDatabaseName != ""
+
+	var variants []string
+	if sshSet {
+		variants = append(variants, "SSH")
+	}
+	if kubernetesSet {
+		variants = append(variants, "Kubernetes")
+	}
+	if databaseSet {
+		variants = append(variants, "Database")
+	}
+	if len(variants) > 1 {
+		return nil, trace.BadParameter("resource property filters can only target one session kind at a time, got %s", strings.Join(variants, ", "))
+	}
+
+	switch {
+	case sshSet:
+		props := &sessionsearchv1pb.SSHProperties{}
+		if c.searchServerHostname != "" {
+			props.ServerHostname = &c.searchServerHostname
+		}
+		if c.searchServerAddr != "" {
+			props.ServerAddr = &c.searchServerAddr
+		}
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
+				Ssh: props,
+			},
+		}, nil
+	case kubernetesSet:
+		props := &sessionsearchv1pb.KubernetesProperties{}
+		if c.searchPodNamespace != "" {
+			props.PodNamespace = &c.searchPodNamespace
+		}
+		if c.searchPodName != "" {
+			props.PodName = &c.searchPodName
+		}
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
+				Kubernetes: props,
+			},
+		}, nil
+	case databaseSet:
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Database{
+				Database: &sessionsearchv1pb.DatabaseProperties{
+					DatabaseName: &c.searchDatabaseName,
+				},
+			},
+		}, nil
+	default:
+		return nil, nil
 	}
 }
 
