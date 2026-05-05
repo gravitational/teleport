@@ -600,6 +600,7 @@
     "healthcheck",
     "healthchecks",
     "healthz",
+    "heartbeated",
     "highavailability",
     "highavailabilitycertmanager",
     "highavailabilitycertmanageraddcommonname",
