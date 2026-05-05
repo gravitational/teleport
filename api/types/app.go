@@ -937,6 +937,8 @@ const (
 	AppTLSInternalCAWorkloadIdentity AppTLSInternalCA = "workload_identity"
 )
 
-// AppSupportedAllowedInternalCAs is the list of internal CAs that can be used
+// AppSupportedInternalCAs returns the list of internal CAs that can be used
 // in the app TLS configuration.
-var AppSupportedAllowedInternalCAs = []string{AppTLSInternalCAWorkloadIdentity}
+func AppSupportedInternalCAs() []string {
+	return []string{AppTLSInternalCAWorkloadIdentity}
+}

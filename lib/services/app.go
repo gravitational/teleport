@@ -248,15 +248,16 @@ func validateAppTLS(a types.Application) error {
 		}
 	}
 
+	supportedCAs := types.AppSupportedInternalCAs()
 	for _, allowedCA := range tls.AllowedCas {
-		if slices.Contains(types.AppSupportedAllowedInternalCAs, allowedCA) {
+		if slices.Contains(supportedCAs, allowedCA) {
 			continue
 		}
 		if err := isValidCACertificatePEM(allowedCA); err != nil {
 			return trace.BadParameter(
 				"App %q 'tls.allowed_cas' values must include valid PEM-encoded CA certificates or a Teleport CA alias (%s): %s",
 				a.GetName(),
-				quoteAndJoin(types.AppSupportedAllowedInternalCAs),
+				quoteAndJoin(supportedCAs),
 				err,
 			)
 		}
