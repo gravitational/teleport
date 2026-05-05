@@ -1910,7 +1910,21 @@ var xxx_messageInfo_DatabaseV3 proto.InternalMessageInfo
 
 // DatabaseSpecV3 is the database spec.
 type DatabaseSpecV3 struct {
-	// Protocol is the database protocol: postgres, mysql, mongodb, etc.
+	// Protocol is the database protocol. Valid options are:
+	// "cassandra"
+	// "clickhouse"
+	// "clickhouse-http"
+	// "cockroachdb"
+	// "dynamodb"
+	// "elasticsearch"
+	// "mongodb"
+	// "mysql"
+	// "oracle"
+	// "postgres"
+	// "redis"
+	// "snowflake"
+	// "spanner"
+	// "sqlserver"
 	Protocol string `protobuf:"bytes,1,opt,name=Protocol,proto3" json:"protocol"`
 	// URI is the database connection endpoint.
 	URI string `protobuf:"bytes,2,opt,name=URI,proto3" json:"uri"`

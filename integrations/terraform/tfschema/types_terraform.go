@@ -542,7 +542,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 				},
 				"protocol": {
-					Description: "Protocol is the database protocol: postgres, mysql, mongodb, etc.",
+					Description: "Protocol is the database protocol. Valid options are: \"cassandra\" \"clickhouse\" \"clickhouse-http\" \"cockroachdb\" \"dynamodb\" \"elasticsearch\" \"mongodb\" \"mysql\" \"oracle\" \"postgres\" \"redis\" \"snowflake\" \"spanner\" \"sqlserver\"",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
