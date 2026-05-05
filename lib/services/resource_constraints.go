@@ -73,8 +73,30 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 				return lm.login
 			},
 		)
-	// TODO(kiosion): Future support for AWS Identity Center.
-	// Need to decide on best way to handle; whether to continue using IdentityCenterAccountAssignments, or just Account, with PermissionSets carried in constraints.
+	case *types.ResourceConstraints_AzureApp:
+		return buildStringConstraintTransform(
+			d.Validate,
+			func() []string { return d.AzureApp.AzureIdentities },
+			func(m RoleMatcher) string {
+				lm, ok := m.(*AzureIdentityMatcher)
+				if !ok {
+					return ""
+				}
+				return lm.Identity
+			},
+		)
+	case *types.ResourceConstraints_GcpApp:
+		return buildStringConstraintTransform(
+			d.Validate,
+			func() []string { return d.GcpApp.GcpServiceAccounts },
+			func(m RoleMatcher) string {
+				lm, ok := m.(*GCPServiceAccountMatcher)
+				if !ok {
+					return ""
+				}
+				return lm.ServiceAccount
+			},
+		)
 	default:
 		return func(m RoleMatcher) RoleMatcher {
 			return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
@@ -122,9 +144,13 @@ func buildStringConstraintTransform(
 // This matcher is intended for use in request expansion, to decide whether a
 // role qualifies for a resource where ResourceConstraints are specified.
 //
+// The resource parameter is used for resource-specific matching (e.g.,
+// extracting an IC account ID to build assignment matchers). It may be nil
+// when the resource is not available.
+//
 // For enforcement of ResourceConstraints at authorization time, use
 // WithConstraints to decorate principal-bearing matchers instead.
-func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) {
+func MatcherFromConstraints(rc *types.ResourceConstraints, resource types.ResourceWithLabels) (RoleMatcher, error) {
 	if rc == nil {
 		return nil, nil
 	}
@@ -146,6 +172,24 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 		matchers := make([]RoleMatcher, 0, len(d.Ssh.Logins))
 		for _, login := range d.Ssh.Logins {
 			matchers = append(matchers, NewLoginMatcher(login))
+		}
+		return RoleMatchers(matchers).AnyOf(), nil
+	case *types.ResourceConstraints_AzureApp:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matchers := make([]RoleMatcher, 0, len(d.AzureApp.AzureIdentities))
+		for _, identity := range d.AzureApp.AzureIdentities {
+			matchers = append(matchers, &AzureIdentityMatcher{Identity: identity})
+		}
+		return RoleMatchers(matchers).AnyOf(), nil
+	case *types.ResourceConstraints_GcpApp:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matchers := make([]RoleMatcher, 0, len(d.GcpApp.GcpServiceAccounts))
+		for _, account := range d.GcpApp.GcpServiceAccounts {
+			matchers = append(matchers, &GCPServiceAccountMatcher{ServiceAccount: account})
 		}
 		return RoleMatchers(matchers).AnyOf(), nil
 	default:

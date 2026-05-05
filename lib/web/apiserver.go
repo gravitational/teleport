@@ -3568,14 +3568,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
-				LocalClusterName:  h.auth.clusterName,
-				LocalProxyDNSName: proxyDNSName,
-				AppClusterName:    cluster.GetName(),
-				AWSRoles:          principals.AWSRoleARNs,
-				UserGroupLookup:   getUserGroupLookup(),
-				Logger:            h.logger,
-				RequiresRequest:   enriched.RequiresRequest,
-				SupportedFeatures: appComponentFeatures,
+				LocalClusterName:   h.auth.clusterName,
+				LocalProxyDNSName:  proxyDNSName,
+				AppClusterName:     cluster.GetName(),
+				AWSRoles:           principals.AWSRoleARNs,
+				AzureIdentities:    principals.AzureIdentities,
+				GCPServiceAccounts: principals.GCPServiceAccounts,
+				UserGroupLookup:    getUserGroupLookup(),
+				Logger:             h.logger,
+				RequiresRequest:    enriched.RequiresRequest,
+				SupportedFeatures:  appComponentFeatures,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:

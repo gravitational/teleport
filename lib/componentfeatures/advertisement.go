@@ -39,10 +39,9 @@ type appServerInfoGetter interface {
 
 // ForAppServer returns features that an App server can support/participate in.
 func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures {
-	// Resource Constraints are only supported for AWS Console apps.
-	if app := g.GetApp(); !app.IsAWSConsole() {
-		return New()
+	app := g.GetApp()
+	if app.IsAWSConsole() || app.IsAzureCloud() || app.IsGCP() {
+		return New(FeatureResourceConstraintsV1)
 	}
-
-	return New(FeatureResourceConstraintsV1)
+	return New()
 }

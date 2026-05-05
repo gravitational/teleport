@@ -290,9 +290,9 @@ type AccessChecker interface {
 	//
 	// Supports the following resource types:
 	//
-	// - types.Server with GetKind() == types.KindNode
-	// - types.KindWindowsDesktop
-	// - types.KindApp with IsAWSConsole() == true
+	//   - types.Server with GetKind() == types.KindNode
+	//   - types.KindWindowsDesktop
+	//   - types.KindApp with IsAWSConsole(), IsAzureCloud(), or IsGCP()
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 
 	// CheckSPIFFESVID checks if the role set has access to generating the
@@ -1095,16 +1095,16 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 //
 // Supports the following resource types:
 //
-// - types.Server with GetKind() == types.KindNode
-// - types.KindWindowsDesktop
-// - types.KindApp with IsAWSConsole() == true
+//   - types.Server with GetKind() == types.KindNode
+//   - types.KindWindowsDesktop
+//   - types.KindApp with IsAWSConsole(), IsAzureCloud(), or IsGCP()
 func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
 	// Create a map indexed by all logins in the RoleSet,
 	// mapped to false if any role has it in its deny section,
 	// true otherwise.
 	mapped := make(map[string]bool)
 
-	resourceAsApp, resourceIsApp := resource.(interface{ IsAWSConsole() bool })
+	resourceAsApp, resourceIsApp := resource.(types.Application)
 
 	for _, role := range a.RoleSet {
 		var loginGetter func(types.RoleConditionType) []string
@@ -1120,12 +1120,16 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			if !resourceIsApp {
 				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
 			}
-			// For Apps, only AWS currently supports listing the possible logins.
-			if !resourceAsApp.IsAWSConsole() {
+			switch {
+			case resourceAsApp.IsAWSConsole():
+				loginGetter = role.GetAWSRoleARNs
+			case resourceAsApp.IsAzureCloud():
+				loginGetter = role.GetAzureIdentities
+			case resourceAsApp.IsGCP():
+				loginGetter = role.GetGCPServiceAccounts
+			default:
 				return nil, nil
 			}
-
-			loginGetter = role.GetAWSRoleARNs
 		default:
 			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 		}
@@ -1159,11 +1163,23 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 	case types.KindLinuxDesktop:
 		newLoginMatcher = NewLinuxDesktopLoginMatcher
 	case types.KindApp:
-		if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
+		if !resourceIsApp {
 			return nil, trace.BadParameter("received unsupported resource type for Application: %T", resource)
 		}
-
-		newLoginMatcher = NewAppAWSLoginMatcher
+		switch {
+		case resourceAsApp.IsAWSConsole():
+			newLoginMatcher = NewAppAWSLoginMatcher
+		case resourceAsApp.IsAzureCloud():
+			newLoginMatcher = func(identity string) RoleMatcher {
+				return &AzureIdentityMatcher{Identity: identity}
+			}
+		case resourceAsApp.IsGCP():
+			newLoginMatcher = func(account string) RoleMatcher {
+				return &GCPServiceAccountMatcher{ServiceAccount: account}
+			}
+		default:
+			return nil, trace.BadParameter("received unsupported app type for Application: %T", resource)
+		}
 	default:
 		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 	}

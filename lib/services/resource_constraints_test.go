@@ -168,7 +168,7 @@ func TestMatcherFromConstraints_SSH_BuildsAnyOf(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -195,7 +195,7 @@ func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -265,9 +265,205 @@ func TestValidateAccessRequest_ConstraintKinds(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "ssh constraints are not valid for resource kind")
 	})
-
 	t.Run("nil constraints are accepted for any kind", func(t *testing.T) {
 		err := ValidateAccessRequest(makeRequest(types.KindDatabase, nil))
 		require.NoError(t, err)
 	})
+
+	azureConstraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_AzureApp{
+			AzureApp: &types.AzureAppResourceConstraints{
+				AzureIdentities: []string{"identity1"},
+			},
+		},
+	}
+	gcpConstraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_GcpApp{
+			GcpApp: &types.GCPAppResourceConstraints{
+				GcpServiceAccounts: []string{"sa@project.iam.gserviceaccount.com"},
+			},
+		},
+	}
+
+	t.Run("KindApp with Azure constraints is accepted", func(t *testing.T) {
+		require.NoError(t, ValidateAccessRequest(makeRequest(types.KindApp, azureConstraints)))
+	})
+	t.Run("KindApp with GCP constraints is accepted", func(t *testing.T) {
+		require.NoError(t, ValidateAccessRequest(makeRequest(types.KindApp, gcpConstraints)))
+	})
+
+	t.Run("KindNode with Azure constraints is rejected", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindNode, azureConstraints))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "azure_app constraints are not valid for resource kind")
+	})
+	t.Run("KindNode with GCP constraints is rejected", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindNode, gcpConstraints))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "gcp_app constraints are not valid for resource kind")
+	})
+}
+
+func roleAllowingAzureIdentities(identities ...string) types.Role {
+	return newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.AzureIdentities = append([]string{}, identities...)
+	})
+}
+
+func TestWithConstraints_AzureApp_ScopesIdentityMatcher(t *testing.T) {
+	const (
+		identity1 = "/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1"
+		identity2 = "/subscriptions/sub1/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2"
+	)
+
+	role := roleAllowingAzureIdentities(identity1, identity2)
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_AzureApp{
+			AzureApp: &types.AzureAppResourceConstraints{
+				AzureIdentities: []string{identity2},
+			},
+		},
+	}
+	guard := WithConstraints(rc)
+
+	m1 := &AzureIdentityMatcher{Identity: identity1}
+	m2 := &AzureIdentityMatcher{Identity: identity2}
+
+	ok, err := guard(m1).Match(role, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok, "identity1 should be denied by constraint scoping")
+
+	ok, err = guard(m2).Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok, "identity2 should be allowed by role and constraint")
+}
+
+func TestWithConstraints_AzureApp_NoOpForNonPrincipalMatchers(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_AzureApp{
+			AzureApp: &types.AzureAppResourceConstraints{AzureIdentities: []string{"x"}},
+		},
+	}
+	dummy := RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+		return true, nil
+	})
+	ok, err := WithConstraints(rc)(dummy).Match(roleAllowingAzureIdentities("y"), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestWithConstraints_AzureApp_ErrorCases(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_AzureApp{
+			AzureApp: &types.AzureAppResourceConstraints{AzureIdentities: nil},
+		},
+	}
+	_, err := WithConstraints(rc)(&AzureIdentityMatcher{Identity: "x"}).Match(roleAllowingAzureIdentities("x"), types.Allow)
+	require.ErrorIs(t, err, trace.BadParameter("azure_app constraints require azure_identities, none provided"))
+}
+
+func TestMatcherFromConstraints_AzureApp_BuildsAnyOf(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_AzureApp{
+			AzureApp: &types.AzureAppResourceConstraints{
+				AzureIdentities: []string{"id1", "id2"},
+			},
+		},
+	}
+
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+
+	ok, err := m.Match(roleAllowingAzureIdentities("id1"), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = m.Match(roleAllowingAzureIdentities("other"), types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func roleAllowingGCPServiceAccounts(accounts ...string) types.Role {
+	return newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.GCPServiceAccounts = append([]string{}, accounts...)
+	})
+}
+
+func TestWithConstraints_GCPApp_ScopesAccountMatcher(t *testing.T) {
+	const (
+		account1 = "sa1@project.iam.gserviceaccount.com"
+		account2 = "sa2@project.iam.gserviceaccount.com"
+	)
+
+	role := roleAllowingGCPServiceAccounts(account1, account2)
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_GcpApp{
+			GcpApp: &types.GCPAppResourceConstraints{
+				GcpServiceAccounts: []string{account2},
+			},
+		},
+	}
+	guard := WithConstraints(rc)
+
+	m1 := &GCPServiceAccountMatcher{ServiceAccount: account1}
+	m2 := &GCPServiceAccountMatcher{ServiceAccount: account2}
+
+	ok, err := guard(m1).Match(role, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok, "account1 should be denied by constraint scoping")
+
+	ok, err = guard(m2).Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok, "account2 should be allowed by role and constraint")
+}
+
+func TestWithConstraints_GCPApp_NoOpForNonPrincipalMatchers(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_GcpApp{
+			GcpApp: &types.GCPAppResourceConstraints{GcpServiceAccounts: []string{"x"}},
+		},
+	}
+	dummy := RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+		return true, nil
+	})
+	ok, err := WithConstraints(rc)(dummy).Match(roleAllowingGCPServiceAccounts("y"), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestWithConstraints_GCPApp_ErrorCases(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_GcpApp{
+			GcpApp: &types.GCPAppResourceConstraints{GcpServiceAccounts: nil},
+		},
+	}
+	_, err := WithConstraints(rc)(&GCPServiceAccountMatcher{ServiceAccount: "x"}).Match(roleAllowingGCPServiceAccounts("x"), types.Allow)
+	require.ErrorIs(t, err, trace.BadParameter("gcp_app constraints require gcp_service_accounts, none provided"))
+}
+
+func TestMatcherFromConstraints_GCPApp_BuildsAnyOf(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_GcpApp{
+			GcpApp: &types.GCPAppResourceConstraints{
+				GcpServiceAccounts: []string{"sa1@project.iam.gserviceaccount.com", "sa2@project.iam.gserviceaccount.com"},
+			},
+		},
+	}
+
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+
+	ok, err := m.Match(roleAllowingGCPServiceAccounts("sa1@project.iam.gserviceaccount.com"), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = m.Match(roleAllowingGCPServiceAccounts("other@project.iam.gserviceaccount.com"), types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
 }

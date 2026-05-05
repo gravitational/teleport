@@ -60,6 +60,10 @@ type App struct {
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
+	// AzureIdentities is a list of Azure identity URIs for Azure Cloud apps.
+	AzureIdentities []ResourcePrincipal `json:"azureIdentities,omitempty"`
+	// GCPServiceAccounts is a list of GCP service accounts for GCP Cloud apps.
+	GCPServiceAccounts []ResourcePrincipal `json:"gcpServiceAccounts,omitempty"`
 	// FriendlyName is a friendly name for the app.
 	FriendlyName string `json:"friendlyName,omitempty"`
 	// UserGroups is a list of associated user groups.
@@ -134,6 +138,12 @@ type MakeAppsConfig struct {
 	// AWSRoles holds the visible and granted AWS role ARNs for this app.
 	// Only used for AWS Console Apps.
 	AWSRoles *PrincipalSet
+	// AzureIdentities holds the visible and granted Azure identities for this app.
+	// Only used for Azure Cloud Apps.
+	AzureIdentities *PrincipalSet
+	// GCPServiceAccounts holds the visible and granted GCP service accounts for this app.
+	// Only used for GCP Cloud Apps.
+	GCPServiceAccounts *PrincipalSet
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
@@ -206,6 +216,12 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			r.RequiresRequest = !c.AWSRoles.Granted.Contains(r.ARN)
 			return r
 		})
+	}
+	if app.IsAzureCloud() {
+		resultApp.AzureIdentities = ResourcePrincipalsFromSet(c.AzureIdentities)
+	}
+	if app.IsGCP() {
+		resultApp.GCPServiceAccounts = ResourcePrincipalsFromSet(c.GCPServiceAccounts)
 	}
 
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {

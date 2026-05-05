@@ -20,6 +20,7 @@ package ui
 
 import (
 	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // PrincipalSet holds the visible (granted + requestable) and granted-only
@@ -31,4 +32,24 @@ type PrincipalSet struct {
 	// Granted contains only the principals the user can use without an
 	// access request.
 	Granted set.Set[string]
+}
+
+// ResourcePrincipal represents a principal with a flag indicating whether
+// access to it requires an access request.
+type ResourcePrincipal struct {
+	// Name is the principal identifier (e.g., Azure identity URI, GCP service account email).
+	Name string `json:"name"`
+	// RequiresRequest is true if the principal is not directly granted and
+	// must be requested via an access request.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// ResourcePrincipalsFromSet converts a PrincipalSet to a slice of ResourcePrincipal.
+func ResourcePrincipalsFromSet(ps *PrincipalSet) []ResourcePrincipal {
+	if ps == nil {
+		return nil
+	}
+	return slices.Map(ps.All.Elements(), func(name string) ResourcePrincipal {
+		return ResourcePrincipal{Name: name, RequiresRequest: !ps.Granted.Contains(name)}
+	})
 }

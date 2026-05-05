@@ -112,6 +112,14 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 			if kind != types.KindNode {
 				return trace.BadParameter("ssh constraints are not valid for resource kind %q", kind)
 			}
+		case *types.ResourceConstraints_AzureApp:
+			if kind != types.KindApp {
+				return trace.BadParameter("azure_app constraints are not valid for resource kind %q", kind)
+			}
+		case *types.ResourceConstraints_GcpApp:
+			if kind != types.KindApp {
+				return trace.BadParameter("gcp_app constraints are not valid for resource kind %q", kind)
+			}
 		default:
 			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)
 		}
@@ -1778,7 +1786,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 					continue
 				}
 				if c := raid.GetConstraints(); c != nil {
-					rm, err := MatcherFromConstraints(raid.GetConstraints())
+					rm, err := MatcherFromConstraints(raid.GetConstraints(), resource)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -2515,7 +2523,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
 			}
-			constraintMatcher, err := MatcherFromConstraints(constraints)
+			constraintMatcher, err := MatcherFromConstraints(constraints, resource)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

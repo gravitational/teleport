@@ -34,6 +34,10 @@ type UnifiedResourcePrincipals struct {
 	Logins *webui.PrincipalSet
 	// AWSRoleARNs is populated for AWS Console apps.
 	AWSRoleARNs *webui.PrincipalSet
+	// AzureIdentities is populated for Azure Cloud apps.
+	AzureIdentities *webui.PrincipalSet
+	// GCPServiceAccounts is populated for GCP Cloud apps.
+	GCPServiceAccounts *webui.PrincipalSet
 }
 
 // PrincipalsForUnifiedResourceOpts configures PrincipalsForUnifiedResource.
@@ -66,11 +70,19 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 		}
 		result.Logins = logins
 	case types.AppServer:
-		arns, err := appPrincipals(opts, r)
+		principals, err := appPrincipals(opts, r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		result.AWSRoleARNs = arns
+		app := r.GetApp()
+		switch {
+		case app.IsAzureCloud():
+			result.AzureIdentities = principals
+		case app.IsGCP():
+			result.GCPServiceAccounts = principals
+		default:
+			result.AWSRoleARNs = principals
+		}
 	}
 
 	return result, nil
