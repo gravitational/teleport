@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
-// EmbeddedVNetConfig is the configuration for an embeded/single-process
+// EmbeddedVNetConfig is the configuration for an embedded/single-process
 // application of VNet.
 type EmbeddedVNetConfig struct {
 	// Device is the TUN device VNet will bind to.
@@ -98,7 +98,7 @@ type EmbeddedVNetHostConfig struct {
 	DNSZones []string
 }
 
-// EmbeddedVNet is an embeded/single-process application of VNet. It does not
+// EmbeddedVNet is an embedded/single-process application of VNet. It does not
 // currently support VNet SSH.
 type EmbeddedVNet struct {
 	device              TUNDevice
@@ -134,7 +134,7 @@ func NewEmbeddedVNet(cfg EmbeddedVNetConfig) (*EmbeddedVNet, error) {
 	}, nil
 }
 
-// Run the VNet until the given context is cancelled.
+// Run the VNet until the given context is canceled.
 func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 	stackConfig, err := newNetworkStackConfig(ctx, vnet.device, vnet.client)
 	if err != nil {
