@@ -20,6 +20,8 @@ package server
 
 import (
 	"context"
+	"os"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -75,6 +77,7 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	const azureParallelInstallLimit = 10
 	g.SetLimit(azureParallelInstallLimit)
 
+	runCommandTimeout := getRunCommandTimeout()
 	for _, inst := range req.Instances {
 		inst := inst
 		g.Go(func() error {
@@ -90,6 +93,8 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 				Script:        script,
 			}
 
+			ctx, cancel := context.WithTimeout(ctx, runCommandTimeout)
+			defer cancel()
 			commandResult, apiError := client.Run(ctx, runRequest)
 			if req.OnRunCommandFinished != nil {
 				req.OnRunCommandFinished(AzureInstallResult{
@@ -105,4 +110,11 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	}
 
 	return trace.Wrap(g.Wait())
+}
+
+func getRunCommandTimeout() time.Duration {
+	if dur, err := time.ParseDuration(os.Getenv("TELEPORT_UNSTABLE_AZURE_RUN_COMMAND_TIMEOUT")); err == nil {
+		return dur
+	}
+	return 5 * time.Minute
 }

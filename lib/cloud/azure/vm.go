@@ -336,6 +336,11 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 	// TODO(Tener): make the run command name actual parameter.
 	const runCommandName = "teleport-install"
 
+	var timeout *int32
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = to.Ptr(int32(time.Until(deadline).Seconds()))
+	}
+
 	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
@@ -343,6 +348,7 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
+			TimeoutInSeconds: timeout,
 		},
 	}, nil)
 	if err != nil {
