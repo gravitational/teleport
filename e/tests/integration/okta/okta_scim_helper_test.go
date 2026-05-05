@@ -25,6 +25,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func scimBaseURL(sut *common.SUT) string {
@@ -205,13 +206,13 @@ func mustNewSAMLLikeUser(t *testing.T, name, connectorID string) types.User {
 	return user
 }
 
-func mustListOktaUsers(t *testing.T, authServer *auth.Server) []types.User {
+func mustListOktaUsers(t *testing.T, identity services.Identity) []types.User {
 	t.Helper()
 	ctx := t.Context()
 
 	var res []types.User
 	listFn := func(ctx context.Context, limit int, pageToken string) ([]*types.UserV2, string, error) {
-		resp, err := authServer.ListUsers(ctx, &usersv1.ListUsersRequest{PageSize: int32(limit), PageToken: pageToken})
+		resp, err := identity.ListUsers(ctx, &usersv1.ListUsersRequest{PageSize: int32(limit), PageToken: pageToken})
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

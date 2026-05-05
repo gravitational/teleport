@@ -378,7 +378,7 @@ func TestSyncedUserProvisioning(t *testing.T) {
 
 	waitForOktaSync(t, sut, withTimePoint(startTime))
 
-	users := mustListOktaUsers(t, authServer)
+	users := mustListOktaUsers(t, authServer.Services)
 	require.Len(t, users, 3)
 
 	// Take a random Okta-synced user from the backend and update it with SCIM client.
