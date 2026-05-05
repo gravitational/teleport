@@ -267,6 +267,83 @@ func TestSimplifyAzureMatchersCollapsesRegionsWildcard(t *testing.T) {
 		"any wildcard in regions must collapse the slice to a single wildcard")
 }
 
+// TestSimplifyAzureMatchersTrimsBeforeDedupe guards against a regression where
+// Subscriptions and ResourceGroups deduped without first trimming whitespace,
+// letting hand-edited config like " sub-1" survive byte-equality dedup as a
+// distinct entry from "sub-1" and reach downstream as duplicate scopes.
+func TestSimplifyAzureMatchersTrimsBeforeDedupe(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{" sub-1", "sub-1", "sub-2  ", "  ", "sub-2"},
+			ResourceGroups: []string{"rg-a", "  rg-a", "rg-b ", "", "\t"},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{"sub-1", "sub-2"}, simplified[0].Subscriptions,
+		"whitespace variants must collapse to a single trimmed entry, "+
+			"first-occurrence order preserved")
+	require.Equal(t, []string{"rg-a", "rg-b"}, simplified[0].ResourceGroups,
+		"resource group whitespace variants must collapse to a single trimmed entry")
+	require.Equal(t, []string{"eu-west-1"}, simplified[0].Regions)
+	require.Equal(t, []string{"vm"}, simplified[0].Types)
+}
+
+// TestSimplifyAzureMatchersTrimmedWildcardCollapses guards against a
+// regression where a hand-edited wildcard with stray whitespace (" * ")
+// failed to trigger the wildcard collapse because the slices.Contains check
+// ran against untrimmed inputs.
+func TestSimplifyAzureMatchersTrimmedWildcardCollapses(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{" * ", "sub-1"},
+			ResourceGroups: []string{"\t*\n", "rg-a"},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{types.Wildcard}, simplified[0].Subscriptions,
+		"trimmed wildcard alongside concrete entries must collapse to a single wildcard")
+	require.Equal(t, []string{types.Wildcard}, simplified[0].ResourceGroups,
+		"trimmed wildcard alongside concrete entries must collapse to a single wildcard")
+}
+
+// TestSimplifyAzureMatchersAllEmptyEntriesCollapseToWildcard guards against a
+// regression where a slice that is all whitespace-only entries (e.g.
+// ["", "  ", "\t"]) failed to fall through to the empty-list branch and
+// reached downstream as garbage scope. After trim+drop-empty, no explicit
+// scope remains, so the normal empty-list behavior must canonicalize the
+// matcher back to wildcard.
+func TestSimplifyAzureMatchersAllEmptyEntriesCollapseToWildcard(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{"", "  ", "\t"},
+			ResourceGroups: []string{" "},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{types.Wildcard}, simplified[0].Subscriptions,
+		"all-empty subscriptions must collapse to wildcard, not survive as garbage")
+	require.Equal(t, []string{types.Wildcard}, simplified[0].ResourceGroups,
+		"all-empty resource groups must collapse to wildcard, not survive as garbage")
+}
+
 func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
