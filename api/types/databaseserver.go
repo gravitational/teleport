@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -73,6 +74,10 @@ type DatabaseServer interface {
 	SetTargetHealthStatus(status TargetHealthStatus)
 	// GetScope returns the scope this server belongs to.
 	GetScope() string
+	// GetComponentFeatures returns the ComponentFeatures supported by this DatabaseServer.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this DatabaseServer.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -188,6 +193,16 @@ func (s *DatabaseServerV3) SetDatabase(database Database) error {
 	}
 	s.Spec.Database = databaseV3
 	return nil
+}
+
+// GetComponentFeatures returns the ComponentFeatures supported by this DatabaseServer.
+func (s *DatabaseServerV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this DatabaseServer.
+func (s *DatabaseServerV3) SetComponentFeatures(cf *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = cf
 }
 
 // GetProxyID returns a list of proxy ids this server is connected to.

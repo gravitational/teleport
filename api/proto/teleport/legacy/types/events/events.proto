@@ -1730,6 +1730,8 @@ message ResourceAccessID {
     AWSConsoleConstraints aws_console = 11;
     // ssh captures audit-log-friendly data for SSH node scoping constraints.
     SSHConstraints ssh = 12;
+    // database captures audit-log-friendly data for Database scoping constraints.
+    DatabaseConstraints database = 13;
   }
 }
 
@@ -1755,6 +1757,22 @@ message SSHConstraints {
   uint32 logins_count = 1;
   // logins_preview contains up to N logins for inspection; it may be truncated.
   repeated string logins_preview = 2;
+}
+
+// DatabaseConstraints is an audit-log-friendly view of Database constraints.
+message DatabaseConstraints {
+  // names_count is the total number of db_names requested.
+  uint32 names_count = 1;
+  // names_preview contains up to N db_names for inspection; it may be truncated.
+  repeated string names_preview = 2;
+  // users_count is the total number of db_users requested.
+  uint32 users_count = 3;
+  // users_preview contains up to N db_users for inspection; it may be truncated.
+  repeated string users_preview = 4;
+  // roles_count is the total number of db_roles requested.
+  uint32 roles_count = 5;
+  // roles_preview contains up to N db_roles for inspection; it may be truncated.
+  repeated string roles_preview = 6;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.

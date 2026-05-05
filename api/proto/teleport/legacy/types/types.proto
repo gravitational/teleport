@@ -225,6 +225,9 @@ message DatabaseServerSpecV3 {
   string relay_group = 14;
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 15;
+
+  // component_features contains features supported by this database server.
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 16;
 }
 
 // DatabaseServerStatusV3 is the database server status.
@@ -3500,6 +3503,14 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+  // ResourceAccessIDs is a list of resource access IDs (resources paired with
+  // optional constraints) for which we would like to view the necessary roles.
+  // When present, these are combined with ResourceIDs to form the full set of
+  // requested resources.
+  repeated ResourceAccessID ResourceAccessIDs = 7 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
@@ -3526,6 +3537,15 @@ message RemoteAccessCapabilitiesRequest {
   // the necessary roles for.
   repeated ResourceID ResourceIDs = 3 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
+
+  // ResourceAccessIDs is a list of resource access IDs (resources paired with
+  // optional constraints) for which we would like to view the necessary roles.
+  // When present, these are combined with ResourceIDs to form the full set of
+  // requested resources.
+  repeated ResourceAccessID ResourceAccessIDs = 4 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
     (gogoproto.nullable) = false
   ];
 }

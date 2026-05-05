@@ -986,6 +986,97 @@ func (p preparedSessionEvent) GetAuditEvent() events.AuditEvent {
 	return p.event
 }
 
+func TestProtoDatabasePrincipalsByRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input map[string]*proto.DatabaseRolePrincipals
+		want  map[string]types.DatabaseRolePrincipals
+	}{
+		{
+			name:  "nil input returns nil",
+			input: nil,
+			want:  nil,
+		},
+		{
+			name:  "empty map returns nil",
+			input: map[string]*proto.DatabaseRolePrincipals{},
+			want:  nil,
+		},
+		{
+			name: "nil value entry is skipped",
+			input: map[string]*proto.DatabaseRolePrincipals{
+				"role-a": nil,
+			},
+			want: map[string]types.DatabaseRolePrincipals{},
+		},
+		{
+			name: "single role",
+			input: map[string]*proto.DatabaseRolePrincipals{
+				"role-a": {Users: []string{"admin"}, Names: []string{"mydb"}},
+			},
+			want: map[string]types.DatabaseRolePrincipals{
+				"role-a": {Users: []string{"admin"}, Names: []string{"mydb"}},
+			},
+		},
+		{
+			name: "multiple roles",
+			input: map[string]*proto.DatabaseRolePrincipals{
+				"role-a": {Users: []string{"admin"}, Names: []string{"postgres"}},
+				"role-b": {Users: []string{"reader"}, Names: []string{"products"}, Roles: []string{"readwrite"}},
+			},
+			want: map[string]types.DatabaseRolePrincipals{
+				"role-a": {Users: []string{"admin"}, Names: []string{"postgres"}},
+				"role-b": {Users: []string{"reader"}, Names: []string{"products"}, Roles: []string{"readwrite"}},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := protoDatabasePrincipalsByRole(tc.input)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestConvertEnrichedResourceDatabasePrincipalsByRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		resource *proto.PaginatedResource
+		want     map[string]types.DatabaseRolePrincipals
+	}{
+		{
+			name: "node has no database principals",
+			resource: &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
+			},
+			want: nil,
+		},
+		{
+			name: "database server with per-role principals",
+			resource: &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: &types.DatabaseServerV3{}},
+				DatabasePrincipalsByRole: map[string]*proto.DatabaseRolePrincipals{
+					"role-a": {Users: []string{"admin"}, Names: []string{"mydb"}},
+				},
+			},
+			want: map[string]types.DatabaseRolePrincipals{
+				"role-a": {Users: []string{"admin"}, Names: []string{"mydb"}},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			enriched, err := convertEnrichedResource(tc.resource)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, enriched.DatabasePrincipalsByRole)
+		})
+	}
+}
+
 func TestWindowsCAFallback(t *testing.T) {
 	t.Parallel()
 

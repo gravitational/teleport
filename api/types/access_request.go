@@ -264,6 +264,15 @@ func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
 			return av == bv
 		}
 		return deriveTeleportEqualSSHResourceConstraints(av.Ssh, bv.Ssh)
+	case *ResourceConstraints_Database:
+		bv, ok := b.Details.(*ResourceConstraints_Database)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualDatabaseResourceConstraints(av.Database, bv.Database)
 	default:
 		return a.Details == nil && b.Details == nil
 	}

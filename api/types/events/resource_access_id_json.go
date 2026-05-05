@@ -25,6 +25,7 @@ type constraintsJSON struct {
 	UnknownConstraints *UnknownConstraints    `json:"unknown_constraints,omitempty"`
 	AWSConsole         *AWSConsoleConstraints `json:"aws_console,omitempty"`
 	SSH                *SSHConstraints        `json:"ssh,omitempty"`
+	Database           *DatabaseConstraints   `json:"database,omitempty"`
 }
 
 // resourceAccessIDJSON mirrors [ResourceAccessID] with a concrete Constraints
@@ -45,6 +46,8 @@ func (r *ResourceAccessID) MarshalJSON() ([]byte, error) {
 		out.Constraints = &constraintsJSON{AWSConsole: c.AwsConsole}
 	case *ResourceAccessID_Ssh:
 		out.Constraints = &constraintsJSON{SSH: c.Ssh}
+	case *ResourceAccessID_Database:
+		out.Constraints = &constraintsJSON{Database: c.Database}
 	}
 	return json.Marshal(out)
 }
@@ -66,6 +69,8 @@ func (r *ResourceAccessID) UnmarshalJSON(data []byte) error {
 		r.Constraints = &ResourceAccessID_AwsConsole{AwsConsole: tmp.Constraints.AWSConsole}
 	case tmp.Constraints.SSH != nil:
 		r.Constraints = &ResourceAccessID_Ssh{Ssh: tmp.Constraints.SSH}
+	case tmp.Constraints.Database != nil:
+		r.Constraints = &ResourceAccessID_Database{Database: tmp.Constraints.Database}
 	}
 	return nil
 }

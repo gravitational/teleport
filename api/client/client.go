@@ -4520,7 +4520,11 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	if r := resource.GetNode(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{
+			ResourceWithLabels:       r,
+			RequiresRequest:          resource.RequiresRequest,
+			DatabasePrincipalsByRole: protoDatabasePrincipalsByRole(resource.GetDatabasePrincipalsByRole()),
+		}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
@@ -4542,9 +4546,28 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetLinuxDesktop(); r != nil {
 		desktop := proto.UnpackLinuxDesktop(r)
 		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
-	} else {
-		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
+
+	return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
+}
+
+// protoDatabasePrincipalsByRole converts the proto DatabasePrincipalsByRole map
+// to the corresponding Go type.
+func protoDatabasePrincipalsByRole(pbMap map[string]*proto.DatabaseRolePrincipals) map[string]types.DatabaseRolePrincipals {
+	if len(pbMap) == 0 {
+		return nil
+	}
+	out := make(map[string]types.DatabaseRolePrincipals, len(pbMap))
+	for k, v := range pbMap {
+		if v != nil {
+			out[k] = types.DatabaseRolePrincipals{
+				Users: v.Users,
+				Names: v.Names,
+				Roles: v.Roles,
+			}
+		}
+	}
+	return out
 }
 
 // GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.

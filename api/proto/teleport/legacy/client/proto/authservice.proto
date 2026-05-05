@@ -2301,6 +2301,22 @@ message PaginatedResource {
   reserved "KubeService";
   reserved 11;
   reserved "AppServerOrSAMLIdPServiceProvider";
+
+  // DatabasePrincipalsByRole maps Teleport role names to the database principals
+  // (users, names, roles) each role grants for a database resource.
+  // Only populated when IncludeLogins is true and the resource is a database.
+  map<string, DatabaseRolePrincipals> DatabasePrincipalsByRole = 18 [(gogoproto.jsontag) = "database_principals_by_role,omitempty"];
+}
+
+// DatabaseRolePrincipals contains the database principals granted by a single
+// Teleport role for a specific database resource.
+message DatabaseRolePrincipals {
+  // Users is the list of database users this role grants.
+  repeated string Users = 1 [(gogoproto.jsontag) = "users,omitempty"];
+  // Names is the list of database names this role grants.
+  repeated string Names = 2 [(gogoproto.jsontag) = "names,omitempty"];
+  // Roles is the list of database roles this role grants (for auto-user provisioning).
+  repeated string Roles = 3 [(gogoproto.jsontag) = "roles,omitempty"];
 }
 
 // ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
