@@ -148,6 +148,7 @@ func (s *VNetService) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer client.Close()
 
 	applicationService, err := newVNetApplicationService(
 		client,
