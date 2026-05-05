@@ -125,7 +125,11 @@ message ResolveFQDNResponse {
   oneof match {
     // MatchedTcpApp will be set when the query matched a TCP app.
     MatchedTCPApp matched_tcp_app = 1;
-    // MatchedWebApp will be set when the query matched a web app.
+    // MatchedWebApp will be set when the query matched a web app and when app
+    // HTTPS tunnel is not used. MatchedWebApp signifies that the query matched
+    // a web app that VNet should not handle. DNS will be forwarded upstream so
+    // the browser resolves to the proxy's real address and goes through the
+    // normal web app login flow.
     MatchedWebApp matched_web_app = 2;
     // MatchedCluster will be set when the query did not match any app, but did
     // match a subdomain of a proxy address. VNet will resolve the DNS query to
@@ -133,6 +137,9 @@ message ResolveFQDNResponse {
     MatchedCluster matched_cluster = 3;
     // MatchedDatabase will be set when the query matched a database resource.
     MatchedDatabase matched_database = 4;
+    // MatchedHTTPSTunnelApp will be set when the query matched an app that
+    // should be tunneled via the HTTPS-in-mTLS ALPN protocol.
+    MatchedHTTPSTunnelApp matched_https_tunnel_app = 5;
   }
 }
 
@@ -144,6 +151,13 @@ message MatchedTCPApp {
 
 // MatchedTCPApp is a placeholder to signify that the query matched a web app.
 message MatchedWebApp {}
+
+// MatchedHTTPSTunnelApp holds info about an app that should be proxied through
+// the HTTPS-in-mTLS tunnel.
+message MatchedHTTPSTunnelApp {
+  // AppInfo holds all necessary info for making connections to the resolved app.
+  AppInfo app_info = 1;
+}
 
 // MatchedCluster holds info about a cluster that a query matched.
 message MatchedCluster {
