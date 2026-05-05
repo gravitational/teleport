@@ -494,8 +494,8 @@ github.com/gravitational/roundtrip v1.0.3 h1:n5JLvJVs8XrnJxXGYOzb8I9zGMEr5WVhSA1
 github.com/gravitational/roundtrip v1.0.3/go.mod h1:AR9OSmv3WN0qJObMyMYJUrPRXtzhdjAQSKIACv7F9b4=
 github.com/gravitational/saml v0.4.15-teleport.2 h1:ruNtaIkDrCJ5eS+OBcKeER+P5ldDDys7SeCoyFJAX1o=
 github.com/gravitational/saml v0.4.15-teleport.2/go.mod h1:wGckhUH/I+hcDR2uo9WC4GyL+o4rid5JUe1Ze/joarI=
-github.com/gravitational/trace v1.5.3 h1:qP/BP7xFJBr83D5ctTClNiJUVQKlg6Q4qVPviK7sMfo=
-github.com/gravitational/trace v1.5.3/go.mod h1:/uCbC3ukVU8Pdrh8+3vNLyyE1aGheBWpGGrMnwIK80E=
+github.com/gravitational/trace v1.5.4 h1:nMmF7alwvNiQJhC817Hhmgm95bzKOXbnxvkickTkRDY=
+github.com/gravitational/trace v1.5.4/go.mod h1:/uCbC3ukVU8Pdrh8+3vNLyyE1aGheBWpGGrMnwIK80E=
 github.com/gravitational/vt10x v0.0.3-teleport.1 h1:QYNPZGCQRcz1JehDn5m75UvRQbEJvT5X1pVblnCfZrY=
 github.com/gravitational/vt10x v0.0.3-teleport.1/go.mod h1:7p0/hpXPXby/VpuB6rFUq2pd7grku9KB+EcF0+jwqzQ=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 h1:+ngKgrYPPJrOjhax5N+uePQ0Fh1Z7PheYoUI/0nzkPA=
