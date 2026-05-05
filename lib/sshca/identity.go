@@ -153,6 +153,9 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate is being generated for.
+	HeadlessAuthenticationID string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
 	// ImmutableLabelHash is the immutable label hash used to verify
@@ -309,6 +312,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.GitHubUsername != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = i.GitHubUsername
+	}
+	if i.HeadlessAuthenticationID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionHeadlessAuthenticationID] = i.HeadlessAuthenticationID
 	}
 
 	if i.PinnedIP != "" {
@@ -536,6 +542,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
+	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")

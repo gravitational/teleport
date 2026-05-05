@@ -1146,9 +1146,9 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			CASigner:      caSigner,
 			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 			Identity: sshca.Identity{
-				Username:    username,
-				ClusterName: clusterName,
-				MFAVerified: "verified",
+				Username:                 username,
+				ClusterName:              clusterName,
+				HeadlessAuthenticationID: "some-headless-auth-id",
 			},
 		},
 	)

@@ -3863,6 +3863,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				DeviceCredentialID:       req.DeviceExtensions.CredentialID,
 				GitHubUserID:             githubUserID,
 				GitHubUsername:           githubUsername,
+				HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)

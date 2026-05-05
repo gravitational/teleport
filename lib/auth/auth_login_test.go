@@ -2020,7 +2020,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
@@ -2049,8 +2049,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				identity, err := sshca.DecodeIdentity(sshCert)
 				require.NoError(t, err)
 
-				require.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
-				require.True(t, identity.PreviousIdentityExpires.IsZero())
+				assert.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
+				assert.Equal(t, headlessID, identity.HeadlessAuthenticationID)
+				assert.True(t, identity.PreviousIdentityExpires.IsZero())
 			},
 		}, {
 			name:    "NOK approved without MFA",
@@ -2059,10 +2060,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
-				require.Nil(t, resp)
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK denied",
@@ -2071,24 +2072,23 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
-				require.Nil(t, resp)
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
 			},
 			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
-				require.Nil(t, resp)
+				assert.Nil(t, resp)
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			srv := newTestTLSServer(t)
@@ -2154,10 +2154,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			tc.assertError(t, err, trace.DebugReport(err))
-
-			if tc.assertResp != nil {
-				tc.assertResp(t, resp, mfa.WebDev)
-			}
+			tc.assertResp(t, resp, mfa.WebDev)
 		})
 	}
 }

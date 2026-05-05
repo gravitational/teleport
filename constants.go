@@ -558,6 +558,9 @@ const (
 	// CertExtensionImmutableLabelHash is the hash used to verify immutable
 	// labels against a certificate.
 	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
+	// CertExtensionHeadlessAuthenticationID is the ID of the headless
+	// authentication resource this certificate was created for.
+	CertExtensionHeadlessAuthenticationID = "headless-authentication-id@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
