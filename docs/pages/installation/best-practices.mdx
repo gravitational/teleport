@@ -1,0 +1,447 @@
+---
+title: Best deployment practices
+description: Opinionated set of best practices on how to deploy and manage Teleport.
+---
+
+Teleport can be deployed in many different ways and this can lead to deployment complexity and sub-optimal solutions.
+
+This guide contains a set of opinionated best practices for a successful Teleport deployment.
+
+All the recommendations below were built based on customer feedback, support requests and incident postmortems.
+
+## Deploying a teleport-cluster
+
+### DO
+
+<details>
+<summary>
+Prefer Teleport Cloud over Teleport Enterprise on-prem
+</summary>
+The Teleport control plane has several dependencies (database for state, audit log, object storage for sessions).
+Users and organizations with no experience in hosting those are likely to face critical outages.
+</details>
+
+<details>
+<summary>
+Use Kubernetes and our official Helm chart
+</summary>
+If you already have Kubernetes experience, Kubernetes is the most widely adopted and test way of developping Teleport.
+The `teleport-cluster` Helm chart is extensively tested and handles all the basics out of the box (e.g. split Auth and Proxy deployments).
+</details>
+
+<details>
+<summary>
+Deploy on a supported cloud provider if possible (EKS, GKE, AKS, IBM kubernetes)
+</summary>
+Teleport relies on many specific Kubernetes details and is sensitive to misconfigurations other software usually overlooks.
+User-hosted Kubernetes deployments proved to be unreliable compared to Cloud-hosted Kubernetes.
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Write custom automation to deploy Teleport/Fork the chart
+</summary>
+Teleport cannot test nor provide support for in-house Helm charts.
+The chart is closely versioned with Teleport itself. Forking the chart causes a maintenance burden for the user, and
+failure ot keep the chart up-to-date might break Teleport.
+</details>
+
+<details>
+<summary>
+Try to autoscale
+</summary>
+None of the Teleport component was designed to autoscale.
+Because of the persistent nature of the sessions and connected resources, adding and removing control plane nodes can cause significant disruption.
+</details>
+
+## Picking a Teleport backend
+
+### DO
+
+<details>
+<summary>
+Prefer the cloud provider serverless variants (DynamoDB, Firestore)
+</summary>
+Managed cloud serverless backends offer a better availability and scalability than the user-operated ones.
+They do not require tuning and are less prone to misconfigurations.
+</details>
+
+<details>
+<summary>
+Use pay-as-you-go billing modes (DynamoDB)
+</summary>
+Manually setting up capacity and scaling leads to capacity outages, and backend autoscaling lag.
+</details>
+
+<details>
+<summary>
+Enable backups/point-in-time recovery
+</summary>
+</details>
+
+<details>
+<summary>
+Prefer Postgres over etcd for on-prem deployments
+</summary>
+Ectd is optimised for read and watch-intensive workloads. For this reason Teleport cannot use it to store its audit logs .
+At scale, Teleport performs many writes and quickly reaches etcd limits.
+Postgres offers way better scaling guarantees and also supports audit logs.
+</details>
+
+<details>
+<summary>
+Prefer managed Postgres over hand-rolled Postgres (e.g. Azure Database for PostgreSQL)
+</summary>
+</details>
+
+<details>
+<summary>
+Use certificate-based auth over password
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Use the sqlite backend
+</summary>
+</details>
+
+<details>
+<summary>
+Use PostgresSQL when DynamoDB or Firestore are available
+</summary>
+</details>
+
+<details>
+<summary>
+Use databases that look like Postgres but are not Postgres (Aurora, EnterpriseDB, …)
+</summary>
+</details>
+
+<details>
+<summary>
+Use etcd
+</summary>
+</details>
+
+<details>
+<summary>
+Use sqlite with a shared file system (NFS, …)
+</summary>
+</details>
+
+<details>
+<summary>
+Use DynamoDB autoscaling (prefer on-demand billing instead)
+</summary>
+</details>
+
+## Kubernetes specifics
+
+### DO
+
+<details>
+<summary>
+Use the chart version to control the Teleport version
+</summary>
+</details>
+
+<details>
+<summary>
+Set `highAvailability.replicaCount: 2`
+</summary>
+</details>
+
+<details>
+<summary>
+Use VPC native CNIs (AWS `vpc-cni` , GKE VPC-native, ...)
+</summary>
+</details>
+
+<details>
+<summary>
+Use the chart modes if you are on a supported cloud provider
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Use the `--reset-values` , `--reuse-values` or `--reset-then-reuse-values` Helm flags
+</summary>
+</details>
+
+<details>
+<summary>
+Enable `persistence`
+</summary>
+</details>
+
+<details>
+<summary>
+Deploy custom CNIs, especially in overlay networking mode
+</summary>
+</details>
+
+<details>
+<summary>
+use `teleportVersionOverride`
+</summary>
+</details>
+
+<details>
+<summary>
+Deploy Kubernetes on your own
+</summary>
+</details>
+
+<details>
+<summary>
+Use more than 2 auth replicas and more than 3 proxy replicas per region
+</summary>
+</details>
+
+<details>
+<summary>
+Use the `scratch` mode: prefer `standalone` and add overrides via `teleportConfig`
+</summary>
+</details>
+
+## Exposing the Teleport cluster
+
+### DO
+
+<details>
+<summary>
+Enable TLS multiplexing
+</summary>
+</details>
+
+<details>
+<summary>
+Use L4 loadbalancers (Kubernetes `Service` , NLB, TCP load-balancer, `TLSRoute` , `TCPRoute`)
+</summary>
+</details>
+
+<details>
+<summary>
+Use port 443 on the LB, and send traffic to port 3080 of the Teleport instances
+</summary>
+</details>
+
+<details>
+<summary>
+If hosting the proxies in Kubernetes, make the loadbalancer send traffic to the pods IP directly (as opposed to the Kubernetes nodes)
+</summary>
+</details>
+
+<details>
+<summary>
+If hosting the proxies in Kubernetes, enable loadbalancer readiness gates
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Use separate listeners
+</summary>
+</details>
+
+<details>
+<summary>
+Use L7 loadbalancers (Kubernetes `Ingress` , ALB, HTTP loadbalancer, `HTTPRoute` ) unless there's strictly no other option
+</summary>
+</details>
+
+## Cluster name
+
+### DO
+
+<details>
+<summary>
+make the cluster name match its public domain name
+</summary>
+</details>
+
+<details>
+<summary>
+use short domain names (< 30 char)
+</summary>
+</details>
+
+<details>
+<summary>
+use the same domain name for both internal and external traffic
+</summary>
+</details>
+
+<details>
+<summary>
+use split-horizon DNS to differentiate internal and external traffic
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Rename clusters, change the public address
+</summary>
+</details>
+
+<details>
+<summary>
+Make the cluster name different from the public domain name
+</summary>
+</details>
+
+## TLS Certificates
+
+### DO
+
+<details>
+<summary>
+Use certificates signed by publicly trusted CAs
+</summary>
+</details>
+
+<details>
+<summary>
+Automate certificate obtention and renewal (cert-manager)
+</summary>
+</details>
+
+<details>
+<summary>
+Use wildcard certificates e.g. `*.teleport.example.com`
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Rely on humans for manual certificate renewal
+</summary>
+</details>
+
+<details>
+<summary>
+Use the built-in Teleport letsencrypt support in production
+</summary>
+</details>
+
+## Tokens & joining
+
+### DO
+
+<details>
+<summary>
+Prefer [delegated join methods](https://goteleport.com/docs/reference/join-methods/#delegated-join-methods)
+</summary>
+</details>
+
+<details>
+<summary>
+Prefer `iam` joining over `ec2`
+</summary>
+</details>
+
+<details>
+<summary>
+If not possible, use short-lived tokens
+</summary>
+</details>
+
+<details>
+<summary>
+Join via the proxy (teleport.yaml `v3` , set `teleport.proxy_server` to the proxy public address)
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Define tokens via `auth_service.tokens`
+</summary>
+</details>
+
+<details>
+<summary>
+Use long-lived secret tokens
+</summary>
+</details>
+
+<details>
+<summary>
+Join via the auth
+</summary>
+</details>
+
+## Installing Teleport agents and clients
+
+### DO
+
+<details>
+<summary>
+Use `teleport.example.sh/scripts/install.sh` to install linux agents
+</summary>
+</details>
+
+<details>
+<summary>
+Set `updater.enabled` in the `teleport-kube-agent` Helm chart
+</summary>
+</details>
+
+<details>
+<summary>
+Use managed updates v2 and `teleport-update enable`
+</summary>
+</details>
+
+<details>
+<summary>
+turn-on client tools updates with `tctl autoupdate client-tools enable` or the `autoupdate_config` resource
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+Bake the Teleport binary in a custom AMI or docker image that will never get updated
+</summary>
+</details>
+
+## Configuring Teleport Resources (IaC)
+
+### DO
+
+<details>
+<summary>
+Use tctl, the Teleport Terraform Provider, the Teleport Kubernetes Operator
+</summary>
+</details>
+
+### DON'T
+
+<details>
+<summary>
+use `—-bootstrap`
+</summary>
+</details>
+
+<details>
+<summary>
+use `--apply-on-startup`
+</summary>
+</details>
