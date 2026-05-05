@@ -245,7 +245,7 @@ message SharedDirectoryRequest {
     string path = 1;
     reserved 2;
     reserved "end_of_file";
-    int64 size = 3;
+    uint64 size = 3;
   }
 
   // operation is the particular operation type being requested.

@@ -557,7 +557,7 @@ export interface SharedDirectoryRequest_Truncate {
      */
     path: string;
     /**
-     * @generated from protobuf field: int64 size = 3;
+     * @generated from protobuf field: uint64 size = 3;
      */
     size: bigint;
 }
@@ -2700,7 +2700,7 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryRequest.Truncate", [
             { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "size", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 3, name: "size", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<SharedDirectoryRequest_Truncate>): SharedDirectoryRequest_Truncate {
@@ -2719,8 +2719,8 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
                 case /* string path */ 1:
                     message.path = reader.string();
                     break;
-                case /* int64 size */ 3:
-                    message.size = reader.int64().toBigInt();
+                case /* uint64 size */ 3:
+                    message.size = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2737,9 +2737,9 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
         /* string path = 1; */
         if (message.path !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.path);
-        /* int64 size = 3; */
+        /* uint64 size = 3; */
         if (message.size !== 0n)
-            writer.tag(3, WireType.Varint).int64(message.size);
+            writer.tag(3, WireType.Varint).uint64(message.size);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
