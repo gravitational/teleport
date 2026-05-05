@@ -14,11 +14,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
-	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -118,20 +116,17 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 	_, err := oktaClient.CreateIntegration(t.Context(), req)
 	require.NoError(t, err)
 
+	w := sut.NewResourceWatcher(t, types.KindPlugin)
+	defer w.Close()
+
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 
-	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
-	ctx := t.Context()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
-			Name: types.PluginTypeOkta,
-		})
-		require.NoError(t, err)
-		require.Equal(t, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
-	}, time.Second*2, time.Millisecond*50)
+	waitForResource(t, w, func(r types.Plugin) bool {
+		return r.GetName() == types.PluginTypeOkta && r.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
+	})
 	return scimToken
 }
 
