@@ -29,6 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/test/bufconn"
 
 	teletermv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
@@ -53,9 +55,7 @@ func TestProxyBidiStream(t *testing.T) {
 	t.Parallel()
 	_, fakeServerSvcClient := newFakeServerSvc(t)
 
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+	lis := bufconn.Listen(1024)
 	newProxyService(t, lis, fakeServerSvcClient)
 	ctx := t.Context()
 
@@ -87,9 +87,7 @@ func TestProxyBidiStream_HandlesServerReturningErr(t *testing.T) {
 	t.Parallel()
 	_, fakeServerSvcClient := newFakeServerSvc(t)
 
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+	lis := bufconn.Listen(1024)
 	newProxyService(t, lis, fakeServerSvcClient)
 	// Add a short timeout so if the proxy hangs (as it did before introducing
 	// this regression test), the test doesn't wait for a whole minute to fail.
@@ -122,9 +120,7 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 	service, fakeServerSvcClient := newFakeServerSvc(t)
 	service.postClientEOFErr = trace.AccessDenied("post-EOF validation failed")
 
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+	lis := bufconn.Listen(1024)
 	newProxyService(t, lis, fakeServerSvcClient)
 	ctx := t.Context()
 
@@ -155,9 +151,7 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	service, fakeServerSvcClient := newFakeServerSvc(t)
 	service.returnAfterFirstResponse = true
 
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+	lis := bufconn.Listen(1024)
 	newProxyService(t, lis, fakeServerSvcClient)
 	// Short timeout so a hang surfaces as a test failure rather than waiting
 	// out the default go-test timeout.
@@ -203,9 +197,7 @@ func TestProxyBidiStream_SurfacesClientRecvError(t *testing.T) {
 	t.Parallel()
 	_, fakeServerSvcClient := newFakeServerSvc(t)
 
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+	lis := bufconn.Listen(1024)
 	newProxyService(t, lis, fakeServerSvcClient, grpc.MaxRecvMsgSize(64))
 
 	client := newProxyServiceClient(t, lis)
@@ -235,9 +227,7 @@ func TestProxyBidiStream_SurfacesServerSendError(t *testing.T) {
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(64)),
 	)
 
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+	lis := bufconn.Listen(1024)
 	newProxyService(t, lis, fakeServerSvcClient)
 
 	client := newProxyServiceClient(t, lis)
@@ -255,10 +245,54 @@ func TestProxyBidiStream_SurfacesServerSendError(t *testing.T) {
 	require.ErrorContains(t, err, "larger than max")
 }
 
-func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerSvc, teletermv1.TerminalServiceClient) {
-	lis, err := net.Listen("tcp", "localhost:0")
+// TestProxyBidiStream_ForwardsMetadata asserts that the proxy passes the
+// client's incoming metadata upstream to the server and forwards the server's
+// response headers and trailers back to the client.
+func TestProxyBidiStream_ForwardsMetadata(t *testing.T) {
+	t.Parallel()
+	service, fakeServerSvcClient := newFakeServerSvc(t)
+	service.echoMetadata = true
+
+	lis := bufconn.Listen(1024)
+	newProxyService(t, lis, fakeServerSvcClient)
+
+	// Short timeout so a hang (e.g. Header() never unblocks due to a regression)
+	// surfaces as a test failure rather than waiting out the default go-test timeout.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	// Attach metadata to the outgoing call so the proxy can forward it upstream.
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-test-key", "test-value"))
+
+	client := newProxyServiceClient(t, lis)
+	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
+	require.NoError(t, err)
+
+	// Receive the server's first response; by this point the server has already
+	// called SendHeader so headers are available on the client stream.
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	headers, err := stream.Header()
+	require.NoError(t, err)
+	require.Equal(t, []string{"test-value"}, headers.Get("x-test-key"),
+		"response headers not forwarded through proxy")
+
+	err = stream.CloseSend()
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.ErrorIs(t, err, io.EOF)
+
+	trailers := stream.Trailer()
+	require.Equal(t, []string{"test-value"}, trailers.Get("x-test-key"),
+		"response trailers not forwarded through proxy")
+}
+
+func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerSvc, teletermv1.TerminalServiceClient) {
+	lis := bufconn.Listen(1024)
 	server := grpc.NewServer()
 	service := &fakeServerSvc{}
 	teletermv1.RegisterTerminalServiceServer(server, service)
@@ -268,8 +302,13 @@ func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerS
 	}()
 	t.Cleanup(server.GracefulStop)
 
-	opts := append([]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, clientOpts...)
-	client, err := grpc.NewClient(lis.Addr().String(), opts...)
+	opts := append([]grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+	}, clientOpts...)
+	client, err := grpc.NewClient("passthrough:///bufconn", opts...)
 	require.NoError(t, err)
 
 	return service, teletermv1.NewTerminalServiceClient(client)
@@ -288,6 +327,11 @@ type fakeServerSvc struct {
 	// input or for the client to half-close. It models a server that ends the
 	// stream early while the client is still mid-conversation.
 	returnAfterFirstResponse bool
+
+	// echoMetadata, if true, makes ConnectToDesktop read the incoming metadata
+	// from the stream context and echo it back as both response headers and
+	// trailers. Used to verify the proxy forwards metadata in both directions.
+	echoMetadata bool
 }
 
 // ConnectToDesktop does NOT implement the semantics of the real
@@ -300,6 +344,14 @@ type fakeServerSvc struct {
 //     triggers a trace.BadParameter return.
 //   - Every response carries data = "ack".
 func (f *fakeServerSvc) ConnectToDesktop(stream teletermv1.TerminalService_ConnectToDesktopServer) error {
+	if f.echoMetadata {
+		if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+			stream.SetTrailer(md)
+			if err := stream.SendHeader(md); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
 	for {
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -370,10 +422,15 @@ func (p *proxyService) ConnectToDesktop(client teletermv1.TerminalService_Connec
 	return trace.Wrap(err)
 }
 
-func newProxyServiceClient(t *testing.T, lis net.Listener) teletermv1.TerminalServiceClient {
+func newProxyServiceClient(t *testing.T, lis *bufconn.Listener) teletermv1.TerminalServiceClient {
 	t.Helper()
 	clientConn, err := grpc.NewClient(
-		lis.Addr().String(),
+		"passthrough:///bufconn",
+		grpc.WithContextDialer(
+			func(ctx context.Context, _ string) (net.Conn, error) {
+				return lis.DialContext(ctx)
+			},
+		),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)
