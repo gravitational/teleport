@@ -104,7 +104,9 @@ func (m *BalancerManager) State() State {
 // initLocked starts subconn intialization in the background ensuring that
 // previous initialization runs are canceled. Initialization fetches the
 // service config over the subconn, registers a health listener, and calls
-// the [BalancerManager.callback].
+// the [BalancerManager.callback]. The [BalancerManager.sc] is expected to be
+// [connectivity.Ready] when this is called in order to properly register
+// healthchecks.
 func (m *BalancerManager) initLocked() {
 	m.initCancel()
 	ctx, cancel := context.WithCancel(m.ctx)
