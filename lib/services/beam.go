@@ -153,7 +153,7 @@ func ValidateBeamAlias(alias string) error {
 
 func MakeBeamFilterFunc(options *ListBeamsRequestOptions) func(beam *beamsv1.Beam) bool {
 	return func(b *beamsv1.Beam) bool {
-		if options != nil && len(options.FilterUsers) > 0 {
+		if options != nil && options.GetFilterUsers().Len() > 0 {
 			return options.FilterUsers.Contains(b.GetStatus().GetUser())
 		}
 		return true
