@@ -368,3 +368,40 @@ message EnhancedSummary {
   // NeedsFurtherReview indicates the reason why the session needs further review.
   optional NeedsReviewReason needs_further_review = 8;
 }
+
+// RetrievalModel resource specifies the model configuration used to
+// generate embeddings for the session and perform search inference.
+// It tells Teleport how to generate embeddings for a specific session summary
+// and how to convert natural language queries into API requests.
+message RetrievalModel {
+  // Kind is the resource kind. Should always be set to "retrieval_model".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  // spec contains the configuration for the retrieval model, including the
+  // embeddings provider and the search inference model.
+  // In the future it can be extended with re-rankers configuration and
+  // other settings.
+  RetrievalModelSpec spec = 5;
+}
+
+// RetrievalModelSpec specifies the embeddings provider and search inference model.
+// In the future it can be extended with re-rankers configuration and
+// other settings.
+message RetrievalModelSpec {
+  oneof embeddings_provider {
+    // Openai indicates that this model uses OpenAI as the embeddings provider
+    // and specifies OpenAI-specific parameters.
+    OpenAIProvider openai = 1;
+    // Bedrock indicates that this model uses Amazon Bedrock as the embeddings
+    // provider and specifies Bedrock-specific parameters.
+    BedrockProvider bedrock = 3;
+  }
+  // inference_model_name is the name of the model used to convert natural
+  // language search queries into API requests and generate prose from a session
+  // summary.
+  string inference_model_name = 2;
+}

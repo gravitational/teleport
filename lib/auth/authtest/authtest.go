@@ -640,6 +640,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
+		Summarizer:              p.AuthServer.Services.Summarizer,
 	})
 	if err != nil {
 		return trace.Wrap(err)

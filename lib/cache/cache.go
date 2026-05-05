@@ -217,6 +217,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindWorkloadCluster},
+		{Kind: types.KindInferenceModel},
+		{Kind: types.KindInferencePolicy},
+		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindRetrievalModel},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -791,6 +795,8 @@ type Config struct {
 	RecordingEncryption services.RecordingEncryption
 	// WorkloadClusterService is a workload cluster service
 	WorkloadClusterService services.WorkloadClusterService
+	// Summarizer is a summarizer service.
+	Summarizer services.Summarizer
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

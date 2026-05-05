@@ -199,6 +199,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferenceModel:                     rc.createInferenceModel,
 		types.KindInferenceSecret:                    rc.createInferenceSecret,
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
+		types.KindRetrievalModel:                     rc.createRetrievalModel,
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.createScopedToken,
@@ -231,6 +232,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 		types.KindInferenceModel:                     rc.updateInferenceModel,
 		types.KindInferencePolicy:                    rc.updateInferencePolicy,
+		types.KindRetrievalModel:                     rc.updateRetrievalModel,
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.updateScopedToken,
@@ -2514,6 +2516,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		return trace.Wrap(rc.deleteInferenceSecret(ctx, client))
 	case types.KindInferencePolicy:
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
+	case types.KindRetrievalModel:
+		return trace.Wrap(rc.deleteRetrievalModel(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3878,6 +3882,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)
+	case types.KindRetrievalModel:
+		models, err := rc.getRetrievalModel(ctx, client)
+		return models, trace.Wrap(err)
 	case scopedaccess.KindScopedRole:
 		if rc.ref.Name != "" {
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
