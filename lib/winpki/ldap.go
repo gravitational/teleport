@@ -620,6 +620,12 @@ func (r *recursiveSearch) run(ctx context.Context, client searcher, request *lda
 			r.logger.WarnContext(ctx, "Could not parse referral as URL", "referral", ref, "error", err)
 			return ldapReferral{}, false
 		}
+
+		if !strings.Contains(referral.scheme, "ldaps") {
+			r.logger.InfoContext(ctx, "Ignoring referral URL with unexpected scheme", "referral", ref, "scheme", referral.scheme)
+			return ldapReferral{}, false
+		}
+
 		// Avoid following the same referral twice or exceeding the maximum referral limit
 		alreadySeen := r.referrals.Contains(ref)
 		maxReferralsReached := len(r.referrals) >= int(r.maxReferrals)
