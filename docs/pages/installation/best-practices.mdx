@@ -94,12 +94,17 @@ Postgres offers way better scaling guarantees and also supports audit logs.
 <summary>
 Prefer managed Postgres over hand-rolled Postgres (e.g. Azure Database for PostgreSQL)
 </summary>
+The Postgres backend should be backed up and restorable.
+Most users don't regularly tets their database recovery plans and discover this fact during an outage.
+Managed databases do most of the heavy lifting and rely on well tested primitives.
 </details>
 
 <details>
 <summary>
 Use certificate-based auth over password
 </summary>
+Passwords can be exfiltrated, and long-lived secrets must be rotated.
+For example an employee who left the company might still have a copy of the secret.
 </details>
 
 ### DON'T
@@ -108,36 +113,51 @@ Use certificate-based auth over password
 <summary>
 Use the sqlite backend
 </summary>
+The sqlite backend is designed for single-node control-plane deployments.
+It does not support multiple auth service instances running concurrently.
 </details>
 
 <details>
 <summary>
 Use PostgresSQL when DynamoDB or Firestore are available
 </summary>
+Teleport is designed and optimized to work with key-value datastores.
+Even if cloud providers might offer managed postgres, in cloud environments the best
+availability is obtained by using DynamoDB or Firestore.
 </details>
 
 <details>
 <summary>
 Use databases that look like Postgres but are not Postgres (Aurora, EnterpriseDB, …)
 </summary>
+Teleport relies on many specific implementation details of the database (e.g. changefeed, or implicit transactions).
+Vendors might advertise their database as a drop-in Postgres replacement but this does not work.
 </details>
 
 <details>
 <summary>
 Use etcd
 </summary>
+Etcd is mostly supported for exising legacy setups.
+This backend presents significant performance challenges and does not support audit log storage.
 </details>
 
 <details>
 <summary>
 Use sqlite with a shared file system (NFS, …)
 </summary>
+While a multi-node shared NFS mount sounds feasible, Teleport relies on the
+backend's changefeed to detect changes and keep all the auth replicas in sync.
+As sqlite does not support this, different auths instances will provide different responses.
 </details>
 
 <details>
 <summary>
 Use DynamoDB autoscaling (prefer on-demand billing instead)
 </summary>
+Manual DynamoDB autoscaling requires the user to frequently test and monitor the dynamo usage.
+This autoscaling method also suffers from a significant scaling lag
+(capacity is added several minutes after throttling starts, causing disruption).
 </details>
 
 ## Kubernetes specifics
@@ -148,49 +168,64 @@ Use DynamoDB autoscaling (prefer on-demand billing instead)
 <summary>
 Use the chart version to control the Teleport version
 </summary>
+The chart and Teleport are versionned together. Installing the chart
+(= teleport.version =) will deploy Teleport (= teleport.version =).
+The chart version is controlled by doing `helm install --version (= teleport.version =)`.
 </details>
 
 <details>
 <summary>
 Set `highAvailability.replicaCount: 2`
 </summary>
+Teleport uses and active-active replication mode.
+Running two replicas in different zones in enough to guarantee high availability.
+As there is no leader election involved, there is no point in scaling to 3 replicas.
 </details>
 
 <details>
 <summary>
 Use VPC native CNIs (AWS `vpc-cni` , GKE VPC-native, ...)
 </summary>
+Granting PVC-native IPs to pods removes a network hop and reduces risks of disruption during node rollout/failure.
+This also allows the loadbalancer to assess pod health more accurately and ensure no traffic is sent to terminated pods.
 </details>
 
 <details>
 <summary>
 Use the chart modes if you are on a supported cloud provider
 </summary>
+The teleport-cluster Helm chart provides cloud-specific support via the `chartMode` value.
+This simplifies cloud setup and makes sure values are set properly.
+</details>
+
+<details>
+<summary>
+When using Terraform, use the --reset-values Helm flag
+</summary>
+When called with `-f`, Helm implicitly sets `--reset-values` which causes new chart values to be picked up.
+However, the Helm Terraform provider does not do this. This causes errors when the chart is updated and tries to use a new value.
 </details>
 
 ### DON'T
 
 <details>
 <summary>
-Use the `--reset-values` , `--reuse-values` or `--reset-then-reuse-values` Helm flags
-</summary>
-</details>
-
-<details>
-<summary>
 Enable `persistence`
 </summary>
+Persistence creates a PV and uses with the `sqlite` backend.
+This prevents the replication of the Auth service.
 </details>
 
 <details>
 <summary>
 Deploy custom CNIs, especially in overlay networking mode
 </summary>
+
 </details>
 
 <details>
 <summary>
-use `teleportVersionOverride`
+Use `teleportVersionOverride`
 </summary>
 </details>
 
@@ -208,8 +243,10 @@ Use more than 2 auth replicas and more than 3 proxy replicas per region
 
 <details>
 <summary>
-Use the `scratch` mode: prefer `standalone` and add overrides via `teleportConfig`
+Use the `scratch` mode
 </summary>
+Prefer `standalone` and add overrides via `teleportConfig`.
+You will still benefit from the chart base that makes proxies join the auth.
 </details>
 
 ## Exposing the Teleport cluster
@@ -220,30 +257,40 @@ Use the `scratch` mode: prefer `standalone` and add overrides via `teleportConfi
 <summary>
 Enable TLS multiplexing
 </summary>
+TLS multiplexing makes all Teleport connections go through a single port: 443.
+This makes deployment easier and prevents partial failures when not all ports are allowed by the firewall.
 </details>
 
 <details>
 <summary>
 Use L4 loadbalancers (Kubernetes `Service` , NLB, TCP load-balancer, `TLSRoute` , `TCPRoute`)
 </summary>
+L7 loadbalancers terminate TLS and break the trust between Teleport and its nodes.
+Teleport offers some workarounds to go through ALPN-aware L7 loadbalancers.
+However, this causes a significant UX downgrade (native kubectl doesn't work) and performance overhead.
 </details>
 
 <details>
 <summary>
 Use port 443 on the LB, and send traffic to port 3080 of the Teleport instances
 </summary>
+443 is the default HTTPS port but processes needs elevated privileges to bind to ports below 1024.
+Teleport proxy should listen on 3080 and the loadbalancer should perform the 443 -> 3080 forwarding.
 </details>
 
 <details>
 <summary>
 If hosting the proxies in Kubernetes, make the loadbalancer send traffic to the pods IP directly (as opposed to the Kubernetes nodes)
 </summary>
+
 </details>
 
 <details>
 <summary>
 If hosting the proxies in Kubernetes, enable loadbalancer readiness gates
 </summary>
+Readiness gates make sure the rollout doesn't progress if the loadbalancer is not yet aware of the new pods.
+This prevents quick rollouts to drop requests.
 </details>
 
 ### DON'T
