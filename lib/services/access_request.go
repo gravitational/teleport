@@ -99,6 +99,9 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 		if r.GetConstraints() == nil {
 			continue
 		}
+		if ar.GetRequestKind().IsLongTerm() {
+			return trace.BadParameter("resource constraints are not valid for long-term access")
+		}
 		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -111,6 +114,10 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 		case *types.ResourceConstraints_Ssh:
 			if kind != types.KindNode {
 				return trace.BadParameter("ssh constraints are not valid for resource kind %q", kind)
+			}
+		case *types.ResourceConstraints_Database:
+			if kind != types.KindDatabase {
+				return trace.BadParameter("database constraints are not valid for resource kind %q", kind)
 			}
 		default:
 			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)
@@ -241,6 +248,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 	if !shouldFilter && req.FilterRequestableRolesByResource {
 		req.ResourceIDs = nil
+		req.ResourceAccessIDs = nil
 	}
 
 	var caps types.AccessCapabilities
@@ -251,19 +259,21 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
-		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), req.Login)
+	resourceAccessIDs := types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIDs)
+
+	if len(resourceAccessIDs) != 0 && !req.FilterRequestableRolesByResource {
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, resourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if req.RequestableRoles {
-		var resourceIDs []types.ResourceID
+		var requestableResourceAccessIDs []types.ResourceAccessID
 		if req.FilterRequestableRolesByResource {
-			resourceIDs = req.ResourceIDs
+			requestableResourceAccessIDs = resourceAccessIDs
 		}
-		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, types.ResourceIDsToResourceAccessIDs(resourceIDs), req.Login)
+		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, requestableResourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1778,7 +1788,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 					continue
 				}
 				if c := raid.GetConstraints(); c != nil {
-					rm, err := MatcherFromConstraints(raid.GetConstraints())
+					rm, err := MatcherFromConstraints(raid.GetConstraints(), resource)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -2515,7 +2525,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
 			}
-			constraintMatcher, err := MatcherFromConstraints(constraints)
+			constraintMatcher, err := MatcherFromConstraints(constraints, resource)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2550,6 +2560,24 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 					`resources: %s roles: %v unmatched resources: %v`,
 				resourcesStr, roles, kubeResourceMatcher.Unmatched())
 		}
+		// Validate per-principal reachability for database constraints.
+		if constraints != nil {
+			if dbConstraints := constraints.GetDatabase(); dbConstraints != nil {
+				if db, ok := resource.(types.Database); ok {
+					if err := ValidateDatabaseConstraintCoverage(
+						dbConstraints,
+						rolesForResource,
+						db,
+						m.userState.GetName(),
+						m.userState.GetTraits(),
+						localClusterName,
+					); err != nil {
+						return nil, trace.Wrap(err)
+					}
+				}
+			}
+		}
+
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
 			// allowed logins. All roles at this point have already matched the

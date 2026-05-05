@@ -19,6 +19,9 @@
 package services
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -73,6 +76,8 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 				return lm.login
 			},
 		)
+	case *types.ResourceConstraints_Database:
+		return buildDatabaseConstraintTransform(d)
 	// TODO(kiosion): Future support for AWS Identity Center.
 	// Need to decide on best way to handle; whether to continue using IdentityCenterAccountAssignments, or just Account, with PermissionSets carried in constraints.
 	default:
@@ -116,6 +121,86 @@ func buildStringConstraintTransform(
 	}
 }
 
+// buildDatabaseConstraintTransform builds a MatcherTransform for database
+// constraints. Each non-empty dimension is scoped independently: a
+// databaseUserMatcher is checked against the users list, a DatabaseNameMatcher
+// against the names list. If a dimension is empty, matchers of that type pass
+// through. db_roles are not handled here — they bypass CheckAccess and are
+// enforced via filterByConstrainedDatabaseRoles in access_checker.go.
+func buildDatabaseConstraintTransform(d *types.ResourceConstraints_Database) MatcherTransform {
+	if err := d.Validate(); err != nil {
+		return func(m RoleMatcher) RoleMatcher {
+			return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+				return false, trace.Wrap(err)
+			})
+		}
+	}
+
+	var allowedUsers map[string]struct{}
+	if len(d.Database.Users) > 0 && !slices.Contains(d.Database.Users, types.Wildcard) {
+		allowedUsers = set.New(d.Database.Users...)
+	}
+
+	var allowedNames map[string]struct{}
+	if len(d.Database.Names) > 0 && !slices.Contains(d.Database.Names, types.Wildcard) {
+		allowedNames = set.New(d.Database.Names...)
+	}
+
+	return func(m RoleMatcher) RoleMatcher {
+		switch lm := m.(type) {
+		case *databaseUserMatcher:
+			if allowedUsers == nil {
+				return m
+			}
+			return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
+				if !matchesAllowedUsers(allowedUsers, lm.user, lm.alternativeNames, lm.caseInsensitive) {
+					return false, nil
+				}
+				return m.Match(role, cond)
+			})
+		case *DatabaseNameMatcher:
+			if allowedNames == nil {
+				return m
+			}
+			return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
+				if _, ok := allowedNames[lm.Name]; !ok {
+					return false, nil
+				}
+				return m.Match(role, cond)
+			})
+		default:
+			return m
+		}
+	}
+}
+
+// matchesAllowedUsers checks whether the primary user or any of its alternative
+// names appear in the allowed set, optionally case-insensitive.
+func matchesAllowedUsers(allowed map[string]struct{}, user string, alternativeNames []string, caseInsensitive bool) bool {
+	if containsUser(allowed, user, caseInsensitive) {
+		return true
+	}
+	for _, name := range alternativeNames {
+		if containsUser(allowed, name, caseInsensitive) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsUser(allowed map[string]struct{}, name string, caseInsensitive bool) bool {
+	if !caseInsensitive {
+		_, ok := allowed[name]
+		return ok
+	}
+	for k := range allowed {
+		if strings.EqualFold(k, name) {
+			return true
+		}
+	}
+	return false
+}
+
 // MatcherFromConstraints constructs a RoleMatcher encoding the requested
 // ResourceConstraints for role resolution/validation time.
 //
@@ -124,7 +209,11 @@ func buildStringConstraintTransform(
 //
 // For enforcement of ResourceConstraints at authorization time, use
 // WithConstraints to decorate principal-bearing matchers instead.
-func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) {
+//
+// The resource parameter is used for resource-specific matching (e.g., AWS IAM
+// role ARN alternative name resolution for database user constraints). It may
+// be nil when the resource is not available.
+func MatcherFromConstraints(rc *types.ResourceConstraints, resource types.ResourceWithLabels) (RoleMatcher, error) {
 	if rc == nil {
 		return nil, nil
 	}
@@ -148,7 +237,187 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 			matchers = append(matchers, NewLoginMatcher(login))
 		}
 		return RoleMatchers(matchers).AnyOf(), nil
+	case *types.ResourceConstraints_Database:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var db types.Database
+		if resource != nil {
+			db, _ = resource.(types.Database)
+		}
+		return matcherFromDatabaseConstraints(d.Database, db), nil
 	default:
 		return nil, trace.BadParameter("unsupported constraint details type %T", d)
 	}
+}
+
+// matcherFromDatabaseConstraints builds a RoleMatcher for request
+// expansion/validation. Each non-empty dimension (users, names, roles)
+// produces an AnyOf matcher, and all dimensions are combined with AllOf.
+// When db is non-nil, full AWS IAM role ARN alternative name resolution
+// is used for database user matching.
+func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints, db types.Database) RoleMatcher {
+	var dimensionMatchers []RoleMatcher
+
+	if len(dbc.Users) > 0 && !slices.Contains(dbc.Users, types.Wildcard) {
+		userMatchers := make([]RoleMatcher, 0, len(dbc.Users))
+		for _, user := range dbc.Users {
+			if db != nil {
+				userMatchers = append(userMatchers, NewDatabaseUserMatcher(db, user))
+			} else {
+				userMatchers = append(userMatchers, &simpleDatabaseUserMatcher{user: user})
+			}
+		}
+		dimensionMatchers = append(dimensionMatchers, RoleMatchers(userMatchers).AnyOf())
+	}
+
+	if len(dbc.Names) > 0 && !slices.Contains(dbc.Names, types.Wildcard) {
+		nameMatchers := make([]RoleMatcher, 0, len(dbc.Names))
+		for _, name := range dbc.Names {
+			nameMatchers = append(nameMatchers, &DatabaseNameMatcher{Name: name})
+		}
+		dimensionMatchers = append(dimensionMatchers, RoleMatchers(nameMatchers).AnyOf())
+	}
+
+	if len(dbc.Roles) > 0 && !slices.Contains(dbc.Roles, types.Wildcard) {
+		roleMatchers := make([]RoleMatcher, 0, len(dbc.Roles))
+		for _, role := range dbc.Roles {
+			roleMatchers = append(roleMatchers, &DatabaseRoleMatcher{Role: role})
+		}
+		dimensionMatchers = append(dimensionMatchers, RoleMatchers(roleMatchers).AnyOf())
+	}
+
+	if len(dimensionMatchers) == 0 {
+		return nil
+	}
+	if len(dimensionMatchers) == 1 {
+		return dimensionMatchers[0]
+	}
+	// All dimensions must be satisfied.
+	all := RoleMatchers(dimensionMatchers)
+	return RoleMatcherFunc(func(r types.Role, cond types.RoleConditionType) (bool, error) {
+		return all.MatchAll(r, cond)
+	})
+}
+
+// simpleDatabaseUserMatcher is a simplified version of databaseUserMatcher
+// for use in constraint matching where we don't have the target Database
+// object available. It checks the user against role.GetDatabaseUsers()
+// without AWS IAM role ARN alternative name resolution.
+type simpleDatabaseUserMatcher struct {
+	user string
+}
+
+func (m *simpleDatabaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	match, _ := MatchDatabaseUser(role.GetDatabaseUsers(condition), m.user, true, false)
+	return match, nil
+}
+
+// EnumerateDatabasePrincipalsByRole iterates each role in the checker's RoleSet
+// and enumerates the database principals (users, names, roles) that each
+// individual role grants for the given database. Roles that grant no principals
+// for this database are omitted from the result.
+func EnumerateDatabasePrincipalsByRole(
+	checker AccessChecker,
+	database types.Database,
+	localCluster string,
+) map[string]types.DatabaseRolePrincipals {
+	result := make(map[string]types.DatabaseRolePrincipals)
+
+	for _, role := range checker.Roles() {
+		singleInfo := &AccessInfo{
+			Username: checker.AccessInfo().Username,
+			Traits:   checker.Traits(),
+		}
+		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+
+		var users, names []string
+		var roles []string
+
+		if res, err := singleChecker.EnumerateDatabaseUsers(database); err == nil {
+			users, _ = res.ToEntities()
+		}
+		namesResult := singleChecker.EnumerateDatabaseNames(database)
+		names, _ = namesResult.ToEntities()
+		if r, err := singleChecker.CheckDatabaseRoles(database, nil); err == nil && len(r) > 0 {
+			roles = r
+		}
+
+		if len(users) == 0 && len(names) == 0 && len(roles) == 0 {
+			continue
+		}
+
+		result[role.GetName()] = types.DatabaseRolePrincipals{
+			Users: users,
+			Names: names,
+			Roles: roles,
+		}
+	}
+
+	return result
+}
+
+// ValidateDatabaseConstraintCoverage verifies that every principal requested in
+// the database constraints is reachable by at least one of the applicable roles.
+// Wildcard principals ("*") are always considered covered.
+func ValidateDatabaseConstraintCoverage(
+	constraints *types.DatabaseResourceConstraints,
+	applicableRoles []types.Role,
+	database types.Database,
+	username string,
+	traits map[string][]string,
+	localCluster string,
+) error {
+	if constraints == nil {
+		return nil
+	}
+
+	// Compute the union of principals granted across all applicable roles.
+	coveredUsers := set.New[string]()
+	coveredNames := set.New[string]()
+	coveredRoles := set.New[string]()
+
+	for _, role := range applicableRoles {
+		singleInfo := &AccessInfo{
+			Username: username,
+			Traits:   traits,
+		}
+		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+
+		if res, err := singleChecker.EnumerateDatabaseUsers(database); err == nil {
+			entities, _ := res.ToEntities()
+			for _, e := range entities {
+				coveredUsers.Add(e)
+			}
+		}
+		namesResult := singleChecker.EnumerateDatabaseNames(database)
+		entities, _ := namesResult.ToEntities()
+		for _, e := range entities {
+			coveredNames.Add(e)
+		}
+		if r, err := singleChecker.CheckDatabaseRoles(database, nil); err == nil {
+			for _, e := range r {
+				coveredRoles.Add(e)
+			}
+		}
+	}
+
+	// Check that every requested principal is covered.
+	for _, u := range constraints.Users {
+		if u != types.Wildcard && !coveredUsers.Contains(u) {
+			return trace.BadParameter("requested database user %q is not granted by any applicable role", u)
+		}
+	}
+	for _, n := range constraints.Names {
+		if n != types.Wildcard && !coveredNames.Contains(n) {
+			return trace.BadParameter("requested database name %q is not granted by any applicable role", n)
+		}
+	}
+	for _, r := range constraints.Roles {
+		if r != types.Wildcard && !coveredRoles.Contains(r) {
+			return trace.BadParameter("requested database role %q is not granted by any applicable role", r)
+		}
+	}
+
+	return nil
 }

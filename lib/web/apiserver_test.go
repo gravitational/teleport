@@ -8211,7 +8211,11 @@ func TestOverwriteDatabase(t *testing.T) {
 				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
 				require.NoError(t, err)
 
-				require.Equal(t, webui.MakeDatabase(backendDb, accessChecker, proxy.handler.handler.cfg.DatabaseREPLRegistry, false), gotDb)
+				require.Equal(t, webui.MakeDatabase(backendDb, webui.MakeDatabaseConfig{
+					AccessChecker:      accessChecker,
+					InteractiveChecker: proxy.handler.handler.cfg.DatabaseREPLRegistry,
+					RequiresRequest:    false,
+				}), gotDb)
 			},
 		},
 		{

@@ -973,6 +973,7 @@ func newResourceCollection(r resource) resourceCollection {
 				return &aggregatedDatabase{
 					DatabaseServer: srv,
 					status:         aggregateHealthStatuses(servers),
+					features:       intersectComponentFeaturesForDatabaseServers(servers),
 				}
 			})
 	case types.KubeServer:
@@ -1125,7 +1126,8 @@ func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer)
 // would be made generic.
 type aggregatedDatabase struct {
 	types.DatabaseServer
-	status types.TargetHealthStatus
+	status   types.TargetHealthStatus
+	features *componentfeaturesv1.ComponentFeatures
 }
 
 // This type MUST implement [types.DatabaseServer] to act as a facade type,
@@ -1138,18 +1140,36 @@ func (d *aggregatedDatabase) GetTargetHealthStatus() types.TargetHealthStatus {
 	return d.status
 }
 
+// GetComponentFeatures returns the intersected ComponentFeatures across all
+// database servers serving this database.
+func (d *aggregatedDatabase) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	if d.features == nil {
+		return nil
+	}
+	return componentfeatures.Join(d.features)
+}
+
 // Copy returns a copy of the underlying database server with aggregated health
-// status.
+// status and component features.
 func (d *aggregatedDatabase) Copy() types.DatabaseServer {
 	out := d.DatabaseServer.Copy()
 	out.SetTargetHealthStatus(d.status)
+	out.SetComponentFeatures(d.GetComponentFeatures())
 	return out
 }
 
 // CloneResource returns a copy of the underlying database server with
-// aggregated health status.
+// aggregated health status and component features.
 func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
 	return d.Copy()
+}
+
+func intersectComponentFeaturesForDatabaseServers(servers map[string]types.DatabaseServer) *componentfeaturesv1.ComponentFeatures {
+	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
+	for _, s := range servers {
+		allFeatures = append(allFeatures, s.GetComponentFeatures())
+	}
+	return componentfeatures.Intersect(allFeatures...)
 }
 
 // aggregatedKube wraps a kube server with aggregated health status.
@@ -1215,10 +1235,12 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 	}
 
 	var logins []string
+	var dbPrincipalsByRole map[string]*proto.DatabaseRolePrincipals
 	resource := r
 	if enriched, ok := r.(*types.EnrichedResource); ok {
 		resource = enriched.ResourceWithLabels
 		logins = enriched.Logins
+		dbPrincipalsByRole = mapDatabasePrincipalsByRoleToProto(enriched.DatabasePrincipalsByRole)
 	}
 
 	switch resourceKind {
@@ -1341,7 +1363,28 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}
 
+	if len(dbPrincipalsByRole) > 0 {
+		protoResource.DatabasePrincipalsByRole = dbPrincipalsByRole
+	}
+
 	return protoResource, nil
+}
+
+// mapDatabasePrincipalsByRoleToProto converts the Go DatabasePrincipalsByRole
+// map to the corresponding proto map.
+func mapDatabasePrincipalsByRoleToProto(byRole map[string]types.DatabaseRolePrincipals) map[string]*proto.DatabaseRolePrincipals {
+	if len(byRole) == 0 {
+		return nil
+	}
+	out := make(map[string]*proto.DatabaseRolePrincipals, len(byRole))
+	for k, v := range byRole {
+		out[k] = &proto.DatabaseRolePrincipals{
+			Users: v.Users,
+			Names: v.Names,
+			Roles: v.Roles,
+		}
+	}
+	return out
 }
 
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.

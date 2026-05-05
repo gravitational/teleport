@@ -3532,19 +3532,42 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 
-				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
+				cfg := ui.MakeServerConfig{
 					ClusterName:       cluster.GetName(),
-					Logins:            principals.Logins,
 					RequiresRequest:   enriched.RequiresRequest,
-					SupportedFeatures: nodeComponentFeatures,
-				}))
+					SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+				}
+				if principals != nil && principals.Logins != nil {
+					cfg.Logins = principals.Logins
+				}
+
+				unifiedResources = append(unifiedResources, ui.MakeServer(r, cfg))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
-			unifiedResources = append(unifiedResources, db)
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cfg := ui.MakeDatabaseFromDatabaseServerConfig{
+				AccessChecker:      accessChecker,
+				InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+				RequiresRequest:    enriched.RequiresRequest,
+				SupportedFeatures:  componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+			}
+			if principals != nil {
+				cfg.Principals = &ui.DatabasePrincipals{
+					ByRole:          principals.DBPrincipalsByRole,
+					AutoUserEnabled: principals.DBAutoUserEnabled,
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeDatabaseFromDatabaseServer(r, cfg))
 		case types.AppServer:
 			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
 				Resource:           enriched,
@@ -3561,22 +3584,20 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				// let the current proxy user is connected to override the dns name
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
-
-			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
-			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
-			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-
-			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
+			cfg := ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: proxyDNSName,
 				AppClusterName:    cluster.GetName(),
-				AWSRoles:          principals.AWSRoleARNs,
 				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.logger,
 				RequiresRequest:   enriched.RequiresRequest,
-				SupportedFeatures: appComponentFeatures,
-			})
+				SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+			}
+			if principals != nil {
+				cfg.AWSRoles = principals.AWSRoleARNs
+			}
+
+			app := ui.MakeApp(r.GetApp(), cfg)
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resources are shown as

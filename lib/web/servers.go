@@ -146,7 +146,11 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 
 	uiItems := make([]webui.Database, 0, len(page.Resources))
 	for _, dbServer := range page.Resources {
-		db := webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requires reset*/)
+		db := webui.MakeDatabaseFromDatabaseServer(dbServer, webui.MakeDatabaseFromDatabaseServerConfig{
+			AccessChecker:      accessChecker,
+			InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+			RequiresRequest:    false,
+		})
 		uiItems = append(uiItems, db)
 	}
 
@@ -187,12 +191,11 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabaseFromDatabaseServer(
-		dbServers[0],
-		accessChecker,
-		h.cfg.DatabaseREPLRegistry,
-		false, /* requiresRequest */
-	), nil
+	return webui.MakeDatabaseFromDatabaseServer(dbServers[0], webui.MakeDatabaseFromDatabaseServerConfig{
+		AccessChecker:      accessChecker,
+		InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+		RequiresRequest:    false,
+	}), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.

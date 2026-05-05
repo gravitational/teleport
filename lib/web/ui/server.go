@@ -19,6 +19,7 @@
 package ui
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/slices"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // SSHLogin describes an SSH login available on a server.
@@ -39,6 +40,19 @@ type SSHLogin struct {
 	Login string `json:"login"`
 	// RequiresRequest indicates whether this login requires an access request to be used.
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// DatabaseRolePrincipalGroup describes the database principals that a single
+// Teleport role grants, along with whether the role requires an access request.
+type DatabaseRolePrincipalGroup struct {
+	// RequiresRequest indicates whether this role requires an access request.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// Users is the list of database users this role grants.
+	Users []string `json:"users,omitempty"`
+	// Names is the list of database names this role grants.
+	Names []string `json:"names,omitempty"`
+	// Roles is the list of database roles this role grants (for auto-user provisioning).
+	Roles []string `json:"roles,omitempty"`
 }
 
 // Server describes a server for webapp
@@ -147,7 +161,7 @@ func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
 	if logins == nil {
 		return nil
 	}
-	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
+	return sliceutils.Map(logins.All.Elements(), func(login string) SSHLogin {
 		return SSHLogin{
 			Login:           login,
 			RequiresRequest: !logins.Granted.Contains(login),
@@ -363,6 +377,10 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
 	DatabaseRoles []string `json:"database_roles,omitempty"`
+	// DatabasePrincipalsByRole maps Teleport role names to the database principals
+	// each role grants, with requiresRequest metadata. Used by the frontend to
+	// show valid principal combinations and prevent selection of incompatible ones.
+	DatabasePrincipalsByRole map[string]DatabaseRolePrincipalGroup `json:"databasePrincipalsByRole,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -383,6 +401,8 @@ type Database struct {
 	// - webapi/sites/:site/databases/:database (singular)
 	// - webapi/sites/:site/resources (unified resources)
 	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
+	// SupportedFeatureIDs contains ComponentFeatures supported by this Database and all other involved components.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -405,26 +425,75 @@ type DatabaseInteractiveChecker interface {
 	IsSupported(protocol string) bool
 }
 
+// DatabasePrincipals holds enriched principal data for a database resource,
+// computed by PrincipalsForUnifiedResource considering both granted and
+// requestable (search_as_roles) access. When provided to MakeDatabase, it
+// takes precedence over computing principals from the base AccessChecker.
+type DatabasePrincipals struct {
+	// ByRole maps Teleport role names to the principals each role grants,
+	// with requiresRequest metadata.
+	ByRole map[string]DatabaseRolePrincipalGroup
+	// AutoUserEnabled indicates that auto-user provisioning is enabled,
+	// considering both granted and requestable roles.
+	AutoUserEnabled bool
+}
+
+type MakeDatabaseConfig struct {
+	AccessChecker      services.AccessChecker
+	InteractiveChecker DatabaseInteractiveChecker
+	// RequiresRequest is whether the DB resource requires an Access Request to access
+	RequiresRequest bool
+	// Principals holds enriched principal data from the unified resource
+	// listing. When nil, principals are computed from AccessChecker (the path
+	// taken by non-unified-resource endpoints like databases.go, servers.go).
+	Principals        *DatabasePrincipals
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+//
+// When Principals is provided, its ByRole map is used for the role-grouped
+// field, and flat principal lists are derived by unioning across all entries.
+// When nil, principals and auto-user status are computed from AccessChecker.
+func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 	var (
 		autoUserEnabled bool
 		dbUsers         []string
+		dbNames         []string
 		dbRoles         []string
 	)
-	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
-	dbNames, _ := dbNamesResult.ToEntities()
-	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
-		dbUsers, _ = res.ToEntities()
-	}
-	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
-		// Avoid assigning empty slice to keep the resulting roles nil.
-		if len(roles) > 0 {
-			dbRoles = roles
+
+	p := c.Principals
+	if p != nil {
+		// Derive flat principal lists by unioning across all role entries.
+		for _, entry := range p.ByRole {
+			dbUsers = append(dbUsers, entry.Users...)
+			dbNames = append(dbNames, entry.Names...)
+			dbRoles = append(dbRoles, entry.Roles...)
 		}
-	}
-	if autoUser, err := accessChecker.DatabaseAutoUserMode(database); err == nil {
-		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
+		dbUsers = slices.Compact(slices.Clone(dbUsers))
+		slices.Sort(dbUsers)
+		dbNames = slices.Compact(slices.Clone(dbNames))
+		slices.Sort(dbNames)
+		dbRoles = slices.Compact(slices.Clone(dbRoles))
+		slices.Sort(dbRoles)
+		autoUserEnabled = p.AutoUserEnabled
+	} else {
+		// Fall back to computing from the base AccessChecker. This is the path taken by
+		// non-unified-resource endpoints that don't have enriched principal data.
+		if res, err := c.AccessChecker.EnumerateDatabaseUsers(database); err == nil {
+			dbUsers, _ = res.ToEntities()
+		}
+		dbNamesResult := c.AccessChecker.EnumerateDatabaseNames(database)
+		dbNames, _ = dbNamesResult.ToEntities()
+		if roles, err := c.AccessChecker.CheckDatabaseRoles(database, nil); err == nil {
+			if len(roles) > 0 {
+				dbRoles = roles
+			}
+		}
+		if autoUser, err := c.AccessChecker.DatabaseAutoUserMode(database); err == nil {
+			autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
+		}
 	}
 
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
@@ -441,9 +510,13 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		DatabaseRoles:       dbRoles,
 		Hostname:            stripProtocolAndPort(database.GetURI()),
 		URI:                 database.GetURI(),
-		RequiresRequest:     requiresRequest,
-		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
+		RequiresRequest:     c.RequiresRequest,
+		SupportsInteractive: c.InteractiveChecker.IsSupported(database.GetProtocol()),
 		AutoUsersEnabled:    autoUserEnabled,
+	}
+
+	if c.SupportedFeatures != nil {
+		db.SupportedFeatureIDs = c.SupportedFeatures.GetFeatures()
 	}
 
 	if database.IsAWSHosted() {
@@ -457,12 +530,37 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		}
 	}
 
+	// Set per-role principal grouping for the frontend constraint UI.
+	if p != nil && len(p.ByRole) > 0 {
+		db.DatabasePrincipalsByRole = p.ByRole
+	}
+
 	return db
 }
 
+type MakeDatabaseFromDatabaseServerConfig struct {
+	AccessChecker      services.AccessChecker
+	InteractiveChecker DatabaseInteractiveChecker
+	// RequiresRequest is whether the DB resource requires an Access Request to access
+	RequiresRequest bool
+	// SupportedFeatures contains ComponentFeatures supported by this DB Server and all other involved components.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+	// Principals holds enriched principal data from the unified resource
+	// listing. When nil, principals are computed from AccessChecker.
+	Principals *DatabasePrincipals
+}
+
 // MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
+// If intersectedFeatures is provided, it is used instead of the server's own component features
+// (e.g. after intersecting with cluster-level auth/proxy features).
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, c MakeDatabaseFromDatabaseServerConfig) Database {
+	db := MakeDatabase(dbServer.GetDatabase(), MakeDatabaseConfig{
+		AccessChecker:      c.AccessChecker,
+		InteractiveChecker: c.InteractiveChecker,
+		RequiresRequest:    c.RequiresRequest,
+		SupportedFeatures:  c.SupportedFeatures,
+		Principals:         c.Principals,
+	})
 	db.TargetHealth = dbServer.GetTargetHealth()
 	return db
 }
@@ -471,7 +569,11 @@ func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker
 func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
+		db := MakeDatabase(database, MakeDatabaseConfig{
+			AccessChecker:      accessChecker,
+			InteractiveChecker: interactiveChecker,
+			RequiresRequest:    false,
+		})
 		uiServers = append(uiServers, db)
 	}
 

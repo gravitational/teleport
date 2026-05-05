@@ -1333,6 +1333,22 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+// setDatabasePrincipalsByRole populates the DatabasePrincipalsByRole field on a
+// PaginatedResource from a Go map. It is a no-op if byRole is empty.
+func setDatabasePrincipalsByRole(r *proto.PaginatedResource, byRole map[string]types.DatabaseRolePrincipals) {
+	if len(byRole) == 0 {
+		return
+	}
+	r.DatabasePrincipalsByRole = make(map[string]*proto.DatabaseRolePrincipals, len(byRole))
+	for roleName, p := range byRole {
+		r.DatabasePrincipalsByRole[roleName] = &proto.DatabaseRolePrincipals{
+			Users: p.Users,
+			Names: p.Names,
+			Roles: p.Roles,
+		}
+	}
+}
+
 // unifiedResourceLister is used to check if an unified resource should be listed. It also
 // memorizes all the resources which are requestable-only in the requestableMap.
 type unifiedResourceLister struct {
@@ -1345,6 +1361,8 @@ type unifiedResourceLister struct {
 	requestableAccessChecker resourceCheckerI
 	// kindAccessErrMap is used to check errors for list/read verbs per kind.
 	kindAccessErrMap map[string]error
+	// localCluster is the cluster name, used for per-role AccessChecker construction.
+	localCluster string
 	// requestableMap is used to track if a resource matches a filter but is only
 	// available after an access request. This map is of Resource.GetName().
 	// If the requestableMap is nil then no requestable resources will be traced.
@@ -1414,6 +1432,44 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 		logins, err := l.accessChecker.GetAllowedLoginsForResource(resource)
 		return logins, trace.Wrap(err)
 	}
+}
+
+// getEnrichedDatabasePrincipalsByRole returns per-role database principal
+// groupings visible to the user (including requestable principals via
+// search_as_roles). It uses the most-privileged access checker available.
+func (l *unifiedResourceLister) getEnrichedDatabasePrincipalsByRole(database types.Database) map[string]types.DatabaseRolePrincipals {
+	checker := l.getAccessChecker()
+	if checker == nil {
+		return nil
+	}
+	return services.EnumerateDatabasePrincipalsByRole(checker, database, l.localCluster)
+}
+
+// getAccessChecker returns the services.AccessChecker from the most-privileged
+// resource checker (requestable if available, else base).
+func (l *unifiedResourceLister) getAccessChecker() services.AccessChecker {
+	rc := l.requestableAccessChecker
+	if rc == nil {
+		rc = l.accessChecker
+	}
+	return unwrapAccessChecker(rc)
+}
+
+// unwrapAccessChecker extracts the services.AccessChecker from a
+// resourceCheckerI, unwrapping through any decorator layers (e.g.
+// oktaRequestableResoruceChecker).
+func unwrapAccessChecker(rc resourceCheckerI) services.AccessChecker {
+	for rc != nil {
+		if checker, ok := rc.(*resourceChecker); ok {
+			return checker.AccessChecker
+		}
+		if okta, ok := rc.(*oktaRequestableResoruceChecker); ok {
+			rc = okta.underlying
+			continue
+		}
+		return nil
+	}
+	return nil
 }
 
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
@@ -1510,8 +1566,14 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	var err error
 
+	clusterName, err := a.authServer.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resourceLister := &unifiedResourceLister{
 		kindAccessErrMap: kindAccessErrMap,
+		localCluster:     clusterName.GetClusterName(),
 	}
 
 	resourceLister.accessChecker, err = newResourceAccessChecker(a.context, types.KindUnifiedResource)
@@ -1628,6 +1690,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if d := r.GetDatabaseServer(); d != nil {
+				byRole := resourceLister.getEnrichedDatabasePrincipalsByRole(d.GetDatabase())
+				setDatabasePrincipalsByRole(r, byRole)
 			} else if d := r.GetAppServer(); d != nil {
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent
@@ -3415,7 +3480,7 @@ func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req t
 		"remote_roles", req.SearchAsRoles,
 		"local_roles", localSearchAsRoles)
 
-	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), "")
+	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIDs), "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
