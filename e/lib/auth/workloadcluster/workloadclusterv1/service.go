@@ -521,7 +521,7 @@ func validateWorkloadCluster(wc *workloadcluster.WorkloadCluster) error {
 	switch {
 	case wc.GetMetadata().GetDescription() != "",
 		wc.GetMetadata().GetExpires() != nil,
-		wc.GetMetadata().GetLabels() != nil,
+		len(wc.GetMetadata().GetLabels()) > 0,
 		wc.GetMetadata().GetNamespace() != "":
 		return trace.BadParameter("only name and revision fields are supported on metadata for workload_cluster resources")
 	}

@@ -129,8 +129,10 @@ func TestCreateWorkloadCluster(t *testing.T) {
 			request: &workloadclusterv1.CreateWorkloadClusterRequest{
 				Cluster: &workloadclusterv1.WorkloadCluster{
 					Metadata: &headerv1.Metadata{
-						Name:   "test",
-						Labels: map[string]string{},
+						Name: "test",
+						Labels: map[string]string{
+							"test": "test",
+						},
 					},
 				},
 			},
