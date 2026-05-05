@@ -36,6 +36,8 @@ const (
 // ResolvConfUpstreamNameserverSource reads the OS DNS nameservers found in the
 // /etc/resolv.conf file on unix-like systems.
 //
+// https://man7.org/linux/man-pages/man5/resolver.5.html
+//
 // On macOS, the comments in the file make it clear it is not actually consulted
 // for DNS hostname resolution, but it seems to be be kept up-to-date with the
 // current default nameservers as configured for the OS, and it is the easiest
