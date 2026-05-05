@@ -419,6 +419,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	// wire up the cert-based Access Graph handler for mTLS app-cert requests.
 	h.SetAccessGraphHandler(p.accessGraphCertHandler(accessGraphPrefix))
 
+	h.GET("/enterprise/rootscopedroles", h.WithAuth(p.listRootScopedRolesHandler))
+
 	h.GET(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 	h.POST(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 
