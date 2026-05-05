@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.5.1
+	github.com/gravitational/trace v1.5.4
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.9.0
