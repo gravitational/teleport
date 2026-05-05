@@ -1,6 +1,6 @@
 ---
 authors: Jake Ward (jacob.ward@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0252 - Enable Entra ID SAML authentication for users in 150+ groups
@@ -47,7 +47,6 @@ metadata:
 spec:
     credentials:
         oauth:
-            tenant_id: <tenant_id>
             client_id: <client_id>
             client_secret: <client_secret>
     entra_id_groups_provider:
@@ -85,14 +84,24 @@ When a user authenticates to Teleport using Entra ID SAML, the SAML assertion co
 
 Since a similar issue was already resolved for the Entra ID OIDC connector, the proposal is to mostly mirror that for the SAML connector and leverage as much of the existing implementation as possible (refactoring, if necessary).
 
-Two fields will be added to `SAMLConnectorSpecV2`. `entra_id_groups_provider` will use the existing `EntraIDGroupsProvider` type to store a user groups provider. `credentials` will use a new `SAMLConnectorCredentials` type to store credentials for authenticating to MS Graph API.
+Two fields will be added to `SAMLConnectorSpecV2`. `entra_id_groups_provider` will use the existing `EntraIDGroupsProvider` type to store a user groups provider. `credentials` will use a new `SAMLConnectorCredentials` type to store credentials for authenticating to MS Graph API, in the first instance, OAuth credentials for client credentials grant flow.
 
 ```proto
 message SAMLConnectorCredentials {
-    string tenant_id = 1;
-    string client_id = 2;
-    string client_secret = 3;
+  OAuthClientCredentials oauth = 1;
 }
+
+message OAuthClientCredentials {
+  string client_id = 1;
+  string client_secret = 2;
+}
+
+message EntraIDGroupsProvider {
+  bool disabled = 1;
+  string group_type = 2;
+  string graph_endpoint = 3;
+}
+
 
 message SAMLConnectorSpecV2 {
     // ...omitted for brevity...
@@ -102,17 +111,18 @@ message SAMLConnectorSpecV2 {
 }
 ```
 
-`SAMLConnectorCredentials.ClientSecret` will be handled consistently with `OIDCConnectorV3.ClientSecret` and stripped from responses via `WithoutSecrets()`.
+`OAuthClientCredentials.ClientSecret` will be handled consistently with `OIDCConnectorV3.ClientSecret` and stripped from responses via `WithoutSecrets()`.
 
-The `SAMLConnector` interface will be updated with methods to get these two fields, along with a helper to determine if the groups provider is disabled.
+The `SAMLConnector` interface will be updated with methods to get/set the credentials, along with a helper to determine if the groups provider is disabled.
 
 ```go
 type SAMLConnector interface {
     // ...omitted for brevity...
 
-    GetEntraIDGraphCredentials() *EntraIDGraphCredentials
-    GetEntraIDGroupsProvider() *EntraIDGroupsProvider
-    IsEntraIDGroupsProviderDisabled() bool 
+ 	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
+	IsEntraIDGroupsProviderDisabled() bool
+	GetOAuthClientCredentials() *OAuthClientCredentials
+	SetOAuthClientCredentials(*OAuthClientCredentials)   IsEntraIDGroupsProviderDisabled() bool 
 }
 ```
 
@@ -129,10 +139,11 @@ type oidcEntraIDGroupsProvider struct {
 
 // new
 type samlEntraIDGroupsProvider struct {
-    connector  types.SAMLConnector
-    auth       *auth.Server
-    logger     *slog.Logger
-    httpClient *http.Client
+    connector      types.SAMLConnector
+    assertionInfo  *saml2.AssertionInfo
+    logger         *slog.Logger
+    NewGraphClient func(tokenProvider azcore.TokenCredential, graphEndpoint string) (*msgraph.Client, error)
+	ResolveToken   func(ctx context.Context, connector types.SAMLConnector, assertionInfo *saml2.AssertionInfo) (azcore.TokenCredential, error)
 }
 ```
 
@@ -166,7 +177,7 @@ When a user authenticates and the groups overage scenario is detected, a credent
 
 ##### SAML connector created with Entra ID plugin
 
-For SAML connectors created using the Entra ID plugin (either via the UI guided setup or the CLI using `tctl plugins install entraid`), the plugin will be looked up by matching its `sso_connector_id` to the SAML connector name, and the `tenant_id` and `client_id` will be retrieved from the corresponding OIDC integration to construct the credential.
+For SAML connectors created using the Entra ID plugin (either via the UI guided setup or the CLI using `tctl plugins install entraid`), the plugin will be looked up by matching its `sso_connector_id` to the SAML connector name, and credentials from the corresponding OIDC integration will be used to construct the credential.
 
 Example: 
 ```go
@@ -198,14 +209,16 @@ if err != nil {
 
 ##### SAML connector created directly
 
-For SAML connectors created directly (either via the UI YAML editor, `tctl create ...`, or IaC), the newly added `EntraIDGraphCredentials` will be used to construct the credential.
+For SAML connectors created directly (either via the UI YAML editor, `tctl create ...`, or IaC), the newly added `OAuthClientCredentials` will be used to construct the credential. The `tenant_id` will be extracted from the SAML assertion after it's been validated.
 
 Example:
 ```go
 creds := connector.GetEntraIDGraphCredentials()
+tenantIDAttr, ok := assertionInfo.Values[entraIDAttrTenantID]
+tenantID := tenantIDAttr.Values[0].Value
 
 credential, err := azidentity.NewClientSecretCredential(
-    creds.TenantID,
+    tenantID,
     creds.ClientID,
     creds.ClientSecret,
     nil,
