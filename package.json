@@ -63,7 +63,7 @@
     "react-select-event": "^5.5.1",
     "storybook": "^10.3.3",
     "svgo": "^4.0.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "vite": "^8.0.8"
   },
   "dependencies": {
