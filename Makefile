@@ -2102,3 +2102,12 @@ ifndef BENCH_FILES
 	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
 endif
 	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
+
+
+# TODO: at this time the instrumentor complains about existing directories when ren and there seems to be no flag to
+# to force the update. Another slightly annoying caveat is that the file is timestamped, meaning the runs are not completely
+# Reproducable.
+.PHONY: antithesis-instrument
+antithesis-instrument:
+	rm -rf  tool/antithesis/crud_generated_instrumentation/*
+	go tool antithesis-go-instrumentor tool/antithesis/crud tool/antithesis/crud_generated_instrumentation

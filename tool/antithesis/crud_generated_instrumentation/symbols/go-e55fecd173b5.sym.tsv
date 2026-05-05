@@ -1,0 +1,7 @@
+# language = Go
+# instrumentor = /Users/luke.okraszewski/Library/Caches/go-build/51/510947372c06ec6f001f41f86887c0a50c6f41a7f1bf83a413fb84d129f7bd00-d/antithesis-go-instrumentor
+# module = go-e55fecd173b5
+file	function	begin_line	begin_column	end_line	end_column	address
+/Users/luke.okraszewski/src/teleport/tool/antithesis/crud/main.go	times10	12	25	17	2	1
+/Users/luke.okraszewski/src/teleport/tool/antithesis/crud/main.go	main	19	13	21	26	2
+/Users/luke.okraszewski/src/teleport/tool/antithesis/crud/main.go	main	21	26	24	3	3
