@@ -87,7 +87,7 @@ Session Recording Summary Player and Timeline
 <Tabs>
 <TabItem label="Teleport Enterprise Cloud">
 - A Teleport Enterprise Cloud tenant running v18.2.0 or later with Identity
-  Security enabled. v18.7.1 required to use Teleport managed profiles. 
+  Security enabled. v18.7.1 required to use Teleport managed profiles.
 - Optionally, access to your own LLM API (OpenAI, Amazon Bedrock, or an
   OpenAI-compatible gateway). If you don't bring your own, you can use the
   Teleport-managed model included with your Cloud tenant.
@@ -169,7 +169,7 @@ underlying API-specific model name
 
 Teleport Enterprise Cloud tenants come with a pre-provisioned inference model
 called `teleport-cloud-default`, powered by Amazon Bedrock. Teleport manages the
-underlying model and infrastructure. 
+underlying model and infrastructure.
 
 No additional configuration is needed for this step. Skip to
 [Step 3](#step-35-set-up-an-inference-policy) and reference
@@ -324,7 +324,7 @@ The exact procedure for attaching this policy is different depending on the
 details of your infrastructure; for example, if you are running Teleport on an
 EC2 instance, you should navigate to that instance in the AWS Console, and
 modify the role specified in the **IAM Role** section of the instance summary.
-(If there's no IAM role set, use **Actions -> Security -> Modify IAM role**.) 
+(If there's no IAM role set, use **Actions -> Security -> Modify IAM role**.)
 
 ### Create an `inference_model` resource
 
@@ -346,7 +346,7 @@ modify the role specified in the **IAM Role** section of the instance summary.
      # If unset, defaults to 200kB. See the Limitations section for more details.
      max_session_length_bytes: 190000
    ```
-   
+
    Replace <Var name="bedrock-model-or-inference-profile-arn"/> with an ARN of
    the Amazon Bedrock foundation model or an inference profile. A Bedrock model
    ID can also be used.
@@ -357,7 +357,7 @@ modify the role specified in the **IAM Role** section of the instance summary.
    model support by AWS
    region](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
    from the official AWS documentation.
-   
+
    If `bedrock_model_id` refers to an inference profile, <Var name="region"/>
    needs to point to a region specified in the inference profile ARN.
 
@@ -507,7 +507,7 @@ session, and go to **Audit -> Session Recordings**. You should see the
 corresponding recording tile with a summary button. Clicking the summary button
 will show the summary.
 
-### Session Recording Summary Dashboard 
+### Session Recording Summary Dashboard
 
 ![Session recording list screen with a summary visible](https://website.goteleport.com/_uploads/session_summary_list_3fe0cae7ac.png)
 
@@ -523,12 +523,12 @@ appear up to a minute after the session is uploaded to the Auth service.
 After summaries are enabled, you can configure
 [Session Recording Search](./session-search.mdx) to find summarized recordings
 by natural language query, keyword search, session metadata, resource labels,
-access request IDs, and severity.
+Access Request IDs, and severity.
 
 ## Audit Events for Session Summaries
 
 After a session is summarized, an audit event is generated. This allows you to
-forward events to a SIEM to alert the high severity sessions. 
+forward events to a SIEM to alert the high severity sessions.
 
 ```json
 // Example Session Summarization with a critical risk level.
@@ -765,7 +765,7 @@ the `inference_model` resource.
 ### Amazon Bedrock model identifier is invalid
 
 **Problem:** Summarization fails with "ValidationException: The provided model
-identifier is invalid." 
+identifier is invalid."
 
 **Solution:** One possible reason is a mismatch between the `region` declared
 in the `inference_model` resource and available regions for the given model or
