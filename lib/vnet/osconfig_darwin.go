@@ -22,22 +22,54 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 )
 
-// platformOSConfigState is not used on darwin.
-type platformOSConfigState struct{}
+// platformOSConfigState tracks which OS configuration calls have already
+// been applied so platformConfigureOS can skip them on subsequent ticks.
+//
+// The OS configuration loop runs every 10 seconds to pick up new
+// clusters and CIDR ranges. Without this gate, the loop re-issues
+// `ifconfig` and `route add` every tick. macOS's `SIOCSIFADDR` performs
+// a delete-then-add internally even when the address is unchanged, so
+// every tick emits an `RTM_DELADDR`/`RTM_NEWADDR` pair on the kernel
+// route socket. Other linkmon subscribers (notably Tailscale's
+// magicsock, embedded by Coder) read that pair as a major link change
+// and tear down their connections.
+//
+// Mirrors the gating already in place on Linux. See `osconfig_linux.go`
+// for the equivalent state struct; field names match.
+type platformOSConfigState struct {
+	configuredIPv6       bool
+	configuredIPv4       bool
+	configuredCidrRanges []string
+}
 
-// platformConfigureOS configures the host OS according to cfg. It is safe to
-// call repeatedly, and it is meant to be called with an empty osConfig to
-// deconfigure anything necessary before exiting.
-func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfigState) error {
-	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
-	// process exits and the TUN is deleted.
+// platformConfigureOS configures the host OS according to cfg. It is
+// safe to call repeatedly: subsequent calls with an unchanged cfg do
+// not re-issue ifconfig or route add for already-configured addresses
+// or CIDR ranges; only newly-added CIDR ranges trigger a route add.
+// DNS resolver files are reconciled on every call. An empty osConfig
+// deconfigures everything by resetting the cached state so the next
+// non-empty call re-applies.
+func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	// There is no need to remove IP addresses or routes; they are
+	// cleaned up when the process exits and the TUN is deleted. An
+	// empty cfg signals deconfigure: reconcile DNS first, then reset
+	// the cached state on success so a future re-apply is not silently
+	// skipped.
+	if cfg.tunName == "" {
+		if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+			return trace.Wrap(err, "configuring DNS")
+		}
+		*state = platformOSConfigState{}
+		return nil
+	}
 
-	if cfg.tunIPv4 != "" {
+	if cfg.tunIPv4 != "" && !state.configuredIPv4 {
 		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
 			"device", cfg.tunName, "address", cfg.tunIPv4)
 		if err := runCommand(ctx,
@@ -45,23 +77,34 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfig
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredIPv4 = true
 	}
 	for _, cidrRange := range cfg.cidrRanges {
+		if slices.Contains(state.configuredCidrRanges, cidrRange) {
+			continue
+		}
 		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
 		if err := runCommand(ctx,
 			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
 	}
 
-	if cfg.tunIPv6 != "" {
-		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
+	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv6)
 		if err := runCommand(ctx,
 			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		// Mark IPv6 configured as soon as the alias is set, so a
+		// failure of the route add below does not cause a retry of
+		// the ifconfig on the next tick (which would re-trigger the
+		// alias flap this gate exists to prevent).
+		state.configuredIPv6 = true
 
 		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
 		if err := runCommand(ctx,
