@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
@@ -37,201 +37,191 @@ import (
 )
 
 func TestProxyStdioConn_autoReconnect(t *testing.T) {
-	ctx := t.Context()
-	app := newAppFromURI(t, "some-mcp", "mcp+stdio://")
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		app := newAppFromURI(t, "some-mcp", "mcp+stdio://")
 
-	var serverStdioSource atomic.Value
-	prepServerWithVersion := func(version string) {
-		testServerV1 := mcptest.NewServerWithVersion(version)
-		testServerSource, testServerDest := mustMakeConnPair(t)
-		serverStdioSource.Store(testServerSource)
+		var serverStdioSource atomic.Value
+		prepServerWithVersion := func(version string) context.CancelFunc {
+			testServer := mcptest.NewServerWithVersion(version)
+			testServerSource, testServerDest := mustMakeConnPair(t)
+			serverStdioSource.Store(testServerSource)
+			listenCtx, cancel := context.WithCancel(ctx)
+
+			// Note that "Listen" creates a background go-routine to handle
+			// notifications that keeps running until ctx is canceled. Thus,
+			// cancel must be called before synctest.Wait.
+			go mcpserver.NewStdioServer(testServer).Listen(listenCtx, testServerDest, testServerDest)
+			return cancel
+		}
+		cancelServer := prepServerWithVersion("1.0.0")
+
+		clientStdioSource, clientStdioDest := mustMakeConnPair(t)
+		stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
+		proxyError := make(chan error, 1)
+
+		// Start proxy.
 		go func() {
-			mcpserver.NewStdioServer(testServerV1).Listen(t.Context(), testServerDest, testServerDest)
+			proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
+				ClientStdio: clientStdioDest,
+				GetApp: func(ctx context.Context) (types.Application, error) {
+					return app, nil
+				},
+				DialServer: func(ctx context.Context) (net.Conn, error) {
+					return serverStdioSource.Load().(net.Conn), nil
+				},
+				AutoReconnect: true,
+			})
 		}()
-	}
-	prepServerWithVersion("1.0.0")
 
-	clientStdioSource, clientStdioDest := mustMakeConnPair(t)
-	stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
-	proxyError := make(chan error, 1)
-	serverConnClosed := make(chan struct{}, 1)
+		// Initialize.
+		mcptest.MustInitializeClient(t, stdioClient)
 
-	// Start proxy.
-	go func() {
-		proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
-			ClientStdio: clientStdioDest,
-			GetApp: func(ctx context.Context) (types.Application, error) {
-				return app, nil
-			},
-			DialServer: func(ctx context.Context) (net.Conn, error) {
-				return serverStdioSource.Load().(net.Conn), nil
-			},
-			AutoReconnect: true,
-			onServerConnClosed: func() {
-				serverConnClosed <- struct{}{}
-			},
-		})
-	}()
+		// Call tool success.
+		mcptest.MustCallServerTool(t, stdioClient)
 
-	// Initialize.
-	mcptest.MustInitializeClient(t, stdioClient)
+		// Let's kill the server, CallTool should fail.
+		serverStdioSource.Load().(io.ReadWriteCloser).Close()
+		cancelServer()
+		synctest.Wait()
+		_, err := mcptest.CallServerTool(ctx, stdioClient)
+		require.ErrorContains(t, err, "on closed pipe")
 
-	// Call tool success.
-	mcptest.MustCallServerTool(t, stdioClient)
+		// Let it try again with a successful reconnect.
+		cancelServer = prepServerWithVersion("1.0.0")
+		mcptest.MustCallServerTool(t, stdioClient)
 
-	// Let's kill the server, CallTool should fail.
-	serverStdioSource.Load().(io.ReadWriteCloser).Close()
-	select {
-	case <-serverConnClosed:
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out waiting for server connection to close")
-	}
-	_, err := mcptest.CallServerTool(ctx, stdioClient)
-	require.ErrorContains(t, err, "on closed pipe")
+		// Let's kill the server again, and prepare a different version.
+		serverStdioSource.Load().(io.ReadWriteCloser).Close()
+		cancelServer()
+		synctest.Wait()
+		cancelServer = prepServerWithVersion("2.0.0")
+		_, err = mcptest.CallServerTool(ctx, stdioClient)
+		require.ErrorContains(t, err, "server info has changed")
 
-	// Let it try again with a successful reconnect.
-	prepServerWithVersion("1.0.0")
-	mcptest.MustCallServerTool(t, stdioClient)
-
-	// Let's kill the server again, and prepare a different version.
-	serverStdioSource.Load().(io.ReadWriteCloser).Close()
-	select {
-	case <-serverConnClosed:
-	case <-time.After(time.Second * 5):
-		require.Fail(t, "timed out waiting for server connection to close")
-	}
-	prepServerWithVersion("2.0.0")
-	_, err = mcptest.CallServerTool(ctx, stdioClient)
-	require.ErrorContains(t, err, "server info has changed")
-
-	// Cleanup.
-	clientStdioSource.Close()
-	select {
-	case proxyErr := <-proxyError:
-		require.NoError(t, proxyErr)
-	case <-time.After(time.Second * 5):
-		require.Fail(t, "timed out waiting for proxy to complete")
-	}
+		// Cleanup.
+		clientStdioSource.Close()
+		cancelServer()
+		synctest.Wait()
+		require.NoError(t, <-proxyError)
+	})
 }
 
 func TestProxyStdioConn_http(t *testing.T) {
-	ctx := t.Context()
-	app := newAppFromURI(t, "some-mcp", "mcp+http://127.0.0.1:8888/mcp")
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		app := newAppFromURI(t, "some-mcp", "mcp+http://127.0.0.1:8888/mcp")
 
-	// Remote MCP server.
-	mcpServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
-	listener := listenerutils.NewInMemoryListener()
-	t.Cleanup(func() { listener.Close() })
-	var receivedSessionEnd atomic.Bool
-	go http.Serve(listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if req.Method == http.MethodDelete {
-			receivedSessionEnd.Store(true)
+		// Remote MCP server.
+		mcpServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
+		listener := listenerutils.NewInMemoryListener()
+		var receivedSessionEnd atomic.Bool
+		httpServer := http.Server{
+			Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				if req.Method == http.MethodDelete {
+					receivedSessionEnd.Store(true)
+				}
+				mcpServer.ServeHTTP(rw, req)
+			}),
 		}
-		mcpServer.ServeHTTP(rw, req)
-	}))
+		t.Cleanup(func() { httpServer.Close() })
+		go httpServer.Serve(listener)
 
-	// Start proxy.
-	clientStdioSource, clientStdioDest := mustMakeConnPair(t)
-	proxyError := make(chan error, 1)
-	go func() {
-		proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
-			ClientStdio: clientStdioDest,
-			GetApp: func(ctx context.Context) (types.Application, error) {
-				return app, nil
-			},
-			DialServer: func(ctx context.Context) (net.Conn, error) {
-				return listener.DialContext(ctx, "tcp", "")
-			},
-			AutoReconnect: true,
-		})
-	}()
+		// Start proxy.
+		clientStdioSource, clientStdioDest := mustMakeConnPair(t)
+		proxyError := make(chan error, 1)
+		go func() {
+			proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
+				ClientStdio: clientStdioDest,
+				GetApp: func(ctx context.Context) (types.Application, error) {
+					return app, nil
+				},
+				DialServer: func(ctx context.Context) (net.Conn, error) {
+					return listener.DialContext(ctx, "tcp", "")
+				},
+				AutoReconnect: true,
+			})
+		}()
 
-	// Local stdio client.
-	stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
-	mcptest.MustInitializeClient(t, stdioClient)
-	mcptest.MustCallServerTool(t, stdioClient)
+		// Local stdio client.
+		stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
+		mcptest.MustInitializeClient(t, stdioClient)
+		mcptest.MustCallServerTool(t, stdioClient)
 
-	// Shut down.
-	stdioClient.Close()
-	select {
-	case proxyErr := <-proxyError:
-		require.NoError(t, proxyErr)
+		// Shut down.
+		stdioClient.Close()
+		synctest.Wait()
+		require.NoError(t, <-proxyError)
 
 		// Make sure the transport has sent out "session end" message before
 		// ProxyStdioConn returns.
 		assert.True(t, receivedSessionEnd.Load())
-	case <-time.After(time.Second * 5):
-		require.Fail(t, "timed out waiting for proxy to complete")
-	}
+	})
 }
 
 func TestProxyStdioConn_autoReconnectDisabled(t *testing.T) {
-	ctx := t.Context()
-	app := newAppFromURI(t, "some-mcp", "mcp+stdio://")
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		app := newAppFromURI(t, "some-mcp", "mcp+stdio://")
 
-	var mcpServerConnCount atomic.Uint32
-	var mcpServerConn atomic.Value
-	listener := listenerutils.NewInMemoryListener()
-	t.Cleanup(func() { listener.Close() })
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
+		var mcpServerConnCount atomic.Uint32
+		var mcpServerConn atomic.Value
+		listenCtx, cancelListen := context.WithCancel(ctx)
+		listener := listenerutils.NewInMemoryListener()
+		t.Cleanup(func() { listener.Close() })
+
+		go func() {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				mcpServerConnCount.Add(1)
+				mcpServerConn.Store(conn)
+
+				// Note that "Listen" creates a background go-routine to handle
+				// notifications that keeps running until ctx is canceled. Thus,
+				// cancelListen must be called before synctest.Wait.
+				go mcpserver.NewStdioServer(mcptest.NewServer()).Listen(listenCtx, conn, conn)
 			}
-			mcpServerConnCount.Add(1)
-			mcpServerConn.Store(conn)
-			go mcpserver.NewStdioServer(mcptest.NewServer()).Listen(t.Context(), conn, conn)
-		}
-	}()
+		}()
 
-	// Start proxy.
-	clientStdioSource, clientStdioDest := mustMakeConnPair(t)
-	serverConnClosed := make(chan struct{}, 1)
-	proxyError := make(chan error, 1)
-	go func() {
-		proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
-			ClientStdio: clientStdioDest,
-			GetApp: func(ctx context.Context) (types.Application, error) {
-				return app, nil
-			},
-			DialServer: func(ctx context.Context) (net.Conn, error) {
-				return listener.DialContext(ctx, "tcp", "")
-			},
-			AutoReconnect: false,
-			onServerConnClosed: func() {
-				serverConnClosed <- struct{}{}
-			},
-		})
-	}()
+		// Start proxy.
+		clientStdioSource, clientStdioDest := mustMakeConnPair(t)
+		proxyError := make(chan error, 1)
+		go func() {
+			proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
+				ClientStdio: clientStdioDest,
+				GetApp: func(ctx context.Context) (types.Application, error) {
+					return app, nil
+				},
+				DialServer: func(ctx context.Context) (net.Conn, error) {
+					return listener.DialContext(ctx, "tcp", "")
+				},
+				AutoReconnect: false,
+			})
+		}()
 
-	// Local stdio client.
-	stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
-	mcptest.MustInitializeClient(t, stdioClient)
-	mcptest.MustCallServerTool(t, stdioClient)
+		// Local stdio client.
+		stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
+		mcptest.MustInitializeClient(t, stdioClient)
+		mcptest.MustCallServerTool(t, stdioClient)
 
-	// Let's kill the server conn.
-	connCloser, ok := mcpServerConn.Load().(io.Closer)
-	require.True(t, ok)
-	require.NoError(t, connCloser.Close())
-	select {
-	case <-serverConnClosed:
-	case <-time.After(time.Second * 5):
-		require.Fail(t, "timed out waiting for server connection to close")
-	}
+		// Let's kill the server conn.
+		connCloser, ok := mcpServerConn.Load().(io.Closer)
+		require.True(t, ok)
+		require.NoError(t, connCloser.Close())
 
-	// Check proxy has ended.
-	select {
-	case proxyErr := <-proxyError:
-		require.NoError(t, proxyErr)
-	case <-time.After(time.Second * 5):
-		require.Fail(t, "timed out waiting for proxy to complete")
-	}
+		// Wait for ProxyStdioConn.
+		cancelListen()
+		synctest.Wait()
+		require.NoError(t, <-proxyError)
 
-	// New request should fail and no retry is performed.
-	_, err := mcptest.CallServerTool(t.Context(), stdioClient)
-	require.ErrorContains(t, err, "transport closed")
-	require.Equal(t, uint32(1), mcpServerConnCount.Load())
+		// New request should fail and no retry is performed.
+		_, err := mcptest.CallServerTool(ctx, stdioClient)
+		require.ErrorContains(t, err, "transport closed")
+		require.Equal(t, uint32(1), mcpServerConnCount.Load())
+	})
 }
 
 func mustMakeConnPair(t *testing.T) (net.Conn, net.Conn) {

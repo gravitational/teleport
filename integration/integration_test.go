@@ -94,7 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -103,11 +102,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	telesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam"
 )
 
 type integrationTestSuite struct {
@@ -2381,11 +2381,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
-	var (
-		outputA bytes.Buffer
-		outputB bytes.Buffer
-	)
-
 	// make sure the direct dialer was used and not the proxy dialer
 	require.Zero(t, ph.Count())
 
@@ -2402,10 +2397,11 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		ForwardAgent: true,
 	})
 	require.NoError(t, err)
-	tc.Stdout = &outputA
+	stdout := new(bytes.Buffer)
+	tc.Stdout = stdout
 	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
-	require.Equal(t, "hello world\n", outputA.String())
+	require.Equal(t, "hello world\n", stdout.String())
 
 	// Update trusted CAs.
 	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
@@ -2430,11 +2426,14 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		ForwardAgent: true,
 	})
 	require.NoError(t, err)
-	tc.Stdout = &outputB
 
-	err = tc.SSH(ctx, cmd)
-	require.NoError(t, err)
-	require.Equal(t, outputA.String(), outputB.String())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		stdout = new(bytes.Buffer)
+		tc.Stdout = stdout
+		err = tc.SSH(ctx, cmd)
+		require.NoError(t, err)
+	}, time.Minute, 250*time.Millisecond)
+	require.Equal(t, "hello world\n", stdout.String())
 
 	clientHasEvents := func(cc authclient.ClientI, count int) func() bool {
 		// only look for exec events

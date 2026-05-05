@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiconstants "github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -53,9 +54,9 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/host"
 )
 
 const testuser = "teleport-testuser"
@@ -254,7 +255,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Groups: testGroups, Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
-		testGroups = append(testGroups, types.TeleportDropGroup)
+		testGroups = append(testGroups, apiconstants.TeleportDropGroup)
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, testGroups) })
 
 		u, err := user.Lookup(testuser)
@@ -283,7 +284,7 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportDropGroup}) })
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{apiconstants.TeleportDropGroup}) })
 
 		group, err := user.LookupGroupId(testGID)
 		require.NoError(t, err)
@@ -308,7 +309,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP})
 		require.NoError(t, err)
 		require.Nil(t, closer)
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{apiconstants.TeleportKeepGroup}) })
 
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
@@ -376,7 +377,7 @@ func TestRootHostUsers(t *testing.T) {
 		t.Cleanup(func() {
 			cleanupUsersAndGroups(
 				[]string{"teleport-user1", "teleport-user2", "teleport-user3", "teleport-user4"},
-				[]string{types.TeleportDropGroup, types.TeleportKeepGroup})
+				[]string{apiconstants.TeleportDropGroup, apiconstants.TeleportKeepGroup})
 		})
 
 		err = users.DeleteAllUsers()
@@ -601,13 +602,13 @@ func TestRootHostUsers(t *testing.T) {
 	})
 
 	t.Run("Test migrate unmanaged user", func(t *testing.T) {
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{apiconstants.TeleportKeepGroup}) })
 
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 		_, err := host.UserAdd(testuser, nil, host.UserOpts{})
 		require.NoError(t, err)
 
-		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP, Groups: []string{types.TeleportKeepGroup}})
+		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP, Groups: []string{apiconstants.TeleportKeepGroup}})
 		require.NoError(t, err)
 		require.Nil(t, closer)
 
@@ -617,7 +618,7 @@ func TestRootHostUsers(t *testing.T) {
 		gids, err := u.GroupIds()
 		require.NoError(t, err)
 
-		keepGroup, err := user.LookupGroup(types.TeleportKeepGroup)
+		keepGroup, err := user.LookupGroup(apiconstants.TeleportKeepGroup)
 		require.NoError(t, err)
 		require.Contains(t, gids, keepGroup.Gid)
 	})
@@ -891,7 +892,7 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, 
 			userGroups = append(userGroups, group.Name)
 		}
 		assert.Subset(collect, userGroups, groups)
-		assert.Contains(collect, userGroups, types.TeleportStaticGroup)
+		assert.Contains(collect, userGroups, apiconstants.TeleportStaticGroup)
 		// Check that the sudoers file was created.
 		assert.FileExists(collect, sudoersPath(goodLogin, nodeUUID))
 		userShells, err := getUserShells("/etc/passwd")
