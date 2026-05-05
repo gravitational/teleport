@@ -269,6 +269,30 @@ func TestCreateBeamProvisionFailureCleansUp(t *testing.T) {
 	require.Empty(t, beams)
 }
 
+func TestCreateBeamProvisionResourceExhaustedReturnsLimitExceeded(t *testing.T) {
+	t.Parallel()
+
+	computeClient := &fakeComputeService{
+		provisionError: status.Error(codes.ResourceExhausted, "capacity exhausted"),
+	}
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+		aliasGenerator: sequenceAliasGenerator("capacity-limited"),
+		computeClient:  computeClient,
+	})
+
+	service := pack.service(t, pack.user(t, "alice"))
+	_, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+	})
+	require.True(t, trace.IsLimitExceeded(err), "expected limit exceeded error, got %v", err)
+	require.ErrorContains(t, err, "limit exceeded; please try again later")
+	require.Empty(t, computeClient.getDestroyRequests())
+
+	_, err = pack.beam.GetBeamByAlias(t.Context(), "capacity-limited")
+	require.True(t, trace.IsNotFound(err))
+}
+
 func TestCreateBeamProvisionFailureDestroyNotFoundCleansUp(t *testing.T) {
 	t.Parallel()
 

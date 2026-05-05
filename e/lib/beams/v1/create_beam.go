@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -97,16 +99,33 @@ retry:
 		)
 		defer cancel()
 
-		// We call `DestroyBeam` in case `ProvisionBeam` only *partially* failed
-		// and there are resources we need to delete. It doesn't matter if this
-		// cleanup fails because the garbage collector will eventually pick it
-		// back up.
-		if destroyErr := s.destroyBeamCompute(cleanupCtx, beam.GetMetadata().GetName()); destroyErr != nil {
+		limitExceeded := status.Code(err) == codes.ResourceExhausted
+
+		// Call DestroyBeam to clean up any resources left over if ProvisionBeam
+		// partially failed (e.g. the service died part-way through serving our
+		// request).
+		//
+		// Do not call DestroyBeam if we explicitly got a ResourceExhausted error,
+		// as this means no resources were created, and we should not put undue
+		// load on the compute service.
+		//
+		// It doesn't matter if this cleanup fails because the garbage collector
+		// will eventually pick it back up.
+		var destroyErr error
+		if !limitExceeded {
+			destroyErr = s.destroyBeamCompute(cleanupCtx, beam.GetMetadata().GetName())
+		}
+		if destroyErr == nil {
+			if deleteErr := s.deleteBeam(cleanupCtx, beam); deleteErr != nil {
+				logger.ErrorContext(ctx, "Failed to delete local beam record", "error", deleteErr)
+			}
+		} else {
 			logger.ErrorContext(cleanupCtx, "Failed to destroy failed beam compute", "error", destroyErr)
-		} else if deleteErr := s.deleteBeam(cleanupCtx, beam); deleteErr != nil {
-			logger.ErrorContext(ctx, "Failed to delete local beam record", "error", deleteErr)
 		}
 
+		if limitExceeded {
+			return nil, trace.LimitExceeded("limit exceeded; please try again later")
+		}
 		return nil, trace.Errorf("failed to provision beam compute")
 	}
 
