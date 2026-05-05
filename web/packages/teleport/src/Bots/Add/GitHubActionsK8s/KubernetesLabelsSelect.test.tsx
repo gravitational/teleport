@@ -19,7 +19,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ComponentProps, PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -27,6 +26,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   within,
 } from 'design/utils/testing';
@@ -426,7 +426,7 @@ function makeWrapper(opts?: {
   return ({ children }: PropsWithChildren) => {
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
+        <ConfiguredThemeProvider theme={theme}>
           <ContextProvider ctx={ctx}>
             <TrackingProvider disabled={disableTracking}>
               <Validation>{children}</Validation>

@@ -262,6 +262,70 @@ export const requestResourcePendingWithConstraints: AccessRequest = {
   reasonPrompts: [],
 };
 
+export const requestResourcePendingWithDatabaseConstraints: AccessRequest = {
+  id: '83ef0c01-15fd-6732-b66e-543eafe67fg3',
+  state: 'PENDING',
+  user: 'Sam',
+  expires: new Date('12-6-2026'),
+  expiresDuration: '1 hour',
+  created: new Date('12-5-2026'),
+  createdDuration: '1 day ago',
+  maxDuration: new Date('12-6-2026'),
+  maxDurationText: '',
+  requestTTL: new Date('12-6-2026'),
+  requestTTLDuration: '1 hour',
+  sessionTTL: new Date('12-6-2026'),
+  sessionTTLDuration: '',
+  roles: ['db-access'],
+  requestReason: 'Need to run queries on production database',
+  resolveReason: '',
+  reviews: [],
+  reviewers: [
+    {
+      name: 'Alice',
+      state: 'PENDING',
+    },
+    {
+      name: 'Bob',
+      state: 'PENDING',
+    },
+  ],
+  thresholdNames: ['Default', 'Admin'],
+  resources: [
+    {
+      id: {
+        kind: 'db',
+        name: 'prod-postgres',
+        clusterName: 'testing.com',
+      },
+      constraints: {
+        database: {
+          users: ['readonly'],
+          names: ['analytics'],
+        },
+      },
+    },
+    {
+      id: {
+        kind: 'db',
+        name: 'staging-mysql',
+        clusterName: 'testing.com',
+      },
+      constraints: {
+        database: {
+          users: ['admin', 'readonly'],
+          names: ['app_db', 'metrics_db'],
+          roles: ['reader', 'writer'],
+        },
+      },
+    },
+  ],
+  assumeStartTime: new Date('12-5-2026'),
+  assumeStartTimeDuration: '24 hours from now',
+  reasonMode: 'required',
+  reasonPrompts: [],
+};
+
 export const requestResourceWithConstraintsSuggestedAccessLists: SuggestedAccessList[] =
   [
     {

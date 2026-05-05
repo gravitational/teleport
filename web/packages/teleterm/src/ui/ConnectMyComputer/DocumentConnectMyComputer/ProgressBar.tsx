@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resolveThemeToColors } from '@gravitational/design-system';
 import React, { type JSX } from 'react';
 import styled, { useTheme } from 'styled-components';
 
@@ -149,8 +150,10 @@ function PhaseIcon({ status }: { status: AttemptStatus }): JSX.Element {
 }
 
 function getPhaseSolidColor(theme: any): string {
-  const alpha = decomposeColor(theme.colors.spotBackground[1]).values[3] || 0;
-  return emphasize(theme.colors.levels.surface, alpha);
+  const alpha =
+    decomposeColor(resolveThemeToColors(theme.colors.spotBackground[1]))
+      .values[3] || 0;
+  return emphasize(resolveThemeToColors(theme.colors.levels.surface), alpha);
 }
 
 const Spinner = styled.div`

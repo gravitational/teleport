@@ -153,6 +153,12 @@ type SshConstraints = {
   logins: string[];
 };
 
+export type DatabaseConstraints = {
+  users?: string[];
+  names?: string[];
+  roles?: string[];
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -166,14 +172,22 @@ export type ResourceConstraints = BaseResourceConstraints &
     | {
         aws_console: AwsConsoleConstraints;
         ssh?: never;
+        database?: never;
       }
     | {
         aws_console?: never;
         ssh: SshConstraints;
+        database?: never;
       }
     | {
         aws_console?: never;
         ssh?: never;
+        database: DatabaseConstraints;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
+        database?: never;
       }
   );
 
