@@ -77,19 +77,11 @@ func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
 	}
 }
 
-// SimplifyAzureMatchers returns simplified Azure Matchers.
-// Selectors are trimmed of whitespace, deduplicated, and wildcard in a
-// selector reduces the selector to just the wildcard. Defaults are applied.
-//
-// Trim runs BEFORE dedup so whitespace variants like " sub-1" and "sub-1"
-// collapse instead of surviving byte-equality dedup as distinct entries.
-// Truly empty selector lists (len(input) == 0) collapse to the wildcard
-// per existing convention.
-//
-// The malformed-but-non-empty case (e.g. [" "], ["", "  "]) does NOT widen
-// to wildcard. Widening would silently turn a config typo into a
-// match-everything scope. The original input is preserved instead so the
-// downstream Azure SDK call surfaces the typo as an invalid-scope error.
+// SimplifyAzureMatchers returns simplified Azure matchers. Each selector list
+// is trimmed, deduplicated, and collapsed to the wildcard if any entry is the
+// wildcard or the list is empty. Lists where every entry is whitespace-only are
+// preserved verbatim rather than widened to wildcard, so invalid hand-edited
+// scopes fail closed downstream instead of matching all.
 func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 	result := make([]types.AzureMatcher, 0, len(matchers))
 	for _, m := range matchers {
