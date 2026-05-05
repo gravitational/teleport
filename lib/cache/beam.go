@@ -119,7 +119,8 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 		pageSize = defaults.DefaultChunkSize
 	}
 
-	_, keyFn := beamIndexForSortField(options.GetSortField())
+	index, keyFn := beamIndexForSortField(options.GetSortField())
+	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
 
 	// Decode the PageToken from base32hex
 	decodedPageToken, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(pageToken)
@@ -128,28 +129,26 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 	}
 	pageToken = string(decodedPageToken)
 
-	var (
-		results   []*beamsv1.Beam
-		nextToken string
-	)
-	for beam, err := range c.IterateBeams(ctx, pageToken, options) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		// Read one more than pageSize results, so we can point nextToken at the
-		// next result in the set.
-		if len(results) == pageSize {
-			rawKey := keyFn(beam)
-			// Encode the next page token to base32hex
-			nextToken = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(rawKey))
-			break
-		}
-
-		results = append(results, beam)
+	lister := genericLister[*beamsv1.Beam, beamIndex]{
+		cache:      c,
+		collection: c.collections.beams,
+		index:      index,
+		isDesc:     isDesc,
+		upstreamList: func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
+			return c.Config.Beams.ListBeams(ctx, limit, startKey, options)
+		},
+		filter: services.MakeBeamFilterFunc(options),
+		nextToken: func(t *beamsv1.Beam) string {
+			return keyFn(t)
+		},
 	}
 
-	return results, nextToken, nil
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+
+	// Encode the next page token to base32hex
+	nextToken := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(next))
+
+	return out, nextToken, nil
 }
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
