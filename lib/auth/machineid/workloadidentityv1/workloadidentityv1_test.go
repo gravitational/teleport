@@ -42,6 +42,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -119,10 +120,11 @@ type issuanceTestPack struct {
 	clock                   clockwork.Clock
 	sigstorePolicyEvaluator *mockSigstorePolicyEvaluator
 
-	issuer             string
-	spiffeX509CAPool   *x509.CertPool
-	spiffeJWTSigner    crypto.Signer
-	spiffeJWTSignerKID string
+	issuer              string
+	spiffeX509CAPool    *x509.CertPool
+	spiffeJWTSigner     crypto.Signer
+	spiffeJWTSignerKID  string
+	appClientX509CAPool *x509.CertPool
 }
 
 func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
@@ -157,6 +159,14 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	require.NoError(t, err)
 	kid, err := libjwt.KeyID(jwtSigner.Public())
 	require.NoError(t, err)
+	// Fetch X509 AppClient CA for validation of signature later
+	appClientX509CA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.AppClientCA,
+		DomainName: srv.ClusterName(),
+	}, false)
+	require.NoError(t, err)
+	appClientX509CAPool, err := services.CertPool(appClientX509CA)
+	require.NoError(t, err)
 
 	sigstorePolicyEvaluator := newMockSigstorePolicyEvaluator(t)
 	srv.Auth().SetSigstorePolicyEvaluator(sigstorePolicyEvaluator)
@@ -170,6 +180,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 		spiffeX509CAPool:        spiffeX509CAPool,
 		spiffeJWTSigner:         jwtSigner,
 		spiffeJWTSignerKID:      kid,
+		appClientX509CAPool:     appClientX509CAPool,
 	}
 }
 
@@ -1654,6 +1665,186 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 			if tt.assert != nil {
 				tt.assert(t, res)
 			}
+		})
+	}
+}
+
+func TestIssueTeleportWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	const appServiceID = "test-server"
+	const appName = "panel"
+	ctx := context.Background()
+	tp := newIssuanceTestPack(t, ctx)
+
+	// Register an application.
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "app", appServiceID)
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().UpsertApplicationServer(t.Context(), server)
+	require.NoError(t, err)
+
+	// This alice is the one accessing the Teleport resource.
+	alice, _, err := authtest.CreateUserAndRole(
+		tp.srv.Auth(),
+		"alice",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindApp,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
+		authtest.WithRoleMutator(func(role types.Role) {
+			role.SetAppLabels(types.Allow, types.Labels{
+				"*": []string{"*"},
+			})
+		}),
+	)
+
+	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
+	require.NoError(t, err)
+	aliceSession, err := aliceClt.CreateAppSession(ctx, &apiproto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, aliceSession) // TODO
+
+	aliceSessionCert, err := tlsutils.ParseCertificatePEM(aliceSession.GetTLSCert())
+	require.NoError(t, err)
+
+	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
+	require.NoError(t, err)
+
+	// Generate a keypair to generate x509 SVIDs for.
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+
+	// Those clients are used by the test cases.
+	userClt, err := tp.srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	otherServiceClt, err := tp.srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	otherAppServiceClt, err := tp.srv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		clt        *authclient.Client
+		req        *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest
+		expectErr  require.ErrorAssertionFunc
+		expectResp require.ValueAssertionFunc
+	}{
+		"app service generates workload identity for a session": {
+			clt: appServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSessionCert.Raw,
+					},
+				},
+			},
+			expectErr: require.NoError,
+			expectResp: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, _ := i1.(*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse)
+				// Check X509 cert actually included and signed.
+				cert, err := x509.ParseCertificate(resp.Credential.GetX509Svid().GetCert())
+				require.NoError(tt, err)
+				// Check included public key matches
+				require.Equal(tt, workloadKey.Public(), cert.PublicKey)
+				_, err = cert.Verify(x509.VerifyOptions{
+					// Must be signed by AppClient CA
+					Roots:       tp.appClientX509CAPool,
+					CurrentTime: tp.srv.Auth().GetClock().Now(),
+				})
+				require.NoError(tt, err)
+				// Check SPIFFE ID contains the trusted domain, and app name.
+				require.Len(tt, cert.URIs, 1, "certificate doesn't contain SPIFFE ID")
+				spiffeID, err := spiffeid.FromString(cert.URIs[0].String())
+				require.NoError(tt, err)
+				require.Len(t, cert.URIs, 1)
+				// TODO
+				td, err := spiffeid.TrustDomainFromString("_teleport." + tp.srv.ClusterName())
+				require.NoError(tt, err)
+				require.True(tt, spiffeID.MemberOf(td), "expected the returned SPIFFE ID %q to be part of internal trust domain %q", spiffeID, td)
+				// require.True(tt, spiffeID.TrustDomain())
+			},
+		},
+		"other service cannot generate workload identity for app access": {
+			clt: otherServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSession.GetTLSCert(),
+					},
+				},
+			},
+			expectErr:  require.Error,
+			expectResp: require.Nil,
+		},
+		"app service not serving requested app cannot generate workload identity for the session": {
+			clt: otherAppServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSession.GetTLSCert(),
+					},
+				},
+			},
+			expectErr:  require.Error,
+			expectResp: require.Nil,
+		},
+		"users cannot request the RPC": {
+			clt: userClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSession.GetTLSCert(),
+					},
+				},
+			},
+			expectErr:  require.Error,
+			expectResp: require.Nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotNil(t, tc) // TODO
+			c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
+				tc.clt.GetConnection(),
+			)
+
+			res, err := c.IssueTeleportWorkloadIdentity(ctx, tc.req)
+			tc.expectErr(t, err)
+			tc.expectResp(t, res)
 		})
 	}
 }
