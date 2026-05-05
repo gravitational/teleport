@@ -302,7 +302,7 @@ Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 Enabling EKS Auto-Discovery requires that the `discovery_service.aws` section
 include at least one entry and that `discovery_service.aws.types` include `eks`.
-It also requires configuring the `kubernetes_service.resources.tags` to use the same
+It also requires configuring the `kubernetes_service.resources.labels` to use the same
 labels configured at `discovery_service.aws.tags` or a subset of them to make
 the Kubernetes Service listen to the dynamic resources created by the Discovery
 Service.

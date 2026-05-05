@@ -40,9 +40,11 @@ type tcpHandlerResolver struct {
 type tcpHandlerResolverConfig struct {
 	clt                      *clientApplicationServiceClient
 	appProvider              *appProvider
+	dbProvider               *dbProvider
 	sshProvider              *sshProvider
 	clock                    clockwork.Clock
 	alwaysTrustRootClusterCA bool
+	parentCtx                context.Context
 }
 
 func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
@@ -74,6 +76,22 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 				appProvider:              r.cfg.appProvider,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+			}),
+		}, nil
+	}
+	// Database matches are checked after TCP app matches (which have the most
+	// specific public_addr matching) but before web app and cluster fallbacks.
+	// This implements the resolution order: App → DB → SSH
+	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
+		dbInfo := matchedDB.GetDatabaseInfo()
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: dbInfo.GetIpv4CidrRange(),
+			tcpHandler: newDBHandler(&dbHandlerConfig{
+				dbInfo:                   dbInfo,
+				dbProvider:               r.cfg.dbProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+				parentCtx:                r.cfg.parentCtx,
 			}),
 		}, nil
 	}
@@ -215,6 +233,20 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		})
 		h.setDecidedHandler(tcpAppHandler)
 		return tcpAppHandler.handleTCPConnector(ctx, localPort, connector)
+	}
+	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
+		// If matched a database, build a dbHandler that will be used for this
+		// and all subsequent connections to this address.
+		log.DebugContext(ctx, "Resolved FQDN to a matched database")
+		dbHandler := newDBHandler(&dbHandlerConfig{
+			dbInfo:                   matchedDB.GetDatabaseInfo(),
+			dbProvider:               h.cfg.dbProvider,
+			clock:                    h.cfg.clock,
+			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+			parentCtx:                h.cfg.parentCtx,
+		})
+		h.setDecidedHandler(dbHandler)
+		return dbHandler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedWebApp := resp.GetMatchedWebApp(); matchedWebApp != nil && localPort == h.webProxyPort {
 		// If matched a web app, build a webAppHandler that will be used for this

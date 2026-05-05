@@ -446,14 +446,25 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	log.DebugContext(req.Context(), "Creating session")
 
 	var policySets []*types.SessionTrackerPolicySet
-	roles := ctx.Checker.Roles()
-	for _, role := range roles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
+	unscopedCtx, isUnscoped := ctx.UnscopedContext()
+	// TODO(eriktate/scopes): scoped identities don't support policy sets, so we skip attempting to aggregate
+	// them unless the identity is unscoped.
+	if isUnscoped {
+		roles := unscopedCtx.Checker.Roles()
+		for _, role := range roles {
+			policySet := role.GetSessionPolicySet()
+			policySets = append(policySets, &policySet)
+		}
 	}
 
 	q := req.URL.Query()
 	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	if accessEvaluator.IsModerated() && forwarder.cfg.Scope != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return an explicit error for unscoped,
+		// moderated sessions in order to prevent any sort of bypass interacting with kube waiting containers.
+		return nil, trace.AccessDenied("scoped kubernetes clusters do not support moderated sessions")
+	}
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
@@ -970,7 +981,11 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 // join attempts to connect a party to the session.
 func (s *session) join(p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roles := p.Ctx.Checker.Roles()
+		unscopedCtx, isUnscoped := p.Ctx.UnscopedContext()
+		if !isUnscoped {
+			return trace.Wrap(services.ErrScopedIdentity, "joining moderated session")
+		}
+		roles := unscopedCtx.Checker.Roles()
 
 		accessContext := moderation.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
@@ -1137,6 +1152,12 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 	podName := s.params.ByName("podName")
 	container := s.req.URL.Query().Get("container")
 
+	if s.forwarder.cfg.Scope != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return without error to prevent
+		// interactive exec from failing
+		return nil, nil
+	}
 	waitingCont, err := s.forwarder.cfg.CachingAuthClient.GetKubernetesWaitingContainer(
 		s.forwarder.ctx,
 		&kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{

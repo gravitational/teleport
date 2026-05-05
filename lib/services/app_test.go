@@ -19,12 +19,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +34,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tlscatest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -229,6 +234,12 @@ func TestApplicationUnmarshal(t *testing.T) {
 		Labels:      map[string]string{"env": "dev"},
 	}, types.AppSpecV3{
 		URI: "http://localhost:8080",
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifyFull,
+			ServerName:     "localhost",
+			ServerSpiffeId: "spiffe://mycluster/svc/localhost",
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
 	})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(appYAML))
@@ -245,7 +256,13 @@ func TestApplicationMarshal(t *testing.T) {
 		Description: "Test description",
 		Labels:      map[string]string{"env": "dev"},
 	}, types.AppSpecV3{
-		URI: "http://localhost:8080",
+		URI: "https://localhost:8080",
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifyFull,
+			ServerName:     "localhost",
+			ServerSpiffeId: "spiffe://mycluster/svc/localhost",
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
 	})
 	require.NoError(t, err)
 	data, err := MarshalApp(expected)
@@ -263,7 +280,12 @@ metadata:
   labels:
     env: dev
 spec:
-  uri: "http://localhost:8080"`
+  uri: "http://localhost:8080"
+  tls:
+    mode: verify-full
+    server_name: localhost
+    server_spiffe_id: spiffe://mycluster/svc/localhost
+    client_cert_mode: managed`
 
 func TestGetAppName(t *testing.T) {
 	tests := []struct {
@@ -588,4 +610,239 @@ func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
 	wantHeaders.Add("x-rewrite", "value2")
 	wantHeaders.Add("x-no-rewrite", "no-rewrite")
 	assert.Equal(t, wantHeaders, r.Header)
+}
+
+func TestValidateAppTLS(t *testing.T) {
+	for name, tc := range map[string]struct {
+		uri          string
+		tls          *types.AppTLS
+		insecureSkip bool
+		expectErr    require.ErrorAssertionFunc
+	}{
+		"full valid configuration": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"mcp https valid configuration": {
+			uri: "mcp+https://localhost",
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerSpiffeId: "spiffe://mycluster/svc/mcp",
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"minimal": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifyServerName,
+			},
+			expectErr: require.NoError,
+		},
+		"insecure with client cert mode": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"conflicting insecure skip verify and tls mode": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifyServerName,
+			},
+			insecureSkip: true,
+			expectErr:    require.Error,
+		},
+		"incomplete server spiffe id": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerSpiffeId: "/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe id mode and with server name": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid mode": {
+			tls: &types.AppTLS{
+				Mode: "invalid",
+			},
+			expectErr: require.Error,
+		},
+		"invalid allowed CA": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyFull,
+				AllowedCas: []string{"workload_identity", "malformed cert"},
+			},
+			expectErr: require.Error,
+		},
+		"server name with insecure mode": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeInsecure,
+				ServerName: "example.com",
+			},
+			expectErr: require.Error,
+		},
+		"server spiffe id with insecure mode": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe missing server spiffe": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifySpiffeID,
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe missing server spiffe trust domain": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerSpiffeId: "spiffe:///svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid client cert mode value": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyServerName,
+				ClientCertMode: "foo",
+			},
+			expectErr: require.Error,
+		},
+		"client cert mode with insecure": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"insecure skip verify compatible with mode insecure": {
+			tls:          &types.AppTLS{Mode: types.AppTLSModeInsecure},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"insecure skip verify with empty mode defaults to insecure": {
+			tls:          &types.AppTLS{},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"allowed cas with only internal alias": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{types.AppTLSInternalCAWorkloadIdentity},
+			},
+			expectErr: require.NoError,
+		},
+		"allowed cas with empty string entry": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{""},
+			},
+			expectErr: require.Error,
+		},
+		"insecure mode with allowed cas": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeInsecure,
+				AllowedCas: []string{types.AppTLSInternalCAWorkloadIdentity},
+			},
+			expectErr: require.Error,
+		},
+		"cloud app with tls block": {
+			uri: "cloud://aws",
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeInsecure,
+			},
+			expectErr: require.Error,
+		},
+		"unsupported protocol with tls block": {
+			uri: "http://localhost",
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeInsecure,
+			},
+			expectErr: require.Error,
+		},
+		"unsupported protocol with empty tls config": {
+			uri:       "http://localhost",
+			tls:       &types.AppTLS{},
+			expectErr: require.Error,
+		},
+		"empty": {
+			tls:       &types.AppTLS{},
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			uri := tc.uri
+			if uri == "" {
+				uri = "https://localhost"
+			}
+
+			app, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
+				URI:                uri,
+				InsecureSkipVerify: tc.insecureSkip,
+				TLS:                tc.tls,
+			})
+			require.NoError(t, err)
+			tc.expectErr(t, validateAppTLS(app))
+		})
+	}
+}
+
+func TestValidateAppAllowedCAsContents(t *testing.T) {
+	caKeyPEM, caCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
+	require.NoError(t, err)
+
+	identity := &tlsca.Identity{Username: "test-user"}
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromKeys(caCertPEM, caKeyPEM)
+	require.NoError(t, err)
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  time.Now().Add(time.Hour),
+		DNSNames:  []string{"localhost", "*.localhost"},
+	})
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		contents  []byte
+		expectErr require.ErrorAssertionFunc
+	}{
+		"single valid ca": {
+			contents:  caCertPEM,
+			expectErr: require.NoError,
+		},
+		"only single ca allowed": {
+			contents:  bytes.Join([][]byte{caCertPEM, caCertPEM}, []byte("\n")),
+			expectErr: require.Error,
+		},
+		"no CA certificate": {
+			contents:  bytes.Join([][]byte{caCertPEM, tlsCert}, []byte("\n")),
+			expectErr: require.Error,
+		},
+		"no certificate contents": {
+			contents:  []byte("hello"),
+			expectErr: require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc.expectErr(t, isValidCACertificatePEM(string(tc.contents)))
+		})
+	}
 }

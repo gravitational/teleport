@@ -113,6 +113,10 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 		return nil, trace.NotImplemented("filtering by assignable scope is not implemented for direct backend scoped role reads")
 	}
 
+	if req.GetNameFilter() != "" {
+		return nil, trace.NotImplemented("filtering by name is not implemented for direct backend scoped role reads")
+	}
+
 	if req.GetPageToken() != "" {
 		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped role reads")
 	}

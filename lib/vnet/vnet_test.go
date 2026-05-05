@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -167,9 +168,11 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
+		dbProvider:               newDBProvider(clt),
 		sshProvider:              sshProvider,
 		clock:                    cfg.clock,
 		alwaysTrustRootClusterCA: true,
+		parentCtx:                ctx,
 	})
 
 	// Create the VNet and connect it to the other side of the TUN.
@@ -355,12 +358,18 @@ func (s *appSpec) getURI() string {
 	return "tcp://" + s.publicAddr
 }
 
+type dbSpec struct {
+	name     string
+	protocol string
+}
+
 type nodeSpec struct {
 	denyAccess bool
 }
 
 type testClusterSpec struct {
 	apps           []appSpec
+	databases      []dbSpec
 	nodes          map[string]nodeSpec
 	cidrRange      string
 	customDNSZones []string
@@ -382,10 +391,14 @@ type fakeClientApp struct {
 
 	onNewSSHSessionCallCount    atomic.Uint32
 	onNewAppConnectionCallCount atomic.Uint32
+	onNewDBConnectionCallCount  atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
+	// requestedRouteToDatabases indexed by database name.
+	requestedRouteToDatabases   map[string][]*proto.RouteToDatabase
+	requestedRouteToDatabasesMu sync.RWMutex
 
 	forwardedAgents *forwardedAgents
 }
@@ -424,13 +437,14 @@ func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfi
 	})
 
 	return &fakeClientApp{
-		cfg:                  cfg,
-		tlsCA:                tlsCA,
-		dialOpts:             dialOpts,
-		teleportHostCA:       teleportHostCA,
-		teleportUserCA:       teleportUserCA,
-		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
-		forwardedAgents:      forwardedAgents,
+		cfg:                       cfg,
+		tlsCA:                     tlsCA,
+		dialOpts:                  dialOpts,
+		teleportHostCA:            teleportHostCA,
+		teleportUserCA:            teleportUserCA,
+		requestedRouteToApps:      make(map[string][]*proto.RouteToApp),
+		requestedRouteToDatabases: make(map[string][]*proto.RouteToDatabase),
+		forwardedAgents:           forwardedAgents,
 	}
 }
 
@@ -594,6 +608,37 @@ func (p *fakeClientApp) OnInvalidLocalPort(_ context.Context, _ *vnetv1.AppInfo,
 	p.onInvalidLocalPortCallCount.Add(1)
 }
 
+func (p *fakeClientApp) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
+	p.requestedRouteToDatabasesMu.Lock()
+	defer p.requestedRouteToDatabasesMu.Unlock()
+
+	routeToDatabase := RouteToDatabase(dbInfo)
+	p.requestedRouteToDatabases[routeToDatabase.ServiceName] = append(
+		p.requestedRouteToDatabases[routeToDatabase.ServiceName], routeToDatabase)
+
+	return newClientCert(ctx,
+		p.tlsCA,
+		"testclient",
+		p.cfg.clock.Now().Add(appCertLifetime),
+		p.cfg.signatureAlgorithmSuite,
+		cryptosuites.UserTLS)
+}
+
+func (p *fakeClientApp) RequestedRouteToDatabases(dbName string) []*proto.RouteToDatabase {
+	p.requestedRouteToDatabasesMu.RLock()
+	defer p.requestedRouteToDatabasesMu.RUnlock()
+
+	routes := p.requestedRouteToDatabases[dbName]
+	returnedRoutes := make([]*proto.RouteToDatabase, len(routes))
+	copy(returnedRoutes, routes)
+	return returnedRoutes
+}
+
+func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey) error {
+	p.onNewDBConnectionCallCount.Add(1)
+	return nil
+}
+
 func (p *fakeClientApp) dialSSHNode(
 	ctx context.Context,
 	target dialTarget,
@@ -704,6 +749,51 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 		return nil, trace.Wrap(err)
 	}
 	resp := &proto.ListResourcesResponse{}
+
+	// Only iterate resources matching the requested type. Predicate
+	// expressions are type-specific (e.g. resource.spec.public_addr is only
+	// valid for app servers) and would fail on other resource types.
+	if req.ResourceType == types.KindDatabaseServer {
+		for _, db := range c.clusterSpec.databases {
+			dbServer := &types.DatabaseServerV3{
+				Kind: types.KindDatabaseServer,
+				Metadata: types.Metadata{
+					Name: db.name,
+				},
+				Spec: types.DatabaseServerSpecV3{
+					Database: &types.DatabaseV3{
+						Metadata: types.Metadata{
+							Name: db.name,
+						},
+						Spec: types.DatabaseSpecV3{
+							Protocol: db.protocol,
+							URI:      "localhost:5432",
+						},
+						Status: types.DatabaseStatusV3{
+							VNetDNSName: dbvnet.DNSName(db.name),
+						},
+					},
+				},
+			}
+
+			match, err := services.MatchResourceByFilters(dbServer, filter, nil /* seenMap */)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !match {
+				continue
+			}
+
+			resp.Resources = append(resp.Resources, &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_DatabaseServer{
+					DatabaseServer: dbServer,
+				},
+			})
+		}
+		resp.TotalCount = int32(len(resp.Resources))
+		return resp, nil
+	}
+
 	for _, app := range c.clusterSpec.apps {
 		appServer := &types.AppServerV3{
 			Kind: types.KindAppServer,
@@ -740,6 +830,7 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 			},
 		})
 	}
+
 	resp.TotalCount = int32(len(resp.Resources))
 	return resp, nil
 }
@@ -1138,8 +1229,8 @@ func TestOnNewAppConnection(t *testing.T) {
 		fakeClientApp: clientApp,
 	})
 
-	// Attempt to establish a connection to an invalid app and verify that OnNewAppConnection was not
-	// called.
+	// Attempt to establish a connection to an invalid app and verify
+	// that OnNewAppConnection was not called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
 	_, err := p.lookupHost(lookupCtx, invalidAppName)
@@ -1151,6 +1242,184 @@ func TestOnNewAppConnection(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), clientApp.onNewAppConnectionCallCount.Load())
+}
+
+// TestDialFakeDatabase tests basic functionality of database access via VNet.
+func TestDialFakeDatabase(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				databases: []dbSpec{
+					{name: "my-postgres", protocol: "postgres"},
+					{name: "my-mysql", protocol: "mysql"},
+					// Unsupported protocol kept here so we exercise the
+					// resolver's protocol gate below.
+					{name: "my-mongo", protocol: "mongodb"},
+				},
+				cidrRange: "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{
+					"leaf1.example.com": {
+						databases: []dbSpec{
+							{name: "leaf-postgres", protocol: "postgres"},
+						},
+					},
+				},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		fakeClientApp: clientApp,
+		clock:         clock,
+	})
+
+	validTestCases := []struct {
+		name                  string
+		fqdn                  string
+		expectCIDR            string
+		expectRouteToDatabase proto.RouteToDatabase
+	}{
+		{
+			name:       "postgres",
+			fqdn:       dbvnet.DNSName("my-postgres") + ".db.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "my-postgres",
+				Protocol:    "postgres",
+				Username:    "", // username comes from wire protocol
+			},
+		},
+		{
+			name:       "mysql",
+			fqdn:       dbvnet.DNSName("my-mysql") + ".db.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "my-mysql",
+				Protocol:    "mysql",
+				Username:    "",
+			},
+		},
+		{
+			name:       "leaf cluster postgres via leaf proxy",
+			fqdn:       dbvnet.DNSName("leaf-postgres") + ".db.leaf1.example.com",
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "leaf-postgres",
+				Protocol:    "postgres",
+				Username:    "", // username comes from wire protocol
+			},
+		},
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		for _, tc := range validTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
+				require.NoError(t, err)
+
+				conn, err := p.dialHost(ctx, tc.fqdn, 5432)
+				require.NoError(t, err)
+				t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+				remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+				require.NoError(t, err)
+				remoteIP := net.ParseIP(remoteAddr)
+				require.NotNil(t, remoteIP)
+
+				// Verify the assigned IP is in the expected CIDR range.
+				remoteIPSuffix := remoteIP[len(remoteIP)-4:]
+				assert.True(t, expectNet.Contains(remoteIPSuffix),
+					"expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
+
+				testEchoConnection(t, conn)
+
+				// Verify that a cert was requested with the correct RouteToDatabase.
+				requestedRoutes := clientApp.RequestedRouteToDatabases(tc.expectRouteToDatabase.ServiceName)
+				assert.True(t, slices.ContainsFunc(requestedRoutes, func(route *proto.RouteToDatabase) bool {
+					return route.ServiceName == tc.expectRouteToDatabase.ServiceName &&
+						route.Protocol == tc.expectRouteToDatabase.Protocol &&
+						route.Username == tc.expectRouteToDatabase.Username
+				}), "expected RouteToDatabase %v to be in requested routes %v", tc.expectRouteToDatabase, requestedRoutes)
+			})
+		}
+	})
+
+	// Test that FQDNs for completely unknown zones fail DNS resolution.
+	// Note: FQDNs that match a known cluster subdomain (like
+	// "reader.not-a-db.db.root1.example.com") will still resolve to an IP
+	// via the SSH cluster fallback, which is expected VNet behavior.
+	t.Run("invalid database FQDN", func(t *testing.T) {
+		t.Parallel()
+
+		lookupShouldFailFast := func(t *testing.T, host string) {
+			t.Helper()
+			lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			_, err := p.lookupHost(lookupCtx, host)
+			require.Error(t, err)
+		}
+
+		invalidFQDNs := []struct {
+			name string
+			fqdn string
+		}{
+			{
+				name: "wrong proxy address",
+				fqdn: dbvnet.DNSName("my-postgres") + ".db.wrong.example.com",
+			},
+		}
+
+		for _, tc := range invalidFQDNs {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				lookupShouldFailFast(t, tc.fqdn)
+			})
+		}
+	})
+}
+
+// TestOnNewDBConnection tests that the client application's OnNewDBConnection method
+// is called when a user connects to a valid database via VNet.
+func TestOnNewDBConnection(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				databases: []dbSpec{
+					{name: "my-postgres", protocol: "postgres"},
+				},
+				cidrRange:    "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:         clock,
+		fakeClientApp: clientApp,
+	})
+
+	// Verify OnNewDBConnection is not called until a valid database connection is made.
+	require.Equal(t, uint32(0), clientApp.onNewDBConnectionCallCount.Load())
+
+	// Connect to a valid database and verify OnNewDBConnection was called.
+	conn, err := p.dialHost(ctx, dbvnet.DNSName("my-postgres")+".db.root1.example.com", 5432)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	require.Equal(t, uint32(1), clientApp.onNewDBConnectionCallCount.Load())
 }
 
 // TestWithAlgorithmSuites tests basic VNet functionality with each signature
@@ -1964,10 +2233,7 @@ func mustStartFakeWebProxy(
 		Certificates: []tls.Certificate{proxyCert},
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 		ClientCAs:    roots,
-		NextProtos: []string{
-			string(alpncommon.ProtocolProxySSH),
-			string(alpncommon.ProtocolTCP),
-		},
+		NextProtos:   fakeWebProxyALPNProtocols(),
 	}
 
 	tcpAppHandler := func(conn net.Conn) error {
@@ -2016,6 +2282,9 @@ func mustStartFakeWebProxy(
 	protocolHandlers := map[alpncommon.Protocol]func(net.Conn) error{
 		alpncommon.ProtocolTCP:      tcpAppHandler,
 		alpncommon.ProtocolProxySSH: sshHandler,
+	}
+	for _, dbProto := range alpncommon.DatabaseProtocols {
+		protocolHandlers[dbProto] = tcpAppHandler
 	}
 
 	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
@@ -2088,6 +2357,19 @@ func mustStartFakeWebProxy(
 		Sni:                   proxyCN,
 	}
 	return dialOpts
+}
+
+// fakeWebProxyALPNProtocols returns the list of ALPN protocols the fake web
+// proxy should advertise. This includes TCP app, SSH, and all database protocols.
+func fakeWebProxyALPNProtocols() []string {
+	protos := []string{
+		string(alpncommon.ProtocolProxySSH),
+		string(alpncommon.ProtocolTCP),
+	}
+	for _, dbProto := range alpncommon.DatabaseProtocols {
+		protos = append(protos, string(dbProto))
+	}
+	return protos
 }
 
 // forwardedAgents is a crude way of tracking all the forwarded SSH agents and

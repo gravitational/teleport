@@ -46,6 +46,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -75,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -168,6 +170,26 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
+}
+
+// scopedCurrentUserAction is the same as currentUserAction but it supports both scoped
+// and unscoped auth contexts.
+func (a *ServerWithRoles) scopedCurrentUserAction(username string) error {
+	if a.scopedContext == nil {
+		return trace.Wrap(a.currentUserAction(username))
+	}
+	scopedCtx, unscopedCtx, isScoped := a.resolveAuthContext()
+	if isScoped {
+		if authz.ScopedIsCurrentUser(scopedCtx, username) {
+			return nil
+		}
+		return trace.Wrap(services.ErrScopedIdentity, "checking create access for users")
+	}
+	if authz.IsCurrentUser(*unscopedCtx, username) {
+		return nil
+	}
+	return unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: unscopedCtx.User},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
@@ -281,7 +303,7 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
 func (a *ServerWithRoles) localServerAction() error {
-	ident := a.getIdentity()
+	ident := a.getIdentityGetter()
 	role, ok := ident.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
@@ -887,7 +909,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// unauthenticated clients can never check for alerts. we don't normally explicitly
 	// check for this kind of thing, but since alerts use an unusual access-control
 	// pattern, explicitly rejecting the nop role makes things easier.
-	if a.hasBuiltinRole(types.RoleNop) {
+	if authz.HasUnauthenticatedRole(a.context, string(types.RoleNop)) {
 		return nil, trace.AccessDenied("alerts not available to unauthenticated clients")
 	}
 
@@ -1194,23 +1216,16 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 	// Scoped identities currently receive "special" handling. For now, we only
 	// support watching the cert_authority kind, with load_secrets=false.
 	//
-	// For this, we perform a RiskyUnpinnedDecision to permit scoped identities
-	// to read an unscoped resource.
+	// For this, we use RiskyAuthorizeUnpinnedRead to permit scoped identities to
+	// read an unscoped resource.
 	if kind.Kind != types.KindCertAuthority {
 		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
 	}
 	if kind.LoadSecrets {
 		return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
 	}
-	verb := types.VerbReadNoSecrets
 	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(
-		ctx,
-		scopes.Root,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, kind.Kind, verb)
-		},
-	)
+	return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.
@@ -1424,6 +1439,7 @@ var (
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
+		types.KindLinuxDesktop:           {},
 		types.KindMCP:                    {},
 	}
 
@@ -1597,6 +1613,17 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
 						"error", err,
 						"resource", d.GetName(),
+					)
+					continue
+				}
+				r.Logins = logins
+			} else if d := r.GetLinuxDesktop(); d != nil {
+				desktop := proto.UnpackLinuxDesktop(d)
+				logins, err := resourceLister.getAllowedLogins(desktop)
+				if err != nil {
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for Linux desktop",
+						"error", err,
+						"resource", desktop.GetName(),
 					)
 					continue
 				}
@@ -2338,6 +2365,11 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			return r.CheckAccess(checkable, state)
+		}
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", resource)
@@ -2597,9 +2629,7 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -2622,9 +2652,7 @@ func (a *ServerWithRoles) ListAuthServers(ctx context.Context, pageSize int, pag
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
@@ -2663,9 +2691,7 @@ func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(a.CloseContext(), services.UnpinnedReadProxies, &ruleCtx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -2688,9 +2714,7 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 		// all scoped identities regardless of their current scope pinning. This pattern should not
 		// be used for any checks save essential global configuration reads that are necessary for basic
 		// teleport functionality.
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
-		}); err != nil {
+		if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
@@ -2964,22 +2988,6 @@ func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req authclient.W
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(ctx, req, a.context.Identity.GetIdentity())
-}
-
-// GetWebSessionInfo returns the web session for the given user specified with sid.
-// The session is stripped of any authentication details.
-// Implements auth.WebUIService
-func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetWebSessionInfo(ctx, user, sessionID)
-}
-
-// GetWebSession returns the web session specified with req.
-// Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return a.WebSessions().Get(ctx, req)
 }
 
 // WebSessions returns the web session manager.
@@ -3512,27 +3520,27 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // `req.AccessRequests` and potentially shorten `req.Expires` based on the
 // access request expirations.
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
-	if req.Username != a.context.User.GetName() {
+	if req.Username != a.getUser().GetName() {
 		if isRoleImpersonation(*req) {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"requested_user", req.Username,
 			)
-			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.getUser().GetName(), req.Username)
 		}
 		if len(req.AccessRequests) > 0 {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding access requests",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"requested_user", req.Username,
 			)
-			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.getUser().GetName(), req.Username)
 		}
 		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
-			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
-			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.getUser().GetName())
+			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.getUser().GetName())
 		}
 		return a.desiredAccessInfoForRoleRequest(req, user)
 	}
@@ -3575,7 +3583,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 // desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
 func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
-	currentIdentity := a.context.Identity.GetIdentity()
+	currentIdentity := a.getIdentity()
 
 	// Start with the base AccessInfo for current logged-in identity, before
 	// considering new or dropped access requests. This will include roles from
@@ -3654,7 +3662,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	identity := a.context.Identity.GetIdentity()
+	identity := a.getIdentity()
 	return a.generateUserCerts(
 		ctx, req,
 		certRequestDeviceExtensions(identity.DeviceExtensions),
@@ -3708,13 +3716,26 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
+	scopedCtx, unscopedCtx, isScoped := a.resolveAuthContext()
+	isKubeCert := req.Usage == proto.UserCertsRequest_Kubernetes && req.KubernetesCluster != ""
+	if isScoped && !isKubeCert {
+		// TODO (eriktate/scopes): Remove this restriction once we have more thorough support for scopes with other usages.
+		// For now this is out of an abundance of caution to prevent scoped identities from generating user certs for
+		// usages that have not been fully thought through or tested yet.
+		return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for non-kubernetes usage")
+	}
+
+	hasAdminRole := !isScoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin))
+	// only unscoped identities can impersonate
+	canImpersonate := !isScoped && (hasAdminRole || unscopedCtx.Checker.CanImpersonateSomeone())
+
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
-	if !a.hasBuiltinRole(types.RoleAdmin) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
+	if !canImpersonate && req.Username != a.getUser().GetName() {
 		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
 	}
 
-	if a.context.Identity.GetIdentity().DisallowReissue {
+	if a.getIdentity().DisallowReissue {
 		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
 	}
 
@@ -3733,7 +3754,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// and `ci`, however these impersonated identities, Alice(access) and
 	// Alice(ci), should not be able to issue any new certificates.
 	//
-	if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
+	if a.getIdentity().Impersonator != "" {
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
@@ -3742,7 +3763,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// impersonation, to reduce the risk of privilege escalation.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
-		if req.Username != a.context.User.GetName() {
+		if req.Username != a.getUser().GetName() {
 			return nil, trace.AccessDenied("access denied: impersonated user can not impersonate anyone else")
 		}
 	}
@@ -3779,9 +3800,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
+	if req.Username != a.getUser().GetName() && user.GetUserType() == types.UserTypeSSO {
 		a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for externally managed user",
-			"user", a.context.User.GetName(),
+			"user", a.getUser().GetName(),
 			"external_user", req.Username,
 		)
 		return nil, trace.AccessDenied("access denied")
@@ -3789,8 +3810,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	// For users renewing certificates limit the TTL to the duration of the session, to prevent
 	// users renewing certificates forever.
-	if req.Username == a.context.User.GetName() {
-		identity := a.context.Identity.GetIdentity()
+	if req.Username == a.getUser().GetName() {
+		identity := a.getIdentity()
 		sessionExpires := identity.Expires
 		if sessionExpires.IsZero() {
 			a.authServer.logger.WarnContext(ctx, "Denied cert issuance for identity with no expiry",
@@ -3809,20 +3830,25 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				req.Expires = maxTime
 			}
 		} else if !isCertWrittenToDiskFlow(&req) {
-			// If requested certificate is for a flow that does not involve writing the certificate to disk
-			// (e.g. tsh proxy of DB, Kube, App, and AWS App Access using credential process)
-			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
+			// scoped identities will use the cluster default session TTL since we can't know which scoped role
+			// will ultimately be used to permit access
+			sessionTTL := readOnlyAuthPref.GetDefaultSessionTTL().Duration()
+			if !isScoped {
+				// If requested certificate is for a flow that does not involve writing the certificate to disk
+				// (e.g. tsh proxy of DB, Kube, App, and AWS App Access using credential process)
+				// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
-			// Calculate the expiration time.
-			roleSet, err := services.FetchRolesForUser(user, a)
-			if err != nil {
-				return nil, trace.Wrap(err)
+				// Calculate the expiration time.
+				roleSet, err := services.FetchRolesForUser(user, a)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				// [roleSet.AdjustMFAVerificationInterval] will reduce the adjusted sessionTTL if any of the roles requires
+				// MFA tap and `mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
+				sessionTTL = roleSet.AdjustMFAVerificationInterval(
+					roleSet.AdjustSessionTTL(sessionTTL),
+					readOnlyAuthPref.GetRequireMFAType().IsSessionMFARequired())
 			}
-			// [roleSet.AdjustMFAVerificationInterval] will reduce the adjusted sessionTTL if any of the roles requires
-			// MFA tap and `mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
-			sessionTTL := roleSet.AdjustMFAVerificationInterval(
-				roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration()),
-				readOnlyAuthPref.GetRequireMFAType().IsSessionMFARequired())
 			adjustedSessionExpires := a.authServer.GetClock().Now().UTC().Add(sessionTTL)
 			if req.Expires.After(adjustedSessionExpires) {
 				req.Expires = adjustedSessionExpires
@@ -3836,10 +3862,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// If the user is not a user cert renewal (impersonation, etc.), this is an
-	// admin action and requires MFA.
-	if req.Username != a.context.User.GetName() {
+	// admin action and requires MFA. We would have returned already if this was
+	// a scoped identity, so we can assume unscopedCtx.
+	if req.Username != a.getUser().GetName() {
 		// Admin action MFA is not used to create mfa verified certs.
-		if err := a.context.AuthorizeAdminAction(); err != nil {
+		if err := unscopedCtx.AuthorizeAdminAction(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3847,9 +3874,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// we're going to extend the roles list based on the access requests, so we
 	// ensure that all the current requests are added to the new certificate
 	// (and are checked again)
-	req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
-	if req.Username != a.context.User.GetName() && len(req.AccessRequests) > 0 {
-		return nil, trace.AccessDenied("user %q requested cert for %q and included access requests, this is not supported.", a.context.User.GetName(), req.Username)
+	req.AccessRequests = append(req.AccessRequests, a.getIdentity().ActiveRequests...)
+	if isScoped && len(req.AccessRequests) > 0 {
+		return nil, trace.Wrap(services.ErrScopedIdentity, "requesting access requests")
+	}
+	if req.Username != a.getUser().GetName() && len(req.AccessRequests) > 0 {
+		return nil, trace.AccessDenied("user %q requested cert for %q and included access requests, this is not supported.", a.getUser().GetName(), req.Username)
 	}
 
 	accessInfo, err := a.desiredAccessInfo(ctx, &req, user)
@@ -3873,25 +3903,28 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
 	switch {
-	case a.hasBuiltinRole(types.RoleAdmin):
+	case !isScoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin)):
 		// builtin admins can impersonate anyone
 		// this is required for local tctl commands to work
-	case req.Username == a.context.User.GetName():
+	case req.Username == a.getUser().GetName():
 		// users can impersonate themselves, but role impersonation requests
 		// must be checked.
 		if isRoleImpersonation(req) {
+			if isScoped {
+				return nil, trace.Wrap(services.ErrScopedIdentity, "impersonation not permitted")
+			}
 			// Note: CheckImpersonateRoles() checks against the _stored_
 			// impersonate roles for the user rather than the set available
 			// to the current identity. If not explicitly denied (as above),
 			// this could allow a role-impersonated certificate to request new
 			// certificates with alternate RoleRequests.
-			err = a.context.Checker.CheckImpersonateRoles(a.context.User, parsedRoles)
+			err = unscopedCtx.Checker.CheckImpersonateRoles(a.getUser(), parsedRoles)
 			if err != nil {
 				a.authServer.logger.WarnContext(ctx, "user request for role impersonation denied",
-					"user", a.context.User.GetName(),
+					"user", a.getUser().GetName(),
 					"error", err,
 				)
-				err := trace.AccessDenied("user %q has requested role impersonation for %q", a.context.User.GetName(), accessInfo.Roles)
+				err := trace.AccessDenied("user %q has requested role impersonation for %q", a.getUser().GetName(), accessInfo.Roles)
 				if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
 					Metadata: apievents.Metadata{
 						Type: events.UserLoginEvent,
@@ -3910,18 +3943,21 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			}
 		}
 	default:
+		if isScoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "impersonation not permitted")
+		}
 		// check if this user is allowed to impersonate other users
-		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
+		err = unscopedCtx.Checker.CheckImpersonate(a.getUser(), user, parsedRoles)
 		// adjust session TTL based on the impersonated role set limit
 		ttl := req.Expires.Sub(a.authServer.GetClock().Now())
 		ttl = checker.AdjustSessionTTL(ttl)
 		req.Expires = a.authServer.GetClock().Now().Add(ttl)
 		if err != nil {
 			a.authServer.logger.WarnContext(ctx, "user request for user impersonation denied",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"error", err,
 			)
-			err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.context.User.GetName(), accessInfo.Roles)
+			err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.getUser().GetName(), accessInfo.Roles)
 			if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
@@ -3944,6 +3980,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if !a.authServer.modules.Features().GetEntitlement(entitlements.Policy).Enabled {
 			return nil, trace.AccessDenied("access graph requires a Teleport Policy license")
 		}
+		if isScoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "access graph is not permitted")
+		}
 		user, err := types.NewUser(req.Username)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3962,12 +4001,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	var appSessionID string
 	var webSessionID string
 	if req.RouteToApp.Name != "" {
+		if isScoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "creating app session")
+		}
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
 		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
 			NewWebSessionRequest: sessionreq.NewWebSessionRequest{
 				User:           req.Username,
-				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
+				LoginIP:        a.getIdentity().LoginIP,
 				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
 				Traits:         accessInfo.Traits,
 				Roles:          accessInfo.Roles,
@@ -3989,7 +4031,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AzureIdentity:     req.RouteToApp.AzureIdentity,
 			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 			MFAVerified:       verifiedMFADeviceID,
-			DeviceExtensions:  a.context.Identity.GetIdentity().DeviceExtensions,
+			DeviceExtensions:  a.getIdentity().DeviceExtensions,
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
@@ -3999,7 +4041,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// joining without an instance ID may have one generated when
 			// `updateBotInstance()` is called below, and this (empty) value will be
 			// overridden.
-			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+			BotInstanceID: a.getIdentity().BotInstanceID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4012,7 +4054,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		wsSession, err := a.authServer.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 			User:             req.Username,
 			SessionTTL:       req.Expires.Sub(a.authServer.GetClock().Now()),
-			LoginIP:          a.context.Identity.GetIdentity().LoginIP,
+			LoginIP:          a.getIdentity().LoginIP,
 			Roles:            accessInfo.Roles,
 			Traits:           accessInfo.Traits,
 			LoginTime:        a.authServer.clock.Now().UTC(),
@@ -4026,6 +4068,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		webSessionID = wsSession.GetName()
 	}
 
+	var checkerCtx *services.ScopedAccessCheckerContext
+	if !isScoped {
+		checkerCtx = services.NewScopedAccessCheckerContextFromUnscoped(checker)
+	} else {
+		checkerCtx = scopedCtx.CheckerContext
+	}
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := cert.Request{
@@ -4037,7 +4085,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		TLSPublicKey:                     req.TLSPublicKey,
 		SSHPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
 		TLSPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
-		OverrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		OverrideRoleTTL:                  hasAdminRole,
 		RouteToCluster:                   req.RouteToCluster,
 		RequesterName:                    req.RequesterName,
 		KubernetesCluster:                req.KubernetesCluster,
@@ -4055,10 +4103,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		AWSRoleARN:                       req.RouteToApp.AWSRoleARN,
 		AzureIdentity:                    req.RouteToApp.AzureIdentity,
 		GCPServiceAccount:                req.RouteToApp.GCPServiceAccount,
-		CheckerContext:                   services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
+		CheckerContext:                   checkerCtx,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		LoginIP:                a.context.Identity.GetIdentity().LoginIP,
+		LoginIP:                a.getIdentity().LoginIP,
 		Traits:                 accessInfo.Traits,
 		ActiveRequests:         req.AccessRequests,
 		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
@@ -4068,19 +4116,19 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// joining without an instance ID may have one generated when
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
-		BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
-		JoinToken:     a.context.Identity.GetIdentity().JoinToken,
+		BotInstanceID: a.getIdentity().BotInstanceID,
+		JoinToken:     a.getIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
 		// identity.
-		JoinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
+		JoinAttributes: a.getIdentity().JoinAttributes,
 		WebSessionID:   webSessionID,
 	}
 
-	if user.GetName() != a.context.User.GetName() {
-		certReq.Impersonator = a.context.User.GetName()
+	if user.GetName() != a.getUser().GetName() {
+		certReq.Impersonator = a.getUser().GetName()
 	} else if isRoleImpersonation(req) {
 		// Role impersonation uses the user's own name as the impersonator value.
-		certReq.Impersonator = a.context.User.GetName()
+		certReq.Impersonator = a.getUser().GetName()
 
 		// By default, deny reissuing certs to prevent privilege re-escalation.
 		// (E.g a cert generated intended for use for Kubernetes Access against
@@ -4092,9 +4140,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if req.ReissuableRoleImpersonation {
 			certReq.DisallowReissue = false
 		}
-	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
+	} else if a.getIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
-		certReq.Impersonator = a.context.Identity.GetIdentity().Impersonator
+		certReq.Impersonator = a.getIdentity().Impersonator
 	}
 	switch req.Usage {
 	case proto.UserCertsRequest_Database:
@@ -4124,15 +4172,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// remains for subsequent requests of the primary certificate. The
 	// renewable flag should never be carried over for impersonation, role
 	// requests, or when the disallow-reissue flag has already been set.
-	if a.context.Identity.GetIdentity().Renewable &&
-		req.Username == a.context.User.GetName() &&
+	if a.getIdentity().Renewable &&
+		req.Username == a.getUser().GetName() &&
 		!isRoleImpersonation(req) &&
 		!certReq.DisallowReissue {
 		certReq.Renewable = true
 
 		// We've established this is an internal cert renewal, so pass through
 		// the BotInternal flag if set.
-		if a.context.Identity.GetIdentity().BotInternal {
+		if a.getIdentity().BotInternal {
 			certReq.BotInternal = true
 		}
 	}
@@ -4141,7 +4189,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// counter, auth records, etc). `updateBotInstance()` may modify certain
 	// `certReq` attributes (generation, botInstanceID).
 	if certReq.Renewable {
-		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
+		currentIdentityGeneration := a.getIdentity().Generation
 
 		// If we're handling a renewal for a bot, we want to return the
 		// Host CAs as well as the User CAs.
@@ -4193,7 +4241,7 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(ctx context.Context, u
 		return nil
 	}
 
-	identity := a.context.Identity.GetIdentity()
+	identity := a.getIdentity()
 	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
 }
 
@@ -5342,10 +5390,16 @@ func checkRoleFeatureSupport(mod modules.Modules, role types.Role) error {
 
 // GetRole returns role by name
 func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if a.scopedContext != nil {
+		// scoped identities should not be able to fetch unscoped roles for any reason
+		if _, isUnscoped := a.scopedContext.UnscopedContext(); !isUnscoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "fetching unscoped role")
+		}
+	}
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if slices.Contains(a.context.User.GetRoles(), name) {
+	if slices.Contains(a.getUser().GetRoles(), name) {
 		role, err := a.authServer.GetRole(ctx, name)
 		if err != nil && trace.IsNotFound(err) {
 			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was
@@ -6258,21 +6312,21 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	return nil
 }
 
-// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-// Only the session owner can set the DBSC public key on their session, and only
-// if the key has not already been set (one-time binding).
-func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+// SetAppSessionDBSCPublicKey verifies a DBSC response for an application web session
+// and stores the bound public key if the session has not already been bound.
+func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
+	session, err := a.authorizeDBSCRequest(ctx, sessionID, "set DBSC public keys")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	publicKey, err := a.authServer.verifyDBSCResponse(ctx, string(responseJWT), sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	const iterationLimit = 3
 	for range iterationLimit {
-		session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if !authz.IsCurrentUser(a.context, session.GetUser()) {
-			return trace.AccessDenied("only session owner can set DBSC public key")
-		}
-
 		// DBSC public key can only be set once to prevent rebinding to a different key.
 		if existingKey := session.GetDBSCPublicKey(); len(existingKey) > 0 {
 			// Allow idempotent retries with the same key.
@@ -6284,10 +6338,15 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 
 		session.SetDBSCPublicKey(publicKey)
 		if err := a.authServer.UpdateAppSession(ctx, session); err != nil {
-			if trace.IsCompareFailed(err) {
-				continue
+			if !trace.IsCompareFailed(err) {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
+			// Reload after a compare-and-swap conflict and retry.
+			session, err = a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			continue
 		}
 
 		return nil
@@ -6377,6 +6436,62 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+// SignDBSCChallenge creates a signed challenge.
+func (a *ServerWithRoles) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	if _, err := a.authorizeDBSCRequest(ctx, sessionID, "sign DBSC challenges"); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challenge, err := a.authServer.signDBSCChallenge(ctx, sessionID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return challenge, nil
+}
+
+// authorizeDBSCRequest verifies that the caller is an allowed proxy for this DBSC session-scoped operation.
+// It also loads and returns the target app session for callers that need it.
+func (a *ServerWithRoles) authorizeDBSCRequest(ctx context.Context, sessionID string, action string) (types.WebSession, error) {
+	isLocalProxy := a.hasBuiltinRole(types.RoleProxy)
+	remoteRole, ok := a.context.Identity.(authz.RemoteBuiltinRole)
+	if !isLocalProxy && (!a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok) {
+		return nil, trace.AccessDenied("only proxies can %s", action)
+	}
+
+	// Check to ensure the session exists before proceeding, and that remote proxies
+	// only operate on sessions for their own cluster.
+	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !isLocalProxy {
+		clusterName, err := getAppSessionRouteClusterName(session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if remoteRole.ClusterName != clusterName {
+			return nil, trace.AccessDenied("only the local proxy or a remote proxy of cluster %q can %s", clusterName, action)
+		}
+	}
+
+	return session, nil
+}
+
+func getAppSessionRouteClusterName(session types.WebSession) (string, error) {
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return "", trace.Wrap(err, "parsing app session TLS cert")
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return "", trace.Wrap(err, "parsing app session identity")
+	}
+	if identity.RouteToApp.ClusterName == "" {
+		return "", trace.BadParameter("app session missing route cluster name")
+	}
+	return identity.RouteToApp.ClusterName, nil
 }
 
 func (a *ServerWithRoles) Close() error {
@@ -6559,10 +6674,18 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 
 // IsMFARequired queries whether MFA is required for the specified target.
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	unscopedCtx := &a.context
+	isUnscoped := true
+	if a.scopedContext != nil {
+		unscopedCtx, isUnscoped = a.scopedContext.UnscopedContext()
+	}
 	// Check if MFA is required for admin actions. We don't currently have
 	// a reason to check the name of the admin action in question.
 	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
-		if a.context.AdminActionAuthState == authz.AdminActionAuthNotRequired {
+		if !isUnscoped {
+			return nil, trace.AccessDenied("admin actions are not supported for scoped identities")
+		}
+		if unscopedCtx.AdminActionAuthState == authz.AdminActionAuthNotRequired {
 			return &proto.IsMFARequiredResponse{
 				Required:    false,
 				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
@@ -6575,14 +6698,22 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 		}
 	}
 
-	// Other than for admin action targets, IsMFARequired should only be called by users.
-	if !authz.IsLocalOrRemoteUser(a.context) {
-		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	if isUnscoped {
+		// Other than for admin action targets, IsMFARequired should only be called by users.
+		if !authz.IsLocalOrRemoteUser(*unscopedCtx) {
+			return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", unscopedCtx.Checker)
+		}
+	} else {
+		// Scoped identities do not support remote users, so we do a simpler check here
+		_, isLocal := a.scopedContext.Identity.(authz.LocalUser)
+		if !isLocal {
+			return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.scopedContext.Identity)
+		}
 	}
 
 	// Certain hardware-key based private key policies are treated as MFA verification,
 	// except for app sessions which can only be attested with the key policy "web_session".
-	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+	if a.getIdentity().PrivateKeyPolicy.MFAVerified() {
 		if _, isAppReq := req.Target.(*proto.IsMFARequiredRequest_App); !isAppReq {
 			return &proto.IsMFARequiredResponse{
 				Required:    false,
@@ -6591,7 +6722,11 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 		}
 	}
 
-	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
+	scopedCtx := a.scopedContext
+	if isUnscoped {
+		scopedCtx = authz.ScopedContextFromUnscopedContext(unscopedCtx)
+	}
+	return a.authServer.isMFARequired(ctx, scopedCtx, req)
 }
 
 // SearchEvents allows searching audit events with pagination support.
@@ -8504,15 +8639,6 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	return okta.CheckAccess(authzCtx, existingLock, verb)
 }
 
-// getIdentity returns the [authz.IdentityGetter] for the current auth context, regardless of
-// whether it's scoped or not.
-func (a *ServerWithRoles) getIdentity() authz.IdentityGetter {
-	if a.scopedContext != nil {
-		return a.scopedContext.Identity
-	}
-	return a.context.Identity
-}
-
 // resolveAuthContext returns either a scoped or unscoped auth context with a bool
 // representing whether the context is scoped.
 //
@@ -8531,4 +8657,27 @@ func (a *ServerWithRoles) resolveAuthContext() (*authz.ScopedContext, *authz.Con
 	}
 
 	return a.scopedContext, nil, true
+}
+
+// getIdentityGetter returns the [authz.IdentityGetter] for the current auth context, regardless of
+// whether it's scoped or not.
+func (a *ServerWithRoles) getIdentityGetter() authz.IdentityGetter {
+	if a.scopedContext != nil {
+		return a.scopedContext.Identity
+	}
+	return a.context.Identity
+}
+
+// getIdentity returns the [tlsca.Identity] for the current auth context, regardless of
+// whether it's scoped or not.
+func (a *ServerWithRoles) getIdentity() tlsca.Identity {
+	return a.getIdentityGetter().GetIdentity()
+}
+
+// getUser returns the User for the current context regardless of whether or not it's scoped.
+func (a *ServerWithRoles) getUser() types.User {
+	if a.scopedContext != nil {
+		return a.scopedContext.User
+	}
+	return a.context.User
 }

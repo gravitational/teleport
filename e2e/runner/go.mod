@@ -158,7 +158,7 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 // indirect
 	github.com/gravitational/roundtrip v1.0.3 // indirect
-	github.com/gravitational/trace v1.5.3 // indirect
+	github.com/gravitational/trace v1.5.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect

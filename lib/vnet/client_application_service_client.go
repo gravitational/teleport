@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"crypto/x509"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -231,6 +232,49 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 		return nil, trace.Wrap(err, "parsing trusted user public key")
 	}
 	return userPublicKey, nil
+}
+
+// ReissueDBCert issues a new certificate for the requested database.
+func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) ([]byte, error) {
+	resp, err := c.clt.ReissueDBCert(ctx, &vnetv1.ReissueDBCertRequest{
+		DatabaseInfo: dbInfo,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ReissueDBCert rpc")
+	}
+	return resp.GetCert(), nil
+}
+
+// SignForDB returns a cryptographic signature with the key associated with the database.
+func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest) ([]byte, error) {
+	resp, err := c.clt.SignForDB(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForDB rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+// OnNewDBConnection reports a new database connection for observability.
+func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+	_, err := c.clt.OnNewDBConnection(ctx, &vnetv1.OnNewDBConnectionRequest{
+		DatabaseKey: dbKey,
+	})
+	return trace.Wrap(err, "calling OnNewDBConnection rpc")
+}
+
+// newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a
+// function that sends sign requests over gRPC. It parses the x509 certificate
+// to extract the public key. This is the shared implementation used by both
+// [appProvider] and [dbProvider].
+func newRPCCertSigner(certDER []byte, sendRequest func(*vnetv1.SignRequest) ([]byte, error)) (*rpcSigner, error) {
+	x509Cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing x509 certificate")
+	}
+	return &rpcSigner{
+		pub:         x509Cert.PublicKey,
+		sendRequest: sendRequest,
+	}, nil
 }
 
 // rpcSigner implements [crypto.Signer] for signatures that are issued by the

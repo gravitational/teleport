@@ -157,7 +157,7 @@ require (
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1
 	github.com/gravitational/roundtrip v1.0.3
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
-	github.com/gravitational/trace v1.5.3
+	github.com/gravitational/trace v1.5.4
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/guptarohit/asciigraph v0.7.3
@@ -243,6 +243,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	go.opentelemetry.io/proto/otlp v1.10.0
+	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.50.0
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	golang.org/x/image v0.38.0
