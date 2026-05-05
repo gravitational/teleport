@@ -27,7 +27,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"time"
 
@@ -1018,6 +1017,21 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
 	}
 
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return sctx, nil
 }
 
@@ -1143,6 +1157,26 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	userClient, err := authclient.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
@@ -1257,7 +1291,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = slices.Delete(c.closers, i, i+1)
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
 			return
 		}
 	}

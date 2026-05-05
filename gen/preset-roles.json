@@ -1053,6 +1053,15 @@
           },
           {
             "resources": [
+              "autoupdate_agent_report"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
               "autoupdate_bot_instance_report"
             ],
             "verbs": [
@@ -1170,6 +1179,18 @@
           },
           {
             "resources": [
+              "retrieval_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "client_ip_restriction"
             ],
             "verbs": [
@@ -1218,7 +1239,19 @@
           },
           {
             "resources": [
-              "app_auth_config"
+              "workload_cluster"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "recording_encryption"
             ],
             "verbs": [
               "list",

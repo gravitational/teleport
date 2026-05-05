@@ -158,6 +158,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		errors     []error
 	)
 	for _, cluster := range clusters {
+		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -917,7 +918,7 @@ func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) 
 		Name:        db.GetName(),
 	}}
 
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	return req, trace.Wrap(err)
 }
 

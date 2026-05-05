@@ -25,6 +25,25 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ClientIPFromAddr extracts the client IP from a network address.
+// For bufconn test addresses it returns the literal string "bufconn".
+func ClientIPFromAddr(addr net.Addr) (string, error) {
+	if addr == nil {
+		return "", trace.BadParameter("missing client IP")
+	}
+	s := addr.String()
+	// bufconn peers don't include host:port, so use a stable synthetic
+	// key for request/connection limiting in tests.
+	if s == "bufconn" && addr.Network() == "bufconn" {
+		return "bufconn", nil
+	}
+	clientIP, _, err := net.SplitHostPort(s)
+	if err != nil {
+		return "", trace.BadParameter("missing client IP")
+	}
+	return clientIP, nil
+}
+
 // ClientIPFromConn extracts host from provided remote address.
 func ClientIPFromConn(conn net.Conn) (string, error) {
 	clientRemoteAddr := conn.RemoteAddr()
@@ -58,7 +77,7 @@ func FindMatchingProxyDNS(requestHostnameOrFQDN string, proxyDNSNames []string) 
 	hostParts := strings.Split(normalizedRequestHost, ".")
 
 	// Iterate over each possible suffix of requestHostOrFQDN parts
-	for start := range hostParts {
+	for start := 0; start < len(hostParts); start++ {
 		possibleHost := strings.Join(hostParts[start:], ".")
 		for _, proxyDNSName := range proxyDNSNames {
 			// Normalize proxy DNS name by removing port if present

@@ -19,6 +19,7 @@
 package auth_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,8 +41,9 @@ func TestDesktopAccessDisabled(t *testing.T) {
 		},
 	})
 
-	ctx := t.Context()
-	p := newAuthSuite(t)
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
 
 	r, err := p.a.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{})
 	require.Nil(t, r)

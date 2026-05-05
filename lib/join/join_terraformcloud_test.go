@@ -95,7 +95,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 	auth.SetTerraformIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -170,7 +170,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "requires Teleport Enterprise")
 			},
 		},
@@ -377,7 +377,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad audience")
 			},
 		},
@@ -398,7 +398,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad issuer: example.com")
 			},
 		},

@@ -66,7 +66,7 @@ func WorkloadAPIServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		sidecar, credential := clientcredentials.NewSidecar(deps, defaultCredentialLifetime)
@@ -198,8 +198,10 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
-		Logger:           s.log,
-		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
+		Logger: s.log,
+		RenewalInterval: cmp.Or(
+			s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
+		).RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)

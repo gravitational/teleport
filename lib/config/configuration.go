@@ -72,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -84,6 +83,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
+	// --token-secret flag
+	TokenSecret string
 	// --join-method flag
 	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -264,6 +265,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAWSRATrustAnchorArguments contains the arguments of
 	// `teleport integration configure awsra-trust-anchor` command
 	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
+
+	// IntegrationConfSessionSummariesBedrockArguments contains the arguments of
+	// `teleport integration configure session-summaries bedrock` command
+	IntegrationConfSessionSummariesBedrockArguments IntegrationConfSessionSummariesBedrock
 
 	// LogLevel is the new application's log level.
 	LogLevel string
@@ -458,6 +463,20 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfSessionSummariesBedrock contains the arguments of
+// `teleport integration configure session-summaries bedrock` command
+type IntegrationConfSessionSummariesBedrock struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// Resource is the AWS Bedrock resource to grant access to.
+	// Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).
+	Resource string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
@@ -931,6 +950,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
@@ -1063,6 +1088,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
@@ -2015,6 +2041,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Log when proxy_service is enabled in the same config but has no
+	// public_addr. The proxy falls back to the cluster name for the
+	// auth redirect. Per-app public_addr controls the app's FQDN but
+	// does not replace this.
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
+		slog.InfoContext(context.Background(),
+			"proxy_service.public_addr not set; using cluster name for app auth redirects",
+			"nodename", cfg.Hostname)
+	}
+
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
@@ -2291,28 +2327,33 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
 		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}
 
-	var cert *x509.Certificate
+	var certs []*x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
 		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		if err != nil {
 			return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
 
-		cert, err = x509.ParseCertificate(rawCert)
+		derCert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
+		certs = []*x509.Certificate{derCert}
 	}
 
-	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
+		pemCerts, err := tlsca.ParseCertificatePEMs([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACerts))
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
+		if len(pemCerts) == 0 {
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
+		}
+		certs = pemCerts
 	}
 
 	locateServer := servicecfg.LocateServer{
@@ -2327,7 +2368,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
-		CA:                 cert,
+		CAs:                certs,
 		LocateServer:       locateServer,
 	}
 
@@ -2668,20 +2709,19 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
-		//
-		err = libslices.ContainsAll(defaults.FIPSCipherSuites, cfg.CipherSuites)
+		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSCiphers, cfg.Ciphers)
+		err = utils.StringSliceSubset(defaults.FIPSCiphers, cfg.Ciphers)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
+		err = utils.StringSliceSubset(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
+		err = utils.StringSliceSubset(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}
@@ -2795,6 +2835,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.SetToken(clf.AuthToken)
 	}
 
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
 	// Apply flags used for the node to validate the Auth Server.
 	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
 		return trace.Wrap(err)
@@ -2885,14 +2930,29 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
 		cfg.SetToken(clf.AuthToken)
+	}
+
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
@@ -2914,7 +2974,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.Hostname = hostname
 	cfg.OpenSSH.InstanceAddr = clf.Address
 	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
-	for principal := range strings.SplitSeq(clf.AdditionalPrincipals, ",") {
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
 		if principal == "" {
 			continue
 		}
@@ -3087,6 +3147,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.JoinParams != (JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
+		cfg.SetTokenSecret(fc.JoinParams.TokenSecret)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
 			return trace.Wrap(err)
@@ -3098,6 +3159,16 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			cfg.JoinParams = servicecfg.JoinParams{
 				Azure: servicecfg.AzureJoinParams{
 					ClientID: fc.JoinParams.Azure.ClientID,
+				},
+			}
+		}
+
+		if fc.JoinParams.BoundKeypair != (BoundKeypairParams{}) {
+			cfg.JoinParams = servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: fc.JoinParams.BoundKeypair.RegistrationSecretValue,
+					RegistrationSecretPath:  fc.JoinParams.BoundKeypair.RegistrationSecretPath,
+					StaticPrivateKeyPath:    fc.JoinParams.BoundKeypair.StaticPrivateKeyPath,
 				},
 			}
 		}

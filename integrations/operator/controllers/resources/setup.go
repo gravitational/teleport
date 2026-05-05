@@ -31,9 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+type ReconcilerFactory func(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error)
+
 type reconcilerFactory struct {
 	cr      string
-	factory func(kclient.Client, *client.Client) (controllers.Reconciler, error)
+	factory ReconcilerFactory
 }
 
 // SetupAllControllers sets up all controllers
@@ -45,6 +47,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportRoleV8", NewRoleV8Reconciler},
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
+		{"TeleportLockV2", NewLockV2Reconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
 		{"TeleportOpenSSHServerV2", NewOpenSSHServerV2Reconciler},
 		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},
@@ -55,10 +58,21 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
 		{"TeleportAppV3", NewAppV3Reconciler},
 		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
+		{"TeleportAccessMonitoringRuleV1", NewAccessMonitoringRuleV1Reconciler},
+		// Although the WebUi doesn't show "SAML Application (Generic)" for
+		// oss builds when adding a resource due to the BuildType() check in
+		// lib/auth/auth_with_roles.go, the API allows creating
+		// saml_idp_service_provider objects using tctl for any build. We
+		// therefore enable it here unconditionally to mirror tctl behavior.
+		{"TeleportSAMLIdPServiceProviderV1", NewSAMLIdPServiceProviderV1Reconciler},
+		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
+		{"TeleportScopedRoleV1", NewScopedRoleV1Reconciler},
+		{"TeleportScopedRoleAssignmentV1", NewScopedRoleAssignmentV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+	policy := modules.GetProtoEntitlement(features, entitlements.Policy)
 
 	if oidc.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOIDCConnector", NewOIDCConnectorReconciler})
@@ -70,6 +84,15 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportSAMLConnector", NewSAMLConnectorReconciler})
 	} else {
 		log.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
+	}
+
+	if policy.Enabled {
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceModel", NewInferenceModelReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferencePolicy", NewInferencePolicyReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceSecret", NewInferenceSecretReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportRetrievalModelV1", NewRetrievalModelV1Reconciler})
+	} else {
+		log.Info("Inference Models, Policies, Secrets, and RetrievalModel are only available in Teleport Enterprise edition. TeleportInferenceModel, TeleportInferencePolicy, TeleportInferenceSecret, and TeleportRetrievalModelV1 resources won't be reconciled")
 	}
 
 	// Login Rules are enterprise-only but there is no specific feature flag for them.

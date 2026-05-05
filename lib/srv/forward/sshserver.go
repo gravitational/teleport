@@ -50,14 +50,17 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/sshutils/x11forward"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -174,13 +177,7 @@ type Server struct {
 
 	// targetServer is the host that the connection is being established for.
 	targetServer types.Server
-
-	eiceSigner EICESignerFunc
 }
-
-// EICESignerFunc is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
-// [ssh.Signer] is required for clients to be able to connect to the instance.
-type EICESignerFunc = func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error)
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
@@ -250,10 +247,6 @@ type ServerConfig struct {
 
 	// TargetServer is the host that the connection is being established for.
 	TargetServer types.Server
-
-	// EICESigner is used to upload credentials and get a signer to use for the client connection
-	// to the EC2 instance.
-	EICESigner EICESignerFunc
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -306,11 +299,6 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
 	}
-
-	if s.EICESigner == nil {
-		return trace.BadParameter("missing parameter EICESigner")
-	}
-
 	if s.TracerProvider == nil {
 		s.TracerProvider = tracing.DefaultProvider()
 	}
@@ -356,7 +344,6 @@ func New(c ServerConfig) (*Server, error) {
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
 		targetServer:    c.TargetServer,
-		eiceSigner:      c.EICESigner,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -467,8 +454,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -565,7 +552,7 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 // does not spawn child processes.
 func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,
@@ -654,25 +641,7 @@ func (s *Server) Serve() {
 		}
 
 		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			awsInfo := s.targetServer.GetAWSInfo()
-			if awsInfo == nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", "missing aws cloud metadata")
-				return
-			}
-
-			token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
-			if err != nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
-				return
-			}
-
-			integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
-			if err != nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
-				return
-			}
-
-			sshSigner, err := s.eiceSigner(ctx, s.targetServer, integration, s.identityContext.Login, token, s.GetAccessPoint())
+			sshSigner, err := s.sendSSHPublicKeyToTarget(ctx)
 			if err != nil {
 				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
 				return
@@ -697,7 +666,7 @@ func (s *Server) Serve() {
 
 	// Once the client and server connections are established, ensure we forward
 	// x11 channel requests from the server to the client.
-	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+	if err := x11forward.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to forward x11 channel requests", "error", err)
 		return
 	}
@@ -723,6 +692,59 @@ func (s *Server) Serve() {
 
 	go s.handleClientChannels(ctx, forwardedTCPIP)
 	go s.handleConnection(ctx, chans, reqs)
+}
+
+func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, error) {
+	awsInfo := s.targetServer.GetAWSInfo()
+	if awsInfo == nil {
+		return nil, trace.BadParameter("missing aws cloud metadata")
+	}
+
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to generate aws token: %v", err)
+	}
+
+	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
+	}
+
+	sendSSHClient, err := awsoidc.NewEICESendSSHPublicKeyClient(ctx, &awsoidc.AWSClientRequest{
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsInfo.Region,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
+	}
+
+	sshKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.GetAccessPoint()),
+		cryptosuites.EC2InstanceConnect)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating SSH key")
+	}
+	sshSigner, err := ssh.NewSignerFromSigner(sshKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SSH signer")
+	}
+
+	if err := awsoidc.SendSSHPublicKeyToEC2(ctx, sendSSHClient, awsoidc.SendSSHPublicKeyToEC2Request{
+		InstanceID:      awsInfo.InstanceID,
+		EC2SSHLoginUser: s.identityContext.Login,
+		PublicKey:       sshSigner.PublicKey(),
+	}); err != nil {
+		return nil, trace.BadParameter("send ssh public key failed for instance %s: %v", awsInfo.InstanceID, err)
+	}
+
+	// This is the SSH Signer that the client must use to connect to the EC2.
+	// This signer is trusted because the public key was sent to the target EC2 host.
+	return sshSigner, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.

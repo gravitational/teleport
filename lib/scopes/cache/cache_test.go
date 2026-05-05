@@ -459,7 +459,7 @@ func TestCacheConcurrency(t *testing.T) {
 	// we can't really guarantee that the background writer is waiting, but we can
 	// be reasonably sure by stepping through multiple qery cycles and asserting that
 	// the writer hasn't completed at each iteration.
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		// perform initial check to verify that write hasn't succeeded (racy)
 		select {
 		case <-putDone:
@@ -1127,13 +1127,13 @@ func TestCacheOperations(t *testing.T) {
 	// verify that the concept of policies-applicable-to-resource used by the cache
 	// matches up with the definition expected by the scopes package.
 	for scope := range cache.PoliciesApplicableToResourceScope("/child/subchild") {
-		require.True(t, scopes.ResourceScope("/child/subchild").IsSubjectToPolicyScope(scope.Scope()), "scope=%s", scope.Scope())
+		require.True(t, scopes.ResourceScope("/child/subchild").IsSubjectToScopeOfEffect(scope.Scope()), "scope=%s", scope.Scope())
 	}
 
 	// verify that the concept of resources-subject-to-policy used by the cache
 	// matches up with the definition expected by the scopes package.
 	for scope := range cache.ResourcesSubjectToPolicyScope("/child") {
-		require.True(t, scopes.PolicyScope("/child").AppliesToResourceScope(scope.Scope()), "scope=%s", scope.Scope())
+		require.True(t, scopes.ScopeOfEffect("/child").AppliesToResourceScope(scope.Scope()), "scope=%s", scope.Scope())
 	}
 
 	// verify deletion of a single intermediate item

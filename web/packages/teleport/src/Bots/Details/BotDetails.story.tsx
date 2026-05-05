@@ -15,12 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { MemoryRouter, Route, Router } from 'react-router';
-import { action } from 'storybook/internal/actions';
+import { action } from 'storybook/actions';
 
 import Box from 'design/Box';
 

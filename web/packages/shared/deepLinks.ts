@@ -17,9 +17,13 @@
  */
 
 /*
- * This file does not import whatwg-url and thus does not perform any parsing on purpose. whatwg-url
- * provides uniform parsing across browser implementations but it weights a ton [1], so we should
+ * This file does not perform any parsing on purpose. We used to do it with whatwg-url which
+ * provided uniform parsing across browser implementations but it weighs a ton [1], so we wanted to
  * avoid pulling it into the deps of Web UI.
+ *
+ * While we no longer use whatwg-url, it's probably a good idea to keep this file parser-free as
+ * only teleterm needs to actually parse deep links for use. The Web UI just needs to be able to
+ * construct them.
  *
  * [1] https://bundlephobia.com/package/whatwg-url@13.0.0
  */
@@ -37,7 +41,7 @@ export type Path = DeepURL['pathname'];
  *
  * Since DeepLinkParseResult goes through IPC in Electron [1], anything included in it is subject to
  * Structured Clone Algorithm [2]. As such, getters and setters are dropped which means were not
- * able to pass whatwg.URL without casting it to an object.
+ * able to pass an URL instance without casting it to an object.
  *
  * [1] https://www.electronjs.org/docs/latest/tutorial/ipc
  * [2] https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm
@@ -54,7 +58,7 @@ type BaseDeepURL = {
   hostname: string;
   port: string;
   /**
-   * username is percent-decoded username from the URL. whatwg-url encodes usernames found in URLs.
+   * username is percent-decoded username from the URL. The URL API encodes usernames found in URLs.
    * parseDeepLink decodes them so that other parts of the app don't have to deal with this.
    */
   username: string;
@@ -112,15 +116,18 @@ export function makeDeepLinkWithSafeInput<
     ? encodeURIComponent(args.username) + '@'
     : '';
 
-  const searchParamsString = Object.entries(args.searchParams)
-    // filter out params that have no value to prevent a string like "&myparam=null"
-    .filter(kv => kv[1] !== null && kv[1] !== undefined)
-    .map(kv => kv.map(encodeURIComponent).join('='))
-    .join('&');
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(args.searchParams)) {
+    // Filter out params that have no value to prevent a param like "&myparam=null".
+    if (value === null || value === undefined) {
+      continue;
+    }
+    searchParams.set(key, value);
+  }
 
   const url = `${CUSTOM_PROTOCOL}://${encodedUsername}${args.proxyHost}${args.path}`;
-  if (searchParamsString !== '') {
-    return url + '?' + searchParamsString;
+  if (searchParams.size > 0) {
+    return url + '?' + searchParams.toString();
   }
   return url;
 }

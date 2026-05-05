@@ -152,7 +152,7 @@ func TestGetRemoteCluster(t *testing.T) {
 			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: matchingRC.GetName(),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -162,7 +162,7 @@ func TestGetRemoteCluster(t *testing.T) {
 			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: notMatchingRC.GetName(),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				// Opaque no permission presents as not found
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
@@ -173,7 +173,7 @@ func TestGetRemoteCluster(t *testing.T) {
 			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: "",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be specified")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -184,7 +184,7 @@ func TestGetRemoteCluster(t *testing.T) {
 			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: "non-existent",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -313,7 +313,7 @@ func TestListRemoteClusters(t *testing.T) {
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req:  &presencev1pb.ListRemoteClustersRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -393,7 +393,7 @@ func TestDeleteRemoteCluster(t *testing.T) {
 			req: &presencev1pb.DeleteRemoteClusterRequest{
 				Name: rc.GetName(),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -403,7 +403,7 @@ func TestDeleteRemoteCluster(t *testing.T) {
 			req: &presencev1pb.DeleteRemoteClusterRequest{
 				Name: rc.GetName(),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -616,7 +616,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -627,7 +627,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 				RemoteCluster: nil,
 				UpdateMask:    nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "remote_cluster: must not be nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -643,7 +643,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 				},
 				UpdateMask: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "remote_cluster.Metadata.Name: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -710,7 +710,7 @@ func TestListReverseTunnels(t *testing.T) {
 
 	// Create a few reverse tunnels
 	created := []*types.ReverseTunnelV2{}
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
 		_, err = srv.Auth().Services.UpsertReverseTunnel(ctx, rc)
@@ -738,7 +738,7 @@ func TestListReverseTunnels(t *testing.T) {
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req:  &presencev1pb.ListReverseTunnelsRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -770,7 +770,7 @@ func TestListReverseTunnels(t *testing.T) {
 
 		allGot := []*types.ReverseTunnelV2{}
 		pageToken := ""
-		for i := range 10 {
+		for i := 0; i < 10; i++ {
 			var got []types.ReverseTunnel
 			got, pageToken, err = client.ListReverseTunnels(ctx, 1, pageToken)
 			require.NoError(t, err)
@@ -848,7 +848,7 @@ func TestDeleteReverseTunnel(t *testing.T) {
 			req: &presencev1pb.DeleteReverseTunnelRequest{
 				Name: rt.GetName(),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -858,7 +858,7 @@ func TestDeleteReverseTunnel(t *testing.T) {
 			req: &presencev1pb.DeleteReverseTunnelRequest{
 				Name: rt.GetName(),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -930,7 +930,7 @@ func TestUpsertReverseTunnel(t *testing.T) {
 			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: rt.(*types.ReverseTunnelV2),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -940,7 +940,7 @@ func TestUpsertReverseTunnel(t *testing.T) {
 			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
@@ -950,7 +950,7 @@ func TestUpsertReverseTunnel(t *testing.T) {
 			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: invalid.(*types.ReverseTunnelV2),
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to parse")
 			},
 		},

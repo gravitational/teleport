@@ -121,12 +121,36 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 
 	if _, err = stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); !errors.Is(err, errRequestRecorded) {
 		if err == nil {
-			return nil, trace.Errorf("expected to get errRequestedRecorded, got <nil> (this is a bug)")
+			return nil, trace.Errorf("expected to get errRequestRecorded, got <nil> (this is a bug)")
 		}
 		return nil, trace.Wrap(err, "building signed sts:GetCallerIdentity request")
 	}
 
 	return signedRequest.Bytes(), nil
+}
+
+var (
+	// ErrNoFIPSEndpoint is returned when a FIPS endpoint is requested for a
+	// region that has none.
+	ErrNoFIPSEndpoint = errors.New("region has no known FIPS endpoint")
+)
+
+// ExpectedSTSHost returns the expected AWS STS endpoint hostname in the given region and FIPS mode.
+func ExpectedSTSHost(ctx context.Context, region string, fips bool) (string, error) {
+	// This check is necessary because the AWS SDK will happily return FIPS
+	// endpoints that don't exist in regions that don't have one.
+	if fips && !slices.Contains(FIPSSTSRegions(), region) {
+		return "", ErrNoFIPSEndpoint
+	}
+	resolver := sts.NewDefaultEndpointResolverV2()
+	endpoint, err := resolver.ResolveEndpoint(ctx, sts.EndpointParameters{
+		Region:  aws.String(region),
+		UseFIPS: aws.Bool(fips),
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return endpoint.URI.Hostname(), nil
 }
 
 // getEC2LocalRegion returns the AWS region this EC2 instance is running in, or

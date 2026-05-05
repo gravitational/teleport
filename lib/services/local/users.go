@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -201,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -528,7 +526,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -652,7 +650,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -669,7 +667,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -685,7 +683,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -1101,7 +1099,10 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := max(l.scopeCount[scope]+n, 0)
+	v := l.scopeCount[scope] + n
+	if v < 0 {
+		v = 0
+	}
 	l.scopeCount[scope] = v
 	return v
 }
@@ -1192,6 +1193,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1596,7 +1598,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1633,7 +1634,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1779,6 +1779,11 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 			keyPair.PrivateKey = ""
 			conn.SetSigningKeyPair(keyPair)
 		}
+		oauthCreds := conn.GetOAuthClientCredentials()
+		if oauthCreds != nil {
+			oauthCreds.ClientSecret = ""
+			conn.SetOAuthClientCredentials(oauthCreds)
+		}
 	}
 	return conn, nil
 }
@@ -1810,7 +1815,6 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -1824,6 +1828,11 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			if keyPair != nil {
 				keyPair.PrivateKey = ""
 				conn.SetSigningKeyPair(keyPair)
+			}
+			oauthCreds := conn.GetOAuthClientCredentials()
+			if oauthCreds != nil {
+				oauthCreds.ClientSecret = ""
+				conn.SetOAuthClientCredentials(oauthCreds)
 			}
 		}
 
@@ -2084,7 +2093,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2119,7 +2127,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.
@@ -2287,6 +2294,53 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
+}
+
+func newSAMLConnectorParser(loadSecrets bool) *samlConnectorParser {
+	return &samlConnectorParser{
+		baseParser:  newBaseParser(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)),
+		loadSecrets: loadSecrets,
+	}
+}
+
+type samlConnectorParser struct {
+	baseParser
+	loadSecrets bool
+}
+
+func (p *samlConnectorParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.SAMLConnectorV2{
+			Kind:    types.KindSAMLConnector,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		connector, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			event.Item.Value,
+			[]types.SAMLConnectorValidationOption{types.SAMLConnectorValidationFollowURLs(false)},
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return connector.WithoutSecrets(), nil
+		}
+		return connector, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 const (

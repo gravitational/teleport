@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -43,6 +44,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const (
+	testBotName    = "access-test-bot"
+	testInstanceID = "access-test-instance-id"
+)
+
+func insertTestBotInstance(t *testing.T, backend *local.BotInstanceService) {
+	t.Helper()
+	bi := newBotInstance(testBotName)
+	bi.Spec.InstanceId = testInstanceID
+	_, err := backend.CreateBotInstance(t.Context(), bi)
+	require.NoError(t, err)
+}
 
 // TestBotInstanceServiceAccess ensures RBAC an admin state rules are applied properly
 func TestBotInstanceServiceAccess(t *testing.T) {
@@ -60,7 +74,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead},
+			allowedVerbs: []string{types.VerbReadNoSecrets},
 		},
 		{
 			name: "ListBotInstances",
@@ -68,7 +82,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead, types.VerbList},
+			allowedVerbs: []string{types.VerbReadNoSecrets, types.VerbList},
 		},
 		{
 			name: "ListBotInstancesV2",
@@ -76,7 +90,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead, types.VerbList},
+			allowedVerbs: []string{types.VerbReadNoSecrets, types.VerbList},
 		},
 		{
 			name: "DeleteBotInstance",
@@ -104,6 +118,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
 								backend := newBotInstanceBackend(t)
+								insertTestBotInstance(t, backend)
 								service := newBotInstanceService(t, backend, state, fakeChecker{allowedVerbs: verbs})
 								err := callMethod(t, service, tt.name)
 
@@ -131,6 +146,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 						// it is enough to test against tt.allowedVerbs,
 						// this is the only different data point compared to the test cases above.
 						backend := newBotInstanceBackend(t)
+						insertTestBotInstance(t, backend)
 						service := newBotInstanceService(t, backend, state, fakeChecker{allowedVerbs: tt.allowedVerbs})
 						err := callMethod(t, service, tt.name)
 						require.True(t, trace.IsAccessDenied(err))
@@ -174,7 +190,7 @@ func TestBotInstanceServiceReadDelete(t *testing.T) {
 	}
 
 	// Make a service with all useful permissions that doesn't require admin auth
-	checker := fakeChecker{allowedVerbs: []string{types.VerbRead, types.VerbList, types.VerbDelete}}
+	checker := fakeChecker{allowedVerbs: []string{types.VerbReadNoSecrets, types.VerbList, types.VerbDelete}}
 	service := newBotInstanceService(t, backend, authz.AdminActionAuthNotRequired, checker)
 
 	// Make sure we can get all foo instances
@@ -311,7 +327,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotInstanceID: botInstanceID,
 			},
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot name")
 			},
 			wantHeartbeat: false,
@@ -327,7 +343,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotName: botName,
 			},
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot instance")
 			},
 			wantHeartbeat: false,
@@ -341,7 +357,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				},
 			},
 			identity: goodIdentity,
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -352,7 +368,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				Heartbeat: nil,
 			},
 			identity: goodIdentity,
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "heartbeat: must be non-nil")
 			},
 			wantHeartbeat: false,
@@ -405,6 +421,39 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			},
 			wantHeartbeat: false,
 		},
+		{
+			name:              "scoped identity without BotInternal",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{Hostname: "llama"},
+			},
+			identity: tlsca.Identity{
+				BotName:       botName,
+				BotInstanceID: botInstanceID,
+				ScopePin:      &scopesv1.Pin{Scope: "/scopes/test"},
+				BotInternal:   false,
+			},
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.True(t, trace.IsAccessDenied(err)) &&
+					assert.Contains(t, err.Error(), "identity not marked BotInternal")
+			},
+			wantHeartbeat: false,
+		},
+		{
+			name:              "scoped identity with BotInternal",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{Hostname: "llama"},
+			},
+			identity: tlsca.Identity{
+				BotName:       botName,
+				BotInstanceID: botInstanceID,
+				ScopePin:      &scopesv1.Pin{Scope: "/scopes/test"},
+				BotInternal:   true,
+			},
+			assertErr:     assert.NoError,
+			wantHeartbeat: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -413,13 +462,14 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			service, err := NewBotInstanceService(BotInstanceServiceConfig{
 				Backend: backend,
 				Cache:   backend,
-				Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-					return &authz.Context{
+				Authorizer: &fakeScopedAuthorizer{
+					ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 						Identity: identityGetterFn(func() tlsca.Identity {
 							return tt.identity
 						}),
-					}, nil
-				}),
+						Checker: fakeChecker{},
+					}),
+				},
 			})
 			require.NoError(t, err)
 
@@ -478,16 +528,17 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Backend: backend,
 		Cache:   backend,
-		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-			return &authz.Context{
+		Authorizer: &fakeScopedAuthorizer{
+			ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
 					return tlsca.Identity{
 						BotName:       botName,
 						BotInstanceID: botInstanceID,
 					}
 				}),
-			}, nil
-		}),
+				Checker: fakeChecker{},
+			}),
+		},
 	})
 	require.NoError(t, err)
 
@@ -497,7 +548,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	extraHeartbeats := 5
-	for i := range heartbeatHistoryLimit + extraHeartbeats {
+	for i := 0; i < (heartbeatHistoryLimit + extraHeartbeats); i++ {
 		_, err = service.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
 			Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 				Hostname: strconv.Itoa(i),
@@ -511,7 +562,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	assert.Len(t, bi.Status.LatestHeartbeats, heartbeatHistoryLimit)
 	assert.Equal(t, "0", bi.Status.InitialHeartbeat.Hostname)
 	// Ensure we have the last 10 heartbeats
-	for i := range heartbeatHistoryLimit {
+	for i := 0; i < heartbeatHistoryLimit; i++ {
 		wantHostname := strconv.Itoa(i + extraHeartbeats)
 		assert.Equal(t, wantHostname, bi.Status.LatestHeartbeats[i].Hostname)
 	}
@@ -544,12 +595,32 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 	return out
 }
 
+type fakeScopedAuthorizer struct {
+	ctx *authz.ScopedContext
+}
+
+func (a *fakeScopedAuthorizer) AuthorizeScoped(_ context.Context) (*authz.ScopedContext, error) {
+	return a.ctx, nil
+}
+
 type fakeChecker struct {
 	allowedVerbs []string
 	services.AccessChecker
 }
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
+	if resource == types.KindBotInstance {
+		for _, allowedVerb := range f.allowedVerbs {
+			if allowedVerb == verb {
+				return nil
+			}
+		}
+	}
+
+	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
+}
+
+func (f fakeChecker) GuessIfAccessIsPossible(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindBotInstance {
 		if slices.Contains(f.allowedVerbs, verb) {
 			return nil
@@ -563,7 +634,17 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 func callMethod(t *testing.T, service *BotInstanceService, method string) error {
 	for _, desc := range machineidv1.BotInstanceService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			_, err := desc.Handler(service, context.Background(), func(req any) error {
+				switch r := req.(type) {
+				case *machineidv1.GetBotInstanceRequest:
+					r.BotName = testBotName
+					r.InstanceId = testInstanceID
+				case *machineidv1.DeleteBotInstanceRequest:
+					r.BotName = testBotName
+					r.InstanceId = testInstanceID
+				}
+				return nil
+			}, nil)
 			return err
 		}
 	}
@@ -594,7 +675,7 @@ func createInstances(t *testing.T, ctx context.Context, backend *local.BotInstan
 
 	ids := map[string]struct{}{}
 
-	for range count {
+	for i := 0; i < count; i++ {
 		bi := newBotInstance(botName)
 		_, err := backend.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)
@@ -652,18 +733,16 @@ func newBotInstanceService(
 ) *BotInstanceService {
 	t.Helper()
 
-	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-		user, err := types.NewUser("example")
-		if err != nil {
-			return nil, err
-		}
+	user, err := types.NewUser("example")
+	require.NoError(t, err)
 
-		return &authz.Context{
+	authorizer := &fakeScopedAuthorizer{
+		ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
 			User:                 user,
 			Checker:              checker,
 			AdminActionAuthState: authState,
-		}, nil
-	})
+		}),
+	}
 
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Authorizer: authorizer,

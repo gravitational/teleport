@@ -408,6 +408,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			expectSignError: true,
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -625,7 +626,8 @@ func TestGCPKMSKeystore(t *testing.T) {
 
 func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "test-cluster",

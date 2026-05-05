@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -613,7 +612,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
-		meta.Labels = maps.Clone(tokenLabels)
+		meta.Labels = utils.CopyStringsMap(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)

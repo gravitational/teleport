@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -605,7 +606,7 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
@@ -649,6 +650,7 @@ func TestWebPublicAddr(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -694,23 +696,123 @@ func TestSetLogLevel(t *testing.T) {
 	}
 }
 
-func hasNoErr(t require.TestingT, err error, msgAndArgs ...any) {
+func TestBoundKeypairConfig(t *testing.T) {
+	dir := t.TempDir()
+	regSecretPath := filepath.Join(dir, "reg-secret")
+	staticKeyPath := filepath.Join(dir, "static-key")
+
+	require.NoError(t, os.WriteFile(regSecretPath, []byte("reg-secret"), 0600))
+	require.NoError(t, os.WriteFile(staticKeyPath, []byte("static-key"), 0600))
+
+	tests := []struct {
+		name   string
+		config BoundKeypairParams
+		assert func(cfg BoundKeypairParams)
+	}{
+		{
+			name: "registration secret value",
+			config: BoundKeypairParams{
+				RegistrationSecretValue: "reg-secret",
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.NoError(t, err)
+				require.Equal(t, "reg-secret", secret)
+			},
+		},
+		{
+			name: "registration secret path",
+			config: BoundKeypairParams{
+				RegistrationSecretPath: regSecretPath,
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.NoError(t, err)
+				require.Equal(t, "reg-secret", secret)
+			},
+		},
+		{
+			name: "registration secret path does not exist",
+			config: BoundKeypairParams{
+				RegistrationSecretPath: filepath.Join(dir, "invalid-reg-secret"),
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.ErrorContains(t, err, "no such file")
+				require.Empty(t, secret)
+			},
+		},
+		{
+			name:   "empty",
+			config: BoundKeypairParams{},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.NoError(t, err)
+				require.Empty(t, secret)
+			},
+		},
+		{
+			name: "error if ambiguous",
+			config: BoundKeypairParams{
+				RegistrationSecretValue: "foo",
+				RegistrationSecretPath:  "bar",
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.ErrorContains(t, err, "only one")
+				require.Empty(t, secret)
+			},
+		},
+		{
+			name: "static key path",
+			config: BoundKeypairParams{
+				StaticPrivateKeyPath: staticKeyPath,
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.StaticPrivateKeyBytes()
+				require.NoError(t, err)
+				require.Equal(t, []byte("static-key"), secret)
+			},
+		},
+		{
+			name: "static key path does not exist",
+			config: BoundKeypairParams{
+				StaticPrivateKeyPath: filepath.Join(dir, "invalid-static-key"),
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.StaticPrivateKeyBytes()
+				require.ErrorContains(t, err, "no such file")
+				require.Empty(t, secret)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			test.assert(test.config)
+		})
+	}
+}
+
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.NoError(t, err, msgAndArgs...)
 }
 
-func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
 }
 
 func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }
 
 func hasErrAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

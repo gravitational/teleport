@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
@@ -406,8 +407,14 @@ const (
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
+	// KindStaticScopedTokens is a type of configuration resource that contains static scoped tokens.
+	KindStaticScopedTokens = "static_scoped_tokens"
+
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
+
+	// MetaNameStaticScopedTokens is the name of a configuration resource for static scoped tokens.
+	MetaNameStaticScopedTokens = "static-scoped-tokens"
 
 	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
 	MetaNameSessionTracker = "session-tracker"
@@ -665,6 +672,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -681,14 +691,24 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
+
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
-	// KindAppAuthConfig is the resource kind for app auth configs.
-	KindAppAuthConfig = "app_auth_config"
+	// KindWorkloadCluster is the resource kind for workload clusters.
+	KindWorkloadCluster = "workload_cluster"
+
+	// KindDelegationSession is the resource kind for Delegation Sessions.
+	//
+	// Delegation Sessions allow users to temporarily lend (a subset of) their
+	// access to a bot or workload, such as an AI Agent.
+	KindDelegationSession = "delegation_session"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -779,6 +799,8 @@ const (
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
+	// CreatedByIaCLabel is a resource metadata label name used to identify if resource was created by IaC tooling.
+	CreatedByIaCLabel = TeleportNamespace + "/iac-tool"
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = common.OriginDefaults
@@ -826,6 +848,8 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSAccountIDLabel = TeleportNamespace + "/account-id"
+	// AWSAccountNameLabel is the human-readable AWS account name label.
+	AWSAccountNameLabel = TeleportNamespace + "/account-name"
 	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -833,14 +857,16 @@ const (
 	// AWSInstanceRegion is used to identify the region an EC2
 	// instance is running in
 	AWSInstanceRegion = TeleportNamespace + "/aws-region"
-	// SubscriptionIDLabel is used to identify virtual machines by Azure
-	// subscription ID found via automatic discovery, to avoid re-running
-	// installation commands on the node.
-	SubscriptionIDLabel = TeleportInternalLabelPrefix + "subscription-id"
-	// VMIDLabel is used to identify virtual machines by ID found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
+	// AWSSSORegionLabel is the AWS Identity Center SSO region label.
+	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
+	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
+	// to identify Azure VMs by subscription ID during auto-discovery.
+	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
+	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
+	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
+	// Azure VMs by VM ID during auto-discovery.
+	// Preserved for backward compatibility; superseded by VMIDLabel.
+	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
 	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
@@ -851,14 +877,14 @@ const (
 	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
 	// and can be used in RBAC checks.
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
-	// RegionLabel is used to identify virtual machines by region found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	RegionLabel = TeleportInternalLabelPrefix + "region"
-	// ResourceGroupLabel is used to identify virtual machines by resource-group found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// RegionLabelInternal is a hidden label (teleport.internal/) used to
+	// identify Azure VMs by region during auto-discovery.
+	// Preserved for backward compatibility; superseded by RegionLabel.
+	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
+	// to identify Azure VMs by resource group during auto-discovery.
+	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
+	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -867,6 +893,26 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
+
+	// Azure VM labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// SubscriptionIDLabel identifies Azure VMs by subscription ID.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel identifies Azure VMs by VM ID.
+	VMIDLabel = TeleportNamespace + "/vm-id"
+	// RegionLabel identifies Azure VMs by region.
+	RegionLabel = TeleportNamespace + "/region"
+	// ResourceGroupLabel identifies Azure VMs by resource group.
+	ResourceGroupLabel = TeleportNamespace + "/resource-group"
+
+	// GCP VM visible labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// ZoneLabel is the visible version of ZoneLabelDiscovery.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is the visible version of NameLabelDiscovery.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -939,6 +985,10 @@ const (
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
+	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
+	IACToolLabel = TeleportNamespace + "/iac-tool"
+	// IACToolTerraform identifies that a IAC tool is Terraform.
+	IACToolTerraform = "terraform"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1125,6 +1175,11 @@ const (
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
+
+	// BotScopeLabel is a label used to identify the scope in which a Bot
+	// exists. It is stored on the user resource to allow the Bot to be hydrated
+	// from a user.
+	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
 
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
@@ -1714,18 +1769,22 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
+// TODO(espadolini): deprecate in v19, delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportDropGroup = "teleport-system"
+	//go:fix inline
+	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	TeleportKeepGroup = "teleport-keep"
+	//go:fix inline
+	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportStaticGroup = "teleport-static"
+	//go:fix inline
+	TeleportStaticGroup = constants.TeleportStaticGroup
 )
 
 const (

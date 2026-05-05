@@ -33,6 +33,7 @@ import (
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -41,7 +42,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -72,7 +73,7 @@ func dynamoDBTestTable() string {
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	dynamoCfg := map[string]any{
+	dynamoCfg := map[string]interface{}{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
 	}
@@ -243,7 +244,7 @@ func TestCreateTable(t *testing.T) {
 func TestContinuousBackups(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	b, err := New(t.Context(), map[string]any{
+	b, err := New(t.Context(), map[string]interface{}{
 		"table_name":         uuid.NewString() + "-test",
 		"continuous_backups": true,
 	})
@@ -251,14 +252,7 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-			Driver: retryutils.NewExponentialDriver(500 * time.Millisecond),
-			First:  500 * time.Millisecond,
-			Max:    20 * time.Second,
-			Jitter: retryutils.HalfJitter,
-		})
-		require.NoError(t, err)
-
+		back := backoff.NewDecorr(500*time.Millisecond, 20*time.Second, clockwork.NewRealClock())
 		for {
 			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
 			if err == nil {
@@ -266,7 +260,7 @@ func TestContinuousBackups(t *testing.T) {
 			}
 			inUse := &types.ResourceInUseException{}
 			if errors.As(err, &inUse) {
-				<-retry.After()
+				back.Do(context.Background())
 			} else {
 				assert.FailNow(t, "error deleting table", err)
 			}
@@ -284,7 +278,7 @@ func TestAutoScaling(t *testing.T) {
 	ensureTestsEnabled(t)
 
 	// Create new backend with auto scaling enabled.
-	b, err := New(context.Background(), map[string]any{
+	b, err := New(context.Background(), map[string]interface{}{
 		"table_name":         uuid.NewString() + "-test",
 		"auto_scaling":       true,
 		"read_min_capacity":  10,
@@ -319,8 +313,8 @@ func TestAutoScaling(t *testing.T) {
 	// Check auto scaling values match.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := getAutoScaling(context.Background(), applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
-		require.NoError(t, err)
-		require.Equal(t, expected, resp)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, resp)
 	}, 10*time.Second, 500*time.Millisecond)
 }
 
@@ -391,7 +385,7 @@ func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tab
 	if err != nil {
 		return nil, convertError(err)
 	}
-	for i := range policyResponse.ScalingPolicies {
+	for i := 0; i < len(policyResponse.ScalingPolicies); i++ {
 		policy := policyResponse.ScalingPolicies[i]
 		switch aws.ToString(policy.PolicyName) {
 		case fmt.Sprintf("%v-%v", tableName, readScalingPolicySuffix):
@@ -446,4 +440,96 @@ func TestKeyPrefix(t *testing.T) {
 		key := trimPrefix(prefixed)
 		assert.Equal(t, ".locks/test/llama", key.String())
 	})
+}
+
+func TestConvertError(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     error
+		checkFunc func(error) bool
+	}{
+		{
+			name:  "nil error",
+			input: nil,
+			checkFunc: func(err error) bool {
+				return err == nil
+			},
+		},
+		{
+			name: "ConditionalCheckFailedException -> CompareFailed",
+			input: &types.ConditionalCheckFailedException{
+				Message: aws.String("conditional failed"),
+			},
+			checkFunc: trace.IsCompareFailed,
+		},
+		{
+			name: "ProvisionedThroughputExceededException -> ConnectionProblem",
+			input: &types.ProvisionedThroughputExceededException{
+				Message: aws.String("throughput exceeded"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "ResourceNotFoundException -> NotFound",
+			input: &types.ResourceNotFoundException{
+				Message: aws.String("not found"),
+			},
+			checkFunc: trace.IsNotFound,
+		},
+		{
+			name: "ItemCollectionSizeLimitExceededException -> LimitExceeded",
+			input: &types.ItemCollectionSizeLimitExceededException{
+				Message: aws.String("collection limit"),
+			},
+			checkFunc: trace.IsLimitExceeded,
+		},
+		{
+			name: "InternalServerError -> BadParameter",
+			input: &types.InternalServerError{
+				Message: aws.String("internal error"),
+			},
+			checkFunc: trace.IsBadParameter,
+		},
+		{
+			name: "ExpiredIteratorException -> ConnectionProblem",
+			input: &streamtypes.ExpiredIteratorException{
+				Message: aws.String("expired iterator"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "LimitExceededException -> ConnectionProblem",
+			input: &streamtypes.LimitExceededException{
+				Message: aws.String("limit exceeded"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "TrimmedDataAccessException -> ConnectionProblem",
+			input: &streamtypes.TrimmedDataAccessException{
+				Message: aws.String("trimmed access"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "ObjectNotFoundException -> NotFound",
+			input: &autoscalingtypes.ObjectNotFoundException{
+				Message: aws.String("object not found"),
+			},
+			checkFunc: trace.IsNotFound,
+		},
+		{
+			name:  "unknown error passthrough",
+			input: errors.New("random error"),
+			checkFunc: func(err error) bool {
+				return err.Error() == "random error"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.True(t, tt.checkFunc(convertError(tt.input)))
+		})
+	}
 }

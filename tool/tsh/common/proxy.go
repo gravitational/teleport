@@ -515,7 +515,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	appName := cf.AppName
 	if portMapping.TargetPort != 0 {
-		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
+		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
 	}
 	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
@@ -596,7 +596,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     cf.Format,
 		"randomPort": cf.LocalProxyPort == "",
@@ -891,7 +891,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s.",
+		"%s Or specify a service format, one of: %s",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -1005,7 +1005,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

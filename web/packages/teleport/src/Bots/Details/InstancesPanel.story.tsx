@@ -18,7 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { action } from 'storybook/internal/actions';
+import { action } from 'storybook/actions';
 import styled from 'styled-components';
 
 import { CardTile } from 'design/CardTile/CardTile';

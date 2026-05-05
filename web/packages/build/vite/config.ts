@@ -21,13 +21,12 @@ import { resolve } from 'path';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type UserConfig } from 'vite';
-import compression from 'vite-plugin-compression';
+import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
-import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
@@ -65,11 +64,33 @@ export function createViteConfig(
         host: '0.0.0.0',
         port: 3000,
       },
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
-        rollupOptions: {
+        reportCompressedSize: false,
+        rolldownOptions: {
+          checks: {
+            // We don't really need rolldown to complain about react/assets/wasm taking a "long"
+            // time - the entire build takes ~7s with compression, which is plenty fast.
+            pluginTimings: false,
+          },
+          onLog(level, log, defaultHandler) {
+            // Suppress direct eval warning from @protobufjs/inquire.
+            // The eval is intentional (to call require without bundler detection) and patching
+            // it to indirect eval would break Electron's module-scoped require.
+            if (
+              log.code === 'EVAL' &&
+              log.id?.includes('@protobufjs/inquire')
+            ) {
+              return;
+            }
+
+            defaultHandler(level, log);
+          },
           output: {
             // removes hashing from our entry point file.
             entryFileNames: ENTRY_FILE_NAME,
@@ -83,11 +104,11 @@ export function createViteConfig(
       },
       plugins: [
         reactPlugin(mode),
-        tsconfigPathsPlugin(),
         transformPlugin(),
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
@@ -103,11 +124,11 @@ export function createViteConfig(
       if (!process.env.VITE_DISABLE_COMPRESSION) {
         config.plugins.push(
           compression({
-            algorithm: 'brotliCompress',
-            deleteOriginFile: true,
-            filter: /\.(js|svg|wasm)$/,
+            algorithms: ['brotliCompress'],
+            deleteOriginalAssets: true,
+            include: /\.(js|svg|wasm)$/,
             threshold: 1024 * 10, // 10KB
-            verbose: false,
+            logLevel: 'silent',
           })
         );
       }
@@ -135,6 +156,13 @@ export function createViteConfig(
           },
         // /webapi/sites/:site/kube/exec
         [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        // /webapi/sites/:site/db/exec - database interactive sessions
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/db\\/exec`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,

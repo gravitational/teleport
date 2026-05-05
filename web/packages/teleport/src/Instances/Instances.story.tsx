@@ -58,7 +58,12 @@ export const Loaded: Story = {
 export const CacheInitializing: Story = {
   parameters: {
     msw: {
-      handlers: [listInstancesError(503, 'inventory cache is not yet healthy')],
+      handlers: [
+        listInstancesError(
+          503,
+          'inventory cache is not yet healthy, please try again in a few minutes'
+        ),
+      ],
     },
   },
 };

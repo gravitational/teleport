@@ -37,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -50,6 +49,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -158,7 +158,7 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}, nil
 }
 
-func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]events.EventFields, string, error) {
+func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
 		"audit/SearchEvents",
@@ -249,14 +249,14 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 		}
 	}
 
-	evts := q.streamEventsFromChunk(ctx, date, req.Chunk)
+	events := q.streamEventsFromChunk(ctx, date, req.Chunk)
 
-	evts = stream.Skip(evts, int(cursor.pos))
+	events = stream.Skip(events, int(cursor.pos))
 
-	return stream.FilterMap(evts, func(e eventParquet) (*auditlogpb.ExportEventUnstructured, bool) {
+	return stream.FilterMap(events, func(e eventParquet) (*auditlogpb.ExportEventUnstructured, bool) {
 		cursor.pos++
-		var fields events.EventFields
-		if err := utils.FastUnmarshal([]byte(e.EventData), &fields); err != nil {
+		event, err := auditEventFromParquet(e)
+		if err != nil {
 			q.logger.WarnContext(ctx, "skipping export of audit event due to failed decoding",
 				"error", err,
 				"date", date,
@@ -266,7 +266,7 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 			return nil, false
 		}
 
-		unstructuredEvent, err := events.EventFieldsToUnstructured(fields)
+		unstructuredEvent, err := apievents.ToUnstructured(event)
 		if err != nil {
 			q.logger.WarnContext(ctx, "skipping export of audit event due to failed conversion to unstructured event",
 				"error", err,
@@ -474,8 +474,8 @@ func (q *querier) canOptimizePaginatedSearchCosts(ctx context.Context, startKey 
 // - 4. (2023-04-01 12:00, 2023-05-01 12:00) - 24*30h increase
 // - 5. (2023-04-01 12:00, 2023-08-01 12:00) - original range.
 // If any of steps returns enough data based on limit, we return immediately.
-func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEventsRequest) ([]events.EventFields, string, error) {
-	var events []events.EventFields
+func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	var events []apievents.AuditEvent
 	var err error
 	var keyset string
 
@@ -545,7 +545,7 @@ func prepareTimeRangesForCostOptimizedSearch(from, to time.Time, order types.Eve
 	return out
 }
 
-func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]events.EventFields, string, error) {
+func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
 		"audit/SearchSessionEvents",
@@ -616,7 +616,7 @@ type searchEventsRequest struct {
 	sessionID      string
 }
 
-func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]events.EventFields, string, error) {
+func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	limit := req.limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -838,7 +838,7 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 // fetchResults returns query results for given queryID.
 // Athena API allows only fetch 1000 results, so if client asks for more, multiple
 // calls to GetQueryResults will be necessary.
-func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]events.EventFields, string, error) {
+func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
 		"athena/fetchResults",
@@ -902,7 +902,7 @@ func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, c
 }
 
 type responseBuilder struct {
-	output []events.EventFields
+	output []apievents.AuditEvent
 	// totalSize is used to track size of output
 	totalSize int
 
@@ -921,10 +921,10 @@ func (r *responseBuilder) endKeyset() (*keyset, error) {
 	return endKeyset, trace.Wrap(err)
 }
 
-func eventToKeyset(in events.EventFields) (*keyset, error) {
+func eventToKeyset(in apievents.AuditEvent) (*keyset, error) {
 	var out keyset
 	var err error
-	out.t = in.GetTime(events.EventTime)
+	out.t = in.GetTime()
 	out.uid, err = uuid.Parse(in.GetID())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -955,7 +955,10 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 		if err := utils.FastUnmarshal([]byte(eventData), &fields); err != nil {
 			return false, trace.Wrap(err, "failed to unmarshal event, %s", eventData)
 		}
-
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
 		// TODO(tobiaszheller): encode filter as query params and remove it in next PRs.
 		if condition != nil && !condition(utils.Fields(fields)) {
 			continue
@@ -970,78 +973,42 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 				// page.
 				return true, nil
 			}
-
-			var err error
 			// A single event is larger than the max page size - the best we can
 			// do is try to trim it.
-			fields, err = trimToMaxSize(fields)
-			if err != nil {
-				return false, trace.Wrap(err, "failed to trim event")
-			}
+			event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
 
+			// Check to make sure the trimmed event is small enough.
+			fields, err = events.ToEventFields(event)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
 			marshalledEvent, err := utils.FastMarshal(&fields)
 			if err != nil {
 				return false, trace.Wrap(err, "failed to marshal event, %s", eventData)
 			}
-			if len(marshalledEvent)+rb.totalSize <= events.MaxEventBytesInResponse {
-				events.MetricQueriedTrimmedEvents.Inc()
-				// Exact rb.totalSize doesn't really matter since the response is
-				// already size limited.
-				rb.totalSize += events.MaxEventBytesInResponse
-				rb.output = append(rb.output, fields)
-				return true, nil
-			}
 
-			// Failed to trim the event to size. The only options are to return
-			// a response with 0 events, skip this event, or return an error.
-			//
-			// Silently skipping events is a terrible option, it's better for
-			// the client to get an error.
-			//
-			// Returning 0 events amounts to either skipping the event or
-			// getting the client stuck in a paging loop depending on what would
-			// be returned for the next page token.
-			//
-			// Returning a descriptive error should at least give the client a
-			// hint as to what has gone wrong so that an attempt can be made to
-			// fix it.
-			//
-			// If this condition is reached it should be considered a bug, any
-			// event that can possibly exceed the maximum size should implement
-			// TrimToMaxSize (until we can one day implement an API for storing
-			// and retrieving large events).
-			rb.logger.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
-				"event_type", fields.GetType(),
-				"event_id", fields.GetID(),
-				"event_size", len(eventData),
-			)
-			return true, trace.Errorf(
-				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
-				fields.GetType(), fields.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))
+			if len(marshalledEvent)+rb.totalSize > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				rb.logger.WarnContext(context.Background(), "Failed to query event exceeding maximum response size.",
+					"event_type", event.GetType(),
+					"event_id", event.GetID(),
+					"event_size", len(eventData),
+					"event_size_after_trim", len(marshalledEvent),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
+
+			// Exact rb.totalSize doesn't really matter since the response is
+			// already size limited.
+			rb.totalSize += events.MaxEventBytesInResponse
+			rb.output = append(rb.output, event)
+			return true, nil
 		}
 		rb.totalSize += len(eventData)
-		rb.output = append(rb.output, fields)
+		rb.output = append(rb.output, event)
 	}
 	return false, nil
-}
-
-// trimToMaxSize attempts to trim the event to fit into the maximum response size.
-// If the event is larger than the maximum response size, it will be trimmed
-// to the maximum size, which may result in loss of data.
-// Trimming requires unmarshalling the event to audit.Event and then
-// calling TrimToMaxSize on it.
-// This is not an efficient operation, but it is executed once per page,
-// so it should not be a problem in practice.
-func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
-	event, err := events.FromEventFields(fields)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
-
-	fields, err = events.ToEventFields(event)
-	return fields, trace.Wrap(err)
 }
 
 // keyset is a point at which the searchEvents pagination ended, and can be

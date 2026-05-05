@@ -162,3 +162,24 @@ func TestValidateAssumeStartTime(t *testing.T) {
 		})
 	}
 }
+
+func Test_AccessRequest_SetExpiry(t *testing.T) {
+	// Access requests expiry is a bit special. It is not handled by the backend because we
+	// need to emit audit event before they are expired and deleted from the backend.  To
+	// achieve SetExpiry method from the Metadata is overwritten (to not set Metadata.Expires)
+	// to set expiry in Spec.ResourceExpiry.
+	req, err := NewAccessRequest("test_request_1", "alice", "test_role_1")
+	require.NoError(t, err)
+
+	reqV3 := req.(*AccessRequestV3)
+
+	require.Nil(t, reqV3.Metadata.Expires)
+	require.Nil(t, reqV3.Spec.ResourceExpiry)
+
+	t1 := time.Now().UTC()
+	req.SetExpiry(t1)
+
+	require.Nil(t, reqV3.Metadata.Expires)
+	require.NotNil(t, reqV3.Spec.ResourceExpiry)
+	require.Equal(t, t1, *reqV3.Spec.ResourceExpiry)
+}

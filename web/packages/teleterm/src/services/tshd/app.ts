@@ -22,6 +22,7 @@ import {
   RouteToApp,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { AppSubKind } from 'shared/services';
 import { getAppUriScheme } from 'shared/services/apps';
 
 /** Returns a URL that opens the web app in the browser. */
@@ -62,6 +63,21 @@ export function getAwsAppLaunchUrl({
   return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${
     cluster.name
   }/${publicAddr}/${encodeURIComponent(arn)}`;
+}
+
+/** Returns a URL that opens the AWS IAM IC app in the browser. */
+export function getAwsIcLaunchUrl({
+  app,
+  roleName,
+}: {
+  app: App;
+  roleName: string;
+}) {
+  const { publicAddr, subKind } = app;
+  if (subKind !== AppSubKind.AwsIcAccount) {
+    return '';
+  }
+  return `${publicAddr}&role_name=${roleName}`;
 }
 
 /** Returns a URL that triggers IdP-initiated SSO for SAML Application. */

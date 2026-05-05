@@ -613,6 +613,14 @@ export const formatters: Formatters = {
       return `User [${user}] has connected to application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_START_FAILURE]: {
+    type: 'app.session.start',
+    desc: 'App Session Start Failed',
+    format: event => {
+      const { user, app_name, message } = event;
+      return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
+    },
+  },
   [eventCodes.APP_SESSION_END]: {
     type: 'app.session.end',
     desc: 'App Session Ended',
@@ -1211,7 +1219,7 @@ export const formatters: Formatters = {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
     format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
-      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
+      let message = `User [${user}] started session [${sid}] on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` with domain [${windows_domain}]`;
       }
@@ -1237,7 +1245,7 @@ export const formatters: Formatters = {
       if (windows_domain) {
         desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session [${sid}] for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
@@ -1461,6 +1469,20 @@ export const formatters: Formatters = {
     desc: 'SSM Command Execution Failed',
     format: ({ account_id, instance_id, region, command_id }) => {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
+    },
+  },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
     },
   },
   [eventCodes.BOT_JOIN]: {
@@ -1760,7 +1782,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return `User [${updated_by}] failed to to review access list [${access_list_title || name}]`;
+      return `User [${updated_by}] failed to review access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
@@ -2401,6 +2423,18 @@ export const formatters: Formatters = {
     format: ({ integration, resource_type, teleport_id, external_id }) =>
       `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
+  [eventCodes.SCIM_RESOURCE_PATCH]: {
+    type: 'scim.patch',
+    desc: 'SCIM Patch Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: {
+    type: 'scim.patch',
+    desc: 'SCIM Patch Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
+  },
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
@@ -2409,40 +2443,146 @@ export const formatters: Formatters = {
         ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
         : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
-  [eventCodes.APPAUTHCONFIG_CREATE]: {
-    type: 'app_auth_config.create',
-    desc: 'App Auth Config created',
-    format: ({ user, name }) => {
-      return `User [${user}] created the app auth config [${name}]`;
+  [eventCodes.VNET_CONFIG_CREATE]: {
+    type: 'vnet.config.create',
+    desc: 'VNet config created',
+    format: ({ user }) => {
+      return `User [${user}] created the VNet config`;
     },
   },
-  [eventCodes.APPAUTHCONFIG_UPDATE]: {
-    type: 'app_auth_config.update',
-    desc: 'App Auth Config updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated the app auth config [${name}]`;
+  [eventCodes.VNET_CONFIG_UPDATE]: {
+    type: 'vnet.config.update',
+    desc: 'VNet config updated',
+    format: ({ user }) => {
+      return `User [${user}] updated the VNet config`;
     },
   },
-  [eventCodes.APPAUTHCONFIG_DELETE]: {
-    type: 'app_auth_config.delete',
-    desc: 'App Auth Config deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted the app auth config [${name}]`;
+  [eventCodes.VNET_CONFIG_DELETE]: {
+    type: 'vnet.config.delete',
+    desc: 'VNet config deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted the VNet config`;
     },
   },
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
-    type: 'app_auth_config.verify.success',
-    desc: 'App authentication succeeded',
-    format: ({ user, app_name, app_auth_config }) => {
-      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
-    },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Created',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was created by [${user}]`,
   },
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
-    type: 'app_auth_config.verify.failure',
-    desc: 'App authentication failed',
-    format: ({ error, app_auth_config }) => {
-      return `App authentication using [${app_auth_config}] failed: ${error}`;
-    },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Create Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] create failed by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Updated',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Update Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] update failed by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Deleted',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Delete Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] delete failed by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_CREATE]: {
+    type: 'inference_model.create',
+    desc: 'Inference Model Created',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_UPDATE]: {
+    type: 'inference_model.update',
+    desc: 'Inference Model Updated',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_DELETE]: {
+    type: 'inference_model.delete',
+    desc: 'Inference Model Deleted',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_CREATE]: {
+    type: 'inference_secret.create',
+    desc: 'Inference Secret Created',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_UPDATE]: {
+    type: 'inference_secret.update',
+    desc: 'Inference Secret Updated',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_DELETE]: {
+    type: 'inference_secret.delete',
+    desc: 'Inference Secret Deleted',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_CREATE]: {
+    type: 'inference_policy.create',
+    desc: 'Inference Policy Created',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_UPDATE]: {
+    type: 'inference_policy.update',
+    desc: 'Inference Policy Updated',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_DELETE]: {
+    type: 'inference_policy.delete',
+    desc: 'Inference Policy Deleted',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: {
+    type: 'retrieval_model.create',
+    desc: 'Retrieval Model Created',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: {
+    type: 'retrieval_model.update',
+    desc: 'Retrieval Model Updated',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: {
+    type: 'retrieval_model.delete',
+    desc: 'Retrieval Model Deleted',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.SESSION_SUMMARIZED]: {
+    type: 'session.summarized',
+    desc: 'Session Summarized',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] was summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: {
+    type: 'session.summarized',
+    desc: 'Session Summarization Failed',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
   },
 };
 
@@ -2462,6 +2602,7 @@ export default function makeEvent(json: any): Event {
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
+    eventIndex: json.ei,
     user: json.user,
     time: new Date(json.time),
     raw: json,

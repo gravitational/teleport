@@ -433,7 +433,10 @@ func (r repeatingReader) Read(p []byte) (int, error) {
 	case <-time.After(r.interval):
 	}
 
-	end := min(len(r.s), len(p))
+	end := len(r.s)
+	if end > len(p) {
+		end = len(p)
+	}
 
 	n := copy(p, r.s[:end])
 	return n, nil

@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -124,7 +124,7 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		// capture range variable
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
@@ -306,7 +306,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		require.Fail(t, "auth already initialized")
 	}
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	auth := helpers.NewInstance(t, helpers.InstanceConfig{

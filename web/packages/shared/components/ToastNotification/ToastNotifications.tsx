@@ -52,7 +52,8 @@ const TopRightStickyContainer = styled.div`
   position: sticky;
   top: 0;
   right: 0;
-  z-index: 1;
+  // this is to make the toasts show over "drawer" dialogs, which are at z-index 1000
+  z-index: 1001;
 `;
 
 const TopRightFlexedContainer = styled.div`

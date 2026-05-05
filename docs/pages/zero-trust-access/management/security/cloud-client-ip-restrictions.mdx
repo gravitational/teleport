@@ -1,0 +1,60 @@
+---
+title: Cloud Client IP Restrictions
+description: Restrict access to your cloud cluster with a configurable allowlist.
+tags:
+ - faq
+ - platform-wide
+---
+
+**Client IP Restrictions** restrict access to your Teleport Cloud cluster, allowing traffic only from the specified network ranges (CIDR blocks).
+
+## How to enable
+This feature is only available to Teleport Cloud customers and is opt-in only. Please contact your account executive or [customer support](https://goteleport.com/support/) to enable client IP restrictions for your tenant.
+
+## Adding CIDR blocks to the IP Allowlist
+
+Log in to your Teleport Cloud account. Open the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the IP Allowlist section.
+If you do not see the IP Allowlist section, then it has yet to be enabled for your account. Please refer to [how to enable](#how-to-enable).
+
+Once you add a CIDR, it will take effect in 5-20 minutes and will terminate existing connections. Changes to the allowlist are recorded in the audit log.
+
+Managing allow rules is governed by Teleport’s existing RBAC system.
+The preset `editor` role has permissions to read and write the allowlist.
+
+You can also create custom roles granting access via the `client_ip_restriction`
+resource.
+
+```yaml
+allow:
+  - resources: [ client_ip_restriction ]
+    verbs:
+      # list is required to view the allowlist
+      - list
+      # create and update are required to modify the allowlist
+      - create
+      - update
+```
+
+## Limitations
+
+### Misconfiguration
+Misconfiguration can block all access to your cluster. Make sure to include your current network before saving changes. 
+
+### Third-party service ranges
+Teleport does not auto-add third-party service ranges. You must add allow rules for any third party service that needs to access your Teleport cluster (CI/CD systems, Identity Providers, etc.)
+
+### Network security
+The allowlist applies to Teleport Cloud access; it does not replace your organization’s network/firewall policies.
+
+### Sync time
+The Client IP Restriction allowlist may take up to 20 minutes before it is fully synced. 
+
+## FAQ
+
+### How many CIDRs can you configure?
+
+By default, up to 256 CIDR blocks can be configured. Please contact your account executive or customer support to increase the limit. 
+
+### Do you support a denylist?
+
+Teleport Cloud client IP restrictions do not currently support a denylist. 

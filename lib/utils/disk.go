@@ -70,7 +70,7 @@ func CanUserWriteTo(path string) (bool, error) {
 	var fileInfo os.FileInfo
 	var err error
 
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		fileInfo, err = os.Stat(path)
 		if err == nil {
 			break

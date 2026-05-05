@@ -37,7 +37,8 @@ import (
 
 func TestErrorCounter(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testError := errors.New("test error")
 	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
@@ -284,6 +285,7 @@ func TestErrorCounter(t *testing.T) {
 			}},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			alertService := newFakeAlertService()
@@ -311,7 +313,6 @@ func TestErrorCounter(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type testPack struct {
@@ -388,18 +389,18 @@ func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID
 	return "", h.err
 }
 
-func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }

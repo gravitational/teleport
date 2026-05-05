@@ -121,7 +121,7 @@ func TestListAppSessions(t *testing.T) {
 	// Create 3 pages worth of sessions. One full
 	// page per user and one partial page with 5
 	// sessions per user.
-	for range maxSessionPageSize + 5 {
+	for i := 0; i < maxSessionPageSize+5; i++ {
 		for _, user := range users {
 			session, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
 				User:    user,
@@ -271,8 +271,6 @@ func TestWebTokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	newToken := func(name, user string) types.WebToken {
-
-		// types.NewWebToken
 		expires := clock.Now().Add(time.Hour)
 		token, err := types.NewWebToken(expires, types.WebTokenSpecV3{
 			Token: name,

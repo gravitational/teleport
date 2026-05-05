@@ -248,6 +248,28 @@ type Application interface {
 
 var _ Application = types.Application(nil)
 
+// DatabaseServer is a read only variant of [types.DatabaseServer]
+type DatabaseServer struct {
+	inner types.DatabaseServer
+}
+
+// GetDatabaseName returns the name of the database this server is proxying.
+func (d DatabaseServer) GetDatabaseName() string {
+	if d.inner == nil {
+		return ""
+	}
+	db := d.inner.GetDatabase()
+	if db == nil {
+		return ""
+	}
+	return db.GetName()
+}
+
+// NewDatabaseServer returns a new read-only DatabaseServer.
+func NewDatabaseServer(server types.DatabaseServer) DatabaseServer {
+	return DatabaseServer{inner: server}
+}
+
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {
 	// ResourceWithLabels provides common resource methods.
@@ -492,3 +514,40 @@ type DynamicWindowsDesktop interface {
 }
 
 var _ DynamicWindowsDesktop = types.DynamicWindowsDesktop(nil)
+
+// CertAuthority represents a teleport certificate authority.
+type CertAuthority interface {
+	// ResourceWithSecrets sets common resource properties
+	types.ResourceWithSecrets
+	// GetID returns certificate authority ID -
+	// combined type and name
+	GetID() types.CertAuthID
+	// GetType returns user or host certificate authority
+	GetType() types.CertAuthType
+	// GetClusterName returns cluster name this cert authority
+	// is associated with
+	GetClusterName() string
+
+	GetActiveKeys() types.CAKeySet
+	GetAdditionalTrustedKeys() types.CAKeySet
+
+	GetTrustedSSHKeyPairs() []*types.SSHKeyPair
+	GetTrustedTLSKeyPairs() []*types.TLSKeyPair
+	GetTrustedJWTKeyPairs() []*types.JWTKeyPair
+
+	// CombinedMapping is used to specify combined mapping from legacy property Roles
+	// and new property RoleMap
+	CombinedMapping() types.RoleMap
+	// GetRoleMap returns role map property
+	GetRoleMap() types.RoleMap
+	// GetRoles returns a list of roles assumed by users signed by this CA
+	GetRoles() []string
+	// String returns human readable version of the CertAuthority
+	String() string
+	// GetRotation returns rotation state.
+	GetRotation() types.Rotation
+	// AllKeyTypes returns the set of all different key types in the CA.
+	AllKeyTypes() []string
+	// Clone returns a copy of the cert authority object.
+	Clone() types.CertAuthority
+}

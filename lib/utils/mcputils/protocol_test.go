@@ -143,8 +143,8 @@ func TestJSONRPCResponse(t *testing.T) {
 			Description: "Get current weather information for a location",
 			InputSchema: mcp.ToolInputSchema{
 				Type: "object",
-				Properties: map[string]any{
-					"location": map[string]any{
+				Properties: map[string]interface{}{
+					"location": map[string]interface{}{
 						"type":        "string",
 						"description": "City name or zip code",
 					},
@@ -153,4 +153,27 @@ func TestJSONRPCResponse(t *testing.T) {
 			},
 		}},
 	}, toolList)
+}
+
+func TestUnmarshalJSONRPCMessage_caseSensitive(t *testing.T) {
+	input := []byte(`
+{ "jsonrpc": "2.0",
+  "id": "good-id",
+  "iD": "bad-id",
+  "method": "tools/call",
+  "params": { "name": "good-name" },
+  "Params": { "name": "bad-name" }
+}`)
+	// Test that json.Unmarshal automatically uses case-sensitive unmarshaling
+	// via the custom UnmarshalJSON method.
+	var output BaseJSONRPCMessage
+	require.NoError(t, json.Unmarshal(input, &output))
+	require.Equal(t, BaseJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      mcp.NewRequestId("good-id"),
+		Method:  "tools/call",
+		Params: map[string]interface{}{
+			"name": "good-name",
+		},
+	}, output)
 }

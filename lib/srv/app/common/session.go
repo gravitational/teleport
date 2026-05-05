@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -62,4 +63,9 @@ func GetSessionContext(r *http.Request) (*SessionContext, error) {
 const (
 	// contextSessionKey is the context key for the session context.
 	contextSessionKey contextKey = "app-session-context"
+
+	// MaxSessionChunkDuration defines the maximum duration of a session chunk.
+	// A session chunk groups requests within this period into a single
+	// recording.
+	MaxSessionChunkDuration = 5 * time.Minute
 )

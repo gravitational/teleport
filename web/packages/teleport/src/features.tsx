@@ -19,6 +19,7 @@
 import {
   AddCircle,
   Bots as BotsIcon,
+  CheckCircleDotted,
   CirclePlay,
   ClipboardUser,
   Cluster,
@@ -42,6 +43,7 @@ import {
 
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
+import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -65,6 +67,7 @@ import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
+import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
@@ -643,6 +646,43 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   }
 }
 
+export class FeatureManagedUpdates implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  route = {
+    title: 'Managed Updates',
+    path: cfg.routes.managedUpdates,
+    exact: true,
+    component: ManagedUpdates,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    const canViewPage =
+      flags.readAutoUpdateConfig ||
+      flags.readAutoUpdateVersion ||
+      flags.readAutoUpdateAgentRollout;
+
+    if (shouldHideFromNavigation(cfg)) {
+      return canViewPage;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.ManagedUpdates,
+    icon: CheckCircleDotted,
+    exact: true,
+    getLink() {
+      return cfg.getManagedUpdatesRoute();
+    },
+    searchableTags: ['managed updates', 'updates', 'rollout', 'agents'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -779,7 +819,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.IdentityGovernance;
+  category = NavigationCategory.ZeroTrustAccess;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -812,6 +852,20 @@ class FeatureIntegrationStatus implements TeleportFeature {
     title: 'Integration Status',
     path: cfg.routes.integrationStatus,
     component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
+export class FeatureIntegrationOverview implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Overview',
+    path: cfg.routes.integrationOverview,
+    component: IaCIntegrationOverview,
   };
 
   hasAccess() {
@@ -899,17 +953,19 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
+    new FeatureIntegrationOverview(),
 
     // - Identity
     new AccessRequests(),
     new FeatureLocks(),
     new FeatureNewLock(),
-    new FeatureDeviceTrust(),
     new FeatureWorkloadIdentity(),
 
     // - Audit

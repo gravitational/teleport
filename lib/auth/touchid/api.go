@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -319,7 +318,7 @@ func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, er
 	attObj, err := cbor.Marshal(protocol.AttestationObject{
 		RawAuthData: attData.rawAuthData,
 		Format:      "packed",
-		AttStatement: map[string]any{
+		AttStatement: map[string]interface{}{
 			"alg": int64(webauthncose.AlgES256),
 			"sig": sig,
 		},
@@ -588,8 +587,10 @@ func pickCredential(
 	// Is choice a pointer within the slice?
 	// We could work around this requirement, but it seems better to constrain the
 	// picker API from the start.
-	if slices.Contains(deduped, choice) {
-		return choice, nil
+	for _, c := range deduped {
+		if c == choice {
+			return choice, nil
+		}
 	}
 	return nil, fmt.Errorf("picker returned invalid credential: %#v", choice)
 }

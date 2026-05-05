@@ -46,15 +46,16 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.19 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
+    [ "$(git rev-parse HEAD)" = 'a22063cd69a077cc68bb4c10e9f351f75899b194' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
+# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
@@ -68,6 +69,26 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     make && \
     make install && \
     make clean
+
+## LIBBPF #####################################################################
+
+FROM buildpack-deps:22.04 AS libbpf
+
+# Install required dependencies
+RUN apt-get update -y --fix-missing && \
+    apt-get -q -y upgrade && \
+    apt-get install -q -y --no-install-recommends \
+        libelf-dev
+
+ARG LIBBPF_VERSION
+# BUILD_STATIC_ONLY - builds only static libraries without shared ones
+# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
+# DESTDIR - where to install the library
+# V=1 - verbose build
+RUN mkdir -p /opt && cd /opt &&  \
+    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers
 
 ## BUILDBOX ###################################################################
 #
@@ -122,7 +143,6 @@ RUN apt-get -y update && \
         gnupg \
         gzip \
         jq \
-        libbpf-dev \
         libc6-dev \
         libelf-dev \
         libpam-dev \
@@ -258,6 +278,7 @@ RUN scversion='v0.10.0' && \
     shellcheck --version
 
 # Install helm.
+# Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -312,6 +333,10 @@ RUN VERSION="$GOLANGCI_LINT_VERSION"; \
 ARG BUF_VERSION # eg, "v1.26.1"
 RUN VERSION="$BUF_VERSION"; \
     go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
+
+# Copy BPF libraries.
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.

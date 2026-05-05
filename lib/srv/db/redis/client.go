@@ -318,7 +318,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 			return trace.BadParameter("wrong number of arguments for 'mget' command")
 		}
 
-		var resultsKeys []any
+		var resultsKeys []interface{}
 
 		keys := cmd.Args()[1:]
 		for _, key := range keys {

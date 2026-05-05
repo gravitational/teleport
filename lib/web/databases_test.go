@@ -96,7 +96,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -108,7 +108,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -120,7 +120,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -137,7 +137,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -154,7 +154,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:     "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -171,7 +171,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -188,7 +188,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					Subnets:    []string{"subnet-123", "subnet-321"},
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -242,7 +242,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr(""),
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -252,7 +252,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr("ca_cert"),
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -303,7 +303,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 
 	// Add database servers for above databases.
 	for _, db := range []*types.DatabaseV3{redshift, elasticache, selfHosted} {
-		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
+		_, err = env.server.Auth().UpsertDatabaseServer(t.Context(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
 
@@ -345,7 +345,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.inputDatabaseName, func(t *testing.T) {
-			resp, err := pack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", test.inputDatabaseName, "iam", "policy"), nil)
+			resp, err := pack.clt.Get(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", test.inputDatabaseName, "iam", "policy"), nil)
 			test.verifyResponse(t, resp, err)
 		})
 	}
@@ -637,7 +637,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			}
 			return nil
 		},
-		trustXForwardedFor: true,
+		middleware: NewXForwardedForMiddleware,
 	})
 	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
 

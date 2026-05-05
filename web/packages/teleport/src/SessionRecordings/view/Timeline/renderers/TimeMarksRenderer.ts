@@ -18,8 +18,6 @@
 
 import type { DefaultTheme } from 'styled-components';
 
-import type { SessionRecordingMetadata } from 'teleport/services/recordings';
-
 import { CANVAS_FONT, LEFT_PADDING } from '../constants';
 import {
   TimelineCanvasRenderer,
@@ -49,10 +47,11 @@ export class TimeMarkersRenderer extends TimelineCanvasRenderer {
   constructor(
     ctx: CanvasRenderingContext2D,
     theme: DefaultTheme,
-    metadata: SessionRecordingMetadata
+    duration: number,
+    startTime: number
   ) {
-    super(ctx, theme, metadata.duration);
-    this.startTime = metadata.startTime;
+    super(ctx, theme, duration);
+    this.startTime = startTime;
   }
 
   _render({ containerWidth, offset }: TimelineRenderContext) {
@@ -218,5 +217,7 @@ function formatAbsoluteTime(timestamp: number) {
   return date
     .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     .replace(' AM', 'am')
-    .replace(' PM', 'pm');
+    .replace(' a.m.', 'am')
+    .replace(' PM', 'pm')
+    .replace(' p.m.', 'pm');
 }

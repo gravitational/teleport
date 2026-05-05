@@ -230,7 +230,7 @@ func (a *AppV3) GetLabel(key string) (value string, ok bool) {
 
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
-	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
+	return CombineLabels(nil, a.Metadata.Labels, a.Spec.DynamicLabels)
 }
 
 // GetDescription returns the app description.
@@ -276,6 +276,7 @@ func (a *AppV3) IsAWSConsole() bool {
 		constants.AWSConsoleURL,
 		constants.AWSUSGovConsoleURL,
 		constants.AWSCNConsoleURL,
+		constants.AWSQuickSightURL,
 	} {
 		if strings.HasPrefix(a.Spec.URI, consoleURL) {
 			return true

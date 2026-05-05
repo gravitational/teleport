@@ -49,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 const (
@@ -236,7 +236,9 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 		}
 	}
 	// pass environment variables set by client
-	maps.Copy(envs, ns.env)
+	for key, val := range ns.env {
+		envs[key] = val
+	}
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
 		log.WarnContext(ctx, "Failed to set environment variables", "error", err)

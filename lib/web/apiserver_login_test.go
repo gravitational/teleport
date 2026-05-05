@@ -525,6 +525,7 @@ func TestAuthenticate_rateLimiting(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -533,7 +534,7 @@ func TestAuthenticate_rateLimiting(t *testing.T) {
 			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
 			require.NoError(t, err)
 
-			for range test.burst {
+			for i := 0; i < test.burst; i++ {
 				err := test.fn(clt)
 				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-LimitExceeded", err)
 			}

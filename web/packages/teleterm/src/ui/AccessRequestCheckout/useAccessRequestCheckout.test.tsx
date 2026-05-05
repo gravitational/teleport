@@ -268,6 +268,7 @@ test('after creating an access request, pending requests and specifiable fields 
     ],
     roles: ['apple', 'banana'],
     suggestedReviewers: ['bob'],
+    resourceAccessIds: [],
   });
   expect(result.current.requestedCount).toBe(2);
 
@@ -305,6 +306,7 @@ test('after creating an access request, pending requests and specifiable fields 
     // These fields gotten cleared after the first create.
     roles: [],
     suggestedReviewers: [],
+    resourceAccessIds: [],
   });
 });
 

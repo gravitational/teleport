@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
@@ -141,8 +142,8 @@ func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
 			},
 			Data: b,
 		}
-		if printEvent.Size() > MaxProtoMessageSizeBytes {
-			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+		if printEvent.Size() > constants.MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - constants.MaxProtoMessageSizeBytes
 			printEvent.Data = b[:extraBytes]
 			printEvent.Bytes = int64(len(printEvent.Data))
 			b = b[extraBytes:]
@@ -547,7 +548,7 @@ func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	}
 	var resumedStream apievents.Stream
 	start := time.Now()
-	for i := range FastAttempts {
+	for i := 0; i < FastAttempts; i++ {
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the
@@ -605,7 +606,7 @@ func (a *SessionWriter) updateStatus(status apievents.StreamStatus) {
 		return
 	}
 	lastIndex := -1
-	for i := range a.buffer {
+	for i := 0; i < len(a.buffer); i++ {
 		if status.LastEventIndex < a.buffer[i].GetAuditEvent().GetIndex() {
 			break
 		}

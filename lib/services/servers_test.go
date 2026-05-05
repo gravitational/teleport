@@ -45,9 +45,10 @@ func TestServersCompare(t *testing.T) {
 				Labels:    map[string]string{"a": "b"},
 			},
 			Spec: types.ServerSpecV2{
-				Addr:      "localhost:3022",
-				CmdLabels: map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-l"}}},
-				Version:   "4.0.0",
+				Addr:            "localhost:3022",
+				CmdLabels:       map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-l"}}},
+				ImmutableLabels: map[string]string{"c": "d"},
+				Version:         "4.0.0",
 			},
 		}
 		node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
@@ -67,6 +68,11 @@ func TestServersCompare(t *testing.T) {
 		// Command labels are different
 		node2 = *node
 		node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-lR"}}}
+		require.Equal(t, Different, CompareServers(node, &node2))
+
+		// Immutable labels are different
+		node2 = *node
+		node2.Spec.ImmutableLabels = map[string]string{"c": "f"}
 		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// Address has changed

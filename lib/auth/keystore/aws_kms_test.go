@@ -111,7 +111,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				awsSTSClient: &fakeAWSSTSClient{
 					account: "123456789012",
 				},
-				Clock: clock,
+				clockworkOverride: clock,
 			}
 			keyStore, err := NewManager(ctx, &cfg, opts)
 			require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			}
 
 			totalKeys := pageSize * 3
-			for range totalKeys {
+			for i := 0; i < totalKeys; i++ {
 				_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 				require.NoError(t, err, trace.DebugReport(err))
 			}
@@ -222,7 +222,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "111111111111",
 		},
-		Clock: clock,
+		clockworkOverride: clock,
 	}
 	manager, err := NewManager(ctx, cfg, opts)
 	require.NoError(t, err)
@@ -282,7 +282,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
-		Clock: clock,
+		clockworkOverride: clock,
 	}
 
 	for _, tc := range []struct {
@@ -865,7 +865,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 				awsSTSClient: &fakeAWSSTSClient{
 					account: testAccount,
 				},
-				Clock: clock,
+				clockworkOverride: clock,
 			}
 
 			existingPrimary := tc.existingPrimary

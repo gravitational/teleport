@@ -76,7 +76,8 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 		types.SPIFFECA,
 		types.OktaCA,
 		types.AWSRACA,
-		types.BoundKeypairCA:
+		types.BoundKeypairCA,
+		types.WindowsCA:
 		// OK, known CA type.
 	default:
 		return nil, trace.BadParameter("cannot generate new key set for unknown CA type %q", config.Type)
@@ -153,7 +154,14 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 
 	// Add TLS keys if necessary.
 	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA,
+		types.HostCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.SAMLIDPCA,
+		types.SPIFFECA,
+		types.AWSRACA,
+		types.WindowsCA:
 		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 			Signer: key.Signer,
 			Entity: pkix.Name{
@@ -187,7 +195,7 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 
 	// Sanity check that the CA has at least one active key.
 	aks := ca.Spec.ActiveKeys
-	if len(aks.SSH) == 0 && len(aks.TLS) == 0 && len(aks.JWT) == 0 {
+	if aks.Empty() {
 		return nil, trace.BadParameter("no keys generated for CA type %q", config.Type)
 	}
 

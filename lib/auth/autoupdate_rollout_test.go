@@ -42,6 +42,7 @@ import (
 )
 
 func TestSampleAgentsFromGroup(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -146,6 +147,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 }
 
 func TestLookupAgentInInventory(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -227,6 +229,7 @@ func (f *fakeHandle) Hello() *proto.UpstreamInventoryHello {
 }
 
 func TestHandlerSampler(t *testing.T) {
+	t.Parallel()
 	filterOK := func(handle inventory.UpstreamHandle) bool {
 		return true
 	}
@@ -237,9 +240,7 @@ func TestHandlerSampler(t *testing.T) {
 	generateHandles := func(i int) iter.Seq[inventory.UpstreamHandle] {
 		return func(yield func(inventory.UpstreamHandle) bool) {
 			for j := range i {
-				if !yield(&fakeHandle{id: j}) {
-					return
-				}
+				yield(&fakeHandle{id: j})
 			}
 		}
 	}

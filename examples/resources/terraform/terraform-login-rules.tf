@@ -30,7 +30,7 @@ resource "teleport_login_rule" "terraform-test-map-rule" {
   # The rule with the lowest priority will be evaluated first.
   priority = 0
 
-  # traits_map holds a map of all desired trait keys to list ofexpressions to
+  # traits_map holds a map of all desired trait keys to list of expressions to
   # determine the trait values.
   traits_map = {
 

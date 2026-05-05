@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/model"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -193,13 +192,22 @@ func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, 
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	parser := expfmt.NewTextParser(model.UTF8Validation)
+	var parser expfmt.TextParser
 	metrics, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return metrics, nil
+}
+
+// GetRawMetrics returns unprocessed prometheus metrics from the /metrics endpoint.
+func (c *Client) GetRawMetrics(ctx context.Context) (io.ReadCloser, error) {
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Body, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {

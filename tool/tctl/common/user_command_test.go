@@ -109,7 +109,7 @@ func TestUserAdd(t *testing.T) {
 			name:                "nonexistent roles",
 			dontAddDefaultRoles: true,
 			args:                []string{"--roles", "editor,access,fake"},
-			errorChecker: func(t require.TestingT, err error, i ...any) {
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), err)
 			},
 		},
@@ -187,7 +187,7 @@ func TestUserAdd(t *testing.T) {
 		{
 			name: "invalid GCP service account are rejected",
 			args: []string{"--gcp-service-accounts", "foobar"},
-			errorChecker: func(t require.TestingT, err error, i ...any) {
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
 			},
 		},
@@ -276,7 +276,7 @@ func TestUserUpdate(t *testing.T) {
 	}{
 		{
 			name: "no args",
-			errorChecker: func(t require.TestingT, err error, i ...any) {
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), err)
 			},
 		},
@@ -288,7 +288,7 @@ func TestUserUpdate(t *testing.T) {
 		{
 			name: "nonexistent roles",
 			args: []string{"--set-roles", "editor,access,fake"},
-			errorChecker: func(t require.TestingT, err error, i ...any) {
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), err)
 			},
 		},
@@ -373,7 +373,7 @@ func TestUserUpdate(t *testing.T) {
 		{
 			name: "invalid GCP service account are rejected",
 			args: []string{"--set-gcp-service-accounts", "foobar"},
-			errorChecker: func(t require.TestingT, err error, i ...any) {
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
 			},
 		},

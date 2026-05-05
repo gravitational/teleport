@@ -42,8 +42,8 @@ accounts.
   <Admonition type="tip">
 
   While this guide focuses on `gcloud`, once you set up Google Cloud API access
-  with Teleport, you can also manage access to `gsutil` and other Google Cloud
-  CLI tools using the Teleport Application Service.
+  with Teleport, you can also manage access to other Google Cloud CLI tools
+  using the Teleport Application Service.
 
   </Admonition>
 
@@ -182,14 +182,16 @@ new one:
 <TabItem label="New Virtual Machine">
 
 Create a new virtual machine with the `teleport-google-cloud` service account
-attached:
+attached. In this example, we are using the latest machine image that supports
+Debian 12:
 
 ```code
+$ IMAGE=$(gcloud --format json compute images describe-from-family debian-12 --project debian-cloud | jq -r '.selfLink')
 $ gcloud compute instances create teleport-app-service \
    --service-account=teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
    --scopes=cloud-platform \
    --zone=<Var name="google-cloud-zone" /> \
-   --image=https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/debian-11-bullseye-v20231212
+   --image="$IMAGE"
 ```
 
 You must use the `service-account` and `scopes` flags as we list them here,
@@ -404,7 +406,7 @@ service accounts you have assigned to the user.
 Create the role:
 
 ```code
-$ tctl create -f google-cloud-cli-access
+$ tctl create -f google-cloud-cli-access.yaml
 ```
 
 (!docs/pages/includes/create-role-using-web.mdx!)
@@ -555,23 +557,10 @@ ERROR: (gcloud.compute.instances.create) Could not fetch resource:
 ERROR: exit status 1
 ```
 
-<Admonition type="tip" title="Using gsutil with tsh">
-
-You can also use the `google-cloud-cli` application you registered with Teleport
-to run `gsutil` commands via the Teleport Application Service. As with `gcloud`,
-prefix a `gsutil` command with `tsh` in order to run it:
-
-```code
-$ tsh gsutil ls
-```
-
-</Admonition>
-
 ### Use Google Cloud CLI applications without `tsh`
 
-In addition to running `gcloud` and `gsutil` commands via `tsh`, you can grant
-secure access to any CLI application that executes commands against Google
-Cloud's APIs.
+In addition to running `gcloud` commands via `tsh`, you can grant secure access
+to any CLI application that executes commands against Google Cloud's APIs.
 
 To do this, use `tsh` to start a local proxy that forwards traffic from your CLI
 application to the Teleport Application Service. The Application Service uses
@@ -637,9 +626,8 @@ ERROR: (gcloud.iam.service-accounts.create) User [myuser] does not have permissi
 
 <Admonition type="info">
 
-When you run a `gcloud` or `gsutil` command via `tsh gcloud` or `tsh gsutil`,
-`tsh` starts the local proxy in the background and uses it to execute the
-command.
+When you run a `gcloud` command via `tsh gcloud`, `tsh` starts the local proxy
+in the background and uses it to execute the command.
 
 </Admonition>
 
@@ -651,12 +639,14 @@ command.
   our documentation on [Role Access
   Requests](../../../identity-governance/access-requests/role-requests.mdx) and [Access
   Request plugins](../../../identity-governance/access-requests/plugins/plugins.mdx).
-- You can proxy any `gcloud` or `gsutil` command via Teleport. For a full
-  reference of commands, view the Google Cloud documentation for
-  [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and
-  [`gsutil`](https://cloud.google.com/storage/docs/gsutil).
+- You can proxy any `gcloud` command via Teleport. For a full reference of
+  commands, view the Google Cloud documentation for
+  [`gcloud`](https://cloud.google.com/sdk/gcloud/reference).
 - For full details on how Teleport populates the `internal` and `external`
-  traits we illustrated in the Teleport roles within this guide, see
-  the [Access Controls
-  Reference](../../../reference/access-controls/roles.mdx).
+  traits we illustrated in the Teleport roles within this guide, see the [Access
+  Controls Reference](../../../reference/access-controls/roles.mdx).
+- After following this guide, you can also secure usage of the legacy `gsutil`
+  command with Teleport. Users can execute `gsutil` commands with `tsh gsutil`.
+  For more information, see the `tsh gsutil` entry in the [CLI
+  Reference](../../../reference/cli/tsh.mdx#tsh-gsutil).
 

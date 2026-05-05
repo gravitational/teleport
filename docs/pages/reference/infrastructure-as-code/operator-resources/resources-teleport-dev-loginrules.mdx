@@ -6,10 +6,6 @@ description: Provides a comprehensive list of fields in the TeleportLoginRule re
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
-{/* Disable the outdated name check since custom resource fields occasionally
-need to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This guide is a comprehensive reference to the fields in the `TeleportLoginRule`
 resource, which you can apply after installing the Teleport Kubernetes operator.
 
@@ -31,5 +27,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |priority|integer|Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.|
 |traits_expression|string|TraitsExpression is a predicate expression which should return the desired traits for the user upon login.|
-|traits_map|object|TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.|
+|traits_map|[object](#spectraits_map)|TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.|
+
+### spec.traits_map
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 

@@ -87,7 +87,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// capture range variable
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			awsCredentials, err := test.credentials.Retrieve(ctx)
@@ -139,7 +139,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// capture range variable
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			c, err := NewCloud(CloudConfig{
@@ -232,7 +232,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// capture range variable
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			mockFederationServer := httptest.NewServer(test.federationServerHandler)

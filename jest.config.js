@@ -17,7 +17,6 @@ const esModules = [
   'internmap',
   '@nivo/bar',
   'react-error-boundary',
-  'until-async',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */

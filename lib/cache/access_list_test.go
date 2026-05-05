@@ -108,7 +108,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := range numMembers {
+	for i := 0; i < numMembers; i++ {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
@@ -287,10 +287,10 @@ func TestAccessListReviews(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
 		require.NoError(t, err)
-		require.Empty(t, next)
+		assert.Empty(t, next)
 
-		require.Len(t, out, 1)
-		require.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -299,10 +299,10 @@ func TestAccessListReviews(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
 		require.NoError(t, err)
-		require.Empty(t, next)
+		assert.Empty(t, next)
 
-		require.Len(t, out, 1)
-		require.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -315,7 +315,7 @@ func TestAccessListReviews(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		review := newAccessListReview(t, "access-list-test", "fake-review-"+strconv.Itoa(i))
 		review.Spec.Changes = accesslist.ReviewChanges{}
 		_, _, err = p.accessLists.CreateAccessListReview(t.Context(), review)
@@ -328,7 +328,7 @@ func TestAccessListReviews(t *testing.T) {
 
 		var start string
 		var out []*accesslist.Review
-		for range 10 {
+		for i := 0; i < 10; i++ {
 			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
 			require.NoError(t, err)
 
@@ -338,9 +338,93 @@ func TestAccessListReviews(t *testing.T) {
 			}
 			start = next
 		}
-		require.Len(t, out, 10)
+		assert.Len(t, out, 10)
 	}, 15*time.Second, 100*time.Millisecond)
 
+	// access-list is a prefix of access-list-test, make sure no reviews are
+	// returned from the wrong list.
+	out, _, err := p.cache.ListAccessListReviews(context.Background(), "access-list", 100, "")
+	require.NoError(t, err)
+	assert.Empty(t, out)
+}
+
+func TestGetAccessListOwners(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+
+	t.Run("owners directly from access list", func(t *testing.T) {
+		al, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "owners-test-list", clock))
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			owners, err := p.cache.GetAccessListOwners(ctx, al.GetName())
+			assert.NoError(t, err)
+
+			names := make([]string, 0, len(owners))
+			for _, o := range owners {
+				names = append(names, o.Name)
+			}
+
+			assert.ElementsMatch(t, []string{"test-user1", "test-user2"}, names)
+		}, 15*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("owners inherited from nested list", func(t *testing.T) {
+		nestedList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "nested-owner-list"},
+			accesslist.Spec{
+				Title: "nested",
+				Owners: []accesslist.Owner{
+					{Name: "nested-list-owner", MembershipKind: accesslist.MembershipKindUser},
+				},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now()},
+				Grants: accesslist.Grants{Roles: []string{"grant-role"}},
+			},
+		)
+		require.NoError(t, err)
+
+		nestedList, err = p.accessLists.UpsertAccessList(ctx, nestedList)
+		require.NoError(t, err)
+
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, nestedList.GetName(), "nested-member-1"))
+		require.NoError(t, err)
+
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, nestedList.GetName(), "nested-member-2"))
+		require.NoError(t, err)
+
+		parentList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "parent-list"},
+			accesslist.Spec{
+				Title: "parent",
+				Owners: []accesslist.Owner{
+					{Name: nestedList.GetName(), MembershipKind: accesslist.MembershipKindList},
+				},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now()},
+				Grants: accesslist.Grants{Roles: []string{"grant-role"}},
+			},
+		)
+		require.NoError(t, err)
+
+		parentList, err = p.accessLists.UpsertAccessList(ctx, parentList)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			owners, err := p.cache.GetAccessListOwners(ctx, parentList.GetName())
+			assert.NoError(t, err)
+
+			names := make([]string, 0, len(owners))
+			for _, o := range owners {
+				names = append(names, o.Name)
+			}
+
+			assert.ElementsMatch(t, []string{"nested-member-1", "nested-member-2"}, names)
+		}, 15*time.Second, 100*time.Millisecond)
+	})
 }
 
 func TestListAccessListsV2(t *testing.T) {
@@ -443,16 +527,16 @@ func TestListAccessListsV2(t *testing.T) {
 					},
 					SortBy: tc.sortBy,
 				})
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedNextKey, nextToken)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedNextKey, nextToken)
 
-				require.Len(t, results, len(tc.expectedNames))
+				assert.Len(t, results, len(tc.expectedNames))
 				actualNames := make([]string, len(results))
 				for i, al := range results {
 					actualNames[i] = al.GetName()
 				}
 
-				require.Equal(t, tc.expectedNames, actualNames)
+				assert.Equal(t, tc.expectedNames, actualNames)
 			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}

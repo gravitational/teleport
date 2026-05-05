@@ -250,6 +250,7 @@ func TestModeratedSessions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		if tt.want.sessionEndEvent {
 			numberOfExpectedSessionEnds++
 		}
@@ -669,6 +670,7 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -698,7 +700,7 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 
 			exec, err := remotecommand.NewSPDYExecutor(tt.config, http.MethodPost, req.URL())
 			require.NoError(t, err)
-			err = exec.StreamWithContext(context.TODO(), streamOpts)
+			err = exec.StreamWithContext(t.Context(), streamOpts)
 			tt.assertErr(t, err)
 		})
 	}

@@ -62,8 +62,6 @@ type HandlerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// WebPublicAddr
-	WebPublicAddr string
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
@@ -462,8 +460,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ws.GetBearerToken() != subjectValue {
-		err := trace.AccessDenied("subject session token does not match")
+	if err := checkSubjectToken(subjectValue, ws); err != nil {
 		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,

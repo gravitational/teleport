@@ -112,7 +112,7 @@ export async function listBotTokens(
     return data;
   } catch (err) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.1.0');
   }
 }
 
@@ -167,7 +167,7 @@ export async function editBot(
     return makeBot(res);
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.1.0');
   }
 }
 
@@ -282,7 +282,7 @@ export async function getBotInstanceMetrics(
     return data;
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.4.0');
   }
 }
 

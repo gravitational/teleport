@@ -39,7 +39,7 @@ func TestHeapBasics(t *testing.T) {
 	require.Equal(t, entry[int]{tick: t1, key: 1}, heap.Pop())
 	require.Equal(t, entry[int]{tick: t2, key: 2}, heap.Pop())
 
-	for i := range 100 {
+	for i := 0; i < 100; i++ {
 		ts := now.Add(time.Duration(i+1) * time.Millisecond)
 		heap.Push(entry[int]{tick: ts, key: i})
 	}
@@ -55,7 +55,7 @@ func TestHeapBasics(t *testing.T) {
 	require.Equal(t, 1, newRoot.key)
 
 	var prev *entry[int]
-	for i := range 100 {
+	for i := 0; i < 100; i++ {
 		next := heap.Pop()
 		if prev != nil {
 			require.True(t, prev.tick.Before(next.tick), "prev: %v, next: %v", prev, next)

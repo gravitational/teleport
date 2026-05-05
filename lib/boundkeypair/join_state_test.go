@@ -106,14 +106,14 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 
 	withRecovery := func(count, limit uint32) func(*JoinStateParams) {
 		return func(params *JoinStateParams) {
-			params.Token.Status.BoundKeypair.RecoveryCount = count
-			params.Token.Spec.BoundKeypair.Recovery.Limit = limit
+			params.Token.GetBoundKeypairStatus().RecoveryCount = count
+			params.Token.GetBoundKeypair().Recovery.Limit = limit
 		}
 	}
 
 	withInstanceID := func(id string) func(*JoinStateParams) {
 		return func(params *JoinStateParams) {
-			params.Token.Status.BoundKeypair.BoundBotInstanceID = id
+			params.Token.GetBoundKeypairStatus().BoundBotInstanceID = id
 		}
 	}
 
@@ -157,7 +157,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 				return "asdf"
 			},
 			verifyParams: makeParams(withRecovery(0, 1)),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "parsing serialized join state")
 			},
 		},
@@ -165,7 +165,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "invalid count",
 			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
 			verifyParams: makeParams(withRecovery(1, 1)),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "recovery counter mismatch")
 			},
 		},
@@ -173,7 +173,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "invalid instance ID",
 			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1), withInstanceID("foo"))),
 			verifyParams: makeParams(withRecovery(0, 1), withInstanceID("bar")),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "bot instance mismatch")
 			},
 		},
@@ -181,7 +181,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "untrusted signer",
 			issue:        makeIssuer(invalidSigner, makeParams(withRecovery(0, 1), withInstanceID("foo"))),
 			verifyParams: makeParams(withRecovery(0, 1), withInstanceID("bar")),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "join state could not be verified")
 			},
 		},
@@ -192,7 +192,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			clockMod: func(clock *clockwork.FakeClock) {
 				clock.Advance(-10 * time.Minute)
 			},
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "token not valid yet")
 			},
 		},
@@ -202,25 +202,28 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 				jsp.ClusterName = "invalid"
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "invalid issuer claim")
 			},
 		},
 		{
 			name: "subject must match",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				jsp.Token.Spec.BotName = "invalid"
+				ptv2, ok := jsp.Token.(*types.ProvisionTokenV2)
+				require.True(t, ok)
+
+				ptv2.Spec.BotName = "invalid"
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "invalid subject claim")
 			},
 		},
 		{
 			name: "informational parameters can be modified",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				jsp.Token.Spec.BoundKeypair.Recovery.Mode = "relaxed"
-				jsp.Token.Spec.BoundKeypair.Recovery.Limit = 123
+				jsp.Token.GetBoundKeypair().Recovery.Mode = "relaxed"
+				jsp.Token.GetBoundKeypair().Recovery.Limit = 123
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
 			assertError:  require.NoError,

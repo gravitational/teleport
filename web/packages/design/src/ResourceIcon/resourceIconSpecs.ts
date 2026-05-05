@@ -82,6 +82,7 @@ export const resourceIconSpecs = {
   awsredshift: forAllThemes(i.awsredshift),
   awssimplestorageservices3: forAllThemes(i.awssimplestorageservices3),
   awssinglesignon: forAllThemes(i.awssinglesignon),
+  awsquicksight: forAllThemes(i.awsquicksight),
   azure: forAllThemes(i.azure),
 
   bill: forAllThemes(i.bill),
@@ -283,6 +284,7 @@ export const resourceIconSpecs = {
   stripe: { dark: i.stripeDark, light: i.stripeLight },
 
   tableau: forAllThemes(i.tableau),
+  temporal: { dark: i.temporalDark, light: i.temporalLight },
   terraform: forAllThemes(i.terraform),
   torq: { dark: i.torqDark, light: i.torqLight },
   'troops.ai': { dark: i.troopsAiDark, light: i.troopsAiLight },

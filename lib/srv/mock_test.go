@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -54,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -150,15 +152,17 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	authServer, err := auth.NewServer(&auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
-		Authority:      testauthority.New(),
+		Authority:      authority,
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
-		Clock:          clock,
-	})
+	}, authtest.WithClock(clock))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, authServer.Close())
@@ -226,8 +230,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
@@ -336,7 +340,7 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 // ChildLogConfig returns a noop log configuration.
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
-		ExecLogConfig: ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,

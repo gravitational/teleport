@@ -148,7 +148,12 @@ it('having only instances permissions should show warning banner', async () => {
 });
 
 it('cache still initializing error should show correct error', async () => {
-  server.use(listInstancesError(503, 'inventory cache is not yet healthy'));
+  server.use(
+    listInstancesError(
+      503,
+      'inventory cache is not yet healthy, please try again in a few minutes'
+    )
+  );
   renderComponent();
 
   await waitFor(() => {
@@ -239,11 +244,12 @@ it('selecting a version filter should append the version predicate expression to
   await user.type(searchInput, 'name == "teleport-auth-01"{Enter}');
 
   await waitFor(() => {
-    expect(lastRequestUrl).toBeDefined();
-    const url = new URL(lastRequestUrl);
-    const query = url.searchParams.get('query');
-    expect(query).toBe('name == "teleport-auth-01"');
+    expect(lastRequestUrl).toContain('query=');
   });
+  {
+    const url = new URL(lastRequestUrl);
+    expect(url.searchParams.get('query')).toBe('name == "teleport-auth-01"');
+  }
 
   // Select a version filter
   const versionButton = screen.getByRole('button', { name: /Version/i });
@@ -257,11 +263,14 @@ it('selecting a version filter should append the version predicate expression to
 
   // Verify that the request made combines both predicates
   await waitFor(() => {
-    expect(lastRequestUrl).toBeDefined();
-    const url = new URL(lastRequestUrl);
-    const query = url.searchParams.get('query');
-    expect(query).toBe('(name == "teleport-auth-01") && (version == "18.2.4")');
+    expect(lastRequestUrl).toContain('version');
   });
+  {
+    const url = new URL(lastRequestUrl);
+    expect(url.searchParams.get('query')).toBe(
+      '(name == "teleport-auth-01") && (version == "18.2.4")'
+    );
+  }
 }, 15000);
 
 function renderComponent(options?: {

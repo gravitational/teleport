@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +57,7 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+	DefaultLeeway         = 1 * time.Minute
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -87,7 +89,19 @@ type BotConfig struct {
 	JoinURI string `yaml:"join_uri,omitempty"`
 
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
-	Oneshot            bool                   `yaml:"oneshot"`
+
+	// Leeway is a duration added to local system time when checking for expired
+	// certificates in certain cases, particularly with app and database
+	// tunnels. It can be useful to account for clock drift, or if a negative
+	// duration is provided, to simulate clock drift.
+	Leeway time.Duration `yaml:"leeway,omitempty"`
+
+	Oneshot bool `yaml:"oneshot"`
+
+	// Scoped indicates whether `tbot` should run in scoped mode. This must
+	// be set to true when `tbot` is authenticating as a scoped Bot.
+	Scoped bool `yaml:"scoped,omitempty"`
+
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
@@ -202,7 +216,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	namer := newServiceNamer()
 	for i, service := range conf.Services {
-		if err := service.CheckAndSetDefaults(); err != nil {
+		if err := service.CheckAndSetDefaults(conf.Scoped); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
@@ -259,6 +273,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		conf.CredentialLifetime.RenewalInterval = DefaultRenewInterval
 	}
 
+	if conf.Leeway == 0 {
+		conf.Leeway = DefaultLeeway
+	}
+
 	// We require the join method for `configure` and `start` but not for `init`
 	// Therefore, we need to check its valid here, but enforce its presence
 	// elsewhere.
@@ -303,7 +321,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 // ServiceConfig is an interface over the various service configurations.
 type ServiceConfig interface {
 	Type() string
-	CheckAndSetDefaults() error
+	CheckAndSetDefaults(scoped bool) error
 
 	// GetCredentialLifetime returns the service's custom certificate TTL and
 	// RenewalInterval. It's used for validation purposes; services that do not
@@ -341,6 +359,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case legacyspiffe.WorkloadAPIServiceType:
+			v := &legacyspiffe.WorkloadAPIConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case database.TunnelServiceType:
 			v := &database.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
@@ -368,6 +392,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		case k8s.ArgoCDOutputServiceType:
 			v := &k8s.ArgoCDOutputConfig{}
 			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case legacyspiffe.SVIDOutputServiceType:
+			v := &legacyspiffe.SVIDOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -576,7 +606,22 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 
 	switch version.Version {
 	case V1, "":
-		return nil, trace.BadParameter("configuration version v1 is no longer supported")
+		if !manualMigration {
+			log.WarnContext(
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration using `tbot migrate`.")
+		}
+		config := &configV1{}
+		if err := decoder.Decode(config); err != nil {
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
+		}
+		latestConfig, err := config.migrate()
+		if err != nil {
+			return nil, trace.WithUserMessage(
+				trace.Wrap(err, "migrating v1 config"),
+				"Failed to migrate. Please contact Teleport support or use https://goteleport.com/docs/reference/machine-id/configuration/ to manually migrate your configuration.",
+			)
+		}
+		return latestConfig, nil
 	case V2:
 		if manualMigration {
 			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")

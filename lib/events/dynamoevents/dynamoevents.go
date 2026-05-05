@@ -266,6 +266,15 @@ type event struct {
 	EventNamespace string
 }
 
+// toIterator marshals an event's EventKey, to be used in checkpointKey.
+func (e *event) toIterator() (string, error) {
+	b, err := json.Marshal(e.EventKey)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(b), nil
+}
+
 const (
 	// keyExpires is a key used for TTL specification
 	keyExpires = "Expires"
@@ -320,7 +329,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 			},
 		}),
 		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
+		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Events)),
 	}
 
 	if cfg.CredentialsProvider != nil {
@@ -501,7 +510,7 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 
 			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 			// provisioned capacity DynamoDB will try and maintain.
-			for i := range 2 {
+			for i := 0; i < 2; i++ {
 				if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
 					PolicyName:        aws.String(p.readPolicy),
 					PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
@@ -742,7 +751,8 @@ type checkpointKey struct {
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
-	// TODO(hugoShaka): Deprecate and remove this field.
+	// Deprecated: only here to support backwards compatibility for old checkpoints.
+	// New checkpoints set sub-page breaks via Iterator instead.
 	EventKey string `json:"event_key,omitempty"`
 }
 
@@ -773,46 +783,30 @@ type legacyCheckpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]events.EventFields, string, error) {
+func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
 	rawEvents, lastKey, err := l.searchEventsRaw(ctx, fromUTC, toUTC, namespace, limit, order, startKey, filter, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	eventArr := make([]events.EventFields, 0, len(rawEvents))
+	eventArr := make([]apievents.AuditEvent, 0, len(rawEvents))
 	for _, rawEvent := range rawEvents {
-		eventArr = append(eventArr, rawEvent.FieldsMap)
+		event, err := events.FromEventFields(rawEvent.FieldsMap)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
 	}
 
 	var toSort sort.Interface
 	switch order {
 	case types.EventOrderAscending:
-		toSort = events.ByTimeAndIndex(eventArr)
+		toSort = byTimeAndIndex(eventArr)
 	case types.EventOrderDescending:
-		toSort = sort.Reverse(events.ByTimeAndIndex(eventArr))
+		toSort = sort.Reverse(byTimeAndIndex(eventArr))
 	default:
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
@@ -829,6 +823,27 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
 }
 
+// ByTimeAndIndex sorts events by time
+// and if there are several session events with the same session by event index.
+type byTimeAndIndex []apievents.AuditEvent
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
 // eventFilterList constructs a string of the form
 // "(:eventTypeN, :eventTypeN, ...)" where N is a succession of integers
 // starting from 0. The substrings :eventTypeN are automatically generated
@@ -840,7 +855,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 // The reason that this doesn't fill in the values as literals within the list is to prevent injection attacks.
 func eventFilterList(amount int) string {
 	var eventTypes []string
-	for i := range amount {
+	for i := 0; i < amount; i++ {
 		eventTypes = append(eventTypes, fmt.Sprintf(":eventType%d", i))
 	}
 	return "(" + strings.Join(eventTypes, ", ") + ")"
@@ -921,8 +936,6 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		}
 	}
 
-	foundStart := checkpoint.EventKey == ""
-
 	var forward bool
 	switch order {
 	case types.EventOrderAscending:
@@ -947,7 +960,6 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		log:        logger,
 		totalSize:  totalSize,
 		checkpoint: &checkpoint,
-		foundStart: foundStart,
 		dates:      dates,
 		left:       left,
 		fromUTC:    fromUTC,
@@ -975,7 +987,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	}
 
 	var lastKey []byte
-	if ef.hasLeft {
+	if checkpoint.Iterator != "" {
 		lastKey, err = json.Marshal(&checkpoint)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -1081,6 +1093,7 @@ func getExprFilter(filter searchEventsFilter) *string {
 	return filterExpr
 }
 
+// Deprecated: only here to support backwards compatibility for old checkpoints using checkpointKey.EventKey.
 func getSubPageCheckpoint(e *event) (string, error) {
 	data, err := utils.FastMarshal(e)
 	if err != nil {
@@ -1108,15 +1121,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 			return nil, "", trace.Wrap(err)
 		}
 	}
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 }
 
 type searchEventsFilter struct {
@@ -1127,7 +1132,7 @@ type searchEventsFilter struct {
 }
 
 type condFilterParams struct {
-	attrValues map[string]any
+	attrValues map[string]interface{}
 	attrNames  map[string]string
 }
 
@@ -1182,7 +1187,7 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		return fmt.Sprintf("NOT (%s)", inner), nil
 	}
 
-	addAttrValue := func(in any) string {
+	addAttrValue := func(in interface{}) string {
 		for k, v := range params.attrValues {
 			if in == v {
 				return k
@@ -1493,7 +1498,10 @@ func (l *Log) deleteAllItems(ctx context.Context) error {
 	}
 
 	for len(requests) > 0 {
-		top := min(25, len(requests))
+		top := 25
+		if top > len(requests) {
+			top = len(requests)
+		}
 		chunk := requests[:top]
 		requests = requests[top:]
 
@@ -1584,9 +1592,7 @@ type eventsFetcher struct {
 	api query
 
 	totalSize  int
-	hasLeft    bool
 	checkpoint *checkpointKey
-	foundStart bool
 	dates      []string
 	left       int32
 
@@ -1598,8 +1604,11 @@ type eventsFetcher struct {
 	filter    searchEventsFilter
 }
 
-func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeftFun func() bool) ([]event, bool, error) {
-	oldIterator := l.checkpoint.Iterator
+// processQueryOutput returns events from the DynamoDB query output.
+// It stops if events.MaxEventBytesInResponse is reached, the query limit is reached, or there are no more events.
+// If events.MaxEventBytesInResponse is reached or the query limit is reached,
+// we create a new nonempty checkpoint iterator, indicating there are more events to fetch.
+func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]event, bool, error) {
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
@@ -1630,9 +1639,11 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			return nil, false, trace.Wrap(err)
 		}
 
-		// TODO(hugoShaka): Fix this. This code path has terrible performance
-		// and should be replaced by proper pagination.
-		if !l.foundStart {
+		// Support reading old checkpoints that are using checkpointKey.EventKey.
+		// This field was used to resume processing events after a sub-page break.
+		// After we begin processing from the correct event,
+		// new checkpoints will not set EventKey and use Iterator instead.
+		if l.checkpoint.EventKey != "" {
 			key, err := getSubPageCheckpoint(&e)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
@@ -1641,53 +1652,109 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			if key != l.checkpoint.EventKey {
 				continue
 			}
-			l.foundStart = true
+
+			// Found the correct event, reset the EventKey so new checkpoints don't use it.
+			l.checkpoint.EventKey = ""
 		}
-		// Because this may break on non page boundaries an additional
-		// checkpoint is needed for sub-page breaks.
-		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			key, err := getSubPageCheckpoint(&e)
+		// Stop early when the fetcher's total size exceeds the response size limit.
+		if l.totalSize+len(data) > events.MaxEventBytesInResponse {
+			// Encountered an event that would push the total page over the size limit.
+			// Return all processed events, and the next event will be picked up on the next page.
+			if len(out) > 0 {
+				if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+					return nil, false, trace.Wrap(err)
+				}
+				return out, true, nil
+			}
+
+			// A single event is larger than the max page size - the best we can
+			// do is try to trim it.
+			e.FieldsMap, err = trimToMaxSize(e.FieldsMap)
+			if err != nil {
+				return nil, false, trace.Wrap(err, "failed to trim event to max size")
+			}
+			trimmedData, err := json.Marshal(e.FieldsMap)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			l.log.DebugContext(context.Background(), "breaking up sub-page due to event size", "key", key)
-			l.checkpoint.EventKey = key
 
-			// We need to reset the iterator so we get the previous page again.
-			l.checkpoint.Iterator = oldIterator
+			if l.totalSize+len(trimmedData) > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				l.log.WarnContext(context.Background(), "Failed to trim event exceeding maximum response size.",
+					"event_type", e.FieldsMap.GetType(),
+					"event_id", e.FieldsMap.GetID(),
+					"event_size", len(data),
+					"event_size_after_trim", len(trimmedData),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
 
-			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
-			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
-			// the new iterator being empty.
-			l.hasLeft = true
+			l.totalSize += len(trimmedData)
+			out = append(out, e)
+			l.left--
 
+			// Since we reached the response size limit, simply return the event.
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+				return nil, false, trace.Wrap(err)
+			}
 			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
 		l.left--
+		// Stop early if the query limit is reached.
 		if l.left == 0 {
-			hf := false
-			if hasLeftFun != nil {
-				hf = hasLeftFun()
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+				return nil, false, trace.Wrap(err)
 			}
-			l.hasLeft = hf || l.checkpoint.Iterator != ""
-			l.checkpoint.EventKey = ""
-			l.log.DebugContext(context.Background(), "resetting checkpoint event-key due to full page", "has_left", l.hasLeft, "checkpoint", l.checkpoint)
 			return out, true, nil
 		}
 	}
 	return out, false, nil
 }
 
+// trimToMaxSize attempts to trim the event to fit into the maximum response size (MaxEventBytesInResponse).
+// If the event is larger than the maximum response size, it will be trimmed
+// to the maximum size, which may result in loss of data.
+// Trimming requires unmarshalling the event to apievents.AuditEvent and then
+// calling TrimToMaxSize on it.
+// This is not an efficient operation, but it is executed at most once per page,
+// and only when a single event exceeds the limit,
+// so it should not be a problem in practice.
+func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
+	event, err := events.FromEventFields(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	fields, err = events.ToEventFields(event)
+	return fields, trace.Wrap(err)
+}
+
+// saveCheckpointAtEvent updates the checkpoint iterator at the given event.
+// This overrides LastEvaluatedKey to resume future processing from this iterator.
+func (l *eventsFetcher) saveCheckpointAtEvent(e event) error {
+	iterator, err := e.toIterator()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	l.checkpoint.Iterator = iterator
+	l.log.DebugContext(context.Background(), "sub-page break, saving new checkpoint", "iterator", iterator)
+	return nil
+}
+
 func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string) (values []event, err error) {
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
 
 dateLoop:
-	for i, date := range l.dates {
+	for _, date := range l.dates {
 		l.checkpoint.Date = date
 
-		attributes := map[string]any{
+		attributes := map[string]interface{}{
 			":date":  date,
 			":start": l.fromUTC.Unix(),
 			":end":   l.toUTC.Unix(),
@@ -1738,29 +1805,17 @@ dateLoop:
 				"iterator", l.checkpoint.Iterator,
 			)
 
-			hasLeft := func() bool {
-				return i+1 != len(l.dates)
-			}
-			result, limitReached, err := l.processQueryOutput(out, hasLeft)
+			result, limitReached, err := l.processQueryOutput(out)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			values = append(values, result...)
+
+			// Return all currently processed events.
 			if limitReached {
-				// If we've reached the limit, we need to determine whether there are more events to fetch from the current date
-				// or if we need to move the cursor to the next date.
-				// To do this, we check if the iterator is empty and if the EventKey is empty.
-				// DynamoDB returns an empty iterator if all events from the current date have been consumed.
-				// We need to check if the EventKey is empty because it indicates that we left the page midway
-				// due to reaching the maximum response size. In this case, we need to resume the query
-				// from the same date and the request's iterator to fetch the remainder of the page.
-				// If the input iterator is empty but the EventKey is not, we need to resume the query from the same date
-				// and we shouldn't move to the next date.
-				if i < len(l.dates)-1 && l.checkpoint.Iterator == "" && l.checkpoint.EventKey == "" {
-					l.checkpoint.Date = l.dates[i+1]
-				}
 				return values, nil
 			}
+			// An empty iterator indicates that there are no more events to fetch from the current date.
 			if l.checkpoint.Iterator == "" {
 				continue dateLoop
 			}
@@ -1772,7 +1827,7 @@ dateLoop:
 func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID string, filterExpr *string) (values []event, err error) {
 	query := "SessionID = :id"
 
-	attributes := map[string]any{
+	attributes := map[string]interface{}{
 		":id": sessionID,
 	}
 	for i, eventType := range l.filter.eventTypes {
@@ -1819,13 +1874,10 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 		"iterator", l.checkpoint.Iterator,
 	)
 
-	result, limitReached, err := l.processQueryOutput(out, nil)
+	result, _, err := l.processQueryOutput(out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	values = append(values, result...)
-	if limitReached {
-		return values, nil
-	}
 	return values, nil
 }

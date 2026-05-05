@@ -36,6 +36,7 @@ export function CardsView({
   isProcessing,
   pinningSupport,
   visibleInputFields,
+  showResourcesSelectedIcon,
   resourceLabelConfig,
 }: ResourceViewProps) {
   return (
@@ -55,6 +56,7 @@ export function CardsView({
             showingStatusInfo={showingStatusInfo}
             visibleInputFields={visibleInputFields}
             resourceLabelConfig={resourceLabelConfig}
+            showResourceSelectedIcon={showResourcesSelectedIcon}
           />
         )
       )}

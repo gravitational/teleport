@@ -30,13 +30,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -88,6 +89,11 @@ type Identity struct {
 	SystemRoles []string
 	// AgentScope is the scope an identity is constrained to.
 	AgentScope string
+	// ImmutableLabelHash is the hash used to verify immutable labels against
+	// the identity.
+	ImmutableLabelHash string
+	// ImmutableLabels are the immutable labels assigned to this identity at join time.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // HasSystemRole checks if this identity encompasses the supplied system role.
@@ -125,7 +131,13 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	return libslices.ContainsAll(i.Cert.ValidPrincipals, additionalPrincipals) == nil
+	strset := set.New(i.Cert.ValidPrincipals...)
+	for _, principal := range additionalPrincipals {
+		if !strset.Contains(principal) {
+			return false
+		}
+	}
+	return true
 }
 
 // HasDNSNames returns true if TLS certificate has required DNS names or IP
@@ -306,8 +318,10 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	if slices.Contains(cert.ValidPrincipals, "") {
-		return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
 	// check permissions on certificate
@@ -334,13 +348,16 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 
 	agentScope := cert.Permissions.Extensions[teleport.CertExtensionAgentScope]
+	labelHash := cert.Permissions.Extensions[teleport.CertExtensionImmutableLabelHash]
+
 	return &Identity{
-		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
-		ClusterName: clusterName,
-		KeyBytes:    keyBytes,
-		CertBytes:   certBytes,
-		KeySigner:   certSigner,
-		Cert:        cert,
-		AgentScope:  agentScope,
+		ID:                 IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
+		ClusterName:        clusterName,
+		KeyBytes:           keyBytes,
+		CertBytes:          certBytes,
+		KeySigner:          certSigner,
+		Cert:               cert,
+		AgentScope:         agentScope,
+		ImmutableLabelHash: labelHash,
 	}, nil
 }

@@ -241,8 +241,9 @@ func TestOracleTokenValidation(t *testing.T) {
 
 func TestRegisterUsingOracleMethod(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-	p := newAuthSuite(t)
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
 	a := p.a
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
@@ -257,7 +258,7 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 		nil,
 	)
 
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)

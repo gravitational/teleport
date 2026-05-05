@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -456,10 +457,50 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
 			},
 		},
+		{
+			name: "session rejected due to pinned ip mismatch",
+			cfg: SessionControllerConfig{
+				Clock:      clock,
+				Semaphores: mockSemaphores{},
+				AccessPoint: mockAccessPoint{
+					authPreference: &types.AuthPreferenceV2{
+						Spec: types.AuthPreferenceSpecV2{
+							LockingMode: constants.LockingModeStrict,
+						},
+					},
+					clusterName: &types.ClusterNameV2{Spec: types.ClusterNameSpecV2{ClusterName: "llama"}},
+				},
+				LockEnforcer: mockLockEnforcer{},
+				Emitter:      emitter,
+				Component:    teleport.ComponentNode,
+				ServerID:     "1234",
+			},
+			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username: "alpaca",
+					PinnedIP: "1.2.3.4",
+				},
+				TeleportUser: "alpaca",
+				Login:        "alpaca",
+				AccessPermit: &decisionpb.SSHAccessPermit{
+					MaxConnections:   1,
+					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
+					Preconditions: []*decisionpb.Precondition{
+						{
+							Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
+				require.ErrorIs(t, err, authz.ErrIPPinningMismatch)
+			},
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			buildType := tt.buildType
 			if buildType == "" {

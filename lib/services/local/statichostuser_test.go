@@ -93,7 +93,7 @@ func TestGetStaticHostUser(t *testing.T) {
 		{
 			name: "object does not exist",
 			key:  "dummy",
-			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...interface{}) bool {
 				return assert.True(t, trace.IsNotFound(err), msgAndArgs...)
 			},
 		},
@@ -178,7 +178,7 @@ func TestDeleteStaticHostUser(t *testing.T) {
 		{
 			name: "object does not exist",
 			key:  "dummy",
-			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.True(t, trace.IsNotFound(err), msgAndArgs...)
 			},
 		},
@@ -214,7 +214,7 @@ func TestListStaticHostUsers(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -238,7 +238,7 @@ func TestListStaticHostUsers(t *testing.T) {
 					}
 				}
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -282,7 +282,7 @@ func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
 }
 
 func prepopulateStaticHostUsers(t *testing.T, service services.StaticHostUser, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateStaticHostUser(context.Background(), getStaticHostUser(i))
 		require.NoError(t, err)
 	}

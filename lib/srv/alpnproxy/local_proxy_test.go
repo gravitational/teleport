@@ -41,7 +41,7 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -113,6 +113,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -322,7 +323,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 	}()
 
 	var wg sync.WaitGroup
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -406,6 +407,7 @@ func TestCheckDBCerts(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tlsCert := mustGenCertSignedWithCA(t, suite.ca,
 				withIdentity(tlsca.Identity{
@@ -540,15 +542,17 @@ func TestKubeMiddleware(t *testing.T) {
 			km.HandleRequest(rw, req)
 
 			// request timed out.
-			require.Equal(t, http.StatusInternalServerError, rw.Status())
-			require.Contains(t, rw.Buffer().String(), "context canceled")
+			assert.Equal(t, http.StatusInternalServerError, rw.Status())
+			assert.Contains(t, rw.Buffer().String(), "context canceled")
 
 			// but certificate still was reissued.
 			certs, ok, err := km.GetClientCerts(req)
-			require.NoError(t, err)
-			require.True(t, ok)
-			require.Len(t, certs, 1)
-			require.Equal(t, newCert, certs[0], "certificate was not reissued")
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			if !assert.Len(t, certs, 1) {
+				return
+			}
+			assert.Equal(t, newCert, certs[0], "certificate was not reissued")
 
 		}, 15*time.Second, 100*time.Millisecond)
 	})
@@ -657,7 +661,7 @@ func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *
 	return lp
 }
 
-func requireExpiredCertErr(t require.TestingT, err error, _ ...any) {
+func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -667,7 +671,7 @@ func requireExpiredCertErr(t require.TestingT, err error, _ ...any) {
 	require.Equal(t, x509.Expired, certErr.Reason)
 }
 
-func requireCertSubjectUserErr(t require.TestingT, err error, _ ...any) {
+func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -675,7 +679,7 @@ func requireCertSubjectUserErr(t require.TestingT, err error, _ ...any) {
 	require.ErrorContains(t, err, "certificate subject is for user")
 }
 
-func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...any) {
+func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...interface{}) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -741,7 +745,11 @@ func TestGetCertsForConn(t *testing.T) {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
 			stubConnBytes: func() []byte {
-				val, err := (&pgproto3.CancelRequest{}).Encode(nil)
+				req := pgproto3.CancelRequest{
+					ProcessID: 1,
+					SecretKey: []byte{1, 2, 3, 4},
+				}
+				val, err := req.Encode(nil)
 				require.NoError(t, err, "CancelRequest.Encode failed")
 				return val
 			}(),
@@ -749,6 +757,7 @@ func TestGetCertsForConn(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
+		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.

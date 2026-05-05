@@ -23,6 +23,21 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/aws"
+)
+
+const (
+	// CloudDefaultInferenceModelName is the name of the built-in Bedrock inference
+	// model used by Teleport Cloud.
+	CloudDefaultInferenceModelName = "teleport-cloud-default"
+	// BedrockModelExpansionPlaceholder is a placeholder value for Bedrock model IDs
+	// that indicates the model ID should be expanded based on the TELEPORT_BEDROCK_MODEL
+	// environment variable.
+	BedrockModelExpansionPlaceholder = "{{env.bedrock_model_id}}"
+	// BedrockRegionExpansionPlaceholder is a placeholder value for Bedrock regions
+	// that indicates the region should be expanded based on the TELEPORT_BEDROCK_REGION
+	// environment variable.
+	BedrockRegionExpansionPlaceholder = "{{env.bedrock_region}}"
 )
 
 // NewInferenceModel creates a new InferenceModel resource with the given name
@@ -56,8 +71,6 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 		return trace.BadParameter("metadata is required")
 	case m.GetMetadata().GetName() == "":
 		return trace.BadParameter("metadata.name is required")
-	case m.GetMetadata().GetName() == "teleport-cloud-default":
-		return trace.BadParameter("metadata.name \"teleport-cloud-default\" is reserved")
 
 	case m.GetSpec() == nil:
 		return trace.BadParameter("spec is required")
@@ -71,7 +84,7 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 			// unsupported one once the object is parsed from YAML. There may be a
 			// way to do it if it was created from binary wire format, but it's not
 			// worth the effort.
-			"missing or unsupported inference provider in spec, supported providers: openai",
+			"missing or unsupported inference provider in spec, supported providers: openai, bedrock",
 		)
 	case *summarizerv1.InferenceModelSpec_Openai:
 		if p.Openai.GetOpenaiModelId() == "" {
@@ -81,12 +94,34 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 		if p.Bedrock.GetBedrockModelId() == "" {
 			return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
 		}
+
+		if containsPlaceholderInstruction(p.Bedrock.GetBedrockModelId()) &&
+			strings.ReplaceAll(p.Bedrock.GetBedrockModelId(), " ", "") != BedrockModelExpansionPlaceholder {
+			return trace.BadParameter("spec.bedrock.bedrock_model_id contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockModelExpansionPlaceholder, p.Bedrock.GetBedrockModelId())
+		}
+
 		if p.Bedrock.GetRegion() == "" {
 			return trace.BadParameter("spec.bedrock.region is required")
+		}
+
+		switch {
+		case containsPlaceholderInstruction(p.Bedrock.GetRegion()):
+			if strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
+				return trace.BadParameter("spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+			}
+		case aws.IsValidRegion(p.Bedrock.GetRegion()) != nil:
+			return trace.BadParameter("invalid spec.bedrock.region: %q", p.Bedrock.GetRegion())
 		}
 	}
 
 	return nil
+}
+
+// containsPlaceholderInstruction returns true if the given string contains
+// any placeholder instructions (e.g., "{placeholder}").
+func containsPlaceholderInstruction(s string) bool {
+	return strings.Contains(s, "{") ||
+		strings.Contains(s, "}")
 }
 
 // NewInferenceSecret creates a new InferenceSecret resource with the given name
@@ -187,6 +222,81 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 				kind, strings.Join(supportedKinds, ", "),
 			)
 		}
+	}
+
+	return nil
+}
+
+// NewRetrievalModel creates a new RetrievalModel resource with the given spec.
+// Since only one RetrievalModel can exist per cluster, a fixed name is used.
+func NewRetrievalModel(spec *summarizerv1.RetrievalModelSpec) *summarizerv1.RetrievalModel {
+	return &summarizerv1.RetrievalModel{
+		Kind:    types.KindRetrievalModel,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameRetrievalModel,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateRetrievalModel validates a RetrievalModel.
+func ValidateRetrievalModel(m *summarizerv1.RetrievalModel) error {
+	switch {
+	case m == nil:
+		return trace.BadParameter("retrieval model is nil")
+	case m.GetKind() != types.KindRetrievalModel:
+		return trace.BadParameter("kind must be %s, got %s", types.KindRetrievalModel, m.GetKind())
+	case m.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case m.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case m.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", m.GetVersion(), types.V1)
+
+	case m.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case m.GetMetadata().GetName() != types.MetaNameRetrievalModel:
+		return trace.BadParameter("metadata.name must be %q, got %q", types.MetaNameRetrievalModel, m.GetMetadata().GetName())
+
+	case m.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	provider := m.GetSpec().GetEmbeddingsProvider()
+	switch p := provider.(type) {
+	case *summarizerv1.RetrievalModelSpec_Openai:
+		if p.Openai.GetOpenaiModelId() == "" {
+			return trace.BadParameter("spec.embeddings_provider.openai.openai_model_id is required")
+		}
+		if p.Openai.GetApiKeySecretRef() == "" {
+			return trace.BadParameter("spec.embeddings_provider.openai.api_key_secret_ref is required")
+		}
+	case *summarizerv1.RetrievalModelSpec_Bedrock:
+		if p.Bedrock.GetBedrockModelId() == "" {
+			return trace.BadParameter("spec.embeddings_provider.bedrock.bedrock_model_id is required")
+		}
+		if containsPlaceholderInstruction(p.Bedrock.GetBedrockModelId()) {
+			return trace.BadParameter("spec.embeddings_provider.bedrock.bedrock_model_id does not support model expansion")
+		}
+
+		if p.Bedrock.GetRegion() == "" {
+			return trace.BadParameter("spec.embeddings_provider.bedrock.region is required")
+		}
+		switch {
+		case containsPlaceholderInstruction(p.Bedrock.GetRegion()):
+			if strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
+				return trace.BadParameter("spec.embeddings_provider.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+			}
+		case aws.IsValidRegion(p.Bedrock.GetRegion()) != nil:
+			return trace.BadParameter("invalid spec.embeddings_provider.bedrock.region: %q", p.Bedrock.GetRegion())
+		}
+	default:
+		return trace.BadParameter("invalid embeddings_provider specified")
+	}
+
+	if m.GetSpec().GetInferenceModelName() == "" {
+		return trace.BadParameter("spec.inference_model_name is required")
 	}
 
 	return nil

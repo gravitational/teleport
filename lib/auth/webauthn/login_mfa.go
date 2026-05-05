@@ -94,13 +94,6 @@ type LoginFlow struct {
 	Identity LoginIdentity
 }
 
-// BeginParams contains parameters for the Begin method.
-type BeginParams struct {
-	User                      string
-	ChallengeExtensions       *mfav1.ChallengeExtensions
-	SessionIdentifyingPayload *mfav1.SessionIdentifyingPayload
-}
-
 // Begin is the first step of the LoginFlow.
 // The CredentialAssertion created is relayed back to the client, who in turn
 // performs a user presence check and signs the challenge contained within the
@@ -110,10 +103,10 @@ type BeginParams struct {
 // Requested challenge extensions will be stored on the stored webauthn challenge
 // record. These extensions indicate additional rules/properties of the webauthn
 // challenge that can be validated in the final login step.
-func (f *LoginFlow) Begin(ctx context.Context, params BeginParams) (*wantypes.CredentialAssertion, error) {
+func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
 	// Disallow passwordless through here.
 	// lf.begin() does other challengeExtensions checks, including `nil`.
-	if params.ChallengeExtensions != nil && params.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
+	if challengeExtensions != nil && challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
 		return nil, trace.BadParameter("passwordless challenge scope is not allowed for MFA flows")
 	}
 
@@ -125,7 +118,7 @@ func (f *LoginFlow) Begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 		//  the actual challenge scope.
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.begin(ctx, params.User, params.ChallengeExtensions, params.SessionIdentifyingPayload)
+	return lf.begin(ctx, user, challengeExtensions)
 }
 
 // Finish is the second and last step of the LoginFlow.

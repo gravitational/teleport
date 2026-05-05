@@ -22,7 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon } from './Icon';
+export * from './Icon';
 
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
@@ -45,6 +45,7 @@ export { ArrowSquareOut } from './Icons/ArrowSquareOut';
 export { ArrowUp } from './Icons/ArrowUp';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
+export { BedrockLogo } from './Icons/BedrockLogo';
 export { BellRinging } from './Icons/BellRinging';
 export { BookOpenText } from './Icons/BookOpenText';
 export { Bots } from './Icons/Bots';
@@ -64,6 +65,7 @@ export { Chart } from './Icons/Chart';
 export { ChatBubble } from './Icons/ChatBubble';
 export { ChatCircleSparkle } from './Icons/ChatCircleSparkle';
 export { Check } from './Icons/Check';
+export { CheckCircleDotted } from './Icons/CheckCircleDotted';
 export { CheckThick } from './Icons/CheckThick';
 export { Checks } from './Icons/Checks';
 export { ChevronCircleDown } from './Icons/ChevronCircleDown';
@@ -104,6 +106,7 @@ export { Desktop } from './Icons/Desktop';
 export { Detective } from './Icons/Detective';
 export { DeviceMobileCamera } from './Icons/DeviceMobileCamera';
 export { Devices } from './Icons/Devices';
+export { Dot } from './Icons/Dot';
 export { Download } from './Icons/Download';
 export { Earth } from './Icons/Earth';
 export { Edit } from './Icons/Edit';
@@ -170,6 +173,7 @@ export { NewTab } from './Icons/NewTab';
 export { NoteAdded } from './Icons/NoteAdded';
 export { Notification } from './Icons/Notification';
 export { NotificationsActive } from './Icons/NotificationsActive';
+export { OpenAIBlossom } from './Icons/OpenAIBlossom';
 export { PaperPlane } from './Icons/PaperPlane';
 export { Password } from './Icons/Password';
 export { Pause } from './Icons/Pause';
@@ -202,6 +206,7 @@ export { Sliders } from './Icons/Sliders';
 export { SlidersVertical } from './Icons/SlidersVertical';
 export { SortAscending } from './Icons/SortAscending';
 export { SortDescending } from './Icons/SortDescending';
+export { Sparkle } from './Icons/Sparkle';
 export { Speed } from './Icons/Speed';
 export { Spinner } from './Icons/Spinner';
 export { SquaresFour } from './Icons/SquaresFour';
@@ -212,7 +217,9 @@ export { SyncAlt } from './Icons/SyncAlt';
 export { Table } from './Icons/Table';
 export { Tablet } from './Icons/Tablet';
 export { Tags } from './Icons/Tags';
+export { TeleportLogo } from './Icons/TeleportLogo';
 export { Terminal } from './Icons/Terminal';
+export { TerraformLogo } from './Icons/TerraformLogo';
 export { Trash } from './Icons/Trash';
 export { Twitter } from './Icons/Twitter';
 export { Unarchive } from './Icons/Unarchive';

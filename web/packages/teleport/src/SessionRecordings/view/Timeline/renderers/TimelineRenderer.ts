@@ -19,7 +19,7 @@
 import type { DefaultTheme } from 'styled-components';
 
 import type {
-  SessionRecordingMetadata,
+  SessionRecordingEvent,
   SessionRecordingThumbnail,
 } from 'teleport/services/recordings';
 
@@ -84,7 +84,9 @@ export class TimelineRenderer {
 
   constructor(
     private ctx: CanvasRenderingContext2D,
-    private metadata: SessionRecordingMetadata,
+    private duration: number,
+    private startTime: number,
+    private events: SessionRecordingEvent[],
     private frames: SessionRecordingThumbnail[],
     private theme: DefaultTheme,
     private containerWidth: number,
@@ -96,19 +98,20 @@ export class TimelineRenderer {
     this.progressLineRenderer = new ProgressLineRenderer(
       this.ctx,
       this.theme,
-      this.metadata.duration
+      this.duration
     );
 
     this.eventsRenderer = new EventsRenderer(
       this.ctx,
       this.theme,
-      this.metadata
+      this.duration,
+      this.events
     );
 
     this.framesRenderer = new FramesRenderer(
       this.ctx,
       this.theme,
-      this.metadata.duration,
+      this.duration,
       this.frames,
       this.containerHeight,
       this.eventsRenderer.getHeight()
@@ -117,7 +120,8 @@ export class TimelineRenderer {
     this.timeMarkersRenderer = new TimeMarkersRenderer(
       this.ctx,
       this.theme,
-      this.metadata
+      this.duration,
+      this.startTime
     );
 
     this.renderers = [
@@ -200,10 +204,7 @@ export class TimelineRenderer {
 
     // round the zoom time to avoid floating point precision issues
     // causing the timeline to move around the mouse when zooming in
-    return Math.max(
-      0,
-      Math.round(timeRatio * this.metadata.duration * 10) / 10
-    );
+    return Math.max(0, Math.round(timeRatio * this.duration * 10) / 10);
   }
 
   getIsUserControlled() {
@@ -328,7 +329,7 @@ export class TimelineRenderer {
   private getBaseTimelineWidth() {
     const pixelsPerMs = 0.1;
 
-    return this.metadata.duration * pixelsPerMs;
+    return this.duration * pixelsPerMs;
   }
 
   private calculateTimelineWidth() {
@@ -341,6 +342,14 @@ export class TimelineRenderer {
     for (const renderer of this.renderers) {
       renderer.setTimelineWidth(timelineWidth);
     }
+
+    // The events renderer height may have changed due to timeline width change
+    // (events may overlap less or more), so we need to update the frames renderer height
+    // accordingly.
+    this.framesRenderer.setHeight(
+      this.containerHeight,
+      this.eventsRenderer.getHeight()
+    );
   }
 
   private _render() {
@@ -441,10 +450,10 @@ export class TimelineRenderer {
           const adjustedMouseX = this.wheelAccumulation.zoomX - LEFT_PADDING;
           const absoluteMousePosition = adjustedMouseX - this.offset;
           const timeRatio = absoluteMousePosition / currentTimelineWidth;
-          const timeUnderMouse = timeRatio * this.metadata.duration;
+          const timeUnderMouse = timeRatio * this.duration;
 
           const newAbsolutePosition =
-            (timeUnderMouse / this.metadata.duration) * newTimelineWidth;
+            (timeUnderMouse / this.duration) * newTimelineWidth;
 
           const maxOffset = 0;
           const minOffset = this.containerWidth - newFilmstripWidth;

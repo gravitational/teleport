@@ -17,7 +17,6 @@
  */
 
 import 'jest-canvas-mock';
-
 import { darkTheme } from 'design/theme';
 
 import {
@@ -111,7 +110,9 @@ function createRenderer(
 
   const renderer = new TimelineRenderer(
     ctx,
-    metadata,
+    metadata.duration,
+    metadata.startTime,
+    metadata.events,
     frames,
     darkTheme,
     containerWidth,

@@ -48,6 +48,7 @@ spec:
                 additionalProperties:
                   items:
                     type: string
+                  nullable: true
                   type: array
                 description: TraitsMap is a map of trait keys to lists of predicate
                   expressions which should evaluate to the desired values for that

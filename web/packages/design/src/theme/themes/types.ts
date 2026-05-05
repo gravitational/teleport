@@ -142,6 +142,7 @@ export type ThemeColors = {
   tooltip: {
     background: string;
     inverseBackground: string;
+    inverseLinkDefault: string;
   };
 
   progressBarColor: string;
@@ -232,6 +233,12 @@ export type ThemeColors = {
         progress: string;
       };
     };
+    riskLevels: {
+      low: string;
+      medium: string;
+      high: string;
+      critical: string;
+    };
   };
 
   sessionRecordingTimeline: {
@@ -277,58 +284,7 @@ export type ThemeColors = {
   highlightedNavigationItem: string;
 
   dataVisualisation: DataVisualisationColors;
-  accessGraph: AccessGraphColors;
 } & SharedColors;
-
-interface AccessGraphColors {
-  dotsColor: string;
-  nodes: {
-    user: AccessGraphNodeColors;
-    userGroup: AccessGraphNodeColors;
-    resource: AccessGraphNodeColors;
-    resourceGroup: AccessGraphNodeColors;
-    allowedAction: AccessGraphNodeColors;
-    disallowedAction: AccessGraphNodeColors;
-    allowedRequest: AccessGraphNodeColors;
-    disallowedRequest: AccessGraphNodeColors;
-    allowedReview: AccessGraphNodeColors;
-    disallowedReview: AccessGraphNodeColors;
-    accessRequest: AccessGraphNodeColors;
-    temporaryUserGroup: AccessGraphNodeColors;
-    temporaryResourceGroup: AccessGraphNodeColors;
-    temporaryAllowedAction: AccessGraphNodeColors;
-  };
-  edges: {
-    dynamicMemberOf: AccessGraphEdgeColors;
-    memberOf: AccessGraphEdgeColors;
-    reverse: AccessGraphEdgeColors;
-    allowed: AccessGraphEdgeColors;
-    disallowed: AccessGraphEdgeColors;
-    restricted: AccessGraphEdgeColors;
-    default: AccessGraphEdgeColors;
-    requestedBy: AccessGraphEdgeColors;
-    requestedResource: AccessGraphEdgeColors;
-    requestedAction: AccessGraphEdgeColors;
-  };
-}
-
-interface AccessGraphNodeColors {
-  background: string;
-  borderColor: string;
-  typeColor: string;
-  iconBackground: string;
-  handleColor: string;
-  highlightColor: string;
-  label: {
-    background: string;
-    color: string;
-  };
-}
-
-interface AccessGraphEdgeColors {
-  color: string;
-  stroke: string;
-}
 
 export type SharedColors = {
   dark: string;

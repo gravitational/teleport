@@ -31,6 +31,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -75,6 +76,7 @@ type ServiceConfig struct {
 	Cache                         Cache
 	Backend                       Backend
 	Authorizer                    authz.Authorizer
+	ScopedAuthorizer              authz.ScopedAuthorizer
 	Emitter                       apievents.Emitter
 	AccessGraph                   AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
@@ -103,6 +105,7 @@ type Service struct {
 	cache                         Cache
 	backend                       Backend
 	authorizer                    authz.Authorizer
+	scopedAuthorizer              authz.ScopedAuthorizer
 	emitter                       apievents.Emitter
 	accessGraph                   AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
@@ -118,6 +121,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	}
@@ -136,6 +141,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cache:                         cfg.Cache,
 		backend:                       cfg.Backend,
 		authorizer:                    cfg.Authorizer,
+		scopedAuthorizer:              cfg.ScopedAuthorizer,
 		emitter:                       cfg.Emitter,
 		accessGraph:                   cfg.AccessGraph,
 		readOnlyCache:                 cfg.ReadOnlyCache,
@@ -145,12 +151,23 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetAuthPreference returns the locally cached auth preference.
 func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterAuthPreference, types.VerbRead); err != nil {
+	// Use RiskyUnpinnedDecision to allow scoped identities (regardless of their
+	// scope pin) to call GetAuthPreference.
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
+		ctx,
+		scopes.Root,
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(
+				&ruleCtx, types.KindClusterAuthPreference, types.VerbRead,
+			)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -205,7 +222,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -232,7 +249,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		Status:             eventStatus(err),
 		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
+		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
 
 	// don't handle the update error until after we emit an audit event
@@ -273,7 +290,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -300,7 +317,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		Status:             eventStatus(err),
 		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
+		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
 
 	// don't handle the update error until after we emit an audit event
@@ -336,7 +353,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		pref, err := s.cache.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -363,7 +380,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 			Status:             eventStatus(err),
 			AdminActionsMFA:    GetAdminActionsMFAStatus(pref, defaultPreference),
 		}); auditErr != nil {
-			slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
+			slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 		}
 
 		// don't handle the update error until after we emit an audit event
@@ -504,7 +521,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit cluster networking config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit cluster networking config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -569,7 +586,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit cluster networking config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit cluster networking config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -615,7 +632,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		cfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -641,7 +658,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status:             eventStatus(err),
 		}); err != nil {
-			slog.WarnContext(ctx, "Failed to emit cluster networking config update event event.", "error", err)
+			slog.WarnContext(ctx, "Failed to emit cluster networking config update event.", "error", err)
 		}
 
 		if err != nil {
@@ -791,7 +808,7 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit session recording config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit session recording config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -841,7 +858,7 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit session recording config update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit session recording config update event.", "error", err)
 	}
 
 	if err != nil {
@@ -876,7 +893,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 
 		cfg, err := s.cache.GetSessionRecordingConfig(ctx)
 		if err != nil {
@@ -903,7 +920,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status:             eventStatus(err),
 		}); err != nil {
-			slog.WarnContext(ctx, "Failed to emit session recording config update event event.", "error", err)
+			slog.WarnContext(ctx, "Failed to emit session recording config update event.", "error", err)
 		}
 
 		if err != nil {

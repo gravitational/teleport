@@ -145,6 +145,18 @@ func TestStaticTokens(t *testing.T) {
 	suite.StaticTokens(t)
 }
 
+func TestStaticScopedTokens(t *testing.T) {
+	tt := setupConfigContext(t.Context(), t)
+
+	clusterConfig, err := NewClusterConfigurationService(tt.bk)
+	require.NoError(t, err)
+
+	suite := &ServicesTestSuite{
+		LocalConfigS: clusterConfig,
+	}
+	suite.StaticScopedTokens(t)
+}
+
 func TestSessionRecording(t *testing.T) {
 	// don't allow invalid session recording values
 	_, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -201,7 +213,7 @@ audit_events_uri: 'dynamodb://audit_table_name'
 		in, err := types.NewClusterAuditConfig(tc.spec)
 		require.NoError(t, err)
 
-		var data map[string]any
+		var data map[string]interface{}
 		err = yaml.Unmarshal([]byte(tc.config), &data)
 		require.NoError(t, err)
 

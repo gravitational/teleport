@@ -36,14 +36,14 @@ type yamlParseRequest struct {
 }
 
 type yamlParseResponse struct {
-	Resource any `json:"resource"`
+	Resource interface{} `json:"resource"`
 }
 
 type yamlStringifyResponse struct {
 	YAML string `json:"yaml"`
 }
 
-func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
@@ -84,13 +84,13 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 	}
 }
 
-func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
 	}
 
-	var resource any
+	var resource interface{}
 
 	switch kind {
 	case types.KindAccessMonitoringRule:
@@ -131,7 +131,7 @@ func yamlToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.A
 		return nil, trace.Wrap(err)
 	}
 	if extractedRes.Kind != types.KindAccessMonitoringRule {
-		return nil, trace.BadParameter("resource kind %q is invalid, only acces_monitoring_rule is allowed", extractedRes.Kind)
+		return nil, trace.BadParameter("resource kind %q is invalid, only access_monitoring_rule is allowed", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalAccessMonitoringRule(extractedRes.Raw)
 	if err != nil {
@@ -149,7 +149,7 @@ func yamlToRole(yaml string) (types.Role, error) {
 	if extractedRes.Kind != types.KindRole {
 		return nil, trace.BadParameter("resource kind %q is invalid, only role is allowed", extractedRes.Kind)
 	}
-	resource, err := services.UnmarshalRole(extractedRes.Raw)
+	resource, err := services.UnmarshalRole(extractedRes.Raw, services.DisallowUnknown())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

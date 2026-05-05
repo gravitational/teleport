@@ -44,7 +44,7 @@ type Command struct {
 // Diag is always available.
 // Ls and Rm may not be available depending on binary and platform limitations.
 func NewCommand(app *kingpin.Application) *Command {
-	tid := app.Command("touchid", "Manage Touch ID credentials.").Hidden()
+	tid := app.Command("touchid", "Manage Touch ID credentials").Hidden()
 	cmd := &Command{
 		Diag: newDiagCommand(tid),
 	}
@@ -75,7 +75,7 @@ type DiagCommand struct {
 
 func newDiagCommand(app *kingpin.CmdClause) *DiagCommand {
 	return &DiagCommand{
-		CmdClause: app.Command("diag", "Run Touch ID diagnostics.").Hidden(),
+		CmdClause: app.Command("diag", "Run Touch ID diagnostics").Hidden(),
 	}
 }
 

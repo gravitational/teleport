@@ -332,10 +332,12 @@ func TestWithRsync(t *testing.T) {
 
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
-					require.NoError(t, err)
+					if !assert.NoError(t, err) {
+						return
+					}
 					w, err := pref.GetWebauthn()
-					require.NoError(t, err)
-					require.NotNil(t, w)
+					assert.NoError(t, err)
+					assert.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
@@ -529,6 +531,7 @@ func TestProxySSH(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := newTestSuite(t, tc.opts...)
@@ -723,21 +726,21 @@ func TestTSHProxyTemplate(t *testing.T) {
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
-	require.NoError(t, os.WriteFile(tshConfigFile, fmt.Appendf(nil, `
+	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
 proxy_templates:
 - template: '^(\w+)\.(root):(.+)$'
   proxy: "%v"
   host: "$1:$3"
-`, s.root.Config.Proxy.WebAddr.Addr), 0o644))
+`, s.root.Config.Proxy.WebAddr.Addr)), 0o644))
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	err = os.WriteFile(sshConfigFile, fmt.Appendf(nil, `
+	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
 Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
-`, tshPath), 0o644)
+`, tshPath)), 0o644)
 	require.NoError(t, err)
 
 	// Connect to "rootnode" with OpenSSH.
@@ -1665,7 +1668,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", net.JoinHostPort(fooProxyPort, strconv.Itoa(fooServerPort)),
+		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo)",
@@ -1698,7 +1701,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", net.JoinHostPort(barProxyPort, strconv.Itoa(barServerPort)),
+		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (bar)",

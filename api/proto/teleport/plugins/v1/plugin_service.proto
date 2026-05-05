@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.plugins.v1;
 
 import "google/protobuf/empty.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1;pluginsv1";

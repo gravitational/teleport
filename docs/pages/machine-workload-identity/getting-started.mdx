@@ -185,9 +185,9 @@ $ tctl create -f role.yaml
 
 ## Step 3/5. Create a bot
 
-In Teleport, a **Bot** represents an identity for a machine. This is similar to
-how a user represents the identity of a human. Like users, bots are assigned
-roles to manage their access to resources.
+In Teleport, a **Bot user** represents an identity for a machine or AI agent.
+Like SSO users and local users bots are assigned roles to manage their access to
+resources.
 
 You'll now create a bot to represent the GitHub Actions workflow.
 
@@ -222,9 +222,10 @@ or the Assumed Role of an AWS EC2 Instance, to attest to the identity of the pro
 ensuring only authorized bots can join the cluster. This means the bot has a verified <i>identity</i>,
 rather than just a shared secret.
 
-Teleport supports a number of secure [join methods](../reference/deployment/join-methods.mdx#delegated-join-methods)
-specific to the platform the bot is running on. Since we are using GitHub Actions,
-we will use the `github` join method.
+Teleport supports a number of secure [join
+methods](../reference/deployment/join-methods.mdx#delegated-join-methods)
+specific to the platform the bot is running on. Since we are using GitHub
+Actions, we will use the `github` join method.
 
 For the join token definition, edit the `repository`
 field to match the GitHub repository where you will run the GitHub Actions workflow.
@@ -350,7 +351,7 @@ Replace:
 - `myinstance.example.teleport.sh` with the address of your target server.
 - `ubuntu` with the Linux user you want to log in as.
 
-In the second step of this workflow, we use one one of the published actions
+In the second step of this workflow, we use one of the published actions
 which installs the `tbot` binary into the workflow run environment.
 
 In the third step, we use this binary with the configuration you created earlier
@@ -436,7 +437,7 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport proxy
 
-In the second step of this workflow, we use one one of the published actions
+In the second step of this workflow, we use one of the published actions
 which installs the `tbot` binary into the workflow run environment.
 
 In the third step, we use this binary with the configuration you created earlier

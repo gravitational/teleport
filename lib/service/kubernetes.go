@@ -46,7 +46,6 @@ func (process *TeleportProcess) initKubernetes() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
-	process.ExpectService(teleport.ComponentKube)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		conn, err := process.WaitForConnector(KubeIdentityEvent, logger)
 		if conn == nil {
@@ -56,6 +55,10 @@ func (process *TeleportProcess) initKubernetes() {
 		k8s := modules.GetProtoEntitlement(&features, entitlements.K8s)
 		if !k8s.Enabled {
 			logger.WarnContext(process.ExitContext(), "Warning: Kubernetes service not initialized because Teleport Auth Server is not licensed for Kubernetes Access. Please contact the cluster administrator to enable it.")
+			// Do not close conn: it is stored in process.connectors
+			// by RegisterWithAuthServer and rotation code reads it.
+			process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
+			process.OnHeartbeat(teleport.ComponentKube)(nil)
 			return nil
 		}
 		if err := process.initKubernetesService(logger, conn); err != nil {
@@ -224,7 +227,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := process.ServerTLSConfig(conn)
+	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,7 +323,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("kube.shutdown", func(payload any) {
+	process.OnExit("kube.shutdown", func(payload interface{}) {
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.

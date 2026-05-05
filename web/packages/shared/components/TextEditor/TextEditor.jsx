@@ -16,14 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ace from 'ace-builds/src-min-noconflict/ace';
 import { Component } from 'react';
 import styled from 'styled-components';
-
-import 'ace-builds/src-noconflict/mode-json';
-import 'ace-builds/src-noconflict/mode-yaml';
-import 'ace-builds/src-noconflict/mode-terraform.js';
-import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
@@ -31,11 +25,17 @@ import { Copy, Download } from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { downloadObject } from 'shared/utils/download';
 
+import ace from './ace';
+import './ace-includes';
 import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
 
 class TextEditor extends Component {
+  handleEditorCopy = () => {
+    this.props.onCopy?.();
+  };
+
   onChange = () => {
     const isClean = this.editor.session.getUndoManager().isClean();
     if (this.props.onDirty) {
@@ -114,6 +114,7 @@ class TextEditor extends Component {
     this.editor.renderer.setShowPrintMargin(false);
     this.editor.renderer.setShowGutter(true);
     this.editor.on('input', this.onChange);
+    this.editor.on('copy', this.handleEditorCopy);
     this.editor.setReadOnly(readOnly);
     this.editor.setTheme({ cssClass: 'ace-teleport' });
     this.initSessions(data);

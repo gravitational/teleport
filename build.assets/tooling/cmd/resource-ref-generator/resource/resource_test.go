@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // replaceBackticks replaces the "BACKTICK" placeholder text with backticks so
@@ -35,6 +36,10 @@ func replaceBackticks(source string) string {
 }
 
 func TestReferenceDataFromDeclaration(t *testing.T) {
+	camelCaseExceptions := []string{
+		"IdP",
+	}
+
 	cases := []struct {
 		description string
 		source      string
@@ -49,7 +54,7 @@ func TestReferenceDataFromDeclaration(t *testing.T) {
 			description: "scalar fields with one field ignored",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
@@ -72,7 +77,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
@@ -111,7 +116,7 @@ active: true
 			description: "sequences of scalars",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
@@ -130,7 +135,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
@@ -172,7 +177,7 @@ booleans:
 			description: "a map of strings to sequences",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
@@ -187,7 +192,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
@@ -220,10 +225,12 @@ type Metadata struct {
 			description: "an undeclared custom type field",
 			declInfo: PackageInfo{
 				DeclName:    "Server",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
+
+import "types"
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
@@ -236,7 +243,7 @@ type Server struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -260,10 +267,13 @@ type Server struct {
 		{
 			description: "named scalar type",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Server",
 			},
 			source: `package mypkg
+
+import types "github.com/gravitational/teleport/src"
+
 // Server includes information about a server registered with Teleport.
 type Server struct {
     // Name is the name of the resource.
@@ -284,7 +294,7 @@ type Labels []string
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -310,7 +320,7 @@ type Labels []string
 				},
 				PackageInfo{
 					DeclName:    "Labels",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Labels",
 					Description: "A slice of strings that we'll process downstream",
@@ -324,10 +334,12 @@ type Labels []string
 			description: "custom type fields with a custom JSON unmarshaller",
 			declInfo: PackageInfo{
 				DeclName:    "Server",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
+
+import types "github.com/gravitational/teleport/src"
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
@@ -348,7 +360,7 @@ func (s *Server) UnmarshalJSON (b []byte) error {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -373,10 +385,12 @@ func (s *Server) UnmarshalJSON (b []byte) error {
 			description: "custom type with custom YAML unmarshaller",
 			declInfo: PackageInfo{
 				DeclName:    "Application",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
+
+import types "github.com/gravitational/teleport/src"
 
 // Application includes information about an application registered with Teleport.
 type Application struct {
@@ -397,7 +411,7 @@ func (a *Application) UnmarshalYAML(value *yaml.Node) error {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Application",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Application",
 					Description: "Includes information about an application registered with Teleport.",
@@ -422,10 +436,12 @@ func (a *Application) UnmarshalYAML(value *yaml.Node) error {
 			description: "a custom type field declared in a second source file",
 			declInfo: PackageInfo{
 				DeclName:    "Server",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
+
+import types "github.com/gravitational/teleport/src"
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
@@ -449,7 +465,7 @@ type ServerSpecV1 struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -472,7 +488,7 @@ spec: # [...]
 				},
 				PackageInfo{
 					DeclName:    "ServerSpecV1",
-					PackageName: "types",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
@@ -505,10 +521,12 @@ is_active: true
 			description: "composite field type with named scalar type",
 			declInfo: PackageInfo{
 				DeclName:    "Server",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
+
+import types "github.com/gravitational/teleport/src"
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
@@ -533,7 +551,7 @@ type Label string
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -568,7 +586,7 @@ label_maps:
 				},
 				PackageInfo{
 					DeclName:    "ServerSpecV1",
-					PackageName: "types",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
@@ -585,7 +603,7 @@ label_maps:
 				},
 				PackageInfo{
 					DeclName:    "Label",
-					PackageName: "types",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Label",
 					Description: "A custom type that we unmarshal in a non-default way.",
@@ -598,7 +616,7 @@ label_maps:
 			description: "struct type with an interface field",
 			declInfo: PackageInfo{
 				DeclName:    "Server",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
@@ -621,7 +639,7 @@ type ServerImplementation interface{
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -644,7 +662,7 @@ impl: # [...]
 				},
 				PackageInfo{
 					DeclName:    "ServerImplementation",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Server Implementation",
 					Description: "A remote service with a URL.",
@@ -658,9 +676,12 @@ impl: # [...]
 			description: "embedded struct",
 			declInfo: PackageInfo{
 				DeclName:    "MyResource",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package mypkg
+
+import types "github.com/gravitational/teleport/src"
+
 // MyResource is a resource declared for testing.
 type MyResource struct{
   // Alias is another name to call the resource.
@@ -683,7 +704,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "MyResource",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
@@ -716,9 +737,12 @@ active: true
 			description: "embedded struct with struct field",
 			declInfo: PackageInfo{
 				DeclName:    "MyResource",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package mypkg
+
+import types "github.com/gravitational/teleport/src"
+
 // MyResource is a resource declared for testing.
 type MyResource struct{
   // Alias is another name to call the resource.
@@ -745,7 +769,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "MyResource",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
@@ -768,7 +792,7 @@ metadata: # [...]
 				},
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "types",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					SourcePath:  "src/myfile0.go",
@@ -795,7 +819,7 @@ active: true
 			description: "embedded struct with base in the same package",
 			declInfo: PackageInfo{
 				DeclName:    "MyResource",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package mypkg
 // MyResource is a resource declared for testing.
@@ -820,7 +844,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "MyResource",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
@@ -853,9 +877,13 @@ active: true
 			description: "struct with two embedded structs",
 			declInfo: PackageInfo{
 				DeclName:    "MyResource",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package mypkg
+
+import moretypes "github.com/gravitational/teleport/src"
+import types "github.com/gravitational/teleport/src"
+
 // MyResource is a resource declared for testing.
 type MyResource struct{
   // Alias is another name to call the resource.
@@ -884,7 +912,7 @@ type ActivityStatus struct{
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "MyResource",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
@@ -917,9 +945,12 @@ active: true
 			description: "embedded struct with an embedded struct",
 			declInfo: PackageInfo{
 				DeclName:    "MyResource",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package mypkg
+
+import types "github.com/gravitational/teleport/src"
+
 // MyResource is a resource declared for testing.
 type MyResource struct{
   // Alias is another name to call the resource.
@@ -929,6 +960,8 @@ type MyResource struct{
 `,
 			declSources: []string{
 				`package types
+
+import moretypes "github.com/gravitational/teleport/src"
 
 // Metadata describes information about a dynamic resource. Every dynamic
 // resource in Teleport has a metadata object.
@@ -948,7 +981,7 @@ type ActivityStatus struct{
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "MyResource",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
@@ -981,7 +1014,7 @@ active: true
 			description: "ignored fields with non-YAML-comptabible types",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
@@ -999,7 +1032,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
@@ -1020,7 +1053,7 @@ type Metadata struct {
 			description: "non-embedded custom field type declared in the same package as the containing struct",
 			declInfo: PackageInfo{
 				DeclName:    "DatabaseServerV3",
-				PackageName: "typestest",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package typestest
 
@@ -1046,7 +1079,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "DatabaseServerV3",
-					PackageName: "typestest",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Database Server V3",
 					Description: "Represents a database access server.",
@@ -1069,7 +1102,7 @@ metadata: # [...]
 				},
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "typestest",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Metadata",
 					Description: "Resource metadata",
@@ -1096,7 +1129,7 @@ description: "string"
 			description: "pointer field",
 			declInfo: PackageInfo{
 				DeclName:    "DatabaseServerV3",
-				PackageName: "typestest",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `package typestest
 
@@ -1118,7 +1151,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "DatabaseServerV3",
-					PackageName: "typestest",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Database Server V3",
 					Description: "Represents a database access server.",
@@ -1135,7 +1168,7 @@ type Metadata struct {
 				},
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "typestest",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: ReferenceEntry{
 					SectionName: "Metadata",
 					Description: "Resource metadata",
@@ -1155,7 +1188,7 @@ type Metadata struct {
 		{
 			description: "map of strings to an undeclared field",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Server",
 			},
 			source: `
@@ -1179,7 +1212,7 @@ type ServerSpecV1 struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -1216,7 +1249,7 @@ label_maps:
 		{
 			description: "type parameter",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Resource",
 			},
 			source: `package mypkg
@@ -1244,7 +1277,7 @@ func (stream *streamFunc[T]) Next() bool {
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 					DeclName:    "Resource",
 				}: ReferenceEntry{
 					SectionName: "Resource",
@@ -1265,10 +1298,12 @@ func (stream *streamFunc[T]) Next() bool {
 		{
 			description: "field type not declared in a loaded package",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Resource",
 			},
 			source: `package mypkg
+
+import "time"
 
 // Resource is a resource.
 type Resource struct {
@@ -1280,7 +1315,7 @@ type Resource struct {
 `,
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 					DeclName:    "Resource",
 				}: ReferenceEntry{
 					SectionName: "Resource",
@@ -1308,7 +1343,7 @@ expiry: # See description
 		{
 			description: "byte slice",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Metadata",
 			},
 			source: `
@@ -1326,7 +1361,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
@@ -1352,11 +1387,13 @@ private_key: BASE64_STRING
 		{
 			description: "named import in embedded struct field",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Server",
 			},
 			source: `
 package mypkg
+
+import types "github.com/gravitational/teleport/src"
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
@@ -1368,7 +1405,7 @@ type Server struct {
 `,
 			declSources: []string{`package types
 
-import alias "otherpkg"
+import alias "github.com/gravitational/teleport/src"
 
 // ServerSpecV1 includes aspects of a proxied server.
 type ServerSpecV1 struct {
@@ -1384,7 +1421,7 @@ type ServerSpec struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -1407,7 +1444,7 @@ spec: # [...]
 				},
 				PackageInfo{
 					DeclName:    "ServerSpecV1",
-					PackageName: "types",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
@@ -1427,11 +1464,13 @@ spec: # [...]
 		{
 			description: "named import in named struct field",
 			declInfo: PackageInfo{
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 				DeclName:    "Server",
 			},
 			source: `
 package mypkg
+
+import types "github.com/gravitational/teleport/src"
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
@@ -1440,7 +1479,7 @@ type Server struct {
 }
 `,
 			declSources: []string{`package types
-import alias "otherpkg"
+import alias "github.com/gravitational/teleport/src"
 
 // ServerSpecV1 includes aspects of a proxied server.
 type ServerSpecV1 struct {
@@ -1458,7 +1497,7 @@ type AddressInfo struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "AddressInfo",
-					PackageName: "otherpkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Address Info",
 					Description: "Provides information about an address.",
@@ -1474,7 +1513,7 @@ type AddressInfo struct {
 				},
 				PackageInfo{
 					DeclName:    "Server",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
@@ -1490,7 +1529,7 @@ type AddressInfo struct {
 				},
 				PackageInfo{
 					DeclName:    "ServerSpecV1",
-					PackageName: "types",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
@@ -1511,10 +1550,12 @@ type AddressInfo struct {
 			description: "scalar fields with two unexported fields",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
+
+import "protoimpl"
 
 // Metadata describes information about a dynamic resource. Every dynamic
 // resource in Teleport has a metadata object.
@@ -1531,7 +1572,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
@@ -1558,7 +1599,7 @@ description: "string"
 			description: "curly braces in descriptions",
 			declInfo: PackageInfo{
 				DeclName:    "Metadata",
-				PackageName: "mypkg",
+				PackagePath: "github.com/gravitational/teleport/src",
 			},
 			source: `
 package mypkg
@@ -1573,7 +1614,7 @@ type Metadata struct {
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					DeclName:    "Metadata",
-					PackageName: "mypkg",
+					PackagePath: "github.com/gravitational/teleport/src",
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a `{dynamic resource}`. Every dynamic resource in Teleport has a metadata object.",
@@ -1618,17 +1659,26 @@ type Metadata struct {
 				}
 			}
 
-			sourceData, err := NewSourceData(tmp)
+			sourceData, err := NewSourceData("github.com/gravitational/teleport", tmp)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			di, ok := sourceData.TypeDecls[tc.declInfo]
-			if !ok {
-				t.Fatalf("expected data for %v.%v not found in the source", tc.declInfo.PackageName, tc.declInfo.DeclName)
+			// Remove the temporary directory from package paths
+			// since we can't know it in advance in test cases.
+			declsWithoutTmp := make(map[PackageInfo]DeclarationInfo)
+			for k, d := range sourceData.TypeDecls {
+				k.PackagePath = strings.ReplaceAll(k.PackagePath, filepath.Base(tmp)+"/", "")
+				d.PackageName = strings.ReplaceAll(k.PackagePath, filepath.Base(tmp)+"/", "")
+				declsWithoutTmp[k] = d
 			}
 
-			r, err := ReferenceDataFromDeclaration(di, sourceData.TypeDecls)
+			di, ok := declsWithoutTmp[tc.declInfo]
+			if !ok {
+				t.Fatalf("expected data for %v.%v not found in the source", tc.declInfo.PackagePath, tc.declInfo.DeclName)
+			}
+
+			r, err := ReferenceDataFromDeclaration("github.com/gravitational/teleport", di, declsWithoutTmp, camelCaseExceptions)
 			if tc.errorSubstring == "" {
 				assert.NoError(t, err)
 			} else {
@@ -1674,7 +1724,16 @@ import (
 import alias "my/multi/segment/package"
 `,
 			expected: map[string]string{
-				"alias": "package",
+				"alias": "my/multi/segment/package",
+			},
+		},
+		{
+			description: "no explicit name",
+			input: `package mypkg
+import "my/multi/segment/pkg"
+`,
+			expected: map[string]string{
+				"pkg": "my/multi/segment/pkg",
 			},
 		},
 	}
@@ -1694,6 +1753,10 @@ import alias "my/multi/segment/package"
 }
 
 func TestMakeFieldTableInfo(t *testing.T) {
+	camelCaseExceptions := []string{
+		"IdP",
+	}
+
 	cases := []struct {
 		description string
 		input       []rawField
@@ -1729,7 +1792,7 @@ func TestMakeFieldTableInfo(t *testing.T) {
 						name: "LockingMode",
 						declarationInfo: PackageInfo{
 							DeclName:    "LockingMode",
-							PackageName: "mypkg",
+							PackagePath: "mypkg",
 						},
 					},
 					name:     "LockingMode",
@@ -1741,14 +1804,14 @@ func TestMakeFieldTableInfo(t *testing.T) {
 				{
 					Name:        "locking_mode",
 					Description: `Specifies the locking mode (strict\|best_effort) to be applied with the role.`,
-					Type:        "[LockingMode](#lockingmode)",
+					Type:        "[Locking Mode](#locking-mode)",
 				},
 			},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			f, err := makeFieldTableInfo(c.input)
+			f, err := makeFieldTableInfo(c.input, camelCaseExceptions)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, f)
 		})
@@ -1804,6 +1867,55 @@ func TestGetJSONTag(t *testing.T) {
 			assert.Equal(t, c.expected, g)
 		})
 	}
+}
+
+// TestAllFieldsDeclEmbeddedPointerCrossPackageSameName tests the pattern where a
+// wrapper struct embeds a pointer to a same-named type from a different package
+// (e.g. api/types/discoveryconfig.IntegrationDiscoveredSummary embedding
+// *discoveryconfigv1.IntegrationDiscoveredSummary).
+func TestAllFieldsDeclEmbeddedPointerCrossPackageSameName(t *testing.T) {
+	fset := token.NewFileSet()
+
+	protoPkg := "github.com/gravitational/teleport/proto"
+	protoFile, err := parser.ParseFile(fset, "proto.go", `package proto
+
+type Foo struct {
+	Name string
+}
+`, parser.ParseComments)
+	require.NoError(t, err)
+
+	wrapperPkg := "github.com/gravitational/teleport/wrapper"
+	wrapperFile, err := parser.ParseFile(fset, "wrapper.go", `package wrapper
+
+import proto "github.com/gravitational/teleport/proto"
+
+type Foo struct {
+	*proto.Foo
+}
+`, parser.ParseComments)
+	require.NoError(t, err)
+
+	allDecls := map[PackageInfo]DeclarationInfo{
+		{DeclName: "Foo", PackagePath: protoPkg}: {
+			Decl:        protoFile.Decls[0],
+			FilePath:    "proto/proto.go",
+			PackageName: protoPkg,
+		},
+		{DeclName: "Foo", PackagePath: wrapperPkg}: {
+			Decl:         wrapperFile.Decls[1], // skip import decl
+			FilePath:     "wrapper/wrapper.go",
+			PackageName:  wrapperPkg,
+			NamedImports: NamedImports(wrapperFile),
+		},
+	}
+
+	wrapperDecl := allDecls[PackageInfo{DeclName: "Foo", PackagePath: wrapperPkg}]
+	rs, err := typeForDecl(wrapperDecl, allDecls)
+	require.NoError(t, err)
+
+	_, err = allFieldsForDecl(wrapperDecl, rs.fields, allDecls)
+	require.NoError(t, err)
 }
 
 func TestPrintableDescription(t *testing.T) {
@@ -2009,7 +2121,7 @@ my_string: "string"
 							name: "label",
 							declarationInfo: PackageInfo{
 								DeclName:    "label",
-								PackageName: "mypkg",
+								PackagePath: "mypkg",
 							},
 						},
 					},
@@ -2035,7 +2147,7 @@ my_string: "string"
 							name: "label",
 							declarationInfo: PackageInfo{
 								DeclName:    "label",
-								PackageName: "mypkg",
+								PackagePath: "mypkg",
 							},
 						},
 					},
@@ -2058,7 +2170,14 @@ my_string: "string"
 	}
 }
 
-func TestMakeSectionName(t *testing.T) {
+func TestSplitCamelCase(t *testing.T) {
+	camelCaseExceptions := []string{
+		"ElastiCache",
+		"IdP",
+		"MySQL",
+		"SAML",
+	}
+
 	cases := []struct {
 		description string
 		original    string
@@ -2068,6 +2187,11 @@ func TestMakeSectionName(t *testing.T) {
 			description: "camel-case name",
 			original:    "ServerSpec",
 			expected:    "Server Spec",
+		},
+		{
+			description: "entire camel-case name excepted",
+			original:    "ElastiCache",
+			expected:    "ElastiCache",
 		},
 		{
 			description: "camel-case name with three words",
@@ -2085,15 +2209,25 @@ func TestMakeSectionName(t *testing.T) {
 			expected:    "SAML Connector",
 		},
 		{
-			description: "IdP",
+			description: "idp",
 			original:    "IdPSAMLOptions",
 			expected:    "IdP SAML Options",
+		},
+		{
+			description: "excepted word with abbreviation",
+			original:    "MySQLOptions",
+			expected:    "MySQL Options",
+		},
+		{
+			description: "one abbreviation",
+			original:    "AWS",
+			expected:    "AWS",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			assert.Equal(t, c.expected, makeSectionName(c.original))
+			assert.Equal(t, c.expected, splitCamelCase(c.original, camelCaseExceptions))
 		})
 	}
 }

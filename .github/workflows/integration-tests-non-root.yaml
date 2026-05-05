@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -42,9 +42,10 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write # required for AWS credentials
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
@@ -54,7 +55,7 @@ jobs:
 
     services:
       etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
         options: >-
           --health-interval 10s
           --health-timeout 5s
@@ -67,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -82,3 +83,8 @@ jobs:
       - name: Run tests
         timeout-minutes: 40
         run: runuser -u ci -g ci make integration RDPCLIENT_SKIP_BUILD=1
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics

@@ -19,7 +19,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -34,14 +33,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
-	noChange := func(t require.TestingT, err error, i ...any) {
+	noChange := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
-	notModifying := func(t require.TestingT, err error, i ...any) {
+	notModifying := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
 	}
 
@@ -689,15 +688,18 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindDatabase,
 									types.KindDevice,
 									types.KindGithub,
+									types.KindLock,
 									types.KindLoginRule,
 									types.KindNode,
 									types.KindOIDC,
 									types.KindOktaImportRule,
 									types.KindRole,
 									types.KindSAML,
+									types.KindSAMLIdPServiceProvider,
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// Some of the new resources got introduced, but not all
 									types.KindBot,
@@ -738,15 +740,18 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindDatabase,
 									types.KindDevice,
 									types.KindGithub,
+									types.KindLock,
 									types.KindLoginRule,
 									types.KindNode,
 									types.KindOIDC,
 									types.KindOktaImportRule,
 									types.KindRole,
 									types.KindSAML,
+									types.KindSAMLIdPServiceProvider,
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// The resources that already got into the main rule are still present.
 									types.KindBot,
@@ -764,7 +769,16 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindAutoUpdateConfig, RW()),
 							types.NewRule(types.KindAutoUpdateVersion, RW()),
 							types.NewRule(types.KindHealthCheckConfig, RW()),
+							types.NewRule(types.KindVnetConfig, RW()),
 							types.NewRule(types.KindIntegration, RW()),
+							types.NewRule(types.KindInferenceModel, RW()),
+							types.NewRule(types.KindInferenceSecret, RW()),
+							types.NewRule(types.KindInferencePolicy, RW()),
+							types.NewRule(types.KindRetrievalModel, RW()),
+							types.NewRule(types.KindScopedToken, RW()),
+							types.NewRule(access.KindScopedRole, RW()),
+							types.NewRule(access.KindScopedRoleAssignment, RW()),
+							types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 						},
 					},
 				},
@@ -859,13 +873,12 @@ func TestAddRoleDefaults(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
 			if test.enterprise {
-				modulestest.SetTestModules(t, modulestest.Modules{
-					TestBuildType: modules.BuildEnterprise,
-				})
+				buildType = modules.BuildEnterprise
 			}
 
-			role, err := AddRoleDefaults(context.Background(), test.role)
+			role, err := AddRoleDefaults(t.Context(), buildType, test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))

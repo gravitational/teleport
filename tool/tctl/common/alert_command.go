@@ -58,6 +58,7 @@ type AlertCommand struct {
 
 	alertList   *kingpin.CmdClause
 	alertCreate *kingpin.CmdClause
+	alertDelete *kingpin.CmdClause
 
 	alertAck *kingpin.CmdClause
 
@@ -86,6 +87,9 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires (default 24h).").DurationVar(&c.ttl)
 	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high).").Default("low").EnumVar(&c.severity, "low", "medium", "high")
 	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2.").StringVar(&c.labels)
+
+	c.alertDelete = alert.Command("delete", "Deletes a cluster alert.").Alias("rm")
+	c.alertDelete.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
 
 	c.alertAck = alert.Command("ack", "Acknowledge cluster alerts.")
 	// Be wary of making any of these flags required. Because `tctl alerts ack ls` is not an actual
@@ -117,6 +121,8 @@ func (c *AlertCommand) TryRun(ctx context.Context, cmd string, clientFunc common
 		commandFunc = c.Create
 	case c.alertAck.FullCommand():
 		commandFunc = c.Ack
+	case c.alertDelete.FullCommand():
+		commandFunc = c.Delete
 	default:
 		return false, nil
 	}
@@ -324,4 +330,13 @@ func (c *AlertCommand) Create(ctx context.Context, client *authclient.Client) er
 	}
 
 	return trace.Wrap(client.UpsertClusterAlert(ctx, alert))
+}
+
+func (c *AlertCommand) Delete(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteClusterAlert(ctx, c.alertID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(c.stdout, "Successfully deleted alert %q.\n", c.alertID)
+	return nil
 }

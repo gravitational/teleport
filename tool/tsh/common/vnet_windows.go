@@ -40,18 +40,17 @@ func newPlatformVnetServiceCommand(app *kingpin.Application) *vnetServiceCommand
 }
 
 func (c *vnetServiceCommand) run(_ *CLIConf) error {
-	if !isWindowsService() {
+	isSvc, err := svc.IsWindowsService()
+	if err != nil {
+		return trace.Wrap(err, "failed to determine if running as a Windows service, cannot run %s command", vnet.ServiceCommand)
+	}
+	if !isSvc {
 		return trace.Errorf("not running as a Windows service, cannot run %s command", vnet.ServiceCommand)
 	}
 	if err := vnet.ServiceMain(); err != nil {
 		return trace.Wrap(err, "running VNet Windows service")
 	}
 	return nil
-}
-
-func isWindowsService() bool {
-	isSvc, err := svc.IsWindowsService()
-	return err == nil && isSvc
 }
 
 type vnetInstallServiceCommand struct {

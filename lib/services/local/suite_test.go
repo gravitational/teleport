@@ -35,11 +35,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
@@ -49,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -714,6 +718,12 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
+			Credentials: &types.SAMLConnectorCredentials{
+				Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-id",
+					ClientSecret: "test-secret",
+				},
+			},
 		},
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
@@ -734,6 +744,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
+	oauthNoSecrets.ClientSecret = ""
+	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
 	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
@@ -1203,7 +1216,6 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
-
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
@@ -1521,7 +1533,6 @@ func (s *ServicesTestSuite) GithubPagination(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
-
 }
 
 // AuthPreference tests authentication preference service
@@ -1625,7 +1636,6 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertSessionRecordingConfig(ctx, gotRecConfig)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, gotRecConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
@@ -1653,6 +1663,52 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.ConfigS.GetStaticTokens(ctx)
+	require.True(t, trace.IsNotFound(err))
+}
+
+func (s *ServicesTestSuite) StaticScopedTokens(t *testing.T) {
+	ctx := t.Context()
+	// set static tokens
+	staticTokens := &joiningv1.StaticScopedTokens{
+		Kind:  types.KindStaticScopedTokens,
+		Scope: "/",
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameStaticScopedTokens,
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
+			Tokens: []*joiningv1.ScopedToken{
+				{
+					Kind:  types.KindScopedToken,
+					Scope: "/",
+					Metadata: &headerv1.Metadata{
+						Name:    "tok1",
+						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
+					},
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{types.RoleNode.String()},
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+						AssignedScope: "/local",
+					},
+				},
+			},
+		},
+	}
+
+	err := s.LocalConfigS.SetStaticScopedTokens(ctx, staticTokens)
+	require.NoError(t, err)
+
+	out, err := s.LocalConfigS.GetStaticScopedTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(staticTokens, out,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	err = s.LocalConfigS.DeleteStaticScopedTokens(ctx)
+	require.NoError(t, err)
+
+	_, err = s.LocalConfigS.GetStaticScopedTokens(ctx)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -2244,6 +2300,42 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				return out[0]
 			},
 		},
+		{
+			name: "SAMLConnector",
+			kind: types.WatchKind{
+				Kind: types.KindSAMLConnector,
+			},
+			crud: func(ctx context.Context) types.Resource {
+				connector, err := types.NewSAMLConnector("test-saml-connector", types.SAMLConnectorSpecV2{
+					Display:                  "SAML",
+					Issuer:                   "http://example.com",
+					SSO:                      "https://example.com/saml/sso",
+					AssertionConsumerService: "https://localhost/acs",
+					Audience:                 "https://localhost/aud",
+					ServiceProviderIssuer:    "https://localhost/iss",
+					AttributesToRoles: []types.AttributeMapping{
+						{Name: "groups", Value: "admin", Roles: []string{"admin"}},
+					},
+					Cert: fixtures.TLSCACertPEM,
+					SigningKeyPair: &types.AsymmetricKeyPair{
+						PrivateKey: fixtures.TLSCAKeyPEM,
+						Cert:       fixtures.TLSCACertPEM,
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = s.WebS.CreateSAMLConnector(ctx, connector)
+				require.NoError(t, err)
+
+				out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
+				require.NoError(t, err)
+
+				err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
+				require.NoError(t, err)
+
+				return out
+			},
+		},
 	}
 	// this also tests the partial success mode by requesting an unknown kind
 	s.runEventsTests(t, testCases, types.Watch{
@@ -2447,17 +2539,33 @@ skiploop:
 
 		ExpectResource(t, w, 3*time.Second, resource)
 
-		meta := resource.GetMetadata()
-		header := &types.ResourceHeader{
-			Kind:    resource.GetKind(),
-			SubKind: resource.GetSubKind(),
-			Version: resource.GetVersion(),
-			Metadata: types.Metadata{
-				Name:      meta.Name,
-				Namespace: meta.Namespace,
-			},
+		// Explicitly handle watchers that emit a concrete type on delete, rather than
+		// a ResourceHeader.
+		var deleteResource types.Resource
+		switch r := resource.(type) {
+		case *types.SAMLConnectorV2:
+			meta := r.GetMetadata()
+			deleteResource = &types.SAMLConnectorV2{
+				Kind:    r.GetKind(),
+				Version: r.GetVersion(),
+				Metadata: types.Metadata{
+					Name:      meta.Name,
+					Namespace: meta.Namespace,
+				},
+			}
+		default:
+			meta := r.GetMetadata()
+			deleteResource = &types.ResourceHeader{
+				Kind:    r.GetKind(),
+				SubKind: r.GetSubKind(),
+				Version: r.GetVersion(),
+				Metadata: types.Metadata{
+					Name:      meta.Name,
+					Namespace: meta.Namespace,
+				},
+			}
 		}
-		ExpectDeleteResource(t, w, 3*time.Second, header)
+		ExpectDeleteResource(t, w, 3*time.Second, deleteResource)
 	}
 }
 

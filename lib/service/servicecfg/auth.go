@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -69,6 +70,10 @@ type AuthConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticScopedTokens are pre-defined, scoped host provisioning tokens supplied via config file
+	// for environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
@@ -202,6 +207,8 @@ type KeystoreConfig struct {
 	GCPKMS GCPKMSConfig
 	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
 	AWSKMS *AWSKMSConfig
+	// HealthCheck holds configuration parameters for keystore health checking.
+	HealthCheck *KeystoreHealthCheck
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -333,4 +340,16 @@ type MultiRegionKeyStore struct {
 	PrimaryRegion string `yaml:"primary_region"`
 	// ReplicaRegions is a list of regions keys will be replicated to.
 	ReplicaRegions []string `yaml:"replica_regions"`
+}
+
+// KeystoreHealthCheck contains configuration for keystore health checking.
+type KeystoreHealthCheck struct {
+	// Active configures active health checking for a keystore.
+	Active *KeystoreActiveHealthCheck `yaml:"active"`
+}
+
+// KeystoreActiveHealthCheck contains configuration for keystore active health checking.
+type KeystoreActiveHealthCheck struct {
+	// Enabled enables active health checking.
+	Enabled bool `yaml:"enabled"`
 }

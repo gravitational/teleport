@@ -80,6 +80,7 @@ func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alp
 	}
 
 	for _, region := range a.Regions {
+		region := region
 		eG.Go(func() error {
 			prevIterationEc2 := sliceFilter(
 				existing,

@@ -149,7 +149,7 @@ type PublicKeyCredentialCreationOptions struct {
 	RelyingParty           RelyingPartyEntity            `json:"rp"`
 	User                   UserEntity                    `json:"user"`
 	Parameters             []CredentialParameter         `json:"pubKeyCredParams,omitempty"`
-	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection"`
+	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection,omitempty"`
 	Timeout                int                           `json:"timeout,omitempty"`
 	CredentialExcludeList  []CredentialDescriptor        `json:"excludeCredentials,omitempty"`
 	Extensions             AuthenticationExtensions      `json:"extensions,omitempty"`
@@ -406,8 +406,6 @@ type SessionData struct {
 	UserVerification string `json:"userVerification,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions,omitempty"`
-	// Payload is an optional session identifying payload that uniquely identifies the user's session.
-	Payload *mfatypes.SessionIdentifyingPayload `json:"payload,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an

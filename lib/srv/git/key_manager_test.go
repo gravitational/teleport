@@ -87,13 +87,13 @@ func TestKeyManager_verify_github(t *testing.T) {
 	t.Run("connect and verify", func(t *testing.T) {
 		hostKeyCallback, err := m.HostKeyCallback(githubServer)
 		require.NoError(t, err)
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			conn, err := ssh.Dial("tcp", targetAddress, &ssh.ClientConfig{
 				User:            "git",
 				Auth:            clientAuth,
 				HostKeyCallback: hostKeyCallback,
 			})
-			require.NoError(t, err)
+			assert.NoError(collect, err)
 			if conn != nil {
 				conn.Close()
 			}

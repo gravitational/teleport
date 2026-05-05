@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest"
+	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/testing"
 )
 
 func TestAccessSpanner(t *testing.T) {
@@ -294,11 +294,10 @@ func TestAuditSpanner(t *testing.T) {
 		require.Equal(t, "googlesql", startEvt.DatabaseName)
 
 		eventsByProcedure := map[string][]*events.SpannerRPC{}
-		for range 3 {
+		for range 2 {
 			rpcEvt := requireSpannerRPCEvent(t, testCtx)
 			eventsByProcedure[rpcEvt.Procedure] = append(eventsByProcedure[rpcEvt.Procedure], rpcEvt)
 		}
-		require.Contains(t, eventsByProcedure, "BatchCreateSessions")
 		require.Contains(t, eventsByProcedure, "CreateSession")
 		require.Contains(t, eventsByProcedure, "ExecuteStreamingSql")
 		for name, rpcEvts := range eventsByProcedure {

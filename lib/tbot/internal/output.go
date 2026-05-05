@@ -285,11 +285,28 @@ func MakeNameOrDiscoveredNamePredicate(name string) string {
 }
 
 func GetClusterNames(
-	ctx context.Context, client *apiclient.Client, connectedClusterName string,
+	ctx context.Context,
+	client *apiclient.Client,
+	connectedClusterName string,
+	inDelegationSession bool,
 ) ([]string, error) {
 	allClusterNames := []string{connectedClusterName}
 
 	leafClusters, err := client.GetRemoteClusters(ctx)
+	if trace.IsAccessDenied(err) && inDelegationSession {
+		// Currently, delegations sessions scoped to a specific node do not have
+		// permission to list remote clusters, and so the overall resource/verb
+		// check will fail.
+		//
+		// When we add support for delegating access to resources in remote
+		// clusters, we'll probably grant the session read access to the cluster
+		// automatically.
+		//
+		// In the mean time, we'll treat the GetRemoteClusters call as optional
+		// but only in a delegation session (to avoid a backward-incompatible
+		// change in behavior).
+		return allClusterNames, nil
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

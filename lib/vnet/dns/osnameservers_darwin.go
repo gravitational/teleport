@@ -37,7 +37,7 @@ const (
 // with the current default nameservers as configured for the OS, and it is the
 // easiest place to read them. Eventually we should probably use a better
 // method, but for now this works.
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
 	f, err := os.Open(confFilePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "opening %s", confFilePath)
@@ -63,7 +63,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			continue
 		}
 
-		nameservers = append(nameservers, withDNSPort(ip))
+		nameservers = append(nameservers, AddrWithDNSPort(ip))
 	}
 
 	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)

@@ -111,8 +111,8 @@ func (l *LDAPClient) Close() error {
 // DomainDN returns the distinguished name for an Active Directory Domain.
 func DomainDN(domain string) string {
 	var sb strings.Builder
-	parts := strings.SplitSeq(domain, ".")
-	for p := range parts {
+	parts := strings.Split(domain, ".")
+	for _, p := range parts {
 		if sb.Len() > 0 {
 			sb.WriteString(",")
 		}
@@ -348,10 +348,14 @@ func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthTyp
 
 // crlKeyName returns the appropriate LDAP key given the CA type.
 //
-// UserCA must use "Teleport" to keep backwards compatibility.
+// WindowsCA must use "Teleport" to keep backwards compatibility.
 func crlKeyName(caType types.CertAuthType) (string, error) {
 	switch caType {
 	case types.UserCA:
+		// TODO(codingllama): DELETE IN 20.
+		//  Once the fallback is removed this shouldn't be needed anymore.
+		fallthrough
+	case types.WindowsCA:
 		return "Teleport", nil
 	case types.DatabaseCA, types.DatabaseClientCA:
 		return "TeleportDB", nil

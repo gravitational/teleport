@@ -63,8 +63,8 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
@@ -221,7 +221,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			}
 		}
 	}()
-	keyGen := keygen.New(testCtx.Context)
+	keyGen, err := keygen.New(keygen.Config{BuildType: modules.BuildOSS})
+	require.NoError(t, err)
 
 	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
@@ -312,14 +313,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:          func(err error) {},
-		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:     cfg.ResourceMatchers,
-		OnReconcile:          cfg.OnReconcile,
-		Log:                  logtest.NewLogger(),
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		OnHeartbeat:        func(err error) {},
+		GetRotation:        func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:   cfg.ResourceMatchers,
+		OnReconcile:        cfg.OnReconcile,
+		Log:                logtest.NewLogger(),
+		InventoryHandle:    inventoryHandle,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -400,8 +400,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
@@ -553,9 +552,9 @@ func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
 type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
 
 // WithResourceAccessRequests adds resource access requests to the identity.
-func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+func WithResourceAccessRequests(r ...types.ResourceAccessID) GenTestKubeClientTLSCertOptions {
 	return func(identity *tlsca.Identity) {
-		identity.AllowedResourceIDs = r
+		identity.AllowedResourceAccessIDs = r
 	}
 }
 
@@ -585,7 +584,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 // GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
 func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.

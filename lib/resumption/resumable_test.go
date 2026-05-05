@@ -27,7 +27,7 @@ import (
 	"golang.org/x/net/nettest"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func TestConnNetTest(t *testing.T) {
@@ -59,6 +59,7 @@ func TestConnNetTest(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 
 		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
@@ -116,6 +117,7 @@ func TestConnResume(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
 			testConnResume(t, tc.syncPipe)

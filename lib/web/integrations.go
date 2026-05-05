@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -338,68 +340,57 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 	ret.Integration = uiIg
 
-	var nextPage string
-	for {
-		filters := &usertasksv1.ListUserTasksFilters{
-			Integration: req.integration.GetName(),
-			TaskState:   usertasks.TaskStateOpen,
+	if req.integration != nil {
+		if val, ok := req.integration.GetLabel(types.CreatedByIaCLabel); ok && val == ui.IaCTerraformLabel {
+			ret.IsManagedByTerraform = true
 		}
-		userTasks, nextToken, err := req.userTasksClient.ListUserTasks(ctx, 0, nextPage, filters)
-		if err != nil {
-			return nil, err
-		}
-
-		ret.UnresolvedUserTasks += len(userTasks)
-
-		for _, userTask := range userTasks {
-			switch userTask.GetSpec().GetTaskType() {
-			case usertasks.TaskTypeDiscoverEC2:
-				ret.AWSEC2.UnresolvedUserTasks++
-			case usertasks.TaskTypeDiscoverEKS:
-				ret.AWSEKS.UnresolvedUserTasks++
-			case usertasks.TaskTypeDiscoverRDS:
-				ret.AWSRDS.UnresolvedUserTasks++
-			}
-		}
-
-		if nextToken == "" {
-			break
-		}
-		nextPage = nextToken
 	}
 
-	nextPage = ""
-	for {
-		discoveryConfigs, nextToken, err := req.discoveryConfigLister.ListDiscoveryConfigs(ctx, 0, nextPage)
+	tasks := allUserTasks(ctx, req.userTasksClient, &usertasksv1.ListUserTasksFilters{
+		Integration: req.integration.GetName(),
+		TaskState:   usertasks.TaskStateOpen,
+	})
+	for task, err := range tasks {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, dc := range discoveryConfigs {
-			discoveredResources, ok := dc.Status.IntegrationDiscoveredResources[req.integration.GetName()]
-			if !ok {
-				continue
-			}
+		ret.UserTasks = append(ret.UserTasks, ui.MakeUserTask(task))
 
-			if matchers := rulesWithIntegration(dc, types.AWSMatcherEC2, req.integration.GetName()); matchers != 0 {
-				ret.AWSEC2.RulesCount += matchers
-				mergeResourceTypeSummary(&ret.AWSEC2, dc.Status.LastSyncTime, discoveredResources.AwsEc2)
-			}
+		switch task.GetSpec().GetTaskType() {
+		case usertasks.TaskTypeDiscoverEC2:
+			ret.AWSEC2.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverEKS:
+			ret.AWSEKS.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverRDS:
+			ret.AWSRDS.UnresolvedUserTasks++
+		}
+	}
+	ret.UnresolvedUserTasks = len(ret.UserTasks)
 
-			if matchers := rulesWithIntegration(dc, types.AWSMatcherRDS, req.integration.GetName()); matchers != 0 {
-				ret.AWSRDS.RulesCount += matchers
-				mergeResourceTypeSummary(&ret.AWSRDS, dc.Status.LastSyncTime, discoveredResources.AwsRds)
-			}
-
-			if matchers := rulesWithIntegration(dc, types.AWSMatcherEKS, req.integration.GetName()); matchers != 0 {
-				ret.AWSEKS.RulesCount += matchers
-				mergeResourceTypeSummary(&ret.AWSEKS, dc.Status.LastSyncTime, discoveredResources.AwsEks)
-			}
+	for cfg, err := range allDiscoveryConfigs(ctx, req.discoveryConfigLister) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		if nextToken == "" {
-			break
+		discoveredResources, ok := cfg.Status.IntegrationDiscoveredResources[req.integration.GetName()]
+		if !ok {
+			continue
 		}
-		nextPage = nextToken
+
+		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEC2, req.integration.GetName()); matchers != 0 {
+			ret.AWSEC2.RulesCount += matchers
+			mergeResourceTypeSummary(&ret.AWSEC2, cfg.Status.LastSyncTime, discoveredResources.AwsEc2)
+		}
+
+		if matchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName()); matchers != 0 {
+			ret.AWSRDS.RulesCount += matchers
+			mergeResourceTypeSummary(&ret.AWSRDS, cfg.Status.LastSyncTime, discoveredResources.AwsRds)
+		}
+
+		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName()); matchers != 0 {
+			ret.AWSEKS.RulesCount += matchers
+			mergeResourceTypeSummary(&ret.AWSEKS, cfg.Status.LastSyncTime, discoveredResources.AwsEks)
+		}
 	}
 
 	switch req.integration.GetSubKind() {
@@ -432,6 +423,86 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 
 	return ret, nil
+}
+
+func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt userTasksLister, dclt discoveryConfigLister) (map[string]*ui.BriefSummary, error) {
+	summaries := make(map[string]*ui.BriefSummary, len(igs))
+	for _, ig := range igs {
+		if !ig.SupportsDiscoveryResources() {
+			continue
+		}
+		summaries[ig.GetName()] = &ui.BriefSummary{
+			UnresolvedUserTasks: []ui.UserTask{},
+		}
+	}
+
+	if len(summaries) == 0 {
+		return summaries, nil
+	}
+
+	for name := range summaries {
+		tasks := allUserTasks(ctx, uclt, &usertasksv1.ListUserTasksFilters{
+			Integration: name,
+			TaskState:   usertasks.TaskStateOpen,
+		})
+		for task, err := range tasks {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			summaries[name].UnresolvedUserTasks = append(summaries[name].UnresolvedUserTasks, ui.MakeUserTask(task))
+		}
+	}
+
+	for cfg, err := range allDiscoveryConfigs(ctx, dclt) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for name, rscs := range cfg.Status.IntegrationDiscoveredResources {
+			if _, ok := summaries[name]; !ok {
+				continue
+			}
+
+			if summaries[name].ResourcesCount == nil {
+				summaries[name].ResourcesCount = &ui.ResourcesCount{}
+			}
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsEc2)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsEks)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsRds)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AzureVms)
+		}
+	}
+
+	return summaries, nil
+}
+
+func addResourceCounts(rc *ui.ResourcesCount, dr *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if rc == nil || dr == nil {
+		return
+	}
+	rc.Found += int(dr.Found)
+	rc.Enrolled += int(dr.Enrolled)
+	rc.Failed += int(dr.Failed)
+}
+
+func allUserTasks(
+	ctx context.Context,
+	lister userTasksLister,
+	filters *usertasksv1.ListUserTasksFilters,
+) iter.Seq2[*usertasksv1.UserTask, error] {
+	return clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, nextToken string) ([]*usertasksv1.UserTask, string, error) {
+			return lister.ListUserTasks(ctx, int64(pageSize), nextToken, filters)
+		})
+}
+
+func allDiscoveryConfigs(
+	ctx context.Context,
+	lister discoveryConfigLister,
+) iter.Seq2[*discoveryconfig.DiscoveryConfig, error] {
+	return clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+			return lister.ListDiscoveryConfigs(ctx, pageSize, nextToken)
+		})
 }
 
 func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegrationStatsRequest) (int, error) {
@@ -639,14 +710,27 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	var summaries map[string]*ui.BriefSummary
+	withSummaries, err := parseBoolWithDefault(values.Get("withSummaries"), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if withSummaries {
+		summaries, err = buildBriefSummaries(r.Context(), igs, clt.UserTasksServiceClient(), clt.DiscoveryConfigClient())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	items, err := ui.MakeIntegrations(igs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.IntegrationsListResponse{
-		Items:   items,
-		NextKey: nextKey,
+		Items:     items,
+		NextKey:   nextKey,
+		Summaries: summaries,
 	}, nil
 }
 

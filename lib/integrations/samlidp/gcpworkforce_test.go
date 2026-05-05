@@ -55,7 +55,7 @@ func TestNewGCPWorkforceService(t *testing.T) {
 		{
 			name:           "missing organization id",
 			organizationID: "",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "required")
 			},
 		},
@@ -63,7 +63,7 @@ func TestNewGCPWorkforceService(t *testing.T) {
 			name:           "missing pool name",
 			organizationID: "123423452",
 			poolName:       "",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "required")
 			},
 		},
@@ -72,7 +72,7 @@ func TestNewGCPWorkforceService(t *testing.T) {
 			organizationID:   "123423452",
 			poolName:         "test-pool-name",
 			poolProviderName: "",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "required")
 			},
 		},
@@ -82,7 +82,7 @@ func TestNewGCPWorkforceService(t *testing.T) {
 			poolName:           "test-pool-name",
 			poolProviderName:   "test-pool-provider-name",
 			samlIdPMetadataURL: "",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "required")
 			},
 		},

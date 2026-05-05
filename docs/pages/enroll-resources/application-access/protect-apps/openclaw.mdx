@@ -1,0 +1,165 @@
+---
+title: Access OpenClaw using the Teleport Application Service
+sidebar_label: OpenClaw
+description: Securely access your OpenClaw Control UI with Teleport.
+videoBanner: WNva4cGcoNo
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+---
+
+[OpenClaw](https://openclaw.ai) is a personal AI assistant that you can deploy on your own hardware or cloud servers.
+
+This guide shows you how to protect access to your OpenClaw Control UI using Teleport. 
+
+## How it works
+
+OpenClaw exposes a local web interface on port `18789` for communication with the agent. By default, this interface is bound to localhost. Exposing it publicly without proper security controls creates significant risk.
+
+Teleport can secure this setup by acting as a secure gateway. It provides:
+
+- **Zero-trust web access:** Access the web interface through a secure Teleport proxy without exposing public ports.
+- **Secure SSH:** Manage the underlying server using Teleport’s identity-based SSH access.
+- **Origin validation:** OpenClaw can be configured to only accept requests from your trusted Teleport domain.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A server to host OpenClaw (e.g., AWS EC2, Raspberry Pi, or mini PC).
+- An AI model provider account for the agent's backend.
+
+## Step 1/4. Set up the OpenClaw server
+
+While you can host OpenClaw on local hardware like a Raspberry Pi or Mac mini, this guide uses an **AWS EC2 instance** as an example.
+
+1. Log into the AWS Console and launch a new **Ubuntu** instance.
+2. Choose an instance type (e.g., `t3.small` for a balance of performance and free-tier).
+3. Ensure your Security Group allows SSH access so you can perform the initial installation.
+
+## Step 2/4. Install and configure OpenClaw
+
+Once your server is running, connect via SSH to install the agent.
+
+1. Run the official OpenClaw one-liner installation script:
+
+   ```code
+   $ curl -fsSL https://openclaw.ai/install.sh | bash
+   ```
+
+2. Follow the interactive prompts to accept the security warnings, select your preferred AI model, and authenticate. Skip channel and skill setup if you only need the web interface.
+
+3. After installation, you may need to refresh your shell to use the `openclaw` CLI command:
+
+   ```code
+   $ source ~/.bashrc # or ~/.zshrc
+   ```
+
+## Step 3/4. Enroll the server and application with Teleport
+
+1. Generate a new join token that allows both the Node and App roles.
+
+   From a machine with `tctl` access to your Teleport cluster (see [Prerequisites](#prerequisites)), run:
+
+   ```code
+   $ tctl tokens add --type=node,app --ttl=30m --format=text
+   ```
+
+   Note the output. You will use this token in the `teleport configure` command below to validate that your server and application requesting to join the Teleport cluster are legitimate.
+   
+2. On your OpenClaw server, install the Teleport Agent using the cluster install script:
+
+   ```code
+   $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
+   ```
+   
+3. Generate a Teleport configuration that enables both the SSH Service and the Application Service:
+   
+   ```code
+   $ sudo teleport configure \
+     --proxy="<Var name="example.teleport.sh:443"/>" \
+     --token="token generated above" \
+     --roles=node,app \
+     --app-name=openclaw \
+     --app-uri=http://127.0.0.1:18789 \
+     --output=file
+   ```   
+
+4. Finally, enable and start the Teleport Agent:
+
+   ```code
+   $ sudo systemctl enable teleport
+   $ sudo systemctl start teleport
+   ```   
+   
+   You should now see the OpenClaw server and application enrolled in your Teleport UI.
+
+   ![OpenClaw Application Enrolled](https://website.goteleport.com/_uploads/openclaw_access_application_enrolled_5b7c996790.png)
+
+## Step 4/4. Pair OpenClaw with Teleport
+
+OpenClaw requires that any devices accessing it, outside of localhost, be explicitly paired. Pairing is OpenClaw's owner approval step that dictates which devices are allowed to join the gateway network.
+
+### Configure allowed origins
+
+Edit `~/.openclaw/openclaw.json` and add your Teleport URL to the `allowedOrigins` section. Replace <Var name="your-teleport-proxy.com" /> with your Teleport proxy address:
+
+```json
+"gateway": {
+  ...
+  "controlUi": {
+    "allowedOrigins": ["https://openclaw.<Var name="your-teleport-proxy.com" />"]
+  }
+  ...
+}
+```
+
+After adding the allowed origin, restart OpenClaw and try accessing the app through Teleport. You will see an error: "unauthorized: gateway token missing."
+
+### Complete the pairing process
+
+1. Retrieve your gateway token from `~/.openclaw/openclaw.json` under `gateway.auth.token`. 
+
+   <Admonition type="tip">
+   If your token is stored in plain text, consider moving it to an `.env` file and referencing it with the
+   `${OPENCLAW_GATEWAY_TOKEN}` variable in your config file. In addition, be sure to rotate this periodically.
+   </Admonition>
+
+1. Open the OpenClaw app from your Teleport Web UI and append the token to the URL:
+
+   ```code
+   $ https://openclaw.<Var name="your-teleport-proxy.com" />?token=<your-gateway-token>
+   ```
+
+   This initiates a pairing request.
+
+1. On your OpenClaw server, retrieve your pairing request ID:
+
+   ```code
+   $ openclaw devices list
+   ```
+
+1. Approve the device using the request ID <Var name="request-id" />:
+
+   ```code
+   $ openclaw devices approve <Var name="request-id" />
+   ```
+
+1. Restart the OpenClaw gateway:
+
+   ```code
+   $ openclaw gateway restart
+   ```
+
+You can now securely access your AI agent through the Teleport-protected URL from anywhere.
+
+![OpenClaw Control UI](https://website.goteleport.com/_uploads/openclaw_access_control_ui_58d52e45b1.png)
+
+<Admonition type="tip">
+Once Teleport is confirmed working, you can further harden your server by removing standard SSH access from your AWS security group. Teleport will still be able to provide secure access to the machine.
+</Admonition>
+
+## Further reading
+
+- Learn about the [Teleport Agentic Identity Framework](../../../agentic-identity-framework.mdx).

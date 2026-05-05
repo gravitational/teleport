@@ -122,7 +122,7 @@ type MFAChallengeResponse struct {
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
 	SSOResponse *SSOResponse `json:"sso_response"`
-	// TODO(Joerger): DELETE IN v20.0.0, WebauthnResponse used instead.
+	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
@@ -135,6 +135,10 @@ type SSOResponse struct {
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
 // if there were any responses set. Otherwise returns nil.
 func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
+	if r == nil {
+		return nil, nil
+	}
+
 	var availableResponses int
 	if r.TOTPCode != "" {
 		availableResponses++
@@ -773,7 +777,7 @@ type CreateWebSessionResponse struct {
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
-	SessionExpires time.Time `json:"sessionExpires"`
+	SessionExpires time.Time `json:"sessionExpires,omitempty"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.

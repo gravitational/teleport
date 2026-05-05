@@ -26,6 +26,7 @@ import { TshdClient } from 'teleterm/services/tshd';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeAuthSettings,
+  makeDatabaseGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
@@ -80,7 +81,7 @@ it('shows go to updates button in compatibility warning if there are clusters pr
     new MockedUnaryCall({
       localAuthEnabled: true,
       authProviders: [],
-      hasMessageOfTheDay: false,
+      messageOfTheDay: '',
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',
@@ -207,4 +208,80 @@ it('shows two separate prompt texts during SSO login', async () => {
     // Resolve the promise to avoid leaving a hanging promise around.
     resolveSyncClusterPromise();
   });
+});
+
+it('requires acknowledging MOTD before showing the login form', async () => {
+  const user = userEvent.setup();
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
+
+  jest.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
+    new MockedUnaryCall(
+      makeAuthSettings({
+        messageOfTheDay: 'Authorized use only.',
+      })
+    )
+  );
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <AppUpdaterContextProvider>
+        <ClusterLogin
+          clusterUri={cluster.uri}
+          onCancel={() => {}}
+          prefill={{ username: 'alice' }}
+          reason={undefined}
+        />
+      </AppUpdaterContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(await screen.findByText(/Authorized use only\./)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Acknowledge' })).toBeVisible();
+  expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: 'Acknowledge' }));
+
+  expect(await screen.findByLabelText('Password')).toBeVisible();
+  expect(screen.queryByText(/Authorized use only\./)).not.toBeInTheDocument();
+});
+
+it('does not show relogin reason when MOTD is visible', async () => {
+  const user = userEvent.setup();
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
+
+  jest.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
+    new MockedUnaryCall(
+      makeAuthSettings({
+        messageOfTheDay: 'Authorized use only.',
+      })
+    )
+  );
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <AppUpdaterContextProvider>
+        <ClusterLogin
+          clusterUri={cluster.uri}
+          onCancel={() => {}}
+          prefill={{ username: 'alice' }}
+          reason={{
+            kind: 'reason.gateway-cert-expired',
+            gateway: makeDatabaseGateway(),
+            targetUri: '',
+          }}
+        />
+      </AppUpdaterContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(await screen.findByText(/Authorized use only\./)).toBeVisible();
+  expect(screen.queryByText(/You tried to connect to/)).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Acknowledge' }));
+  expect(
+    await screen.findByText(/You tried to connect to/)
+  ).toBeInTheDocument();
 });

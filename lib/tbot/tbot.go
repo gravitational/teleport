@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -121,6 +122,7 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+
 	b.log.InfoContext(
 		ctx, "Initializing tbot",
 		"version", versionLogValue(),
@@ -241,8 +243,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
+		case *legacyspiffe.WorkloadAPIConfig:
+			b.log.WarnContext(
+				ctx,
+				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+			)
+			services = append(services, legacyspiffe.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
-			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *example.Config:
 			services = append(services, example.ServiceBuilder(svcCfg))
 		case *ssh.MultiplexerConfig:
@@ -258,6 +266,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
 				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
 			))
+		case *legacyspiffe.SVIDOutputConfig:
+			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *ssh.HostOutputConfig:
 			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
@@ -269,7 +279,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
-			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *application.ProxyServiceConfig:
 			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
 		case *workloadidentitysvc.X509OutputConfig:
@@ -291,11 +301,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
 		CredentialLifetime: b.cfg.CredentialLifetime,
+		Leeway:             b.cfg.Leeway,
 		FIPS:               b.cfg.FIPS,
 		Logger:             b.log,
 		ReloadCh:           b.cfg.ReloadCh,
 		Services:           services,
 		ClientMetrics:      clientMetrics,
+		Scoped:             b.cfg.Scoped,
 	})
 	if err != nil {
 		return trace.Wrap(err)

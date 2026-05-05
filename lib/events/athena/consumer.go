@@ -113,7 +113,7 @@ type sqsDeleter interface {
 }
 
 type s3downloader interface {
-	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error) //nolint:staticcheck // TODO(tigrato)
 }
 
 func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
@@ -148,7 +148,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(nklaassen): use s3 manager from teleport observability.
-		payloadDownloader: manager.NewDownloader(publisherS3Client),
+		payloadDownloader: manager.NewDownloader(publisherS3Client), //nolint:staticcheck // TODO(tigrato)
 		payloadBucket:     cfg.largeEventsBucket,
 		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:     cfg.BatchMaxItems,
@@ -490,7 +490,7 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 	)
 
 	wg.Add(s.cfg.noOfWorkers)
-	for i := range s.cfg.noOfWorkers {
+	for i := 0; i < s.cfg.noOfWorkers; i++ {
 		go func(i int) {
 			defer wg.Done()
 			for {
@@ -904,7 +904,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	var wg sync.WaitGroup
 
 	// Start the worker goroutines
-	for range noOfWorkers {
+	for i := 0; i < noOfWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -935,7 +935,10 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 
 	// Batch the receipt handles and send them to the worker pool.
 	for i := 0; i < len(handles); i += maxDeleteBatchSize {
-		end := min(i+maxDeleteBatchSize, len(handles))
+		end := i + maxDeleteBatchSize
+		if end > len(handles) {
+			end = len(handles)
+		}
 		workerCh <- handles[i:end]
 	}
 	close(workerCh)

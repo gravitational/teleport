@@ -40,20 +40,20 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/uacc"
 )
 
 // teleportFakeUser is a user that doesn't exist, used for tests.
@@ -171,15 +171,15 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		err = se.Shell()
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			checkUserInFile(t, utmp, s.btmpPath, teleportFakeUser, true)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			checkUserInFile(collect, utmp, s.btmpPath, teleportFakeUser, true)
 			// Ensure that entries were not written to utmp and wtmp
-			checkUserInFile(t, utmp, s.utmpPath, teleportFakeUser, false)
-			checkUserInFile(t, utmp, s.wtmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.utmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.wtmpPath, teleportFakeUser, false)
 
 			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
-			require.NoError(t, err)
-			require.False(t, inWtmpdb)
+			assert.NoError(collect, err)
+			assert.False(collect, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
@@ -191,7 +191,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -258,13 +258,15 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     s.server.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: sshPublicKey,
-			PublicTLSKey: tlsPublicKey,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     s.server.ClusterName(),
+				Role:         types.RoleNode,
+				PublicSSHKey: sshPublicKey,
+				PublicTLSKey: tlsPublicKey,
+			},
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
@@ -334,7 +336,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
@@ -349,7 +351,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.srv = srv
@@ -359,7 +360,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
-	upriv, upub, err := testauthority.New().GenerateKeyPair()
+	upriv, upub, err := testauthority.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

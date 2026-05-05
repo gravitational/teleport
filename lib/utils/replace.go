@@ -390,8 +390,13 @@ func RegexMatchesAny(inputs []string, expression string) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	if slices.ContainsFunc(inputs, expr.MatchString) {
-		return true, nil
+	for _, input := range inputs {
+		// Since the expression is always surrounded by ^ and $ this is an exact
+		// match for either a plain string (for example ^hello$) or for a regexp
+		// (for example ^hel*o$).
+		if expr.MatchString(input) {
+			return true, nil
+		}
 	}
 	return false, nil
 }

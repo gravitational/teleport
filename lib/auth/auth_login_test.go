@@ -41,7 +41,6 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -54,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -212,6 +212,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -303,6 +304,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -395,6 +397,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, tc.getRequest())
@@ -610,6 +613,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -715,6 +719,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
@@ -980,6 +985,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-a"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -991,6 +999,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-b"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1002,6 +1013,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb/cc",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb/cc"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-c"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1013,6 +1027,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/xx",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/xx"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-x"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1032,7 +1049,8 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 		assignmentIDs = append(assignmentIDs, assignmentID)
 		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: assignmentID,
 				},
@@ -1081,17 +1099,11 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
 		Scope: "/aa/bb",
-		Assignments: map[string]*scopesv1.PinnedAssignments{
-			"/aa": {
-				Roles: []string{"role-a"},
-			},
-			"/aa/bb": {
-				Roles: []string{"role-b"},
-			},
-			"/aa/bb/cc": {
-				Roles: []string{"role-c"},
-			},
-		},
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/aa":       {"/aa": {"role-a"}},
+			"/aa/bb":    {"/aa/bb": {"role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+		}),
 	}
 
 	// parse and examine the ssh cert
@@ -1104,6 +1116,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NotNil(t, sshIdent.ScopePin)
 	require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
 	require.Empty(t, sshIdent.Roles)
+	require.Equal(t, []string{"login-a", "login-b", "login-c", "-teleport-internal-join"}, sshIdent.Principals)
 
 	// parse and examine the tls cert
 	tlsCert, err := tlsca.ParseCertificatePEM(authrsp.TLSCert)
@@ -1258,8 +1271,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	mfa := configureForMFA(t, svr)
 	username := mfa.User
 	password := mfa.Password
-	emitter := &eventstest.MockRecorderEmitter{}
-	authServer.SetEmitter(emitter)
 
 	tests := []struct {
 		name           string
@@ -1269,12 +1280,11 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
 	}
 	for _, test := range tests {
+		test := test
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
 		makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
-				emitter.Reset()
-
 				// 1st step: acquire challenge
 				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
@@ -1307,35 +1317,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				// 2nd step: finish login - either SSH or Web
 				require.NoError(t, authenticate(authServer, authReq))
-
-				require.True(
-					t,
-					slices.ContainsFunc(emitter.Events(), func(event apievents.AuditEvent) bool {
-						e, ok := event.(*apievents.CreateMFAAuthChallenge)
-						if !ok {
-							return false
-						}
-						return e.FlowType == apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE
-					}),
-					"expected create MFA audit event with flow type %s to be emitted but was not found",
-					apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
-				)
-
-				// The TOTP device does not emit the validate event so only check for Webauthn.
-				if resp.GetWebauthn() != nil {
-					require.True(
-						t,
-						slices.ContainsFunc(emitter.Events(), func(event apievents.AuditEvent) bool {
-							e, ok := event.(*apievents.ValidateMFAAuthResponse)
-							if !ok {
-								return false
-							}
-							return e.FlowType == apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE
-						}),
-						"expected validate MFA audit event with flow type %s to be emitted but was not found",
-						apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
-					)
-				}
 			}
 		}
 		t.Run(test.name+"/ssh", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
@@ -2032,7 +2013,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
@@ -2041,13 +2022,13 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
 		},

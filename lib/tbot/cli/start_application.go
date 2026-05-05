@@ -51,7 +51,7 @@ func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction, m
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
-	cmd.Flag("specific-tls-extensions", "If set, include additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions").BoolVar(&c.SpecificTLSExtensions)
+	cmd.Flag("specific-tls-extensions", "If set, includes additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions").BoolVar(&c.SpecificTLSExtensions)
 
 	// Note: CLI will not support roles; all will be requested.
 

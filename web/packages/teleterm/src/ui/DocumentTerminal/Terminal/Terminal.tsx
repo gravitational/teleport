@@ -29,7 +29,8 @@ import {
 import { debounce } from 'shared/utils/highbar';
 
 import { ConfigService } from 'teleterm/services/config';
-import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
+import { WindowsPty } from 'teleterm/services/pty';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
 

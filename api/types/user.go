@@ -648,3 +648,8 @@ func (i *ExternalIdentity) Check() error {
 	}
 	return nil
 }
+
+// IsEqual determines if two user group resources are equivalent to one another.
+func (i *ExternalIdentity) IsEqual(other *ExternalIdentity) bool {
+	return deriveTeleportEqualExternalIdentity(i, other)
+}

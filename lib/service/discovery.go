@@ -40,7 +40,6 @@ func (process *TeleportProcess) shouldInitDiscovery() bool {
 
 func (process *TeleportProcess) initDiscovery() {
 	process.RegisterWithAuthServer(types.RoleDiscovery, DiscoveryIdentityEvent)
-	process.ExpectService(teleport.ComponentDiscovery)
 	process.RegisterCriticalFunc("discovery.init", process.initDiscoveryService)
 }
 
@@ -99,7 +98,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("discovery.stop", func(payload any) {
+	process.OnExit("discovery.stop", func(payload interface{}) {
 		logger.InfoContext(process.ExitContext(), "Shutting down.")
 		if discoveryService != nil {
 			discoveryService.Stop()

@@ -103,12 +103,17 @@ Label              | `v3` Default   | `v4` and higher Default
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
-Role `v6` introduced a new field `kubernetes_resources` that allows
+Role v6 introduced a new field, `kubernetes_resources`, that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
-Role `v7` added support for more `kind` values in the `kubernetes_resources` field.
+Role v7 added support for more `kind` values in the `kubernetes_resources` field.
 
-Role `v8` added support for Kubernetes CRDs and introduced changes for how `kubernetes_resources` behave and are defined.
+Role v8 added support for Kubernetes CRDs and introduced changes in how
+`kubernetes_resources` behave and are defined. Role v8 is not compatible with
+Teleport v17 agents: if your user has a v8 role, a v17 agent running the
+Teleport Kubernetes Service may silently deny the user access, because the agent
+cannot interpret the fields specific to v8 roles. Upgrade all agents to v18
+before using role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
 
@@ -612,8 +617,6 @@ for Kubernetes sessions together with the user and session fields above.
 The following database session fields can be used in `where` expressions to filter access
 for database sessions together with the user and session fields above.
 
-{/* vale messaging.capitalization = NO */}
-
 | Database Session Field | Description | Type |
 |---|---|---|
 | `session.db_service` | The name of the database service where the session took place. | `string` |
@@ -623,8 +626,6 @@ for database sessions together with the user and session fields above.
 | `session.db_user` | The database user used during the session. | `string` |
 | `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
 | `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
-
-{/* vale messaging.capitalization = YES */}
 
 </TabItem>
 <TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">
@@ -758,7 +759,7 @@ Labels for resources enrolled with Teleport:
 |Role Field|Teleport Resource|
 |---|---|
 |`app_labels`|[Applications](../../enroll-resources/application-access/configuration/controls.mdx)|
-|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx)|
+|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/management/trustedclusters.mdx)|
 |`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
 |`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
@@ -782,7 +783,7 @@ Principals a user can assume on infrastructure resources:
 - `windows_desktop_logins`
 
 Teleport principals that a user can impersonate:
-- `impersonate.rules`
+- `impersonate.roles`
 - `impersonate.users`
 
 #### Functions
@@ -813,7 +814,7 @@ sign-on provider.
 |`{{internal.jwt}}`|JWT header used for app access.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
-|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/management/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
@@ -914,6 +915,15 @@ supported data type.
 
 Refer to your identity provider's documentation for the complete list of
 available claims and attributes.
+
+#### Other template variables
+
+In addition to user traits, you can also use the following variables in role
+templates:
+
+| Variable | Description |
+| - | - |
+| `{{user.metadata.name}}` | The user's Teleport username. Useful for matching resources the user "owns" or is responsible for. |
 
 ### Access Request template functions
 

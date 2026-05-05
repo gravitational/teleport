@@ -572,7 +572,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 	key := backend.NewKey(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
 
 Acquire:
-	for i := range leaseRetryAttempts {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other acquire attempt we could retry immediately
@@ -749,7 +749,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	for i := range leaseRetryAttempts {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other cancel attempt we could retry immediately
@@ -1156,42 +1156,6 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		HostID:    server.GetHostID(),
 		Expires:   server.Expiry(),
 	}, nil
-}
-
-// UnconditionalUpdateApplicationServer implements [services.PresenceInternal].
-func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
-	if err := services.CheckAndSetDefaults(server); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	value, err := services.MarshalAppServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Since an app server represents a single proxied application, there may
-	// be multiple database servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /appServers/<namespace>/<host-uuid>/<name>
-	lease, err := s.Update(ctx, backend.Item{
-		Key: backend.NewKey(appServersPrefix,
-			server.GetNamespace(),
-			server.GetHostID(),
-			server.GetName(),
-		),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: server.GetRevision(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	server.SetRevision(lease.Revision)
-	return server, nil
 }
 
 // DeleteApplicationServer removes specified application server.

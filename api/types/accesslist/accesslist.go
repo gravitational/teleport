@@ -190,8 +190,7 @@ const (
 	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
 	// reviews are not supported for them and the ownership is optional.
 	Static Type = "static"
-	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
-	// for them and the ownership is optional.
+	// SCIM Access Lists are created with the SCIM integration. Ownership is optional.
 	SCIM Type = "scim"
 )
 
@@ -201,7 +200,7 @@ var AllTypes = []Type{DeprecatedDynamic, Default, Static, SCIM}
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
-	case DeprecatedDynamic, Default:
+	case DeprecatedDynamic, Default, SCIM:
 		return true
 	default:
 		return false
@@ -310,17 +309,19 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+
+	// ScopedRoles are the scoped roels that are granted to users who are
+	// members of the access list.
+	ScopedRoles []ScopedRoleGrant `json:"scoped_roles" yaml:"scoped_roles"`
 }
 
-// Clone returns a copy of the Grants.
-func (grants *Grants) Clone() Grants {
-	if grants == nil {
-		return Grants{}
-	}
-	return Grants{
-		Roles:  slices.Clone(grants.Roles),
-		Traits: grants.Traits.Clone(),
-	}
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+type ScopedRoleGrant struct {
+	// Role is the name of the scoped role to be granted.
+	Role string `json:"role" yaml:"role"`
+	// Scope is the scope the role will be assigned at. It must be an assignable
+	// scope of the role.
+	Scope string `json:"scope" yaml:"scope"`
 }
 
 // Status contains dynamic fields calculated during retrieval.
@@ -461,6 +462,16 @@ func (a *AccessList) GetOwners() []Owner {
 // SetOwners sets the owners of the access list.
 func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
+}
+
+// SetOwnerGrants sets the owner grants of the access list.
+func (a *AccessList) SetOwnerGrants(grants Grants) {
+	a.Spec.OwnerGrants = grants
+}
+
+// SetMemberGrants sets the member grants of the access list.
+func (a *AccessList) SetMemberGrants(grants Grants) {
+	a.Spec.Grants = grants
 }
 
 // GetMembershipRequires returns the membership requires configuration from the access list.

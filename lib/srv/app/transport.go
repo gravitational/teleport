@@ -45,12 +45,12 @@ import (
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	app          types.Application
-	publicPort   string
-	cipherSuites []uint16
-	jwt          string
-	traits       wrappers.Traits
-	log          *slog.Logger
+	app           types.Application
+	publicPort    string
+	cipherSuites  []uint16
+	jwt           string
+	rewriteTraits wrappers.Traits
+	log           *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
 	hostID string
 }
@@ -208,7 +208,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.Header.Set(teleport.AppJWTHeader, t.jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traits, t.log)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.rewriteTraits, t.log)
 	return nil
 }
 
@@ -220,6 +220,12 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 	uriPath := path.Clean(t.uri.Path)
 	if uriPath == "." {
 		uriPath = "/"
+	}
+	// path.Clean strips trailing slashes, but administrators may configure
+	// URIs like http://backend:9000/dashboard/ where the trailing slash is
+	// significant. Preserve it when the original URI had one.
+	if uriPath != "/" && strings.HasSuffix(t.uri.Path, "/") {
+		uriPath += "/"
 	}
 	if uriPath == "/" {
 		return "", false
@@ -301,9 +307,9 @@ func host(addr string) string {
 // charWrap wraps a line to about 80 characters to make it easier to read.
 func charWrap(message string) string {
 	var sb strings.Builder
-	for line := range strings.SplitSeq(message, "\n") {
+	for _, line := range strings.Split(message, "\n") {
 		var n int
-		for word := range strings.FieldsSeq(line) {
+		for _, word := range strings.Fields(line) {
 			sb.WriteString(word)
 			sb.WriteString(" ")
 

@@ -271,11 +271,12 @@ describe('KubernetesLabelsSelect', () => {
     ).toBeInTheDocument();
 
     expect(
-      within(modal).getByRole('heading', { name: 'Selected Labels (0)' })
+      within(modal).getByRole('heading', { name: 'Selected Labels (1)' })
     ).toBeInTheDocument();
     expect(
       within(selectedSection!).queryByText('env: dev')
     ).not.toBeInTheDocument();
+    expect(within(selectedSection!).getByText('*: *')).toBeInTheDocument();
   });
 
   test('manual entry', async () => {
@@ -292,16 +293,30 @@ describe('KubernetesLabelsSelect', () => {
       .getByRole('heading', { name: 'Selected Labels (0)' })
       .closest('div');
 
-    const input = within(selectedSection!).getByPlaceholderText('name: value');
-    await user.type(input, 'foo: bar{enter}');
-    await user.type(input, 'foo2:bar: baz{enter}'); // colon in name
-    await user.type(input, 'foo3: bar:baz{enter}'); // colon in value
-    await user.type(input, 'foo4: bar: baz{enter}'); // colon in value
-    await user.type(input, 'env: *{enter}');
+    const nameInput = within(selectedSection!).getByLabelText('Name');
+    const valueInput = within(selectedSection!).getByLabelText('Value');
+
+    await user.type(nameInput, 'foo');
+    await user.type(valueInput, 'bar{enter}');
+
+    await user.type(nameInput, 'foo2:bar'); // colon in name
+    await user.type(valueInput, 'baz{enter}');
+
+    await user.type(nameInput, 'foo3');
+    await user.type(valueInput, 'bar:baz'); // colon in value
+    await user.type(nameInput, '{enter}');
+
+    await user.type(nameInput, 'foo4');
+    await user.type(valueInput, 'bar: baz{enter}'); // colon and space in value
+
+    await user.type(nameInput, 'env');
+    await user.type(valueInput, '*{enter}');
+
+    await user.type(nameInput, 'region');
     // Extra square brackets are required to escape the initial pair
-    await user.type(input, 'region: ^eu-(west|east)-[[0-9]]+$');
+    await user.type(valueInput, '^eu-(west|east)-[[0-9]]+$');
     await user.click(
-      within(selectedSection!).getByRole('button', { name: 'Add' })
+      within(selectedSection!).getByRole('button', { name: 'add label' })
     );
 
     expect(
@@ -329,8 +344,10 @@ describe('KubernetesLabelsSelect', () => {
 
     const modal = screen.getByTestId('Modal');
 
-    const input = within(modal).getByPlaceholderText('name: value');
-    await user.type(input, 'foo: bar{enter}');
+    const nameInput = within(modal).getByLabelText('Name');
+    const valueInput = within(modal).getByLabelText('Value');
+    await user.type(nameInput, 'foo');
+    await user.type(valueInput, 'bar{enter}');
 
     await user.click(within(modal).getByRole('button', { name: 'Done' }));
 
@@ -358,8 +375,10 @@ describe('KubernetesLabelsSelect', () => {
 
     const modal = screen.getByTestId('Modal');
 
-    const input = within(modal).getByPlaceholderText('name: value');
-    await user.type(input, 'foo:bar{enter}');
+    const nameInput = within(modal).getByLabelText('Name');
+    const valueInput = within(modal).getByLabelText('Value');
+    await user.type(nameInput, 'foo');
+    await user.type(valueInput, 'bar{enter}');
 
     await user.click(within(modal).getByRole('button', { name: 'Cancel' }));
 
@@ -430,5 +449,14 @@ function makeWrapper(opts?: {
 function withListUnifiedResourcesSuccess(opts?: {
   response?: ResourcesResponse<UnifiedResource>;
 }) {
-  server.use(fetchUnifiedResourcesSuccess(opts));
+  server.use(
+    fetchUnifiedResourcesSuccess({
+      response: opts?.response
+        ? {
+            ...opts.response,
+            items: opts.response.agents,
+          }
+        : undefined,
+    })
+  );
 }

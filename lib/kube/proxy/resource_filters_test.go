@@ -167,7 +167,7 @@ func Test_filterBuffer(t *testing.T) {
 				require.NoError(t, err)
 				data := &bytes.Buffer{}
 				name := filepath.Base(tt.args.dataFile)
-				err = temp.ExecuteTemplate(data, name, map[string]any{
+				err = temp.ExecuteTemplate(data, name, map[string]interface{}{
 					"Kind": teleToKubeResource[r].obj,
 					"API":  teleToKubeResource[r].api,
 				},

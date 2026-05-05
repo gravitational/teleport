@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -66,7 +67,7 @@ type BaseJSONRPCMessage struct {
 	// JSONRPC specifies the version of JSONRPC.
 	JSONRPC string `json:"jsonrpc"`
 	// ID is the ID for request and response. ID is nil for notification.
-	ID mcp.RequestId `json:"id"`
+	ID mcp.RequestId `json:"id,omitempty"`
 	// Method is the request or notification method. Method is empty for response.
 	Method string `json:"method,omitempty"`
 	// Params is the params for request and notification.
@@ -75,6 +76,15 @@ type BaseJSONRPCMessage struct {
 	Result json.RawMessage `json:"result,omitempty"`
 	// Error is the response error.
 	Error json.RawMessage `json:"error,omitempty"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
+// This ensures that json.Unmarshal automatically enforces case sensitivity for
+// this type.
+func (m *BaseJSONRPCMessage) UnmarshalJSON(data []byte) error {
+	type Alias BaseJSONRPCMessage
+	aux := (*Alias)(m)
+	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, aux))
 }
 
 // IsNotification returns true if the message is a notification.
@@ -130,14 +140,32 @@ type JSONRPCNotification struct {
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
+// This ensures that json.Unmarshal automatically enforces case sensitivity for
+// this type.
+func (n *JSONRPCNotification) UnmarshalJSON(data []byte) error {
+	type Alias JSONRPCNotification
+	aux := (*Alias)(n)
+	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, aux))
+}
+
 // JSONRPCRequest defines a MCP request.
 //
 // https://modelcontextprotocol.io/specification/2025-03-26/basic#requests
 type JSONRPCRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
 	Method  string        `json:"method"`
-	ID      mcp.RequestId `json:"id"`
+	ID      mcp.RequestId `json:"id,omitempty"`
 	Params  JSONRPCParams `json:"params,omitempty"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
+// This ensures that json.Unmarshal automatically enforces case sensitivity for
+// this type.
+func (r *JSONRPCRequest) UnmarshalJSON(data []byte) error {
+	type Alias JSONRPCRequest
+	aux := (*Alias)(r)
+	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, aux))
 }
 
 // JSONRPCResponse defines an MCP response.
@@ -154,11 +182,20 @@ type JSONRPCResponse struct {
 	Error   json.RawMessage `json:"error,omitempty"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
+// This ensures that json.Unmarshal automatically enforces case sensitivity for
+// this type.
+func (r *JSONRPCResponse) UnmarshalJSON(data []byte) error {
+	type Alias JSONRPCResponse
+	aux := (*Alias)(r)
+	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, aux))
+}
+
 // GetListToolResult assumes the result is for MethodToolsList and returns
 // the corresponding go object.
 func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal([]byte(r.Result), &listResult); err != nil {
+	if err := UnmarshalJSONRPCMessage(r.Result, &listResult); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &listResult, nil
@@ -168,7 +205,7 @@ func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 // returns the corresponding go object.
 func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
 	var result mcp.InitializeResult
-	if err := json.Unmarshal(r.Result, &result); err != nil {
+	if err := UnmarshalJSONRPCMessage(r.Result, &result); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &result, nil
@@ -186,6 +223,22 @@ func unmarshalResponse(rawMessage string) (*JSONRPCResponse, error) {
 	}
 	return base.MakeResponse(), nil
 }
+
+// UnmarshalJSONRPCMessage performs case-sensitive JSON umarshal.
+func UnmarshalJSONRPCMessage(data []byte, v any) error {
+	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, v))
+}
+
+// caseSensitiveJSONConfig is used to decode JSON RPC messages. The config is
+// based on jsoniter.ConfigCompatibleWithStandardLibrary with the addition of
+// CaseSensitive enabled.
+// TODO(greedy52): Migrate to encoding/json/v2 once it's out of experimentation.
+var caseSensitiveJSONConfig = jsoniter.Config{
+	EscapeHTML:             true,
+	SortMapKeys:            true,
+	ValidateJsonRawMessage: true,
+	CaseSensitive:          true,
+}.Froze()
 
 const (
 	// MethodInitialize initiates connection and negotiates protocol capabilities.

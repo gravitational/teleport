@@ -288,7 +288,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.NotZero(t, ph.Count())
+		assert.NotZero(t, ph.Count())
 	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
@@ -325,7 +325,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.NotZero(t, ph.Count())
+		assert.NotZero(t, ph.Count())
 	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
@@ -556,6 +556,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 	kubeConfigPathRoot := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvrRoot.URL, kubeCluster))
 
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -1502,7 +1503,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	rootCfg := helpers.InstanceConfig{

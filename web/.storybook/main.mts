@@ -22,7 +22,7 @@ import path from 'node:path';
 import type { StorybookConfig } from '@storybook/react-vite';
 
 const enterpriseTeleportExists = fs.existsSync(
-  path.join(__dirname, '/../../e/web')
+  path.join(import.meta.dirname, '/../../e/web')
 );
 
 function createStoriesPaths() {

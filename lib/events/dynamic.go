@@ -22,12 +22,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/structpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -324,6 +320,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case AzureRunEvent:
+		e = &events.AzureRun{}
 	case KubernetesClusterCreateEvent:
 		e = &events.KubernetesClusterCreate{}
 	case KubernetesClusterUpdateEvent:
@@ -497,6 +495,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
 
+	case AutoUpdateAgentRolloutTriggerEvent:
+		e = &events.AutoUpdateAgentRolloutTrigger{}
+	case AutoUpdateAgentRolloutForceDoneEvent:
+		e = &events.AutoUpdateAgentRolloutForceDone{}
+	case AutoUpdateAgentRolloutRollbackEvent:
+		e = &events.AutoUpdateAgentRolloutRollback{}
+
 	case ContactCreateEvent:
 		e = &events.ContactCreate{}
 	case ContactDeleteEvent:
@@ -564,22 +569,55 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	case SCIMListingEvent:
 		e = &events.SCIMListingEvent{}
-	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent, SCIMPatchEvent:
 		e = &events.SCIMResourceEvent{}
 
 	case ClientIPRestrictionsUpdateEvent:
 		e = &events.ClientIPRestrictionsUpdate{}
 
-	case AppAuthConfigCreateEvent:
-		e = &events.AppAuthConfigCreate{}
-	case AppAuthConfigUpdateEvent:
-		e = &events.AppAuthConfigUpdate{}
-	case AppAuthConfigDeleteEvent:
-		e = &events.AppAuthConfigDelete{}
-	case AppAuthConfigVerifySuccessCode:
-		e = &events.AppAuthConfigVerify{}
-	case AppAuthConfigVerifyFailureEvent:
-		e = &events.AppAuthConfigVerify{}
+	case VnetConfigCreateEvent:
+		e = &events.VnetConfigCreate{}
+	case VnetConfigUpdateEvent:
+		e = &events.VnetConfigUpdate{}
+	case VnetConfigDeleteEvent:
+		e = &events.VnetConfigDelete{}
+
+	case WorkloadClusterCreateEvent:
+		e = &events.WorkloadClusterCreate{}
+	case WorkloadClusterUpdateEvent:
+		e = &events.WorkloadClusterUpdate{}
+	case WorkloadClusterDeleteEvent:
+		e = &events.WorkloadClusterDelete{}
+
+	case InferenceModelCreateEvent:
+		e = &events.InferenceModelCreate{}
+	case InferenceModelUpdateEvent:
+		e = &events.InferenceModelUpdate{}
+	case InferenceModelDeleteEvent:
+		e = &events.InferenceModelDelete{}
+
+	case InferenceSecretCreateEvent:
+		e = &events.InferenceSecretCreate{}
+	case InferenceSecretUpdateEvent:
+		e = &events.InferenceSecretUpdate{}
+	case InferenceSecretDeleteEvent:
+		e = &events.InferenceSecretDelete{}
+
+	case InferencePolicyCreateEvent:
+		e = &events.InferencePolicyCreate{}
+	case InferencePolicyUpdateEvent:
+		e = &events.InferencePolicyUpdate{}
+	case InferencePolicyDeleteEvent:
+		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
+
+	case SessionSummarizedEvent:
+		e = &events.SessionSummarized{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
@@ -640,59 +678,4 @@ func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	}
 
 	return fields, nil
-}
-
-// FromEventFieldsSlice converts an array of EventFields to an array of AuditEvent.
-func FromEventFieldsSlice(fieldsArray []EventFields) ([]events.AuditEvent, error) {
-	events := make([]events.AuditEvent, 0, len(fieldsArray))
-	for _, fields := range fieldsArray {
-		event, err := FromEventFields(fields)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		events = append(events, event)
-	}
-	return events, nil
-}
-
-// EventFieldsToUnstructured converts an EventFields to an EventUnstructured.
-func FromEventFieldsSliceToUnstructured(fieldsArray []EventFields) ([]*auditlogpb.EventUnstructured, error) {
-	events := make([]*auditlogpb.EventUnstructured, 0, len(fieldsArray))
-	for _, fields := range fieldsArray {
-		event, err := EventFieldsToUnstructured(fields)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		events = append(events, event)
-	}
-	return events, nil
-}
-
-// EventFieldsToUnstructured converts the raw event fields stored to unstructured.
-func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, error) {
-	str, err := structpb.NewStruct(evt)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert event fields to structpb.Struct")
-	}
-
-	id := getOrComputeEventID(evt)
-
-	return &auditlogpb.EventUnstructured{
-		Type:         evt.GetType(),
-		Index:        int64(evt.GetInt(EventIndex)),
-		Time:         timestamppb.New(evt.GetTime(EventTime)),
-		Id:           id,
-		Unstructured: str,
-	}, nil
-}
-
-// getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.
-// Otherwise, the event is marshaled to JSON and the SHA256 hash of the JSON is returned.
-func getOrComputeEventID(evt EventFields) string {
-	id := evt.GetID()
-	if id != "" {
-		return id
-	}
-
-	return uuid.NewString()
 }

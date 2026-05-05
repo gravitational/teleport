@@ -83,11 +83,14 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		require.NoError(t, tt.b.Close())
 	})
 
+	keygen, err := authority.NewKeygen(modules.BuildOSS, tt.c.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}
@@ -107,6 +110,7 @@ func (tt *githubContext) Close() error {
 }
 
 func TestPopulateClaims(t *testing.T) {
+	t.Parallel()
 	client := &testGithubAPIClient{}
 	user, err := client.getUser()
 	require.NoError(t, err)
@@ -127,6 +131,7 @@ func TestPopulateClaims(t *testing.T) {
 }
 
 func TestCreateGithubUser(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tt := setupGithubContext(ctx, t)
 
@@ -190,6 +195,7 @@ func (c *testGithubAPIClient) getTeams() ([]auth.GithubTeamResponse, error) {
 }
 
 func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
+	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	tt := setupGithubContext(ctx, t)
@@ -289,6 +295,7 @@ func (m *mockedGithubManager) ValidateGithubAuthRedirect(ctx context.Context, di
 }
 
 func TestCalculateGithubUserNoTeams(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	a := &auth.Server{}
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -318,6 +325,7 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 // Test that calculateGithubUser calls the login rule evaluator, evaluated
 // traits end up in the user params, and traits are evaluated exactly once.
 func TestCalculateGithubUserWithLoginRules(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Create a test role so that FetchRoles can succeed.
@@ -552,6 +560,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 }
 
 func TestGithubURLFormat(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		host   string
 		path   string
@@ -580,6 +589,7 @@ func TestGithubURLFormat(t *testing.T) {
 }
 
 func TestBuildAPIEndpoint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

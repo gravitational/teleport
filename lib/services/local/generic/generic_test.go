@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -543,8 +544,8 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 	totalResourcesPerProp := 100
 	totalProps := 100
 	var totalResources []*testResource
-	for range totalResourcesPerProp {
-		for j := range totalProps {
+	for i := 0; i < totalResourcesPerProp; i++ {
+		for j := 0; j < totalProps; j++ {
 			r := newTestResourceWithSpec(uuid.NewString(), strconv.Itoa(j))
 			totalResources = append(totalResources, r)
 		}
@@ -630,7 +631,8 @@ func TestGenericValidation(t *testing.T) {
 }
 
 func TestGenericKeyOverride(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -646,7 +648,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		NameKeyFunc:   func(string) string { return "llama" },
+		NameKeyFunc:   func() backend.Key { return backend.NewKey("llama") },
 	})
 	require.NoError(t, err)
 
@@ -725,4 +727,32 @@ func TestGenericKeyOverride(t *testing.T) {
 	require.NoError(t, err)
 	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	t.Run("WithNameKeyFunc", func(t *testing.T) {
+		s := service.WithNameKeyFunc(func() backend.Key {
+			return backend.NewKey("camelid", "thellama")
+		})
+
+		ctx := t.Context()
+		r1 := newTestResource("r1")
+
+		// Test a few basic operations to make sure the With is sound.
+		created, err := s.CreateResource(ctx, r1)
+		require.NoError(t, err, "CreateResource")
+
+		// Test that the customized key exists.
+		wantKey := backend.NewKey("generic_prefix", "camelid", "thellama")
+		_, err = memBackend.Get(ctx, wantKey)
+		require.NoError(t, err, "Get by customized key")
+
+		// Get.
+		stored, err := s.GetResource(ctx, "")
+		require.NoError(t, err, "GetResource")
+		assert.Equal(t, created, stored, "GetResource mismatch")
+
+		// Delete.
+		require.NoError(t, s.DeleteResource(ctx, ""), "DeleteResource")
+		// 2nd Delete.
+		require.ErrorAs(t, s.DeleteResource(ctx, ""), new(*trace.NotFoundError), "2nd DeleteResource error mismatch")
+	})
 }

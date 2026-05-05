@@ -631,6 +631,10 @@ const (
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
 
+	// AzureRunEvent is emitted when a run of an install script
+	// completes on a discovered Azure VM
+	AzureRunEvent = "azure.run"
+
 	// DeviceEvent is the catch-all event for Device Trust events.
 	// Deprecated: Use one of the more specific event codes below.
 	DeviceEvent = "device"
@@ -963,24 +967,56 @@ const (
 	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
 	SCIMDeleteEvent = "scim.delete"
 
+	// SCIMPatchEvent is emitted when a resource is patched via SCIM.
+	SCIMPatchEvent = "scim.patch"
+
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
 
-	// AppAuthConfigCreateEvent is emitted when an app auth config
-	// resource is created.
-	AppAuthConfigCreateEvent = "app_auth_config.create"
-	// AppAuthConfigUpdateEvent is emitted when an app auth config
-	// resource is updated.
-	AppAuthConfigUpdateEvent = "app_auth_config.update"
-	// AppAuthConfigDeleteEvent is emitted when an app auth config
-	// resource is deleted.
-	AppAuthConfigDeleteEvent = "app_auth_config.delete"
-	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
-	// succeeds.
-	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
-	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
-	// fails.
-	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
+	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
+	VnetConfigCreateEvent = "vnet.config.create"
+	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
+	VnetConfigUpdateEvent = "vnet.config.update"
+	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
+	VnetConfigDeleteEvent = "vnet.config.delete"
+
+	// WorkloadClusterCreateEvent is emitted when a WorkloadCluster resource is created.
+	WorkloadClusterCreateEvent = "workload_cluster.create"
+	// WorkloadClusterUpdateEvent is emitted when a WorkloadCluster resource is updated.
+	WorkloadClusterUpdateEvent = "workload_cluster.update"
+	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
+	WorkloadClusterDeleteEvent = "workload_cluster.delete"
+
+	// InferenceModelCreateEvent is emitted when an inference model resource is created.
+	InferenceModelCreateEvent = "inference_model.create"
+	// InferenceModelUpdateEvent is emitted when an inference model resource is updated.
+	InferenceModelUpdateEvent = "inference_model.update"
+	// InferenceModelDeleteEvent is emitted when an inference model resource is deleted.
+	InferenceModelDeleteEvent = "inference_model.delete"
+
+	// InferenceSecretCreateEvent is emitted when an inference secret resource is created.
+	InferenceSecretCreateEvent = "inference_secret.create"
+	// InferenceSecretUpdateEvent is emitted when an inference secret resource is updated.
+	InferenceSecretUpdateEvent = "inference_secret.update"
+	// InferenceSecretDeleteEvent is emitted when an inference secret resource is deleted.
+	InferenceSecretDeleteEvent = "inference_secret.delete"
+
+	// InferencePolicyCreateEvent is emitted when an inference policy resource is created.
+	InferencePolicyCreateEvent = "inference_policy.create"
+	// InferencePolicyUpdateEvent is emitted when an inference policy resource is updated.
+	InferencePolicyUpdateEvent = "inference_policy.update"
+	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
+	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
+	RetrievalModelCreateEvent = "retrieval_model.create"
+	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
+	RetrievalModelUpdateEvent = "retrieval_model.update"
+	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
+	RetrievalModelDeleteEvent = "retrieval_model.delete"
+
+	// SessionSummarizedEvent is emitted when a session summary is created.
+	SessionSummarizedEvent = "session.summarized"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1064,6 +1100,18 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error)
+}
+
+// StreamerWithCallback extends [Streamer] to allow setting a callback that is
+// invoked when a session recording upload completes without a session end event.
+type StreamerWithCallback interface {
+	Streamer
+	// SetOnUploadComplete registers a callback invoked after a session
+	// recording upload completes without a session end event. The callback
+	// may return a session end event or nil if unavailable.
+	//
+	// MUST be called before any streams are created.
+	SetOnUploadComplete(func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error))
 }
 
 // StreamPart represents uploaded stream part
@@ -1211,8 +1259,6 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
-	// Search is an optional search query to filter events.
-	Search string
 }
 
 type SearchSessionEventsRequest struct {
@@ -1269,16 +1315,6 @@ type AuditLogger interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
-
-	// SearchUnstructuredEvents is a flexible way to find events and returns them in an unstructured format (JSON like)
-	//
-	// Event types to filter can be specified and pagination is handled by an iterator key that allows
-	// a query to be resumed.
-	//
-	// The only mandatory requirement is a date range (UTC).
-	//
-	// This function may never return more than 1 MiB of event data.
-	SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error)
 }
 
 // EventFields instance is attached to every logged event

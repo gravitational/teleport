@@ -50,25 +50,30 @@ func TestEmptyRoleConverts(t *testing.T) {
 	require.Equal(t, "test@/foo/bar", role.GetName())
 }
 
-// TestSSHConversion verifies the various SSH-related scoped role rule conversion scenarios.
+// TestSSHConversion verifies the various SSH-related scoped role conversion scenarios.
 func TestSSHConversion(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
-		name       string
-		conditions *scopedaccessv1.ScopedRoleConditions
-		expect     types.RoleConditions
+		name   string
+		ssh    *scopedaccessv1.ScopedRoleSSH
+		expect types.RoleConditions
 	}{
 		{
-			name:       "empty conditions",
-			conditions: &scopedaccessv1.ScopedRoleConditions{},
-			expect:     types.RoleConditions{},
+			name:   "nil ssh block",
+			ssh:    nil,
+			expect: types.RoleConditions{},
+		},
+		{
+			name:   "empty ssh block",
+			ssh:    &scopedaccessv1.ScopedRoleSSH{},
+			expect: types.RoleConditions{},
 		},
 		{
 			name: "sparse",
-			conditions: &scopedaccessv1.ScopedRoleConditions{
+			ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"root"},
-				NodeLabels: []*labelv1.Label{
+				Labels: []*labelv1.Label{
 					{
 						Name:   "team",
 						Values: []string{"red"},
@@ -84,9 +89,9 @@ func TestSSHConversion(t *testing.T) {
 		},
 		{
 			name: "full",
-			conditions: &scopedaccessv1.ScopedRoleConditions{
+			ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"root", "admin"},
-				NodeLabels: []*labelv1.Label{
+				Labels: []*labelv1.Label{
 					{
 						Name:   "env",
 						Values: []string{"prod", "staging"},
@@ -117,7 +122,7 @@ func TestSSHConversion(t *testing.T) {
 				Scope: "/foo",
 				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
-					Allow:            tt.conditions,
+					Ssh:              tt.ssh,
 				},
 				Version: types.V1,
 			}, "/foo/bar")
@@ -206,14 +211,211 @@ func TestRulesConversion(t *testing.T) {
 				Scope: "/foo",
 				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
-					Allow: &scopedaccessv1.ScopedRoleConditions{
-						Rules: tt.rules,
-					},
+					Rules:            tt.rules,
 				},
 				Version: types.V1,
 			}, "/foo/bar")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.expect, role.GetRules(types.Allow)))
+		})
+	}
+}
+
+func baseScopedRole() *scopedaccessv1.ScopedRole {
+	return &scopedaccessv1.ScopedRole{
+		Kind:     KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: "test"},
+		Scope:    "/foo",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/foo/bar"},
+			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
+		},
+		Version: types.V1,
+	}
+}
+
+// TestClientIdleTimeoutNotInClassicRole verifies that ScopedRoleToRole does not populate ClientIdleTimeout
+// in the classic role options. Per the scoped role design, client_idle_timeout is read directly from the
+// appropriate protocol block on the scoped role, which does not have a direct classic role equivalent.
+func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.ClientIdleTimeout = "30m"
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.NotNil(t, role)
+	// ClientIdleTimeout must be zero in the converted role; it is evaluated at access-check time
+	// via SSHAccessChecker.AdjustClientIdleTimeout reading directly from the scoped role proto.
+	require.Zero(t, role.GetOptions().ClientIdleTimeout.Duration())
+}
+
+func TestX11ForwardingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	boolPtr := func(v bool) *bool { return &v }
+	sr := baseScopedRole()
+	sr.Spec.Ssh.PermitX11Forwarding = boolPtr(true)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBool(false), role.GetOptions().PermitX11Forwarding)
+}
+
+func TestForwardAgentNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	boolPtr := func(v bool) *bool { return &v }
+	sr := baseScopedRole()
+	sr.Spec.Ssh.ForwardAgent = boolPtr(true)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBool(UnstableGetScopedForwardAgent()), role.GetOptions().ForwardAgent)
+}
+
+func TestMaxSessionsNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	int64Ptr := func(v int64) *int64 { return &v }
+	sr := baseScopedRole()
+	sr.Spec.Ssh.MaxSessions = int64Ptr(10)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, int64(0), role.GetOptions().MaxSessions)
+}
+
+func TestSSHPortForwardingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	boolPtr := func(v bool) *bool { return &v }
+	sr := baseScopedRole()
+	sr.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(getScopedPortForwardingConfig(), role.GetOptions().SSHPortForwarding))
+}
+
+func TestHostUserCreationNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode: "keep",
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, role.GetOptions().CreateHostUserMode)
+}
+
+func TestSSHFileCopyNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	boolPtr := func(v bool) *bool { return &v }
+	sr := baseScopedRole()
+	sr.Spec.Ssh.FileCopy = boolPtr(false)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBoolOption(true), role.GetOptions().SSHFileCopy)
+}
+
+// TestKubeConversion verifies the various kube-related scoped role conversion scenarios.
+func TestKubeConversion(t *testing.T) {
+	t.Parallel()
+
+	wildcardResources := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Name:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+	tts := []struct {
+		name   string
+		kube   *scopedaccessv1.ScopedRoleKube
+		expect types.RoleConditions
+	}{
+		{
+			name:   "empty conditions",
+			kube:   &scopedaccessv1.ScopedRoleKube{},
+			expect: types.RoleConditions{},
+		},
+		{
+			name: "sparse",
+			kube: &scopedaccessv1.ScopedRoleKube{
+				Users:  []string{"system:user"},
+				Groups: []string{"viewer"},
+				Labels: []*labelv1.Label{
+					{
+						Name:   "team",
+						Values: []string{"red"},
+					},
+				},
+			},
+			expect: types.RoleConditions{
+				KubeUsers:  []string{"system:user"},
+				KubeGroups: []string{"viewer"},
+				KubernetesLabels: types.Labels{
+					"team": apiutils.Strings{"red"},
+				},
+				KubernetesResources: wildcardResources,
+			},
+		},
+		{
+			name: "full",
+			kube: &scopedaccessv1.ScopedRoleKube{
+				Users:  []string{"system:user", "system:admin"},
+				Groups: []string{"viewer", "editor"},
+				Labels: []*labelv1.Label{
+					{
+						Name:   "env",
+						Values: []string{"prod", "staging"},
+					},
+					{
+						Name:   "team",
+						Values: []string{"blue"},
+					},
+				},
+			},
+			expect: types.RoleConditions{
+				KubeUsers:  []string{"system:user", "system:admin"},
+				KubeGroups: []string{"viewer", "editor"},
+				KubernetesLabels: types.Labels{
+					"env":  apiutils.Strings{"prod", "staging"},
+					"team": apiutils.Strings{"blue"},
+				},
+				KubernetesResources: wildcardResources,
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/foo",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					Kube:             tt.kube,
+					AssignableScopes: []string{"/foo/bar"},
+				},
+				Version: types.V1,
+			}, "/foo/bar")
+			require.NoError(t, err)
+			tt.expect.Namespaces = []string{"default"}
+			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))
 		})
 	}
 }

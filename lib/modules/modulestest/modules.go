@@ -31,9 +31,46 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// OSSModules returns a [Modules] with the build type
+// set to modules.BuildOSS.
+func OSSModules() *Modules {
+	return &Modules{
+		TestBuildType: modules.BuildOSS,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App:                {Enabled: true, Limit: 0},
+				entitlements.DB:                 {Enabled: true, Limit: 0},
+				entitlements.Desktop:            {Enabled: true, Limit: 0},
+				entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
+				entitlements.K8s:                {Enabled: true, Limit: 0},
+			},
+		},
+	}
+}
+
+// EnterpriseModules returns a [Modules] with the build type
+// set to modules.BuildEnterprise.
+func EnterpriseModules() *Modules {
+	return &Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App:                {Enabled: true, Limit: 0},
+				entitlements.DB:                 {Enabled: true, Limit: 0},
+				entitlements.Desktop:            {Enabled: true, Limit: 0},
+				entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
+				entitlements.K8s:                {Enabled: true, Limit: 0},
+				entitlements.Identity:           {Enabled: true},
+				entitlements.AccessLists:        {Enabled: true, Limit: 2000},
+			},
+		},
+	}
+}
 
 // Modules is an implementation of [modules.Modules] to be
 // used in tests that need to exercise various conditions
@@ -50,8 +87,9 @@ type Modules struct {
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn  func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateLongTermResourceGroupingFn func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
+	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) ([]string, error)
+	GenerateLongTermResourceGroupingFn        func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -98,6 +136,14 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 		return m.GenerateAccessRequestPromotionsFn(ctx, getter, request)
 	}
 	return types.NewAccessRequestAllowedPromotions(nil), nil
+}
+
+// GenerateAccessRequestSuggestedReviewers implements modules.Modules.
+func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) ([]string, error) {
+	if m.GenerateAccessRequestSuggestedReviewersFn != nil {
+		return m.GenerateAccessRequestSuggestedReviewersFn(ctx, getter, request)
+	}
+	return []string{}, nil
 }
 
 // GetSuggestedAccessLists implements modules.Modules.

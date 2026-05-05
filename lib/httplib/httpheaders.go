@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -194,8 +193,8 @@ var sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^
 
 var indexCSPStringCache *cspCache = newCSPCache()
 
-func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
-	// Check for result with this cfg and urlPath in cache
+func getIndexContentSecurityPolicyString(urlPath string) string {
+	// Check for result with this urlPath in cache
 	if cspString, ok := indexCSPStringCache.get(urlPath); ok {
 		return cspString
 	}
@@ -212,8 +211,8 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 }
 
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
-	cspString := getIndexContentSecurityPolicyString(cfg, urlPath)
+func SetIndexContentSecurityPolicy(h http.Header, urlPath string) {
+	cspString := getIndexContentSecurityPolicyString(urlPath)
 	h.Set("Content-Security-Policy", cspString)
 }
 

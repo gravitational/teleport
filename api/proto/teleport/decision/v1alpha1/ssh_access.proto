@@ -221,4 +221,6 @@ enum PreconditionKind {
   PRECONDITION_KIND_UNSPECIFIED = 0;
   // PreconditionKindInBandMFA requires in-band MFA to be completed.
   PRECONDITION_KIND_IN_BAND_MFA = 1;
+  // PreconditionKindPinSourceIP enforces the client IP observed at login matches the client IP of SSH connections.
+  PRECONDITION_KIND_PIN_SOURCE_IP = 2;
 }

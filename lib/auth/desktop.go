@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,14 +64,28 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+	caID := types.CertAuthID{
+		Type:       types.WindowsCA,
 		DomainName: clusterName.GetClusterName(),
-	}, true)
+	}
+	if !req.SupportsWindowsCA {
+		var callerID string
+		if ig, err := authz.UserFromContext(ctx); err == nil {
+			callerID = ig.GetIdentity().Username
+		}
+		a.logger.WarnContext(ctx,
+			""+
+				"Windows Desktop Service caller does not support the WindowsCA. "+
+				"Issuing certificates using the UserCA.",
+			"caller_id", callerID,
+		)
+		caID.Type = types.UserCA
+	}
+	ca, err := a.GetCertAuthority(ctx, caID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
+	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,7 +113,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// by the client because the CDP is based on the identity of the issuer, which is
 	// necessary in order to support clusters with multiple issuing certs (HSMs).
 	if req.CRLDomain != "" {
-		cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
+		cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, caID.Type, tlsCA, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -141,7 +156,7 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopB
 
 	certAuthority, err := a.GetCertAuthority(
 		ctx,
-		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+		types.CertAuthID{Type: types.WindowsCA, DomainName: clusterName},
 		false,
 	)
 	if err != nil {

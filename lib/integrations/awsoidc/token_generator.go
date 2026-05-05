@@ -97,7 +97,7 @@ func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
 // All calls should be replaced with oidc.IssuerForCluster when IssuerS3URI is removed (it is currently deprecated).
 func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName string) (string, error) {
 	if integrationName == "" {
-		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
+		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
 		return issuer, trace.Wrap(err)
 	}
 
@@ -116,7 +116,7 @@ func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName s
 
 	issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
 	if issuerS3URI == "" {
-		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
+		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
 		return issuer, trace.Wrap(err)
 	}
 

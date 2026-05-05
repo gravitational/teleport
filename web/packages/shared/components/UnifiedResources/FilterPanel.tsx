@@ -117,6 +117,7 @@ export function FilterPanel({
     healthStatusOpts: true,
     resourceTypeOpts: true,
     resourceAvailabilityOpts: true,
+    collapseLabelBtn: true,
   },
 }: FilterPanelProps) {
   const { sort, kinds, statuses } = params;
@@ -231,30 +232,31 @@ export function FilterPanel({
         </HoverTooltip>
         {!hideViewModeOptions && (
           <>
-            {currentViewMode === ViewMode.LIST && (
-              <ButtonBorder
-                size="small"
-                css={`
-                  border: none;
-                  color: ${props => props.theme.colors.text.slightlyMuted};
-                  text-transform: none;
-                  padding-left: ${props => props.theme.space[2]}px;
-                  padding-right: ${props => props.theme.space[2]}px;
-                  height: 22px;
-                  font-size: 12px;
-                `}
-                onClick={() => setExpandAllLabels(!expandAllLabels)}
-              >
-                <Flex alignItems="center" width="100%">
-                  {expandAllLabels ? (
-                    <ArrowsIn size="small" mr={1} />
-                  ) : (
-                    <ArrowsOut size="small" mr={1} />
-                  )}
-                  {expandAllLabels ? 'Collapse ' : 'Expand '} All Labels
-                </Flex>
-              </ButtonBorder>
-            )}
+            {currentViewMode === ViewMode.LIST &&
+              visibleFilterPanelFields.collapseLabelBtn && (
+                <ButtonBorder
+                  size="small"
+                  css={`
+                    border: none;
+                    color: ${props => props.theme.colors.text.slightlyMuted};
+                    text-transform: none;
+                    padding-left: ${props => props.theme.space[2]}px;
+                    padding-right: ${props => props.theme.space[2]}px;
+                    height: 22px;
+                    font-size: 12px;
+                  `}
+                  onClick={() => setExpandAllLabels(!expandAllLabels)}
+                >
+                  <Flex alignItems="center" width="100%">
+                    {expandAllLabels ? (
+                      <ArrowsIn size="small" mr={1} />
+                    ) : (
+                      <ArrowsOut size="small" mr={1} />
+                    )}
+                    {expandAllLabels ? 'Collapse ' : 'Expand '} All Labels
+                  </Flex>
+                </ButtonBorder>
+              )}
             <ViewModeSwitch
               currentViewMode={currentViewMode}
               setCurrentViewMode={setCurrentViewMode}

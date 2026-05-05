@@ -38,7 +38,7 @@ import (
 func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
 	t.Helper()
 	var conns []types.TunnelConnection
-	for range 30 {
+	for i := 0; i < 30; i++ {
 		// to speed things up a bit, bypass the auth cache
 		conns, err := authServer.Services.GetTunnelConnections(clusterName)
 		require.NoError(t, err)
@@ -57,8 +57,8 @@ func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 // Duplicated in tool/tsh/tsh_test.go
 func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	t.Helper()
-	ctx := context.TODO()
-	for range 10 {
+	ctx := t.Context()
+	for i := 0; i < 10; i++ {
 		_, err := authServer.CreateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
@@ -81,8 +81,8 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 // propagate and services to start
 func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	t.Helper()
-	ctx := context.TODO()
-	for range 10 {
+	ctx := t.Context()
+	for i := 0; i < 10; i++ {
 		_, err := authServer.UpdateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
@@ -105,8 +105,8 @@ func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 // propagate and services to start
 func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster, skipNameValidation bool) {
 	t.Helper()
-	ctx := context.TODO()
-	for range 10 {
+	ctx := t.Context()
+	for i := 0; i < 10; i++ {
 		var err error
 		if skipNameValidation {
 			_, err = authServer.UpsertTrustedCluster(ctx, trustedCluster)
@@ -164,14 +164,16 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Ser
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := tunnel.Cluster(ctx, clusterName)
-		require.NoError(t, err, "site not found")
+		if !assert.NoError(t, err, "site not found") {
+			return
+		}
 
-		require.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
+		assert.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
 
-		require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
+		assert.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
 
 		_, err = cluster.GetClient()
-		require.NoError(t, err, "cluster not yet available")
+		assert.NoError(t, err, "cluster not yet available")
 	},
 		90*time.Second,
 		time.Second,

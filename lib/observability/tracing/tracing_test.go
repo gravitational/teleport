@@ -169,7 +169,7 @@ func TestNewExporter(t *testing.T) {
 	}{
 		{
 			name: "invalid config",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
@@ -182,7 +182,7 @@ func TestNewExporter(t *testing.T) {
 				Service:     "test",
 				ExporterURL: "tcp://localhost:123",
 			},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
@@ -391,7 +391,7 @@ func TestTraceProvider(t *testing.T) {
 				return
 			}
 
-			for i := range spansCreated {
+			for i := 0; i < spansCreated; i++ {
 				_, span := provider.Tracer("test").Start(ctx, fmt.Sprintf("test%d", i))
 				span.End()
 			}

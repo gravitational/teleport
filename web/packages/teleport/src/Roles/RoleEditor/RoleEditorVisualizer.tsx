@@ -78,7 +78,7 @@ export function RoleEditorVisualizer({
                 }}
                 secondaryAction={{
                   content: 'Learn More',
-                  href: 'https://goteleport.com/platform/policy/',
+                  href: 'https://goteleport.com/platform/identity-security/',
                 }}
                 dismissible
                 onDismiss={() => setDemoDismissed(true)}

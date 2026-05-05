@@ -36,7 +36,7 @@ import (
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
 	// MFAResponse is an optional field that holds a response to a MFA device challenge.
-	MFAResponse client.MFAChallengeResponse `json:"mfa_response"`
+	MFAResponse client.MFAChallengeResponse `json:"mfa_response,omitempty"`
 	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.
@@ -73,7 +73,7 @@ type TestConnectionRequest struct {
 	// KubernetesImpersonation allows to configure a subset of `kubernetes_users` and
 	// `kubernetes_groups` to impersonate.
 	// Specific to KubernetesTester.
-	KubernetesImpersonation KubernetesImpersonation `json:"kubernetes_impersonation"`
+	KubernetesImpersonation KubernetesImpersonation `json:"kubernetes_impersonation,omitempty"`
 
 	// DatabaseUser is the database User to be tested
 	// Specific to DatabaseTester.

@@ -18,7 +18,6 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
-import "teleport/appauthconfig/v1/appauthconfig.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
@@ -37,9 +36,11 @@ import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
+import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
+import "teleport/workloadcluster/v1/workloadcluster.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 import "teleport/workloadidentity/v1/revocation_resource.proto";
 
@@ -235,7 +236,15 @@ message Event {
     types.PluginV1 plugin = 84;
     // AutoUpdateAgentReport is a resource for counting connected bot instances.
     teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
-    // AppAuthConfig is a resource for defining app auth configs.
-    teleport.appauthconfig.v1.AppAuthConfig AppAuthConfig = 86;
+    // WorkloadCluster is a resource for defining workload clusters.
+    teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
+    // InferenceModel is a resource for defining inference models.
+    teleport.summarizer.v1.InferenceModel InferenceModel = 91;
+    // InferenceSecret is a resource for defining inference secrets.
+    teleport.summarizer.v1.InferenceSecret InferenceSecret = 92;
+    // InferencePolicy is a resource for defining inference policies.
+    teleport.summarizer.v1.InferencePolicy InferencePolicy = 93;
+    // RetrievalModel is a resource for defining retrieval models.
+    teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
   }
 }

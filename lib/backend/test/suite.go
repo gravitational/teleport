@@ -597,8 +597,8 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 	// Some Backends (e.g. DynamoDB) have a limit on the number of items that can
 	// be deleted in a single operation. This test is designed to be run with
 	// a backend that has a limit of 25 items per delete operation.
-	for i := range 100 {
-		item := &backend.Item{Key: prefix("prefix", "c", "cn", strconv.Itoa(i)), Value: fmt.Appendf(nil, "val cn%d", i)}
+	for i := 0; i < 100; i++ {
+		item := &backend.Item{Key: prefix("prefix", "c", "cn", strconv.Itoa(i)), Value: []byte(fmt.Sprintf("val cn%d", i))}
 		lease, err := uut.Create(ctx, *item)
 		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
 		item.Revision = lease.Revision
@@ -651,7 +651,8 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), out.Value)
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
+		i := i
 		var wg sync.WaitGroup
 		wg.Add(1)
 		errs := make(chan error, 2)
@@ -670,7 +671,7 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 
 		// validate that only a single failure occurred
 		var failed int
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			err := <-errs
 			if err != nil {
 				t.Log(err.Error())
@@ -772,14 +773,14 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.Equal(t, bigValue[:], event.Item.Value)
 	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
 
-	err = uut.Delete(context.TODO(), item.Key)
+	err = uut.Delete(t.Context(), item.Key)
 	require.NoError(t, err)
 
-	_, err = uut.Get(context.TODO(), item.Key)
+	_, err = uut.Get(t.Context(), item.Key)
 	require.True(t, trace.IsNotFound(err))
 
 	// keep alive on deleted or expired object should fail
-	err = uut.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
+	err = uut.KeepAlive(t.Context(), lease, updatedAt.Add(1*time.Second))
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -879,7 +880,7 @@ func testFetchLimit(t *testing.T, newBackend Constructor) {
 	buff := make([]byte, 1<<16)
 	itemsCount := 20
 	// Fill the backend with events that total size is greater than 1MB (65KB * 20 > 1MB).
-	for i := range itemsCount {
+	for i := 0; i < itemsCount; i++ {
 		item := &backend.Item{Key: prefix("db", "database", strconv.Itoa(i)), Value: buff}
 		_, err = uut.Put(ctx, *item)
 		require.NoError(t, err)
@@ -907,7 +908,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 	}
 	_, err = uut.Put(ctx, *item)
 	require.NoError(t, err)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		item := &backend.Item{
 			Key:     prefix("db", "database", strconv.Itoa(i)),
 			Value:   []byte("data"),
@@ -1022,7 +1023,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	// has probably gone bad (e.g. db server has ceased to exist), so it's
 	// probably best to bail out with a sensible error (& call stack) rather
 	// than wait for the test to time out
-	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	// Manually drive the clock at ~10x speed to make sure anyone waiting on it
@@ -1157,7 +1158,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uutB.Close()) }()
 
 	prefix := MakePrefix()
-	ctx := context.TODO()
+	ctx := t.Context()
 	value1 := "this first value should not be corrupted by concurrent ops"
 	value2 := "this second value should not be corrupted too"
 	const attempts = 50
@@ -1165,7 +1166,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 	asyncOps := sync.WaitGroup{}
 	asyncErrs := make(chan error, 5*attempts)
 
-	for i := range attempts {
+	for i := 0; i < attempts; i++ {
 		asyncOps.Add(5)
 
 		go func(cnt int) {
@@ -1402,7 +1403,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	// is created. Try more than once to ensure the revision returned
 	// in the lease matches the value stored in the backend.
 	item.Revision = lease.Revision
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		lease, err = uut.ConditionalUpdate(ctx, item)
 		require.NoError(t, err)
 		require.NotEmpty(t, lease.Revision)

@@ -150,7 +150,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*machineidv1.SPIFFEFederation{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := range 49 {
+	for i := 0; i < 49; i++ {
 		created, err := service.CreateSPIFFEFederation(
 			ctx,
 			newSPIFFEFederation(fmt.Sprintf("%d.example.com", i)),
