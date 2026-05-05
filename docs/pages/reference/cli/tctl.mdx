@@ -1704,7 +1704,8 @@ Flags:
 
 ## tctl recordings search
 
-Search session recordings with Session Recording Search.
+Search session recordings with
+[Session Recording Search](../../identity-security/session-search.mdx).
 
 Usage:
 
@@ -1719,7 +1720,7 @@ Flags:
 |`--access-request`|none|Filter by access request ID. Can be specified multiple times.|
 |`--format`|`text`|Format output (text, json, yaml). Defaults to 'text'.|
 |`--from`|none|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
-|`--kind`|none|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
+|`--kind`|none|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times. Defaults to all kinds.|
 |`--label`|none|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
 |`--limit`|`50`|Maximum number of results to return.|
 |`--resource-kind`|none|Filter by Teleport resource type (node, kube_cluster, db).|

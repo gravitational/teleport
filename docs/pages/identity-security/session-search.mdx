@@ -24,9 +24,9 @@ session.
 ## How it works
 
 When a session summary is generated, Teleport indexes the summary and related
-session metadata in Access Graph. Teleport also generates vector embeddings for
+session metadata in Identity Security. Teleport also generates vector embeddings for
 summary chunks using the configured `retrieval_model` resource. When a user
-runs a search, Teleport Auth Service embeds the search query, asks Access Graph
+runs a search, Teleport Auth Service embeds the search query, queries Identity Security
 for matching summaries, applies Teleport RBAC checks, and returns only the
 sessions the user is allowed to view.
 
@@ -75,6 +75,21 @@ summaries.
 The preset `editor` role can manage `retrieval_model` resources. If you use a
 custom administration role, grant `read`, `list`, `create`, `update`, and
 `delete` on `retrieval_model`.
+
+For example, create a `session-search-admin.yaml` file with the following
+content:
+
+```yaml
+kind: role
+metadata:
+  name: session-search-admin
+spec:
+  allow:
+    rules:
+    - resources: [retrieval_model]
+      verbs: [read, list, create, update, delete]
+version: v7
+```
 
 Session Recording Search needs both an embeddings provider and an inference
 model. The embeddings provider converts session summaries and search queries
@@ -149,8 +164,9 @@ Recording Search.
 
 ## Step 3/3. Search recordings
 
-Use `tctl recordings search` to search summarized recordings. By default, the
-command searches the last 24 hours and opens an interactive terminal UI.
+Use [`tctl recordings search`](../reference/cli/tctl.mdx#tctl-recordings-search)
+to search summarized recordings. By default, the command searches the last 24
+hours and opens an interactive terminal UI.
 
 ```code
 $ tctl recordings search "SSH sessions downloading archives from production"
