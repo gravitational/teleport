@@ -33,10 +33,11 @@ original cloud resources:
 
 | Tag name | Description |
 | - | - |
-| `TeleportDatabaseName`                   | Overrides the name of the discovered database. |
-| `teleport.dev/database_name`             | (AWS only, legacy) Overrides the name of the discovered database. `TeleportDatabaseName` is preferred. |
-| `teleport.dev/db-admin`                  | (AWS only) Specifies the name of the admin user for Automatic User Provisioning. |
-| `teleport.dev/db-admin-default-database` | (AWS only) Overrides the default database the admin user logs into for Automatic User Provisioning. |
+| `TeleportDatabaseName`                    | Overrides the name of the discovered database. |
+| `teleport.dev/database_name`              | (AWS only, legacy) Overrides the name of the discovered database. `TeleportDatabaseName` is preferred. |
+| `teleport.dev/db-admin`                   | (AWS only) Specifies the name of the admin user for Automatic User Provisioning. |
+| `teleport.dev/db-admin-default-database`  | (AWS only) Overrides the default database the admin user logs into for Automatic User Provisioning. |
+| `teleport.dev/db-orphaned-resource-owner` | (AWS only) Specifies the database user that inherits database objects when an auto-provisioned user's session ends. See the [`db` resource reference](../../../reference/infrastructure-as-code/teleport-resources/database-v3.mdx) for more info. |
 
 Additionally, Teleport will generate certain labels derived from the cloud
 resource attributes:

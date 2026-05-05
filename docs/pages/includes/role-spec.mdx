@@ -131,6 +131,16 @@ spec:
     # user at session end, removing the roles and locking it), and
     # best_effort_drop (try to drop the user at session end, if it doesn't
     # succeed, fallback to disabling it).
+    #
+    # If set to best_effort_drop, and using self-hosted or AWS RDS-managed PostgreSQL,
+    # you may set orphaned_resource_owner in the database service config (if the
+    # database is statically configured), in the db resource (if the database is
+    # dynamically configured), or in the RDS database's labels if the database is
+    # discovered from AWS RDS. This will cause Teleport to reassign all database
+    # objects owned by the auto-provisioned user to the database user specified by
+    # orphaned_resource_owner each time the auto-provisioned user's session ends.
+    # This prevents the fallback to keep mode that normally occurs when the user
+    # owns database objects.
     create_db_user_mode: keep
 
   # The allow section declares a list of resource/verb combinations that are
