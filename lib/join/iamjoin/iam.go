@@ -281,9 +281,15 @@ func arnMatches(pattern, arn string) (bool, error) {
 	return joinutils.GlobMatch(pattern, arn)
 }
 
+type iamIdentityDetails struct {
+	organizationID string
+}
+
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
-func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *CheckIAMRequestParams, accountFetcher *accountDetailsFetcher) error {
+// Return the account details collected during the checks and whether a match was found or an error.
+func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *CheckIAMRequestParams, accountFetcher *accountDetailsFetcher) (*iamIdentityDetails, bool, error) {
+	iamIdentity := &iamIdentityDetails{}
 	for _, rule := range params.ProvisionToken.GetAWSAllowRules() {
 		// if this rule specifies an AWS account, the identity must match
 		if rule.AWSAccount != "" {
@@ -296,7 +302,7 @@ func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *Chec
 		if rule.AWSARN != "" {
 			matches, err := arnMatches(rule.AWSARN, identity.Arn)
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, false, trace.Wrap(err)
 			}
 			if !matches {
 				// arn doesn't match, continue to check the next rule
@@ -307,16 +313,20 @@ func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *Chec
 		if rule.AWSOrganizationID != "" {
 			account, err := accountFetcher.fetch(ctx, params.ProvisionToken.GetIntegration())
 			if err != nil {
-				return trace.Wrap(err)
-			}
+				// NotFound is returned when the account is not accessible from the current credentials.
+				if trace.IsNotFound(err) {
+					continue
+				}
 
-			// Set the OrganizationID in the identity for use in audit events, even if the join attempt is rejected.
-			identity.OrganizationID = account.organizationID
+				return nil, false, trace.Wrap(err)
+			}
 
 			if account.organizationID != rule.AWSOrganizationID {
 				// organization ID doesn't match, continue to check the next rule
 				continue
 			}
+
+			iamIdentity.organizationID = account.organizationID
 
 			if !accountOUIsAllowed(ctx, params, identity, account, rule.AWSOrganizationalUnits) {
 				// account's organizational unit paths don't match the allow rule, continue to check the next rule
@@ -325,9 +335,11 @@ func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *Chec
 		}
 
 		// node identity matches this allow rule
-		return nil
+		return iamIdentity, true, nil
 	}
-	return trace.AccessDenied("instance %v did not match any allow rules", identity.Arn)
+
+	// No error occurred but the identity did not match any of the allow rules.
+	return iamIdentity, false, nil
 }
 
 // accountOUIsAllowed checks if the account paths match the AWS Organizational Units matchers.
@@ -460,14 +472,21 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(ctx, identity, params, accountFetcher); err != nil {
-		// We return the identity since it's "validated" but does not match the
-		// rules. This allows us to include it in a failed join audit event
-		// as additional context to help the user understand why the join failed.
-		return identity, trace.Wrap(err, "checking allow rules")
+	identityDetails, allowed, err := checkIAMAllowRules(ctx, identity, params, accountFetcher)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return identity, nil
+	identity.OrganizationID = identityDetails.organizationID
+
+	if allowed {
+		return identity, nil
+	}
+
+	// We return the identity since it's "validated" but does not match the
+	// rules. This allows us to include it in a failed join audit event
+	// as additional context to help the user understand why the join failed.
+	return identity, trace.AccessDenied("instance %v did not match any allow rules", identity.Arn)
 }
 
 // GenerateIAMChallenge generates a random challenge string for the IAM join method.
@@ -479,7 +498,6 @@ func GenerateIAMChallenge() (string, error) {
 type accountDetailsFetcher struct {
 	accountID                string
 	organizationsAPIGetter   OrganizationsAPIGetter
-	fetchedAccountDetails    *accountDetails
 	awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
 
@@ -489,10 +507,6 @@ type accountDetails struct {
 }
 
 func (f *accountDetailsFetcher) fetch(ctx context.Context, integration string) (*accountDetails, error) {
-	if f.fetchedAccountDetails != nil {
-		return f.fetchedAccountDetails, nil
-	}
-
 	organizationsClient, err := f.organizationsAPIGetter.Get(ctx, integration, f.awsOIDCIntegrationClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -514,6 +528,10 @@ func (f *accountDetailsFetcher) fetch(ctx context.Context, integration string) (
 			return nil, trace.BadParameter("AWS Organizations API rate limit exceeded when attempting to verify account's Organization ID/Organizational Units. Please try again later.")
 		}
 
+		if trace.IsNotFound(convertedError) {
+			return nil, trace.NotFound("the account is inaccessible from the credentials (%s) permissions", integration)
+		}
+
 		return nil, trace.Wrap(convertedError)
 	}
 
@@ -522,10 +540,8 @@ func (f *accountDetailsFetcher) fetch(ctx context.Context, integration string) (
 		return nil, trace.Wrap(err)
 	}
 
-	f.fetchedAccountDetails = &accountDetails{
+	return &accountDetails{
 		organizationID: organizationID,
 		paths:          accountDetail.Account.Paths,
-	}
-
-	return f.fetchedAccountDetails, nil
+	}, nil
 }

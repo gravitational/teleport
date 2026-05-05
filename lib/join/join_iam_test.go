@@ -144,6 +144,7 @@ func TestJoinIAM(t *testing.T) {
 	allowedOU := "ou-1234"
 
 	exampleIntegrationName := "my-integration"
+	integrationNameWithoutAccess := "integration-without-access"
 	organizationsClientGetter := &mockAWSOrganizationsClientGetter{
 		ambientCredentialsOrgsAPI: &mockAWSOrganizationsClient{
 			getAccountOutput: &organizations.DescribeAccountOutput{
@@ -160,6 +161,9 @@ func TestJoinIAM(t *testing.T) {
 						Paths: []string{allowedOrgIDUsingIntegrationCredentials + "/rootid/" + allowedOU + "/ou-1234-123/1234"},
 					},
 				},
+			},
+			integrationNameWithoutAccess: &mockAWSOrganizationsClient{
+				getAccountError: trace.NotFound("AccountNotFoundException"),
 			},
 		},
 	}
@@ -248,6 +252,33 @@ func TestJoinIAM(t *testing.T) {
 				Allow: []*types.TokenRule{
 					{
 						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "with integration and rule with organization, but access is granted with explicit account id",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: integrationNameWithoutAccess,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+					{
+						AWSAccount: "1234",
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
