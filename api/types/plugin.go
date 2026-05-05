@@ -18,7 +18,6 @@ package types
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/url"
 	"time"
 
@@ -799,13 +798,41 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginEntraIDSyncIntervals) Validate() error {
-	if c.Delta < 0 {
+	// Delta and full intervals must be either
+	// empty or a valid interval.
+	if c.Delta == "" && c.Full == "" {
+		// Must be an existing plugin installation without sync interval fields.
+		return nil
+	}
+
+	var full, delta time.Duration
+	// Entra ID service will deal with picking up defaults for empty value.
+	if c.Delta != "" {
+		d, err := time.ParseDuration(c.Delta)
+		if err != nil {
+			return trace.BadParameter("invalid delta sync interval, value must be a valid Go duration string, got %q: %v", c.Delta, err)
+		} else {
+			delta = d
+		}
+	}
+
+	// Entra ID service will deal with picking up defaults for empty value.
+	if c.Full != "" {
+		f, err := time.ParseDuration(c.Full)
+		if err != nil {
+			return trace.BadParameter("invalid full sync interval, value must be a valid Go duration string, got %q: %v", c.Full, err)
+		} else {
+			full = f
+		}
+	}
+
+	if delta < 0 {
 		return trace.BadParameter(`sync_settings.sync_intervals.delta cannot be a negative value`)
 	}
-	if c.Full < 0 {
+	if full < 0 {
 		return trace.BadParameter(`sync_settings.sync_intervals.full cannot be a negative value`)
 	}
-	if c.Delta > 0 && c.Delta >= c.Full {
+	if delta > 0 && full > 0 && delta >= full {
 		return trace.BadParameter(`sync_settings.sync_intervals.delta sync interval value ` +
 			`should be less than sync_settings.sync_intervals.full sync interval`)
 	}
@@ -1096,25 +1123,4 @@ func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
-}
-
-// UnmarshalJSON implements [json.Unmarshal] for the PluginEntraIDSyncIntervals.
-func (s *PluginEntraIDSyncIntervals) UnmarshalJSON(b []byte) error {
-	if err := (&jsonpb.Unmarshaler{}).Unmarshal(bytes.NewReader(b), s); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// MarshalJSON implements [json.Marshaler] for the PluginEntraIDSyncIntervals,
-// forcing it to pack [types.Duration] into a friendly readable values.
-// E.g., This marshals 2 * time.Minute as 2m, 1 * time.Hour as 1h.
-func (s PluginEntraIDSyncIntervals) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Delta Duration `json:"delta,omitempty"`
-		Full  Duration `json:"full,omitempty"`
-	}{
-		Delta: NewDuration(s.Delta),
-		Full:  NewDuration(s.Full),
-	})
 }

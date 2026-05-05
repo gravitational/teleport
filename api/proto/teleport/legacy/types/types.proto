@@ -7649,19 +7649,13 @@ message PluginEntraIDSyncSettings {
 message PluginEntraIDSyncIntervals {
   option (gogoproto.equal) = true;
 
-  // delta sync interval.
-  google.protobuf.Duration delta = 1 [
-    (gogoproto.jsontag) = "delta,omitempty",
-    (gogoproto.nullable) = false,
-    (gogoproto.stdduration) = true
-  ];
+  // Delta sync interval.
+  // Must be a valid Go duration string (e.g. "2m").
+  string delta = 1;
 
-  // full sync interval
-  google.protobuf.Duration full = 2 [
-    (gogoproto.jsontag) = "full,omitempty",
-    (gogoproto.nullable) = false,
-    (gogoproto.stdduration) = true
-  ];
+  // Full sync interval.
+  // Must be a valid Go duration string (e.g. "1h").
+  string full = 2;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
