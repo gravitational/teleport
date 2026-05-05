@@ -36,6 +36,7 @@ import (
 )
 
 type beamIndex string
+type bytestring = string
 
 const (
 	beamNameIndex    beamIndex = "name"
@@ -180,14 +181,14 @@ func keyForBeamAliasIndex(beam *beamsv1.Beam) string {
 	return beam.GetStatus().GetAlias()
 }
 
-func keyForBeamUserIndex(r *beamsv1.Beam) string {
+func keyForBeamUserIndex(r *beamsv1.Beam) bytestring {
 	user := r.GetStatus().GetUser()
 	lowerUser := strings.ToLower(user)
 	name := r.GetMetadata().GetName()
 	return string(ordered.Encode(lowerUser, name))
 }
 
-func keyForBeamExpiresIndex(r *beamsv1.Beam) string {
+func keyForBeamExpiresIndex(r *beamsv1.Beam) bytestring {
 	expires := r.GetSpec().GetExpires()
 	name := r.GetMetadata().GetName()
 	if expires == nil {
