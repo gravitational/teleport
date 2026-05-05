@@ -114,7 +114,12 @@ func (m *BalancerManager) initLocked() {
 		cancel()
 	}
 	sc := m.sc
-	cc := m.sc.(grpc.ClientConnInterface)
+	cc, ok := m.sc.(grpc.ClientConnInterface)
+	if !ok {
+		m.log.WarnContext(ctx, "Unable to fetch grpc service config: subconn does not implement client conn interface")
+		m.state.Health = connectivity.Ready
+		return
+	}
 
 	go func() {
 		resp := &grpcv1.GetServiceConfigResponse{}
