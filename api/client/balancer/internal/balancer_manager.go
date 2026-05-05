@@ -27,8 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types/grpcclientconfig"
 )
 
-func noop() {}
-
 // NewBalancerManager constructs a new [BalancerManager]. The callback is called
 // when subconn initialization completes or health updates are received.
 func NewBalancerManager(ctx context.Context, b balancer.Balancer, callback func(), log *slog.Logger) *BalancerManager {
@@ -39,7 +37,7 @@ func NewBalancerManager(ctx context.Context, b balancer.Balancer, callback func(
 			Conn:   connectivity.Connecting,
 			Health: connectivity.Connecting,
 		},
-		initCancel: noop,
+		initCancel: func() {},
 		callback:   callback,
 		log:        log,
 	}
@@ -81,7 +79,7 @@ func (m *BalancerManager) Update(sc balancer.SubConn, state balancer.State) {
 		m.initLocked()
 	} else {
 		m.initCancel()
-		m.initCancel = noop
+		m.initCancel = func() {}
 		m.state.Health = connectivity.Connecting
 		m.sc = nil
 	}
