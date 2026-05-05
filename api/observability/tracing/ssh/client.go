@@ -382,8 +382,14 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 	go func() {
 		for newCh := range ch {
 			chanCtx, newCh := ContextFromNewChannel(newCh, c.opts...)
-			ctx, span := tracer.Start(
-				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
+			parentCtx := ctx
+			// OpenSSH servers can open channels without propagating trace
+			// context, so preserve the local handler context in that case.
+			if remoteSpanCtx := oteltrace.SpanContextFromContext(chanCtx); remoteSpanCtx.IsValid() {
+				parentCtx = oteltrace.ContextWithRemoteSpanContext(ctx, remoteSpanCtx)
+			}
+			handlerCtx, span := tracer.Start(
+				parentCtx,
 				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
@@ -398,7 +404,7 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 
 			go func() {
 				defer span.End()
-				handleFn(ctx, newCh)
+				handleFn(handlerCtx, newCh)
 			}()
 		}
 	}()
