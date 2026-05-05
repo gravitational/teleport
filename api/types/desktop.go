@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -51,6 +52,10 @@ type WindowsDesktopService interface {
 	// GetRelayIDs returns the list of Relay host IDs that this service is
 	// connected to.
 	GetRelayIDs() []string
+	// GetComponentFeatures returns the ComponentFeatures supported by this WindowsDesktopService.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this WindowsDesktopService.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 	// Clone creates a copy of the service.
 	Clone() WindowsDesktopService
 }
@@ -142,6 +147,16 @@ func (s *WindowsDesktopServiceV3) GetRelayIDs() []string {
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
+}
+
+// GetComponentFeatures returns the ComponentFeatures supported by this WindowsDesktopService.
+func (s *WindowsDesktopServiceV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this WindowsDesktopService.
+func (s *WindowsDesktopServiceV3) SetComponentFeatures(features *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = features
 }
 
 // Clone creates a copy of the service.
@@ -343,6 +358,10 @@ type WindowsDesktop interface {
 	// to this host. Returns (0, 0) if no screen size is set, which means to
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
+	// GetComponentFeatures returns the ComponentFeatures supported by this WindowsDesktop.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this WindowsDesktop.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 	// Copy returns a copy of this windows desktop
 	Copy() WindowsDesktop
 	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
@@ -425,6 +444,16 @@ func (d *WindowsDesktopV3) GetDomain() string {
 func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetAddr())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+// GetComponentFeatures returns the ComponentFeatures supported by this WindowsDesktop.
+func (d *WindowsDesktopV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return d.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this WindowsDesktop.
+func (d *WindowsDesktopV3) SetComponentFeatures(features *componentfeaturesv1.ComponentFeatures) {
+	d.Spec.ComponentFeatures = features
 }
 
 // Copy returns a copy of this windows desktop object.

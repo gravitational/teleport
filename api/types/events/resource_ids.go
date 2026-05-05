@@ -18,9 +18,10 @@ package events
 
 import "github.com/gravitational/teleport/api/types"
 
-// MaxAuditRoleARNPreview controls how many role ARNs we include in audit log events for AWS Console
-// ResourceConstraints to keep event size bounded.
-const MaxAuditRoleARNPreview = 10
+// MaxAuditConstraintsListPreview controls how many string-based constraints
+// (e.g., role ARNs, logins) we include in audit log events to
+// keep event size bounded.
+const MaxAuditConstraintsListPreview = 10
 
 // EventResourceIDs converts a []ResourceID to a []events.ResourceID
 func ResourceIDs(resourceIDs []types.ResourceID) []ResourceID {
@@ -81,7 +82,7 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 		out.Constraints = &ResourceAccessID_AwsConsole{
 			AwsConsole: &AWSConsoleConstraints{
 				RoleArnsCount:   uint32(len(roleARNs)),
-				RoleArnsPreview: previewStrings(roleARNs, MaxAuditRoleARNPreview),
+				RoleArnsPreview: previewStrings(roleARNs, MaxAuditConstraintsListPreview),
 			},
 		}
 	case *types.ResourceConstraints_Ssh:
@@ -93,7 +94,19 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 		out.Constraints = &ResourceAccessID_Ssh{
 			Ssh: &SSHConstraints{
 				LoginsCount:   uint32(len(logins)),
-				LoginsPreview: previewStrings(logins, MaxAuditRoleARNPreview),
+				LoginsPreview: previewStrings(logins, MaxAuditConstraintsListPreview),
+			},
+		}
+	case *types.ResourceConstraints_WindowsDesktop:
+		if d.WindowsDesktop == nil {
+			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
+			break
+		}
+		logins := d.WindowsDesktop.Logins
+		out.Constraints = &ResourceAccessID_WindowsDesktop{
+			WindowsDesktop: &WindowsDesktopConstraints{
+				LoginsCount:   uint32(len(logins)),
+				LoginsPreview: previewStrings(logins, MaxAuditConstraintsListPreview),
 			},
 		}
 	default:

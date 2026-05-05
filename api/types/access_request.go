@@ -264,6 +264,15 @@ func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
 			return av == bv
 		}
 		return deriveTeleportEqualSSHResourceConstraints(av.Ssh, bv.Ssh)
+	case *ResourceConstraints_WindowsDesktop:
+		bv, ok := b.Details.(*ResourceConstraints_WindowsDesktop)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualWindowsDesktopResourceConstraints(av.WindowsDesktop, bv.WindowsDesktop)
 	default:
 		return a.Details == nil && b.Details == nil
 	}

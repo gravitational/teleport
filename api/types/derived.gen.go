@@ -41,6 +41,13 @@ func deriveTeleportEqualSSHResourceConstraints(this, that *SSHResourceConstraint
 			deriveTeleportEqual_2(this.Logins, that.Logins)
 }
 
+// deriveTeleportEqualWindowsDesktopResourceConstraints returns whether this and that are equal.
+func deriveTeleportEqualWindowsDesktopResourceConstraints(this, that *WindowsDesktopResourceConstraints) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_2(this.Logins, that.Logins)
+}
+
 // deriveTeleportEqualAccessReviewThreshold returns whether this and that are equal.
 func deriveTeleportEqualAccessReviewThreshold(this, that *AccessReviewThreshold) bool {
 	return (this == nil && that == nil) ||
@@ -630,7 +637,8 @@ func deriveTeleportEqual_20(this, that *WindowsDesktopSpecV3) bool {
 			this.Domain == that.Domain &&
 			this.HostID == that.HostID &&
 			this.NonAD == that.NonAD &&
-			deriveTeleportEqual_60(this.ScreenSize, that.ScreenSize)
+			deriveTeleportEqual_60(this.ScreenSize, that.ScreenSize) &&
+			deriveTeleportEqual_51(this.ComponentFeatures, that.ComponentFeatures)
 }
 
 // deriveTeleportEqual_21 returns whether this and that are equal.

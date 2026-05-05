@@ -42,6 +42,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_WindowsDesktop:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}
@@ -83,6 +87,14 @@ func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 func (sshc *ResourceConstraints_Ssh) Validate() error {
 	if sshc == nil || sshc.Ssh == nil || len(sshc.Ssh.Logins) == 0 {
 		return trace.BadParameter("ssh constraints require logins, none provided")
+	}
+	return nil
+}
+
+// Validate ensures Logins is non-nil and contains logins.
+func (wdc *ResourceConstraints_WindowsDesktop) Validate() error {
+	if wdc == nil || wdc.WindowsDesktop == nil || len(wdc.WindowsDesktop.Logins) == 0 {
+		return trace.BadParameter("windows_desktop constraints require logins, none provided")
 	}
 	return nil
 }

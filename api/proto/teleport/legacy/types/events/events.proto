@@ -1730,6 +1730,8 @@ message ResourceAccessID {
     AWSConsoleConstraints aws_console = 11;
     // ssh captures audit-log-friendly data for SSH node scoping constraints.
     SSHConstraints ssh = 12;
+    // 13 reserved for Database
+    WindowsDesktopConstraints windows_desktop = 14;
   }
 }
 
@@ -1751,6 +1753,14 @@ message AWSConsoleConstraints {
 
 // SSHConstraints is an audit-log-friendly view of SSH node constraints.
 message SSHConstraints {
+  // logins_count is the total number of logins requested.
+  uint32 logins_count = 1;
+  // logins_preview contains up to N logins for inspection; it may be truncated.
+  repeated string logins_preview = 2;
+}
+
+// WindowsDesktopConstraints is an audit-log-friendly view of Windows Desktop constraints.
+message WindowsDesktopConstraints {
   // logins_count is the total number of logins requested.
   uint32 logins_count = 1;
   // logins_preview contains up to N logins for inspection; it may be truncated.

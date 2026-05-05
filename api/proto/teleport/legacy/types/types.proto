@@ -6558,6 +6558,9 @@ message WindowsDesktopServiceSpecV3 {
   string relay_group = 5;
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 6;
+
+  // component_features contains features supported by this Windows desktop service.
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 7;
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
@@ -6598,6 +6601,9 @@ message WindowsDesktopSpecV3 {
   // on this host. In most cases this should be unspecified, in which
   // case Teleport will fill the browser window.
   Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+
+  // component_features contains features supported by this Windows desktop.
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 6;
 }
 
 // DynamicWindowsDesktopV1 represents a dynamic windows host for desktop access.
