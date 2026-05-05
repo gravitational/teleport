@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // ProxyBidiStream proxies a bidi-streaming RPC. It forwards messages from
@@ -48,6 +49,10 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 ) error {
 	ctx, cancel := context.WithCancel(client.Context())
 	defer cancel()
+
+	if md, ok := metadata.FromIncomingContext(client.Context()); ok {
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 
 	server, err := getServer(ctx)
 	if err != nil {
@@ -131,6 +136,16 @@ func forwardServerToClient[Req, Resp any](ctx context.Context, log *slog.Logger,
 	client grpc.BidiStreamingServer[Req, Resp],
 	server grpc.BidiStreamingClient[Req, Resp],
 ) error {
+	defer func() { client.SetTrailer(server.Trailer()) }()
+
+	if md, err := server.Header(); err != nil {
+		log.DebugContext(ctx, "Failed to receive headers from server stream", "error", err)
+	} else if len(md) > 0 {
+		if sendErr := client.SendHeader(md); sendErr != nil {
+			log.WarnContext(ctx, "Failed to send headers to client", "error", sendErr)
+		}
+	}
+
 	for {
 		out, err := server.Recv()
 		if errors.Is(err, io.EOF) {
