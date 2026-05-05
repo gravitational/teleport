@@ -115,7 +115,11 @@ func (s *BeamService) IterateBeams(ctx context.Context, pageToken string, option
 	seq := s.svc.Resources(ctx, pageToken, "")
 
 	return func(yield func(*beamsv1.Beam, error) bool) {
-		for beam := range seq {
+		for beam, err := range seq {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
 			if !filterFn(beam) {
 				continue
 			}

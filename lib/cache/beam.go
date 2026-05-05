@@ -144,6 +144,9 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 	}
 
 	out, next, err := lister.list(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
 	// Encode the next page token to base32hex
 	nextToken := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(next))
