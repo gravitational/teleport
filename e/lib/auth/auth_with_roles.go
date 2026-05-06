@@ -92,7 +92,33 @@ func (ac *cloudWithRoles) UpdateAccountUpgradeWindowStartHour(ctx context.Contex
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	return ac.plugin.cloudClient.UpdateAccountUpgradeWindowStartHour(ctx, req)
+	resp, err := ac.plugin.cloudClient.UpdateAccountUpgradeWindowStartHour(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Update the cluster maintenance config resource in the backend so it reflects the new value immediately.
+	// This is an optimistic update and the value we set here shouldn't be fully trusted to be in sync with the current value in Cloud.
+	authServer := ac.plugin.authServer.AuthServer
+	cmc, err := authServer.GetClusterMaintenanceConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		ac.plugin.logger.WarnContext(ctx, "failed to get cluster maintenance config", "error", err)
+		return resp, nil
+	}
+	if trace.IsNotFound(err) {
+		cmc = types.NewClusterMaintenanceConfig()
+	}
+
+	agentWindow, _ := cmc.GetAgentUpgradeWindow()
+	agentWindow.UTCStartHour = uint32(req.UpgradeWindowStartHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
+	cmc.SetAgentUpgradeWindow(agentWindow)
+
+	if err := authServer.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+		ac.plugin.logger.WarnContext(ctx, "failed to update cluster maintenance config", "error", err)
+	}
+
+	return resp, nil
 }
 
 // GetAccountUpgradeWindowStartHour returns the start of the account upgrade window for cloud users.
