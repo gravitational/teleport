@@ -733,6 +733,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 			case *apievents.OneOf_DesktopRecording:
 				w.sessionEndTime = e.DesktopRecording.Time
+				w.shouldSkipSummarize = true
 
 			case *apievents.OneOf_SessionPrint:
 				w.sessionEndTime = e.SessionPrint.Time
@@ -751,6 +752,12 @@ func (w *sliceWriter) receiveAndUpload() error {
 			case *apievents.OneOf_WindowsDesktopSessionEnd:
 				w.sessionEndTime = e.WindowsDesktopSessionEnd.Time
 				w.hasSessionEnd = true
+				w.shouldProcessMetadata = true
+				w.shouldSkipSummarize = true
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				if w.sessionStartTime.IsZero() {
+					w.sessionStartTime = e.WindowsDesktopSessionEnd.StartTime
+				}
 			case *apievents.OneOf_AppSessionEnd:
 				w.hasSessionEnd = true
 			case *apievents.OneOf_MCPSessionEnd:

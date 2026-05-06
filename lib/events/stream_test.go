@@ -764,6 +764,78 @@ func (m *MockRecordingMetadataService) ProcessSessionRecording(ctx context.Conte
 	return args.Error(0)
 }
 
+// TestInBandWindowsDesktopSessionEnd simulates an Auth restart mid-session
+// where the writer never observes WindowsDesktopSessionStart, but does
+// observe DesktopRecording followed by an in-band WindowsDesktopSessionEnd.
+// In this case OnUploadComplete is not invoked (hasSessionEnd is true), so
+// the in-band end branch must populate the desktop session metadata flags
+// itself, and SummarizeWithoutEndEvent must not be called.
+func TestInBandWindowsDesktopSessionEnd(t *testing.T) {
+	startTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(15 * time.Minute)
+
+	summarizerProvider := &summarizer.SessionSummarizerProvider{}
+	mockSummarizer := &MockSummarizer{}
+	summarizerProvider.SetSummarizer(mockSummarizer)
+
+	metadataProvider := &recordingmetadata.Provider{}
+	mockMetadata := &MockRecordingMetadataService{}
+	metadataProvider.SetService(mockMetadata)
+
+	uploader := eventstest.NewMemoryUploader()
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:                  uploader,
+		SessionSummarizerProvider: summarizerProvider,
+		RecordingMetadataProvider: metadataProvider,
+	})
+	require.NoError(t, err)
+
+	sid := session.NewID()
+
+	// Fail loudly if SummarizeWithoutEndEvent (or any summarize call) is
+	// invoked. shouldSkipSummarize must be set on the in-band desktop events.
+	mockSummarizer.AssertNotCalled(t, "SummarizeWithoutEndEvent", mock.Anything, mock.Anything)
+	mockSummarizer.AssertNotCalled(t, "SummarizeSSH", mock.Anything, mock.Anything)
+	mockSummarizer.AssertNotCalled(t, "SummarizeDatabase", mock.Anything, mock.Anything)
+
+	mockMetadata.
+		On("ProcessSessionRecording", mock.Anything, sid, endTime.Sub(startTime)).
+		Return(nil).
+		Once()
+
+	stream, err := streamer.CreateAuditStream(t.Context(), sid)
+	require.NoError(t, err)
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+	require.NoError(t, err)
+
+	evts := []apievents.AuditEvent{
+		&apievents.DesktopRecording{
+			Metadata: apievents.Metadata{Type: events.DesktopRecordingEvent, Time: startTime.Add(5 * time.Minute)},
+		},
+		&apievents.WindowsDesktopSessionEnd{
+			Metadata:        apievents.Metadata{Type: events.WindowsDesktopSessionEndEvent, Code: events.DesktopSessionEndCode, Time: endTime},
+			SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+			StartTime:       startTime,
+			EndTime:         endTime,
+		},
+	}
+	for _, evt := range evts {
+		prepared, err := preparer.PrepareSessionEvent(evt)
+		require.NoError(t, err)
+		require.NoError(t, stream.RecordEvent(t.Context(), prepared))
+	}
+
+	require.NoError(t, stream.Complete(t.Context()))
+
+	mockMetadata.AssertExpectations(t)
+	mockSummarizer.AssertExpectations(t)
+}
+
 // TestRecordingMetadataProcessing verifies that the recording metadata service
 // is called with the correct session duration when completing an upload, and
 // that sessionEndTime is correctly derived from different event types.
