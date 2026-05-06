@@ -144,7 +144,7 @@ loop:
 
 			switch e := evt.(type) {
 			// Return if session end event already exists
-			case *apievents.SessionEnd, *apievents.WindowsDesktopSessionEnd,
+			case *apievents.SessionEnd, *apievents.WindowsDesktopSessionEnd, *apievents.LinuxDesktopSessionEnd,
 				*apievents.DatabaseSessionEnd, *apievents.AppSessionEnd, *apievents.MCPSessionEnd:
 				return e, nil
 

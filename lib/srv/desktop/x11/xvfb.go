@@ -419,6 +419,9 @@ func (x *Backend) processEvents() {
 				x.config.Logger.ErrorContext(x.ctx, "Couldn't get X11 property value", "error", err)
 				continue
 			}
+			if len(prop.Value) == 0 {
+				continue
+			}
 			x.config.ClipboardDataReceiver(prop.Value)
 		case xfixes.SelectionNotifyEvent:
 			xproto.ConvertSelection(x.conn, x.clipboardWindow, x.clipboardAtom, x.utf8Atom, x.selectionAtom, 0)

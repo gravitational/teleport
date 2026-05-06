@@ -136,7 +136,7 @@ func (d *desktopSessionAuditor) getName() string {
 	if d.windowsDesktop != nil {
 		return d.windowsDesktop.GetName()
 	} else if d.linuxDesktop != nil {
-		return d.linuxDesktop.GetMetadata().GetName()
+		return d.linuxDesktop.GetSpec().GetHostname()
 	}
 	return ""
 }
