@@ -304,7 +304,8 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 	}})
 
 	createAccessRequest := func() error {
-		return s.authServer.CreateAccessRequest(ctx, accessRequest)
+		_, err := s.authServer.CreateAccessRequestV2(ctx, accessRequest, tlsca.Identity{})
+		return trace.Wrap(err)
 	}
 
 	deleteAllAccessRequests := func() error {
