@@ -14,6 +14,7 @@ import { PermissionSet } from 'teleport/services/apps';
 import ResourceService, { Role } from 'teleport/services/resources';
 
 import {
+  AwsIcAppLabel,
   AwsIcRoleConditions,
   convertAwsAccountMapToRoleType,
   defaultAwsIcRoleConditions,
@@ -182,6 +183,9 @@ export function useAwsIcRoleState(): AwsIcRoleState {
   }
 
   function updateRoleConditions(newConditions: AwsIcRoleConditions) {
+    if (newConditions.account.size > 0 && !newConditions.labels) {
+      newConditions = { ...newConditions, labels: AwsIcAppLabel };
+    }
     setRoleConditions(newConditions);
     if (roleEditState) {
       setRoleEditState({ ...roleEditState, isDirty: true });

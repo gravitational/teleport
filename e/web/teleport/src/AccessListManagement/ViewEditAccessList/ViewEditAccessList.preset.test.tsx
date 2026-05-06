@@ -1,4 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 
@@ -9,7 +10,9 @@ import {
   server,
   testQueryClient,
   userEvent,
+  waitFor,
 } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
@@ -33,18 +36,24 @@ import {
 import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import ResourceService from 'teleport/services/resources';
 import userService, { Acl } from 'teleport/services/user';
+import { UserContextProvider } from 'teleport/User';
 
+import { AwsIcAppLabel } from '../GuideEditor/Preset/role/conditions';
 import {
+  appsWithAllMatchingPermissionSet,
+  fetchUnifiedResources,
   makeHandlers,
   unifiedResourcePath,
 } from '../GuideEditor/Preset/TestHelper/mocks';
 import {
+  awsIcRoleEmptyAccess,
   standardRoleWithDeny,
   testAccessListId,
 } from '../GuideEditor/Preset/TestHelper/roles';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
 enableMswServer();
+mockIntersectionObserver();
 
 beforeEach(() => {
   server.use(
@@ -194,6 +203,92 @@ describe('access definition tab content', () => {
   });
 });
 
+test('preserves AwsIcAppLabel when re-adding access to an existing aws ic role with empty allow', async () => {
+  const user = userEvent.setup();
+
+  const accessListWithAwsIc: AccessList = {
+    ...accessListWithPreset,
+    grants: {
+      roles: [awsIcRoleEmptyAccess.metadata.name],
+      traits: {},
+      scopedRoles: [],
+    },
+  };
+
+  jest
+    .spyOn(accessManagementService, 'fetchAccessList')
+    .mockResolvedValue(accessListWithAwsIc);
+
+  jest.spyOn(ResourceService.prototype, 'fetchRolesV2').mockResolvedValue({
+    items: [
+      {
+        name: awsIcRoleEmptyAccess.metadata.name,
+        object: awsIcRoleEmptyAccess,
+      } as any,
+    ],
+    startKey: '',
+  });
+
+  server.use(
+    ...makeHandlers([
+      fetchUnifiedResources('get', appsWithAllMatchingPermissionSet),
+    ])
+  );
+
+  let updateRequest: any;
+  jest
+    .spyOn(accessManagementService, 'updateAccessListWithPreset')
+    .mockImplementation(async req => {
+      updateRequest = req;
+      return { accessList: accessListWithAwsIc, rolesToBeDeleted: [] };
+    });
+
+  render(<Provider />);
+
+  await screen.findByText(/mocked preset title/i);
+  await user.click(getAccessDefinitionTab()!);
+
+  // Open editor.
+  await screen.findByText(/define resource access/i);
+  await user.click(
+    screen.getByRole('button', { name: /define resource access/i })
+  );
+
+  // Switch to AWS IC tab and add an account + permission set.
+  await user.click(await screen.findByTestId('awsIc'));
+  await user.click(
+    await screen.findByRole('button', { name: /make a new selection/i })
+  );
+  await user.click(
+    screen.getByRole('checkbox', { name: /app-friendly-name-1/i })
+  );
+  await user.click(screen.getByRole('checkbox', { name: /ps-name-1/i }));
+  await user.click(screen.getByRole('button', { name: /add selection/i }));
+
+  // Save changes.
+  await user.click(screen.getByRole('button', { name: /^next$/i }));
+  await user.click(
+    await screen.findByRole('button', { name: /save changes/i })
+  );
+
+  await waitFor(() => expect(updateRequest).toBeDefined());
+
+  expect(updateRequest.accessRoles).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          name: awsIcRoleEmptyAccess.metadata.name,
+        }),
+        spec: expect.objectContaining({
+          allow: expect.objectContaining({
+            app_labels: AwsIcAppLabel,
+          }),
+        }),
+      }),
+    ])
+  );
+});
+
 test('shows warning when role has unsupported fields (e.g. deny rules)', async () => {
   const user = userEvent.setup();
 
@@ -243,13 +338,17 @@ const Provider = ({ customAcl }: { customAcl?: Acl }) => {
       path: '*',
       element: (
         <QueryClientProvider client={testQueryClient}>
-          <ContextProvider ctx={ctx}>
-            <AccessGraphDemoProvider>
-              <AccessListManagementContextProvider>
-                <ViewEditAccessList />
-              </AccessListManagementContextProvider>
-            </AccessGraphDemoProvider>
-          </ContextProvider>
+          <InfoGuidePanelProvider>
+            <UserContextProvider>
+              <ContextProvider ctx={ctx}>
+                <AccessGraphDemoProvider>
+                  <AccessListManagementContextProvider>
+                    <ViewEditAccessList />
+                  </AccessListManagementContextProvider>
+                </AccessGraphDemoProvider>
+              </ContextProvider>
+            </UserContextProvider>
+          </InfoGuidePanelProvider>
         </QueryClientProvider>
       ),
     },

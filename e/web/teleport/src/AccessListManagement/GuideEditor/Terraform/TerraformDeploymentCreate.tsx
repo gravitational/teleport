@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { Alert, Box, ButtonBorder, Flex, H1, H2, Stack, Text } from 'design';
 import { useInterval } from 'shared/hooks';
@@ -32,6 +32,7 @@ export function TerraformDeploymentCreate({ onPrev }: { onPrev(): void }) {
 
   const { newAccessListId } = useCreateAccessList();
   const navigate = useNavigate();
+  const skipPromptRef = useRef(false);
 
   const [detectedAccessList, setDetectedAccessList] =
     useState<AccessList | null>(null);
@@ -61,24 +62,31 @@ export function TerraformDeploymentCreate({ onPrev }: { onPrev(): void }) {
     });
   }
 
-  function navigateToCreatedList() {
-    if (detectedAccessList) {
-      navigate(cfg.getAccessListManagementRoute(detectedAccessList.id));
-      emitCompleteWithTerraformEvent();
+  function emitCompleteAndNavigate(route: string) {
+    emitCompleteWithTerraformEvent();
+    skipPromptRef.current = true;
+    navigate(route);
+  }
+
+  function navigateToCreatedList(accessList: AccessList) {
+    emitCompleteAndNavigate(cfg.getAccessListManagementRoute(accessList.id));
+  }
+
+  function handleDone() {
+    if (!detectedAccessList && !window.confirm(cancelPrompt)) {
+      return;
     }
+
+    emitCompleteAndNavigate(cfg.getAccessListManagementRoute());
   }
 
   return (
     <>
       <Prompt
         when
-        message={nextLocation => {
-          if (
-            detectedAccessList &&
-            nextLocation.pathname ===
-              cfg.getAccessListManagementRoute(detectedAccessList.id)
-          ) {
-            return true;
+        message={() => {
+          if (skipPromptRef.current || detectedAccessList) {
+            return true; // allow navigating away without prompt
           }
           return cancelPrompt;
         }}
@@ -104,7 +112,7 @@ export function TerraformDeploymentCreate({ onPrev }: { onPrev(): void }) {
                 detectedAccessList
                   ? {
                       content: 'View Created List',
-                      onClick: () => navigateToCreatedList(),
+                      onClick: () => navigateToCreatedList(detectedAccessList),
                     }
                   : undefined
               }
@@ -135,15 +143,7 @@ export function TerraformDeploymentCreate({ onPrev }: { onPrev(): void }) {
       <StepButtons
         hideNextBtn
         onPrev={onPrev}
-        customBtns={
-          <ButtonBorder
-            as={Link}
-            to={cfg.getAccessListManagementRoute()}
-            onClick={() => emitCompleteWithTerraformEvent()}
-          >
-            Done
-          </ButtonBorder>
-        }
+        customBtns={<ButtonBorder onClick={handleDone}>Done</ButtonBorder>}
       />
     </>
   );

@@ -763,6 +763,17 @@ describe('going through different guides', () => {
       .spyOn(userEventService, 'captureAccessListEvent')
       .mockImplementation(() => {});
 
+    server.use(
+      http.get(`${accessListPath}/:id`, ({ params }) =>
+        HttpResponse.json({
+          accessList: {
+            spec: { title: 'Engineering Access' },
+            metadata: { name: params.id, labels: {} },
+          },
+        })
+      )
+    );
+
     jest.spyOn(window, 'confirm').mockReturnValue(true);
 
     const ctx = createTeleportContextE();
@@ -788,8 +799,74 @@ describe('going through different guides', () => {
     );
     await screen.findByText(/Terraform Deployment/i);
 
-    await user.click(screen.getByRole('link', { name: 'Done' }));
+    expect(screen.getByText(/Detecting your Access List/i)).toBeInTheDocument();
 
+    // Advance timers to trigger polling interval
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    // Access list must be detected before "Done" emits completion.
+    await screen.findByText(/Access List Detected/i);
+    expect(
+      screen.getByText(/"Engineering Access" was successfully detected/i)
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+        preferredTerraform: true,
+      }),
+    });
+  });
+
+  test('long-term, deploy via terraform before detection emits success only after Done prompt is confirmed', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
+
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+
+    server.use(
+      http.get(
+        `${accessListPath}/:id`,
+        () => new HttpResponse(null, { status: 404 })
+      )
+    );
+
+    const ctx = createTeleportContextE();
+    renderComponent(ctx);
+
+    await screen.findByText(/Select the type of Access List/i);
+
+    await user.click(screen.getByText(/long-lived access/i));
+
+    await goThroughPresetStepsToDeployment(user, 'long-term');
+
+    emitEventSpy.mockClear();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Continue via Terraform' })
+    );
+    await screen.findByText(/Terraform Deployment/i);
+    expect(screen.getByText(/Detecting your Access List/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
     expect(emitEventSpy).toHaveBeenCalledWith({
       event: AccessListEvent.Completed,
       eventData: expect.objectContaining({
