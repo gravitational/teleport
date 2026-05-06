@@ -58,9 +58,10 @@ the `teleport-kube-agent` Helm chart:
 <Tabs>
 <TabItem label="tctl">
 
-Edit the `spec.roles` field in your token resource manifest. In this example, we
-are allowing this token to join the Teleport Application Service in addition to
-the Teleport Kubernetes Service:
+Edit the `spec.roles` field in your token resource manifest. In this example,
+which assumes the token manifest is at `token.yaml`, we are allowing this token
+to join the Teleport Application Service in addition to the Teleport Kubernetes
+Service:
 
 ```diff
 # ...
@@ -68,6 +69,12 @@ the Teleport Kubernetes Service:
     # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
 -   roles: [Kube]
 +   roles: [Kube,App]
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f token.yaml
 ```
 
 </TabItem>
@@ -85,12 +92,19 @@ the Teleport Kubernetes Service:
 -     roles       = ["Kube"]
 +     roles       = ["Kube","App"]
 ```
+
+Reapply your changes:
+
+```code
+$ terraform apply
+```
+
 </TabItem>
 <TabItem label="Kubernetes">
 
-Edit the `spec.roles` field in your manifest. In this example, we are allowing
-this token to join the Teleport Application Service in addition to the Teleport
-Kubernetes Service:
+Edit the `spec.roles` field in your manifest, which we assume exists at
+`token.yaml`. In this example, we are allowing this token to join the Teleport
+Application Service in addition to the Teleport Kubernetes Service:
 
 ```diff
 # ...
@@ -99,6 +113,13 @@ Kubernetes Service:
 -   roles: [Kube]
 +   roles: [Kube,App]
 ```
+
+Apply your changes:
+
+```code
+$ kubectl apply -f token.yaml
+```
+
 </TabItem>
 <TabItem label="teleport-kube-agent">
 
@@ -111,13 +132,14 @@ Kubernetes Service:
 + roles: kube,app
 ```
 
+You will apply your changes when you redeploy the agent later in the guide.
+
 See the `teleport-kube-agent` [chart
 reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
 roles and token types that the chart supports.
 
 </TabItem>
 </Tabs>
-
 
 ## Step 2/3. Edit your agent configuration
 
