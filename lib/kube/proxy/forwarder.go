@@ -1246,6 +1246,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 	}
 
+	// no error means we were granted access
+	accessGranted := err == nil
+
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups := fillDefaultKubePrincipalDetails(kubeAccessDetails.kubeUsers, kubeAccessDetails.kubeGroups, actx.User.GetName())
@@ -1287,8 +1290,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 	}
 
-	// if we were granted access to any kube users or groups, we can safely proceed
-	if len(actx.kubeUsers) > 0 || len(actx.kubeGroups) > 0 {
+	// if access to the cluster was previously granted when determining users and groups, we can proceed
+	if accessGranted {
 		return nil
 	}
 
