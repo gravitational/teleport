@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
@@ -198,6 +199,61 @@ func TestIssueAndStoreAccessGraphCert(t *testing.T) {
 	require.Equal(t, keyRing.AccessGraphTLSCert, stored.AccessGraphTLSCert)
 }
 
+func TestIssueAndStoreAccessGraphCert_SkipsOnNilStore(t *testing.T) {
+	t.Parallel()
+	ca := newTestCA(t)
+
+	keyRing := ca.withTeleportTLSCert(t, newTestKeyRing(t), time.Hour)
+	creds := &accessGraphCredentials{
+		proxyAddr:   "proxy.example.com:443",
+		clientStore: nil,
+		keyRing:     keyRing,
+	}
+
+	mock := &mockAuthClient{
+		generate: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+			pub, err := keys.ParsePublicKey(req.TLSPublicKey)
+			require.NoError(t, err)
+			return &proto.Certs{TLS: ca.signAccessGraphCert(t, pub, time.Hour)}, nil
+		},
+	}
+
+	require.NoError(t, issueAndStoreAccessGraphCert(context.Background(), creds, mock))
+	require.NotEmpty(t, keyRing.AccessGraphTLSCert)
+}
+
+func TestIssueAndStoreAccessGraphCert_SkipsOnShortLivedCert(t *testing.T) {
+	t.Parallel()
+	ca := newTestCA(t)
+
+	keyRing := ca.withTeleportTLSCert(t, newTestKeyRing(t), time.Hour)
+	store := client.NewMemClientStore()
+	creds := &accessGraphCredentials{
+		proxyAddr:   "proxy.example.com:443",
+		clientStore: store,
+		keyRing:     keyRing,
+	}
+
+	mock := &mockAuthClient{
+		generate: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+			pub, err := keys.ParsePublicKey(req.TLSPublicKey)
+			require.NoError(t, err)
+			return &proto.Certs{TLS: ca.signAccessGraphCert(t, pub, 30*time.Second)}, nil
+		},
+	}
+
+	require.NoError(t, issueAndStoreAccessGraphCert(context.Background(), creds, mock))
+	require.NotEmpty(t, keyRing.AccessGraphTLSCert)
+
+	stored, err := store.GetKeyRing(client.KeyRingIndex{
+		ProxyHost:   keyRing.ProxyHost,
+		Username:    keyRing.Username,
+		ClusterName: keyRing.ClusterName,
+	})
+	require.True(t, err != nil || len(stored.AccessGraphTLSCert) == 0,
+		"short-lived cert must not be persisted")
+}
+
 func TestEnsureAccessGraphCert_ReuseSkipsClientInit(t *testing.T) {
 	t.Parallel()
 	ca := newTestCA(t)
@@ -318,6 +374,28 @@ func TestResolveAccessGraphCredentials(t *testing.T) {
 	})
 }
 
+func TestResolveAuthHostAccessGraphCredentials_BadParameters(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveAuthHostAccessGraphCredentials(context.Background(), nil, "alice")
+	require.True(t, trace.IsBadParameter(err))
+
+	_, err = resolveAuthHostAccessGraphCredentials(context.Background(), &servicecfg.Config{}, "")
+	require.True(t, trace.IsBadParameter(err))
+}
+
+func TestEnsureAccessGraphCert_BadParameters(t *testing.T) {
+	t.Parallel()
+
+	clientFunc := commonclient.InitFunc(func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+		t.Fatalf("InitFunc must not be called when guard clauses fire")
+		return nil, nil, nil
+	})
+
+	require.True(t, trace.IsBadParameter(ensureAccessGraphCert(context.Background(), nil, clientFunc)))
+	require.True(t, trace.IsBadParameter(ensureAccessGraphCert(context.Background(), &accessGraphCredentials{}, clientFunc)))
+}
+
 func TestEnsureAccessGraphCert_ReissuePathInvokesClient(t *testing.T) {
 	t.Parallel()
 
@@ -396,6 +474,24 @@ func TestValidateAccessGraphCert(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name: "cert lifetime below expiry buffer",
+			setup: func(t *testing.T) *client.KeyRing {
+				kr := newTestKeyRing(t)
+				kr.AccessGraphTLSCert = ca.signAccessGraphCert(t, kr.TLSPrivateKey.Public(), time.Minute)
+				return kr
+			},
+			want: false,
+		},
+		{
+			name: "cert lifetime just above expiry buffer",
+			setup: func(t *testing.T) *client.KeyRing {
+				kr := newTestKeyRing(t)
+				kr.AccessGraphTLSCert = ca.signAccessGraphCert(t, kr.TLSPrivateKey.Public(), 3*time.Minute)
+				return kr
+			},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -405,6 +501,130 @@ func TestValidateAccessGraphCert(t *testing.T) {
 			require.Equal(t, tt.want, validateAccessGraphCert(context.Background(), kr))
 		})
 	}
+}
+
+func TestShouldPersistAccessGraphCert(t *testing.T) {
+	t.Parallel()
+	ca := newTestCA(t)
+
+	withCert := func(t *testing.T, ttl time.Duration) *client.KeyRing {
+		kr := newTestKeyRing(t)
+		kr.AccessGraphTLSCert = ca.signAccessGraphCert(t, kr.TLSPrivateKey.Public(), ttl)
+		return kr
+	}
+
+	tests := []struct {
+		name  string
+		creds func(t *testing.T) *accessGraphCredentials
+		want  bool
+	}{
+		{
+			name: "nil store",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{keyRing: withCert(t, time.Hour)}
+			},
+			want: false,
+		},
+		{
+			name: "mfa-short cert (30s)",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     withCert(t, 30*time.Second),
+				}
+			},
+			want: false,
+		},
+		{
+			name: "just inside threshold (4m59s)",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     withCert(t, 4*time.Minute+59*time.Second),
+				}
+			},
+			want: false,
+		},
+		{
+			name: "just outside threshold (5m1s)",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     withCert(t, 5*time.Minute+time.Second),
+				}
+			},
+			want: true,
+		},
+		{
+			name: "normal session (8h)",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     withCert(t, 8*time.Hour),
+				}
+			},
+			want: true,
+		},
+		{
+			name: "already expired",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     withCert(t, -time.Minute),
+				}
+			},
+			want: false,
+		},
+		{
+			name: "no cert in keyring",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     newTestKeyRing(t),
+				}
+			},
+			want: false,
+		},
+		{
+			name: "malformed cert bytes",
+			creds: func(t *testing.T) *accessGraphCredentials {
+				kr := newTestKeyRing(t)
+				kr.AccessGraphTLSCert = []byte("not a certificate")
+				return &accessGraphCredentials{
+					clientStore: client.NewMemClientStore(),
+					keyRing:     kr,
+				}
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := shouldPersistAccessGraphCert(context.Background(), tt.creds(t))
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestAccessGraphCertThresholdSplit asserts a cert between the expiry
+// buffer and the persist threshold is usable but not persisted.
+func TestAccessGraphCertThresholdSplit(t *testing.T) {
+	t.Parallel()
+	ca := newTestCA(t)
+
+	kr := newTestKeyRing(t)
+	// 3m: past expiry buffer (2m), below persist threshold (5m).
+	kr.AccessGraphTLSCert = ca.signAccessGraphCert(t, kr.TLSPrivateKey.Public(), 3*time.Minute)
+
+	require.True(t, validateAccessGraphCert(context.Background(), kr))
+
+	creds := &accessGraphCredentials{
+		clientStore: client.NewMemClientStore(),
+		keyRing:     kr,
+	}
+	require.False(t, shouldPersistAccessGraphCert(context.Background(), creds))
 }
 
 // TestCheckAccessGraphSupported asserts the trace error category and that
@@ -520,7 +740,7 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 					return tt.ping, nil
 				},
 			}
-			err := checkAccessGraphSupported(context.Background(), mock)
+			_, err := checkAccessGraphSupported(context.Background(), mock)
 			require.True(t, tt.wantErr(err), "wantErr predicate failed for err=%v", err)
 			if err != nil {
 				for _, s := range tt.wantSubstr {
@@ -549,6 +769,7 @@ func TestCheckAccessGraphSupported_BlocksIssue(t *testing.T) {
 		},
 	}
 
-	require.True(t, trace.IsAccessDenied(checkAccessGraphSupported(context.Background(), mock)))
+	_, err := checkAccessGraphSupported(context.Background(), mock)
+	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, mock.gotReq, "GenerateUserCerts must not have been invoked")
 }
