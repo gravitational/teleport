@@ -267,6 +267,117 @@ func TestSimplifyAzureMatchersCollapsesRegionsWildcard(t *testing.T) {
 		"any wildcard in regions must collapse the slice to a single wildcard")
 }
 
+// TestSimplifyAzureMatchersTrimsBeforeDedupe guards against a regression where
+// Subscriptions and ResourceGroups deduped without first trimming whitespace,
+// letting hand-edited config like " sub-1" survive byte-equality dedup as a
+// distinct entry from "sub-1" and reach downstream as duplicate scopes.
+func TestSimplifyAzureMatchersTrimsBeforeDedupe(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{" sub-1", "sub-1", "sub-2  ", "  ", "sub-2"},
+			ResourceGroups: []string{"rg-a", "  rg-a", "rg-b ", "", "\t"},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{"sub-1", "sub-2"}, simplified[0].Subscriptions,
+		"whitespace variants must collapse to a single trimmed entry, "+
+			"first-occurrence order preserved")
+	require.Equal(t, []string{"rg-a", "rg-b"}, simplified[0].ResourceGroups,
+		"resource group whitespace variants must collapse to a single trimmed entry")
+	require.Equal(t, []string{"eu-west-1"}, simplified[0].Regions)
+	require.Equal(t, []string{"vm"}, simplified[0].Types)
+}
+
+// TestSimplifyAzureMatchersTrimmedWildcardCollapses guards against a
+// regression where a hand-edited wildcard with stray whitespace (" * ")
+// failed to trigger the wildcard collapse because the slices.Contains check
+// ran against untrimmed inputs.
+func TestSimplifyAzureMatchersTrimmedWildcardCollapses(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{" * ", "sub-1"},
+			ResourceGroups: []string{"\t*\n", "rg-a"},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{types.Wildcard}, simplified[0].Subscriptions,
+		"trimmed wildcard alongside concrete entries must collapse to a single wildcard")
+	require.Equal(t, []string{types.Wildcard}, simplified[0].ResourceGroups,
+		"trimmed wildcard alongside concrete entries must collapse to a single wildcard")
+}
+
+// TestSimplifyAzureMatchersAllEmptyEntriesDoNotWidenToWildcard guards
+// against the silent escalation pathology: a malformed selector list where
+// every entry trims to empty (e.g. [" "], ["", "\t"]) MUST NOT widen to the
+// wildcard. Widening would turn a config typo (`subscriptions: [" "]`) into
+// "discover every subscription in the tenant", which is the opposite of the
+// operator's intent. The original input is preserved instead so the
+// downstream Azure SDK call surfaces the malformed scope as an invalid-scope
+// error.
+//
+// The truly empty case (len(input) == 0) still collapses to wildcard, since
+// that is the documented "discover everything" convention.
+func TestSimplifyAzureMatchersAllEmptyEntriesDoNotWidenToWildcard(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{"", "  ", "\t"},
+			ResourceGroups: []string{" "},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{"", "  ", "\t"}, simplified[0].Subscriptions,
+		"all-whitespace subscriptions must NOT widen to wildcard; "+
+			"preserve the malformed input so the SDK rejects it instead of "+
+			"silently discovering every subscription in the tenant")
+	require.Equal(t, []string{" "}, simplified[0].ResourceGroups,
+		"all-whitespace resource groups must NOT widen to wildcard; "+
+			"preserve the malformed input so the SDK rejects it instead of "+
+			"silently discovering every resource group")
+}
+
+// TestSimplifyAzureMatchersTrulyEmptyCollapsesToWildcard pins the documented
+// convention for the truly empty case (len == 0): match everything. This is
+// the opposite of the all-whitespace case and must remain distinct.
+func TestSimplifyAzureMatchersTrulyEmptyCollapsesToWildcard(t *testing.T) {
+	t.Parallel()
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions:  nil,
+			ResourceGroups: []string{},
+			Regions:        []string{"eu-west-1"},
+			Types:          []string{"vm"},
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+	require.Len(t, simplified, 1)
+
+	require.Equal(t, []string{types.Wildcard}, simplified[0].Subscriptions,
+		"truly empty subscription list (len == 0) collapses to wildcard "+
+			"per documented 'discover everything' convention")
+	require.Equal(t, []string{types.Wildcard}, simplified[0].ResourceGroups,
+		"truly empty resource group list (len == 0) collapses to wildcard "+
+			"per documented 'discover everything' convention")
+}
+
 func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
