@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -200,8 +199,7 @@ type mockSigner struct {
 
 func TestAgentPoolTryDisconnect(t *testing.T) {
 	const disconnectThreshold = time.Minute
-	newTestPool := func(t *testing.T) (*AgentPool, *clockwork.FakeClock) {
-		clock := clockwork.NewFakeClock()
+	newTestPool := func(t *testing.T) *AgentPool {
 		client := &mockClient{}
 		pool, err := NewAgentPool(context.Background(), AgentPoolConfig{
 			Client:      client,
@@ -214,15 +212,14 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 			HostUUID:     "test-uuid",
 			LocalCluster: "test-cluster",
 			Cluster:      "test-cluster",
-			Clock:        clock,
 			Resolver: func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 				return &utils.NetAddr{}, types.ProxyListenerMode_Separate, nil
 			},
 		})
 		require.NoError(t, err)
 		pool.runtimeConfig.disconnectThreshold = disconnectThreshold
-		pool.lastConnectivityChange = clock.Now()
-		return pool, clock
+		pool.lastConnectivityChange = time.Now()
+		return pool
 	}
 
 	trackedProxiesForAgents := func(agents []*mockAgent) []track.Proxy {
@@ -237,8 +234,8 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 	}
 
 	type testUpdate struct {
-		apply  func(*testing.T, *AgentPool, *clockwork.FakeClock)
-		assert func(*testing.T, *AgentPool, *clockwork.FakeClock, []*mockAgent)
+		apply  func(*testing.T, *AgentPool)
+		assert func(*testing.T, *AgentPool, []*mockAgent)
 	}
 
 	tests := []struct {
@@ -255,15 +252,15 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 			},
 			update: []testUpdate{
 				{
-					apply: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock) {
+					apply: func(t *testing.T, pool *AgentPool) {
 						pool.tracker.SetConnectionCount(2)
-						clock.Advance(disconnectThreshold + time.Second)
+						time.Sleep(disconnectThreshold + time.Second)
 					},
-					assert: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock, agents []*mockAgent) {
+					assert: func(t *testing.T, pool *AgentPool, agents []*mockAgent) {
 						require.Zero(t, agents[0].stopCalls)
 						require.Zero(t, agents[1].stopCalls)
 						require.Zero(t, agents[2].stopCalls)
-						require.NotEqual(t, clock.Now(), pool.lastConnectivityChange)
+						require.NotEqual(t, time.Now(), pool.lastConnectivityChange)
 					},
 				},
 			},
@@ -277,15 +274,15 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 			},
 			update: []testUpdate{
 				{
-					apply: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock) {
+					apply: func(t *testing.T, pool *AgentPool) {
 						pool.tracker.SetConnectionCount(2)
-						clock.Advance(disconnectThreshold + time.Second)
+						time.Sleep(disconnectThreshold + time.Second)
 					},
-					assert: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock, agents []*mockAgent) {
+					assert: func(t *testing.T, pool *AgentPool, agents []*mockAgent) {
 						require.Zero(t, agents[0].stopCalls)
 						require.Equal(t, 1, agents[1].stopCalls)
 						require.Zero(t, agents[2].stopCalls)
-						require.Equal(t, clock.Now(), pool.lastConnectivityChange)
+						require.Equal(t, time.Now(), pool.lastConnectivityChange)
 					},
 				},
 			},
@@ -299,27 +296,27 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 			},
 			update: []testUpdate{
 				{
-					apply: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock) {
+					apply: func(t *testing.T, pool *AgentPool) {
 						pool.tracker.SetConnectionCount(2)
-						clock.Advance(disconnectThreshold + time.Second)
-						pool.lastConnectivityChange = clock.Now()
+						time.Sleep(disconnectThreshold + time.Second)
+						pool.lastConnectivityChange = time.Now()
 					},
-					assert: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock, agents []*mockAgent) {
+					assert: func(t *testing.T, pool *AgentPool, agents []*mockAgent) {
 						require.Zero(t, agents[0].stopCalls)
 						require.Zero(t, agents[1].stopCalls)
 						require.Zero(t, agents[2].stopCalls)
-						require.Equal(t, clock.Now(), pool.lastConnectivityChange)
+						require.Equal(t, time.Now(), pool.lastConnectivityChange)
 					},
 				},
 				{
-					apply: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock) {
-						clock.Advance(disconnectThreshold + time.Second)
+					apply: func(t *testing.T, pool *AgentPool) {
+						time.Sleep(disconnectThreshold + time.Second)
 					},
-					assert: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock, agents []*mockAgent) {
+					assert: func(t *testing.T, pool *AgentPool, agents []*mockAgent) {
 						require.Zero(t, agents[0].stopCalls)
 						require.Equal(t, 1, agents[1].stopCalls)
 						require.Zero(t, agents[2].stopCalls)
-						require.Equal(t, clock.Now(), pool.lastConnectivityChange)
+						require.Equal(t, time.Now(), pool.lastConnectivityChange)
 					},
 				},
 			},
@@ -333,29 +330,29 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 			},
 			update: []testUpdate{
 				{
-					apply: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock) {
+					apply: func(t *testing.T, pool *AgentPool) {
 						pool.tracker.SetConnectionCount(2)
-						clock.Advance(disconnectThreshold + time.Second)
+						time.Sleep(disconnectThreshold + time.Second)
 						pool.tracker.TrackExpected(track.Proxy{Name: "proxy-4"})
 					},
-					assert: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock, agents []*mockAgent) {
+					assert: func(t *testing.T, pool *AgentPool, agents []*mockAgent) {
 						require.Zero(t, agents[0].stopCalls)
 						require.Zero(t, agents[1].stopCalls)
 						require.Zero(t, agents[2].stopCalls)
-						require.NotEqual(t, clock.Now(), pool.lastConnectivityChange)
-						require.Equal(t, clock.Now(), pool.tracker.Snapshot().LastTopologyChange)
+						require.NotEqual(t, time.Now(), pool.lastConnectivityChange)
+						require.Equal(t, time.Now(), pool.tracker.Snapshot().LastTopologyChange)
 					},
 				},
 				{
-					apply: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock) {
-						clock.Advance(disconnectThreshold + time.Second)
+					apply: func(t *testing.T, pool *AgentPool) {
+						time.Sleep(disconnectThreshold + time.Second)
 					},
-					assert: func(t *testing.T, pool *AgentPool, clock *clockwork.FakeClock, agents []*mockAgent) {
+					assert: func(t *testing.T, pool *AgentPool, agents []*mockAgent) {
 						require.Zero(t, agents[0].stopCalls)
 						require.Equal(t, 1, agents[1].stopCalls)
 						require.Zero(t, agents[2].stopCalls)
-						require.NotEqual(t, clock.Now(), pool.tracker.Snapshot().LastTopologyChange)
-						require.Equal(t, clock.Now(), pool.lastConnectivityChange)
+						require.NotEqual(t, time.Now(), pool.tracker.Snapshot().LastTopologyChange)
+						require.Equal(t, time.Now(), pool.lastConnectivityChange)
 					},
 				},
 			},
@@ -365,16 +362,16 @@ func TestAgentPoolTryDisconnect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				pool, clock := newTestPool(t)
+				pool := newTestPool(t)
 				for _, agent := range tt.agents {
 					pool.active.add(agent)
 				}
 				pool.tracker.TrackExpected(trackedProxiesForAgents(tt.agents)...)
 				for _, update := range tt.update {
-					update.apply(t, pool, clock)
+					update.apply(t, pool)
 					pool.tryDisconnect(t.Context())
 					synctest.Wait()
-					update.assert(t, pool, clock, tt.agents)
+					update.assert(t, pool, tt.agents)
 				}
 			})
 		})

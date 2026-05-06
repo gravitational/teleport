@@ -225,7 +225,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	pool.newAgentFunc = pool.newAgent
 
 	pool.ctx, pool.cancel = context.WithCancel(ctx)
-	pool.tracker, err = track.New(track.Config{ClusterName: pool.Cluster, Clock: pool.Clock})
+	pool.tracker, err = track.New(track.Config{ClusterName: pool.Cluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

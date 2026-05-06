@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -40,17 +39,12 @@ type Config struct {
 	ProxyExpiry time.Duration
 	// ClusterName is the name of the tracked cluster.
 	ClusterName string
-	// Clock is used to control time in tests. Defaults to the system clock.
-	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults set default values for Config.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyExpiry < 1 {
 		c.ProxyExpiry = DefaultProxyExpiry
-	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing ClusterName in track.Config")
@@ -63,7 +57,6 @@ func (c *Config) CheckAndSetDefaults() error {
 // that it knows about. Based on that information, the Tracker is in charge of
 // deciding if new connection attempts should be made, by giving out [Lease]s.
 type Tracker struct {
-	clock         clockwork.Clock
 	proxyExpiry   time.Duration
 	clusterSuffix string
 
@@ -129,10 +122,9 @@ func New(cfg Config) (*Tracker, error) {
 		return nil, trace.Wrap(err)
 	}
 	t := &Tracker{
-		clock:              cfg.Clock,
 		proxyExpiry:        cfg.ProxyExpiry,
 		clusterSuffix:      "." + cfg.ClusterName,
-		lastTopologyChange: cfg.Clock.Now().UTC(),
+		lastTopologyChange: time.Now(),
 		claimed:            make(map[string]struct{}),
 		tracked:            make(map[string]Proxy),
 	}
@@ -171,12 +163,12 @@ func (t *Tracker) TryAcquire() *Lease {
 }
 
 func (t *Tracker) expireProxiesLocked() {
-	now := t.clock.Now()
+	now := time.Now()
 	for k, v := range t.tracked {
 		if v.expiry.Before(now) {
 			delete(t.tracked, k)
 			t.cannotLease = false
-			t.lastTopologyChange = now.UTC()
+			t.lastTopologyChange = now
 		}
 	}
 }
@@ -230,7 +222,7 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 		return
 	}
 
-	now := t.clock.Now()
+	now := time.Now()
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -261,7 +253,7 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 // tunnel_strategy; 0 means full connectivity, i.e. "agent mesh" mode, a nonzero
 // value (the connection_count of the tunnel_strategy) is proxy peering mode.
 func (t *Tracker) SetConnectionCount(connectionCount int) {
-	now := t.clock.Now()
+	now := time.Now()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

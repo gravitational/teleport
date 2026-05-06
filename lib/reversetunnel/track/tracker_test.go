@@ -23,16 +23,15 @@ import (
 	"math/rand/v2"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
 type simpleTestProxies struct {
 	sync.Mutex
 	proxies []testProxy
-	clock   clockwork.Clock
 }
 
 func (s *simpleTestProxies) AddRandProxies(n int, min time.Duration, max time.Duration) {
@@ -90,19 +89,19 @@ func (s *simpleTestProxies) Discover(tracker *Tracker, lease *Lease) (ok bool) {
 
 func (s *simpleTestProxies) ProxyLoop(tracker *Tracker, lease *Lease, proxy testProxy) (ok bool) {
 	defer lease.Release()
-	timeout := s.clock.After(proxy.life)
+	timeout := time.After(proxy.life)
 
 	if !lease.Claim(proxy.principals...) {
 		return false
 	}
 
-	ticker := s.clock.NewTicker(jitter(time.Millisecond * 100))
+	ticker := time.NewTicker(jitter(time.Millisecond * 100))
 	defer ticker.Stop()
 
 Loop:
 	for {
 		select {
-		case <-ticker.Chan():
+		case <-ticker.C:
 			if p, ok := s.GetRandProxy(); ok {
 				tracker.TrackExpected(Proxy{Name: p.principals[0]})
 			}
@@ -136,14 +135,12 @@ func jitter(t time.Duration) time.Duration {
 	return t + rand.N(t/5)
 }
 
-func newTestTracker(t *testing.T) (*Tracker, *clockwork.FakeClock) {
-	clock := clockwork.NewFakeClock()
+func newTestTracker(t *testing.T) *Tracker {
 	tracker, err := New(Config{
-		Clock:       clock,
 		ClusterName: "test-cluster",
 	})
 	require.NoError(t, err)
-	return tracker, clock
+	return tracker
 }
 
 func TestBasic(t *testing.T) {
@@ -152,10 +149,10 @@ func TestBasic(t *testing.T) {
 		proxyCount = 16
 	)
 
-	tracker, clock := newTestTracker(t)
+	tracker := newTestTracker(t)
 	timeoutC := time.After(timeout)
 	min, max := time.Duration(0), timeout
-	proxies := simpleTestProxies{clock: clock}
+	proxies := simpleTestProxies{}
 	proxies.AddRandProxies(proxyCount, min, max)
 
 	for {
@@ -174,7 +171,7 @@ func TestBasic(t *testing.T) {
 		case <-timeoutC:
 			t.Fatal("timeout")
 		default:
-			clock.Advance(10 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 			t.Logf("activeCount: %v", tracker.activeCount())
 		}
 	}
@@ -190,8 +187,8 @@ func TestFullRotation(t *testing.T) {
 		timeout    = time.Second * 30
 	)
 
-	tracker, clock := newTestTracker(t)
-	proxies := simpleTestProxies{clock: clock}
+	tracker := newTestTracker(t)
+	proxies := simpleTestProxies{}
 	proxies.AddRandProxies(proxyCount, minConnA, maxConnA)
 
 	timeoutC := time.After(timeout)
@@ -217,7 +214,7 @@ func TestFullRotation(t *testing.T) {
 		case <-timeoutC:
 			t.Fatal("timeout")
 		default:
-			clock.Advance(100 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			t.Logf("activeCount0: %v", tracker.activeCount())
 		}
 	}
@@ -233,7 +230,7 @@ func TestFullRotation(t *testing.T) {
 		case <-timeoutC:
 			t.Fatal("timeout")
 		default:
-			clock.Advance(100 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			t.Logf("activeCount1: %v", tracker.activeCount())
 		}
 	}
@@ -254,7 +251,7 @@ func TestFullRotation(t *testing.T) {
 		case <-timeoutC:
 			t.Fatal("timeout")
 		default:
-			clock.Advance(100 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			t.Logf("activeCount22 %v", tracker.activeCount())
 		}
 	}
@@ -264,7 +261,7 @@ func TestFullRotation(t *testing.T) {
 // from the expected teleport principal format, and that gossip messages
 // consisting only of uuid don't create duplicate entries.
 func TestUUIDHandling(t *testing.T) {
-	tracker, _ := newTestTracker(t)
+	tracker := newTestTracker(t)
 
 	lease := tracker.TryAcquire()
 	require.NotNil(t, lease)
@@ -277,7 +274,7 @@ func TestUUIDHandling(t *testing.T) {
 }
 
 func TestIsClaimed(t *testing.T) {
-	tracker, _ := newTestTracker(t)
+	tracker := newTestTracker(t)
 
 	tracker.TrackExpected(Proxy{Name: "proxy1"}, Proxy{Name: "proxy2"})
 	require.False(t, tracker.IsClaimed("proxy1.test-cluster"))
@@ -306,7 +303,7 @@ func (t *Tracker) activeCount() int {
 }
 
 func TestProxyGroups(t *testing.T) {
-	tracker, _ := newTestTracker(t)
+	tracker := newTestTracker(t)
 
 	tracker.SetConnectionCount(2)
 
@@ -369,44 +366,45 @@ func TestProxyGroups(t *testing.T) {
 }
 
 func TestProxyTTL(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	tracker, err := New(Config{
-		Clock:       clock,
-		ClusterName: "test-cluster",
-		ProxyExpiry: time.Second,
+	synctest.Test(t, func(t *testing.T) {
+
+		tracker, err := New(Config{
+			ClusterName: "test-cluster",
+			ProxyExpiry: time.Second,
+		})
+		require.NoError(t, err)
+
+		tracker.TrackExpected(Proxy{
+			Name: "proxy-1",
+			TTL:  100 * time.Millisecond,
+		})
+
+		lease := tracker.TryAcquire()
+		require.NotNil(t, lease)
+		require.True(t, lease.Claim("proxy-1"))
+
+		time.Sleep(200 * time.Millisecond)
+		require.NotNil(t, tracker.TryAcquire())
 	})
-	require.NoError(t, err)
-
-	tracker.TrackExpected(Proxy{
-		Name: "proxy-1",
-		TTL:  100 * time.Millisecond,
-	})
-
-	lease := tracker.TryAcquire()
-	require.NotNil(t, lease)
-	require.True(t, lease.Claim("proxy-1"))
-
-	clock.Advance(200 * time.Millisecond)
-	require.NotNil(t, tracker.TryAcquire())
 }
 
 func TestDefaultProxyExpiry(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	tracker, err := New(Config{
-		Clock:       clock,
-		ClusterName: "test-cluster",
-		ProxyExpiry: time.Second,
+	synctest.Test(t, func(t *testing.T) {
+		tracker, err := New(Config{
+			ClusterName: "test-cluster",
+			ProxyExpiry: time.Second,
+		})
+		require.NoError(t, err)
+
+		tracker.TrackExpected(Proxy{Name: "proxy-1"})
+
+		lease := tracker.TryAcquire()
+		require.NotNil(t, lease)
+		require.True(t, lease.Claim("proxy-1"))
+
+		time.Sleep(time.Second / 2)
+		require.Nil(t, tracker.TryAcquire())
+		time.Sleep(time.Second)
+		require.NotNil(t, tracker.TryAcquire())
 	})
-	require.NoError(t, err)
-
-	tracker.TrackExpected(Proxy{Name: "proxy-1"})
-
-	lease := tracker.TryAcquire()
-	require.NotNil(t, lease)
-	require.True(t, lease.Claim("proxy-1"))
-
-	clock.Advance(time.Second / 2)
-	require.Nil(t, tracker.TryAcquire())
-	clock.Advance(time.Second)
-	require.NotNil(t, tracker.TryAcquire())
 }
