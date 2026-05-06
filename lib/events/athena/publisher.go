@@ -22,8 +22,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -55,11 +57,6 @@ const (
 	// 256KB however it counts also headers. We round it to 250KB, just to be
 	// sure.
 	maxSNSDirectMessageSize = 250 * 1024
-
-	// maxDirectMessageSize is the maximum size of message that can be sent
-	// directly through SQS without needing to be stored in S3. This is
-	// smaller than the actual SQS limit of 1MB to account for message headers.
-	maxSQSDirectMessageSize = (1024 - 10) * 1024 // reserve 10KB for message attributes
 )
 
 // maxS3BasedSize defines some resonable threshold for S3 based messages
@@ -172,9 +169,43 @@ func NewPublisher(cfg PublisherConfig) *publisher {
 	}
 }
 
+// sqsMaxDirectMessageSize queries the queue's MaximumMessageSize attribute and
+// returns a safe direct-send limit (attribute value minus sqsMessageAttributeOverhead).
+// Falls back to maxSNSDirectMessageSize and logs a warning if the attribute
+// cannot be retrieved or parsed.
+func sqsMaxDirectMessageSize(ctx context.Context, client *sqs.Client, queueURL string, logger *slog.Logger) int {
+	// sqsMessageAttributeOverhead is the amount subtracted from a queue's
+	// MaximumMessageSize when deriving the usable direct-send limit, to leave
+	// room for SQS message attributes.
+	const sqsMessageAttributeOverhead = 10 * 1024
+
+	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	attrs, err := client.GetQueueAttributes(reqCtx, &sqs.GetQueueAttributesInput{
+		QueueUrl:       &queueURL,
+		AttributeNames: []sqstypes.QueueAttributeName{sqstypes.QueueAttributeNameMaximumMessageSize},
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "Failed to query SQS MaximumMessageSize, using conservative SNS limit as fallback", "error", err)
+		return maxSNSDirectMessageSize
+	}
+	raw, ok := attrs.Attributes[string(sqstypes.QueueAttributeNameMaximumMessageSize)]
+	if !ok {
+		logger.WarnContext(ctx, "SQS queue did not return MaximumMessageSize, using conservative SNS limit as fallback")
+		return maxSNSDirectMessageSize
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= sqsMessageAttributeOverhead {
+		logger.WarnContext(ctx, "SQS MaximumMessageSize value is invalid, using conservative SNS limit as fallback", "value", raw)
+		return maxSNSDirectMessageSize
+	}
+	return v - sqsMessageAttributeOverhead
+}
+
 // newPublisherFromAthenaConfig returns new instance of publisher from athena
 // config.
-func newPublisherFromAthenaConfig(cfg Config) *publisher {
+func newPublisherFromAthenaConfig(ctx context.Context, cfg Config) *publisher {
 	r := awsretry.NewStandard(func(so *awsretry.StandardOptions) {
 		so.MaxAttempts = 20
 		so.MaxBackoff = 1 * time.Minute
@@ -192,12 +223,13 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 	var messagePublisher messagePublisherFunc
 	var maxDirectMessageSize int
 	if cfg.TopicARN == topicARNBypass {
-		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
+		sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		}))
-		maxDirectMessageSize = maxSQSDirectMessageSize
+		})
+		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqsClient)
+		maxDirectMessageSize = sqsMaxDirectMessageSize(ctx, sqsClient, cfg.QueueURL, cfg.Logger)
 	} else {
 		messagePublisher = SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
 			o.Retryer = r
