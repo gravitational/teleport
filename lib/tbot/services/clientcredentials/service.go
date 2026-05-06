@@ -123,10 +123,14 @@ func (s *Service) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	id, err := s.identityGenerator.Generate(ctx,
+	opts := []identity.GenerateOption{
 		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+	if s.cfg.DelegationSessionID != "" {
+		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	id, err := s.identityGenerator.Generate(ctx, opts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
