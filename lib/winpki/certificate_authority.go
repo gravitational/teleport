@@ -133,7 +133,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 					"subject", cert.Subject,
 				)
 
-				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, ca.GetType(), tc); err != nil {
+				if err := c.updateCRL(ctx, cert.Subject.CommonName, cert.SubjectKeyId, keyPair.CRL, ca.GetType(), tc); err != nil {
 					return trace.Wrap(err)
 				}
 			}
