@@ -2022,12 +2022,14 @@ dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
 
+cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
+
 .PHONY: cli-docs-tsh
 cli-docs-tsh:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
-	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
+	$(BUILDDIR)/tshdocs help >docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
 
 .PHONY: cli-docs-tbot
@@ -2035,7 +2037,7 @@ cli-docs-tbot:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
-	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
+	$(BUILDDIR)/tbotdocs help >docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
 
 .PHONY: cli-docs-teleport
@@ -2043,7 +2045,7 @@ cli-docs-teleport:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
-	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	$(BUILDDIR)/teleportdocs help >docs/pages/reference/cli/teleport.mdx && \
 	rm $(BUILDDIR)/teleportdocs
 
 .PHONY: cli-docs-tctl
@@ -2051,8 +2053,20 @@ cli-docs-tctl:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
-	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	$(BUILDDIR)/tctldocs help >docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
+
+# cli-docs-up-to-date checks if the generated CLI reference docs are up to date.
+.PHONY: cli-docs-up-to-date
+cli-docs-up-to-date: must-start-clean/host cli-docs
+	@if ! git diff --quiet -- docs/pages/reference/cli/; then \
+		echo ""; \
+		echo "CLI reference documentation is out of date."; \
+		echo "Please run 'make cli-docs' and commit the changes."; \
+		echo ""; \
+		git diff --stat -- docs/pages/reference/cli/; \
+		exit 1; \
+	fi
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

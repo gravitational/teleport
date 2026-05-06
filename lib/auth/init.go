@@ -1771,8 +1771,12 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:                    1,
-	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindRole:            1,
+	types.KindInferenceSecret: 1,
+
+	types.KindUser:           2, // Users must be applied after Roles
+	types.KindInferenceModel: 2,
+
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
@@ -1780,7 +1784,9 @@ var ResourceApplyPriority = map[string]int{
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
-	types.KindBot: 3,
+	types.KindBot:             3,
+	types.KindInferencePolicy: 3,
+	types.KindRetrievalModel:  3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
