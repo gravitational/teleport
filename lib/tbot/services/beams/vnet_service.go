@@ -117,7 +117,7 @@ type VNetService struct {
 // String satisfies the bot.Service interface.
 func (svc *VNetService) String() string { return svc.cfg.Name }
 
-// Run the VNet service until the given context is cancelled.
+// Run the VNet service until the given context is canceled.
 func (s *VNetService) Run(ctx context.Context) error {
 	device, err := s.createTUN()
 	if err != nil {
