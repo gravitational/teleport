@@ -120,6 +120,7 @@ func FindOrRecoverSessionEnd(ctx context.Context, cfg FindOrRecoverSessionEndCon
 	// soon as we see the session start we'll be able to start filling in the details
 	var sshSessionEnd apievents.SessionEnd
 	var desktopSessionEnd apievents.WindowsDesktopSessionEnd
+	var linuxDesktopSessionEnd apievents.LinuxDesktopSessionEnd
 	var dbSessionEnd apievents.DatabaseSessionEnd
 	var appSessionEnd apievents.AppSessionEnd
 	var mcpSessionEnd apievents.MCPSessionEnd
@@ -161,6 +162,20 @@ loop:
 				desktopSessionEnd.DesktopAddr = e.DesktopAddr
 				desktopSessionEnd.DesktopLabels = e.DesktopLabels
 				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+
+			case *apievents.LinuxDesktopSessionStart:
+				linuxDesktopSessionEnd.Type = LinuxDesktopSessionEndEvent
+				linuxDesktopSessionEnd.Code = LinuxDesktopSessionEndCode
+				linuxDesktopSessionEnd.ClusterName = e.ClusterName
+				linuxDesktopSessionEnd.StartTime = e.Time
+				linuxDesktopSessionEnd.Participants = append(linuxDesktopSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				linuxDesktopSessionEnd.Recorded = true
+				linuxDesktopSessionEnd.UserMetadata = e.UserMetadata
+				linuxDesktopSessionEnd.SessionMetadata = e.SessionMetadata
+				linuxDesktopSessionEnd.LinuxUser = e.LinuxUser
+				linuxDesktopSessionEnd.DesktopAddr = e.DesktopAddr
+				linuxDesktopSessionEnd.DesktopLabels = e.DesktopLabels
+				linuxDesktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
 
 			case *apievents.SessionStart:
 				sshSessionEnd.Type = SessionEndEvent
@@ -241,6 +256,8 @@ loop:
 		sessionEndEvent = &appSessionEnd
 	case mcpSessionEnd.Code != "":
 		sessionEndEvent = &mcpSessionEnd
+	case linuxDesktopSessionEnd.Code != "":
+		sessionEndEvent = &linuxDesktopSessionEnd
 	default:
 		return nil, trace.BadParameter("invalid session, could not find session start")
 	}
