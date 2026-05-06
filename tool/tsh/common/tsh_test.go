@@ -1166,11 +1166,6 @@ func TestSwitchProfile(t *testing.T) {
 	// For each login case, test that we can switch directly to the other cases without re-logging in.
 	for _, p1 := range loginCases {
 		for _, p2 := range loginCases {
-			// Switching between users/clusters on the same proxy is not supported currently
-			// since we only store one proxy profile at a time.
-			if p1.name == p2.name {
-				continue
-			}
 			t.Run(fmt.Sprintf("from %v/to %v", p1.name, p2.name), func(t *testing.T) {
 				err := login(t, p1.proxy, p1.user, p1.cluster, setHomePath(tmpHomePath))
 				require.NoError(t, err)
