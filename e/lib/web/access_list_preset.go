@@ -298,7 +298,7 @@ func (p *Plugin) generateAccessListTerraformConfig(_ http.ResponseWriter, r *htt
 			tfgen.WithResourceType(terraformAccessListType),
 			tfgen.WithResourceName(terraformAccessListName),
 			tfgen.WithOmitField("spec.owners.ineligible_status"),
-			tfgen.WithOmitField("spec.audit.next_audit_date"),
+			tfgen.WithOmitField("spec.audit"),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

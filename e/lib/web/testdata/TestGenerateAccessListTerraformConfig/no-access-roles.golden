@@ -33,15 +33,6 @@ resource "teleport_access_list" "acl-test-access-list" {
       membership_kind = "1"
       name            = "llama"
     }]
-    audit = {
-      recurrence = {
-        frequency    = "3"
-        day_of_month = "1"
-      }
-      notifications = {
-        start = "336h0m0s"
-      }
-    }
     title = "Test Access List"
   }
 }

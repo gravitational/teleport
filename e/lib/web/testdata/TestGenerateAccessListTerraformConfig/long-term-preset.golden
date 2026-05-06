@@ -129,15 +129,6 @@ resource "teleport_access_list" "acl-test-access-list" {
       membership_kind = "1"
       name            = "llama"
     }]
-    audit = {
-      recurrence = {
-        frequency    = "3"
-        day_of_month = "1"
-      }
-      notifications = {
-        start = "336h0m0s"
-      }
-    }
     grants = {
       roles = ["accessRole1-acl-preset-test-access-list", "accessRole2-acl-preset-test-access-list"]
     }
