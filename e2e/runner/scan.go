@@ -582,8 +582,9 @@ func defaultUsers() []scannedUser {
 func scanFileUsers(path string, targetLine int) ([]scannedUser, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// Missing files are not fatal: the scanner is used against a
-		// heuristic target list that may include paths that don't exist.
+		// Helper module paths are guessed from import names (see
+		// resolveTargetsWithHelpers), so the file may not exist. Warn
+		// but continue rather than failing the whole scan.
 		slog.Warn("scan: could not read file", "path", path, "error", err)
 		return nil, nil
 	}
