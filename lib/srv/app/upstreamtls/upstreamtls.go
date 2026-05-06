@@ -29,23 +29,39 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CertificateAuthorityGetter used to retrieve CA public information.
-type CertificateAuthorityGetter interface {
+// AccessPoint is a caching client connected to the Auth Server.
+type AccessPoint interface {
 	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
+	// GetAuthPreference returns the current cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
+}
+
+// WorkloadIdentityClientGetter used to retrieve Workload identity clients.
+type WorkloadIdentityClientGetter interface {
+	// WorkloadIdentityIssuanceClient returns an unadorned client for the
+	// workload identity service.
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 }
 
 // Options are the options used to configure the TLS.
 type Options struct {
 	// Logger is the slog.Logger used by the configurator.
 	Logger *slog.Logger
-	// CAGetter is the interface used to retrieve certificate authorities.
-	CAGetter CertificateAuthorityGetter
+	// AccessPoint is a caching client connected to the Auth Server.
+	AccessPoint AccessPoint
+	// WorkloadIdentityClientGetter is the interface used to retrieve Workload
+	// identity clients.
+	WorkloadIdentityClientGetter WorkloadIdentityClientGetter
+	// UserCertificate is the requesting user certificate.
+	UserCertificate []byte
 	// ClusterName is the current cluster name.
 	ClusterName string
 	// App is the app being configured.
@@ -65,12 +81,12 @@ type Options struct {
 func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 	// Service-level insecure mode takes precedence over app configuration.
 	if opts.InsecureMode {
-		return configureTLSInsecure(opts.CipherSuites)
+		return configureTLSInsecure(opts.CipherSuites, nil)
 	}
 
 	appTLS := cmp.Or(opts.App.GetTLS(), &types.AppTLS{})
 
-	caPool, err := newTLSCertPool(ctx, opts.Logger, opts.CAGetter, opts.ClusterName, appTLS.AllowedCas)
+	caPool, err := newTLSCertPool(ctx, opts.Logger, opts.AccessPoint, opts.ClusterName, appTLS.AllowedCas)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,17 +96,29 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var clientCerts []tls.Certificate
+	switch appTLS.ClientCertMode {
+	case types.AppClientCertModeManaged:
+		var err error
+		clientCerts, err = issueClientCertificates(ctx, opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		// Nothing to do, no client cert being used.
+	}
+
 	switch opts.App.GetTLSMode() {
 	case types.AppTLSModeVerifyFull:
 		spiffeID, _ := spiffeid.FromString(appTLS.ServerSpiffeId)
-		return configureTLSVerifyFull(opts.CipherSuites, caPool, spiffeID, serverName)
+		return configureTLSVerifyFull(opts.CipherSuites, caPool, spiffeID, serverName, clientCerts)
 	case types.AppTLSModeVerifySpiffeID:
 		spiffeID, _ := spiffeid.FromString(appTLS.ServerSpiffeId)
-		return configureTLSSpiffeIDVerify(opts.CipherSuites, caPool, spiffeID)
+		return configureTLSSpiffeIDVerify(opts.CipherSuites, caPool, spiffeID, clientCerts)
 	case types.AppTLSModeVerifyServerName:
-		return configureTLSVerifyServerName(opts.CipherSuites, caPool, serverName)
+		return configureTLSVerifyServerName(opts.CipherSuites, caPool, serverName, clientCerts)
 	case types.AppTLSModeInsecure:
-		return configureTLSInsecure(opts.CipherSuites)
+		return configureTLSInsecure(opts.CipherSuites, clientCerts)
 	default:
 		// Unsupported protocols will return a non-valid TLS mode. For those
 		// cases, the TLS configuration won't be effective, so we can return
@@ -99,29 +127,32 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 	}
 }
 
-func configureTLSSpiffeIDVerify(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID) (*tls.Config, error) {
+func configureTLSSpiffeIDVerify(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID, certs []tls.Certificate) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.Certificates = certs
 	tlsConfig.ServerName = ""
 	// Skips server name verification.
 	tlsConfig.VerifyConnection = tlsVerifyPeerCertificate(tlsConfig.RootCAs, spiffeID, "")
 	return tlsConfig, nil
 }
 
-func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID, serverName string) (*tls.Config, error) {
+func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID, serverName string, certs []tls.Certificate) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.Certificates = certs
 	tlsConfig.ServerName = serverName
 	tlsConfig.VerifyConnection = tlsVerifyPeerCertificate(tlsConfig.RootCAs, spiffeID, serverName)
 	return tlsConfig, nil
 }
 
-func configureTLSVerifyServerName(cipherSuites []uint16, caPool *x509.CertPool, serverName string) (*tls.Config, error) {
+func configureTLSVerifyServerName(cipherSuites []uint16, caPool *x509.CertPool, serverName string, certs []tls.Certificate) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.Certificates = certs
 	tlsConfig.ServerName = serverName
 	// We cannot use regular verify function since it would skip DNSName
 	// validation when the value set or the dialed address are an IP.
@@ -131,8 +162,9 @@ func configureTLSVerifyServerName(cipherSuites []uint16, caPool *x509.CertPool, 
 	return tlsConfig, nil
 }
 
-func configureTLSInsecure(cipherSuites []uint16) (*tls.Config, error) {
+func configureTLSInsecure(cipherSuites []uint16, certs []tls.Certificate) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
+	tlsConfig.Certificates = certs
 	tlsConfig.InsecureSkipVerify = true
 	return tlsConfig, nil
 }
@@ -188,7 +220,7 @@ func upstreamVerifyName(app types.Application, appTLS *types.AppTLS) (string, er
 }
 
 // newTLSCertPool creates a new x509 cert pool using the list of allowed CAs.
-func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter CertificateAuthorityGetter, clusterName string, cas []string) (*x509.CertPool, error) {
+func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter AccessPoint, clusterName string, cas []string) (*x509.CertPool, error) {
 	// If no options are provided, use the host's root CA (default behavior).
 	// This is mainly to keep backwards compatibility for apps using TLS
 	// connections, and that doesn't configure the CA list.
@@ -227,7 +259,7 @@ func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter Certificate
 }
 
 // loadCACertificates takes a "CA alias" and resolve to Teleport CA certificates.
-func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, clusterName string, alias types.AppTLSInternalCA) ([]*x509.Certificate, error) {
+func loadCACertificates(ctx context.Context, getter AccessPoint, clusterName string, alias types.AppTLSInternalCA) ([]*x509.Certificate, error) {
 	var caType types.CertAuthType
 	switch alias {
 	case types.AppTLSInternalCAWorkloadIdentity:
@@ -263,4 +295,42 @@ func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, 
 	}
 
 	return certs, nil
+}
+
+func issueClientCertificates(ctx context.Context, opts Options) ([]tls.Certificate, error) {
+	privateKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AccessPoint),
+		cryptosuites.AppClientCATLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := opts.WorkloadIdentityClientGetter.WorkloadIdentityIssuanceClient()
+	resp, err := clt.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+				PublicKey: pubBytes,
+			},
+		},
+		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+			AppAccess: &workloadidentityv1pb.AppAccessUsage{
+				UserCertificate: opts.UserCertificate,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svid := resp.GetCredential().GetX509Svid()
+	return []tls.Certificate{
+		{
+			Certificate: append([][]byte{svid.GetCert()}, svid.Chain...),
+			PrivateKey:  privateKey,
+		},
+	}, nil
 }

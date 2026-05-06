@@ -383,7 +383,7 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	// minutes. Used to stream session chunks to the Audit Log.
 	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
-		session, err := c.newSessionChunk(ctx, identity, app, c.sessionStartTime(r.Context()), opts...)
+		session, err := c.newSessionChunk(ctx, r, identity, app, c.sessionStartTime(r.Context()), opts...)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -425,7 +425,8 @@ func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 		emitter:      c.cfg.Emitter,
 		hostID:       c.cfg.HostID,
 		log:          c.log,
-		caGetter:     c.cfg.AccessPoint,
+		accessPoint:  c.cfg.AccessPoint,
+		authClient:   c.cfg.AuthClient,
 		clusterName:  c.clusterName,
 		cipherSuites: c.cfg.CipherSuites,
 		insecureMode: c.cfg.InsecureMode,

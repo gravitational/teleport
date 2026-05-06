@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -94,7 +95,7 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 // The session chunk is created with inflight=1,
 // and as such expects `release()` to eventually be called
 // by the caller of this function.
-func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
+func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, r *http.Request, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
 		appName:      app.GetName(),
@@ -131,7 +132,8 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 	sess.audit = audit
 
 	for _, opt := range opts {
-		if err = opt(ctx, sess, identity, app); err != nil {
+		// TODO
+		if err = opt(r.Context(), sess, identity, app); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -156,19 +158,27 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 		return trace.Wrap(err)
 	}
 
+	// TODO
+	userCert, err := authz.UserCertificateFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,
 		&transportConfig{
-			app:                 app,
-			publicPort:          c.proxyPort,
-			cipherSuites:        c.cfg.CipherSuites,
-			jwt:                 jwt,
-			rewriteTraits:       rewriteTraits,
-			log:                 c.log,
-			hostID:              c.cfg.HostID,
-			insecureMode:        c.cfg.InsecureMode,
-			clusterName:         c.clusterName,
-			certAuthorityGetter: c.cfg.AccessPoint,
+			app:           app,
+			publicPort:    c.proxyPort,
+			cipherSuites:  c.cfg.CipherSuites,
+			jwt:           jwt,
+			rewriteTraits: rewriteTraits,
+			log:           c.log,
+			hostID:        c.cfg.HostID,
+			insecureMode:  c.cfg.InsecureMode,
+			clusterName:   c.clusterName,
+			accessPoint:   c.cfg.AccessPoint,
+			authClient:    c.cfg.AuthClient,
+			userCert:      userCert.Raw,
 		})
 	if err != nil {
 		return trace.Wrap(err)

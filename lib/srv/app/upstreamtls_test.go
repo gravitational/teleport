@@ -336,6 +336,42 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 			},
 			expectError: false,
 		},
+		"managed client cert": {
+			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
+				return &types.AppTLS{
+					Mode:           types.AppTLSModeVerifyServerName,
+					ClientCertMode: types.AppClientCertModeManaged,
+					AllowedCas:     []string{string(setup.serverCACertPEM)},
+				}
+			},
+			upstreamOpts: []upstreamServerOpt{
+				withRequireAppClientCerts(),
+			},
+			expectError: false,
+		},
+		"managed client cert enabled when server doesn't require it": {
+			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
+				return &types.AppTLS{
+					Mode:           types.AppTLSModeVerifyServerName,
+					ClientCertMode: types.AppClientCertModeManaged,
+					AllowedCas:     []string{string(setup.serverCACertPEM)},
+				}
+			},
+			expectError: false,
+		},
+		"server requires client cert but it is disabled": {
+			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
+				return &types.AppTLS{
+					Mode:           types.AppTLSModeVerifyServerName,
+					ClientCertMode: types.AppClientCertModeDisabled,
+					AllowedCas:     []string{string(setup.serverCACertPEM)},
+				}
+			},
+			upstreamOpts: []upstreamServerOpt{
+				withRequireAppClientCerts(),
+			},
+			expectError: true,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -365,7 +401,7 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 
 			s := SetUpSuiteWithConfig(t, suiteConfig{
 				Apps:         append(httpsApps, tlsApps...),
-				OverrideCAs:  []types.CertAuthority{setup.spiffeCAResource},
+				OverrideCAs:  []types.CertAuthority{setup.spiffeCAResource, setup.appClientCAResource},
 				InsecureMode: tc.insecureMode,
 			})
 
@@ -376,7 +412,7 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 
 						s.checkHTTPResponse(t, cert, func(resp *http.Response) {
 							if tc.expectError {
-								require.Equal(t, http.StatusInternalServerError, resp.StatusCode, "expected HTTPS request to fail")
+								require.NotEqual(t, http.StatusOK, resp.StatusCode, "expected HTTPS request to fail")
 								return
 							}
 
@@ -416,16 +452,13 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 						require.NoError(t, err)
 
 						// Upstream errors will appear for clients on the first
-						// write.
-						_, err = tlsConn.Write([]byte("hello"))
+						// interaction.
+						buf := make([]byte, len(tlsMessage))
+						_, err = tlsConn.Read(buf)
 						if tc.expectError {
 							require.Error(t, err)
 							return
 						}
-						require.NoError(t, err)
-
-						buf := make([]byte, len(tlsMessage))
-						_, err = tlsConn.Read(buf)
 						require.NoError(t, err)
 						require.Equal(t, tlsMessage, string(buf))
 					})
@@ -438,10 +471,13 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 // tlsUpstreamSetup holds the CAs, and helpers needed to configure an upstream
 // TLS application for testing.
 type tlsUpstreamSetup struct {
-	serverCA         *tlsca.CertAuthority
-	serverCACertPEM  []byte
-	spiffeCA         *tlsca.CertAuthority
-	spiffeCAResource types.CertAuthority
+	serverCA        *tlsca.CertAuthority
+	serverCACertPEM []byte
+
+	spiffeCA            *tlsca.CertAuthority
+	spiffeCAResource    types.CertAuthority
+	appClientCA         *tlsca.CertAuthority
+	appClientCAResource types.CertAuthority
 }
 
 func newTLSUpstreamSetup(t *testing.T) *tlsUpstreamSetup {
@@ -464,18 +500,28 @@ func newTLSUpstreamSetup(t *testing.T) *tlsUpstreamSetup {
 	spiffeCA, err := tlsca.FromKeys(spiffeKP.Cert, spiffeKP.Key)
 	require.NoError(t, err)
 
+	// Build a AppClient CA whose private key is owned by the test.
+	appClientCAResource, err := authcatest.NewCA(types.AppClientCA, "root.example.com")
+	require.NoError(t, err)
+	appClientKP := appClientCAResource.GetActiveKeys().TLS[0]
+	appClientCA, err := tlsca.FromKeys(appClientKP.Cert, appClientKP.Key)
+	require.NoError(t, err)
+
 	return &tlsUpstreamSetup{
-		serverCA:         serverCA,
-		serverCACertPEM:  serverCACertPEM,
-		spiffeCA:         spiffeCA,
-		spiffeCAResource: spiffeCAResource,
+		serverCA:            serverCA,
+		serverCACertPEM:     serverCACertPEM,
+		spiffeCA:            spiffeCA,
+		spiffeCAResource:    spiffeCAResource,
+		appClientCA:         appClientCA,
+		appClientCAResource: appClientCAResource,
 	}
 }
 
 type upstreamConfig struct {
-	sans     []string
-	spiffeID string
-	customCA types.CertAuthType
+	sans               []string
+	spiffeID           string
+	customCA           types.CertAuthType
+	requireClientCerts bool
 }
 
 type upstreamServerOpt func(c *upstreamConfig)
@@ -495,6 +541,12 @@ func withUpstreamSpiffeID(s string) upstreamServerOpt {
 func withUpstreamCustomCA(caType types.CertAuthType) upstreamServerOpt {
 	return func(c *upstreamConfig) {
 		c.customCA = caType
+	}
+}
+
+func withRequireAppClientCerts() upstreamServerOpt {
+	return func(c *upstreamConfig) {
+		c.requireClientCerts = true
 	}
 }
 
@@ -524,6 +576,8 @@ func (m *tlsUpstreamSetup) startUpstreamHTTPSServer(t *testing.T, clock clockwor
 
 // startUpstreamTLSServer starts an httptest HTTPS server using self-signed
 // certificate.
+//
+// The TCP server only writes the message and never reads.
 func (m *tlsUpstreamSetup) startUpstreamTLSServer(t *testing.T, clock clockwork.Clock, message string, opts ...upstreamServerOpt) string {
 	t.Helper()
 
@@ -551,13 +605,11 @@ func (m *tlsUpstreamSetup) startUpstreamTLSServer(t *testing.T, clock clockwork.
 			wg.Go(func() {
 				defer conn.Close()
 
-				buf := make([]byte, 32)
 				for {
-					_, err := conn.Read(buf)
+					_, err := fmt.Fprintln(conn, message)
 					if err != nil {
 						return
 					}
-					fmt.Fprintln(conn, message)
 				}
 			})
 		}
@@ -605,12 +657,18 @@ func (m *tlsUpstreamSetup) generateUpstreamTLSConfig(t *testing.T, cfg upstreamC
 	serverCert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
 	require.NoError(t, err)
 
-	// Disable keep alive so we force new connections every time, forcing
-	// certificate validation.
-	return &tls.Config{
+	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{serverCert},
 		Time:         clock.Now,
 	}
+	if cfg.requireClientCerts {
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		pool := x509.NewCertPool()
+		pool.AddCert(m.appClientCA.Cert)
+		tlsConfig.ClientCAs = pool
+	}
+
+	return tlsConfig
 }
 
 // newApp creates a types.AppV3 configured with TLS options.
