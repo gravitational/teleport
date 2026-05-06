@@ -49,7 +49,7 @@ For testing, we always recommend that you use the latest Cloud release version o
 | `(=teleport.latest_ent_docker_image=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
 | `(=teleport.latest_ent_debug_docker_image=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
 
-We also provide the following images for FIPS builds of Teleport Enterprise:
+We provide the following images for FIPS builds of Teleport Enterprise:
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
@@ -89,25 +89,25 @@ To learn more, read the [Deploying Machine & Workload Identity on Kubernetes](..
 
 ### Interacting with distroless images
 
-Since Teleport 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images. These images do not contain a shell.
+Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images. These images do not contain a shell.
 
 To execute Teleport commands on containers based on these images, run commands similar to the following:
 
 ```code
 # in docker
-$ docker exec -it ${TELEPORT_CONTAINER} tctl status
+$ docker exec -it <Var name="teleport-container"/> tctl status
 
 # in Kubernetes
-$ kubectl exec -i my-pod -- tctl status
+$ kubectl exec -i <Var name="pod-name"/> -- tctl status
 
 # sending local files via stdin
-$ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
+$ kubectl exec -i <Var name="pod-name"/> -- tctl create -f < my-local-file.yaml
 
 # retrieving the teleport service config file from the configmap
 $ kubectl get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
 
 # retrieving output via stdout and tar
-$ kubectl exec -i my-pod -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
+$ kubectl exec -i <Var name="pod-name"/> -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
 $ ls -l local
 total 24
 -rw-------  1 trent  staff  1318 Jul 24 15:52 admin.cas
@@ -176,7 +176,7 @@ You can either pipe this output directly to `tar`, or redirect it to a local fil
 For example:
 
 ```code
-$ docker exec ${TELEPORT_CONTAINER} \
+$ docker exec <Var name="teleport-container"/> \
   tctl auth sign --user alice --format tls -o alice.local --tar | tar xv
 x alice.local.crt
 x alice.local.key
@@ -298,59 +298,6 @@ You can, however, join other local Docker containers to it using the [token meth
 
    </Checkpoint>
 
-## Verifying Teleport on Kubernetes
-
-When running Teleport in a Kubernetes pod, you can use the same images described above. 
-The verification steps and troubleshooting differ from a standalone Docker container.
-
-### Verify pod status
-
-Check pod status:
-
-```code
-$ kubectl get pods -l app=teleport -o wide
-$ kubectl describe pod <pod-name>
-```
-
-The pod will be listed with a status of `Running` and no recent restarts.
-
-### Verify Teleport is responding
-
-Check Teleport cluster status from inside the pod:
-
-```code
-$ kubectl exec -i <pod-name> -- tctl status
-```
-
-The output will show the cluster name, version, and CA pin.
-
-To test the web API locally, port-forward and query the endpoint:
-
-```code
-$ kubectl port-forward <pod-name> 3080:3080
-$ curl --insecure https://localhost:3080/webapi/ping
-```
-
-The endpoint should return JSON containing cluster and proxy information.
-
-### Verify deployment and upgrades
-
-Check rollout status during an upgrade:
-
-```code
-$ kubectl rollout status deployment/teleport
-```
-
-A message will indicate the rollout completed successfully.
-
-Verify the running image version:
-
-```code
-$ kubectl get pod <pod-name> -o jsonpath='{.spec.containers[0].image}'
-```
-
-The output displays the expected image tag matching the version you deployed.
-
 ## Upgrading Teleport on Docker
 
 To upgrade a Teleport container running on Docker:
@@ -389,7 +336,7 @@ If you run into problems installing, running, or upgrading Teleport on Docker or
 
 Common issues encountered when pulling images, starting containers, mounting files, and upgrading.
 
-**Image pull**
+#### Image pull
 
 - If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
 - If you see architecture errors such as no matching manifest, specify the platform explicitly with `--platform`.
@@ -416,7 +363,7 @@ Common issues encountered when pulling images, starting containers, mounting fil
 
 If `tctl auth sign` fails or no files are extracted from a distroless image:
 
-- If you see `Error: No such container`, verify the container is running with `docker ps` and that `${TELEPORT_CONTAINER}` is set to the correct container name or ID.
+- If you see `Error: No such container`, verify the container is running with `docker ps` and that the container name or ID is correct.
 - If `tar xv` produces no output and no files appear locally, the `tctl auth sign` call may have failed silently. Run the command without the `| tar xv` pipe to see the raw output and any error messages.
 - If you see `tar: This does not look like a tar archive`, the command output likely contains an error message instead of archive data. Run `tctl auth sign` without `--tar` first to confirm the user and parameters are valid.
 
@@ -427,20 +374,73 @@ Common issues encountered when running Teleport in a Kubernetes pod.
 **Pod issues**
 
 - Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions allow the container to write to it. For distroless images, ensure `fsGroup` and `runAsUser` settings allow write access.
-- If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <pod-name>`.
-- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with `kubectl logs <pod-name> --previous`.
+- If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <Var name="pod-name"/>`.
+- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with `kubectl logs <Var name="pod-name"/> --previous`.
 - If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check whether pull secrets are required.
-- If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <pod-name>` and review the `lastState` section.
+- If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <Var name="pod-name"/>` and review the `lastState` section.
 
 **Teleport not responding**
 
 - If `tctl status` fails due to authentication or RBAC, use `/webapi/ping` as the primary health check.
 - If `kubectl port-forward` fails, ensure the pod is running and the container port is correct.
-- View pod logs for startup errors with `kubectl logs -f <pod-name>` and recent events with `kubectl get events --field-selector involvedObject.name=<pod-name>`.
+- View pod logs for startup errors with `kubectl logs -f <Var name="pod-name"/>` and recent events with `kubectl get events --field-selector involvedObject.name=<Var name="pod-name"/>`.
 
 **Rollouts and upgrades**
 
 - If a rollout is stuck, view rollout history with `kubectl rollout history deployment/teleport`. To roll back, run `kubectl rollout undo deployment/teleport`.
-- If pods fail after an upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
+- If pods fail after an upgrade, check for migration errors in logs with `kubectl logs <Var name="pod-name"/>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
 - To restart pods without changing configuration, run `kubectl rollout restart deployment/teleport`.
 - Check resource usage during upgrades with `kubectl top pod -l app=teleport`.
+
+## Verifying Teleport on Kubernetes
+
+When running Teleport in a Kubernetes pod, you can use the same images described above. 
+The verification steps and troubleshooting differ from a standalone Docker container.
+
+### Verify pod status
+
+Check pod status:
+
+```code
+$ kubectl get pods -l app=teleport -o wide
+$ kubectl describe pod <Var name="pod-name"/>
+```
+
+The pod will be listed with a status of `Running` and no recent restarts.
+
+### Verify Teleport is responding
+
+Check Teleport cluster status from inside the pod:
+
+```code
+$ kubectl exec -i <Var name="pod-name"/> -- tctl status
+```
+
+The output will show the cluster name, version, and CA pin.
+
+To test the web API locally, port-forward and query the endpoint:
+
+```code
+$ kubectl port-forward <Var name="pod-name"/> 3080:3080
+$ curl --insecure https://localhost:3080/webapi/ping
+```
+
+The endpoint should return JSON containing cluster and proxy information.
+
+### Verify deployment and upgrades
+
+Check rollout status during an upgrade:
+
+```code
+$ kubectl rollout status deployment/teleport
+```
+
+A message will indicate the rollout completed successfully.
+
+Verify the running image version:
+
+```code
+$ kubectl get pod <Var name="pod-name"/> -o jsonpath='{.spec.containers[0].image}'
+```
+
+The output displays the expected image tag matching the version you deployed.
