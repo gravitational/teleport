@@ -137,7 +137,9 @@ helm repo update
   --set roles="{{.set_roles}}" \
   --set proxyAddr={{.proxy_server}} \{{if .secret}}
   --set "joinParams.tokenName={{.token}}" \
-  --set "joinParams.tokenSecret={{.secret}}" \{{else}}
+  --set "joinParams.tokenSecret={{.secret}}" \
+  --set "extraEnv[0].name=TELEPORT_UNSTABLE_SCOPES" \
+  --set "extraEnv[0].value=yes" \{{else}}
   --set authToken={{.token}} \{{end}}
   --set updater.enabled=true \
   --create-namespace \

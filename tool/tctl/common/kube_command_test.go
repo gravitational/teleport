@@ -95,6 +95,8 @@ helm repo update
   --set proxyAddr=proxy.example.com:443 \
   --set "joinParams.tokenName=token" \
   --set "joinParams.tokenSecret=secret" \
+  --set "extraEnv[0].name=TELEPORT_UNSTABLE_SCOPES" \
+  --set "extraEnv[0].value=yes" \
   --set updater.enabled=true \
   --create-namespace \
   --namespace=teleport-agent \
