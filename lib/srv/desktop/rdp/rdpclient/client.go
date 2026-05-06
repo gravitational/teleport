@@ -1259,3 +1259,8 @@ func (c *Client) UpdateClientActivity() {
 	c.clientLastActive = time.Now().UTC()
 	c.clientActivityMu.Unlock()
 }
+
+// DisableNLA disables NLA in the client configuration.
+func (c *Client) DisableNLA() {
+	c.cfg.NLA = false
+}
