@@ -58,6 +58,7 @@ func (s *StaticAccessTokenProvider) GetAccessToken() (string, error) {
 }
 
 // RotatedAccessTokenProviderConfig contains parameters and dependencies for RotatedAccessTokenProvider
+// TODO(hugoShaka): delete the RotatedAccessTokenProvider and its config once the teleport.e PR is merged.
 type RotatedAccessTokenProviderConfig struct {
 	RetryInterval       time.Duration
 	TokenBufferInterval time.Duration

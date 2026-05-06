@@ -183,11 +183,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			// this should validate that credentials are not empty
 			break
 		}
-		if p.Credentials.GetOauth2AccessToken() == nil {
-			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
+		if p.Credentials.GetOauth2AccessToken() == nil && p.Credentials.GetStaticCredentialsRef() == nil {
+			return trace.BadParameter("Slack access plugin must be used with either OAuth2 access token, or a static credential")
 		}
-		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+		if p.Credentials.GetOauth2AccessToken() != nil {
+			if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	case *PluginSpecV1_Openai:
 		if p.Credentials == nil {

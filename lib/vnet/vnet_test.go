@@ -46,11 +46,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
-	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
@@ -84,13 +79,7 @@ func TestMain(m *testing.M) {
 }
 
 type testPack struct {
-	vnetIPv6Prefix tcpip.Address
-	dnsIPv6        tcpip.Address
-	ns             *networkStack
-
-	testStack        *stack.Stack
-	testLinkEndpoint *channel.Endpoint
-	localAddress     tcpip.Address
+	hostNetwork *FakeHostNetwork
 }
 
 type testPackConfig struct {
@@ -104,53 +93,12 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		cfg.homePath = t.TempDir()
 	}
 
-	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
-	tun1, tun2 := newSplitTUN()
-
-	// Create an isolated userspace networking stack that can be manipulated from test code. It will be
-	// connected to the VNet over the TUN interface. This emulates the host networking stack.
-	// This is a completely separate gvisor network stack than the one that will be created in
-	// NewNetworkStack - the two will be connected over a fake TUN interface. This exists so that the
-	// test can setup IP routes without affecting the host running the Test.
-	testStack, testLinkEndpoint, err := createStack()
+	hostNetwork, err := NewFakeHostNetwork()
 	require.NoError(t, err)
+	t.Cleanup(hostNetwork.Close)
 
-	errIsOK := func(err error) bool {
-		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
-	}
-
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
-		Name: "test network stack",
-		Task: func(ctx context.Context) error {
-			if err := forwardBetweenTunAndNetstack(ctx, tun1, testLinkEndpoint); !errIsOK(err) {
-				return trace.Wrap(err)
-			}
-			return nil
-		},
-		Terminate: func() error {
-			testLinkEndpoint.Close()
-			return trace.Wrap(tun1.Close())
-		},
-	})
-
-	// Assign a local IP address to the test stack.
-	localAddress, err := randomULAAddress()
-	require.NoError(t, err)
-	protocolAddr, err := protocolAddress(localAddress)
-	require.NoError(t, err)
-	tcpErr := testStack.AddProtocolAddress(nicID, protocolAddr, stack.AddressProperties{})
-	require.Nil(t, tcpErr)
-
-	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
 	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
-	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
-	require.NoError(t, err)
-	testStack.SetRouteTable([]tcpip.Route{{
-		Destination: subnet,
-		NIC:         nicID,
-	}})
-
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
 	// In reality the VNet networking stack runs in a separate process from the
@@ -177,7 +125,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	// Create the VNet and connect it to the other side of the TUN.
 	ns, err := newNetworkStack(&networkStackConfig{
-		tunDevice:                tun2,
+		tunDevice:                hostNetwork.TUNDevice(),
 		ipv6Prefix:               vnetIPv6Prefix,
 		dnsIPv6:                  dnsIPv6,
 		tcpHandlerResolver:       tcpHandlerResolver,
@@ -185,87 +133,52 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	})
 	require.NoError(t, err)
 
+	tunIPv6, err := tunIPv6ForPrefix(vnetIPv6Prefix.String())
+	require.NoError(t, err)
+	require.NoError(t, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
+		DeviceIPv6: tunIPv6,
+		CIDRRanges: []string{tunIPv6 + "/64"},
+		DNSAddrs:   []string{dnsIPv6.String()},
+	}))
+
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := ns.run(ctx); !errIsOK(err) {
+			err := ns.run(ctx)
+			switch {
+			case err == nil,
+				utils.IsOKNetworkError(err),
+				errors.Is(err, context.Canceled),
+				errors.Is(err, errFakeTUNClosed):
+				return nil
+			default:
 				return trace.Wrap(err)
 			}
-			return nil
 		},
 	})
 
 	return &testPack{
-		vnetIPv6Prefix:   vnetIPv6Prefix,
-		dnsIPv6:          dnsIPv6,
-		ns:               ns,
-		testStack:        testStack,
-		testLinkEndpoint: testLinkEndpoint,
-		localAddress:     localAddress,
+		hostNetwork: hostNetwork,
 	}
-}
-
-// dialIPPort dials the VNet address [addr] from the test virtual netstack.
-func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint16) (*gonet.TCPConn, error) {
-	conn, err := gonet.DialTCPWithBind(
-		ctx,
-		p.testStack,
-		tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     p.localAddress,
-			LinkAddr: p.testLinkEndpoint.LinkAddress(),
-		},
-		tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     addr,
-			Port:     port,
-			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
-		},
-		ipv6.ProtocolNumber,
-	)
-	return conn, trace.Wrap(err)
-}
-
-func (p *testPack) dialUDP(ctx context.Context, addr tcpip.Address, port uint16) (net.Conn, error) {
-	conn, err := gonet.DialUDP(
-		p.testStack,
-		&tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     p.localAddress,
-			LinkAddr: p.testLinkEndpoint.LinkAddress(),
-		},
-		&tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     addr,
-			Port:     port,
-			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
-		},
-		ipv6.ProtocolNumber,
-	)
-	return conn, trace.Wrap(err)
 }
 
 func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error) {
-	resolver := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			conn, err := p.dialUDP(ctx, p.dnsIPv6, 53)
-			return conn, err
-		},
-	}
-	return resolver.LookupHost(ctx, host)
+	return p.hostNetwork.DNSResolver().LookupHost(ctx, host)
 }
 
 func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	if net.ParseIP(host) != nil {
+		return p.hostNetwork.DialIP(ctx, "tcp", addr)
+	}
+
 	addrs, err := p.lookupHost(ctx, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var allErrs []error
 	for _, addr := range addrs {
-		netIP := net.ParseIP(addr)
-		ip := tcpip.AddrFromSlice(netIP)
-		conn, err := p.dialIPPort(ctx, ip, uint16(port))
+		conn, err := p.hostNetwork.DialIP(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
 		if err != nil {
 			allErrs = append(allErrs, trace.Wrap(err, "dialing %s", addr))
 			continue
@@ -2024,92 +1937,6 @@ func TestPriority(t *testing.T) {
 		}
 		assert.Equal(t, expectedRoute, route)
 	})
-}
-
-func randomULAAddress() (tcpip.Address, error) {
-	var bytes [16]byte
-	bytes[0] = 0xfd
-	if _, err := rand.Read(bytes[1:16]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
-	}
-	return tcpip.AddrFrom16(bytes), nil
-}
-
-var errFakeTUNClosed = errors.New("TUN closed")
-
-type fakeTUN struct {
-	name                            string
-	writePacketsTo, readPacketsFrom chan []byte
-	closed                          chan struct{}
-	closeOnce                       func()
-}
-
-// newSplitTUN returns two fake TUN devices that are tied together: writes to one can be read on the other,
-// and vice versa.
-func newSplitTUN() (*fakeTUN, *fakeTUN) {
-	aClosed := make(chan struct{})
-	bClosed := make(chan struct{})
-	ab := make(chan []byte)
-	ba := make(chan []byte)
-	return &fakeTUN{
-			name:            "tun1",
-			writePacketsTo:  ab,
-			readPacketsFrom: ba,
-			closed:          aClosed,
-			closeOnce:       sync.OnceFunc(func() { close(aClosed) }),
-		}, &fakeTUN{
-			name:            "tun2",
-			writePacketsTo:  ba,
-			readPacketsFrom: ab,
-			closed:          bClosed,
-			closeOnce:       sync.OnceFunc(func() { close(bClosed) }),
-		}
-}
-
-func (f *fakeTUN) BatchSize() int {
-	return 1
-}
-
-// Write one or more packets to the device (without any additional headers).
-// On a successful write it returns the number of packets written. A nonzero
-// offset can be used to instruct the Device on where to begin writing from
-// each packet contained within the bufs slice.
-func (f *fakeTUN) Write(bufs [][]byte, offset int) (int, error) {
-	if len(bufs) != 1 {
-		return 0, trace.BadParameter("batchsize is 1")
-	}
-	packet := make([]byte, len(bufs[0][offset:]))
-	copy(packet, bufs[0][offset:])
-	select {
-	case <-f.closed:
-		return 0, errFakeTUNClosed
-	case f.writePacketsTo <- packet:
-	}
-	return 1, nil
-}
-
-// Read one or more packets from the Device (without any additional headers).
-// On a successful read it returns the number of packets read, and sets
-// packet lengths within the sizes slice. len(sizes) must be >= len(bufs).
-// A nonzero offset can be used to instruct the Device on where to begin
-// reading into each element of the bufs slice.
-func (f *fakeTUN) Read(bufs [][]byte, sizes []int, offset int) (n int, err error) {
-	if len(bufs) != 1 {
-		return 0, trace.BadParameter("batchsize is 1")
-	}
-	var packet []byte
-	select {
-	case <-f.closed:
-		return 0, errFakeTUNClosed
-	case packet = <-f.readPacketsFrom:
-	}
-	sizes[0] = copy(bufs[0][offset:], packet)
-	return 1, nil
-}
-
-func (f *fakeTUN) Close() error {
-	f.closeOnce()
-	return nil
 }
 
 func newSelfSignedCA(t *testing.T) tls.Certificate {
