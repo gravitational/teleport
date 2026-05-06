@@ -17,8 +17,12 @@
 package db
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
@@ -52,6 +56,12 @@ func Parse(fqdn, zone string) (identifier string, ok bool) {
 	return prefix, true
 }
 
+// MatchExpr returns the predicate expression matching identifier against
+// either status.vnet_dns_name (the DNS-safe hash) or metadata.name
+func MatchExpr(identifier string) string {
+	return fmt.Sprintf(`resource.status.vnet_dns_name == %q || name == %q`, identifier, identifier)
+}
+
 // IsUserOptional reports whether the database protocol's db_service extracts
 // the database username from the wire protocol
 func IsUserOptional(protocol string) bool {
@@ -64,4 +74,33 @@ func IsUserOptional(protocol string) bool {
 	default:
 		return false
 	}
+}
+
+// PickMatch chooses a single database from a list of database servers returned
+// by a VNet identifier query. It dedupes db_servers by database name, warns when multiple distinct databases share
+// the same identifier, and gates the chosen database on IsUserOptional.
+func PickMatch(ctx context.Context, log *slog.Logger, identifier string, servers []types.DatabaseServer) (types.Database, bool) {
+	if len(servers) == 0 {
+		return nil, false
+	}
+	databases := types.DatabaseServers(servers).ToDatabases()
+	if len(databases) > 1 {
+		matchedNames := make([]string, 0, len(databases))
+		for _, d := range databases {
+			matchedNames = append(matchedNames, d.GetName())
+		}
+		log.WarnContext(ctx, "VNet identifier matched multiple databases; picking the first one",
+			"identifier", identifier,
+			"matched_db_names", matchedNames,
+		)
+	}
+	chosen := databases[0]
+	if !IsUserOptional(chosen.GetProtocol()) {
+		log.InfoContext(ctx, "Database protocol not currently supported by VNet",
+			"db_name", chosen.GetName(),
+			"protocol", chosen.GetProtocol(),
+		)
+		return nil, false
+	}
+	return chosen, true
 }

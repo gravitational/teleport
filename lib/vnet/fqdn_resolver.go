@@ -408,16 +408,9 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	// Query the cluster for a database whose status.vnet_dns_name or metadata.name matches the parsed
-	// identifier. Matching either lets the user type the database name or the hash.
-	expr := fmt.Sprintf(
-		`resource.status.vnet_dns_name == %q || name == %q`,
-		identifier, identifier,
-	)
-
 	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: expr,
+		PredicateExpression: db.MatchExpr(identifier),
 	})
 	if err != nil {
 		if ctx.Err() != nil {
@@ -431,27 +424,12 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	databases := types.DatabaseServers(resp.Resources).ToDatabases()
-	if len(databases) > 1 {
-		matchedNames := make([]string, 0, len(databases))
-		for _, db := range databases {
-			matchedNames = append(matchedNames, db.GetName())
-		}
-		log.WarnContext(ctx, "VNet identifier matched multiple databases, picking the first one",
-			"identifier", identifier,
-			"matched_db_names", matchedNames,
-		)
-	}
-
-	dbResource := databases[0]
-	dbName := dbResource.GetName()
-	protocol := dbResource.GetProtocol()
-
-	if !db.IsUserOptional(protocol) {
-		log.InfoContext(ctx, "Database protocol not currently supported by VNet",
-			"protocol", protocol, "db_name", dbName)
+	dbResource, ok := db.PickMatch(ctx, log, identifier, resp.Resources)
+	if !ok {
 		return nil, errNoMatch
 	}
+	dbName := dbResource.GetName()
+	protocol := dbResource.GetProtocol()
 
 	dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, candidate.profileName)
 	if err != nil {

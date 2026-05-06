@@ -17,10 +17,14 @@
 package db_test
 
 import (
+	"context"
+	"log/slog"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/vnet/db"
@@ -107,6 +111,71 @@ func TestParse(t *testing.T) {
 			require.Equal(t, tt.wantIdentifier, got)
 		})
 	}
+}
+
+func TestPickMatch(t *testing.T) {
+	t.Parallel()
+
+	silent := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx := context.Background()
+
+	t.Run("empty servers returns no match", func(t *testing.T) {
+		got, ok := db.PickMatch(ctx, silent, "foo", nil)
+		require.False(t, ok)
+		require.Nil(t, got)
+	})
+
+	t.Run("single server with supported protocol", func(t *testing.T) {
+		got, ok := db.PickMatch(ctx, silent, "my-pg",
+			[]types.DatabaseServer{newServer(t, "my-pg", "agent-1", defaults.ProtocolPostgres)})
+		require.True(t, ok)
+		require.Equal(t, "my-pg", got.GetName())
+	})
+
+	t.Run("unsupported protocol returns no match", func(t *testing.T) {
+		got, ok := db.PickMatch(ctx, silent, "my-mongo",
+			[]types.DatabaseServer{newServer(t, "my-mongo", "agent-1", defaults.ProtocolMongoDB)})
+		require.False(t, ok)
+		require.Nil(t, got)
+	})
+
+	t.Run("HA db_servers for same database dedupe to one", func(t *testing.T) {
+		got, ok := db.PickMatch(ctx, silent, "my-pg", []types.DatabaseServer{
+			newServer(t, "my-pg", "agent-1", defaults.ProtocolPostgres),
+			newServer(t, "my-pg", "agent-2", defaults.ProtocolPostgres),
+		})
+		require.True(t, ok)
+		require.Equal(t, "my-pg", got.GetName())
+	})
+
+	t.Run("distinct databases with same identifier picks the first", func(t *testing.T) {
+		got, ok := db.PickMatch(ctx, silent, "shared-id", []types.DatabaseServer{
+			newServer(t, "db-a", "agent-1", defaults.ProtocolPostgres),
+			newServer(t, "db-b", "agent-1", defaults.ProtocolPostgres),
+		})
+		require.True(t, ok)
+		require.Equal(t, "db-a", got.GetName())
+	})
+}
+
+// newServer builds a minimal DatabaseServer suitable for PickMatch tests.
+func newServer(t *testing.T, dbName, agentName, protocol string) types.DatabaseServer {
+	t.Helper()
+	srv, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   agentName,
+		Hostname: agentName,
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{Name: dbName},
+			Spec: types.DatabaseSpecV3{
+				Protocol: protocol,
+				URI:      "localhost:5432",
+			},
+		},
+	})
+	require.NoError(t, err)
+	return srv
 }
 
 func TestIsUserOptional(t *testing.T) {
