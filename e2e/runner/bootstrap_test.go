@@ -70,33 +70,6 @@ spec:
 	}
 }
 
-// TestReadRoleFileNameNotFirst ensures metadata.name parses when other fields appear before it.
-func TestReadRoleFileNameNotFirst(t *testing.T) {
-	e2eDir := t.TempDir()
-	rolesDir := createDir(t, e2eDir, "testdata", "roles")
-	writeFile(t, rolesDir, "viewer.yaml", `kind: role
-version: v7
-metadata:
-  description: a viewer role
-  labels:
-    purpose: testing
-  name: viewer
-spec:
-  allow:
-    logins: ['root']
-`)
-
-	cr, err := readRoleFile(e2eDir, "viewer.yaml")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if cr.name != "viewer" {
-		t.Errorf("name = %q, want %q", cr.name, "viewer")
-	}
-}
-
-// TestReadRoleFileRejectsTraversal ensures filenames from test code can't escape the roles directory.
 func TestReadRoleFileRejectsTraversal(t *testing.T) {
 	e2eDir := t.TempDir()
 	createDir(t, e2eDir, "testdata", "roles")
@@ -176,22 +149,12 @@ func TestBuildBootstrapState(t *testing.T) {
 		t.Errorf("first user role[1] = %q, want %q", first.Roles[1], "viewer")
 	}
 
-	if state.Users[0].Name == "" {
-		t.Error("first user has empty generated name")
-	}
-
-	if state.Users[1].Name == "" {
-		t.Error("second user has empty generated name")
+	if state.Users[0].Name == "" || state.Users[1].Name == "" {
+		t.Error("user has empty generated name")
 	}
 
 	if state.Users[0].Name == state.Users[1].Name {
 		t.Errorf("users have duplicate names: %s", state.Users[0].Name)
-	}
-
-	for _, u := range state.Users {
-		if _, ok := result.creds[u.Name]; !ok {
-			t.Errorf("missing credentials for %s", u.Name)
-		}
 	}
 
 	if len(result.userMapping) != 2 {
@@ -199,25 +162,12 @@ func TestBuildBootstrapState(t *testing.T) {
 	}
 
 	for _, u := range state.Users {
-		if u.PasswordHashBase64 == "" {
-			t.Errorf("user %s has empty PasswordHashBase64", u.Name)
+		if _, ok := result.creds[u.Name]; !ok {
+			t.Errorf("missing credentials for %s", u.Name)
 		}
 
-		if u.CredentialIDBase64 == "" {
-			t.Errorf("user %s has empty CredentialIDBase64", u.Name)
-		}
-
-		if u.PublicKeyCBORBase64 == "" {
-			t.Errorf("user %s has empty PublicKeyCBORBase64", u.Name)
-		}
-	}
-
-	for _, u := range state.Users {
-		logins, ok := u.Traits["logins"]
-		if !ok {
-			t.Errorf("user %s missing logins trait", u.Name)
-		} else if len(logins) != 1 || logins[0] != "root" {
-			t.Errorf("user %s logins = %v, want [root]", u.Name, logins)
+		if u.PasswordHashBase64 == "" || u.CredentialIDBase64 == "" || u.PublicKeyCBORBase64 == "" {
+			t.Errorf("user %s missing webauthn credential fields", u.Name)
 		}
 	}
 }

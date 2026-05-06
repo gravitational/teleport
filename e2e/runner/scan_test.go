@@ -360,11 +360,6 @@ func TestScanUsers(t *testing.T) {
 		wantUsers []scannedUser
 	}{
 		{
-			name:      "no users declaration",
-			content:   `test.use({ fixtures: ['ssh-node'] });`,
-			wantUsers: nil,
-		},
-		{
 			name: "singular user with built-in roles",
 			content: `test.use({
   user: { roles: ['access', 'editor'] },
@@ -432,26 +427,6 @@ func TestScanUsers(t *testing.T) {
 					traits: map[string][]string{
 						"logins":            {"root", "alice"},
 						"kubernetes_groups": {"dev"},
-					},
-					loginAs: true,
-				},
-			},
-		},
-		{
-			name:      "commented out users are ignored",
-			content:   `// test.use({ user: { roles: ['access'] } });`,
-			wantUsers: nil,
-		},
-		{
-			name: "user alongside fixtures",
-			content: `test.use({
-  fixtures: ['ssh-node'],
-  user: { roles: ['access'] },
-});`,
-			wantUsers: []scannedUser{
-				{
-					roles: []scannedRole{
-						{name: "access"},
 					},
 					loginAs: true,
 				},

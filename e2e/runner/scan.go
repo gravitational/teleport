@@ -32,40 +32,22 @@ import (
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
-// fixtureArrayRe matches fixture array declarations within a test.use() call body, e.g. fixtures: ['ssh-node'] or fixtures: [['connect'], { option: true }].
-var fixtureArrayRe = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
+var (
+	fixtureArrayRe     = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
+	lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
+	fixtureRefRe       = regexp.MustCompile(`['"]([^'"]+)['"]`)
+	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
+	roleFileRe         = regexp.MustCompile(`\bfile:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
 
-// lineNumberSuffixRe matches a trailing :line_number on a test path (e.g. "my-spec.ts:42").
-var lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
-
-// fixtureRefRe extracts individual quoted fixture names from the matched array contents.
-var fixtureRefRe = regexp.MustCompile(`['"]([^'"]+)['"]`)
-
-// helperImportRe captures the module name from an `@gravitational/e2e/helpers/<name>` import.
-var helperImportRe = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
-
-// roleFileRe extracts the role filename from a file role reference.
-var roleFileRe = regexp.MustCompile(`\bfile:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
-
-// The "key" regexes below all require a word boundary so identifiers like `super_user:` or `myRoles:` don't match as `user:` / `roles:`.
-
-// usersBlockRe matches the beginning of a users array declaration.
-var usersBlockRe = regexp.MustCompile(`\busers:\s*\[`)
-
-// userObjRe matches the beginning of a singular user object declaration.
-var userObjRe = regexp.MustCompile(`\buser:\s*\{`)
-
-// rolesBlockRe matches the beginning of a roles array declaration.
-var rolesBlockRe = regexp.MustCompile(`\broles:\s*\[`)
-
-// traitsBlockRe matches the beginning of a traits object declaration.
-var traitsBlockRe = regexp.MustCompile(`\btraits:\s*\{`)
-
-// traitKeyArrayRe matches a trait key followed by an array value (e.g. logins: ['root']).
-var traitKeyArrayRe = regexp.MustCompile(`\b(\w+):\s*\[`)
-
-// loginAsBoolRe matches loginAs: true within a user object.
-var loginAsBoolRe = regexp.MustCompile(`\bloginAs:\s*true\b`)
+	// The "key" regexes below require a word boundary so identifiers like
+	// `super_user:` or `myRoles:` don't match as `user:` / `roles:`.
+	usersBlockRe     = regexp.MustCompile(`\busers:\s*\[`)
+	userObjRe        = regexp.MustCompile(`\buser:\s*\{`)
+	rolesBlockRe     = regexp.MustCompile(`\broles:\s*\[`)
+	traitsBlockRe    = regexp.MustCompile(`\btraits:\s*\{`)
+	traitKeyArrayRe  = regexp.MustCompile(`\b(\w+):\s*\[`)
+	loginAsBoolRe    = regexp.MustCompile(`\bloginAs:\s*true\b`)
+)
 
 // defaultRoleNames returns the built-in roles assigned when no roles are specified. Returns a fresh slice each call so callers can mutate/sort safely.
 func defaultRoleNames() []scannedRole {
