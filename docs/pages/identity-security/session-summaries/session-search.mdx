@@ -55,10 +55,12 @@ the same data handling and provider considerations that apply to
 - Permission to read the session recordings you want to search. Search results
   are filtered with the same `session` RBAC rules used for session recordings
   and summaries.
+- At least one SSH node, Kubernetes cluster, or PostgreSQL database connected to
+  Teleport to generate session recordings. 
 
 Teleport Enterprise Cloud manages Access Graph and its backing database. For
-self-hosted clusters, follow the [Docker](./access-graph/self-hosted.mdx) or
-[Helm](./access-graph/self-hosted-helm.mdx) Access Graph deployment guide and
+self-hosted clusters, follow the [Docker](../access-graph/self-hosted.mdx) or
+[Helm](../access-graph/self-hosted-helm.mdx) Access Graph deployment guide and
 run Access Graph v1.30.0 or later.
 
 Access Graph enables and manages the required PostgreSQL extensions automatically;
@@ -99,16 +101,18 @@ language search queries into API requests and generate prose from session
 summaries. In most deployments, this can be the same inference model you
 already configured for Session Recording Summaries.
 
+Choose the tab that matches the embeddings provider you want to use:
+
 <Tabs>
 <TabItem label="OpenAI">
 
 You can reuse an existing `inference_secret` that contains your OpenAI or
 OpenAI-compatible API key. The following example uses the `openai-key` secret
 from the Session Recording Summaries setup and the `shell-summary-model`
-inference model:
+inference model.
 
 Session Recording Search supports the `text-embedding-3-large` and
-`text-embedding-3-small` OpenAI embedding models.
+`text-embedding-3-small` OpenAI embedding models:
 
 ```yaml
 kind: retrieval_model
@@ -151,9 +155,9 @@ $ tctl create -f retrieval-model.yaml
 ```
 
 For infrastructure-as-code workflows, see the
-[`teleport_retrieval_model` Terraform resource](../reference/infrastructure-as-code/terraform-provider/resources/retrieval_model.mdx)
+[`teleport_retrieval_model` Terraform resource](../../reference/infrastructure-as-code/terraform-provider/resources/retrieval_model.mdx)
 or the
-[`TeleportRetrievalModelV1` Kubernetes operator resource](../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-retrievalmodelsv1.mdx).
+[`TeleportRetrievalModelV1` Kubernetes operator resource](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-retrievalmodelsv1.mdx).
 
 ## Step 2/3. Generate searchable summaries
 
@@ -162,11 +166,64 @@ session summary inference policies. After the session ends, wait for Teleport
 to generate its summary. New successful summaries are indexed for Session
 Recording Search.
 
+Select a resource type for instructions on connecting to the resource with
+`tsh`:
+
+<Tabs>
+<TabItem label="Servers">
+
+Run the `tsh ssh` command to connect to a server, specifying the login to assume
+on the server you are connecting to. The following command connects to the
+server `mynode` as user `root`:
+
+```code
+$ tsh ssh root@mynode
+```
+
+You can also connect to servers using the Teleport Web UI by navigating to the
+**Resources** tab and selecting an SSH server.
+
+</TabItem>
+<TabItem label="Kubernetes clusters">
+
+To access a Teleport-connected Kubernetes cluster, run the following command to
+update your kubeconfig with a certificate signed by Teleport. The following
+command logs in to the cluster mycluster:
+
+```code
+$ tsh kube login mycluster
+```
+
+Once you have logged into the cluster, run `tsh kubectl` to execute `kubectl`
+commands. Teleport can allow or deny access to specific Kubernetes cluster
+resources. `tsh kubectl` detects whether the command has failed due to
+insufficient permissions and, if so, submits an Access Request for the target
+Kubernetes resource.
+
+For example, the following creates an interactive session using the `sh` command
+in pod `my-pod`:
+
+```code
+$ kubectl exec -it my-pod -- sh
+```
+
+You can also connect to Kubernetes resources using the Teleport Web UI by
+navigating to the **Resources** tab and selecting a Kubernetes cluster.
+
+</TabItem>
+<TabItem label="PostgreSQL database">
+
+To connect to a PostgreSQL database and generate a session recording, use the
+Teleport Web UI. Navigate to the **Resources** tab, select a PostgreSQL
+database, and start an interactive session.
+
+</TabItem>
+</Tabs>
+
 ## Step 3/3. Search recordings
 
-Use [`tctl recordings search`](../reference/cli/tctl.mdx#tctl-recordings-search)
-to search summarized recordings. By default, the command searches the last 24
-hours and opens an interactive terminal UI.
+Use `tctl recordings search` to search summarized recordings. By default, the
+command searches the last 24 hours and opens an interactive terminal UI.
 
 ```code
 $ tctl recordings search "SSH sessions downloading archives from production"
@@ -219,6 +276,10 @@ Common filters include:
 | `--resource-name` | Name of the accessed resource. |
 | `--label` | Resource labels in `key=value` form. |
 | `--severity` | Minimum summary severity: `low`, `medium`, `high`, or `critical`. |
+
+## Next steps
+
+- [tctl recordings search reference](../../reference/cli/tctl.mdx#tctl-recordings-search)
 
 ## Troubleshooting
 
