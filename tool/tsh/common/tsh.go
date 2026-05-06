@@ -2365,17 +2365,14 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// Get the profile status for the given proxy, or the current profile
-	// if no proxy was provided.
-	profile, err := tc.ClientStore.ReadProfileStatus(cf.Proxy)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	// Get the requested profile status for the resolved proxy address.
+	requestedProfile, err := tc.ClientStore.ReadProfileStatus(tc.WebProxyAddr)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 
 	// Resolve the desired scope based on CLI flags and current profile state.
-	targetScope, scopeChanged := resolveScope(cf, profile)
+	targetScope, scopeChanged := resolveScope(cf, requestedProfile)
 	cf.Scope = targetScope
 
 	if cf.Scope != "" {
@@ -2390,18 +2387,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if err := scopes.StrongValidate(cf.Scope); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	// Print status to show information of the logged in user.
-	printStatus := func() error {
-		profile, profiles, err := tc.ClientStore.FullProfileStatus(cf.Proxy)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-
-		return printLoginInformation(cf, profile, profiles)
 	}
 
 	// If the user requested tracing and the login succeeds (even if the user
@@ -2425,92 +2410,63 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}()
 	}
 
-	// client is already logged in and profile is not expired and scope hasn't changed
-	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
+	// If a usable profile already exists for the requested proxy, try to use it directly
+	// instead of starting a new login ceremony.
+	if requestedProfile != nil && !requestedProfile.IsExpired(time.Now()) && !scopeChanged && cf.IdentityFileOut == "" {
+		if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
+			return trace.Wrap(err)
+		}
+
+		currentProfile, err := tc.ClientStore.ReadProfileStatus("")
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		requestsAccess := cf.DesiredRoles != "" || cf.RequestID != ""
+		requestsClusterSwitch := cf.SiteName != "" && tc.SiteName != requestedProfile.Cluster
+		requestsProfileSwitch := !sameLoginProfile(currentProfile, requestedProfile)
+
 		switch {
-		// in case if nothing is specified, re-fetch kube clusters and print
-		// current status
-		//   OR
-		// in case if parameters match, re-fetch kube clusters and print
-		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
-			utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
-
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
+		// The user is asking to create or apply an access request to that existing login.
+		case requestsAccess:
+			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 
-			return printStatus()
-
-		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
-		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
-			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := tc.SaveProfile(true); err != nil {
-				return trace.Wrap(err)
-			}
-
-			// Try updating kube config. If it fails, then we may have
-			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfigOnLogin(cf, tc); err == nil {
-				return printStatus()
-			}
-
-		// proxy is unspecified or the same as the currently provided proxy,
-		// but cluster is specified, treat this as selecting a new cluster
-		// for the same proxy
-		case (cf.Proxy == "" || utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host)) && cf.SiteName != "":
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// trigger reissue, preserving any active requests.
-			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-				AccessRequests: profile.ActiveRequests,
+		// The user selected a  different cluster behind the same proxy. Reuse already-prepared certs
+		// for that cluster when possible; otherwise reissue once for the cluster.
+		case requestsClusterSwitch:
+			err := tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
+				AccessRequests: requestedProfile.ActiveRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			fallthrough
+
+		// The requested proxy profile is valid, but it is not the active profile.
+		// Make it active without starting a new login ceremony.
+		case requestsProfileSwitch:
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
-				return trace.Wrap(err)
-			}
-
-			return printStatus()
-
-		// proxy is unspecified or the same as the currently provided proxy,
-		// but desired roles or request ID is specified, treat this as a
-		// privilege escalation request for the same login session.
-		case (cf.Proxy == "" || utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := executeAccessRequest(cf, tc); err != nil {
-				return trace.Wrap(err)
-			}
-			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
-				return trace.Wrap(err)
-			}
-
-			// Print status to show information of the logged in user.
-			return printStatus()
-
-		// otherwise just pass through to standard login
-		default:
 		}
+
+		// Try updating kube config. If it fails, then we may have
+		// switched to an inactive profile. Continue to normal login.
+		if err := updateKubeConfigOnLogin(cf, tc); err != nil {
+			return nil
+		}
+
+		profile, profiles, err := tc.ClientStore.FullProfileStatus(cf.Proxy)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+
+		return trace.Wrap(printLoginInformation(cf, profile, profiles))
 	}
 
 	// If the cluster is using single-sign on, providing the user name with --user
@@ -2666,7 +2622,14 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 
-	if err := printStatus(); err != nil {
+	profile, profiles, err := tc.ClientStore.FullProfileStatus(cf.Proxy)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := printLoginInformation(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2683,6 +2646,15 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	return nil
+}
+
+func sameLoginProfile(a, b *client.ProfileStatus) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Name == b.Name &&
+		a.Username == b.Username &&
+		a.Cluster == b.Cluster
 }
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy

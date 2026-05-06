@@ -1077,6 +1077,9 @@ func TestSwitchProfile(t *testing.T) {
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithHostname("node1"),
 		testserver.WithClusterName("root"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
 	)
 	require.NoError(t, err)
 
@@ -1089,6 +1092,9 @@ func TestSwitchProfile(t *testing.T) {
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithHostname("node2"),
 		testserver.WithClusterName("leaf"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
 	}
 	leaf, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
 	require.NoError(t, err)
