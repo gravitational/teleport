@@ -622,6 +622,7 @@ func scanFileUsers(path string, targetLine int) ([]scannedUser, error) {
 				if userBlock != "" {
 					user := parseUserBlock(userBlock)
 					user.loginAs = true // singular user is implicitly loginAs
+					warnDuplicateRoles(path, callLine, user.roles)
 					users = append(users, user)
 				}
 			}
@@ -633,6 +634,7 @@ func scanFileUsers(path string, targetLine int) ([]scannedUser, error) {
 						u := parseUserBlock(userBlock)
 						idx := i
 						u.arrayIdx = &idx
+						warnDuplicateRoles(path, callLine, u.roles)
 						users = append(users, u)
 					}
 				}
@@ -813,6 +815,20 @@ func extractAllOuter(s string, open, close byte) []string {
 	}
 
 	return blocks
+}
+
+func warnDuplicateRoles(path string, line int, roles []scannedRole) {
+	for i := 1; i < len(roles); i++ {
+		if roles[i] != roles[i-1] {
+			continue
+		}
+
+		ref := roles[i].name
+		if roles[i].file != "" {
+			ref = "file:" + roles[i].file
+		}
+		slog.Warn("scan: duplicate role for user", "path", path, "line", line, "role", ref)
+	}
 }
 
 // sortRoles sorts roles with built-in names before file refs, alphabetical within each group.

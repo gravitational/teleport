@@ -19,6 +19,8 @@
 package main
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -592,6 +594,77 @@ func TestScanUsersMultipleLoginAsError(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "loginAs") {
 		t.Errorf("expected loginAs error, got: %v", err)
+	}
+}
+
+func TestScanUsersDuplicateRoleWarn(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantWarns []string
+		wantNone  bool
+	}{
+		{
+			name: "duplicate built-in roles warn",
+			content: `test.use({
+  user: { roles: ['access', 'access', 'editor'] },
+});`,
+			wantWarns: []string{"role=access"},
+		},
+		{
+			name: "duplicate file roles warn",
+			content: `test.use({
+  user: { roles: [{ file: '@gravitational/e2e/roles/viewer.yaml' }, { file: '@gravitational/e2e/roles/viewer.yaml' }] },
+});`,
+			wantWarns: []string{"role=file:viewer.yaml"},
+		},
+		{
+			name: "duplicate triggers per-array-entry warn",
+			content: `test.use({
+  users: [
+    { roles: ['access', 'access'] },
+    { roles: ['editor', 'editor'], loginAs: true },
+  ],
+});`,
+			wantWarns: []string{"role=access", "role=editor"},
+		},
+		{
+			name: "no duplicates produces no warn",
+			content: `test.use({
+  user: { roles: ['access', 'editor'] },
+});`,
+			wantNone: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+			t.Cleanup(func() { slog.SetDefault(prev) })
+
+			dir := t.TempDir()
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			if _, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			out := buf.String()
+			if tt.wantNone {
+				if strings.Contains(out, "duplicate role") {
+					t.Errorf("expected no duplicate-role warns, got: %s", out)
+				}
+				return
+			}
+
+			for _, want := range tt.wantWarns {
+				if !strings.Contains(out, want) {
+					t.Errorf("missing warn substring %q in output:\n%s", want, out)
+				}
+			}
+		})
 	}
 }
 
