@@ -2359,6 +2359,12 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// The user has typed `tsh login`, if the running binary needs to
+	// be updated, update and re-exec.
+	if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Get the profile status for the given proxy, or the current profile
 	// if no proxy was provided.
 	profile, err := tc.ClientStore.ReadProfileStatus(cf.Proxy)
@@ -2419,14 +2425,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}()
 	}
 
-	// The user is not logged in and has typed in `tsh --proxy=... login`, if
-	// the running binary needs to be updated, update and re-exec.
-	if profile == nil {
-		if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// client is already logged in and profile is not expired and scope hasn't changed
 	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
 		switch {
@@ -2437,12 +2435,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
-
-			// The user has typed `tsh login`, if the running binary needs to
-			// be updated, update and re-exec.
-			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-				return trace.Wrap(err)
-			}
 
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
@@ -2457,12 +2449,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-
-			// The user has typed `tsh login`, if the running binary needs to
-			// be updated, update and re-exec.
-			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-				return trace.Wrap(err)
-			}
 
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
@@ -2524,11 +2510,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 
 		// otherwise just pass through to standard login
 		default:
-			// The user is logged in and has typed in `tsh --proxy=... login`, if
-			// the running binary needs to be updated, update and re-exec.
-			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 
