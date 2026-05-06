@@ -1,7 +1,7 @@
 ---
-title: Teleport EKS Auto-Discovery
-sidebar_label: Elastic Kubernetes Service
-description: How to configure auto-discovery of AWS EKS clusters in Teleport.
+title: Manual EKS Auto-Discovery Configuration
+sidebar_label: Manual
+description: How to configure Teleport EKS auto-discovery manually.
 tags:
  - how-to
  - zero-trust
@@ -9,9 +9,8 @@ tags:
  - aws
 ---
 
-EKS Auto-Discovery can automatically
-discover any EKS cluster and enroll it in Teleport if its tags match the
-configured labels.
+This guide shows you how to manually configure Teleport and AWS to
+automatically enroll EKS clusters in your Teleport cluster.
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 

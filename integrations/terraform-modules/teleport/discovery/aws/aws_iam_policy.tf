@@ -13,23 +13,44 @@ locals {
     ? null
     : var.aws_iam_policy_name
   )
+
+  uses_ec2             = contains(local.aws_matcher_types, "ec2")
+  uses_eks             = contains(local.aws_matcher_types, "eks")
+  uses_wildcard_region = contains(local.aws_matcher_regions, "*")
+
+  ec2_actions = [
+    "ec2:DescribeInstances",
+    "ssm:DescribeInstanceInformation",
+    "ssm:GetCommandInvocation",
+    "ssm:ListCommandInvocations",
+    "ssm:SendCommand",
+  ]
+
+  eks_actions = [
+    "eks:ListClusters",
+    "eks:DescribeCluster",
+    "eks:ListAccessEntries",
+    "eks:DescribeAccessEntry",
+    "eks:CreateAccessEntry",
+    "eks:DeleteAccessEntry",
+    "eks:AssociateAccessPolicy",
+    "eks:TagResource",
+    "eks:UpdateAccessEntry",
+  ]
+
+  policy_actions = concat(
+    local.uses_wildcard_region ? ["account:ListRegions"] : [],
+    local.uses_ec2 ? local.ec2_actions : [],
+    local.uses_eks ? local.eks_actions : [],
+  )
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_single_account" {
   count = local.create ? 1 : 0
 
   statement {
-    effect = "Allow"
-
-    actions = [
-      "account:ListRegions",
-      "ec2:DescribeInstances",
-      "ssm:DescribeInstanceInformation",
-      "ssm:GetCommandInvocation",
-      "ssm:ListCommandInvocations",
-      "ssm:SendCommand",
-    ]
-
+    effect    = "Allow"
+    actions   = local.policy_actions
     resources = ["*"]
   }
 }

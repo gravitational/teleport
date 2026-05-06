@@ -211,7 +211,7 @@ resource "aws_vpc" "main" {
     expect(result).toBe(`
 resource "aws_vpc" "main" {
   network_config = {
-    vpc     = {
+    vpc = {
       cidr_block = "10.0.0.0/16"
       enable_dns = true
     }
