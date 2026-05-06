@@ -68,7 +68,7 @@ func TestKubeGateway(t *testing.T) {
 		KubernetesCluster: kubeClusterName,
 	}
 	clock := clockwork.NewFakeClock()
-	proxy := mustStartMockProxyWithKubeAPI(t, identity)
+	proxy := mustStartMockProxyWithKubeAPI(t, identity, teleportClusterName, kubeClusterName)
 	gateway, err := New(
 		Config{
 			Clock:          clock,
@@ -204,7 +204,7 @@ func (m *mockProxyWithKubeAPI) certPool() *x509.CertPool {
 	return certPool
 }
 
-func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockProxyWithKubeAPI {
+func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity, teleportCluster, kubeCluster string) *mockProxyWithKubeAPI {
 	t.Helper()
 
 	netListener, err := net.Listen("tcp", "localhost:0")
@@ -231,7 +231,11 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 		ClientCAs:        m.certPool(),
 	})
 	go func() {
-		err := http.Serve(tlsListener, mockKubeAPIHandler(t))
+		// Stand in for the Teleport proxy's singleCertHandler route, which
+		// consumes the /v1/teleport/<b64>/<b64> prefix before dispatching to
+		// the kube API handlers.
+		handler := http.StripPrefix(common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster), mockKubeAPIHandler(t))
+		err := http.Serve(tlsListener, handler)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			assert.NoError(t, err)
 		}
