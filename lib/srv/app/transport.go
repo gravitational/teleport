@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -56,10 +57,12 @@ type transportConfig struct {
 	rewriteTraits wrappers.Traits
 	log           *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
-	hostID              string
-	insecureMode        bool
-	clusterName         string
-	certAuthorityGetter upstreamtls.CertificateAuthorityGetter
+	hostID       string
+	insecureMode bool
+	clusterName  string
+	accessPoint  authclient.AppsAccessPoint
+	authClient   authclient.ClientI
+	userCert     []byte
 }
 
 // Check validates configuration.
@@ -79,8 +82,11 @@ func (c *transportConfig) Check() error {
 	if c.clusterName == "" {
 		return trace.BadParameter("cluster name missing")
 	}
-	if c.certAuthorityGetter == nil {
-		return trace.BadParameter("cert authority getter missing")
+	if c.accessPoint == nil {
+		return trace.BadParameter("access point missing")
+	}
+	if c.authClient == nil {
+		return trace.BadParameter("auth client missing")
 	}
 
 	return nil
@@ -119,12 +125,14 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
 
 	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
-		Logger:       c.log,
-		CAGetter:     c.certAuthorityGetter,
-		ClusterName:  c.clusterName,
-		App:          c.app,
-		CipherSuites: c.cipherSuites,
-		InsecureMode: c.insecureMode,
+		Logger:                       c.log,
+		AccessPoint:                  c.accessPoint,
+		WorkloadIdentityClientGetter: c.authClient,
+		UserCertificate:              c.userCert,
+		ClusterName:                  c.clusterName,
+		App:                          c.app,
+		CipherSuites:                 c.cipherSuites,
+		InsecureMode:                 c.insecureMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

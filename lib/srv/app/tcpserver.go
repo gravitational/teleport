@@ -31,6 +31,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
@@ -38,16 +40,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type certificateAuthorityGetter interface {
-	// GetCertAuthority returns cert authority by id.
-	GetCertAuthority(context.Context, apitypes.CertAuthID, bool) (apitypes.CertAuthority, error)
-}
-
 type tcpServer struct {
 	emitter      apievents.Emitter
 	hostID       string
 	log          *slog.Logger
-	caGetter     certificateAuthorityGetter
+	accessPoint  authclient.AppsAccessPoint
+	authClient   authclient.ClientI
 	clusterName  string
 	cipherSuites []uint16
 	insecureMode bool
@@ -69,16 +67,23 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
+	userCert, err := authz.UserCertificateFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var serverConn net.Conn
 	switch {
 	case isTLS:
 		tlsConfig, err := upstreamtls.Configure(ctx, upstreamtls.Options{
-			Logger:       s.log,
-			CAGetter:     s.caGetter,
-			ClusterName:  s.clusterName,
-			App:          app,
-			CipherSuites: s.cipherSuites,
-			InsecureMode: s.insecureMode,
+			Logger:                       s.log,
+			AccessPoint:                  s.accessPoint,
+			WorkloadIdentityClientGetter: s.authClient,
+			ClusterName:                  s.clusterName,
+			App:                          app,
+			CipherSuites:                 s.cipherSuites,
+			InsecureMode:                 s.insecureMode,
+			UserCertificate:              userCert.Raw,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -145,12 +145,13 @@ func (s *Server) makeBasicHTTPTransport(ctx context.Context, app types.Applicati
 	// Note: For non-TLS apps (like `mcp+http`) this won't affect the
 	// connections as the transport won't make used of it.
 	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
-		Logger:       s.cfg.Log,
-		CAGetter:     s.cfg.AccessPoint,
-		ClusterName:  clusterName.GetClusterName(),
-		App:          app,
-		CipherSuites: s.cfg.CipherSuites,
-		InsecureMode: s.cfg.InsecureMode,
+		Logger:                       s.cfg.Log,
+		AccessPoint:                  s.cfg.AccessPoint,
+		WorkloadIdentityClientGetter: s.cfg.AuthClient,
+		ClusterName:                  clusterName.GetClusterName(),
+		App:                          app,
+		CipherSuites:                 s.cfg.CipherSuites,
+		InsecureMode:                 s.cfg.InsecureMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

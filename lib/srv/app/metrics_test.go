@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"testing"
 	"time"
 
@@ -61,9 +62,9 @@ func TestActiveSessionsGauge(t *testing.T) {
 
 	// Create two sessions for different apps.
 	now := time.Now()
-	sessA, err := c.newSessionChunk(t.Context(), identity, appA, now)
+	sessA, err := c.newSessionChunk(t.Context(), &http.Request{}, identity, appA, now)
 	require.NoError(t, err)
-	sessB, err := c.newSessionChunk(t.Context(), identity, appB, now)
+	sessB, err := c.newSessionChunk(t.Context(), &http.Request{}, identity, appB, now)
 	require.NoError(t, err)
 	require.Equal(t, 1.0, gaugeValue(t, "app-a")) //nolint:testifylint // Inc/Dec produce exact float64 integers
 	require.Equal(t, 1.0, gaugeValue(t, "app-b")) //nolint:testifylint // Inc/Dec produce exact float64 integers
