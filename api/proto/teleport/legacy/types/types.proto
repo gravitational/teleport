@@ -5370,6 +5370,9 @@ message KubernetesServerSpecV3 {
   string relay_group = 7;
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 8;
+
+  // component_features contains features supported by this kubernetes server.
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 9;
 }
 
 // KubernetesServerStatusV3 is the Kubernetes cluster status.

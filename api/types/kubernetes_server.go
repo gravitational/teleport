@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
@@ -76,6 +77,10 @@ type KubeServer interface {
 	GetScope() string
 	// IsEqual determines if two kube server resources are equivalent to one another.
 	IsEqual(i KubeServer) bool
+	// GetComponentFeatures returns the ComponentFeatures supported by this KubeServer.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this KubeServer.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
 type kubeServerOpt func(*KubernetesServerV3)
@@ -404,6 +409,16 @@ func (s *KubernetesServerV3) GetStatus() *KubernetesServerStatusV3 {
 // GetScope returns the scope this server belongs to.
 func (s *KubernetesServerV3) GetScope() string {
 	return s.Scope
+}
+
+// GetComponentFeatures returns the ComponentFeatures supported by this KubeServer.
+func (s *KubernetesServerV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this KubeServer.
+func (s *KubernetesServerV3) SetComponentFeatures(cf *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = cf
 }
 
 // GetTargetHealth gets the health of a Kubernetes cluster.

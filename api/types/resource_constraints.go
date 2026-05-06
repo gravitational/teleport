@@ -46,6 +46,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_Kubernetes:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}
@@ -98,6 +102,17 @@ func (dbc *ResourceConstraints_Database) Validate() error {
 	}
 	if len(dbc.Database.Users) == 0 && len(dbc.Database.Names) == 0 && len(dbc.Database.Roles) == 0 {
 		return trace.BadParameter("database constraints require at least one of users, names, or roles")
+	}
+	return nil
+}
+
+// Validate ensures at least one of Groups or Users is non-empty.
+func (kc *ResourceConstraints_Kubernetes) Validate() error {
+	if kc == nil || kc.Kubernetes == nil {
+		return trace.BadParameter("kubernetes constraints require groups, none provided")
+	}
+	if len(kc.Kubernetes.Groups) == 0 {
+		return trace.BadParameter("kubernetes constraints require groups, none provided")
 	}
 	return nil
 }

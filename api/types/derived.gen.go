@@ -50,6 +50,13 @@ func deriveTeleportEqualDatabaseResourceConstraints(this, that *DatabaseResource
 			deriveTeleportEqual_2(this.Roles, that.Roles)
 }
 
+// deriveTeleportEqualKubernetesResourceConstraints returns whether this and that are equal.
+func deriveTeleportEqualKubernetesResourceConstraints(this, that *KubernetesResourceConstraints) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_2(this.Groups, that.Groups)
+}
+
 // deriveTeleportEqualAccessReviewThreshold returns whether this and that are equal.
 func deriveTeleportEqualAccessReviewThreshold(this, that *AccessReviewThreshold) bool {
 	return (this == nil && that == nil) ||
@@ -671,7 +678,8 @@ func deriveTeleportEqual_23(this, that *KubernetesServerSpecV3) bool {
 			deriveTeleportEqualKubernetesClusterV3(this.Cluster, that.Cluster) &&
 			deriveTeleportEqual_2(this.ProxyIDs, that.ProxyIDs) &&
 			this.RelayGroup == that.RelayGroup &&
-			deriveTeleportEqual_2(this.RelayIds, that.RelayIds)
+			deriveTeleportEqual_2(this.RelayIds, that.RelayIds) &&
+			deriveTeleportEqual_51(this.ComponentFeatures, that.ComponentFeatures)
 }
 
 // deriveTeleportEqual_24 returns whether this and that are equal.

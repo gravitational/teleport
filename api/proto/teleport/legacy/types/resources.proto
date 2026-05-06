@@ -56,6 +56,9 @@ message ResourceConstraints {
     // database scopes a database to a subset of database users and/or
     // database names the requester is allowed to use.
     DatabaseResourceConstraints database = 12;
+    // kubernetes scopes a Kubernetes cluster to a subset of groups and/or
+    // users the requester is allowed to impersonate.
+    KubernetesResourceConstraints kubernetes = 16;
   }
 }
 
@@ -81,6 +84,14 @@ message DatabaseResourceConstraints {
   repeated string names = 2;
   // roles is the list of database roles for auto-provisioned users.
   repeated string roles = 3;
+}
+
+// KubernetesResourceConstraints scopes a Kubernetes cluster to a subset of
+// groups and/or users the requester is allowed to impersonate.
+// At least one of groups or users must be specified.
+message KubernetesResourceConstraints {
+  // groups is the list of Kubernetes RBAC groups the requester is allowed to impersonate.
+  repeated string groups = 1;
 }
 
 // ResourceAccessID represents a ResourceID in an Access Request-related context,

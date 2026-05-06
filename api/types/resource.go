@@ -151,6 +151,15 @@ type DatabaseRolePrincipals struct {
 	Roles []string
 }
 
+// KubeRolePrincipals holds the Kubernetes principals granted by a single
+// Teleport role for a specific Kubernetes cluster.
+type KubeRolePrincipals struct {
+	// Groups is the list of Kubernetes RBAC groups this role grants.
+	Groups []string
+	// Users is the list of Kubernetes RBAC users this role grants.
+	Users []string
+}
+
 // EnrichedResource is a [ResourceWithLabels] wrapped with
 // additional user-specific information.
 type EnrichedResource struct {
@@ -166,6 +175,10 @@ type EnrichedResource struct {
 	// each role grants for a database resource. Only populated for database resources
 	// when IncludeLogins is true.
 	DatabasePrincipalsByRole map[string]DatabaseRolePrincipals
+	// KubePrincipalsByRole maps Teleport role names to the Kubernetes principals
+	// each role grants for a Kubernetes cluster resource. Only populated for
+	// kube cluster resources when IncludeLogins is true.
+	KubePrincipalsByRole map[string]KubeRolePrincipals
 }
 
 // EnrichedResources is a wrapper of []*EnrichedResource.

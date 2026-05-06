@@ -95,6 +95,38 @@ func TestToEventResourceAccessID(t *testing.T) {
 			},
 		},
 		{
+			name: "kubernetes constraints",
+			in: types.ResourceAccessID{
+				Id: id,
+				Constraints: &types.ResourceConstraints{
+					Details: &types.ResourceConstraints_Kubernetes{
+						Kubernetes: &types.KubernetesResourceConstraints{
+							Groups: []string{"admin", "dev"},
+							Users:  []string{"alice"},
+						},
+					},
+				},
+			},
+			wantConstraints: &ResourceAccessID_Kubernetes{
+				Kubernetes: &KubernetesConstraints{
+					GroupsCount:   2,
+					GroupsPreview: []string{"admin", "dev"},
+					UsersCount:    1,
+					UsersPreview:  []string{"alice"},
+				},
+			},
+		},
+		{
+			name: "kubernetes with nil payload falls back to unknown_constraints",
+			in: types.ResourceAccessID{
+				Id: id,
+				Constraints: &types.ResourceConstraints{
+					Details: &types.ResourceConstraints_Kubernetes{Kubernetes: nil},
+				},
+			},
+			wantConstraints: &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}},
+		},
+		{
 			name: "unknown constraint type falls back to unknown_constraints",
 			in: types.ResourceAccessID{
 				Id:          id,
@@ -174,6 +206,20 @@ func TestResourceAccessIDJSONRoundTrip(t *testing.T) {
 				Id: id,
 				Constraints: &ResourceAccessID_Ssh{
 					Ssh: &SSHConstraints{LoginsCount: 2, LoginsPreview: []string{"alice", "root"}}},
+			},
+		},
+		{
+			name: "kubernetes constraints",
+			in: ResourceAccessID{
+				Id: id,
+				Constraints: &ResourceAccessID_Kubernetes{
+					Kubernetes: &KubernetesConstraints{
+						GroupsCount:   2,
+						GroupsPreview: []string{"admin", "dev"},
+						UsersCount:    1,
+						UsersPreview:  []string{"alice"},
+					},
+				},
 			},
 		},
 	}

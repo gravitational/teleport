@@ -114,6 +114,21 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 				RolesPreview: previewStrings(dbRoles, MaxAuditRoleARNPreview),
 			},
 		}
+	case *types.ResourceConstraints_Kubernetes:
+		if d.Kubernetes == nil {
+			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
+			break
+		}
+		kubeGroups := d.Kubernetes.Groups
+		kubeUsers := d.Kubernetes.Users
+		out.Constraints = &ResourceAccessID_Kubernetes{
+			Kubernetes: &KubernetesConstraints{
+				GroupsCount:   uint32(len(kubeGroups)),
+				GroupsPreview: previewStrings(kubeGroups, MaxAuditRoleARNPreview),
+				UsersCount:    uint32(len(kubeUsers)),
+				UsersPreview:  previewStrings(kubeUsers, MaxAuditRoleARNPreview),
+			},
+		}
 	default:
 		out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 	}

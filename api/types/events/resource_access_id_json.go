@@ -22,10 +22,11 @@ import "encoding/json"
 // constraints field in [ResourceAccessID]. Each variant maps to one of the
 // concrete oneof wrapper types.
 type constraintsJSON struct {
-	UnknownConstraints *UnknownConstraints    `json:"unknown_constraints,omitempty"`
-	AWSConsole         *AWSConsoleConstraints `json:"aws_console,omitempty"`
-	SSH                *SSHConstraints        `json:"ssh,omitempty"`
-	Database           *DatabaseConstraints   `json:"database,omitempty"`
+	UnknownConstraints *UnknownConstraints      `json:"unknown_constraints,omitempty"`
+	AWSConsole         *AWSConsoleConstraints    `json:"aws_console,omitempty"`
+	SSH                *SSHConstraints           `json:"ssh,omitempty"`
+	Database           *DatabaseConstraints      `json:"database,omitempty"`
+	Kubernetes         *KubernetesConstraints    `json:"kubernetes,omitempty"`
 }
 
 // resourceAccessIDJSON mirrors [ResourceAccessID] with a concrete Constraints
@@ -48,6 +49,8 @@ func (r *ResourceAccessID) MarshalJSON() ([]byte, error) {
 		out.Constraints = &constraintsJSON{SSH: c.Ssh}
 	case *ResourceAccessID_Database:
 		out.Constraints = &constraintsJSON{Database: c.Database}
+	case *ResourceAccessID_Kubernetes:
+		out.Constraints = &constraintsJSON{Kubernetes: c.Kubernetes}
 	}
 	return json.Marshal(out)
 }
@@ -71,6 +74,8 @@ func (r *ResourceAccessID) UnmarshalJSON(data []byte) error {
 		r.Constraints = &ResourceAccessID_Ssh{Ssh: tmp.Constraints.SSH}
 	case tmp.Constraints.Database != nil:
 		r.Constraints = &ResourceAccessID_Database{Database: tmp.Constraints.Database}
+	case tmp.Constraints.Kubernetes != nil:
+		r.Constraints = &ResourceAccessID_Kubernetes{Kubernetes: tmp.Constraints.Kubernetes}
 	}
 	return nil
 }

@@ -4534,7 +4534,11 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetKubeCluster(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{
+			ResourceWithLabels:   r,
+			RequiresRequest:      resource.RequiresRequest,
+			KubePrincipalsByRole: protoKubePrincipalsByRole(resource.GetKubePrincipalsByRole()),
+		}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
@@ -4564,6 +4568,24 @@ func protoDatabasePrincipalsByRole(pbMap map[string]*proto.DatabaseRolePrincipal
 				Users: v.Users,
 				Names: v.Names,
 				Roles: v.Roles,
+			}
+		}
+	}
+	return out
+}
+
+// protoKubePrincipalsByRole converts the proto KubePrincipalsByRole map
+// to the corresponding Go type.
+func protoKubePrincipalsByRole(pbMap map[string]*proto.KubeRolePrincipals) map[string]types.KubeRolePrincipals {
+	if len(pbMap) == 0 {
+		return nil
+	}
+	out := make(map[string]types.KubeRolePrincipals, len(pbMap))
+	for k, v := range pbMap {
+		if v != nil {
+			out[k] = types.KubeRolePrincipals{
+				Groups: v.Groups,
+				Users:  v.Users,
 			}
 		}
 	}

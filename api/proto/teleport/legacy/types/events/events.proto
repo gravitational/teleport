@@ -1732,6 +1732,8 @@ message ResourceAccessID {
     SSHConstraints ssh = 12;
     // database captures audit-log-friendly data for Database scoping constraints.
     DatabaseConstraints database = 13;
+    // kubernetes captures audit-log-friendly data for Kubernetes scoping constraints.
+    KubernetesConstraints kubernetes = 14;
   }
 }
 
@@ -1773,6 +1775,14 @@ message DatabaseConstraints {
   uint32 roles_count = 5;
   // roles_preview contains up to N db_roles for inspection; it may be truncated.
   repeated string roles_preview = 6;
+}
+
+// KubernetesConstraints is an audit-log-friendly view of Kubernetes constraints.
+message KubernetesConstraints {
+  // groups_count is the total number of Kubernetes groups requested.
+  uint32 groups_count = 1;
+  // groups_preview contains up to N groups for inspection; it may be truncated.
+  repeated string groups_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.

@@ -2306,6 +2306,11 @@ message PaginatedResource {
   // (users, names, roles) each role grants for a database resource.
   // Only populated when IncludeLogins is true and the resource is a database.
   map<string, DatabaseRolePrincipals> DatabasePrincipalsByRole = 18 [(gogoproto.jsontag) = "database_principals_by_role,omitempty"];
+
+  // KubePrincipalsByRole maps Teleport role names to the Kubernetes principals
+  // (groups, users) each role grants for a Kubernetes cluster resource.
+  // Only populated when IncludeLogins is true and the resource is a kube cluster.
+  map<string, KubeRolePrincipals> KubePrincipalsByRole = 19 [(gogoproto.jsontag) = "kube_principals_by_role,omitempty"];
 }
 
 // DatabaseRolePrincipals contains the database principals granted by a single
@@ -2317,6 +2322,13 @@ message DatabaseRolePrincipals {
   repeated string Names = 2 [(gogoproto.jsontag) = "names,omitempty"];
   // Roles is the list of database roles this role grants (for auto-user provisioning).
   repeated string Roles = 3 [(gogoproto.jsontag) = "roles,omitempty"];
+}
+
+// KubeRolePrincipals contains the Kubernetes principals granted by a single
+// Teleport role for a specific Kubernetes cluster resource.
+message KubeRolePrincipals {
+  // Groups is the list of Kubernetes RBAC groups this role grants.
+  repeated string Groups = 1 [(gogoproto.jsontag) = "groups,omitempty"];
 }
 
 // ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources

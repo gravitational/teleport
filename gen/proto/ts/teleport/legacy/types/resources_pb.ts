@@ -107,6 +107,15 @@ export interface ResourceConstraints {
          */
         database: DatabaseResourceConstraints;
     } | {
+        oneofKind: "kubernetes";
+        /**
+         * kubernetes scopes a Kubernetes cluster to a subset of groups and/or
+         * users the requester is allowed to impersonate.
+         *
+         * @generated from protobuf field: types.KubernetesResourceConstraints kubernetes = 16;
+         */
+        kubernetes: KubernetesResourceConstraints;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -160,6 +169,21 @@ export interface DatabaseResourceConstraints {
      * @generated from protobuf field: repeated string roles = 3;
      */
     roles: string[];
+}
+/**
+ * KubernetesResourceConstraints scopes a Kubernetes cluster to a subset of
+ * groups and/or users the requester is allowed to impersonate.
+ * At least one of groups or users must be specified.
+ *
+ * @generated from protobuf message types.KubernetesResourceConstraints
+ */
+export interface KubernetesResourceConstraints {
+    /**
+     * groups is the list of Kubernetes RBAC groups the requester is allowed to impersonate.
+     *
+     * @generated from protobuf field: repeated string groups = 1;
+     */
+    groups: string[];
 }
 /**
  * ResourceAccessID represents a ResourceID in an Access Request-related context,
@@ -266,7 +290,8 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
             { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints },
             { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints },
-            { no: 12, name: "database", kind: "message", oneof: "details", T: () => DatabaseResourceConstraints }
+            { no: 12, name: "database", kind: "message", oneof: "details", T: () => DatabaseResourceConstraints },
+            { no: 16, name: "kubernetes", kind: "message", oneof: "details", T: () => KubernetesResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<ResourceConstraints>): ResourceConstraints {
@@ -303,6 +328,12 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
                         database: DatabaseResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).database)
                     };
                     break;
+                case /* types.KubernetesResourceConstraints kubernetes */ 16:
+                    message.details = {
+                        oneofKind: "kubernetes",
+                        kubernetes: KubernetesResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).kubernetes)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -327,6 +358,9 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         /* types.DatabaseResourceConstraints database = 12; */
         if (message.details.oneofKind === "database")
             DatabaseResourceConstraints.internalBinaryWrite(message.details.database, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* types.KubernetesResourceConstraints kubernetes = 16; */
+        if (message.details.oneofKind === "kubernetes")
+            KubernetesResourceConstraints.internalBinaryWrite(message.details.kubernetes, writer.tag(16, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -494,6 +528,53 @@ class DatabaseResourceConstraints$Type extends MessageType<DatabaseResourceConst
  * @generated MessageType for protobuf message types.DatabaseResourceConstraints
  */
 export const DatabaseResourceConstraints = new DatabaseResourceConstraints$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class KubernetesResourceConstraints$Type extends MessageType<KubernetesResourceConstraints> {
+    constructor() {
+        super("types.KubernetesResourceConstraints", [
+            { no: 1, name: "groups", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<KubernetesResourceConstraints>): KubernetesResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.groups = [];
+        if (value !== undefined)
+            reflectionMergePartial<KubernetesResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: KubernetesResourceConstraints): KubernetesResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string groups */ 1:
+                    message.groups.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: KubernetesResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string groups = 1; */
+        for (let i = 0; i < message.groups.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.groups[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.KubernetesResourceConstraints
+ */
+export const KubernetesResourceConstraints = new KubernetesResourceConstraints$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceAccessID$Type extends MessageType<ResourceAccessID> {
     constructor() {

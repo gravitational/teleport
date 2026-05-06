@@ -273,6 +273,15 @@ func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
 			return av == bv
 		}
 		return deriveTeleportEqualDatabaseResourceConstraints(av.Database, bv.Database)
+	case *ResourceConstraints_Kubernetes:
+		bv, ok := b.Details.(*ResourceConstraints_Kubernetes)
+		if !ok {
+			return false
+		}
+		if av == nil || bv == nil {
+			return av == bv
+		}
+		return deriveTeleportEqualKubernetesResourceConstraints(av.Kubernetes, bv.Kubernetes)
 	default:
 		return a.Details == nil && b.Details == nil
 	}
