@@ -453,9 +453,13 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 		disconnect Agent
 	)
 	for _, proxyID := range proxyIDs {
-		// Only desired proxies are considered for disconnects. Connections to
-		// untracked proxies may recover and connections to undesired proxies
-		// indicate a rollout and should be shutdown on their own.
+		// Only active desired proxies are considered for disconnect.
+		// We keep undesired connections to provide availability during termination
+		// or recovery after failover. These connections belong to either:
+		// - unhealthy proxies which we expect to terminate or recover and
+		// re-enter the desired set.
+		// - older generation proxies we expect to terminate as part of a proxy
+		// rollout.
 		if desired := snapshot.Proxies[proxyID]; !desired {
 			continue
 		}
