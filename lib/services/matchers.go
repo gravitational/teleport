@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/lib/scopes"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -145,7 +146,7 @@ func (r *resourceWithTargetHealth) GetTargetHealthStatus() types.TargetHealthSta
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
-type ResourceSeenKey struct{ name, kind, addr string }
+type ResourceSeenKey struct{ name, kind, addr, scope string }
 
 // MatchResourcesByFilters filters provided resources with profiled filter.
 func MatchResourcesByFilters[E types.ResourceWithLabels, S ~[]E](all S, filter MatchResourceFilter) (S, error) {
@@ -176,11 +177,19 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	var specResource types.ResourceWithLabels
 	kind := resource.GetKind()
 
+	scope := ""
+	switch res := resource.(type) {
+	case *types.KubernetesClusterV3:
+		scope = res.GetScope()
+	case types.KubeServer:
+		scope = res.GetScope()
+	}
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	key := ResourceSeenKey{
-		kind: kind,
-		name: resource.GetName(),
+		kind:  kind,
+		name:  resource.GetName(),
+		scope: scopes.NormalizeForEquality(scope),
 	}
 	switch kind {
 	case types.KindNode,

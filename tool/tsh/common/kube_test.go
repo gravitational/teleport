@@ -216,10 +216,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster2 ("first-cluster") should appear before
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
 					[][]string{
-						{p.rootKubeCluster2, formattedRootLabels, ""},
-						{p.rootKubeCluster1, formattedRootLabels, ""},
+						{p.rootKubeCluster2, formattedRootLabels, "", ""},
+						{p.rootKubeCluster1, formattedRootLabels, "", ""},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -230,9 +230,9 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
-					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, "", ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, "", ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -240,7 +240,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "show headless table",
 			args: []string{"--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(2)
+				table := asciitable.MakeHeadlessTable(3)
 				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
@@ -252,15 +252,15 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all"},
 			wantTable: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
 					[][]string{
 						// "leaf-cluster" should be displayed instead of the
 						// full leaf cluster name, since it is mocked as a
 						// discovered resource and the discovered resource name
 						// is displayed in non-verbose mode.
-						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""},
 					},
 					"Labels",
 				)
@@ -272,10 +272,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all", "--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose, ""},
 				)
 				return table.AsBuffer().String()
 			},
@@ -284,10 +284,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters in headless table",
 			args: []string{"--all", "--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(4)
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
+				table := asciitable.MakeHeadlessTable(5)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""})
 				return table.AsBuffer().String()
 			},
 		},

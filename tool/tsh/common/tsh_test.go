@@ -5514,12 +5514,14 @@ func TestSerializeKubeClusters(t *testing.T) {
 		{
 			"kube_cluster_name": "cluster1",
 			"labels": {"cmd": "result", "foo": "bar"},
-			"selected": true
+			"selected": true,
+			"scope": ""
 		},
 		{
 			"kube_cluster_name": "cluster2",
 			"labels": null,
-			"selected": false
+			"selected": false,
+			"scope": "/test"
 		}
 	]
 	`
@@ -5544,6 +5546,7 @@ func TestSerializeKubeClusters(t *testing.T) {
 			Name: "cluster2",
 		},
 		types.KubernetesClusterSpecV3{},
+		types.KubeClusterWithScope("/test"),
 	)
 
 	require.NoError(t, err)
