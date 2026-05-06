@@ -1245,20 +1245,20 @@ func TestEventCodesInWebTypes(t *testing.T) {
 	// knownMissing contains codes that predate this test and have not yet had
 	// web UI entries added. Do not add new codes here; fix them instead.
 	knownMissing := map[string]bool{
-		"T2009I":     true, // AppSessionRequestCode
-		"T2014I":     true, // AppSessionLLMRequestSuccessCode
-		"T2014E":     true, // AppSessionLLMRequestFailureCode
-		"TDB10I":     true, // DatabaseSessionCommandResultCode
-		"TCB00W":     true, // RenewableCertificateGenerationMismatchCode
+		"T2009I":      true, // AppSessionRequestCode
+		"T2014I":      true, // AppSessionLLMRequestSuccessCode
+		"T2014E":      true, // AppSessionLLMRequestFailureCode
+		"TDB10I":      true, // DatabaseSessionCommandResultCode
+		"TCB00W":      true, // RenewableCertificateGenerationMismatchCode
 		"TSPIFFE001I": true, // SPIFFEFederationCreateCode
 		"TSPIFFE002I": true, // SPIFFEFederationDeleteCode
-		"TCAGC003I":  true, // AccessGraphSettingsUpdateCode
-		"WID004I":    true, // WorkloadIdentityX509RevocationCreateCode
-		"WID005I":    true, // WorkloadIdentityX509RevocationUpdateCode
-		"WID006I":    true, // WorkloadIdentityX509RevocationDeleteCode
-		"TCO05I":     true, // CertAuthOverrideCertificatesAddCode
-		"TCO06I":     true, // CertAuthOverrideCertificatesUpdateCode
-		"TCO07I":     true, // CertAuthOverrideCertificatesRemoveCode
+		"TCAGC003I":   true, // AccessGraphSettingsUpdateCode
+		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
+		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
+		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode
+		"TCO05I":      true, // CertAuthOverrideCertificatesAddCode
+		"TCO06I":      true, // CertAuthOverrideCertificatesUpdateCode
+		"TCO07I":      true, // CertAuthOverrideCertificatesRemoveCode
 	}
 
 	codesFile, err := os.ReadFile("codes.go")
