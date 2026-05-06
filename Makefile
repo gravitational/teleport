@@ -1409,6 +1409,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/shared/libs/ironrdp/**' \
+		-ignore 'web/packages/teleterm/build/**' \
 		-ignore 'webassets/**'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
