@@ -152,11 +152,11 @@ export function Account({
               <Route
                 exact
                 path={cfg.routes.account}
-                component={() => <Redirect to={cfg.routes.accountSecurity} />}
+                render={() => <Redirect to={cfg.routes.accountSecurity} />}
               />
               <Route
                 path={cfg.routes.accountSecurity}
-                component={() => (
+                render={() => (
                   <SecuritySettings
                     isSso={isSso}
                     canAddPasskeys={canAddPasskeys}
@@ -183,7 +183,7 @@ export function Account({
               />
               <Route
                 path={cfg.routes.accountPreferences}
-                component={() => (
+                render={() => (
                   <Preferences setErrorMessage={stableSetErrorMessage} />
                 )}
               />
