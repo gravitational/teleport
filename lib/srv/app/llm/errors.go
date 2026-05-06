@@ -165,7 +165,7 @@ func convertError(err error) *apiError {
 
 // convertErrorByHTTPStatus produces an apiError from an HTTP status code, used
 // when a provider returns an error without a parseable body.
-func convertErrorByHTTPStatus(cause error, status int) *apiError {
+func convertErrorByHTTPStatus(cause error, status int, message string) *apiError {
 	if status == 0 {
 		status = http.StatusBadGateway
 	}
@@ -175,7 +175,7 @@ func convertErrorByHTTPStatus(cause error, status int) *apiError {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return newUnauthorized(cause, status)
 	case http.StatusBadRequest:
-		return newBadRequest(cause, status, "")
+		return newBadRequest(cause, status, message)
 	case http.StatusPaymentRequired, http.StatusTooManyRequests:
 		return newRejected(cause, status)
 	}

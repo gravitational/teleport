@@ -51,11 +51,11 @@ func convertAnthropicError(err error) *apiError {
 
 	body, ok := readAnthropicErrorBody(sdkErr)
 	if !ok {
-		return convertErrorByHTTPStatus(err, status)
+		return convertErrorByHTTPStatus(err, status, "")
 	}
 	obj, perr := parseAnthropicBody(body)
 	if perr != nil {
-		return convertErrorByHTTPStatus(err, status)
+		return convertErrorByHTTPStatus(err, status, "")
 	}
 	return errorFromAnthropicBody(err, obj, status)
 }
@@ -86,7 +86,7 @@ func errorFromAnthropicBody(cause error, obj shared.APIErrorObject, status int) 
 	// Sometimes the error type is not available (when using Bedrock
 	// provider), for those cases we can rely on the status code to properly set
 	// the error type.
-	return convertErrorByHTTPStatus(cause, status)
+	return convertErrorByHTTPStatus(cause, status, "")
 }
 
 func readAnthropicErrorBody(e *anthropic.Error) ([]byte, bool) {

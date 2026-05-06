@@ -38,6 +38,7 @@ import (
 type Handler struct {
 	cfg          HandlerConfig
 	closeContext context.Context
+	openAIMux    *http.ServeMux
 }
 
 // HandlerConfig configures dependencies for the LLM proxy handler.
@@ -82,6 +83,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 	return &Handler{
 		closeContext: ctx,
 		cfg:          cfg,
+		openAIMux:    newOpenAIMux(),
 	}, nil
 }
 
@@ -104,6 +106,9 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	switch format {
 	case types.LLMFormatAnthropic:
 		h.handleAnthropic(sessionCtx, w, r)
+		return nil
+	case types.LLMFormatOpenAI:
+		h.handleOpenAI(sessionCtx, w, r)
 		return nil
 	default:
 		return trace.NotImplemented("llm format %q not supported", format)
