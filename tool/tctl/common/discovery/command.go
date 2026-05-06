@@ -35,19 +35,16 @@ import (
 
 // Command implements the "tctl discovery" CLI command group.
 type Command struct {
-	config *servicecfg.Config
-
 	nodesCmd *kingpin.CmdClause
 
-	nodesLast         string
+	nodesLast         time.Duration
 	nodesFormat       string
 	nodesFailuresOnly bool
+	nodesCloudFilter  string
 }
 
 // Initialize registers the "discovery" command and its subcommands with the CLI parser.
-func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	c.config = config
-
+func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	discovery := app.Command("discovery", "Troubleshoot auto-discovery issues.")
 	c.nodesCmd = discovery.Command("nodes", "Report discovered server instances and their enrollment status using Teleport audit log and cluster state.")
 	c.nodesCmd.Alias(`
@@ -65,12 +62,15 @@ Examples:
 
 	c.nodesCmd.Flag("last", "Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).").
 		Default("1h").
-		StringVar(&c.nodesLast)
+		DurationVar(&c.nodesLast)
 	c.nodesCmd.Flag("format", "Output format.").
 		Default(teleport.Text).
 		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON)
 	c.nodesCmd.Flag("failures-only", "Only show instances with enrollment failures.").
 		BoolVar(&c.nodesFailuresOnly)
+	c.nodesCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
+		Default("").
+		StringVar(&c.nodesCloudFilter)
 }
 
 // TryRun attempts to run the matched subcommand.
@@ -79,10 +79,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		return false, nil
 	}
 
-	dateFrom, dateTo, err := resolveTimeRange(c.config.Clock, c.nodesLast)
-	if err != nil {
-		return true, trace.Wrap(err)
-	}
+	dateTo := time.Now().UTC()
+	dateFrom := dateTo.Add(-c.nodesLast)
 
 	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
@@ -101,7 +99,12 @@ func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer
 		"last", c.nodesLast,
 	)
 
-	instances, err := buildNodes(ctx, clt, dateFrom, dateTo)
+	cfg, err := parseCloudProviders(c.nodesCloudFilter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	instances, err := buildNodes(ctx, clt, dateFrom, dateTo, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

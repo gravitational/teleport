@@ -90,6 +90,15 @@ test('renders header and stats cards', async () => {
               ecsDatabaseServiceCount: 0, // irrelevant
               unresolvedUserTasks: 0,
             },
+            azurevm: {
+              rulesCount: 0,
+              resourcesFound: 0,
+              resourcesEnrollmentFailed: 0,
+              resourcesEnrollmentSuccess: 0,
+              discoverLastSync: 0,
+              ecsDatabaseServiceCount: 0,
+              unresolvedUserTasks: 0,
+            },
           }),
         }}
         path=""
@@ -197,6 +206,7 @@ test('renders enroll cards', () => {
             awsec2: zeroCount,
             awsrds: zeroCount,
             awseks: zeroCount,
+            azurevm: zeroCount,
           }),
         }}
         path=""

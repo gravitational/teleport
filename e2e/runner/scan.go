@@ -25,28 +25,54 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
-// fixtureArrayRe matches fixture array declarations within a test.use() call body.
-//   - fixtures: ['ssh-node']
-//   - fixtures: [['connect'], { option: true }]
-var fixtureArrayRe = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
+var (
+	fixtureArrayRe     = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
+	lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
+	fixtureRefRe       = regexp.MustCompile(`['"]([^'"]+)['"]`)
+	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
+	roleFileRe         = regexp.MustCompile(`\bfile:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
 
-// lineNumberSuffixRe matches a trailing :line_number on a test path (e.g. "my-spec.ts:42").
-var lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
+	// The "key" regexes below require a word boundary so identifiers like
+	// `super_user:` or `myRoles:` don't match as `user:` / `roles:`.
+	usersBlockRe     = regexp.MustCompile(`\busers:\s*\[`)
+	userObjRe        = regexp.MustCompile(`\buser:\s*\{`)
+	rolesBlockRe     = regexp.MustCompile(`\broles:\s*\[`)
+	traitsBlockRe    = regexp.MustCompile(`\btraits:\s*\{`)
+	traitKeyArrayRe  = regexp.MustCompile(`\b(\w+):\s*\[`)
+	loginAsBoolRe    = regexp.MustCompile(`\bloginAs:\s*true\b`)
+)
 
-// fixtureRefRe extracts individual quoted fixture names from the matched array contents.
-var fixtureRefRe = regexp.MustCompile(`['"]([^'"]+)['"]`)
-
-// helperImportRe matches imports from the e2e helpers package and captures the module name.
-// e.g. `from '@gravitational/e2e/helpers/connect'` → "connect"
-var helperImportRe = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
+// defaultRoleNames returns the built-in roles assigned when no roles are specified. Returns a fresh slice each call so callers can mutate/sort safely.
+func defaultRoleNames() []scannedRole {
+	return []scannedRole{
+		{name: "access"},
+		{name: "editor"},
+	}
+}
 
 const testUseCallPrefix = "test.use("
+
+// scannedUser is a user declaration discovered in test source. Names are generated at bootstrap time, not by the test author.
+type scannedUser struct {
+	roles   []scannedRole
+	traits  map[string][]string
+	loginAs bool
+	// arrayIdx is the position within a `users: [...]` array; nil otherwise. Keeps duplicate-by-content entries addressable as distinct accounts via loginAs(N).
+	arrayIdx *int
+}
+
+// scannedRole is a role reference; exactly one of name (built-in like "access") or file (e.g. "viewer.yaml" under e2e/testdata/roles/) is set.
+type scannedRole struct {
+	name string
+	file string
+}
 
 // scanTarget represents a file to scan with an optional line constraint.
 type scanTarget struct {
@@ -64,18 +90,13 @@ type callRange struct {
 	start, end int
 }
 
-// scanFixtures scans test files and the helpers they import to discover which fixtures are needed.
-func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
+// resolveTargetsWithHelpers resolves test files plus any helper modules they import, so fixtures and users declared in helpers are also discovered.
+func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget, error) {
 	targets, err := resolveFilesToScan(e2eDir, testFiles)
 	if err != nil {
-		slog.Warn("fixture scan: error resolving files", "error", err)
-
-		return nil
+		return nil, err
 	}
 
-	slog.Debug("fixture scan: resolved targets", "count", len(targets))
-
-	// Helpers can also reference fixtures (such as Connect), so we need to scan them as well.
 	importedHelpers := make(map[string]bool)
 	for _, t := range targets {
 		for _, helper := range parseHelperImports(t.path) {
@@ -83,16 +104,17 @@ func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
 		}
 	}
 
-	// Helpers are always scanned fully (no line targeting).
-	// No existence check needed — scanFile handles missing files gracefully.
 	for helper := range importedHelpers {
 		targets = append(targets, scanTarget{
 			path: filepath.Join(e2eDir, "helpers", helper+".ts"),
 		})
 	}
 
-	slog.Debug("fixture scan: total files to scan", "count", len(targets))
+	return targets, nil
+}
 
+// scanFixturesFromTargets scans pre-resolved targets to discover which fixtures are needed.
+func scanFixturesFromTargets(targets []scanTarget) []*fixtures.Fixture {
 	seen := make(map[string]struct{})
 	var result []*fixtures.Fixture
 
@@ -108,6 +130,18 @@ func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
 	}
 
 	return result
+}
+
+// scanFixtures wraps resolveTargetsWithHelpers + scanFixturesFromTargets for callers that haven't been split yet.
+func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
+	targets, err := resolveTargetsWithHelpers(e2eDir, testFiles)
+	if err != nil {
+		slog.Warn("fixture scan: error resolving files", "error", err)
+
+		return nil
+	}
+
+	return scanFixturesFromTargets(targets)
 }
 
 func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error) {
@@ -290,8 +324,7 @@ func stripComments(lines []string) []string {
 	return cleaned
 }
 
-// findInlineComment returns the byte offset of the first // that is not inside a single-quoted, double-quoted, or
-// backtick string literal, or -1.
+// findInlineComment returns the byte offset of the first // not inside a string/template literal, or -1.
 func findInlineComment(line string) int {
 	var quote byte
 
@@ -477,3 +510,329 @@ func fixtureInScope(fixtureLine, targetLine int, blocks []blockRange) bool {
 
 	return targetLine >= enclosing.start && targetLine <= enclosing.end
 }
+
+// scanUsersFromTargets scans pre-resolved targets for user declarations and always appends the default access/editor user so implicit-auth specs (no test.use(), :authenticated project) resolve a username in mixed runs.
+func scanUsersFromTargets(targets []scanTarget) ([]scannedUser, error) {
+	var result []scannedUser
+	for _, t := range targets {
+		users, err := scanFileUsers(t.path, t.line)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, users...)
+	}
+
+	return ensureDefaultUser(result)
+}
+
+// ensureDefaultUser appends the default user unless an explicit declaration already produces the same canonical key.
+func ensureDefaultUser(users []scannedUser) ([]scannedUser, error) {
+	keys := make(map[string]bool, len(users))
+	for _, u := range users {
+		k, err := canonicalUserKey(u)
+		if err != nil {
+			return nil, err
+		}
+		keys[k] = true
+	}
+
+	for _, du := range defaultUsers() {
+		k, err := canonicalUserKey(du)
+		if err != nil {
+			return nil, err
+		}
+		if keys[k] {
+			continue
+		}
+		users = append(users, du)
+	}
+
+	return users, nil
+}
+
+// defaultUsers returns a default user with access and editor roles.
+func defaultUsers() []scannedUser {
+	return []scannedUser{
+		{
+			roles:   defaultRoleNames(),
+			loginAs: true,
+		},
+	}
+}
+
+// scanFileUsers extracts user declarations from test.use() calls. Singular `user: {}` and array `users: [...]` are mutually exclusive per call; at most one array entry may have `loginAs: true`.
+func scanFileUsers(path string, targetLine int) ([]scannedUser, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// Helper module paths are guessed from import names (see
+		// resolveTargetsWithHelpers), so the file may not exist. Warn
+		// but continue rather than failing the whole scan.
+		slog.Warn("scan: could not read file", "path", path, "error", err)
+		return nil, nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	cleaned := stripComments(lines)
+	blocks := parseBlocks(cleaned)
+	content := strings.Join(cleaned, "\n")
+
+	var result []scannedUser
+	for _, call := range findTestUseCalls(content) {
+		callLine := 1 + strings.Count(content[:call.start], "\n")
+
+		if targetLine > 0 && !fixtureInScope(callLine, targetLine, blocks) {
+			continue
+		}
+
+		body := content[call.start:call.end]
+
+		hasUser := userObjRe.MatchString(body)
+		hasUsers := usersBlockRe.MatchString(body)
+
+		if hasUser && hasUsers {
+			return nil, fmt.Errorf(
+				"%s:%d: user and users are mutually exclusive in test.use()",
+				path, callLine,
+			)
+		}
+
+		var users []scannedUser
+
+		if hasUser {
+			if loc := userObjRe.FindStringIndex(body); loc != nil {
+				userBlock := extractInner(body[loc[0]:], '{', '}')
+				if userBlock != "" {
+					user := parseUserBlock(userBlock)
+					user.loginAs = true // singular user is implicitly loginAs
+					warnDuplicateRoles(path, callLine, user.roles)
+					users = append(users, user)
+				}
+			}
+		} else if hasUsers {
+			if loc := usersBlockRe.FindStringIndex(body); loc != nil {
+				usersContent := extractInner(body[loc[0]:], '[', ']')
+				if usersContent != "" {
+					for i, userBlock := range extractAllOuter(usersContent, '{', '}') {
+						u := parseUserBlock(userBlock)
+						idx := i
+						u.arrayIdx = &idx
+						warnDuplicateRoles(path, callLine, u.roles)
+						users = append(users, u)
+					}
+				}
+			}
+
+			loginAsCount := 0
+			for _, u := range users {
+				if u.loginAs {
+					loginAsCount++
+				}
+			}
+			if loginAsCount > 1 {
+				return nil, fmt.Errorf(
+					"%s:%d: at most one user in users: [...] may have loginAs: true (found %d)",
+					path, callLine, loginAsCount,
+				)
+			}
+		}
+
+		result = append(result, users...)
+	}
+
+	return result, nil
+}
+
+// scanBalanced returns the index of the close delimiter matching the open at openIdx, or -1 if unmatched. Delimiters inside string/template literals are ignored.
+func scanBalanced(s string, openIdx int, open, close byte) int {
+	depth := 0
+	var quote byte
+
+	for i := openIdx; i < len(s); i++ {
+		ch := s[i]
+
+		if quote != 0 {
+			if ch == '\\' {
+				i++
+			} else if ch == quote {
+				quote = 0
+			}
+
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case open:
+			depth++
+		case close:
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+
+	return -1
+}
+
+// parseUserBlock extracts roles, traits, and loginAs from a single user object block.
+func parseUserBlock(userBlock string) scannedUser {
+	var user scannedUser
+
+	rolesLoc := rolesBlockRe.FindStringIndex(userBlock)
+	if rolesLoc != nil {
+		rolesContent := extractInner(userBlock[rolesLoc[0]:], '[', ']')
+		if rolesContent != "" {
+			// Collect file-role ranges first, then walk all quoted strings and
+			// classify each based on whether it falls inside a file-role match.
+			fileMatches := roleFileRe.FindAllStringSubmatchIndex(rolesContent, -1)
+			for _, m := range fileMatches {
+				user.roles = append(user.roles, scannedRole{file: rolesContent[m[2]:m[3]]})
+			}
+
+			fi := 0
+			for _, loc := range fixtureRefRe.FindAllStringSubmatchIndex(rolesContent, -1) {
+				for fi < len(fileMatches) && fileMatches[fi][1] <= loc[0] {
+					fi++
+				}
+				if fi < len(fileMatches) && loc[0] >= fileMatches[fi][0] && loc[0] < fileMatches[fi][1] {
+					continue
+				}
+
+				user.roles = append(user.roles, scannedRole{name: rolesContent[loc[2]:loc[3]]})
+			}
+		}
+	}
+
+	traitsLoc := traitsBlockRe.FindStringIndex(userBlock)
+	if traitsLoc != nil {
+		traitsContent := extractInner(userBlock[traitsLoc[0]:], '{', '}')
+		if traitsContent != "" {
+			user.traits = parseTraits(traitsContent)
+		}
+	}
+
+	if loginAsBoolRe.MatchString(userBlock) {
+		user.loginAs = true
+	}
+
+	sortRoles(user.roles)
+
+	return user
+}
+
+// extractInner returns the content between the first open delimiter and its matching close, ignoring delimiters inside string/template literals.
+func extractInner(s string, open, close byte) string {
+	start := strings.IndexByte(s, open)
+	if start < 0 {
+		return ""
+	}
+
+	end := scanBalanced(s, start, open, close)
+	if end < 0 {
+		return ""
+	}
+
+	return s[start+1 : end]
+}
+
+// parseTraits parses trait key-value pairs (e.g. `logins: ['root', 'alice'], groups: ['dev']`) into a map.
+func parseTraits(traitsContent string) map[string][]string {
+	traits := make(map[string][]string)
+
+	for _, m := range traitKeyArrayRe.FindAllStringSubmatchIndex(traitsContent, -1) {
+		key := traitsContent[m[2]:m[3]]
+		// traitKeyArrayRe ends at the byte after `[`, so m[1]-1 is the `[` byte.
+		bracketOpen := m[1] - 1
+		bracketClose := scanBalanced(traitsContent, bracketOpen, '[', ']')
+		if bracketClose < 0 {
+			continue
+		}
+
+		bracketContent := traitsContent[bracketOpen+1 : bracketClose]
+		for _, ref := range fixtureRefRe.FindAllStringSubmatch(bracketContent, -1) {
+			traits[key] = append(traits[key], ref[1])
+		}
+	}
+
+	return traits
+}
+
+// extractAllOuter returns each top-level open...close block from s (including delimiters), ignoring delimiters inside string/template literals.
+func extractAllOuter(s string, open, close byte) []string {
+	var blocks []string
+	depth := 0
+	start := -1
+	var quote byte
+
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+
+		if quote != 0 {
+			if ch == '\\' {
+				i++
+			} else if ch == quote {
+				quote = 0
+			}
+
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case open:
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case close:
+			depth--
+			if depth == 0 && start >= 0 {
+				blocks = append(blocks, s[start:i+1])
+				start = -1
+			}
+		}
+	}
+
+	return blocks
+}
+
+func warnDuplicateRoles(path string, line int, roles []scannedRole) {
+	for i := 1; i < len(roles); i++ {
+		if roles[i] != roles[i-1] {
+			continue
+		}
+
+		ref := roles[i].name
+		if roles[i].file != "" {
+			ref = "file:" + roles[i].file
+		}
+		slog.Warn("scan: duplicate role for user", "path", path, "line", line, "role", ref)
+	}
+}
+
+// sortRoles sorts roles with built-in names before file refs, alphabetical within each group.
+func sortRoles(roles []scannedRole) {
+	slices.SortStableFunc(roles, func(a, b scannedRole) int {
+		// Built-in names (name set) come before file refs (file set).
+		aIsName := a.name != ""
+		bIsName := b.name != ""
+
+		if aIsName != bIsName {
+			if aIsName {
+				return -1
+			}
+
+			return 1
+		}
+
+		if aIsName {
+			return strings.Compare(a.name, b.name)
+		}
+
+		return strings.Compare(a.file, b.file)
+	})
+}
+

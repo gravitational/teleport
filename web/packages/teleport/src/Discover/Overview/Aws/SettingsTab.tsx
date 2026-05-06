@@ -145,7 +145,7 @@ export function SettingsTab({
   return (
     <Validation>
       {({ validator }) => (
-        <Flex pt={3}>
+        <Flex>
           <Box flex="1">
             <Card p={4} mb={3}>
               <Box mb={4}>

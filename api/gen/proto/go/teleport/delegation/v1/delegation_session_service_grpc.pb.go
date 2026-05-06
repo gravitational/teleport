@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DelegationSessionService_GenerateCerts_FullMethodName = "/teleport.delegation.v1.DelegationSessionService/GenerateCerts"
+	DelegationSessionService_CreateDelegationSession_FullMethodName = "/teleport.delegation.v1.DelegationSessionService/CreateDelegationSession"
+	DelegationSessionService_GenerateCerts_FullMethodName           = "/teleport.delegation.v1.DelegationSessionService/GenerateCerts"
 )
 
 // DelegationSessionServiceClient is the client API for DelegationSessionService service.
@@ -43,6 +44,9 @@ const (
 // DelegationSessionService allows users to delegate a subset of their access to
 // a workload or bot.
 type DelegationSessionServiceClient interface {
+	// CreateDelegationSession creates a delegation session for the authenticated
+	// user.
+	CreateDelegationSession(ctx context.Context, in *CreateDelegationSessionRequest, opts ...grpc.CallOption) (*DelegationSession, error)
 	// GenerateCerts generates TLS and/or SSH certificates, scoped to a delegation
 	// session.
 	GenerateCerts(ctx context.Context, in *GenerateCertsRequest, opts ...grpc.CallOption) (*GenerateCertsResponse, error)
@@ -54,6 +58,16 @@ type delegationSessionServiceClient struct {
 
 func NewDelegationSessionServiceClient(cc grpc.ClientConnInterface) DelegationSessionServiceClient {
 	return &delegationSessionServiceClient{cc}
+}
+
+func (c *delegationSessionServiceClient) CreateDelegationSession(ctx context.Context, in *CreateDelegationSessionRequest, opts ...grpc.CallOption) (*DelegationSession, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DelegationSession)
+	err := c.cc.Invoke(ctx, DelegationSessionService_CreateDelegationSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *delegationSessionServiceClient) GenerateCerts(ctx context.Context, in *GenerateCertsRequest, opts ...grpc.CallOption) (*GenerateCertsResponse, error) {
@@ -73,6 +87,9 @@ func (c *delegationSessionServiceClient) GenerateCerts(ctx context.Context, in *
 // DelegationSessionService allows users to delegate a subset of their access to
 // a workload or bot.
 type DelegationSessionServiceServer interface {
+	// CreateDelegationSession creates a delegation session for the authenticated
+	// user.
+	CreateDelegationSession(context.Context, *CreateDelegationSessionRequest) (*DelegationSession, error)
 	// GenerateCerts generates TLS and/or SSH certificates, scoped to a delegation
 	// session.
 	GenerateCerts(context.Context, *GenerateCertsRequest) (*GenerateCertsResponse, error)
@@ -86,6 +103,9 @@ type DelegationSessionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDelegationSessionServiceServer struct{}
 
+func (UnimplementedDelegationSessionServiceServer) CreateDelegationSession(context.Context, *CreateDelegationSessionRequest) (*DelegationSession, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateDelegationSession not implemented")
+}
 func (UnimplementedDelegationSessionServiceServer) GenerateCerts(context.Context, *GenerateCertsRequest) (*GenerateCertsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateCerts not implemented")
 }
@@ -109,6 +129,24 @@ func RegisterDelegationSessionServiceServer(s grpc.ServiceRegistrar, srv Delegat
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&DelegationSessionService_ServiceDesc, srv)
+}
+
+func _DelegationSessionService_CreateDelegationSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDelegationSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DelegationSessionServiceServer).CreateDelegationSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DelegationSessionService_CreateDelegationSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DelegationSessionServiceServer).CreateDelegationSession(ctx, req.(*CreateDelegationSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DelegationSessionService_GenerateCerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -136,6 +174,10 @@ var DelegationSessionService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.delegation.v1.DelegationSessionService",
 	HandlerType: (*DelegationSessionServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateDelegationSession",
+			Handler:    _DelegationSessionService_CreateDelegationSession_Handler,
+		},
 		{
 			MethodName: "GenerateCerts",
 			Handler:    _DelegationSessionService_GenerateCerts_Handler,

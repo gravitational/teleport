@@ -263,7 +263,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		})
 	}
 
-	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
+	if modules.GetModules().IsFIPSBuild() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
 		s3Opts = append(s3Opts, func(options *s3.Options) {
 			options.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})

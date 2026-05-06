@@ -43,6 +43,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |bot_instance_id|string|BotInstanceID is the bot instance ID if this is a bot identity and is ignored otherwise.|
 |device|string|Device is the device ID of a trusted device. Requires Teleport Enterprise.|
 |join_token|string|JoinToken is the name of the join token used when this identity originally joined. This is only valid for bot identities, and cannot be used to target `token`-joined bots.|
+|linux_desktop|string|LinuxDesktop specifies the name of a Linux desktop.|
 |login|string|Login specifies the name of a local UNIX user.|
 |mfa_device|string|MFADevice specifies the UUID of a user MFA device.|
 |role|string|Role specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles.|

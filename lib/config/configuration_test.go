@@ -470,6 +470,18 @@ func TestConfigReading(t *testing.T) {
 						FallbackModel: "claude-opus-4-6",
 					},
 				},
+				{
+					Name:         "grpc-with-mtls",
+					StaticLabels: Labels,
+					URI:          "tcp://127.0.0.1:8080",
+					TLS: &AppTLS{
+						Mode:           types.AppTLSModeVerifyFull,
+						ServerName:     "example.com",
+						ServerSpiffeId: "spiffe://mycluster/svc/example",
+						AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+						ClientCertMode: types.AppClientCertModeManaged,
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1714,6 +1726,18 @@ func makeConfigFixture() string {
 				FallbackModel: "claude-opus-4-6",
 			},
 		},
+		{
+			Name:         "grpc-with-mtls",
+			StaticLabels: Labels,
+			URI:          "tcp://127.0.0.1:8080",
+			TLS: &AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2703,6 +2727,35 @@ app_service:
 			name:   "LLM inference endpoint",
 			outErr: require.NoError,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        client_cert_mode: managed
+`,
+			name:   "App TLS configuration",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        allowed_cas_files:
+        - _random-file.pem
+`,
+			name:   "App TLS configuration fails to read file",
+			outErr: require.Error,
+		},
 	}
 
 	for _, tt := range tests {
@@ -3353,6 +3406,76 @@ func TestTLSCert(t *testing.T) {
 
 			require.Len(t, cfg.Databases.Databases, 1)
 			require.Equal(t, fixtures.LocalhostCert, cfg.Databases.Databases[0].TLS.CACert)
+		})
+	}
+}
+
+func TestAppTLSCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpCA := filepath.Join(tmpDir, "ca.pem")
+
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		conf               *FileConfig
+		expectedAllowedCas []string
+	}{
+		{
+			"only files",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{string(fixtures.LocalhostCert)},
+		},
+		{
+			"mixed configuration",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCas:      []string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert)},
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert), string(fixtures.LocalhostCert)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := servicecfg.MakeDefaultConfig()
+
+			err = ApplyFileConfig(tt.conf, cfg)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.Apps.Apps, 1)
+			require.ElementsMatch(t, tt.expectedAllowedCas, cfg.Apps.Apps[0].TLS.AllowedCas)
 		})
 	}
 }

@@ -10,7 +10,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/gravitational/trace v1.5.3
+	github.com/gravitational/trace v1.5.4
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/russellhaering/gosaml2 v0.11.0
 	github.com/stretchr/testify v1.11.1

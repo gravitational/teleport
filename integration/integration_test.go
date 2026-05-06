@@ -446,6 +446,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
+			// create interactive session (this goroutine is this user's terminal time)
+			myTerm := NewTerminal(250)
 			cl, err := teleport.NewClient(helpers.ClientConfig{
 				Login:        suite.Me.Username,
 				Cluster:      helpers.Site,
@@ -453,23 +455,14 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
 				ForwardAgent: tt.inForwardAgent,
 			})
-			// create interactive session (this goroutine is this user's terminal time)
-			endC := make(chan error)
-			myTerm := NewTerminal(250)
-			go func() {
-				if err != nil {
-					endC <- err
-					return
-				}
-				cl.Stdout = myTerm
-				cl.Stdin = myTerm
-
-				err = cl.SSH(ctx, nil)
-				endC <- err
-			}()
+			require.NoError(t, err)
+			cl.Stdout = myTerm
+			cl.Stdin = myTerm
 
 			// wait until the session tracker exists.
-			tracker := waitForSessionToBeEstablished(t, site, 1)
+			tracker, endC, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
+			require.NoError(t, err)
+
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 			sessionID := tracker.GetSessionID()
@@ -1820,55 +1813,12 @@ type disconnectTestCase struct {
 	verifyError errorVerifier
 }
 
-// repeatingReader is an [io.ReadCloser] that produces the
-// provided output at the configured interval until closed.
-// For example, all calls to Read on the following reader will
-// block for a minute and then return "hi" to the caller. Once
-// Closed an `io.EOF` will be returned from Read
-//
-// r := repeatingReader{output: hi, interval:time.Minute}
-// n, err := r.Read(out)
-type repeatingReader struct {
-	output   string
-	interval time.Duration
-	closed   chan struct{}
-}
-
-func newRepeatingReader(output string, interval time.Duration) repeatingReader {
-	return repeatingReader{
-		interval: interval,
-		output:   output,
-		closed:   make(chan struct{}),
-	}
-}
-
-func (r repeatingReader) Read(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	select {
-	case <-time.After(r.interval):
-	case <-r.closed:
-		return 0, io.EOF
-	}
-
-	end := min(len(r.output), len(p))
-
-	n := copy(p, r.output[:end])
-	return n, nil
-}
-
-func (r repeatingReader) Close() error {
-	close(r.closed)
-	return nil
-}
-
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
+	const idleTimeout = 3 * time.Second
 	netConfig := types.DefaultClusterNetworkingConfig()
-	netConfig.SetClientIdleTimeout(3 * time.Second)
+	netConfig.SetClientIdleTimeout(idleTimeout)
 
 	tconf := suite.defaultServiceConfig()
 	tconf.SSH.Enabled = true
@@ -1877,48 +1827,71 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
 
-	var output bytes.Buffer
+	term := NewTerminal(250)
+	sessionErr := make(chan error, 1)
 
-	// SSH into the server, and stay active for longer than
-	// the client idle timeout.
-	sessionErr := make(chan error)
-	openSession := func() {
+	waitForOutput := func(t *testing.T, pattern string) {
+		outputErr := make(chan error, 1)
+		go func() {
+			outputErr <- waitForTerminalOutput(t.Context(), term, pattern)
+		}()
+
+		select {
+		case err := <-outputErr:
+			require.NoError(t, err)
+		case err := <-sessionErr:
+			require.FailNowf(t, "session error", "session ended while waiting for output matching %q; err: %v", pattern, err)
+		}
+	}
+
+	go func() {
+		defer close(sessionErr)
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			Login:                suite.Me.Username,
 			Cluster:              helpers.Site,
 			Host:                 Host,
+			Interactive:          true,
 			DisableSSHResumption: true,
 		})
 		if err != nil {
 			sessionErr <- trace.Wrap(err)
 			return
 		}
-		cl.Stdout = &output
-		// Execute a command faster than the idle timeout to stay active.
-		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
-		defer func() { reader.Close() }()
-		cl.Stdin = reader
+		cl.Stdout = term
+		cl.Stdin = term
 
-		// Terminate the session after 2x the idle timeout
-		ctx, cancel := context.WithTimeout(t.Context(), netConfig.GetClientIdleTimeout()*2)
-		defer cancel()
-		sessionErr <- cl.SSH(ctx, nil)
+		// Print a ready marker, then echo bytes from stdin back to the client.
+		const clientIdleKeepaliveCommand = `sh -c 'echo __READY__; exec cat'`
+		sessionErr <- cl.SSH(t.Context(), []string{clientIdleKeepaliveCommand})
+	}()
+	waitForOutput(t, "__READY__")
+
+	// With the session established, write to the terminal to refresh the client idle timeout
+	// before proceeding to the test below.
+	// TODO(Joerger): We can remove this once we address the issue causing the client idle timeout timer
+	// to start progressing during session establishment.
+	term.Type("start\r\n")
+	waitForOutput(t, "start")
+
+	// Keep the session alive by writing/reading with the terminal within the idle timeout.
+	keepaliveInterval := idleTimeout / 3
+	keepaliveTicker := time.NewTicker(keepaliveInterval)
+	defer keepaliveTicker.Stop()
+	keepaliveEnd := time.After(idleTimeout + keepaliveInterval)
+
+	for i := 0; ; i++ {
+		select {
+		case <-keepaliveTicker.C:
+			msg := "keepalive-" + strconv.Itoa(i)
+			term.Type(msg + "\r\n")
+			waitForOutput(t, msg)
+		case <-keepaliveEnd:
+			// The session survived beyond the idle timeout, success.
+			return
+		case err := <-sessionErr:
+			require.FailNowf(t, "session error", "session ended before exceeding idle timeout: %v", err)
+		}
 	}
-
-	go openSession()
-
-	// Wait for the sessions to end - we expect an error
-	// since we are canceling the context.
-	err := waitForError(sessionErr, time.Second*15)
-	require.Error(t, err)
-
-	// Ensure that the session was alive beyond the idle timeout by
-	// counting the number of times "teleport" was output. If the session
-	// was alive past the idle timeout, then there should be at least 30 occurrences
-	// since the command is run more frequently the idle timeout.
-	require.NotEmpty(t, output)
-	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 30)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
@@ -2154,22 +2127,27 @@ func timeNow() string {
 	return time.Now().Format(time.StampMilli)
 }
 
-// enterInput simulates entering user input into a terminal and awaiting a
-// response. Returns an error if the given response text doesn't match
-// the supplied regexp string.
+// enterInput simulates typing command into the terminal and waits for output
+// matching pattern. Returns an error on timeout, nil on match or context
+// cancellation.
 func enterInput(ctx context.Context, person *Terminal, command, pattern string) error {
 	person.Type(command)
+	return waitForTerminalOutput(ctx, person, pattern)
+}
+
+// waitForTerminalOutput polls the terminal until output matches pattern,
+// 10 seconds elapse, or ctx is canceled.
+// Returns nil on match or cancellation, error on timeout.
+func waitForTerminalOutput(ctx context.Context, person *Terminal, pattern string) error {
 	abortTime := time.Now().Add(10 * time.Second)
-	var matched bool
-	var output string
 	for {
-		output = replaceNewlines(person.Output(1000))
-		matched, _ = regexp.MatchString(pattern, output)
+		output := replaceNewlines(person.Output(1000))
+		matched, _ := regexp.MatchString(pattern, output)
 		if matched {
 			return nil
 		}
 		select {
-		case <-time.After(time.Millisecond * 50):
+		case <-time.After(50 * time.Millisecond):
 		case <-ctx.Done():
 			// cancellation means that we don't care about the input being
 			// confirmed anymore; not equivalent to a timeout.
@@ -2405,7 +2383,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		tc.Stdout = stdout
 		err = tc.SSH(ctx, cmd)
 		require.NoError(t, err)
-	}, 10*time.Second, 250*time.Millisecond)
+	}, time.Minute, 250*time.Millisecond)
 	require.Equal(t, "hello world\n", stdout.String())
 
 	clientHasEvents := func(cc authclient.ClientI, count int) func() bool {
@@ -4948,26 +4926,21 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	beforeSession := time.Now()
 
-	// create interactive session (this goroutine is this user's terminal time)
-	endCh := make(chan error, 1)
-
 	myTerm := NewTerminal(250)
 	cl, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
 		Port:    helpers.Port(t, teleport.SSH),
+		Stdout:  myTerm,
+		Stdin:   myTerm,
 	})
 	require.NoError(t, err)
-	go func() {
-		cl.Stdout = myTerm
-		cl.Stdin = myTerm
-		err = cl.SSH(ctx, []string{})
-		endCh <- err
-	}()
 
-	// wait for the user to join this session
-	tracker := waitForSessionToBeEstablished(t, site, 1)
+	// create interactive session
+	tracker, endCh, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
+	require.NoError(t, err)
+
 	// make sure it's us who joined! :)
 	require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
@@ -9457,33 +9430,23 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		require.NoError(t, lis.Close())
 	})
 
-	go func() {
-		nConn, err := lis.Accept()
-		if utils.IsOKNetworkError(err) {
-			return
-		}
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if nConn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = nConn.Close()
-			}
-		})
+	handleConn := func(nConn net.Conn) {
+		defer nConn.Close()
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if conn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = conn.Close()
+		if err != nil {
+			// If the connection does not perform an SSH handshake, then this is just
+			// a readiness probe (raw TCP Dial) from the test.
+			if utils.IsOKNetworkError(err) {
+				return
 			}
-		})
+			assert.NoError(t, err)
+			return
+		}
+		defer conn.Close()
+
 		go ssh.DiscardRequests(reqs)
 
-		var agentForwarded bool
-		var shellRequested bool
-		var execRequested bool
-		var sftpRequested bool
 		for {
 			var channelReq ssh.NewChannel
 			select {
@@ -9500,12 +9463,10 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			}
 			channel, reqs, err := channelReq.Accept()
 			assert.NoError(t, err)
-			t.Cleanup(func() {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = channel.Close()
-			})
+			defer channel.Close()
 
 			go func() {
+				var agentForwarded, shellRequested, execRequested, sftpRequested bool
 			outer:
 				for {
 					var req *ssh.Request
@@ -9554,6 +9515,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
 			}()
+		}
+	}
+
+	go func() {
+		for {
+			nConn, err := lis.Accept()
+			if utils.IsOKNetworkError(err) || errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if !assert.NoError(t, err) {
+				return
+			}
+			go handleConn(nConn)
 		}
 	}()
 
