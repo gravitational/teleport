@@ -630,6 +630,8 @@ type sessionCacheOptions struct {
 	proxySigner multiplexer.PROXYHeaderSigner
 	// See [sessionCache.sessionWatcherStartImmediately]. Used for testing.
 	sessionWatcherStartImmediately bool
+	// See [sessionCache.sessionWatcherInitializedChannel]. Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 }
@@ -648,19 +650,26 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	}
 
 	cache := &sessionCache{
-		clusterName:                         clusterName.GetClusterName(),
-		proxyClient:                         config.proxyClient,
-		accessPoint:                         config.accessPoint,
-		sessions:                            make(map[string]*SessionContext),
-		resources:                           make(map[string]*sessionResources),
-		authServers:                         config.servers,
-		closer:                              utils.NewCloseBroadcaster(),
-		cipherSuites:                        config.cipherSuites,
-		log:                                 newPackageLogger(),
-		clock:                               config.clock,
-		sessionLingeringThreshold:           config.sessionLingeringThreshold,
-		proxySigner:                         config.proxySigner,
-		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
+		clusterName:                      clusterName.GetClusterName(),
+		proxyClient:                      config.proxyClient,
+		accessPoint:                      config.accessPoint,
+		sessions:                         make(map[string]*SessionContext),
+		resources:                        make(map[string]*sessionResources),
+		authServers:                      config.servers,
+		closer:                           utils.NewCloseBroadcaster(),
+		cipherSuites:                     config.cipherSuites,
+		log:                              newPackageLogger(),
+		clock:                            config.clock,
+		sessionLingeringThreshold:        config.sessionLingeringThreshold,
+		proxySigner:                      config.proxySigner,
+		sessionWatcherStartImmediately:   config.sessionWatcherStartImmediately,
+		sessionWatcherInitializedChannel: config.sessionWatcherInitializedChannel,
+		sessionWatcherMarkInitialized: sync.OnceFunc(func() {
+			c := config.sessionWatcherInitializedChannel
+			if c != nil {
+				close(c)
+			}
+		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
 	}
 
@@ -712,7 +721,14 @@ type sessionCache struct {
 	// backoff used to start the WebSession watcher.
 	// Used for testing.
 	sessionWatcherStartImmediately bool
-
+	// sessionWatcherInitializedChannel is used to signal that the sessionWatcher
+	// received its first OpInit event and is ready to observe updates.
+	// May be nil.
+	// Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
+	// sessionWatcherMarkInitialized safely closes
+	// sessionWatcherInitializedChannel.
+	sessionWatcherMarkInitialized func()
 	// sessionWatcherEventProcessedChannel is used to signal that the
 	// sessionWatcher processed an event.
 	// May be nil.
@@ -842,6 +858,10 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 				WithField("event", event).
 				Trace("sessionCache: Received watcher event")
 
+			if event.Type == types.OpInit {
+				s.sessionWatcherMarkInitialized()
+				continue
+			}
 			if event.Type != types.OpPut {
 				continue // We only care about OpPut at the moment.
 			}
