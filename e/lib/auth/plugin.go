@@ -604,6 +604,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			computeServiceClient := beamservicev1.NewBeamsOrchestratorServiceClient(client)
 
 			srv, err := beamsv1.NewBeamService(beamsv1.BeamsServiceConfig{
+				ClusterName:             clusterName,
 				AuthPreferenceGetter:    p.authServer.AuthServer,
 				BeamReader:              p.authServer.AuthServer,
 				StorageBackend:          p.authServer.GetBackend(),

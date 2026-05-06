@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"google.golang.org/protobuf/proto"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
@@ -84,7 +85,7 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 				return nil, trace.Wrap(err)
 			}
 		} else {
-			app, err := publishBeamApp(newBeam)
+			app, err := s.publishBeamApp(newBeam)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -134,15 +135,30 @@ func labelsChanged(before, after *beamsv1.Beam) bool {
 	return !maps.Equal(before.GetMetadata().GetLabels(), after.GetMetadata().GetLabels())
 }
 
-func publishBeamApp(beam *beamsv1.Beam) (types.Application, error) {
-	// TODO(boxofrad): Add mTLS configuration when support is merged.
-	var spec types.AppSpecV3
+func (s *BeamsService) publishBeamApp(beam *beamsv1.Beam) (types.Application, error) {
+	trustDomain, err := spiffeid.TrustDomainFromString(s.clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spiffeID, err := spiffeid.FromPath(trustDomain, beamSPIFFEPath(beam))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec := types.AppSpecV3{
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifySpiffeID,
+			ServerSpiffeId: spiffeID.String(),
+			AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
+	}
+
 	protocol := beam.GetSpec().GetPublish().GetProtocol()
 	switch protocol {
 	case beamsv1.Protocol_PROTOCOL_HTTP:
 		spec.URI = fmt.Sprintf("https://%s", beam.GetStatus().GetAppAddrHttp())
 	case beamsv1.Protocol_PROTOCOL_TCP:
-		spec.URI = fmt.Sprintf("tcp://%s", beam.GetStatus().GetAppAddrTcp())
+		spec.URI = fmt.Sprintf("tls://%s", beam.GetStatus().GetAppAddrTcp())
 	default:
 		return nil, trace.BadParameter("unsupported protocol: %s", protocol)
 	}

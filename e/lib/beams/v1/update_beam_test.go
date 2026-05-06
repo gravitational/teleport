@@ -1,6 +1,7 @@
 package beamsv1
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -31,14 +32,14 @@ func TestUpdateBeamPublish(t *testing.T) {
 		{
 			name:        "tcp",
 			protocol:    beamsv1pb.Protocol_PROTOCOL_TCP,
-			expectedURI: "tcp://127.0.0.1:8444",
+			expectedURI: "tls://127.0.0.1:8444",
 		},
 		{
 			name:               "http to tcp",
 			protocol:           beamsv1pb.Protocol_PROTOCOL_HTTP,
 			expectedURI:        "https://127.0.0.1:8443",
 			updateProtocol:     beamsv1pb.Protocol_PROTOCOL_TCP,
-			expectedUpdatedURI: "tcp://127.0.0.1:8444",
+			expectedUpdatedURI: "tls://127.0.0.1:8444",
 		},
 	}
 
@@ -73,7 +74,7 @@ func TestUpdateBeamPublish(t *testing.T) {
 			app, err := pack.app.GetApp(t.Context(), resp.GetBeam().GetStatus().GetAppName())
 			require.NoError(t, err)
 			require.Equal(t, resp.GetBeam().GetStatus().GetAppName(), app.GetName())
-			require.Equal(t, tt.expectedURI, app.GetURI())
+			requirePublishedBeamApp(t, app, resp.GetBeam(), tt.expectedURI)
 
 			if tt.updateProtocol == beamsv1pb.Protocol_PROTOCOL_UNSPECIFIED {
 				return
@@ -95,9 +96,23 @@ func TestUpdateBeamPublish(t *testing.T) {
 
 			app, err = pack.app.GetApp(t.Context(), updateResp.GetBeam().GetStatus().GetAppName())
 			require.NoError(t, err)
-			require.Equal(t, tt.expectedUpdatedURI, app.GetURI())
+			requirePublishedBeamApp(t, app, updateResp.GetBeam(), tt.expectedUpdatedURI)
 		})
 	}
+}
+
+func requirePublishedBeamApp(t *testing.T, app types.Application, beam *beamsv1pb.Beam, expectedURI string) {
+	t.Helper()
+
+	require.Equal(t, expectedURI, app.GetURI())
+	require.Equal(t, &types.AppTLS{
+		Mode:           types.AppTLSModeVerifySpiffeID,
+		ServerSpiffeId: fmt.Sprintf("spiffe://dunder-mifflin.beams.run/_teleport-cloud/beams/%s", beam.GetMetadata().GetName()),
+		AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+		ClientCertMode: types.AppClientCertModeManaged,
+	}, app.GetTLS())
+	require.Equal(t, types.AppTLSModeVerifySpiffeID, app.GetTLSMode())
+	require.Equal(t, types.AppClientCertModeManaged, app.GetClientCertMode())
 }
 
 func TestUpdateBeamUnpublish(t *testing.T) {

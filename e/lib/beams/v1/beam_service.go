@@ -21,6 +21,8 @@ import (
 // NewBeamService creates a new BeamService with the given configuration.
 func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 	switch {
+	case cfg.ClusterName == "":
+		return nil, trace.BadParameter("ClusterName is required")
 	case cfg.AuthPreferenceGetter == nil:
 		return nil, trace.BadParameter("AuthPreferenceGetter is required")
 	case cfg.BeamReader == nil:
@@ -56,6 +58,7 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 	}
 
 	return &BeamsService{
+		clusterName:             cfg.ClusterName,
 		authPreferenceGetter:    cfg.AuthPreferenceGetter,
 		beamReader:              cfg.BeamReader,
 		storageBackend:          cfg.StorageBackend,
@@ -76,6 +79,9 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 
 // BeamsServiceConfig contains the configuration options for BeamService.
 type BeamsServiceConfig struct {
+	// ClusterName is the current cluster's name.
+	ClusterName string
+
 	// AuthPreferenceGetter is used to read the cluster's auth preference.
 	AuthPreferenceGetter AuthPreferenceGetter
 
@@ -233,6 +239,7 @@ type StorageBackend interface {
 type BeamsService struct {
 	beamsv1.UnimplementedBeamServiceServer
 
+	clusterName          string
 	authPreferenceGetter AuthPreferenceGetter
 	beamReader           services.BeamReader
 

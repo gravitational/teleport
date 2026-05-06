@@ -370,7 +370,7 @@ func beamWorkloadIdentity(beam *beamsv1.Beam) (*workloadidentityv1.WorkloadIdent
 				},
 			},
 			Spiffe: &workloadidentityv1.WorkloadIdentitySPIFFE{
-				Id: fmt.Sprintf("/_teleport-cloud/beams/%s", beam.GetMetadata().GetName()),
+				Id: beamSPIFFEPath(beam),
 			},
 		},
 	}, nil
@@ -412,4 +412,8 @@ func beamResourceLabels(beam *beamsv1.Beam) map[string]string {
 
 func beamResourceName(beam *beamsv1.Beam) string {
 	return fmt.Sprintf("beam-%s", beam.GetMetadata().GetName())
+}
+
+func beamSPIFFEPath(beam *beamsv1.Beam) string {
+	return fmt.Sprintf("/_teleport-cloud/beams/%s", beam.GetMetadata().GetName())
 }

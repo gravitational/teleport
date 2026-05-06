@@ -159,6 +159,7 @@ func (p *beamServiceTestPack) service(t *testing.T, user types.User) *BeamsServi
 	})
 
 	service, err := NewBeamService(BeamsServiceConfig{
+		ClusterName:             "dunder-mifflin.beams.run",
 		AuthPreferenceGetter:    testAuthPreferenceGetter{},
 		BeamReader:              p.beam,
 		StorageBackend:          p.backend,
