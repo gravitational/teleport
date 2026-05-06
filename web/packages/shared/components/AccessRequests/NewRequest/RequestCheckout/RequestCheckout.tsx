@@ -66,6 +66,7 @@ import {
   formatAWSRoleARNForDisplay,
   toggleAWSConsoleConstraint,
   toggleDatabaseConstraint,
+  toggleKubernetesConstraint,
   toggleSSHConstraint,
 } from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
@@ -80,9 +81,10 @@ import {
   hasResourceConstraints,
   RequestKind,
   ResourceConstraints,
+  ResourceConstraintsKind,
   ResourceConstraintsMap,
+  ResourceConstraintsVariant,
   ResourceIDString,
-  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
@@ -194,212 +196,78 @@ const StyledResourceConstraintDisplayRow = styled(Flex).attrs({
   }
 `;
 
-const AWSConsoleConstraintsList = <T extends PendingListItem>({
-  item,
-  createAttempt,
-  clearAttempt,
-  setResourceConstraints,
-}: {
-  item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
-  createAttempt: RequestCheckoutProps<T>['createAttempt'];
-  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
-  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-}) => (
-  <Flex flexDirection="column" gap={1} mt={1} width="100%">
-    <Text bold>Role ARNs</Text>
-    <Flex flexDirection="column" width="100%">
-      {item.constraints.aws_console.role_arns.map((arn, idx) => (
-        <StyledResourceConstraintDisplayRow
-          key={arn}
-          $idx={idx}
-          $len={item.constraints.aws_console.role_arns.length}
-        >
-          <Text style={{ alignContent: 'center' }}>
-            {formatAWSRoleARNForDisplay(arn)}
-          </Text>
-          <ButtonIcon
-            size={0}
-            title="Remove Role ARN"
-            onClick={() => {
-              clearAttempt();
-              toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
-            }}
-            disabled={createAttempt.status === 'processing'}
-            css={`
-              border-radius: ${({ theme }) => theme.radii[2]}px;
-            `}
-          >
-            <Cross size="small" />
-          </ButtonIcon>
-        </StyledResourceConstraintDisplayRow>
-      ))}
-    </Flex>
-  </Flex>
-);
-
-const SSHConstraintsList = <T extends PendingListItem>({
-  item,
-  createAttempt,
-  clearAttempt,
-  setResourceConstraints,
-}: {
-  item: WithResourceConstraints<'ssh', DisplayRow<T>>;
-  createAttempt: RequestCheckoutProps<T>['createAttempt'];
-  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
-  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-}) => (
-  <Flex flexDirection="column" gap={1} mt={1} width="100%">
-    <Text bold>SSH Logins</Text>
-    <Flex flexDirection="column" width="100%">
-      {item.constraints.ssh.logins.map((login, idx) => (
-        <StyledResourceConstraintDisplayRow
-          key={login}
-          $idx={idx}
-          $len={item.constraints.ssh.logins.length}
-        >
-          <Text style={{ alignContent: 'center' }}>{login}</Text>
-          <ButtonIcon
-            size={0}
-            title="Remove Login"
-            onClick={() => {
-              clearAttempt();
-              toggleSSHConstraint(item, login, setResourceConstraints);
-            }}
-            disabled={createAttempt.status === 'processing'}
-            css={`
-              border-radius: ${({ theme }) => theme.radii[2]}px;
-            `}
-          >
-            <Cross size="small" />
-          </ButtonIcon>
-        </StyledResourceConstraintDisplayRow>
-      ))}
-    </Flex>
-  </Flex>
-);
-
-const DatabaseConstraintsList = <T extends PendingListItem>({
-  item,
-  createAttempt,
-  clearAttempt,
-  setResourceConstraints,
-}: {
-  item: WithResourceConstraints<'database', DisplayRow<T>>;
-  createAttempt: RequestCheckoutProps<T>['createAttempt'];
-  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
-  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-}) => {
-  const db = item.constraints.database;
-  return (
-    <Flex flexDirection="column" gap={2} mt={1} width="100%">
-      {!!db.names?.length && (
-        <Flex flexDirection="column" gap={1}>
-          <Text bold>Database Names</Text>
-          <Flex flexDirection="column" width="100%">
-            {db.names.map((name, idx) => (
-              <StyledResourceConstraintDisplayRow
-                key={name}
-                $idx={idx}
-                $len={db.names.length}
-              >
-                <Text style={{ alignContent: 'center' }}>{name}</Text>
-                <ButtonIcon
-                  size={0}
-                  title="Remove Database Name"
-                  onClick={() => {
-                    clearAttempt();
-                    toggleDatabaseConstraint(
-                      item,
-                      'names',
-                      name,
-                      setResourceConstraints
-                    );
-                  }}
-                  disabled={createAttempt.status === 'processing'}
-                  css={`
-                    border-radius: ${({ theme }) => theme.radii[2]}px;
-                  `}
-                >
-                  <Cross size="small" />
-                </ButtonIcon>
-              </StyledResourceConstraintDisplayRow>
-            ))}
-          </Flex>
-        </Flex>
-      )}
-      {!!db.users?.length && (
-        <Flex flexDirection="column" gap={1}>
-          <Text bold>Database Users</Text>
-          <Flex flexDirection="column" width="100%">
-            {db.users.map((user, idx) => (
-              <StyledResourceConstraintDisplayRow
-                key={user}
-                $idx={idx}
-                $len={db.users.length}
-              >
-                <Text style={{ alignContent: 'center' }}>{user}</Text>
-                <ButtonIcon
-                  size={0}
-                  title="Remove Database User"
-                  onClick={() => {
-                    clearAttempt();
-                    toggleDatabaseConstraint(
-                      item,
-                      'users',
-                      user,
-                      setResourceConstraints
-                    );
-                  }}
-                  disabled={createAttempt.status === 'processing'}
-                  css={`
-                    border-radius: ${({ theme }) => theme.radii[2]}px;
-                  `}
-                >
-                  <Cross size="small" />
-                </ButtonIcon>
-              </StyledResourceConstraintDisplayRow>
-            ))}
-          </Flex>
-        </Flex>
-      )}
-      {!!db.roles?.length && (
-        <Flex flexDirection="column" gap={1}>
-          <Text bold>Database Roles</Text>
-          <Flex flexDirection="column" width="100%">
-            {db.roles.map((role, idx) => (
-              <StyledResourceConstraintDisplayRow
-                key={role}
-                $idx={idx}
-                $len={db.roles.length}
-              >
-                <Text style={{ alignContent: 'center' }}>{role}</Text>
-                <ButtonIcon
-                  size={0}
-                  title="Remove Database Role"
-                  onClick={() => {
-                    clearAttempt();
-                    toggleDatabaseConstraint(
-                      item,
-                      'roles',
-                      role,
-                      setResourceConstraints
-                    );
-                  }}
-                  disabled={createAttempt.status === 'processing'}
-                  css={`
-                    border-radius: ${({ theme }) => theme.radii[2]}px;
-                  `}
-                >
-                  <Cross size="small" />
-                </ButtonIcon>
-              </StyledResourceConstraintDisplayRow>
-            ))}
-          </Flex>
-        </Flex>
-      )}
-    </Flex>
-  );
+type CheckoutConstraintSection = {
+  title: string;
+  values: string[];
+  formatLabel?: (v: string) => string;
+  onRemove: (value: string) => void;
 };
+
+/**
+ * Config map from constraint variant key to a function that extracts
+ * displayable/removable sections. Adding a new constraint type requires
+ * only a new entry here.
+ */
+const checkoutConstraintExtractors: {
+  [K in ResourceConstraintsKind]: <T extends PendingListItem>(
+    item: DisplayRow<T> & { constraints: ResourceConstraintsVariant<K> },
+    set: (key: ResourceIDString, rc?: ResourceConstraints) => void
+  ) => CheckoutConstraintSection[];
+} = {
+  aws_console: (item, set) => [
+    {
+      title: 'Role ARNs',
+      values: item.constraints.aws_console.role_arns,
+      formatLabel: formatAWSRoleARNForDisplay,
+      onRemove: v => toggleAWSConsoleConstraint(item, v, set),
+    },
+  ],
+  ssh: (item, set) => [
+    {
+      title: 'SSH Logins',
+      values: item.constraints.ssh.logins,
+      onRemove: v => toggleSSHConstraint(item, v, set),
+    },
+  ],
+  database: (item, set) => {
+    const db = item.constraints.database;
+    const sections: CheckoutConstraintSection[] = [];
+    if (db.names?.length)
+      sections.push({
+        title: 'Database Names',
+        values: db.names,
+        onRemove: v => toggleDatabaseConstraint(item, 'names', v, set),
+      });
+    if (db.users?.length)
+      sections.push({
+        title: 'Database Users',
+        values: db.users,
+        onRemove: v => toggleDatabaseConstraint(item, 'users', v, set),
+      });
+    if (db.roles?.length)
+      sections.push({
+        title: 'Database Roles',
+        values: db.roles,
+        onRemove: v => toggleDatabaseConstraint(item, 'roles', v, set),
+      });
+    return sections;
+  },
+  kubernetes: (item, set) => {
+    const kube = item.constraints.kubernetes;
+    const sections: CheckoutConstraintSection[] = [];
+    if (kube.groups?.length)
+      sections.push({
+        title: 'Kubernetes Groups',
+        values: kube.groups,
+        onRemove: v => toggleKubernetesConstraint(item, 'groups', v, set),
+      });
+    return sections;
+  },
+};
+
+const checkoutConstraintKinds = Object.keys(
+  checkoutConstraintExtractors
+) as ResourceConstraintsKind[];
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
@@ -585,49 +453,56 @@ export function RequestCheckout<T extends PendingListItem>({
   };
 
   const renderAfter = (item: DisplayRow<T>) => {
-    if (hasResourceConstraints(item, 'aws_console')) {
-      return (
-        <tr style={{ borderTop: 'none' }} data-render-after-row>
-          <td colSpan={showClusterNameColumn ? 4 : 3}>
-            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
-              <AWSConsoleConstraintsList
-                item={item}
-                setResourceConstraints={setResourceConstraints}
-                clearAttempt={clearAttempt}
-                createAttempt={createAttempt}
-              />
-            </Flex>
-          </td>
-        </tr>
+    for (const kind of checkoutConstraintKinds) {
+      if (!hasResourceConstraints(item, kind)) continue;
+      const sections = checkoutConstraintExtractors[kind](
+        item as DisplayRow<T> & {
+          constraints: ResourceConstraintsVariant<typeof kind>;
+        },
+        setResourceConstraints
       );
-    }
-    if (hasResourceConstraints(item, 'ssh')) {
+      if (sections.length === 0) continue;
       return (
         <tr style={{ borderTop: 'none' }} data-render-after-row>
           <td colSpan={showClusterNameColumn ? 4 : 3}>
             <Flex justifyContent="space-between" alignItems="center" mt={-2}>
-              <SSHConstraintsList
-                item={item}
-                setResourceConstraints={setResourceConstraints}
-                clearAttempt={clearAttempt}
-                createAttempt={createAttempt}
-              />
-            </Flex>
-          </td>
-        </tr>
-      );
-    }
-    if (hasResourceConstraints(item, 'database')) {
-      return (
-        <tr style={{ borderTop: 'none' }} data-render-after-row>
-          <td colSpan={showClusterNameColumn ? 4 : 3}>
-            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
-              <DatabaseConstraintsList
-                item={item}
-                setResourceConstraints={setResourceConstraints}
-                clearAttempt={clearAttempt}
-                createAttempt={createAttempt}
-              />
+              <Flex flexDirection="column" gap={2} mt={1} width="100%">
+                {sections.map(({ title, values, formatLabel, onRemove }) => (
+                  <Flex key={title} flexDirection="column" gap={1}>
+                    <Text bold>{title}</Text>
+                    <Flex flexDirection="column" width="100%">
+                      {values.map((v, idx) => (
+                        <StyledResourceConstraintDisplayRow
+                          key={v}
+                          $idx={idx}
+                          $len={values.length}
+                        >
+                          <Text style={{ alignContent: 'center' }}>
+                            {formatLabel ? formatLabel(v) : v}
+                          </Text>
+                          <ButtonIcon
+                            size={0}
+                            title={`Remove ${title.replace(/s$/, '')}`}
+                            onClick={() => {
+                              clearAttempt();
+                              onRemove(v);
+                            }}
+                            disabled={
+                              createAttempt.status === 'processing'
+                            }
+                            css={`
+                              border-radius: ${({ theme }) =>
+                                theme.radii[2]}px;
+                            `}
+                          >
+                            <Cross size="small" />
+                          </ButtonIcon>
+                        </StyledResourceConstraintDisplayRow>
+                      ))}
+                    </Flex>
+                  </Flex>
+                ))}
+              </Flex>
             </Flex>
           </td>
         </tr>

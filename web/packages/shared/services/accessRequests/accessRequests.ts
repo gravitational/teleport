@@ -159,6 +159,10 @@ export type DatabaseConstraints = {
   roles?: string[];
 };
 
+export type KubernetesConstraints = {
+  groups?: string[];
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -173,21 +177,31 @@ export type ResourceConstraints = BaseResourceConstraints &
         aws_console: AwsConsoleConstraints;
         ssh?: never;
         database?: never;
+        kubernetes?: never;
       }
     | {
         aws_console?: never;
         ssh: SshConstraints;
         database?: never;
+        kubernetes?: never;
       }
     | {
         aws_console?: never;
         ssh?: never;
         database: DatabaseConstraints;
+        kubernetes?: never;
       }
     | {
         aws_console?: never;
         ssh?: never;
         database?: never;
+        kubernetes: KubernetesConstraints;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
+        database?: never;
+        kubernetes?: never;
       }
   );
 

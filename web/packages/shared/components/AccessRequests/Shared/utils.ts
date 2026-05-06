@@ -20,6 +20,7 @@ import { formatDuration, intervalToDuration } from 'date-fns';
 
 import {
   DatabaseConstraints,
+  KubernetesConstraints,
   getResourceIDString,
   ResourceConstraints,
   ResourceIDString,
@@ -164,4 +165,39 @@ export const toggleDatabaseConstraint = <T extends PendingListItem>(
       (newDb.roles?.length ?? 0) >
     0;
   set(key, hasAny ? { database: newDb } : undefined);
+};
+
+/**
+ * Toggles a Kubernetes constraint by removing the specified value from the
+ * given dimension (groups or users). If no values remain in any dimension
+ * after removal, it clears the constraint.
+ */
+export const toggleKubernetesConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'kubernetes',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  dimension: keyof KubernetesConstraints,
+  value: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const kube = item.constraints.kubernetes;
+  const newKube: KubernetesConstraints = {
+    groups: kube.groups ? [...kube.groups] : undefined,
+  };
+  if (newKube[dimension]) {
+    newKube[dimension] = newKube[dimension].filter(v => v !== value);
+    if (newKube[dimension].length === 0) {
+      newKube[dimension] = undefined;
+    }
+  }
+  set(key, newKube.groups?.length ? { kubernetes: newKube } : undefined);
 };

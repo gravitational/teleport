@@ -17,8 +17,14 @@
  */
 
 import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
+import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 import { ResourceLabel } from 'teleport/services/agents';
+
+export type KubeRolePrincipalGroup = {
+  requiresRequest?: boolean;
+  groups?: string[];
+};
 
 export interface Kube {
   kind: 'kube_cluster';
@@ -27,6 +33,8 @@ export interface Kube {
   users?: string[];
   groups?: string[];
   requiresRequest?: boolean;
+  kubePrincipalsByRole?: Record<string, KubeRolePrincipalGroup>;
+  supportedFeatureIds?: ComponentFeatureID[];
   /**
    * targetHealth describes the health status of a Kubernetes cluster
    * reported from an agent (kubernetes_service) that is proxying this

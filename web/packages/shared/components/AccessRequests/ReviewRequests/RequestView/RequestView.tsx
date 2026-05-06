@@ -53,7 +53,9 @@ import {
   RequestKind,
   RequestState,
   Resource,
-  WithResourceConstraints,
+  ResourceConstraints,
+  ResourceConstraintsKind,
+  ResourceConstraintsVariant,
 } from 'shared/services/accessRequests';
 
 import type {
@@ -453,99 +455,110 @@ export function Timestamp({
   );
 }
 
-const AWSConstraintChip = ({ label }: { label: string }) => {
-  return (
-    <Flex
-      flexDirection="row"
-      justifyContent="center"
-      alignItems="center"
-      gap={2}
-      px={3}
-      py={2}
-      backgroundColor={'spotBackground.0'}
-      borderRadius="999px"
-      title={label}
-    >
-      <Key size="small" />
-      <Text typography="body3">{formatAWSRoleARNForDisplay(label)}</Text>
-    </Flex>
-  );
+type ConstraintSectionDef = {
+  title: string;
+  values: string[];
+  formatLabel?: (v: string) => string;
 };
 
-const AwsConsoleConstraintsList = <R extends object>({
-  resource,
-}: {
-  resource: WithResourceConstraints<'aws_console', R>;
-}) => {
-  return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      <Text bold>Role ARNs</Text>
-      <Flex flexDirection="row" gap={2} flexWrap="wrap">
-        {resource.constraints.aws_console.role_arns.map(arn => (
-          <AWSConstraintChip key={arn} label={arn} />
-        ))}
-      </Flex>
-    </Flex>
-  );
+/**
+ * Config map from constraint variant key to a function that extracts
+ * displayable sections from the narrowed constraint. Adding a new
+ * constraint type requires only a new entry here.
+ */
+const constraintSectionExtractors: {
+  [K in ResourceConstraintsKind]: (
+    c: ResourceConstraintsVariant<K>
+  ) => ConstraintSectionDef[];
+} = {
+  aws_console: c => [
+    {
+      title: 'Role ARNs',
+      values: c.aws_console.role_arns,
+      formatLabel: formatAWSRoleARNForDisplay,
+    },
+  ],
+  ssh: c => [{ title: 'SSH Logins', values: c.ssh.logins }],
+  database: c => {
+    const sections: ConstraintSectionDef[] = [];
+    if (c.database.users?.length)
+      sections.push({ title: 'Database Users', values: c.database.users });
+    if (c.database.names?.length)
+      sections.push({ title: 'Database Names', values: c.database.names });
+    if (c.database.roles?.length)
+      sections.push({ title: 'Database Roles', values: c.database.roles });
+    return sections;
+  },
+  kubernetes: c => {
+    const sections: ConstraintSectionDef[] = [];
+    if (c.kubernetes.groups?.length)
+      sections.push({
+        title: 'Kubernetes Groups',
+        values: c.kubernetes.groups,
+      });
+    return sections;
+  },
 };
 
-const SshConstraintsList = <R extends object>({
-  resource,
-}: {
-  resource: WithResourceConstraints<'ssh', R>;
-}) => {
-  return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      <Text bold>SSH Logins</Text>
-      <Flex flexDirection="row" gap={2} flexWrap="wrap">
-        {resource.constraints.ssh.logins.map(login => (
-          <AWSConstraintChip key={login} label={login} />
-        ))}
-      </Flex>
-    </Flex>
-  );
-};
+const constraintKinds = Object.keys(
+  constraintSectionExtractors
+) as ResourceConstraintsKind[];
 
-const DatabaseConstraintsList = <R extends object>({
+const ConstraintChip = ({
+  label,
+  formatLabel,
+}: {
+  label: string;
+  formatLabel?: (v: string) => string;
+}) => (
+  <Flex
+    flexDirection="row"
+    justifyContent="center"
+    alignItems="center"
+    gap={2}
+    px={3}
+    py={2}
+    backgroundColor="spotBackground.0"
+    borderRadius="999px"
+    title={label}
+  >
+    <Key size="small" />
+    <Text typography="body3">{formatLabel ? formatLabel(label) : label}</Text>
+  </Flex>
+);
+
+/**
+ * Renders constraint details for a resource by detecting the active variant
+ * and delegating to the corresponding section extractor.
+ */
+const ConstraintsList = <R extends object>({
   resource,
 }: {
-  resource: WithResourceConstraints<'database', R>;
+  resource: R & { constraints: ResourceConstraints };
 }) => {
-  const db = resource.constraints.database;
-  return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      {db.users && db.users.length > 0 && (
-        <>
-          <Text bold>Database Users</Text>
-          <Flex flexDirection="row" gap={2} flexWrap="wrap">
-            {db.users.map(user => (
-              <AWSConstraintChip key={user} label={user} />
-            ))}
-          </Flex>
-        </>
-      )}
-      {db.names && db.names.length > 0 && (
-        <>
-          <Text bold>Database Names</Text>
-          <Flex flexDirection="row" gap={2} flexWrap="wrap">
-            {db.names.map(name => (
-              <AWSConstraintChip key={name} label={name} />
-            ))}
-          </Flex>
-        </>
-      )}
-      {db.roles && db.roles.length > 0 && (
-        <>
-          <Text bold>Database Roles</Text>
-          <Flex flexDirection="row" gap={2} flexWrap="wrap">
-            {db.roles.map(role => (
-              <AWSConstraintChip key={role} label={role} />
-            ))}
-          </Flex>
-        </>
-      )}
-    </Flex>
-  );
+  for (const kind of constraintKinds) {
+    if (hasResourceConstraints(resource, kind)) {
+      const sections = constraintSectionExtractors[kind](
+        resource.constraints as ResourceConstraintsVariant<typeof kind>
+      );
+      if (sections.length === 0) return null;
+      return (
+        <Flex flexDirection="column" gap={2} mt={2}>
+          {sections.map(({ title, values, formatLabel }) => (
+            <Fragment key={title}>
+              <Text bold>{title}</Text>
+              <Flex flexDirection="row" gap={2} flexWrap="wrap">
+                {values.map(v => (
+                  <ConstraintChip key={v} label={v} formatLabel={formatLabel} />
+                ))}
+              </Flex>
+            </Fragment>
+          ))}
+        </Flex>
+      );
+    }
+  }
+  return null;
 };
 
 function Comment({
@@ -566,25 +579,12 @@ function Comment({
     constraints: resource.constraints,
   }));
 
-  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
-    if (hasResourceConstraints(r, 'aws_console')) {
-      return <AwsConsoleConstraintsList resource={r} />;
-    }
-    if (hasResourceConstraints(r, 'ssh')) {
-      return <SshConstraintsList resource={r} />;
-    }
-    if (hasResourceConstraints(r, 'database')) {
-      return <DatabaseConstraintsList resource={r} />;
-    }
-    return null;
-  };
-
   const renderAfter = (r: NonNullable<typeof data>[number]) =>
     r.constraints ? (
       <tr style={{ borderTop: 'none' }} data-render-after-row>
         <td colSpan={3}>
           <Flex flexDirection="column" gap={1} mt={-2}>
-            {renderConstraints(r)}
+            <ConstraintsList resource={r} />
           </Flex>
         </td>
       </tr>

@@ -29,6 +29,8 @@ export function makeKube(json): Kube {
     users: json.kubernetes_users || [],
     groups: json.kubernetes_groups || [],
     requiresRequest,
+    kubePrincipalsByRole: json.kubePrincipalsByRole,
+    supportedFeatureIds: json.supportedFeatureIds || [],
     targetHealth: targetHealth && {
       status: targetHealth.status,
       error: targetHealth.transition_error,
