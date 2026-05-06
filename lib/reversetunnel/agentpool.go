@@ -432,8 +432,7 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 
 	var activeDesiredProxies int
 	for _, proxyID := range proxyIDs {
-		desired, ok := snapshot.Proxies[proxyID]
-		if desired && ok {
+		if desired := snapshot.Proxies[proxyID]; desired {
 			activeDesiredProxies++
 		}
 	}
@@ -457,22 +456,23 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 		// Only desired proxies are considered for disconnects. Connections to
 		// untracked proxies may recover and connections to undesired proxies
 		// indicate a rollout and should be shutdown on their own.
-		if desired, ok := snapshot.Proxies[proxyID]; ok && desired {
-			agent, ok := p.active.getByProxyID(proxyID)
-			if !ok {
-				continue
-			}
+		if desired := snapshot.Proxies[proxyID]; !desired {
+			continue
+		}
+		agent, ok := p.active.getByProxyID(proxyID)
+		if !ok {
+			continue
+		}
 
-			// Wait until all desired agents have a measured RTT before
-			// choosing any to disconnect.
-			rtt, ok := agent.RTT()
-			if !ok {
-				return
-			}
-			if rtt > maxRTT {
-				maxRTT = rtt
-				disconnect = agent
-			}
+		// Wait until all desired agents have a measured RTT before
+		// choosing any to disconnect.
+		rtt, ok := agent.RTT()
+		if !ok {
+			return
+		}
+		if rtt > maxRTT {
+			maxRTT = rtt
+			disconnect = agent
 		}
 	}
 
