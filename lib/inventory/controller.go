@@ -1592,9 +1592,6 @@ func (c *Controller) keepAliveLinuxDesktop(handle *upstreamHandle, now time.Time
 		return nil
 	}
 
-	if handle.linuxDesktop.resource.Metadata == nil {
-		handle.linuxDesktop.resource.Metadata = &headerv1.Metadata{}
-	}
 	handle.linuxDesktop.resource.Metadata.Expires = timestamppb.New(now.Add(c.serverTTL).UTC())
 	if _, err := c.auth.UpsertLinuxDesktop(c.closeContext, handle.linuxDesktop.resource); err == nil {
 		handle.linuxDesktop.keepAliveErrs = 0
