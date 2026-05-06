@@ -1,10 +1,13 @@
 import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
+import { Info } from 'design/Alert';
+import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'design/CollapsibleInfoSection';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { GetAccountUpgradeWindowStartHourResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import { ContentMinWidth } from 'teleport/Main/Main';
@@ -64,6 +67,14 @@ function SupportWrapper({ ctx }: { ctx: TeleportEContext }) {
       <ContextProvider ctx={ctx}>
         <InfoGuidePanelProvider>
           <ContentMinWidth>
+            <CollapsibleInfoSectionComponent openLabel="Devs Instructions">
+              <Info
+                kind="info"
+                details="Select 16:00 and save to see error case"
+              >
+                Scheduled Upgrades error case
+              </Info>
+            </CollapsibleInfoSectionComponent>
             <Support>
               <SupportE />
             </Support>
@@ -74,13 +85,25 @@ function SupportWrapper({ ctx }: { ctx: TeleportEContext }) {
   );
 }
 
+const getWindowResponse: GetAccountUpgradeWindowStartHourResponse = {
+  upgradeWindowStartHour: 8,
+};
+
 function createMSWHandlers(clusterId: string) {
   return [
     http.get(cfg.getContactsUrl(clusterId), () =>
       HttpResponse.json(getContactsResponse)
     ),
-    http.post(cfg.getContactsUrl(clusterId), postHandler),
+    http.post(cfg.getContactsUrl(clusterId), contactsPostHandler),
     http.delete(cfg.getContactsUrl(clusterId), () => HttpResponse.json(null)),
+    http.get(cfg.getWindowUpgradeStartUrl('test-cluster'), () => {
+      return HttpResponse.json(getWindowResponse);
+    }),
+    http.post(cfg.getWindowUpgradeStartUrl('test-cluster'), windowPostHandler),
+    http.get(cfg.api.environmentProfileUrl, () => {
+      return HttpResponse.json({ environmentProfile: 'production' });
+    }),
+    http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
   ];
 }
 
@@ -174,7 +197,7 @@ ContactsLoading.parameters = {
   },
 };
 
-export const ContactsFailed = () => {
+export const FailedContactsAndWindow = () => {
   const ctx = createStoryContext({
     hasExternalAuditStorage: true,
     isCloud: true,
@@ -185,10 +208,18 @@ export const ContactsFailed = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-ContactsFailed.parameters = {
+FailedContactsAndWindow.parameters = {
   msw: {
     handlers: [
       http.get(cfg.getContactsUrl('test-cluster'), () => {
+        return HttpResponse.json(
+          { message: 'something went wrong' },
+          {
+            status: 500,
+          }
+        );
+      }),
+      http.get(cfg.getWindowUpgradeStartUrl('test-cluster'), () => {
         return HttpResponse.json(
           { message: 'something went wrong' },
           {
@@ -241,7 +272,30 @@ const getContactsResponse = {
   ],
 };
 
-async function postHandler(req) {
+async function environmentPostHandler(req) {
+  const { environmentProfile } = (await req.request.json()) as any;
+
+  return HttpResponse.json({
+    environmentProfile: environmentProfile,
+  });
+}
+
+async function windowPostHandler(req) {
+  const { upgradeWindowStartHour } = (await req.request.json()) as any;
+
+  if (upgradeWindowStartHour === 16) {
+    return HttpResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500, statusText: 'Internal Server Error' }
+    );
+  }
+
+  return HttpResponse.json({
+    upgradeWindowStartHour: upgradeWindowStartHour,
+  });
+}
+
+async function contactsPostHandler(req) {
   const { email, contact_type } = (await req.request.json()) as any;
 
   return HttpResponse.json({

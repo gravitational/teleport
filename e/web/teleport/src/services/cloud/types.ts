@@ -1,13 +1,3 @@
-import {
-  GetAccountUpgradeWindowStartHourResponse as CloudGetAccountUpgradeWindowStartHourResponse,
-  UpdateAccountUpgradeWindowStartHourRequest as CloudUpdateAccountUpgradeWindowStartHourRequest,
-} from './v1/tenants_pb';
-
-export type GetAccountUpgradeWindowStartHourResponse =
-  CloudGetAccountUpgradeWindowStartHourResponse;
-export type UpdateAccountUpgradeWindowStartHourRequest =
-  CloudUpdateAccountUpgradeWindowStartHourRequest;
-
 export type NonBillableSummaryInformation = {
   accessRequestUsage: {
     monthlyLimit: number;

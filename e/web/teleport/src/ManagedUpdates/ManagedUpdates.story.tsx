@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Flex } from 'design';
@@ -29,7 +30,7 @@ function createStoryContext() {
 }
 
 const StoryContainer = ({ children }: { children: React.ReactNode }) => {
-  const ctx = createStoryContext();
+  const [ctx] = useState(() => createStoryContext());
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
@@ -66,6 +67,11 @@ LoadedCloud.parameters = {
       http.get(cfg.oss.getManagedUpdatesUrl(), () => {
         return HttpResponse.json(mockManagedUpdatesTimeBasedCloud);
       }),
+      http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
+      http.get(cfg.api.environmentProfileUrl, () => {
+        return HttpResponse.json({ environmentProfile: 'production' });
+      }),
+      http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
     ],
   },
 };
@@ -86,6 +92,11 @@ CloudWithOrphanedAgents.parameters = {
           clusterMaintenance: mockClusterMaintenance,
         });
       }),
+      http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
+      http.get(cfg.api.environmentProfileUrl, () => {
+        return HttpResponse.json({ environmentProfile: 'production' });
+      }),
+      http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
     ],
   },
 };
@@ -103,6 +114,34 @@ NotConfiguredCloud.parameters = {
       http.get(cfg.oss.getManagedUpdatesUrl(), () => {
         return HttpResponse.json(mockManagedUpdatesNotConfiguredCloud);
       }),
+      http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
+      http.get(cfg.api.environmentProfileUrl, () => {
+        return HttpResponse.json({ environmentProfile: 'production' });
+      }),
+      http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
     ],
   },
 };
+
+async function environmentPostHandler(req) {
+  const { environmentProfile } = (await req.request.json()) as any;
+
+  return HttpResponse.json({
+    environmentProfile: environmentProfile,
+  });
+}
+
+async function windowPostHandler(req) {
+  const { upgradeWindowStartHour } = (await req.request.json()) as any;
+
+  if (upgradeWindowStartHour === 16) {
+    return HttpResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500, statusText: 'Internal Server Error' }
+    );
+  }
+
+  return HttpResponse.json({
+    upgradeWindowStartHour: upgradeWindowStartHour,
+  });
+}

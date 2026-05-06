@@ -4,10 +4,14 @@ import {
   GetMAUDailyBreakdownResponse,
   GetTPRDailyBreakdownRequest,
   GetTPRDailyBreakdownResponse,
+  GetAccountUpgradeWindowStartHourResponse,
+  GetEnvironmentProfileResponse,
   GetUsageRequest,
   GetUsageResponse,
   MAUDailyPoint,
   TPRDailyPoint,
+  UpdateAccountUpgradeWindowStartHourRequest,
+  UpdateEnvironmentProfileRequest,
   Usage,
   UsageCycle,
   UsageLimits,
@@ -21,6 +25,12 @@ import {
   SendTeleportCredentialReset,
   SendTeleportInvite,
 } from './types';
+
+export const availableEnvironmentProfiles = ['production', 'staging'];
+export const availableUpgradeWindowStartHours = [8, 16, 23] as const;
+export type UpgradeWindowStartHour =
+  (typeof availableUpgradeWindowStartHours)[number];
+export type EnvironmentProfile = 'production' | 'staging';
 
 class CloudService {
   fetchBillingSummaryInformation(
@@ -50,6 +60,43 @@ class CloudService {
       null,
       mfaResponse
     );
+  }
+
+  getUpgradeWindowStartHour(clusterId): Promise<UpgradeWindowStartHour> {
+    return api
+      .get(cfg.getWindowUpgradeStartUrl(clusterId))
+      .then(
+        (res: GetAccountUpgradeWindowStartHourResponse) =>
+          res.upgradeWindowStartHour as UpgradeWindowStartHour
+      );
+  }
+
+  updateUpgradeWindowStart(
+    clusterId,
+    upgradeWindowStartHour: UpgradeWindowStartHour
+  ): Promise<UpgradeWindowStartHour> {
+    const req: UpdateAccountUpgradeWindowStartHourRequest = {
+      upgradeWindowStartHour,
+    };
+    return api
+      .post(cfg.getWindowUpgradeStartUrl(clusterId), req)
+      .then(
+        (res: GetAccountUpgradeWindowStartHourResponse) =>
+          res.upgradeWindowStartHour as UpgradeWindowStartHour
+      );
+  }
+
+  getEnvironmentProfile(): Promise<GetEnvironmentProfileResponse> {
+    return api.get(cfg.api.environmentProfileUrl);
+  }
+
+  updateEnvironmentProfile(
+    profile: EnvironmentProfile
+  ): Promise<GetEnvironmentProfileResponse> {
+    const req: UpdateEnvironmentProfileRequest = {
+      environmentProfile: profile,
+    };
+    return api.post(cfg.api.environmentProfileUrl, req);
   }
 
   fetchMAUDailyBreakdown(

@@ -20,7 +20,6 @@ import { downloadsService } from './services/downloads';
 import { externalAuditStorageService } from './services/externalauditstorage';
 import { IdpService } from './services/idp';
 import { pluginsService } from './services/plugins';
-import { upgradeWindowService } from './services/upgradeWindow';
 
 class TeleportEContext extends TeleportContext {
   // stores
@@ -31,7 +30,6 @@ class TeleportEContext extends TeleportContext {
   resourceService = new ResourceService();
   cloudService = new CloudService();
   recoveryService = new RecoveryService();
-  upgradeWindowService = upgradeWindowService;
   downloadsService = downloadsService;
   pluginsService = pluginsService;
   deviceService = deviceService;

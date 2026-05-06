@@ -23,6 +23,24 @@ type cloudWithRoles struct {
 	v1.UnimplementedTenantsServiceServer
 }
 
+func (ac *cloudWithRoles) GetEnvironmentProfile(ctx context.Context, req *v1.GetEnvironmentProfileRequest) (*v1.GetEnvironmentProfileResponse, error) {
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.GetEnvironmentProfile(ctx, req)
+}
+
+func (ac *cloudWithRoles) UpdateEnvironmentProfile(ctx context.Context, req *v1.UpdateEnvironmentProfileRequest) (*v1.GetEnvironmentProfileResponse, error) {
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.UpdateEnvironmentProfile(ctx, req)
+}
+
 // GetBillingInformation returns billing information
 func (ac *cloudWithRoles) GetBillingInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetBillingInformationResponse, error) {
 	err := ac.action(ctx, types.KindBilling, types.VerbRead)

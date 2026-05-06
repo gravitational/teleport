@@ -57,4 +57,47 @@ describe('cloudService', () => {
     });
     expect(response).toEqual(expected);
   });
+
+  test('getUpgradeWindowStartHour', async () => {
+    jest.spyOn(api, 'get').mockResolvedValue({ upgradeWindowStartHour: 8 });
+
+    let response = await cloud.getUpgradeWindowStartHour('clusterId');
+    expect(api.get).toHaveBeenCalledWith(
+      cfg.getWindowUpgradeStartUrl('clusterId')
+    );
+    expect(response).toEqual(8);
+  });
+
+  test('updateUpgradeWindowStart', async () => {
+    jest.spyOn(api, 'post').mockResolvedValue({ upgradeWindowStartHour: 8 });
+
+    let response = await cloud.updateUpgradeWindowStart('clusterId', 8);
+    expect(api.post).toHaveBeenCalledWith(
+      cfg.getWindowUpgradeStartUrl('clusterId'),
+      { upgradeWindowStartHour: 8 }
+    );
+    expect(response).toEqual(8);
+  });
+
+  test('getEnvironmentProfile', async () => {
+    jest
+      .spyOn(api, 'get')
+      .mockResolvedValue({ environmentProfile: 'production' });
+
+    let response = await cloud.getEnvironmentProfile();
+    expect(api.get).toHaveBeenCalledWith(cfg.api.environmentProfileUrl);
+    expect(response).toEqual({ environmentProfile: 'production' });
+  });
+
+  test('updateEnvironmentProfile', async () => {
+    jest
+      .spyOn(api, 'post')
+      .mockResolvedValue({ environmentProfile: 'production' });
+
+    let response = await cloud.updateEnvironmentProfile('production');
+    expect(api.post).toHaveBeenCalledWith(cfg.api.environmentProfileUrl, {
+      environmentProfile: 'production',
+    });
+    expect(response).toEqual({ environmentProfile: 'production' });
+  });
 });

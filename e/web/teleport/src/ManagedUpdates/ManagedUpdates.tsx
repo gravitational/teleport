@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
-import styled from 'styled-components';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { Box, Flex, Text } from 'design';
-import { Edit } from 'design/Icon';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { Danger } from 'design/Alert';
+import { ShimmerBox } from 'design/ShimmerBox';
 
-import type { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
 import {
-  makeLabel,
-  ScheduleUpgrades,
-} from 'e-teleport/Support/ScheduleUpgrades';
+  EnvironmentProfile,
+  UpgradeWindowStartHour,
+} from 'e-teleport/services/cloud/cloud';
+import { ProfileInput } from 'e-teleport/Support/ScheduledUpgrades/Profile';
+import { WindowInput } from 'e-teleport/Support/ScheduledUpgrades/WindowInput';
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'teleport/config';
 import {
@@ -35,81 +36,101 @@ const DOCS_URL =
 function ClusterMaintenanceCard({ data }: { data: ClusterMaintenanceInfo }) {
   const ctx = useTeleportE();
   const clusterId = ctx.storeUser.getClusterId();
-  const { attempt: updateWindowAttempt, run: updateWindowRun } = useAttempt();
+  const queryClient = useQueryClient();
 
-  const [scheduleUpgradesVisible, setScheduleUpgradesVisible] = useState(false);
-  const [selectedUpgradeWindowStart, setSelectedUpgradeWindowStart] =
-    useState<UpgradeWindowStartHour>(
-      data.maintenanceStartHour as UpgradeWindowStartHour
-    );
+  const [startHour, setStartHour] = useState<UpgradeWindowStartHour>(
+    data.maintenanceStartHour as UpgradeWindowStartHour
+  );
+  const [prevMaintenanceStartHour, setPrevMaintenanceStartHour] = useState(
+    data.maintenanceStartHour
+  );
+  if (data.maintenanceStartHour !== prevMaintenanceStartHour) {
+    setPrevMaintenanceStartHour(data.maintenanceStartHour);
+    setStartHour(data.maintenanceStartHour as UpgradeWindowStartHour);
+  }
+  const [editWindow, setEditWindow] = useState(false);
+  const [env, setEnv] = useState<EnvironmentProfile>();
+  const [editEnv, setEditEnv] = useState(false);
 
-  useEffect(() => {
-    setSelectedUpgradeWindowStart(
-      data.maintenanceStartHour as UpgradeWindowStartHour
-    );
-  }, [data.maintenanceStartHour]);
+  const {
+    status,
+    error,
+    data: envData,
+  } = useQuery({
+    enabled: !!clusterId,
+    queryKey: ['env', clusterId],
+    staleTime: 0,
+    queryFn: () => ctx.cloudService.getEnvironmentProfile(),
+  });
 
-  function showScheduleUpgrade() {
-    setScheduleUpgradesVisible(true);
+  const [prevEnvProfile, setPrevEnvProfile] = useState(
+    envData?.environmentProfile
+  );
+  if (envData && envData.environmentProfile !== prevEnvProfile) {
+    setPrevEnvProfile(envData.environmentProfile);
+    setEnv(undefined);
   }
 
-  function closeScheduleUpgrade() {
-    setScheduleUpgradesVisible(false);
-  }
+  const updateEnvMutation = useMutation({
+    mutationFn: () =>
+      ctx.cloudService.updateEnvironmentProfile(
+        env ?? (envData!.environmentProfile as EnvironmentProfile)
+      ),
+    onSuccess: data => {
+      queryClient.setQueryData(['env', clusterId], data);
+      setEnv(undefined);
+      setEditEnv(false);
+    },
+  });
 
-  function onUpdate() {
-    return updateWindowRun(() =>
-      ctx.upgradeWindowService
-        .updateUpgradeWindowStart(clusterId, selectedUpgradeWindowStart)
-        .then(closeScheduleUpgrade)
-    );
-  }
+  const updateWindowMutation = useMutation({
+    mutationFn: () =>
+      ctx.cloudService.updateUpgradeWindowStart(clusterId, startHour),
+    onSuccess: () => setEditWindow(false),
+  });
 
   return (
-    <>
-      <Card flex="1 1 50%">
-        <CardTitle>Cluster Maintenance</CardTitle>
-        <Flex alignItems="flex-start" gap={1} mb={3} flexDirection="column">
-          <Text color="text.slightlyMuted">
-            Auth and Proxy Service automatic updates will occur during the
-            selected maintenance window below.
-          </Text>
-          <DocsLink docsUrl={DOCS_URL} />
-        </Flex>
-        <Box>
-          <InfoItem
-            label="Control Plane Version"
-            value={data.controlPlaneVersion}
-          />
-          <InfoItem
-            label="Maintenance Window"
-            value={
-              <Flex alignItems="center">
-                {makeLabel(selectedUpgradeWindowStart)}
-                <EditLink onClick={showScheduleUpgrade} ml={2} size="medium" />
-              </Flex>
-            }
-          />
-        </Box>
-      </Card>
-      {scheduleUpgradesVisible && (
-        <ScheduleUpgrades
-          onSave={onUpdate}
-          onCancel={closeScheduleUpgrade}
-          selectedWindow={selectedUpgradeWindowStart}
-          onSelectedWindowChange={setSelectedUpgradeWindowStart}
-          attempt={updateWindowAttempt}
-        />
-      )}
-    </>
+    <Card flex="1 1 50%">
+      <CardTitle>Cluster Maintenance</CardTitle>
+      <Flex alignItems="flex-start" gap={1} mb={3} flexDirection="column">
+        <Text color="text.slightlyMuted">
+          Auth and Proxy Service automatic updates will occur during the
+          selected maintenance window below.
+        </Text>
+        <DocsLink docsUrl={DOCS_URL} />
+      </Flex>
+      <Box>
+        {status === 'pending' && <ShimmerBox height="24px" width="100%" />}
+        {status === 'error' && (
+          <Danger details={error?.message || 'Unknown error occurred'}>
+            Error loading
+          </Danger>
+        )}
+        {status === 'success' && (
+          <>
+            <InfoItem
+              label="Control Plane Version"
+              value={data.controlPlaneVersion}
+            />
+            <WindowInput
+              muted
+              mutation={updateWindowMutation}
+              edit={editWindow}
+              setEdit={setEditWindow}
+              value={startHour}
+              setValue={setStartHour}
+            />
+            <ProfileInput
+              muted
+              mutation={updateEnvMutation}
+              edit={editEnv}
+              setEdit={setEditEnv}
+              value={env ?? (envData!.environmentProfile as EnvironmentProfile)}
+              setValue={setEnv}
+            />
+          </>
+        )}
+      </Box>
+    </Card>
   );
 }
-
-const EditLink = styled(Edit)`
-  color: ${props => props.theme.colors.text.slightlyMuted};
-  &:hover,
-  &:focus {
-    color: ${props => props.theme.colors.text.main};
-    cursor: pointer;
-  }
-`;

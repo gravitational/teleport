@@ -59,6 +59,10 @@ type MockedClient struct {
 	MockGetMAUDailyBreakdown func(ctx context.Context, in *v1.GetMAUDailyBreakdownRequest, opts ...grpc.CallOption) (*v1.GetMAUDailyBreakdownResponse, error)
 	// MockGetTPRDailyBreakdown returns a per-day TPR breakdown.
 	MockGetTPRDailyBreakdown func(ctx context.Context, in *v1.GetTPRDailyBreakdownRequest, opts ...grpc.CallOption) (*v1.GetTPRDailyBreakdownResponse, error)
+	// MockGetEnvironmentProfile returns the tenant environment profile
+	MockGetEnvironmentProfile func() (*v1.GetEnvironmentProfileResponse, error)
+	// MockUpdateEnvironmentProfile updates the tenant environment profile
+	MockUpdateEnvironmentProfile func(in *v1.UpdateEnvironmentProfileRequest) (*v1.GetEnvironmentProfileResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -233,4 +237,20 @@ func (m *MockedClient) GetTPRDailyBreakdown(ctx context.Context, in *v1.GetTPRDa
 	}
 
 	return nil, trace.NotImplemented("GetTPRDailyBreakdown is not implemented")
+}
+
+func (m *MockedClient) GetEnvironmentProfile(ctx context.Context, in *v1.GetEnvironmentProfileRequest, opts ...grpc.CallOption) (*v1.GetEnvironmentProfileResponse, error) {
+	if m.MockGetEnvironmentProfile != nil {
+		return m.MockGetEnvironmentProfile()
+	}
+
+	return nil, trace.NotImplemented("GetEnvironmentProfile is not implemented")
+}
+
+func (m *MockedClient) UpdateEnvironmentProfile(ctx context.Context, in *v1.UpdateEnvironmentProfileRequest, opts ...grpc.CallOption) (*v1.GetEnvironmentProfileResponse, error) {
+	if m.MockUpdateEnvironmentProfile != nil {
+		return m.MockUpdateEnvironmentProfile(in)
+	}
+
+	return nil, trace.NotImplemented("UpdateEnvironmentProfile is not implemented")
 }

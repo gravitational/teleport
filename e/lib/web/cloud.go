@@ -72,6 +72,10 @@ func (p *Plugin) registerCloudHandlers() {
 	p.h.GET("/enterprise/sites/:site/upgradewindowstart", p.withCloudClusterAuth(p.withCloudClusterCache(p.getClusterUpgradeWindowStartHourHandle)))
 	p.h.POST("/enterprise/sites/:site/upgradewindowstart", p.withCloudClusterAuth(p.updateClusterUpgradeWindowStartHourHandle))
 
+	// update environment profile
+	p.h.GET("/enterprise/cloud/environmentprofile", p.withCloudAuth(p.withCloudCache(p.getEnvironmentProfileHandle)))
+	p.h.POST("/enterprise/cloud/environmentprofile", p.withCloudAuth(p.updateEnvironmentProfileHandle))
+
 	// contact endpoints
 	p.h.GET("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.withCloudClusterCache(p.getClusterContactHandle)))
 	p.h.POST("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.createClusterContactHandle))
@@ -293,6 +297,29 @@ func (p *Plugin) updateClusterUpgradeWindowStartHourHandle(w http.ResponseWriter
 	}
 
 	return web.OK(), nil
+}
+
+func (p *Plugin) getEnvironmentProfileHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClient cloud.Client) (any, error) {
+	res, err := cloudClient.GetEnvironmentProfile(r.Context(), &cloudapi.GetEnvironmentProfileRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) updateEnvironmentProfileHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClient cloud.Client) (any, error) {
+	var req cloudapi.UpdateEnvironmentProfileRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := cloudClient.UpdateEnvironmentProfile(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return updated, nil
 }
 
 func (p *Plugin) getClientIPRestrictions(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {

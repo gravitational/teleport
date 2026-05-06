@@ -188,21 +188,73 @@ func TestPlugin_getUpgradeWindowStartHourHandle(t *testing.T) {
 	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
 	wCtx := &web.SessionContext{}
 
-	pass := &cloudapi.GetAccountUpgradeWindowStartHourResponse{
+	expected := &cloudapi.GetAccountUpgradeWindowStartHourResponse{
 		UpgradeWindowStartHour: 16,
 	}
 
 	client := &testClient{
 		MockedClient: cloud.MockedClient{
 			MockGetAccountUpgradeWindowStartHour: func() (*cloudapi.GetAccountUpgradeWindowStartHourResponse, error) {
-				return pass, nil
+				return expected, nil
 			},
 		},
 	}
 
 	actual, err := s.webPlugin.getUpgradeWindowStartHourHandle(w, r, wCtx, client)
 	require.NoError(t, err)
-	require.Equal(t, pass, actual)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_getEnvironmentProfileHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/environmentprofile", nil)
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.GetEnvironmentProfileResponse{
+		EnvironmentProfile: "production",
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockGetEnvironmentProfile: func() (*cloudapi.GetEnvironmentProfileResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.getEnvironmentProfileHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_updateEnvironmentProfileHandle(t *testing.T) {
+	t.Parallel()
+	jsonReq := `{"environment_profile": "staging"}`
+	var calledWith *cloudapi.UpdateEnvironmentProfileRequest
+
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/environmentprofile", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockUpdateEnvironmentProfile: func(in *cloudapi.UpdateEnvironmentProfileRequest) (*cloudapi.GetEnvironmentProfileResponse, error) {
+				calledWith = in
+				return &cloudapi.GetEnvironmentProfileResponse{EnvironmentProfile: in.EnvironmentProfile}, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.updateEnvironmentProfileHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, "staging", calledWith.EnvironmentProfile)
+	require.Equal(t, &cloudapi.GetEnvironmentProfileResponse{EnvironmentProfile: "staging"}, actual)
 }
 
 func TestPlugin_surveyResultsHandler(t *testing.T) {

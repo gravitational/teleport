@@ -181,6 +181,8 @@ const cfg = {
     upgradeWindowStartPath:
       '/v1/enterprise/sites/:clusterId/upgradewindowstart',
 
+    environmentProfileUrl: '/v1/enterprise/cloud/environmentprofile',
+
     releases: '/v1/enterprise/releases',
     license: '/v1/enterprise/license',
 
