@@ -94,6 +94,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -673,9 +674,9 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
-	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
+	// MFACeremonyConstructor is used to handle SSO or Browser MFA when needed.
 	// If nil, the client will not prompt for MFA.
-	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -742,9 +743,9 @@ func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
 }
 
-// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
-func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
-	c.c.SSOMFACeremonyConstructor = scc
+// SetMFACeremonyConstructor sets the MFA ceremony constructor for this client.
+func (c *Client) SetMFACeremonyConstructor(mcc mfa.MFACeremonyConstructor) {
+	c.c.MFACeremonyConstructor = mcc
 }
 
 // Close closes the Client connection to the auth server.
@@ -5519,6 +5520,11 @@ func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
 // StableUNIXUsersClient returns a client for the stable UNIX users API.
 func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
 	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)
+}
+
+// MFAServiceClient returns a client for the MFA service.
+func (c *Client) MFAServiceClient() mfav1.MFAServiceClient {
+	return mfav1.NewMFAServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
