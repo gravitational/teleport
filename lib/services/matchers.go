@@ -31,6 +31,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/utils"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -76,21 +77,17 @@ func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
 	}
 }
 
-// SimplifyAzureMatchers returns simplified Azure Matchers.
-// Selectors are deduplicated, wildcard in a selector reduces the selector
-// to just the wildcard, and defaults are applied.
+// SimplifyAzureMatchers returns simplified Azure matchers. Each selector list
+// is trimmed, deduplicated, and collapsed to the wildcard if any entry is the
+// wildcard or the list is empty. Lists where every entry is whitespace-only are
+// preserved verbatim rather than widened to wildcard, so invalid hand-edited
+// scopes fail closed downstream instead of matching all.
 func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 	result := make([]types.AzureMatcher, 0, len(matchers))
 	for _, m := range matchers {
-		subs := apiutils.Deduplicate(m.Subscriptions)
-		groups := apiutils.Deduplicate(m.ResourceGroups)
+		subs := simplifySelector(m.Subscriptions)
+		groups := simplifySelector(m.ResourceGroups)
 		ts := apiutils.Deduplicate(m.Types)
-		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
-			subs = []string{types.Wildcard}
-		}
-		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
-			groups = []string{types.Wildcard}
-		}
 		var regions []string
 		if len(m.Regions) == 0 || slices.Contains(m.Regions, types.Wildcard) {
 			regions = []string{types.Wildcard}
@@ -108,6 +105,37 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 		result = append(result, elem)
 	}
 	return result
+}
+
+// simplifySelector applies the SimplifyAzureMatchers normalization rules to a
+// single selector list (Subscriptions or ResourceGroups). The four input
+// shapes are handled distinctly to avoid silently widening malformed config
+// to the wildcard:
+//
+//   - empty input (len == 0)                -> wildcard (existing convention)
+//   - any wildcard among trimmed entries    -> wildcard (existing convention)
+//   - non-empty input with at least one
+//     non-empty trimmed entry               -> trimmed, deduped entries
+//   - non-empty input that ALL trim to empty
+//     (e.g. [" "], ["", "  "])              -> original input preserved verbatim
+//     (do NOT widen to wildcard; the Azure
+//     SDK call surfaces the typo)
+func simplifySelector(input []string) []string {
+	if len(input) == 0 {
+		return []string{types.Wildcard}
+	}
+	trimmed := libslices.FilterMapUnique(input, utils.TrimNonEmpty)
+	if slices.Contains(trimmed, types.Wildcard) {
+		return []string{types.Wildcard}
+	}
+	if len(trimmed) == 0 {
+		// User supplied selectors but every entry was whitespace-only.
+		// This is a config typo, not a "match everything" signal.
+		// Preserve the original input so the Azure SDK rejects it as an
+		// invalid scope rather than silently broadening discovery.
+		return input
+	}
+	return trimmed
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
