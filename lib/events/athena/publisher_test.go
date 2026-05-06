@@ -35,7 +35,7 @@ import (
 func init() {
 	// Override maxS3BasedSize so we don't have to allocate 2GiB to test it.
 	// Do this in init to avoid any race.
-	maxS3BasedSize = (1024-10)*1024 * 4
+	maxS3BasedSize = (1024 - 10) * 1024 * 4
 }
 
 // TODO(tobiaszheller): Those UT just cover basic stuff. When we will have consumer
@@ -107,7 +107,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 					Code: strings.Repeat("d", 2*maxSNSDirectMessageSize),
 				},
 			},
-			maxDirectMessageSize: (1024-10)*1024,
+			maxDirectMessageSize: (1024 - 10) * 1024,
 			uploader:             mockUploader{},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
@@ -125,7 +125,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 					Code: strings.Repeat("d", 2*(1024-10)*1024),
 				},
 			},
-			maxDirectMessageSize: (1024-10)*1024,
+			maxDirectMessageSize: (1024 - 10) * 1024,
 			uploader:             mockUploader{},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
