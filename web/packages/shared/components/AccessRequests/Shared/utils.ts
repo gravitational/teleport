@@ -18,14 +18,15 @@
 
 import { formatDuration, intervalToDuration } from 'date-fns';
 
+import { ResourceMap } from 'shared/components/AccessRequests/NewRequest';
 import {
   getResourceIDString,
+  hasResourceConstraints,
   ResourceConstraints,
+  ResourceConstraintsKind,
   ResourceIDString,
   WithResourceConstraints,
 } from 'shared/services/accessRequests';
-
-import { PendingListItem, ResourceMap } from '../NewRequest';
 
 export function getFormattedDurationTxt({
   start,
@@ -70,55 +71,110 @@ export const formatAWSRoleARNForDisplay = (arn: string) => {
   return `${accountId}: ${rolePathAndName}`;
 };
 
-/**
- * Toggles an AWS Console constraint by removing the specified ARN from the current constraints.
- * If no RoleARNs remain after removal, it clears the constraint.
- */
-export const toggleAWSConsoleConstraint = <T extends PendingListItem>(
-  item: WithResourceConstraints<
-    'aws_console',
-    Pick<T, 'id' | 'kind' | 'clusterName'>
-  >,
-  arn: string,
-  set: (
-    key: ResourceIDString,
-    constraints: ResourceConstraints | undefined
-  ) => void
-) => {
-  const key = getResourceIDString({
+type ResourceIdentifiable = { id: string; kind: string; clusterName: string };
+
+type ToggleConstraintFn = (
+  key: ResourceIDString,
+  rc?: ResourceConstraints
+) => void;
+
+/** A read-only display section for a constraint dimension. */
+export type ConstraintSection = {
+  title: string;
+  values: string[];
+  formatLabel?: (v: string) => string;
+};
+
+/** A display section that also supports interactive removal. */
+export type EditableConstraintSection = ConstraintSection & {
+  onRemove: (value: string) => void;
+};
+
+const getKeyFromItem = (item: ResourceIdentifiable): ResourceIDString =>
+  getResourceIDString({
     name: item.id,
     kind: item.kind,
     cluster: item.clusterName,
   });
-  const newRc = {
-    aws_console: {
-      role_arns: item.constraints.aws_console.role_arns.filter(a => a !== arn),
-    },
-  };
-  set(key, newRc.aws_console.role_arns.length ? newRc : undefined);
+
+/** Removes an ARN from an AWS Console constraint, clearing it if empty. */
+export const toggleAWSConsoleConstraint = <T extends ResourceIdentifiable>(
+  item: WithResourceConstraints<'aws_console', T>,
+  arn: string,
+  set: ToggleConstraintFn
+) => {
+  const newArns = item.constraints.aws_console.role_arns.filter(a => a !== arn);
+  set(
+    getKeyFromItem(item),
+    newArns.length ? { aws_console: { role_arns: newArns } } : undefined
+  );
+};
+
+/** Removes a login from an SSH constraint, clearing it if empty. */
+export const toggleSSHConstraint = <T extends ResourceIdentifiable>(
+  item: WithResourceConstraints<'ssh', T>,
+  login: string,
+  set: ToggleConstraintFn
+) => {
+  const newLogins = item.constraints.ssh.logins.filter(l => l !== login);
+  set(
+    getKeyFromItem(item),
+    newLogins.length ? { ssh: { logins: newLogins } } : undefined
+  );
 };
 
 /**
- * Toggles an SSH constraint by removing the specified login from the current constraints.
- * If no logins remain after removal, it clears the constraint.
+ * Maps each Resource Constraint variant to a function that extracts
+ * sections for display.
  */
-export const toggleSSHConstraint = <T extends PendingListItem>(
-  item: WithResourceConstraints<'ssh', Pick<T, 'id' | 'kind' | 'clusterName'>>,
-  login: string,
-  set: (
-    key: ResourceIDString,
-    constraints: ResourceConstraints | undefined
-  ) => void
-) => {
-  const key = getResourceIDString({
-    name: item.id,
-    kind: item.kind,
-    cluster: item.clusterName,
-  });
-  const newRc = {
-    ssh: {
-      logins: item.constraints.ssh.logins.filter(l => l !== login),
+const constraintSectionExtractors: {
+  [K in ResourceConstraintsKind]: (
+    item: WithResourceConstraints<K, ResourceIdentifiable>,
+    toggleFn?: ToggleConstraintFn
+  ) => (ConstraintSection | EditableConstraintSection)[];
+} = {
+  aws_console: (item, toggleFn) => [
+    {
+      title: 'Role ARNs',
+      values: item.constraints.aws_console.role_arns,
+      formatLabel: formatAWSRoleARNForDisplay,
+      ...(toggleFn && {
+        onRemove: (v: string) => toggleAWSConsoleConstraint(item, v, toggleFn),
+      }),
     },
-  };
-  set(key, newRc.ssh.logins.length ? newRc : undefined);
+  ],
+  ssh: (item, toggleFn) => [
+    {
+      title: 'SSH Logins',
+      values: item.constraints.ssh.logins,
+      ...(toggleFn && {
+        onRemove: (v: string) => toggleSSHConstraint(item, v, toggleFn),
+      }),
+    },
+  ],
 };
+
+const constraintKinds = Object.keys(
+  constraintSectionExtractors
+) as ResourceConstraintsKind[];
+
+/** Extracts display sections for rendering a resource's constraints. */
+export function getResourceConstraintSections(item: {
+  constraints?: ResourceConstraints;
+}): ConstraintSection[];
+export function getResourceConstraintSections(
+  item: ResourceIdentifiable & { constraints?: ResourceConstraints },
+  toggleFn: ToggleConstraintFn
+): EditableConstraintSection[];
+export function getResourceConstraintSections(
+  item: ResourceIdentifiable & { constraints?: ResourceConstraints },
+  toggleFn?: ToggleConstraintFn
+): (ConstraintSection | EditableConstraintSection)[] {
+  const sections: (ConstraintSection | EditableConstraintSection)[] = [];
+  for (const kind of constraintKinds) {
+    if (hasResourceConstraints(item, kind)) {
+      sections.push(...constraintSectionExtractors[kind](item, toggleFn));
+    }
+  }
+  return sections;
+}

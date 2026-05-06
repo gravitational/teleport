@@ -204,7 +204,7 @@ export type ResourceConstraintsVariant<K extends ResourceConstraintsKind> =
  * based on the specified detail variant key.
  */
 export type WithResourceConstraints<
-  K extends ResourceConstraintsKind,
+  K extends ResourceConstraintsKind = ResourceConstraintsKind,
   R extends object = object,
 > = R & { constraints: ResourceConstraintsVariant<K> };
 

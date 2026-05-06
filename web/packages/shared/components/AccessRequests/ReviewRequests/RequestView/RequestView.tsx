@@ -37,8 +37,8 @@ import {
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
-  Key,
 } from 'design/Icon';
+import { pillBase } from 'design/pillStyles';
 import { Status, StatusDot, StatusKind } from 'design/Status';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -49,10 +49,10 @@ import {
   AccessRequestReview,
   AccessRequestReviewer,
   canAssumeNow,
-  hasResourceConstraints,
   RequestKind,
   RequestState,
   Resource,
+  ResourceConstraintsKind,
   WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
@@ -65,7 +65,7 @@ import {
   PromotedMessage,
 } from '../../Shared/Shared';
 import {
-  formatAWSRoleARNForDisplay,
+  getResourceConstraintSections,
   getFormattedDurationTxt,
 } from '../../Shared/utils';
 import { formattedName } from '../formattedName';
@@ -453,56 +453,53 @@ export function Timestamp({
   );
 }
 
-const AWSConstraintChip = ({ label }: { label: string }) => {
-  return (
-    <Flex
-      flexDirection="row"
-      justifyContent="center"
-      alignItems="center"
-      gap={2}
-      px={3}
-      py={2}
-      backgroundColor={'spotBackground.0'}
-      borderRadius="999px"
-      title={label}
-    >
-      <Key size="small" />
-      <Text typography="body3">{formatAWSRoleARNForDisplay(label)}</Text>
-    </Flex>
-  );
-};
+const ConstraintPill = styled(Text).attrs({ typography: 'body3' })`
+  ${pillBase};
+  color: ${p => p.theme.colors.text.main};
+  background: ${p => p.theme.colors.interactive.tonal.neutral[1]};
+  // 80ch should be enough for most ARNs/logins before truncating
+  max-width: 80ch;
+  display: inline-block;
+  overflow: clip;
+  text-overflow: ellipsis;
+`;
 
-const AwsConsoleConstraintsList = <R extends object>({
-  resource,
-}: {
-  resource: WithResourceConstraints<'aws_console', R>;
-}) => {
+/**
+ * A Table `renderAfter` callback that renders a resource's
+ * Resource Constraints as individual sections for review.
+ */
+const renderConstraintsList = <R extends object>(
+  resource: WithResourceConstraints<ResourceConstraintsKind, R>
+) => {
+  const sections = getResourceConstraintSections(resource);
+  if (sections.length === 0) return null;
   return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      <Text bold>Role ARNs</Text>
-      <Flex flexDirection="row" gap={2} flexWrap="wrap">
-        {resource.constraints.aws_console.role_arns.map(arn => (
-          <AWSConstraintChip key={arn} label={arn} />
-        ))}
-      </Flex>
-    </Flex>
-  );
-};
-
-const SshConstraintsList = <R extends object>({
-  resource,
-}: {
-  resource: WithResourceConstraints<'ssh', R>;
-}) => {
-  return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      <Text bold>SSH Logins</Text>
-      <Flex flexDirection="row" gap={2} flexWrap="wrap">
-        {resource.constraints.ssh.logins.map(login => (
-          <AWSConstraintChip key={login} label={login} />
-        ))}
-      </Flex>
-    </Flex>
+    <tr style={{ borderTop: 'none' }} data-render-after-row>
+      <td colSpan={3}>
+        <Flex flexDirection="column" gap={2} mt={-1}>
+          {sections.map(({ title, values, formatLabel }) => (
+            <Flex
+              key={title}
+              flexDirection="column"
+              gap={2}
+              pt={2}
+              px={2}
+              borderTop={1}
+              borderColor="interactive.tonal.neutral.0"
+            >
+              <Text typography="subtitle3">{title}</Text>
+              <Flex flexDirection="row" gap={2} flexWrap="wrap">
+                {values.map(v => (
+                  <ConstraintPill key={v} title={v}>
+                    {formatLabel ? formatLabel(v) : v}
+                  </ConstraintPill>
+                ))}
+              </Flex>
+            </Flex>
+          ))}
+        </Flex>
+      </td>
+    </tr>
   );
 };
 
@@ -523,27 +520,6 @@ function Comment({
     name: resource.details?.friendlyName || formattedName(resource),
     constraints: resource.constraints,
   }));
-
-  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
-    if (hasResourceConstraints(r, 'aws_console')) {
-      return <AwsConsoleConstraintsList resource={r} />;
-    }
-    if (hasResourceConstraints(r, 'ssh')) {
-      return <SshConstraintsList resource={r} />;
-    }
-    return null;
-  };
-
-  const renderAfter = (r: NonNullable<typeof data>[number]) =>
-    r.constraints ? (
-      <tr style={{ borderTop: 'none' }} data-render-after-row>
-        <td colSpan={3}>
-          <Flex flexDirection="column" gap={1} mt={-2}>
-            {renderConstraints(r)}
-          </Flex>
-        </td>
-      </tr>
-    ) : null;
 
   return (
     <Box
@@ -574,7 +550,7 @@ function Comment({
         >
           <StyledTable
             data={data}
-            row={{ renderAfter }}
+            row={{ renderAfter: renderConstraintsList }}
             columns={[
               {
                 key: 'clusterName',

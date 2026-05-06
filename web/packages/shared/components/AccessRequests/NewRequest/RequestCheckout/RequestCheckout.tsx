@@ -62,11 +62,7 @@ import {
   UNSUPPORTED_KINDS,
 } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-import {
-  formatAWSRoleARNForDisplay,
-  toggleAWSConsoleConstraint,
-  toggleSSHConstraint,
-} from 'shared/components/AccessRequests/Shared/utils';
+import { getResourceConstraintSections } from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
@@ -76,12 +72,10 @@ import { mergeRefs } from 'shared/libs/mergeRefs';
 import {
   AccessRequest,
   getResourceIDString,
-  hasResourceConstraints,
   RequestKind,
   ResourceConstraints,
   ResourceConstraintsMap,
   ResourceIDString,
-  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
@@ -172,7 +166,7 @@ type DisplayRow<T extends PendingListItem> = T & {
   constraints?: ResourceConstraints;
 };
 
-const StyledAWSRoleARNDisplayRow = styled(Flex).attrs({
+const StyledResourceConstraintDisplayRow = styled(Flex).attrs({
   flexDirection: 'row',
   justifyContent: 'space-between',
   gap: 2,
@@ -193,89 +187,82 @@ const StyledAWSRoleARNDisplayRow = styled(Flex).attrs({
   }
 `;
 
-const AWSConsoleConstraintsList = <T extends PendingListItem>({
-  item,
-  createAttempt,
-  clearAttempt,
-  setResourceConstraints,
-}: {
-  item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
-  createAttempt: RequestCheckoutProps<T>['createAttempt'];
-  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
-  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-}) => (
-  <Flex flexDirection="column" gap={1} mt={1} width="100%">
-    <Text bold>Role ARNs</Text>
-    <Flex flexDirection="column" width="100%">
-      {item.constraints.aws_console.role_arns.map((arn, idx) => (
-        <StyledAWSRoleARNDisplayRow
-          key={arn}
-          $idx={idx}
-          $len={item.constraints.aws_console.role_arns.length}
-        >
-          <Text style={{ alignContent: 'center' }}>
-            {formatAWSRoleARNForDisplay(arn)}
-          </Text>
-          <ButtonIcon
-            size={0}
-            title="Remove Role ARN"
-            onClick={() => {
-              clearAttempt();
-              toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
-            }}
-            disabled={createAttempt.status === 'processing'}
-            css={`
-              border-radius: ${({ theme }) => theme.radii[2]}px;
-            `}
-          >
-            <Cross size="small" />
-          </ButtonIcon>
-        </StyledAWSRoleARNDisplayRow>
-      ))}
-    </Flex>
-  </Flex>
-);
+/**
+ * Builds a Table `renderAfter` callback that renders a resource's
+ * Resource Constraints as individual editable sections.
+ */
+const renderResourceConstraintRow =
+  ({
+    setResourceConstraints,
+    showClusterNameColumn,
+    createAttempt,
+    clearAttempt,
+  }: {
+    setResourceConstraints: RequestCheckoutProps['setResourceConstraints'];
+    showClusterNameColumn: boolean;
+    createAttempt: Attempt;
+    clearAttempt: () => void;
+  }) =>
+  <T extends PendingListItem>(item: DisplayRow<T>) => {
+    const sections = getResourceConstraintSections(
+      item,
+      setResourceConstraints
+    );
+    if (!sections.length) {
+      return null;
+    }
 
-const SSHConstraintsList = <T extends PendingListItem>({
-  item,
-  createAttempt,
-  clearAttempt,
-  setResourceConstraints,
-}: {
-  item: WithResourceConstraints<'ssh', DisplayRow<T>>;
-  createAttempt: RequestCheckoutProps<T>['createAttempt'];
-  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
-  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-}) => (
-  <Flex flexDirection="column" gap={1} mt={1} width="100%">
-    <Text bold>SSH Logins</Text>
-    <Flex flexDirection="column" width="100%">
-      {item.constraints.ssh.logins.map((login, idx) => (
-        <StyledAWSRoleARNDisplayRow
-          key={login}
-          $idx={idx}
-          $len={item.constraints.ssh.logins.length}
-        >
-          <Text style={{ alignContent: 'center' }}>{login}</Text>
-          <ButtonIcon
-            size={0}
-            title="Remove Login"
-            onClick={() => {
-              clearAttempt();
-              toggleSSHConstraint(item, login, setResourceConstraints);
-            }}
-            disabled={createAttempt.status === 'processing'}
-            css={`
-              border-radius: ${({ theme }) => theme.radii[2]}px;
-            `}
-          >
-            <Cross size="small" />
-          </ButtonIcon>
-        </StyledAWSRoleARNDisplayRow>
-      ))}
-    </Flex>
-  </Flex>
-);
+    return (
+      <tr style={{ borderTop: 'none' }} data-render-after-row>
+        <td colSpan={showClusterNameColumn ? 4 : 3}>
+          <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+            <Flex
+              flexDirection="column"
+              gap={2}
+              pt={2}
+              px={1}
+              width="100%"
+              borderTop={1}
+              borderColor="interactive.tonal.neutral.0"
+            >
+              {sections.map(({ title, values, formatLabel, onRemove }) => (
+                <Flex key={title} flexDirection="column" gap={1}>
+                  <Text typography="subtitle3">{title}</Text>
+                  <Flex flexDirection="column" width="100%">
+                    {values.map((v, idx) => (
+                      <StyledResourceConstraintDisplayRow
+                        key={v}
+                        $idx={idx}
+                        $len={values.length}
+                      >
+                        <Text style={{ alignContent: 'center' }}>
+                          {formatLabel ? formatLabel(v) : v}
+                        </Text>
+                        <ButtonIcon
+                          size={0}
+                          title={`Remove ${title.replace(/s$/, '')}`}
+                          onClick={() => {
+                            clearAttempt();
+                            onRemove(v);
+                          }}
+                          disabled={createAttempt.status === 'processing'}
+                          css={`
+                            border-radius: ${({ theme }) => theme.radii[2]}px;
+                          `}
+                        >
+                          <Cross size="small" />
+                        </ButtonIcon>
+                      </StyledResourceConstraintDisplayRow>
+                    ))}
+                  </Flex>
+                </Flex>
+              ))}
+            </Flex>
+          </Flex>
+        </td>
+      </tr>
+    );
+  };
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
@@ -458,41 +445,6 @@ export function RequestCheckout<T extends PendingListItem>({
         </Box>
       </Flex>
     );
-  };
-
-  const renderAfter = (item: DisplayRow<T>) => {
-    if (hasResourceConstraints(item, 'aws_console')) {
-      return (
-        <tr style={{ borderTop: 'none' }} data-render-after-row>
-          <td colSpan={showClusterNameColumn ? 4 : 3}>
-            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
-              <AWSConsoleConstraintsList
-                item={item}
-                setResourceConstraints={setResourceConstraints}
-                clearAttempt={clearAttempt}
-                createAttempt={createAttempt}
-              />
-            </Flex>
-          </td>
-        </tr>
-      );
-    }
-    if (hasResourceConstraints(item, 'ssh')) {
-      return (
-        <tr style={{ borderTop: 'none' }} data-render-after-row>
-          <td colSpan={showClusterNameColumn ? 4 : 3}>
-            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
-              <SSHConstraintsList
-                item={item}
-                setResourceConstraints={setResourceConstraints}
-                clearAttempt={clearAttempt}
-                createAttempt={createAttempt}
-              />
-            </Flex>
-          </td>
-        </tr>
-      );
-    }
   };
 
   function customRow(item: DisplayRow<T>) {
@@ -691,7 +643,12 @@ export function RequestCheckout<T extends PendingListItem>({
                     data={displayRows}
                     row={{
                       customRow,
-                      renderAfter,
+                      renderAfter: renderResourceConstraintRow({
+                        setResourceConstraints,
+                        showClusterNameColumn,
+                        createAttempt,
+                        clearAttempt,
+                      }),
                       getStyle,
                     }}
                     columns={[
@@ -1268,7 +1225,7 @@ export interface PendingListItem {
   name: string;
   /** Identifier of the resource. Should be sent in requests. */
   id: string;
-  clusterName?: string;
+  clusterName: string;
   /**
    * This field must be defined if a user is requesting subresources.
    *
