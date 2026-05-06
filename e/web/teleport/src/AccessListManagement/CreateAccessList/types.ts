@@ -1,5 +1,6 @@
 import { Option } from 'shared/components/Select';
 
+import { type ScopedRoleGrant } from 'e-teleport/services/accessmanagement';
 import { AllUserTraits } from 'teleport/services/user';
 
 import { ReviewDayOfMonthOption, ReviewFrequencyOption } from '../Shared/Audit';
@@ -28,6 +29,7 @@ export type Members = {
 
 export type Grant = {
   rolesToGrant: Option[];
+  scopedRolesToGrant: ScopedRoleGrant[];
   traitsToGrant: TraitLabel[];
 };
 

@@ -509,7 +509,7 @@ function makeAccessListSpecForRequest({
     owner_grants: {
       roles: ownerGrant.rolesToGrant.map(r => r.value),
       traits: convertTraitLabelsToAllUserTraits(ownerGrant.traitsToGrant),
-      scoped_roles: [],
+      scoped_roles: ownerGrant.scopedRolesToGrant,
     },
     ownership_requires: {
       roles: owners.selectedRolesRequired.map(r => r.value),
@@ -520,7 +520,7 @@ function makeAccessListSpecForRequest({
     grants: {
       roles: memberGrant.rolesToGrant.map(r => r.value),
       traits: convertTraitLabelsToAllUserTraits(memberGrant.traitsToGrant),
-      scoped_roles: [],
+      scoped_roles: memberGrant.scopedRolesToGrant,
     },
     membership_requires: {
       roles: members.selectedRolesRequired.map(r => r.value),
@@ -599,6 +599,7 @@ const defaultSpec: Spec = {
 
 const defaultGrants: Grant = {
   rolesToGrant: [],
+  scopedRolesToGrant: [],
   traitsToGrant: [],
 };
 

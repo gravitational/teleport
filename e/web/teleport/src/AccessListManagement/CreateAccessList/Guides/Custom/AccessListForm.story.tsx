@@ -13,6 +13,33 @@ import { ContextProvider } from 'teleport';
 import { CreateAccessListContextProvider } from '../../CreateAccessListContextProvider';
 import { AccessListForm } from './AccessListForm';
 
+const rootScopedRolesPath = cfg.getRootScopedRolesUrl({}).split('?')[0];
+
+const getRootScopedRolesHandler = http.get(rootScopedRolesPath, () => {
+  return HttpResponse.json({
+    roles: [
+      {
+        name: 'team-admin',
+        scope: '/',
+        assignableScopes: ['/dev', '/staging/**'],
+      },
+      {
+        name: 'audit',
+        scope: '/',
+        assignableScopes: ['/**'],
+      },
+    ],
+    startKey: '',
+  });
+});
+
+const getEmptyRootScopedRolesHandler = http.get(rootScopedRolesPath, () => {
+  return HttpResponse.json({
+    roles: [],
+    startKey: '',
+  });
+});
+
 export default {
   title: 'TeleportE/AccessLists/Guide/Custom',
 };
@@ -27,6 +54,30 @@ export const Default: StoryObj = {
         http.post(cfg.getAccessManagementListUrl(), () => {
           return HttpResponse.json({});
         }),
+        getRootScopedRolesHandler,
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <AccessListForm />
+      </Provider>
+    );
+  },
+};
+
+export const DefaultWithoutScopedRoles: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
+          return HttpResponse.json({ accessLists: [] });
+        }),
+        http.post(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({});
+        }),
+        getEmptyRootScopedRolesHandler,
       ],
     },
   },
@@ -52,6 +103,7 @@ export const Processing: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([{ name: 'alice' }]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -83,6 +135,7 @@ export const Failed: StoryObj = {
             { status: 500 }
           );
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },

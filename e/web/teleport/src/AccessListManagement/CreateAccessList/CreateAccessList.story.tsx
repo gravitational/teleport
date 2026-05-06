@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
@@ -24,6 +25,25 @@ import { Finished as FinishedComp } from './Finished';
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
+const rootScopedRolesPath = cfg.getRootScopedRolesUrl({}).split('?')[0];
+
+const getRootScopedRolesHandler = http.get(rootScopedRolesPath, () => {
+  return HttpResponse.json({
+    roles: [
+      {
+        name: 'team-admin',
+        scope: '/',
+        assignableScopes: ['/dev', '/staging/**'],
+      },
+      {
+        name: 'audit',
+        scope: '/',
+        assignableScopes: ['/**'],
+      },
+    ],
+    startKey: '',
+  });
+});
 
 export default {
   title: 'TeleportE/AccessLists/Create',
@@ -53,6 +73,7 @@ export const Failed: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
         http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json(
             {
@@ -94,6 +115,7 @@ export const NoAccess: StoryObj = {
         http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return new HttpResponse();
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -116,6 +138,7 @@ export const LoadedWithoutLimit: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
         http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json({ accessLists: [] });
         }),
@@ -146,6 +169,7 @@ export const LoadedReachedLimit: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
         http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json({
             accessLists: [
@@ -216,15 +240,19 @@ const Provider = (props: {
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <AccessListManagementContextProvider>
-          <CreateAccessListContextProvider
-            mockCreatedAccessList={props.createdAccessList ?? createdAccessList}
-          >
-            {props.children}
-          </CreateAccessListContextProvider>
-        </AccessListManagementContextProvider>
-      </ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <AccessListManagementContextProvider>
+            <CreateAccessListContextProvider
+              mockCreatedAccessList={
+                props.createdAccessList ?? createdAccessList
+              }
+            >
+              {props.children}
+            </CreateAccessListContextProvider>
+          </AccessListManagementContextProvider>
+        </ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 };

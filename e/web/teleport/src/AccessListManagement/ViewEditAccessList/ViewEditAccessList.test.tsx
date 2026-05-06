@@ -65,6 +65,9 @@ beforeEach(() => {
     .spyOn(accessManagementService, 'fetchReviews')
     .mockResolvedValue({ reviews, startKey: '' });
   jest
+    .spyOn(accessManagementService, 'fetchRootScopedRoles')
+    .mockResolvedValue({ roles: [], startKey: '' });
+  jest
     .spyOn(ResourceService.prototype, 'fetchRoles')
     .mockResolvedValue({ items: [], startKey: '' });
   jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);

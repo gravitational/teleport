@@ -31,6 +31,7 @@ import {
   ReviewAccessListRequest,
   ReviewFrequency,
   ReviewFrequencyBackendParsableValue,
+  ScopedRoleListItem,
   ScopedRoleGrant,
   UpsertAccessListRequest,
   makeAccessListGrantRequest,
@@ -274,6 +275,22 @@ export const accessManagementService = {
       terraform: string;
     };
   },
+  async fetchRootScopedRoles(
+    params: fetchRootScopedRolesParams,
+    abortSignal?: AbortSignal
+  ): Promise<{ roles: ScopedRoleListItem[]; startKey: string }> {
+    const resp = await api.get(cfg.getRootScopedRolesUrl(params), abortSignal);
+    return {
+      roles: makeScopedRoleListItems(resp.roles),
+      startKey: resp.startKey || '',
+    };
+  },
+};
+
+export type fetchRootScopedRolesParams = {
+  limit?: number;
+  startKey?: string;
+  filter?: string;
 };
 
 type UpdateRequest = {
@@ -589,6 +606,20 @@ const makeScopedRoleGrants = (json: any): ScopedRoleGrant[] => {
     return {
       role: grant.role,
       scope: grant.scope,
+    };
+  });
+};
+
+const makeScopedRoleListItems = (json: any): ScopedRoleListItem[] => {
+  if (!json) {
+    return [];
+  }
+
+  return json.map((role: any): ScopedRoleListItem => {
+    return {
+      name: role.name,
+      scope: role.scope,
+      assignableScopes: role.assignableScopes ?? [],
     };
   });
 };

@@ -10,6 +10,7 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Shared';
 import type { Role } from 'teleport/services/resources';
 
+import { ScopedRoleGrantsEditor } from '../ScopedRoleGrantsEditor';
 import { UserKind } from '../Shared/types';
 import { TraitLabel, TraitsCreator } from '../Traits';
 import { useCreateAccessList } from './CreateAccessListContextProvider';
@@ -70,7 +71,17 @@ export const GrantSection = ({
       {selectedRolesContainDenyRules && (
         <Alert kind="warning" children={selectedRolesContainDenyRules} />
       )}
-      <Box mb={3}>
+      <Box mt={-2} mb={4}>
+        <Box mt={grant.scopedRolesToGrant.length > 0 ? 4 : 0}>
+          <ScopedRoleGrantsEditor
+            isDisabled={isDisabled}
+            scopedRoleGrants={grant.scopedRolesToGrant}
+            updateScopedRoleGrants={scopedRolesToGrant =>
+              setGrant({ ...grant, scopedRolesToGrant })
+            }
+            userKind={userKind}
+          />
+        </Box>
         <TraitsCreator
           kind="Grants"
           traitLabels={grant.traitsToGrant}

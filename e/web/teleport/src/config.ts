@@ -115,6 +115,9 @@ export const enterpriseRoutes = {
 
   // beams
   beamsQuickstart: '/web/beams/get-started',
+
+  rootScopedRoles:
+    '/enterprise/rootscopedroles?limit=:limit?&startKey=:startKey?&filter=:filter?',
 };
 
 const cfg = {
@@ -387,6 +390,18 @@ const cfg = {
 
   getUserAccessListsUrl(username: string) {
     return generatePath(cfg.api.userAccessListsPath, { username });
+  },
+
+  getRootScopedRolesUrl(params?: {
+    limit?: number;
+    startKey?: string;
+    filter?: string;
+  }) {
+    return generateFullPath(cfg.routes.rootScopedRoles, {
+      limit: params?.limit,
+      startKey: params?.startKey,
+      filter: params?.filter,
+    });
   },
 
   getAccessListUrl(req: {

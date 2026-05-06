@@ -26,9 +26,11 @@ import {
 import {
   AccessList,
   accessManagementService,
+  type ScopedRoleGrant,
 } from 'e-teleport/services/accessmanagement';
 import type { Role } from 'teleport/services/resources';
 
+import { ScopedRoleGrantsEditor } from '../../ScopedRoleGrantsEditor';
 import type { AccessListModified } from '../Shared';
 
 type Props = {
@@ -59,6 +61,13 @@ export function EditEligibilityOrGrantRoles({
   const { attempt, setAttempt } = useAttempt('');
   const [traitLabels, setTraitLabels] = useState<TraitLabel[]>(
     trait.traitLabels
+  );
+  const [selectedScopedRoleGrants, setSelectedScopedRoleGrants] = useState<
+    ScopedRoleGrant[]
+  >(
+    editKind === 'OwnerGrants'
+      ? accessList.ownerGrants.scopedRoles
+      : accessList.grants.scopedRoles
   );
   const [selectedRoles, setSelectedRoles] = useState<Option[]>([]);
   const processedRolesFetchAttempt = useAttempt('');
@@ -111,14 +120,14 @@ export function EditEligibilityOrGrantRoles({
       };
     } else if (editKind === 'Grants') {
       req = {
-        grants: { roles, traits, scopedRoles: accessList.grants.scopedRoles },
+        grants: { roles, traits, scopedRoles: selectedScopedRoleGrants },
       };
     } else if (editKind === 'OwnerGrants') {
       req = {
         ownerGrants: {
           roles,
           traits,
-          scopedRoles: accessList.ownerGrants.scopedRoles,
+          scopedRoles: selectedScopedRoleGrants,
         },
       };
     }
@@ -181,7 +190,15 @@ export function EditEligibilityOrGrantRoles({
               userKind={forOwner ? 'Owners' : 'Members'}
               optional={true}
             />
-            <Box mt={2}>
+            {forGrants && (
+              <ScopedRoleGrantsEditor
+                isDisabled={attempt.status === 'processing'}
+                scopedRoleGrants={selectedScopedRoleGrants}
+                updateScopedRoleGrants={setSelectedScopedRoleGrants}
+                userKind={forOwner ? 'Owners' : 'Members'}
+              />
+            )}
+            <Box mb={4}>
               <TraitsCreator
                 kind={editKind}
                 traitLabels={traitLabels}

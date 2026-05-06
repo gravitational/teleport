@@ -72,10 +72,12 @@ export const rawAccessList = {
     grants: {
       roles: ['access', 'editor'],
       traits: { fruit: ['apple'] },
+      scoped_roles: [{ role: 'team-admin', scope: '/dev/platform' }],
     },
     owner_grants: {
       roles: ['admin', 'almighty'],
       traits: { status: ['pro'] },
+      scoped_roles: [{ role: 'audit', scope: '/**' }],
     },
     audit: {
       recurrence: {

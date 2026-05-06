@@ -1,6 +1,5 @@
 import { addWeeks } from 'date-fns';
 import { delay, http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
@@ -41,17 +40,15 @@ const getRolesHandler = http.get(
 
 export const WithFullAccessList = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasicE>
-        <Info>Devs: Click the buttons to see each step</Info>
-        <ReviewAccessList
-          cancelReview={() => null}
-          accessList={mockAccessListFull}
-          reviewer="llama"
-          isOwner={false}
-        />
-      </TeleportProviderBasicE>
-    </MemoryRouter>
+    <TeleportProviderBasicE>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListFull}
+        reviewer="llama"
+        isOwner={false}
+      />
+    </TeleportProviderBasicE>
   );
 };
 WithFullAccessList.parameters = {
@@ -62,17 +59,15 @@ WithFullAccessList.parameters = {
 
 export const WithFullScimAccessList = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasicE>
-        <Info>Devs: Click the buttons to see each step</Info>
-        <ReviewAccessList
-          cancelReview={() => null}
-          accessList={mockAccessListScim}
-          reviewer="llama"
-          isOwner={false}
-        />
-      </TeleportProviderBasicE>
-    </MemoryRouter>
+    <TeleportProviderBasicE>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListScim}
+        reviewer="llama"
+        isOwner={false}
+      />
+    </TeleportProviderBasicE>
   );
 };
 WithFullScimAccessList.parameters = {
@@ -83,17 +78,15 @@ WithFullScimAccessList.parameters = {
 
 export const WithFullEntraIDAccessList = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasicE>
-        <Info>Devs: Click the buttons to see each step</Info>
-        <ReviewAccessList
-          cancelReview={() => null}
-          accessList={mockAccessListEntraID}
-          reviewer="llama"
-          isOwner={false}
-        />
-      </TeleportProviderBasicE>
-    </MemoryRouter>
+    <TeleportProviderBasicE>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListEntraID}
+        reviewer="llama"
+        isOwner={false}
+      />
+    </TeleportProviderBasicE>
   );
 };
 WithFullEntraIDAccessList.parameters = {
@@ -104,17 +97,15 @@ WithFullEntraIDAccessList.parameters = {
 
 export const WithSparseAccessList = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasicE>
-        <Info>Devs: Click the buttons to see each step</Info>
-        <ReviewAccessList
-          cancelReview={() => null}
-          accessList={mockAccessListSparse}
-          reviewer="llama"
-          isOwner={false}
-        />
-      </TeleportProviderBasicE>
-    </MemoryRouter>
+    <TeleportProviderBasicE>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListSparse}
+        reviewer="llama"
+        isOwner={false}
+      />
+    </TeleportProviderBasicE>
   );
 };
 WithSparseAccessList.parameters = {
@@ -125,17 +116,15 @@ WithSparseAccessList.parameters = {
 
 export const WithFullAccessListOwner = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasicE>
-        <Info>Devs: Click the buttons to see each step</Info>
-        <ReviewAccessList
-          cancelReview={() => null}
-          accessList={mockAccessListFull}
-          reviewer="llama"
-          isOwner={true}
-        />
-      </TeleportProviderBasicE>
-    </MemoryRouter>
+    <TeleportProviderBasicE>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListFull}
+        reviewer="llama"
+        isOwner={true}
+      />
+    </TeleportProviderBasicE>
   );
 };
 WithFullAccessListOwner.parameters = {
@@ -146,17 +135,15 @@ WithFullAccessListOwner.parameters = {
 
 export const WithSparseAccessListOwner = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasicE>
-        <Info>Devs: Click the buttons to see each step</Info>
-        <ReviewAccessList
-          cancelReview={() => null}
-          accessList={mockAccessListSparse}
-          reviewer="llama"
-          isOwner={true}
-        />
-      </TeleportProviderBasicE>
-    </MemoryRouter>
+    <TeleportProviderBasicE>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListSparse}
+        reviewer="llama"
+        isOwner={true}
+      />
+    </TeleportProviderBasicE>
   );
 };
 WithSparseAccessListOwner.parameters = {

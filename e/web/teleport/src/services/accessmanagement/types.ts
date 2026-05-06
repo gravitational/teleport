@@ -182,6 +182,12 @@ export type ScopedRoleGrant = {
   scope: string;
 };
 
+export type ScopedRoleListItem = {
+  name: string;
+  scope: string;
+  assignableScopes: string[];
+};
+
 // AccessListCurrentUserAssignments describes the current user's
 // membership and ownership in a given access list.
 export type AccessListCurrentUserAssignments = {

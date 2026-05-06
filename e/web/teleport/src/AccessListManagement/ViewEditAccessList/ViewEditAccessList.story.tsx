@@ -26,6 +26,26 @@ export default {
   title: 'TeleportE/AccessLists/View/Default',
 };
 
+const rootScopedRolesPath = cfg.getRootScopedRolesUrl({}).split('?')[0];
+
+const getRootScopedRolesHandler = http.get(rootScopedRolesPath, () => {
+  return HttpResponse.json({
+    roles: [
+      {
+        name: 'team-admin',
+        scope: '/',
+        assignableScopes: ['/dev/**', '/staging/**'],
+      },
+      {
+        name: 'audit',
+        scope: '/',
+        assignableScopes: ['/**'],
+      },
+    ],
+    startKey: '',
+  });
+});
+
 export const ViewingAsOwnerWithNoRbac: StoryObj = {
   parameters: {
     msw: {
@@ -62,6 +82,7 @@ export const ViewingAsOwnerWithNoRbac: StoryObj = {
             })
           );
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -112,6 +133,7 @@ export const ViewingAsMember: StoryObj = {
             });
           }
         ),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -191,6 +213,7 @@ export const ViewingAsAdmin: StoryObj = {
             { name: 'editor' },
           ]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -257,6 +280,7 @@ export const ViewingAsAdminOktaList: StoryObj = {
         http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -326,6 +350,7 @@ export const ViewingAsAdminStaticList: StoryObj = {
         http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -394,6 +419,7 @@ export const ViewingAsAdminScimList: StoryObj = {
         http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -462,6 +488,7 @@ export const ViewingAsAdminEntraIDList: StoryObj = {
         http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },
@@ -518,6 +545,7 @@ export const ViewingAsAdminEmptyList: StoryObj = {
         http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
+        getRootScopedRolesHandler,
       ],
     },
   },

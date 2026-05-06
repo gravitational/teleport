@@ -60,6 +60,7 @@ const accessListPathV2 = cfg.api.accessListManagementPathV2.split('?')[0];
 const usersPathV2 = cfg.oss.api.usersPathV2.split('?')[0];
 const rolesPath = cfg.oss.api.role.list.split('?')[0];
 const accessListPath = '/v1/enterprise/accesslist';
+const rootScopedRolesPath = '/enterprise/rootscopedroles';
 
 const accessListPresetPath = cfg.api.accessListPreset.create;
 const mfaChallengePath = cfg.oss.api.mfaAuthnChallengePath;
@@ -137,6 +138,12 @@ describe('going through different guides', () => {
           items: [
             { name: 'role-foo', id: 'role-id', kind: 'role', content: '' },
           ],
+          startKey: '',
+        });
+      }),
+      http.get(rootScopedRolesPath, () => {
+        return HttpResponse.json({
+          roles: [],
           startKey: '',
         });
       }),
@@ -884,6 +891,7 @@ describe('going through different guides', () => {
       },
       ownerGrant: {
         rolesToGrant: [],
+        scopedRolesToGrant: [],
         traitsToGrant: [],
       },
       members: {
@@ -903,6 +911,7 @@ describe('going through different guides', () => {
       },
       memberGrant: {
         rolesToGrant: [],
+        scopedRolesToGrant: [],
         traitsToGrant: [],
       },
     };

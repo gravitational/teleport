@@ -32,7 +32,7 @@ export function ReviewGrants({ editedGrants, setEditedGrants }: Props) {
         rolesSelectedFor="eligibility"
         optional={editedGrants.traitLabels.length > 0}
       />
-      <Box mt={2}>
+      <Box mb={4}>
         <TraitsCreator
           kind={'Grants'}
           traitLabels={editedGrants.traitLabels}

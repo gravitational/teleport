@@ -18,7 +18,10 @@
 
 import { createQueryHook } from 'teleport/services/queryHelpers';
 
-import { accessManagementService } from './accessmanagement';
+import {
+  accessManagementService,
+  fetchRootScopedRolesParams,
+} from './accessmanagement';
 
 export const { useSuspenseInfiniteQuery: useSuspenseInfiniteUserAccessLists } =
   createQueryHook(
@@ -29,3 +32,13 @@ export const { useSuspenseInfiniteQuery: useSuspenseInfiniteUserAccessLists } =
       pageToken: pageParam,
     })
   );
+
+export const {
+  useQuery: useRootScopedRoles,
+  createQuery: createRootScopedRolesQuery,
+  createQueryKey: createRootScopedRolesQueryKey,
+} = createQueryHook(
+  ['access-management', 'root-scoped-roles'],
+  (params: fetchRootScopedRolesParams, signal?: AbortSignal) =>
+    accessManagementService.fetchRootScopedRoles(params, signal)
+);

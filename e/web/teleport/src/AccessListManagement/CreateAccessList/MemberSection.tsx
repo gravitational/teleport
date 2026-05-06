@@ -46,7 +46,7 @@ export const MembersSection = () => {
         }
         selected={members.selectedRolesRequired}
       />
-      <Box mb={3}>
+      <Box mt={-2} mb={4}>
         <TraitsCreator
           kind="Member"
           traitLabels={members.traitLabels}

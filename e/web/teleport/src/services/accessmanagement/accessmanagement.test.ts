@@ -282,6 +282,48 @@ test('fetch an access list', async () => {
   });
 });
 
+test('fetch root scoped roles', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({
+    roles: [
+      {
+        name: 'team-admin',
+        scope: '/',
+        assignableScopes: ['/dev', '/prod'],
+      },
+      {
+        name: 'scoped-auditor',
+        scope: '/',
+      },
+    ],
+    startKey: 'next-page',
+  });
+
+  const response = await accessManagementService.fetchRootScopedRoles({
+    limit: 10,
+    startKey: 'page-1',
+  });
+
+  expect(api.get).toHaveBeenCalledWith(
+    cfg.getRootScopedRolesUrl({ limit: 10, startKey: 'page-1' }),
+    undefined
+  );
+  expect(response).toStrictEqual({
+    roles: [
+      {
+        name: 'team-admin',
+        scope: '/',
+        assignableScopes: ['/dev', '/prod'],
+      },
+      {
+        name: 'scoped-auditor',
+        scope: '/',
+        assignableScopes: [],
+      },
+    ],
+    startKey: 'next-page',
+  });
+});
+
 describe('update an access list', () => {
   const originalAccessList: AccessList = {
     id: 'some-id',

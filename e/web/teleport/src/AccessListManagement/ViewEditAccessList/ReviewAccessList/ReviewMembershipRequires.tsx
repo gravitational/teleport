@@ -38,7 +38,7 @@ export function ReviewMembershipRequires({
         rolesSelectedFor="eligibility"
         optional={true}
       />
-      <Box mt={2}>
+      <Box mb={4}>
         <TraitsCreator
           kind={'Member'}
           traitLabels={editedMembershipRequires.traitLabels}

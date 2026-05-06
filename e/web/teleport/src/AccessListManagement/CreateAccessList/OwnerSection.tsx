@@ -45,7 +45,7 @@ export const OwnersSection = () => {
         selected={owners.selectedRolesRequired}
         optional={true}
       />
-      <Box mb={3}>
+      <Box mt={-2} mb={4}>
         <TraitsCreator
           kind="Owner"
           traitLabels={owners.traitLabels}

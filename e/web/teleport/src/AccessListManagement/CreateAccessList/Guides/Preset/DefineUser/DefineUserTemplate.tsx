@@ -449,7 +449,7 @@ export function DefineUserTemplate({
                     onChange={onEligibilityChange}
                     selected={selectedRolesRequired}
                   />
-                  <Box mb={3}>
+                  <Box mt={-2} mb={4}>
                     <TraitsCreator
                       kind={userKind === 'member' ? 'Member' : 'Owner'}
                       traitLabels={traitLabels}

@@ -60,7 +60,7 @@ export function TraitsCreator({
 
   const inputSize = 'medium';
   return (
-    <Box mb={4} mt={-2}>
+    <>
       <ButtonWithAddIcon
         label={addBtnTxt}
         onClick={addLabel}
@@ -77,63 +77,61 @@ export function TraitsCreator({
           <Text typography="body3">Value (required)</Text>
         </Flex>
       )}
-      <Box>
-        {traitLabels.map((label, index) => {
-          return (
-            <Box mb={2} key={index}>
-              <Flex alignItems="start">
-                <FieldInput
-                  size={inputSize}
-                  rule={requiredField('required')}
-                  autoFocus={autoFocus}
-                  value={label.name}
-                  placeholder="trait key"
-                  width="170px"
-                  mr={3}
-                  mb={0}
-                  onChange={e => handleChange(e, index, 'name')}
-                  readonly={isDisabled}
-                />
-                <FieldInput
-                  size={inputSize}
-                  rule={requiredField('required')}
-                  value={label.value}
-                  placeholder="trait value"
-                  width="170px"
-                  mb={0}
-                  mr={2}
-                  onChange={e => handleChange(e, index, 'value')}
-                  readonly={isDisabled}
-                />
-                {/* Force the trash button container to be the same height as an
+      {traitLabels.map((label, index) => {
+        return (
+          <Box mb={2} key={index}>
+            <Flex alignItems="start">
+              <FieldInput
+                size={inputSize}
+                rule={requiredField('required')}
+                autoFocus={autoFocus}
+                value={label.name}
+                placeholder="trait key"
+                width="170px"
+                mr={3}
+                mb={0}
+                onChange={e => handleChange(e, index, 'name')}
+                readonly={isDisabled}
+              />
+              <FieldInput
+                size={inputSize}
+                rule={requiredField('required')}
+                value={label.value}
+                placeholder="trait value"
+                width="170px"
+                mb={0}
+                mr={2}
+                onChange={e => handleChange(e, index, 'value')}
+                readonly={isDisabled}
+              />
+              {/* Force the trash button container to be the same height as an
                     input. We can't just set `alignItems="center"` on the parent
                     flex container above, because the field can expand when
                     showing a validation error. */}
-                <Flex
-                  alignItems="center"
-                  height={inputGeometry[inputSize].height}
+              <Flex
+                alignItems="center"
+                height={inputGeometry[inputSize].height}
+              >
+                <ButtonIcon
+                  size={1}
+                  title="Remove Label"
+                  onClick={() => removeLabel(index)}
+                  css={`
+                    &:disabled {
+                      opacity: 0.65;
+                      pointer-events: none;
+                    }
+                  `}
+                  disabled={isDisabled}
                 >
-                  <ButtonIcon
-                    size={1}
-                    title="Remove Label"
-                    onClick={() => removeLabel(index)}
-                    css={`
-                      &:disabled {
-                        opacity: 0.65;
-                        pointer-events: none;
-                      }
-                    `}
-                    disabled={isDisabled}
-                  >
-                    <Icons.Trash size="medium" />
-                  </ButtonIcon>
-                </Flex>
+                  <Icons.Trash size="medium" />
+                </ButtonIcon>
               </Flex>
-            </Box>
-          );
-        })}
-      </Box>
-    </Box>
+            </Flex>
+          </Box>
+        );
+      })}
+    </>
   );
 }
 
