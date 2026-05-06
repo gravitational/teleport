@@ -37,8 +37,8 @@ import (
 // service. This client is used in the VNet admin process to make requests to
 // the VNet client application.
 type clientApplicationServiceClient struct {
-	clt  vnetv1.ClientApplicationServiceClient
-	conn *grpc.ClientConn
+	clt    vnetv1.ClientApplicationServiceClient
+	closer io.Closer
 }
 
 // newClientApplicationServiceClient creates a gRPC client over a TCP
@@ -57,13 +57,13 @@ func newClientApplicationServiceClient(ctx context.Context, creds *credentials, 
 		return nil, trace.Wrap(err, "creating user process gRPC client")
 	}
 	return &clientApplicationServiceClient{
-		clt:  vnetv1.NewClientApplicationServiceClient(conn),
-		conn: conn,
+		clt:    vnetv1.NewClientApplicationServiceClient(conn),
+		closer: conn,
 	}, nil
 }
 
 func (c *clientApplicationServiceClient) close() error {
-	return trace.Wrap(c.conn.Close())
+	return trace.Wrap(c.closer.Close())
 }
 
 // Authenticate process authenticates the client application process.
