@@ -78,6 +78,11 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 		)
 	case *types.ResourceConstraints_Database:
 		return buildDatabaseConstraintTransform(d)
+	case *types.ResourceConstraints_Kubernetes:
+		// K8s doesn't use per-principal matchers in CheckAccess; groups/users are
+		// resolved via CheckKubeGroupsAndUsers and filtered by the accessChecker
+		// override. The constraint transform is a no-op passthrough here.
+		return func(m RoleMatcher) RoleMatcher { return m }
 	// TODO(kiosion): Future support for AWS Identity Center.
 	// Need to decide on best way to handle; whether to continue using IdentityCenterAccountAssignments, or just Account, with PermissionSets carried in constraints.
 	default:
@@ -246,6 +251,11 @@ func MatcherFromConstraints(rc *types.ResourceConstraints, resource types.Resour
 			db, _ = resource.(types.Database)
 		}
 		return matcherFromDatabaseConstraints(d.Database, db), nil
+	case *types.ResourceConstraints_Kubernetes:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return matcherFromKubernetesConstraints(d.Kubernetes), nil
 	default:
 		return nil, trace.BadParameter("unsupported constraint details type %T", d)
 	}
@@ -416,6 +426,141 @@ func ValidateDatabaseConstraintCoverage(
 	for _, r := range constraints.Roles {
 		if r != types.Wildcard && !coveredRoles.Contains(r) {
 			return trace.BadParameter("requested database role %q is not granted by any applicable role", r)
+		}
+	}
+
+	return nil
+}
+
+// matcherFromKubernetesConstraints builds a RoleMatcher for request
+// expansion/validation. It checks whether a role grants at least one of the
+// constrained groups AND at least one of the constrained users. Empty
+// dimensions are treated as unconstrained (always satisfied).
+func matcherFromKubernetesConstraints(kc *types.KubernetesResourceConstraints) RoleMatcher {
+	return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
+		// Check groups dimension.
+		if len(kc.Groups) > 0 && !slices.Contains(kc.Groups, types.Wildcard) {
+			roleGroups := role.GetKubeGroups(cond)
+			groupMatch := false
+			for _, g := range kc.Groups {
+				if slices.Contains(roleGroups, g) || slices.Contains(roleGroups, types.Wildcard) {
+					groupMatch = true
+					break
+				}
+			}
+			if !groupMatch {
+				return false, nil
+			}
+		}
+
+		// Check users dimension.
+		if len(kc.Users) > 0 && !slices.Contains(kc.Users, types.Wildcard) {
+			roleUsers := role.GetKubeUsers(cond)
+			userMatch := false
+			for _, u := range kc.Users {
+				if slices.Contains(roleUsers, u) || slices.Contains(roleUsers, types.Wildcard) {
+					userMatch = true
+					break
+				}
+			}
+			if !userMatch {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+}
+
+// EnumerateKubePrincipalsByRole iterates each role in the checker's RoleSet
+// and enumerates the Kubernetes principals (groups, users) that each
+// individual role grants for the given cluster. Roles that grant no principals
+// for this cluster are omitted from the result.
+func EnumerateKubePrincipalsByRole(
+	checker AccessChecker,
+	cluster types.KubeCluster,
+	localCluster string,
+) map[string]types.KubeRolePrincipals {
+	result := make(map[string]types.KubeRolePrincipals)
+
+	matcher := NewKubernetesClusterLabelMatcher(
+		cluster.GetAllLabels(),
+		checker.AccessInfo().Username,
+		checker.Traits(),
+	)
+
+	for _, role := range checker.Roles() {
+		singleInfo := &AccessInfo{
+			Username: checker.AccessInfo().Username,
+			Traits:   checker.Traits(),
+		}
+		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+
+		groups, users, err := singleChecker.CheckKubeGroupsAndUsers(0, true, matcher)
+		if err != nil {
+			continue
+		}
+
+		if len(groups) == 0 && len(users) == 0 {
+			continue
+		}
+
+		result[role.GetName()] = types.KubeRolePrincipals{
+			Groups: groups,
+			Users:  users,
+		}
+	}
+
+	return result
+}
+
+// ValidateKubernetesConstraintCoverage verifies that every principal requested
+// in the Kubernetes constraints is reachable by at least one of the applicable
+// roles. Wildcard principals ("*") are always considered covered.
+func ValidateKubernetesConstraintCoverage(
+	constraints *types.KubernetesResourceConstraints,
+	applicableRoles []types.Role,
+	cluster types.KubeCluster,
+	username string,
+	traits map[string][]string,
+	localCluster string,
+) error {
+	if constraints == nil {
+		return nil
+	}
+
+	coveredGroups := set.New[string]()
+	coveredUsers := set.New[string]()
+
+	matcher := NewKubernetesClusterLabelMatcher(cluster.GetAllLabels(), username, traits)
+
+	for _, role := range applicableRoles {
+		singleInfo := &AccessInfo{
+			Username: username,
+			Traits:   traits,
+		}
+		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+
+		groups, users, err := singleChecker.CheckKubeGroupsAndUsers(0, true, matcher)
+		if err != nil {
+			continue
+		}
+		for _, g := range groups {
+			coveredGroups.Add(g)
+		}
+		for _, u := range users {
+			coveredUsers.Add(u)
+		}
+	}
+
+	for _, g := range constraints.Groups {
+		if g != types.Wildcard && !coveredGroups.Contains(g) {
+			return trace.BadParameter("requested kubernetes group %q is not granted by any applicable role", g)
+		}
+	}
+	for _, u := range constraints.Users {
+		if u != types.Wildcard && !coveredUsers.Contains(u) {
+			return trace.BadParameter("requested kubernetes user %q is not granted by any applicable role", u)
 		}
 	}
 

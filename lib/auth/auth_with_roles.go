@@ -1349,6 +1349,21 @@ func setDatabasePrincipalsByRole(r *proto.PaginatedResource, byRole map[string]t
 	}
 }
 
+// setKubePrincipalsByRole populates the KubePrincipalsByRole field on a
+// PaginatedResource from a Go map. It is a no-op if byRole is empty.
+func setKubePrincipalsByRole(r *proto.PaginatedResource, byRole map[string]types.KubeRolePrincipals) {
+	if len(byRole) == 0 {
+		return
+	}
+	r.KubePrincipalsByRole = make(map[string]*proto.KubeRolePrincipals, len(byRole))
+	for roleName, p := range byRole {
+		r.KubePrincipalsByRole[roleName] = &proto.KubeRolePrincipals{
+			Groups: p.Groups,
+			Users:  p.Users,
+		}
+	}
+}
+
 // unifiedResourceLister is used to check if an unified resource should be listed. It also
 // memorizes all the resources which are requestable-only in the requestableMap.
 type unifiedResourceLister struct {
@@ -1443,6 +1458,17 @@ func (l *unifiedResourceLister) getEnrichedDatabasePrincipalsByRole(database typ
 		return nil
 	}
 	return services.EnumerateDatabasePrincipalsByRole(checker, database, l.localCluster)
+}
+
+// getEnrichedKubePrincipalsByRole returns per-role Kubernetes principal
+// groupings visible to the user (including requestable principals via
+// search_as_roles). It uses the most-privileged access checker available.
+func (l *unifiedResourceLister) getEnrichedKubePrincipalsByRole(cluster types.KubeCluster) map[string]types.KubeRolePrincipals {
+	checker := l.getAccessChecker()
+	if checker == nil {
+		return nil
+	}
+	return services.EnumerateKubePrincipalsByRole(checker, cluster, l.localCluster)
 }
 
 // getAccessChecker returns the services.AccessChecker from the most-privileged
@@ -1693,6 +1719,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			} else if d := r.GetDatabaseServer(); d != nil {
 				byRole := resourceLister.getEnrichedDatabasePrincipalsByRole(d.GetDatabase())
 				setDatabasePrincipalsByRole(r, byRole)
+			} else if k := r.GetKubernetesServer(); k != nil {
+				byRole := resourceLister.getEnrichedKubePrincipalsByRole(k.GetCluster())
+				setKubePrincipalsByRole(r, byRole)
 			} else if d := r.GetAppServer(); d != nil {
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent

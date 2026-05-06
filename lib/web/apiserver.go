@@ -3617,10 +3617,25 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
 		case types.KubeServer:
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
 			targetHealth := r.GetTargetHealth()
 			if targetHealth != nil {
 				kube.TargetHealth = *targetHealth
+			}
+			if principals != nil {
+				kube.KubePrincipalsByRole = principals.KubePrincipalsByRole
+			}
+			if features := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures); features != nil {
+				kube.SupportedFeatureIDs = features.GetFeatures()
 			}
 			unifiedResources = append(unifiedResources, kube)
 		default:

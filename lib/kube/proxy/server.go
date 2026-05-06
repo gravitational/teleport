@@ -38,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -558,6 +559,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 		return nil, trace.Wrap(err)
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+	srv.SetComponentFeatures(componentfeatures.ForKubeServer())
 
 	// Get the kube cluster health and send it to the auth server.
 	srv.SetTargetHealth(t.getTargetHealth(t.closeContext, cluster))

@@ -40,6 +40,9 @@ type UnifiedResourcePrincipals struct {
 	// DBAutoUserEnabled indicates that auto-user provisioning is enabled for
 	// a database resource, considering both granted and requestable roles.
 	DBAutoUserEnabled bool
+	// KubePrincipalsByRole maps Teleport role names to the per-role Kubernetes
+	// principal groups (with requiresRequest metadata). Populated for kube clusters.
+	KubePrincipalsByRole map[string]webui.KubeRolePrincipalGroup
 }
 
 // PrincipalsForUnifiedResourceOpts configures PrincipalsForUnifiedResource.
@@ -92,6 +95,8 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 			db.IsAutoUsersEnabled() && hasDBRolesInAnyEntry(opts.Resource.DatabasePrincipalsByRole) {
 			result.DBAutoUserEnabled = true
 		}
+	case types.KubeServer:
+		result.KubePrincipalsByRole = kubePrincipalsByRole(opts, r)
 	}
 
 	return result, nil
@@ -199,6 +204,34 @@ func hasDBRolesInAnyEntry(byRole map[string]types.DatabaseRolePrincipals) bool {
 		}
 	}
 	return false
+}
+
+// kubePrincipalsByRole converts per-role Kubernetes principal data from the
+// enriched resource into web UI types, marking each role's principals as
+// requiring a request if the role is not in the user's base (granted) role set.
+func kubePrincipalsByRole(opts PrincipalsForUnifiedResourceOpts, _ types.KubeServer) map[string]webui.KubeRolePrincipalGroup {
+	byRole := opts.Resource.KubePrincipalsByRole
+	if len(byRole) == 0 {
+		return nil
+	}
+
+	grantedRoles := set.New[string]()
+	if opts.IncludeRequestable {
+		for _, r := range opts.AccessChecker.Roles() {
+			grantedRoles.Add(r.GetName())
+		}
+	}
+
+	result := make(map[string]webui.KubeRolePrincipalGroup, len(byRole))
+	for roleName, p := range byRole {
+		requiresRequest := opts.IncludeRequestable && !grantedRoles.Contains(roleName)
+		result[roleName] = webui.KubeRolePrincipalGroup{
+			RequiresRequest: requiresRequest,
+			Groups:          p.Groups,
+			Users:           p.Users,
+		}
+	}
+	return result
 }
 
 // filterByIdentityPrincipals returns the intersection of allowedLogins with

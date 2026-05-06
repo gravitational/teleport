@@ -573,6 +573,41 @@ func TestValidateAccessRequest_ConstraintKinds(t *testing.T) {
 		require.Contains(t, err.Error(), "database constraints are not valid for resource kind")
 	})
 
+	kubeConstraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Groups: []string{"admin"},
+			},
+		},
+	}
+
+	t.Run("KindKubernetesCluster with kubernetes constraints is accepted", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindKubernetesCluster, kubeConstraints))
+		require.NoError(t, err)
+	})
+
+	t.Run("KindKubeNamespace with kubernetes constraints is accepted", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindKubeNamespace, kubeConstraints))
+		require.NoError(t, err)
+	})
+
+	t.Run("kube subresource prefix with kubernetes constraints is accepted", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.AccessRequestPrefixKindKubeNamespaced+"pods", kubeConstraints))
+		require.NoError(t, err)
+	})
+
+	t.Run("KindNode with kubernetes constraints is rejected", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindNode, kubeConstraints))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "kubernetes constraints are not valid for resource kind")
+	})
+
+	t.Run("KindKubernetesCluster with SSH constraints is rejected", func(t *testing.T) {
+		err := ValidateAccessRequest(makeRequest(types.KindKubernetesCluster, sshConstraints))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ssh constraints are not valid for resource kind")
+	})
+
 	t.Run("nil constraints are accepted for any kind", func(t *testing.T) {
 		err := ValidateAccessRequest(makeRequest(types.KindDatabase, nil))
 		require.NoError(t, err)
@@ -1489,4 +1524,167 @@ func TestMatcherFromConstraints_Database_SupportAWSIAMRoleARN(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
+}
+
+// --- Kubernetes constraint tests ---
+
+func roleAllowingKubeGroupsAndUsers(groups, users []string) types.Role {
+	return newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.KubernetesLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.KubeGroups = append([]string{}, groups...)
+		rv.Spec.Allow.KubeUsers = append([]string{}, users...)
+	})
+}
+
+func TestWithConstraints_Kubernetes_NoOpPassthrough(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Groups: []string{"admin"},
+			},
+		},
+	}
+	guard := WithConstraints(rc)
+
+	// K8s constraint transform is a no-op passthrough — it should not alter matcher behavior.
+	dummy := RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+		return true, nil
+	})
+	wrapped := guard(dummy)
+	ok, err := wrapped.Match(roleAllowingKubeGroupsAndUsers([]string{"admin"}, nil), types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestMatcherFromConstraints_Kubernetes_GroupsOnly(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Groups: []string{"dev", "ops"},
+			},
+		},
+	}
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+
+	// Role has "dev" — should match.
+	role := roleAllowingKubeGroupsAndUsers([]string{"dev"}, nil)
+	ok, err := m.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// Role has no matching groups — should not match.
+	roleNoMatch := roleAllowingKubeGroupsAndUsers([]string{"staging"}, nil)
+	ok, err = m.Match(roleNoMatch, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestMatcherFromConstraints_Kubernetes_UsersOnly(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Users: []string{"alice"},
+			},
+		},
+	}
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+
+	role := roleAllowingKubeGroupsAndUsers(nil, []string{"alice", "bob"})
+	ok, err := m.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	roleNoMatch := roleAllowingKubeGroupsAndUsers(nil, []string{"charlie"})
+	ok, err = m.Match(roleNoMatch, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestMatcherFromConstraints_Kubernetes_GroupsAndUsers(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Groups: []string{"admin"},
+				Users:  []string{"alice"},
+			},
+		},
+	}
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+
+	// Role has both matching group and user — should match.
+	roleMatch := roleAllowingKubeGroupsAndUsers([]string{"admin"}, []string{"alice"})
+	ok, err := m.Match(roleMatch, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// Role has matching group but wrong user — should not match (AND semantics).
+	roleGroupOnly := roleAllowingKubeGroupsAndUsers([]string{"admin"}, []string{"bob"})
+	ok, err = m.Match(roleGroupOnly, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Role has matching user but wrong group — should not match.
+	roleUserOnly := roleAllowingKubeGroupsAndUsers([]string{"dev"}, []string{"alice"})
+	ok, err = m.Match(roleUserOnly, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestMatcherFromConstraints_Kubernetes_WildcardGroups(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Groups: []string{types.Wildcard},
+				Users:  []string{"alice"},
+			},
+		},
+	}
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+
+	// Wildcard groups means groups dimension is unconstrained; only users checked.
+	role := roleAllowingKubeGroupsAndUsers([]string{"anything"}, []string{"alice"})
+	ok, err := m.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestMatcherFromConstraints_Kubernetes_WildcardInRoleGroups(t *testing.T) {
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{
+				Groups: []string{"admin"},
+			},
+		},
+	}
+	m, err := MatcherFromConstraints(rc, nil)
+	require.NoError(t, err)
+
+	// Role has wildcard group — should match any requested group.
+	role := roleAllowingKubeGroupsAndUsers([]string{types.Wildcard}, nil)
+	ok, err := m.Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestMatcherFromConstraints_Kubernetes_ErrorCases(t *testing.T) {
+	// Empty constraint — should fail validation.
+	rcEmpty := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{
+			Kubernetes: &types.KubernetesResourceConstraints{},
+		},
+	}
+	_, err := MatcherFromConstraints(rcEmpty, nil)
+	require.Error(t, err)
+
+	// Nil Kubernetes — should fail validation.
+	rcNil := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Kubernetes{Kubernetes: nil},
+	}
+	_, err = MatcherFromConstraints(rcNil, nil)
+	require.Error(t, err)
 }

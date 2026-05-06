@@ -51,3 +51,8 @@ func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures 
 func ForDatabaseServer() *componentfeaturesv1.ComponentFeatures {
 	return New(FeatureResourceConstraintsV1)
 }
+
+// ForKubeServer returns features that a Kubernetes server can support/participate in.
+func ForKubeServer() *componentfeaturesv1.ComponentFeatures {
+	return New(FeatureResourceConstraintsV1)
+}

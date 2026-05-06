@@ -119,12 +119,27 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 			if kind != types.KindDatabase {
 				return trace.BadParameter("database constraints are not valid for resource kind %q", kind)
 			}
+		case *types.ResourceConstraints_Kubernetes:
+			if !isKubernetesResourceKind(kind) {
+				return trace.BadParameter("kubernetes constraints are not valid for resource kind %q", kind)
+			}
 		default:
 			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)
 		}
 	}
 
 	return nil
+}
+
+// isKubernetesResourceKind returns true if the given kind represents a
+// Kubernetes cluster or one of its requestable sub-resource kinds.
+// This includes the cluster itself, the legacy namespace kind, and
+// the prefixed kinds used for kube sub-resources in access requests
+// (e.g., "kube:ns:pods", "kube:cw:namespaces").
+func isKubernetesResourceKind(kind string) bool {
+	return kind == types.KindKubernetesCluster ||
+		kind == types.KindKubeNamespace ||
+		strings.HasPrefix(kind, types.AccessRequestPrefixKindKube)
 }
 
 // ClusterGetter provides access to the local cluster
@@ -2568,6 +2583,21 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 						dbConstraints,
 						rolesForResource,
 						db,
+						m.userState.GetName(),
+						m.userState.GetTraits(),
+						localClusterName,
+					); err != nil {
+						return nil, trace.Wrap(err)
+					}
+				}
+			}
+			// Validate per-principal reachability for Kubernetes constraints.
+			if kubeConstraints := constraints.GetKubernetes(); kubeConstraints != nil {
+				if cluster, ok := resource.(types.KubeCluster); ok {
+					if err := ValidateKubernetesConstraintCoverage(
+						kubeConstraints,
+						rolesForResource,
+						cluster,
 						m.userState.GetName(),
 						m.userState.GetTraits(),
 						localClusterName,

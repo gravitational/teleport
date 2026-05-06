@@ -917,6 +917,57 @@ func (a *accessChecker) getConstrainedDatabaseRoles(database types.Database) map
 	return nil
 }
 
+// CheckKubeGroupsAndUsers overrides the embedded RoleSet method to filter
+// the resolved Kubernetes groups and users against any Kubernetes
+// ResourceConstraints present on the identity.
+func (a *accessChecker) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
+	groups, users, err := a.RoleSet.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	groups, users = a.filterKubeByConstraints(groups, users)
+	if len(groups) == 0 && len(users) == 0 {
+		return nil, nil, trace.NotFound("kubernetes groups/users denied by resource constraints")
+	}
+	return groups, users, nil
+}
+
+// filterKubeByConstraints scans AllowedResourceAccessIDs for Kubernetes
+// constraints and filters the provided groups/users accordingly. Wildcard
+// "*" in a dimension means no filtering for that dimension.
+func (a *accessChecker) filterKubeByConstraints(groups, users []string) ([]string, []string) {
+	if len(a.info.AllowedResourceAccessIDs) == 0 {
+		return groups, users
+	}
+	for _, raid := range a.info.AllowedResourceAccessIDs {
+		c := raid.GetConstraints()
+		if c == nil {
+			continue
+		}
+		kc, ok := c.Details.(*types.ResourceConstraints_Kubernetes)
+		if !ok || kc.Kubernetes == nil {
+			continue
+		}
+
+		if len(kc.Kubernetes.Groups) > 0 && !slices.Contains(kc.Kubernetes.Groups, types.Wildcard) {
+			allowed := set.New(kc.Kubernetes.Groups...)
+			groups = slices.DeleteFunc(slices.Clone(groups), func(g string) bool {
+				_, ok := allowed[g]
+				return !ok
+			})
+		}
+		if len(kc.Kubernetes.Users) > 0 && !slices.Contains(kc.Kubernetes.Users, types.Wildcard) {
+			allowed := set.New(kc.Kubernetes.Users...)
+			users = slices.DeleteFunc(slices.Clone(users), func(u string) bool {
+				_, ok := allowed[u]
+				return !ok
+			})
+		}
+		break
+	}
+	return groups, users
+}
+
 type checkDatabaseRolesResult struct {
 	allowedRoleSet RoleSet
 	deniedRoleSet  RoleSet

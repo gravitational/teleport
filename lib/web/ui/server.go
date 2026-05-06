@@ -181,6 +181,17 @@ type EKSCluster struct {
 	AuthenticationMode   string     `json:"authenticationMode"`
 }
 
+// KubeRolePrincipalGroup describes the Kubernetes principals that a single
+// Teleport role grants, along with whether the role requires an access request.
+type KubeRolePrincipalGroup struct {
+	// RequiresRequest indicates whether this role requires an access request.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// Groups is the list of Kubernetes RBAC groups this role grants.
+	Groups []string `json:"groups,omitempty"`
+	// Users is the list of Kubernetes RBAC users this role grants.
+	Users []string `json:"users,omitempty"`
+}
+
 // KubeCluster describes a kube cluster.
 type KubeCluster struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
@@ -193,8 +204,13 @@ type KubeCluster struct {
 	KubeUsers []string `json:"kubernetes_users"`
 	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
 	KubeGroups []string `json:"kubernetes_groups"`
+	// KubePrincipalsByRole maps Teleport role names to the Kubernetes principals
+	// each role grants, with requiresRequest metadata.
+	KubePrincipalsByRole map[string]KubeRolePrincipalGroup `json:"kubePrincipalsByRole,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportedFeatureIDs contains ComponentFeatures supported by this kube cluster.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 	// TargetHealth describes the health of a Kubernetes cluster
 	// reported from an Teleport Kubernetes agent.
 	//
