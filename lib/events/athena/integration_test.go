@@ -218,12 +218,16 @@ func testIntegrationAthenaLargeEvents(t *testing.T, bypassSNS bool) {
 		MaxBatchSize: 1,
 		BypassSNS:    bypassSNS,
 	})
+	size := 200000
+	if bypassSNS {
+		size = 1024 * 1024
+	}
 	in := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Index: 2,
 			Type:  events.SessionStartEvent,
 			ID:    uuid.NewString(),
-			Code:  strings.Repeat("d", 200000),
+			Code:  strings.Repeat("d", size),
 			Time:  ac.clock.Now().UTC(),
 		},
 	}

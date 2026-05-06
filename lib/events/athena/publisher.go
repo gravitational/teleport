@@ -51,10 +51,15 @@ const (
 	payloadTypeRawProtoEvent = "raw_proto_event"
 	payloadTypeS3Based       = "s3_event"
 
-	// maxDirectMessageSize defines maximum size of SNS/SQS message. AWS allows
+	// maxSNSDirectMessageSize defines maximum size of SNS message. AWS allows
 	// 256KB however it counts also headers. We round it to 250KB, just to be
 	// sure.
-	maxDirectMessageSize = 250 * 1024
+	maxSNSDirectMessageSize = 250 * 1024
+
+	// maxDirectMessageSize is the maximum size of message that can be sent
+	// directly through SQS without needing to be stored in S3. This is
+	// smaller than the actual SQS limit of 1MB to account for message headers.
+	maxSQSDirectMessageSize = (1024 - 10) * 1024 // reserve 10KB for message attributes
 )
 
 // maxS3BasedSize defines some resonable threshold for S3 based messages
@@ -150,14 +155,18 @@ type s3uploader interface {
 }
 
 type PublisherConfig struct {
-	MessagePublisher messagePublisher
-	Uploader         s3uploader
-	PayloadBucket    string
-	PayloadPrefix    string
+	MessagePublisher     messagePublisher
+	Uploader             s3uploader
+	PayloadBucket        string
+	PayloadPrefix        string
+	MaxDirectMessageSize int
 }
 
 // NewPublisher returns new instance of publisher.
 func NewPublisher(cfg PublisherConfig) *publisher {
+	if cfg.MaxDirectMessageSize <= 0 {
+		cfg.MaxDirectMessageSize = maxSNSDirectMessageSize
+	}
 	return &publisher{
 		PublisherConfig: cfg,
 	}
@@ -181,18 +190,21 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
 	})
 	var messagePublisher messagePublisherFunc
+	var maxDirectMessageSize int
 	if cfg.TopicARN == topicARNBypass {
 		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
+		maxDirectMessageSize = maxSQSDirectMessageSize
 	} else {
 		messagePublisher = SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
+		maxDirectMessageSize = maxSNSDirectMessageSize // SNS allows messages up to 256KB, but we use a smaller limit to be safe
 	}
 
 	return NewPublisher(PublisherConfig{
@@ -200,8 +212,9 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 		Uploader: transfermanager.New(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})),
-		PayloadBucket: cfg.largeEventsBucket,
-		PayloadPrefix: cfg.largeEventsPrefix,
+		PayloadBucket:        cfg.largeEventsBucket,
+		PayloadPrefix:        cfg.largeEventsPrefix,
+		MaxDirectMessageSize: maxDirectMessageSize,
 	})
 }
 
@@ -248,7 +261,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	}
 
 	base64Len := base64.StdEncoding.EncodedLen(len(marshaledProto))
-	if base64Len > maxDirectMessageSize {
+	if base64Len > p.MaxDirectMessageSize {
 		if base64Len > maxS3BasedSize {
 			return trace.BadParameter("message too large to publish, size %d", base64Len)
 		}
