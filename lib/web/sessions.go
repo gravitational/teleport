@@ -50,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -953,7 +954,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -971,6 +972,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
