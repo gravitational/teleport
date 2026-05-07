@@ -40,10 +40,7 @@ import (
 
 // GetAvailableXSessions return xsessions available in the system with optional filtering
 func GetAvailableXSessions(included, excluded *regexp.Regexp) (map[string]string, error) {
-	path, exists := os.LookupEnv("TELEPORT_XSESSIONS_PATH")
-	if !exists {
-		path = "/usr/share/xsessions"
-	}
+	path := cmp.Or(os.Getenv("TELEPORT_XSESSIONS_PATH"), "/usr/share/xsessions")
 	entries := make(map[string]string)
 	dirEntries, err := os.ReadDir(path)
 	if err != nil {
