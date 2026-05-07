@@ -51,6 +51,17 @@ export function deleteUser(username: string) {
   tctl('users', 'rm', username);
 }
 
+// Removes a resource (e.g. `role/test-role`) if it exists, swallowing the
+// error tctl returns when the resource is absent. Used by tests that need a
+// clean slate even if a previous attempt failed midway through cleanup.
+export function deleteResourceIfExists(resource: string) {
+  try {
+    tctl('rm', resource);
+  } catch {
+    // Resource doesn't exist; nothing to clean up.
+  }
+}
+
 function tctl(...args: string[]) {
   return execFileSync(tctlBin, [...args, '-c', teleportConfig], {
     encoding: 'utf-8',
