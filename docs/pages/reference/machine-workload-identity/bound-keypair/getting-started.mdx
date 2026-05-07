@@ -68,7 +68,7 @@ method works and how to use it in production.
   hosts (like CI runs), doing so will reduce security guarantees; see the
   [reference page][reference] for further information.
 
-## Step 1/5. Install `tbot`
+## Step 1/4. Install `tbot`
 
 **This step is completed on the bot host.**
 
@@ -79,13 +79,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/5. Create a Bot
+## Step 2/4. Create a Bot
 
 **This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/5. Create a join token
+## Step 3/4. Create a join token
 
 **This step is completed on your local machine.**
 
@@ -149,7 +149,7 @@ $ tctl get token/example --format=json | jq -r '.[0].status.bound_keypair.regist
 This assumes `jq` is installed. If not, run `tctl get token/example` and inspect
 the `.status.bound_keypair.registration_secret` field.
 
-## Step 4/5. Configure `tbot`
+## Step 4/4. Configure `tbot`
 
 **This step is completed on the bot host.**
 
@@ -184,7 +184,7 @@ Replace the following:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 5/5. Configure outputs
+## Next step: configure outputs
 
 (!docs/pages/includes/machine-id/configure-services.mdx!)
 
@@ -289,7 +289,7 @@ $ tbot start -c tbot.yaml
 For additional information on how onboarding a new bot works with Bound Keypair
 Joining, refer to the [onboarding reference](./concepts.mdx#onboarding).
 
-## Next steps
+## Further reading
 
 - Read the [Bound Keypair Joining Reference][reference]
   for more details about the join method and the available configuration options.
