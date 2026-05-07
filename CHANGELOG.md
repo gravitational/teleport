@@ -34,10 +34,6 @@ Teleport's bound keypair join method extends to support arbitrary Teleport agent
 
 Identity Security provides users with CLI tooling for searching session summaries allowing users to find sessions based on natural language queries.
 
-### Reduce resource consumption of SSH sessions
-
-Teleport SSH session latency is reduced and each session consumes less memory.
-
 ### Other fixes and improvements
 
 * Improved Teleport Connect startup reliability on Windows. [#66509](https://github.com/gravitational/teleport/pull/66509)
