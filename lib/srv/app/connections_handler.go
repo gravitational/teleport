@@ -785,6 +785,13 @@ func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, 
 	return tlsConfig
 }
 
+// CopyAndConfigureTLSForCluster is like [CopyAndConfigureTLS] but accepts the local cluster name.
+// Prefer this variant in new code.
+func CopyAndConfigureTLSForCluster(log logrus.FieldLogger, client authclient.AccessCache, clusterName string, config *tls.Config) *tls.Config {
+	_ = clusterName
+	return CopyAndConfigureTLS(log, client, config)
+}
+
 func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
