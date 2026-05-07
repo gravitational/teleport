@@ -1403,7 +1403,29 @@ func checkCerts(t *testing.T,
 	sshCertAllowedResources, err := types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
 	require.NoError(t, err)
 	assert.ElementsMatch(t, resourceAccessIDs, sshCertAllowedResources)
+	assert.ElementsMatch(t, resourceAccessIDs, sshIdentity.AllowedResourceAccessIDs)
 	assert.ElementsMatch(t, resourceAccessIDs, tlsIdentity.AllowedResourceAccessIDs)
+
+	// Verify the legacy AllowedResourceIDs extension contains the expected values.
+	// Plain (unconstrained) resource IDs should appear in the old extension so that older
+	// agents/proxies that don't understand AllowedResourceAccessIDs can still enforce
+	// resource-level restrictions. The sentinel should only appear when all requested
+	// resources carry constraints that old agents can't enforce.
+	sshCertLegacyResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	require.NoError(t, err)
+	plainIDs, constrainedOnly := types.UnwrapResourceAccessIDs(resourceAccessIDs)
+	if len(plainIDs) > 0 {
+		// Plain resources should be in the old extension.
+		assert.ElementsMatch(t, plainIDs, sshCertLegacyResources, "SSH cert legacy extension should contain plain resource IDs")
+		// Sentinel should not be present.
+		for _, rid := range sshCertLegacyResources {
+			assert.False(t, types.IsSentinelResourceID(rid), "SSH cert legacy extension should not contain sentinel when plain resources are present")
+		}
+	} else if len(constrainedOnly) > 0 {
+		// Constraint-only requests should have the sentinel in the old extension.
+		require.Len(t, sshCertLegacyResources, 1, "SSH cert legacy extension should contain only sentinel")
+		assert.True(t, types.IsSentinelResourceID(sshCertLegacyResources[0]), "SSH cert legacy extension should be sentinel")
+	}
 }
 
 func TestCreateSuggestions(t *testing.T) {
