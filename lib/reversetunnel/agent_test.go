@@ -51,6 +51,7 @@ type mockSSHClient struct {
 	MockPrincipals        []string
 	MockGlobalRequests    chan *ssh.Request
 	MockHandleChannelOpen chan ssh.NewChannel
+	MockEnableWatchdog    func(time.Duration)
 }
 
 func (m *mockSSHClient) User() string { return "" }
@@ -111,6 +112,9 @@ func (m *mockSSHClient) GlobalRequests() <-chan *ssh.Request {
 }
 
 func (m *mockSSHClient) EnableWatchdog(timeout time.Duration) {
+	if m.MockEnableWatchdog != nil {
+		m.MockEnableWatchdog(timeout)
+	}
 }
 
 type fakeReaderWriter struct{}
