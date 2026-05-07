@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -643,30 +644,34 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for i := 0; i < len(screen.Sizes); i++ {
-		if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
-			x.mu.Lock()
-			defer x.mu.Unlock()
-			reply, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
-			if err != nil {
-				return trace.Wrap(err)
-			}
 
-			// Recalculate physical dimensions to preserve DPI
-			widthMm := pixelsToMm(width)
-			heightMm := pixelsToMm(height)
-			if err := randr.SetScreenSizeChecked(x.conn, x.root(), width, height, widthMm, heightMm).Check(); err != nil {
-				return trace.Wrap(err)
-			}
-
-			x.width = width
-			x.height = height
-			x.resizeTimestamp = reply.NewTimestamp
-
-			return nil
-		}
+	index := slices.IndexFunc(screen.Sizes, func(screen randr.ScreenSize) bool {
+		return screen.Width == width && screen.Height == height
+	})
+	if index < 0 {
+		return trace.NotFound("could not find a screen with width %d and height %d", width, height)
 	}
-	return trace.NotFound("could not find a screen with width %d and height %d", width, height)
+
+	x.mu.Lock()
+	defer x.mu.Unlock()
+
+	reply, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(index), screen.Rotation, screen.Rate).Reply()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Recalculate physical dimensions to preserve DPI
+	widthMm := pixelsToMm(width)
+	heightMm := pixelsToMm(height)
+	if err := randr.SetScreenSizeChecked(x.conn, x.root(), width, height, widthMm, heightMm).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	x.width = width
+	x.height = height
+	x.resizeTimestamp = reply.NewTimestamp
+
+	return nil
 }
 
 // SetClipboardData stores clipboard data and claims clipboard ownership.
