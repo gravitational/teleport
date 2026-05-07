@@ -856,12 +856,15 @@ With this configuration, Teleport will generate certificates for users in
 
 Windows Desktop Service supports logins for users outside of a given `windows_desktop_service` instance's
 configured domain so long as there is an outgoing trust relationship from the primary (Teleport configured)
-domain to user's domain. Following the example above where Teleport is configured against the root domain
-`example.com` and there exists child domain, `dev.example.com`, Teleport can authenticate the user `user@dev.example.com`
-for logon to a desktop in the root domain. Similarly, `example.com` could be configured with an outgoing trust
-relationship to an external domain `partner.com` to allow its users to access desktops in `example.com`.
+domain to user's domain. For example, if Windows Desktop Service is configured against the root domain
+`example.com` and there exists child domain, `dev.example.com`, Teleport can authenticate the user
+`user@dev.example.com` for logon to a desktop in the root domain. Similarly, if `example.com` has an outgoing
+trust relationship to an external domain `partner.com`, then `user@partner.com` can access desktops in `example.com`.
 
-#### Grant Remote Desktop Access to External Users
+In order for users from foreign domains to login to desktops in the target domain, they must be granted
+"Remote Desktop Access" rights. In addition, they must be added to the "Remote Desktop Users" group.
+
+##### Grant Remote Desktop Access to External Users
 
 1. Open the `Teleport Access Policy` group policy object in the
    group policy editor.
@@ -874,7 +877,7 @@ relationship to an external domain `partner.com` to allow its users to access de
 
 1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain.
 
-#### Add External Users to the 'Remote Desktop Users' AD Group
+##### Add External Users to the 'Remote Desktop Users' AD Group
 
 1. Open **Active Directory Users and Computers** 
 
