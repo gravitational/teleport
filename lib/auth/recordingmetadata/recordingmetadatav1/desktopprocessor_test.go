@@ -47,7 +47,7 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 	}{
 		{
 			name:   "complete session populates metadata and produces thumbnail",
-			events: generateCompleteDesktopSession(t, startTime, 800, 600, nil),
+			events: generateCompleteDesktopSession(t, startTime, 64, 48, nil),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
 				require.NotNil(t, metadata.StartTime)
@@ -66,14 +66,14 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 				_, err := png.Decode(bytes.NewReader(thumbnail.Png))
 				require.NoError(t, err)
 
-				require.Equal(t, int32(800), thumbnail.ScreenWidth)
-				require.Equal(t, int32(600), thumbnail.ScreenHeight)
+				require.Equal(t, int32(64), thumbnail.ScreenWidth)
+				require.Equal(t, int32(48), thumbnail.ScreenHeight)
 			},
 		},
 		{
 			name: "recovered session without start event populates metadata from end event",
 			events: []apievents.AuditEvent{
-				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 800, 600),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 64, 48),
 				desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White)),
 				desktopRecoveredSessionEndEvent(startTime, startTime.Add(10*time.Second)),
 			},
@@ -96,7 +96,7 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 		},
 		{
 			name: "unhandled events are silently ignored",
-			events: generateCompleteDesktopSession(t, startTime, 800, 600, []apievents.AuditEvent{
+			events: generateCompleteDesktopSession(t, startTime, 64, 48, []apievents.AuditEvent{
 				&apievents.SessionJoin{Metadata: apievents.Metadata{Time: startTime.Add(2 * time.Second)}},
 				&apievents.SessionLeave{Metadata: apievents.Metadata{Time: startTime.Add(3 * time.Second)}},
 			}),
@@ -140,7 +140,7 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 
 func TestDesktopRecordingProcessor_ThumbnailsWrittenToWriter(t *testing.T) {
 	startTime := time.Now()
-	events := generateCompleteDesktopSession(t, startTime, 800, 600, nil)
+	events := generateCompleteDesktopSession(t, startTime, 64, 48, nil)
 
 	lastEventTime := events[len(events)-1].GetTime()
 	duration := lastEventTime.Sub(startTime)
