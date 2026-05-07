@@ -3,18 +3,6 @@ packages:
   - e/web/*
   - e2e
   - e/e2e
-onlyBuiltDependencies:
-  - '@swc/core'
-  - cbor-extract
-  - electron
-  - esbuild
-  - msw
-  - node-pty
-  - protobufjs
-  - unrs-resolver
-ignoredBuiltDependencies:
-  # Imported by jsdom-testing-mocks but not needed by us.
-  - puppeteer
 # Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
 # and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
 # start complaining that electron-winstaller is not in onlyBuiltDependencies.
@@ -49,3 +37,18 @@ overrides:
   # csstype. Unfortunately, it looks like types from 3.1.3 are incompatible with 3.2.3. Since this
   # is a types-only package, we override it to 3.2.3 so that it matches the version from design.
   "styled-components@6.1.19>csstype@3.1.3": "^3.2.3"
+# The pnpm team releases new versions pretty often and we don't need to stay at the freshest version at all times.
+updateNotifier: false
+# ESLint editor integrations expect ESLint's binary to be in the root node_modules.
+publicHoistPattern:
+  - eslint
+allowBuilds:
+  '@swc/core': true
+  cbor-extract: true
+  electron: true
+  esbuild: true
+  msw: true
+  node-pty: true
+  protobufjs: true
+  unrs-resolver: true
+  puppeteer: false
