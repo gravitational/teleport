@@ -209,6 +209,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			log:     newBrowserLogger(browser),
 			e2eDir:  e2eDir,
 			dataDir: filepath.Join(e2eDir, "data", browser),
+			tctlBin: flags.tctlBin,
 		}
 		config.instances = append(config.instances, inst)
 	}
@@ -219,6 +220,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			log:     newBrowserLogger("connect"),
 			e2eDir:  e2eDir,
 			dataDir: filepath.Join(e2eDir, "data", "connect"),
+			tctlBin: flags.tctlBin,
 		}
 	}
 
@@ -356,22 +358,6 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 
 			inst.teleport = teleport
-
-			g.Go(func() error {
-				if err := teleport.start(ctx); err != nil {
-					return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
-				}
-				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
-					return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
-				}
-				if err := seedRecordings(gctx, config.e2eDir, inst.dataDir); err != nil {
-					return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
-				}
-				if err := applyResources(gctx, config.e2eDir, config.tctlBin, inst.teleportConfigPath); err != nil {
-					return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
-				}
-				return nil
-			})
 		}
 
 		if fixtures.SSHNode.Enabled {
