@@ -75,12 +75,10 @@ func clampInt32ToInt16(val int32) int16 {
 }
 
 func clampUint64ToUint32(val uint64) uint32 {
-	switch {
-	case val > math.MaxUint32:
+	if val > math.MaxUint32 {
 		return math.MaxUint32
-	default:
-		return uint32(val)
 	}
+	return uint32(val)
 }
 
 // TranslateToLegacy converts a TDPB (Modern) message to one or more TDP (Legacy) messages.
