@@ -229,7 +229,7 @@ func TestPlatformConfigureOS_RetriesIPv6RouteAfterFailure(t *testing.T) {
 
 	err := platformConfigureOS(t.Context(), cfg, state)
 	require.ErrorIs(t, err, wantErr)
-	require.True(t, state.configuredIPv6Alias,
+	require.True(t, state.configuredIPv6,
 		"alias must be marked configured after ifconfig succeeds")
 	require.False(t, state.configuredIPv6Route,
 		"route must not be marked configured on a failing route add")

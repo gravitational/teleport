@@ -33,7 +33,7 @@ import (
 // re-issuing ifconfig flaps the alias and trips linkmon subscribers.
 type platformOSConfigState struct {
 	configuredIPv4       bool
-	configuredIPv6Alias  bool
+	configuredIPv6       bool
 	configuredIPv6Route  bool
 	configuredCidrRanges []string
 }
@@ -75,7 +75,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
 	}
 
-	if cfg.tunIPv6 != "" && !state.configuredIPv6Alias {
+	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.",
 			"device", cfg.tunName, "address", cfg.tunIPv6)
 		if err := runCommand(ctx,
@@ -83,7 +83,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		state.configuredIPv6Alias = true
+		state.configuredIPv6 = true
 	}
 
 	// Track the IPv6 route separately from the alias so a transient
