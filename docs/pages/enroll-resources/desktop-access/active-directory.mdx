@@ -714,6 +714,30 @@ To connect to a Windows desktop:
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
+## Configure Users and Groups to login through remote desktop services
+In order for users to login through remote desktop services, they must be granted the
+appropriate user rights, and they must be added to the 'Remote Desktop Users' AD group.
+
+### Grant access through remote desktop
+
+1. Open the `Teleport Access Policy` group policy object in the
+   group policy editor.
+1. Expand **`Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment`**
+1. Double-click  **Allow logon through remote desktop services**
+1. Under **Security Policy Setting** click **Add User Or Group** then click **Browse**.
+1. (Optional) Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
+1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
+1. Click **OK** and then **Apply**
+
+### Add users/groups to the 'Remote Desktop Users' AD group
+
+1. Open **Active Directory Users and Computers** 
+1. Navigate to **`$YOUR_DOMAIN -> Builtin`** and double-click **Remote Desktop Users**
+1. Select the **Members** tab and click **Add**
+1. (Optional) Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
+1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
+1. Click **OK** and then **Apply**
+
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
@@ -865,26 +889,9 @@ trust relationship to an external domain `partner.com`, then `user@partner.com` 
 
 In order for users from foreign domains to login to desktops in the target domain, they must be granted
 the appropriate user rights and must be added to the "Remote Desktop Users" group in Active Directory.
+Follow the steps covered in the previous section ["Configure Users and Groups to login through remote desktop services"](#configure-users-and-groups-to-login-through-remote-desktop-services)
+to grant appropriate permissions to foreign users and groups.
 
-#### Grant access through remote desktop to foreign users
-
-1. Open the `Teleport Access Policy` group policy object in the
-   group policy editor.
-1. Expand **`Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment`**
-1. Double-click  **Allow logon through remote desktop services**
-1. Under **Security Policy Setting** click **Add User Or Group** then click **Browse**.
-1. Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
-1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
-1. Click **OK** and then **Apply**
-
-#### Add foreign users to the 'Remote Desktop Users' AD group
-
-1. Open **Active Directory Users and Computers** 
-1. Navigate to **`$YOUR_DOMAIN -> Builtin`** and double-click **Remote Desktop Users**
-1. Select the **Members** tab and click **Add**
-1. Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
-1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
-1. Click **OK** and then **Apply**
 
 ### Teleport Configuration for Cross-Domain Login
 
