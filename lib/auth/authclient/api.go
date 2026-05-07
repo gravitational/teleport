@@ -1558,8 +1558,6 @@ type Cache interface {
 	// AppAuthConfigGetter defines methods for fetching app auth configs.
 	services.AppAuthConfigReader
 
-	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
-	services.WorkloadClusterServiceGetter
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
