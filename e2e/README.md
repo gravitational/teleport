@@ -148,8 +148,9 @@ test.use({
 test('switch users', async ({ page, loginAs }) => {
   // signed in as users[0] at test start
   // ...
-  const editorName = await loginAs(1);
+  const { name: editorName, recordingIds } = await loginAs(1);
   // now signed in as users[1]; `editorName` is the generated username
+  // and `recordingIds` is the seeded recording map for users[1].
 });
 ```
 
@@ -165,7 +166,6 @@ the same `user`/`users`. Concretely:
 - Two specs that declare identical `test.use({ user: ... })` get distinct accounts (keyed by spec path).
 - Tests in the same spec share one account when their `test.use()` resolves to identical content. To force
   separate accounts, vary traits or use the `users: [...]` array (entries are distinguished by index).
-- Helper-declared `test.use({ user/users })` stays shared across every spec that imports the helper.
 
 **How it works (briefly):** The runner generates credentials server-side, logs each user in over HTTP
 (`/v1/webapi/mfa/login/*`) during setup, and writes the resulting cookies + localStorage to

@@ -174,8 +174,9 @@ export const test = base.extend<E2EFixtures>({
   },
   recordingIds: async ({ username }, use) => {
     if (!username) {
-      await use({});
-      return;
+      throw new Error(
+        'recordingIds requested without a logged-in user — declare user/users (or recordings) in test.use()'
+      );
     }
 
     const mapping = tryLoadRecordingMapping() ?? {};
