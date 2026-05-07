@@ -135,8 +135,8 @@ func TestServerHello_ChannelIDOutOfRange(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name              string
-		ioChan, userChan  uint32
+		name             string
+		ioChan, userChan uint32
 	}{
 		{"io channel too large", 1 << 16, 1003},
 		{"user channel too large", 1004, 1 << 16},
