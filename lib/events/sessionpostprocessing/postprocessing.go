@@ -75,6 +75,14 @@ func Process(ctx context.Context, cfg Config) error {
 		if err := summarizer.SummarizeDatabase(ctx, o); err != nil {
 			summarizerErr = trace.Wrap(err, "failed to summarize upload")
 		}
+	case *apievents.WindowsDesktopSessionEnd:
+		metadataSvc := cfg.RecordingMetadataProvider.Service()
+		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
+			duration := o.EndTime.Sub(o.StartTime)
+			if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, recordingmetadata.SessionTypeDesktop, duration); err != nil {
+				metadataErr = trace.Wrap(err, "failed to process session recording metadata")
+			}
+		}
 	}
 	return trace.NewAggregate(summarizerErr, metadataErr)
 }

@@ -79,6 +79,44 @@ func TestSessionPostProcessor(t *testing.T) {
 	sessionSummarizer.AssertExpectations(t)
 }
 
+func TestSessionPostProcessor_Desktop(t *testing.T) {
+	sessionID := session.ID(uuid.NewString())
+	startTime := time.Now().UTC().Add(-5 * time.Minute)
+	endTime := startTime.Add(3 * time.Minute)
+
+	metadataProvider := recordingmetadata.NewProvider()
+	recorderMetadata := &fakeRecordingMetadata{}
+	recorderMetadata.On(
+		"ProcessSessionRecording",
+		mock.Anything,
+		sessionID,
+		recordingmetadata.SessionTypeDesktop,
+		endTime.Sub(startTime),
+	).Return(nil).Once()
+	metadataProvider.SetService(recorderMetadata)
+
+	summarizerProvider := summarizer.NewSessionSummarizerProvider()
+	sessionSummarizer := &fakeSummarizer{}
+	summarizerProvider.SetSummarizer(sessionSummarizer)
+
+	cfg := sessionpostprocessing.Config{
+		SessionEnd: &apievents.WindowsDesktopSessionEnd{
+			SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
+			StartTime:       startTime,
+			EndTime:         endTime,
+		},
+		RecordingMetadataProvider: metadataProvider,
+		SessionSummarizerProvider: summarizerProvider,
+		SessionID:                 sessionID,
+	}
+
+	err := sessionpostprocessing.Process(t.Context(), cfg)
+	require.NoError(t, err)
+
+	recorderMetadata.AssertExpectations(t)
+	sessionSummarizer.AssertExpectations(t)
+}
+
 type fakeRecordingMetadata struct {
 	mock.Mock
 }
