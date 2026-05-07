@@ -1,16 +1,23 @@
 package pluginsv1
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestIdentityCenterValidation(t *testing.T) {
 	t.Parallel()
+	handler := awsicPluginHandler{modules: modulestest.EnterpriseModules()}
 	suite := createSuite(t)
 
 	testCases := []struct {
@@ -78,11 +85,185 @@ func TestIdentityCenterValidation(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			p := newIdentityCenterPluginResource()
 			test.mutate(p.Spec.GetAwsIc())
-			test.expectError(t, awsicPluginHandler{}.validatePlugin(t.Context(), pluginValidationInput{plugin: p}, suite.svc.authServer))
+			test.expectError(t, handler.validatePlugin(t.Context(), pluginValidationInput{plugin: p}, suite.svc.authServer))
 		})
 	}
+}
+
+func TestIdentityCenterValidation_SystemCredentialsByRuntime(t *testing.T) {
+	t.Parallel()
+
+	explicitSystemCredentials := func(s *types.PluginAWSICSettings) {
+		s.Credentials = newSystemAWSICCredentials("arn:aws:iam::123456789012:role/TeleportAWSICRole")
+		s.CredentialsSource = types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+	}
+
+	testCases := []struct {
+		name        string
+		cloud       bool
+		mutate      func(*types.PluginAWSICSettings)
+		expectError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "self-hosted allows implicit system credentials",
+			mutate:      func(*types.PluginAWSICSettings) {},
+			expectError: require.NoError,
+		},
+		{
+			name:        "self-hosted allows explicit system credentials",
+			mutate:      explicitSystemCredentials,
+			expectError: require.NoError,
+		},
+		{
+			name:        "cloud rejects implicit system credentials",
+			cloud:       true,
+			mutate:      func(*types.PluginAWSICSettings) {},
+			expectError: require.Error,
+		},
+		{
+			name:        "cloud rejects explicit system credentials",
+			cloud:       true,
+			mutate:      explicitSystemCredentials,
+			expectError: require.Error,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			plugin := newIdentityCenterPluginResource()
+			test.mutate(plugin.Spec.GetAwsIc())
+
+			err := awsicPluginHandler{modules: awsicTestModules(test.cloud)}.validatePlugin(t.Context(), pluginValidationInput{plugin: plugin}, nil)
+			test.expectError(t, err)
+			if err == nil {
+				return
+			}
+
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, awsicSystemCredentialsCloudError)
+			require.ErrorContains(t, err, awsicAWSOIDCIntegrationDocsURL)
+		})
+	}
+}
+
+func TestIdentityCenterValidation_CloudSystemCredentialsIntegrationListRBAC(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		rules         []types.Rule
+		expectDetails bool
+	}{
+		{
+			name: "omits existing integrations without integration list access",
+			rules: []types.Rule{
+				{Resources: []string{types.KindPlugin}, Verbs: []string{types.VerbCreate}},
+			},
+		},
+		{
+			name: "lists existing integrations with integration list access",
+			rules: []types.Rule{
+				{Resources: []string{types.KindPlugin}, Verbs: []string{types.VerbCreate}},
+				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbRead, types.VerbList}},
+			},
+			expectDetails: true,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			suite := createSuiteWithModules(t, awsicTestModules(true))
+			suite.setRules(test.rules)
+			_, err := suite.svc.authServer.CreateIntegration(t.Context(), mustAWSOIDCIntegration(t, "zeta"))
+			require.NoError(t, err)
+
+			_, err = suite.svc.CreatePlugin(t.Context(), &pluginspb.CreatePluginRequest{
+				Plugin: newIdentityCenterPluginResource(),
+			})
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, awsicSystemCredentialsCloudError)
+			if test.expectDetails {
+				require.ErrorContains(t, err, "Existing AWS OIDC integrations: zeta.")
+				require.NotContains(t, err.Error(), awsicAWSOIDCIntegrationDocsURL)
+			} else {
+				require.NotContains(t, err.Error(), "Existing AWS OIDC")
+				require.ErrorContains(t, err, awsicAWSOIDCIntegrationDocsURL)
+			}
+		})
+	}
+}
+
+func awsicTestModules(cloud bool) modules.Modules {
+	return &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: cloud,
+		},
+	}
+}
+
+func TestAWSICSystemCredentialsCloudErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("omits existing integration details when no AWS OIDC integrations are found", func(t *testing.T) {
+		t.Parallel()
+
+		msg := awsicSystemCredentialsCloudErrorMessage(t.Context(), awsicIntegrationListerFunc(
+			func(context.Context, int, string) ([]types.Integration, string, error) {
+				return []types.Integration{nonAWSOIDCIntegration("azure-oidc")}, "", nil
+			},
+		))
+		require.Contains(t, msg, awsicSystemCredentialsCloudError)
+		require.NotContains(t, msg, "Existing AWS OIDC")
+		require.Contains(t, msg, awsicAWSOIDCIntegrationDocsURL)
+	})
+
+	t.Run("lists existing AWS OIDC integrations", func(t *testing.T) {
+		t.Parallel()
+
+		msg := awsicSystemCredentialsCloudErrorMessage(t.Context(), awsicIntegrationListerFunc(
+			func(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error) {
+				switch nextToken {
+				case "":
+					return []types.Integration{mustAWSOIDCIntegration(t, "zeta")}, "next", nil
+				case "next":
+					return []types.Integration{
+						nonAWSOIDCIntegration("azure-oidc"),
+						mustAWSOIDCIntegration(t, "alpha"),
+					}, "", nil
+				default:
+					t.Fatalf("unexpected next token %q", nextToken)
+					return nil, "", nil
+				}
+			},
+		))
+		require.Contains(t, msg, "Existing AWS OIDC integrations: zeta, alpha.")
+		require.NotContains(t, msg, "azure-oidc")
+		require.NotContains(t, msg, awsicAWSOIDCIntegrationDocsURL)
+	})
+
+	t.Run("falls back to base error when listing fails", func(t *testing.T) {
+		t.Parallel()
+
+		msg := awsicSystemCredentialsCloudErrorMessage(t.Context(), awsicIntegrationListerFunc(
+			func(context.Context, int, string) ([]types.Integration, string, error) {
+				return nil, "", errors.New("backend unavailable")
+			},
+		))
+		require.Contains(t, msg, awsicSystemCredentialsCloudError)
+		require.Contains(t, msg, awsicAWSOIDCIntegrationDocsURL)
+		require.NotContains(t, msg, "backend unavailable")
+		require.NotContains(t, msg, "Existing AWS OIDC")
+		require.NotContains(t, msg, "No AWS OIDC")
+	})
 }
 
 // TestIdentityCenterUpdatePlugin tests that changes between the old and new
@@ -323,6 +504,38 @@ func newIdentityCenterPluginResource() *types.PluginV1 {
 						StatusCode: types.AWSICGroupImportStatusCode_DONE,
 					},
 				},
+			},
+		},
+	}
+}
+
+type awsicIntegrationListerFunc func(context.Context, int, string) ([]types.Integration, string, error)
+
+func (f awsicIntegrationListerFunc) ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error) {
+	return f(ctx, pageSize, nextToken)
+}
+
+func mustAWSOIDCIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: name},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/TeleportAWSICRole",
+		},
+	)
+	require.NoError(t, err)
+	return ig
+}
+
+func nonAWSOIDCIntegration(name string) types.Integration {
+	return &types.IntegrationV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindIntegration,
+			SubKind: types.IntegrationSubKindAzureOIDC,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
 			},
 		},
 	}

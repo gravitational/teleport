@@ -77,14 +77,16 @@ func (c scimPingErrorClient) Ping(ctx context.Context) error {
 func setAWSICValidationClients(t *testing.T, suite *suite, icClient icsdk.Client, scimClient scimsdk.Client) {
 	t.Helper()
 
-	suite.svc.handlers[types.PluginTypeAWSIdentityCenter] = awsicPluginHandler{
-		newIdentityCenterClient: func(config icsdk.Config) (icsdk.Client, error) {
-			return icClient, nil
-		},
-		newSCIMClient: func(config *scimsdk.Config) (scimsdk.Client, error) {
-			return scimClient, nil
-		},
+	handler, ok := suite.svc.handlers[types.PluginTypeAWSIdentityCenter].(awsicPluginHandler)
+	require.True(t, ok)
+
+	handler.newIdentityCenterClient = func(config icsdk.Config) (icsdk.Client, error) {
+		return icClient, nil
 	}
+	handler.newSCIMClient = func(config *scimsdk.Config) (scimsdk.Client, error) {
+		return scimClient, nil
+	}
+	suite.svc.handlers[types.PluginTypeAWSIdentityCenter] = handler
 }
 
 func newFailingAWSICClient(err error) *icsdk.ClientMock {

@@ -172,7 +172,7 @@ func TestPluginUpdateHandler(t *testing.T) {
 				test.mutateNewPlugin(newPlugin)
 			}
 
-			handler, ok := defaultPluginHandlers[newPlugin.GetType()]
+			handler, ok := defaultPluginHandlers(defaultPluginTestModules())[newPlugin.GetType()]
 			require.True(t, ok, "missing validator for plugin type %q", newPlugin.GetType())
 
 			err := handler.updatePlugin(newPlugin, existingPlugin)

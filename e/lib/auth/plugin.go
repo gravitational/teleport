@@ -975,6 +975,7 @@ func (p *Plugin) registerPluginsService() (*pluginsv1.Service, error) {
 		PluginAuthorizers:              authorizers,
 		Logger:                         p.logger,
 		KeyStoreManager:                p.authServer.AuthServer.GetKeyStore(),
+		Modules:                        p.Config.Modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

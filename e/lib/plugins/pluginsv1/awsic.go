@@ -2,14 +2,17 @@ package pluginsv1
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
@@ -18,12 +21,19 @@ import (
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
+	"github.com/gravitational/teleport/lib/modules"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
+)
+
+const (
+	awsicAWSOIDCIntegrationDocsURL   = "https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/awsoidc-integration/"
+	awsicSystemCredentialsCloudError = `AWS Identity Center integrations on Teleport Cloud must authenticate to AWS with an AWS OIDC integration. When using tctl, rerun the command with --no-use-system-credentials --oidc-integration=<name>.`
 )
 
 // awsicPluginHandler defines a validation and update handler for the AWS
 // Identity Center integration.
 type awsicPluginHandler struct {
+	modules                 modules.Modules
 	newIdentityCenterClient func(icsdk.Config) (icsdk.Client, error)
 	newSCIMClient           func(*scimsdk.Config) (scimsdk.Client, error)
 }
@@ -74,6 +84,10 @@ func (h awsicPluginHandler) validatePlugin(ctx context.Context, input pluginVali
 		}
 	}
 
+	if h.modules.Features().Cloud && settings.Credentials.GetSystem() != nil {
+		return trace.BadParameter("%s", awsicSystemCredentialsCloudErrorMessage(ctx, awsicIntegrationListerFromContext(ctx)))
+	}
+
 	return trace.Wrap(h.validateAWSICCredentials(ctx, settings, input, auth))
 }
 
@@ -93,6 +107,53 @@ func (h awsicPluginHandler) validateAWSICCredentials(ctx context.Context, settin
 	}
 
 	return nil
+}
+
+type integrationLister interface {
+	ListIntegrations(context.Context, int, string) ([]types.Integration, string, error)
+}
+
+type awsicIntegrationListerContextKey struct{}
+
+func withAWSICIntegrationLister(ctx context.Context, lister integrationLister) context.Context {
+	return context.WithValue(ctx, awsicIntegrationListerContextKey{}, lister)
+}
+
+func awsicIntegrationListerFromContext(ctx context.Context) integrationLister {
+	lister, _ := ctx.Value(awsicIntegrationListerContextKey{}).(integrationLister)
+	return lister
+}
+
+func awsicSystemCredentialsCloudErrorMessage(ctx context.Context, lister integrationLister) string {
+	parts := []string{awsicSystemCredentialsCloudError}
+
+	if lister != nil {
+		integrationNames, err := awsicAWSOIDCIntegrationNames(ctx, lister)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to list AWS OIDC integrations while building AWS Identity Center credentials error.", "error", err)
+		}
+		if err == nil && len(integrationNames) > 0 {
+			parts = append(parts, "Existing AWS OIDC integrations: "+strings.Join(integrationNames, ", ")+".")
+			return strings.Join(parts, " ")
+		}
+	}
+
+	parts = append(parts, "To set up an AWS OIDC integration, see "+awsicAWSOIDCIntegrationDocsURL)
+	return strings.Join(parts, " ")
+}
+
+func awsicAWSOIDCIntegrationNames(ctx context.Context, lister integrationLister) ([]string, error) {
+	var integrationNames []string
+	for integration, err := range clientutils.Resources(ctx, lister.ListIntegrations) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if integration.GetSubKind() == types.IntegrationSubKindAWSOIDC {
+			integrationNames = append(integrationNames, integration.GetName())
+		}
+	}
+
+	return integrationNames, nil
 }
 
 func (h awsicPluginHandler) validateAwsIcSDKCredentials(ctx context.Context, settings *types.PluginAWSICSettings, auth *auth.Server, httpClient *http.Client) error {

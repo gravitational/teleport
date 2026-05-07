@@ -12,9 +12,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -66,6 +69,10 @@ func (s *suite) setRoles(roles []string) {
 }
 
 func createSuite(t *testing.T) *suite {
+	return createSuiteWithModules(t, defaultPluginTestModules())
+}
+
+func createSuiteWithModules(t *testing.T, mod modules.Modules) *suite {
 	mem, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -75,8 +82,9 @@ func createSuite(t *testing.T) *suite {
 	authorizer := &fakeAuthorizer{checker: &fakeChecker{}}
 
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Dir:     t.TempDir(),
+		Clock:   clockwork.NewFakeClock(),
+		Modules: mod,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -93,6 +101,7 @@ func createSuite(t *testing.T) *suite {
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              pluginAuthorizers,
 		KeyStoreManager:                authServer.AuthServer.GetKeyStore(),
+		Modules:                        mod,
 	})
 	require.NoError(t, err)
 
@@ -102,6 +111,17 @@ func createSuite(t *testing.T) *suite {
 		pluginStaticCredentialsService: pluginStaticCredentialsService,
 		pluginAuthorizers:              pluginAuthorizers,
 		svc:                            serviceUnderTest,
+	}
+}
+
+func defaultPluginTestModules() modules.Modules {
+	return &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true},
+			},
+		},
 	}
 }
 

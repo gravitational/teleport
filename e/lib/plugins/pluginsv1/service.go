@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
@@ -76,6 +77,7 @@ type ServiceConfig struct {
 	Logger                         *slog.Logger
 	Handlers                       map[types.PluginType]pluginHandler
 	KeyStoreManager                KeyStoreManager
+	Modules                        modules.Modules
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -98,8 +100,11 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	if cfg.Modules == nil {
+		return trace.BadParameter("modules must be set")
+	}
 	if cfg.Handlers == nil {
-		cfg.Handlers = maps.Clone(defaultPluginHandlers)
+		cfg.Handlers = defaultPluginHandlers(cfg.Modules)
 	}
 	staticPlugins := getStaticPlugins()
 	for _, pluginType := range cfg.DisabledPlugins {
@@ -201,7 +206,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 
 	staticCreds, staticCredLabels := normalizeCreatePluginStaticCredentials(req)
 
-	if err := handler.validatePlugin(ctx, pluginValidationInput{
+	if err := handler.validatePlugin(s.withAWSICIntegrationListerIfAllowed(ctx, authCtx), pluginValidationInput{
 		plugin:                     plugin,
 		staticCredentials:          staticCreds,
 		validateInstallCredentials: true,
@@ -310,6 +315,13 @@ type pluginHandler interface {
 	updatePlugin(newP, oldP *types.PluginV1) error
 }
 
+func (s *Service) withAWSICIntegrationListerIfAllowed(ctx context.Context, authCtx *authz.Context) context.Context {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
+		return ctx
+	}
+	return withAWSICIntegrationLister(ctx, s.authServer)
+}
+
 // pluginValidationInput carries plugin-type-specific validation inputs. Most
 // plugin types only use the plugin resource itself and ignore the optional
 // static credentials.
@@ -347,33 +359,35 @@ func (h pluginHandlerFn) validatePlugin(ctx context.Context, input pluginValidat
 	return h.fn(input.plugin)
 }
 
-// defaultPluginHandlers is the default set of plugin validation handlers for the known plugin types.
-var defaultPluginHandlers = map[types.PluginType]pluginHandler{
-	types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraIDPlugin},
-	types.PluginTypeEmail:             pluginHandlerFn{fn: validateEmailPlugin},
-	types.PluginTypeAWSIdentityCenter: awsicPluginHandler{},
-	types.PluginTypeOkta:              oktaPluginHandler{},
-	types.PluginTypeSCIM:              scimPluginHandler{},
+// defaultPluginHandlers returns the default set of plugin validation handlers for the known plugin types.
+func defaultPluginHandlers(mod modules.Modules) map[types.PluginType]pluginHandler {
+	return map[types.PluginType]pluginHandler{
+		types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraIDPlugin},
+		types.PluginTypeEmail:             pluginHandlerFn{fn: validateEmailPlugin},
+		types.PluginTypeAWSIdentityCenter: awsicPluginHandler{modules: mod},
+		types.PluginTypeOkta:              oktaPluginHandler{},
+		types.PluginTypeSCIM:              scimPluginHandler{},
 
-	// Any plugin resource type using the default handler implicitly passes
-	// validation. Consider adding explicit validation for this plugin type to
-	// ensure that user-controlled input parameters (e.g., URL, AWS Region) are
-	// properly validated.
-	types.PluginTypeDatadog:    defaultHandler{},
-	types.PluginTypeDiscord:    defaultHandler{},
-	types.PluginTypeGitlab:     defaultHandler{},
-	types.PluginTypeGithub:     defaultHandler{},
-	types.PluginTypeIntune:     defaultHandler{},
-	types.PluginTypeJamf:       defaultHandler{},
-	types.PluginTypeJira:       defaultHandler{},
-	types.PluginTypeMattermost: defaultHandler{},
-	types.PluginTypeMSTeams:    defaultHandler{},
-	types.PluginTypeNetIQ:      defaultHandler{},
-	types.PluginTypeOpenAI:     defaultHandler{},
-	types.PluginTypeOpsgenie:   defaultHandler{},
-	types.PluginTypePagerDuty:  defaultHandler{},
-	types.PluginTypeServiceNow: defaultHandler{},
-	types.PluginTypeSlack:      defaultHandler{},
+		// Any plugin resource type using the default handler implicitly passes
+		// validation. Consider adding explicit validation for this plugin type to
+		// ensure that user-controlled input parameters (e.g., URL, AWS Region) are
+		// properly validated.
+		types.PluginTypeDatadog:    defaultHandler{},
+		types.PluginTypeDiscord:    defaultHandler{},
+		types.PluginTypeGitlab:     defaultHandler{},
+		types.PluginTypeGithub:     defaultHandler{},
+		types.PluginTypeIntune:     defaultHandler{},
+		types.PluginTypeJamf:       defaultHandler{},
+		types.PluginTypeJira:       defaultHandler{},
+		types.PluginTypeMattermost: defaultHandler{},
+		types.PluginTypeMSTeams:    defaultHandler{},
+		types.PluginTypeNetIQ:      defaultHandler{},
+		types.PluginTypeOpenAI:     defaultHandler{},
+		types.PluginTypeOpsgenie:   defaultHandler{},
+		types.PluginTypePagerDuty:  defaultHandler{},
+		types.PluginTypeServiceNow: defaultHandler{},
+		types.PluginTypeSlack:      defaultHandler{},
+	}
 }
 
 func validateUpdatePluginRequest(req *pluginspb.UpdatePluginRequest) error {
@@ -419,7 +433,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		return nil, trace.BadParameter("unsupported old plugin type %T", req.Plugin)
 	}
 
-	handler, ok := defaultPluginHandlers[inPlugin.GetType()]
+	handler, ok := s.handlers[inPlugin.GetType()]
 	if !ok {
 		return nil, trace.BadParameter("no validator for plugin type %s", inPlugin.GetType())
 	}
