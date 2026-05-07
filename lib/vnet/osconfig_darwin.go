@@ -28,11 +28,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// platformOSConfigState tracks applied OS-mutating calls so the
-// 10-second config loop can skip unchanged ones. macOS implements
-// `SIOCSIFADDR` as a delete-then-add, so re-issuing `ifconfig` flaps
-// the alias and breaks linkmon subscribers like Tailscale's
-// magicsock.
+// platformOSConfigState caches applied calls so the reconcile loop
+// can skip unchanged ones. macOS SIOCSIFADDR is delete-then-add, so
+// re-issuing ifconfig flaps the alias and trips linkmon subscribers.
 type platformOSConfigState struct {
 	configuredIPv4       bool
 	configuredIPv6Alias  bool
@@ -45,7 +43,7 @@ type platformOSConfigState struct {
 // cached state so the next call re-applies.
 func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
 	// IPs and routes are cleaned up when the TUN is deleted on exit,
-	// so no removal is needed here.
+	// so no removal is needed.
 	if cfg.tunName == "" {
 		if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
 			return trace.Wrap(err, "configuring DNS")
