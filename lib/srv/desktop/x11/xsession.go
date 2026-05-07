@@ -18,6 +18,7 @@ package x11
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
