@@ -60,6 +60,20 @@ type AzureInstances struct {
 	Instances []*armcompute.VirtualMachine
 }
 
+func (instances *AzureInstances) LogValue() slog.Value {
+	if instances == nil {
+		return slog.StringValue("<nil>")
+	}
+	return slog.GroupValue(
+		slog.Int("total_instances", len(instances.Instances)),
+		slog.String("discovery_config", instances.DiscoveryConfigName),
+		slog.String("integration", instances.Integration),
+		slog.String("region", instances.Region),
+		slog.String("resource_group", instances.ResourceGroup),
+		slog.String("subscription_id", instances.SubscriptionID),
+	)
+}
+
 func (instances *AzureInstances) resourceType() string {
 	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		return types.DiscoveredResourceAgentlessNode

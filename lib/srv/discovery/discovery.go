@@ -1157,6 +1157,9 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+	log := s.Log.With("group", instances)
+	log.DebugContext(s.ctx, "Processing instance group")
+
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1198,7 +1201,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
+		log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 
 	return nil
@@ -1294,7 +1297,10 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		return trace.Wrap(err)
 	}
 
-	s.Log.DebugContext(s.ctx, "Running Teleport installation on instances", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
+	s.Log.DebugContext(s.ctx, "Running Teleport installation on instances",
+		"group", instances,
+		"instances", genEC2InstancesLogStr(instances.Instances),
+	)
 
 	req := server.SSMRunRequest{
 		DocumentName:        instances.DocumentName,
@@ -1633,13 +1639,11 @@ func (s *Server) startAzureServerDiscovery() {
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
-			s.Log.DebugContext(s.ctx, "Processing instances", "groups", len(instanceGroups))
 			for _, group := range instanceGroups {
 				fgKey := fetcherGroupKey{
 					discoveryConfigName: group.DiscoveryConfigName,
 					integration:         group.Integration,
 				}
-				s.Log.DebugContext(s.ctx, "Processing instance group", "group", fgKey, "instances", len(group.Instances))
 				results := s.installAzureServers(group, vmTasks)
 				sm.add(fgKey, results)
 			}
@@ -1671,13 +1675,8 @@ func (s *Server) startAzureServerDiscovery() {
 func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
 	results = make(map[statusType]int)
 
-	log := s.Log.With(
-		"discovery_config", instances.DiscoveryConfigName,
-		"integration", instances.Integration,
-		"subscription_id", instances.SubscriptionID,
-		"region", instances.Region,
-		"resource_group", instances.ResourceGroup,
-	)
+	log := s.Log.With("group", instances)
+	log.DebugContext(s.ctx, "Processing instance group")
 
 	allFound := len(instances.Instances)
 	results[statusFound] = allFound
@@ -1732,7 +1731,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		)
 	}
 
-	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
+	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "group", instances, "vms", genAzureInstancesLogStr(instances.Instances))
 	failures, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
 		// treat non-nil err as deployment failure affecting all machines.
@@ -1808,6 +1807,9 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
+	log := s.Log.With("group", instances)
+	log.DebugContext(s.ctx, "Processing instance group")
+
 	client, err := s.gcpClients.GetInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1819,7 +1821,9 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(errNoInstances)
 	}
 
-	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "project_id", instances.ProjectID, "vms", genGCPInstancesLogStr(instances.Instances))
+	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines",
+		"vms", genGCPInstancesLogStr(instances.Instances),
+	)
 	sshKeyAlgo, err := cryptosuites.AlgorithmForKey(s.ctx, cryptosuites.GetCurrentSuiteFromPing(s.AccessPoint), cryptosuites.UserSSH)
 	if err != nil {
 		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
@@ -1837,7 +1841,7 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(err)
 	}
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
+		log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
@@ -1851,7 +1855,6 @@ func (s *Server) handleGCPDiscovery() {
 	for {
 		select {
 		case instances := <-s.gcpWatcher.InstancesC:
-			s.Log.DebugContext(s.ctx, "GCP instances discovered, starting installation", "project_id", instances.ProjectID, "instances", genGCPInstancesLogStr(instances.Instances))
 			if err := s.handleGCPInstances(instances); err != nil {
 				if errors.Is(err, errNoInstances) {
 					s.Log.DebugContext(s.ctx, "All discovered GCP VMs are already part of the cluster")

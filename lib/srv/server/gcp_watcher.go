@@ -50,6 +50,18 @@ type GCPInstances struct {
 	DiscoveryConfigName string
 }
 
+func (instances *GCPInstances) LogValue() slog.Value {
+	if instances == nil {
+		return slog.StringValue("<nil>")
+	}
+	return slog.GroupValue(
+		slog.Int("total_instances", len(instances.Instances)),
+		slog.String("discovery_config", instances.DiscoveryConfigName),
+		slog.String("project_id", instances.ProjectID),
+		slog.String("zone", instances.Zone),
+	)
+}
+
 // MakeEvents generates MakeEvents for these instances.
 func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode

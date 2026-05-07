@@ -36,6 +36,10 @@ type mockInstance struct {
 	ID string
 }
 
+func (m mockInstance) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("id", m.ID))
+}
+
 type mockFetcher struct {
 	instances []mockInstance
 	err       error
