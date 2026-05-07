@@ -31,6 +31,7 @@ import {
   within,
 } from 'design/utils/testing';
 import 'shared/components/TextEditor/TextEditor.mock';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';

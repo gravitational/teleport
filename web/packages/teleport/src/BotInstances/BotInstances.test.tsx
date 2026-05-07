@@ -46,6 +46,7 @@ import {
   listBotInstancesSuccess,
 } from 'teleport/test/helpers/botInstances';
 import 'shared/components/TextEditor/TextEditor.mock';
+
 import { ContextProvider } from '..';
 import { BotInstances } from './BotInstances';
 

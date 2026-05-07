@@ -34,6 +34,7 @@ import { PropsWithChildren, ReactNode } from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
+
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
