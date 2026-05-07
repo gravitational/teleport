@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -100,11 +101,31 @@ func readRoleFile(e2eDir, filename string) (*customRole, error) {
 	}, nil
 }
 
+// recordingOwner is a single owner of a session recording: the user that
+// should appear as the session's principal and the freshly-generated session
+// ID assigned to this copy of the recording.
+type recordingOwner struct {
+	user        string
+	sessionID   string
+}
+
+type recordingOwners map[string][]recordingOwner
+
 // bootstrapResult holds the output of buildBootstrapState.
 type bootstrapResult struct {
 	state       *stateConfig
 	creds       map[string]*credentials
 	userMapping map[string]string // canonical user key → generated name
+
+	// recordingOwners maps the logical recording ID (the name of the .tar file
+	// under testdata/recordings) to the list of owners that reference it. Each
+	// owner gets its own fresh session ID so duplicates don't collide.
+	recordingOwners recordingOwners
+
+	// recordingMapping is the inverse lookup for tests: it maps a generated
+	// username to a record of `logicalID → generatedSessionID`. Written to
+	// .auth/recording-mapping.json so the TS fixture can resolve IDs.
+	recordingMapping map[string]map[string]string
 }
 
 // canonicalUserKey produces a deterministic key for a scanned user. The TS
@@ -176,29 +197,60 @@ func writeUserMapping(path string, mapping map[string]string) error {
 }
 
 // buildBootstrapState assigns names + credentials per scanned user, resolves
-// role refs, and dedupes custom-role files.
+// role refs, and dedupes custom-role files. Scanned users that share a
+// canonical key are aggregated into a single bootstrap account whose
+// recordings are the deduped union of every contributing declaration.
 func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapResult, error) {
-	state := &stateConfig{}
-	creds := make(map[string]*credentials)
-	nameGen := newHumanIDGenerator()
-	userMapping := make(map[string]string)
+	type userGroup struct {
+		key string
+		su  scannedUser
+	}
 
-	// Track custom role files already loaded to deduplicate.
-	customRolesByFile := make(map[string]*customRole)
-
+	groupByKey := make(map[string]*userGroup)
+	var groups []*userGroup
 	for _, su := range scannedUsers {
 		if len(su.roles) == 0 {
 			return nil, fmt.Errorf("user declaration has no roles; declare at least one role in test.use()")
 		}
-
-		name := nameGen.Generate()
 
 		key, err := canonicalUserKey(su)
 		if err != nil {
 			return nil, err
 		}
 
-		userMapping[key] = name
+		if g, ok := groupByKey[key]; ok {
+			for _, rec := range su.recordings {
+				if !slices.Contains(g.su.recordings, rec) {
+					g.su.recordings = append(g.su.recordings, rec)
+				}
+			}
+			if su.loginAs {
+				g.su.loginAs = true
+			}
+			continue
+		}
+
+		merged := su
+		merged.recordings = slices.Clone(su.recordings)
+		g := &userGroup{key: key, su: merged}
+		groupByKey[key] = g
+		groups = append(groups, g)
+	}
+
+	state := &stateConfig{}
+	creds := make(map[string]*credentials)
+	nameGen := newHumanIDGenerator()
+	userMapping := make(map[string]string)
+	recordingOwners := make(map[string][]recordingOwner)
+	recordingMapping := make(map[string]map[string]string)
+
+	// Track custom role files already loaded to deduplicate.
+	customRolesByFile := make(map[string]*customRole)
+
+	for _, g := range groups {
+		su := g.su
+		name := nameGen.Generate()
+		userMapping[g.key] = name
 
 		userCredentials, err := generateUserCredentials()
 		if err != nil {
@@ -240,13 +292,43 @@ func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapR
 		}
 
 		state.Users = append(state.Users, bu)
+
+		for _, rec := range su.recordings {
+			sid := uuid.NewString()
+			recordingOwners[rec] = append(recordingOwners[rec], recordingOwner{
+				user:      name,
+				sessionID: sid,
+			})
+			if recordingMapping[name] == nil {
+				recordingMapping[name] = make(map[string]string)
+			}
+			recordingMapping[name][rec] = sid
+		}
 	}
 
 	return &bootstrapResult{
-		state:       state,
-		creds:       creds,
-		userMapping: userMapping,
+		state:            state,
+		creds:            creds,
+		userMapping:      userMapping,
+		recordingOwners:  recordingOwners,
+		recordingMapping: recordingMapping,
 	}, nil
+}
+
+// writeRecordingMapping writes the recording-mapping JSON the TS `recordings`
+// fixture reads to resolve a test's logical recording ID to the seeded session
+// ID.
+func writeRecordingMapping(path string, mapping map[string]map[string]string) error {
+	data, err := json.MarshalIndent(mapping, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling recording mapping: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating recording mapping directory: %w", err)
+	}
+
+	return os.WriteFile(path, data, 0o644)
 }
 
 // writeCredentialsFile writes the user-credentials JSON Playwright reads at
