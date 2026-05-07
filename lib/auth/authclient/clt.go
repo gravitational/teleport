@@ -1976,6 +1976,7 @@ type ClientI interface {
 	// DelegationSessionServiceClient returns a client for the delegation
 	// session service.
 	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+
 	// SessionSearchServiceClient returns a client for the session search
 	// service.
 	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
