@@ -245,22 +245,12 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 	return trace.Wrap(err)
 }
 
-// ReadProfileStatus returns the profile status for the given profile name.
+// ReadProfileStatusByName returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
-func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, error) {
-	var err error
-	var profileName string
-	if proxyAddressOrProfile == "" {
-		profileName, err = s.CurrentProfile()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		// remove ports from proxy host, because profile name is stored by host name
-		profileName, err = utils.Host(proxyAddressOrProfile)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+func (s *Store) ReadProfileStatusByName(proxyAddressOrProfile string) (*ProfileStatus, error) {
+	profileName, err := ProfileNameFromProxyAddress(s, proxyAddressOrProfile)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	profile, err := s.GetProfile(profileName)
@@ -270,8 +260,22 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		}
 		return nil, trace.Wrap(err)
 	}
+
+	return s.ReadProfileStatus(profile)
+}
+
+// ReadProfileStatus returns the profile status for the given profile.
+func (s *Store) ReadProfileStatus(profile *profile.Profile) (*ProfileStatus, error) {
+	if profile == nil {
+		return nil, trace.BadParameter("profile is nil")
+	}
+
+	if profile.Name() == "" {
+		return nil, trace.BadParameter("profile web proxy address is not set")
+	}
+
 	idx := KeyRingIndex{
-		ProxyHost:   profileName,
+		ProxyHost:   profile.Name(),
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
@@ -285,7 +289,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 	// or read the full profile status, return a partial status.
 	// This is used for some superficial functions `tsh logout` and `tsh status`.
 	partialStatus := &ProfileStatus{
-		Name: profileName,
+		Name: profile.Name(),
 		Dir:  profile.Dir,
 		ProxyURL: url.URL{
 			Scheme: "https",
@@ -301,9 +305,14 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		ScopePin:                scopePin,
 	}
 
+	if err := idx.Check(); err != nil {
+		partialStatus.GetKeyRingError = err
+		return partialStatus, nil
+	}
+
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
-		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
+		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) || IsNoCredentialsError(err) {
 			partialStatus.GetKeyRingError = err
 			return partialStatus, nil
 		}
@@ -313,7 +322,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
 	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-		ProfileName:             profileName,
+		ProfileName:             profile.Name(),
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
 		RelayAddr:               profile.RelayAddr,
@@ -332,6 +341,19 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		return nil, trace.Wrap(err)
 	}
 	return profileStatus, nil
+}
+
+// ReadProfileStatusIfExists returns the profile status for the given profile name
+// or proxy address. If no profile exists, it returns nil without an error.
+func (s *Store) ReadProfileStatusIfExists(proxyAddressOrProfile string) (*ProfileStatus, error) {
+	status, err := s.ReadProfileStatusByName(proxyAddressOrProfile)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return status, nil
 }
 
 // FullProfileStatus returns the status of the active profile along with the
@@ -360,7 +382,7 @@ func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 
 	var currentProfile *ProfileStatus
 	if currentProfileName != "" {
-		profileStatus, err := s.ReadProfileStatus(currentProfileName)
+		profileStatus, err := s.ReadProfileStatusByName(currentProfileName)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -378,7 +400,7 @@ func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 			// already loaded this one
 			continue
 		}
-		status, err := s.ReadProfileStatus(profileName)
+		status, err := s.ReadProfileStatusByName(profileName)
 		if err != nil {
 			s.log.WarnContext(context.Background(), "skipping profile due to error",
 				"profile_name", profileName,

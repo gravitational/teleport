@@ -1372,7 +1372,7 @@ func (tc *TeleportClient) hasTouchIDCredentials(rpID, user string) bool {
 }
 
 func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
-	status, err := tc.ClientStore.ReadProfileStatus(tc.WebProxyAddr)
+	status, err := tc.ClientStore.ReadProfileStatusByName(tc.WebProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

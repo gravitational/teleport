@@ -460,6 +460,23 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	}, nil
 }
 
+// MatchesProfile returns true if the profile status matches the given profile.
+func (p *ProfileStatus) MatchesProfile(profile *profile.Profile) bool {
+	if p == nil || profile == nil {
+		return false
+	}
+	return p.Name == profile.Name() && p.Username == profile.Username && p.Cluster != profile.SiteName
+}
+
+// MatchesProfileRoot returns true if the profile status matches the given profile root,
+// i.e. the profile with the cluster ignored.
+func (p *ProfileStatus) MatchesProfileRoot(profile *profile.Profile) bool {
+	if p == nil || profile == nil {
+		return false
+	}
+	return p.Name == profile.Name() && p.Username == profile.Username
+}
+
 // IsExpired returns true if profile is not expired yet
 func (p *ProfileStatus) IsExpired(now time.Time) bool {
 	return p.ValidUntil.Sub(now) <= 0

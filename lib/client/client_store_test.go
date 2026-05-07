@@ -309,7 +309,7 @@ func TestClientStore(t *testing.T) {
 
 				// ReadProfileStatus should prepare a *ProfileStatus using the saved
 				// profile and key together.
-				profileStatus, err := clientStore.ReadProfileStatus(profile.Name())
+				profileStatus, err := clientStore.ReadProfileStatusByName(profile.Name())
 				require.NoError(t, err)
 				require.Equal(t, expectStatus, profileStatus)
 
@@ -436,6 +436,27 @@ func TestClientStore_accessGraphCertValidation(t *testing.T) {
 func TestPartialProfileStatusScope(t *testing.T) {
 	t.Parallel()
 
+	t.Run("CheckProfile returns partial status for explicit profile", func(t *testing.T) {
+		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "explicit.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+				Scope:        "/production",
+			}
+
+			status, err := clientStore.ReadProfileStatus(p)
+			require.NoError(t, err)
+			require.Equal(t, p.Name(), status.Name)
+			require.Equal(t, p.Username, status.Username)
+			require.Equal(t, p.SiteName, status.Cluster)
+			require.NotNil(t, status.GetKeyRingError)
+			require.NotNil(t, status.ScopePin)
+			require.Equal(t, p.Scope, status.ScopePin.Scope)
+		})
+	})
+
 	t.Run("nil ScopePin when profile has no scope", func(t *testing.T) {
 		t.Parallel()
 		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
@@ -448,7 +469,7 @@ func TestPartialProfileStatusScope(t *testing.T) {
 			require.NoError(t, err)
 
 			// No key ring saved — ReadProfileStatus should return partial status.
-			status, err := clientStore.ReadProfileStatus(p.Name())
+			status, err := clientStore.ReadProfileStatusByName(p.Name())
 			require.NoError(t, err)
 			require.Nil(t, status.ScopePin)
 		})
@@ -466,7 +487,7 @@ func TestPartialProfileStatusScope(t *testing.T) {
 			err := clientStore.SaveProfile(p, true)
 			require.NoError(t, err)
 
-			status, err := clientStore.ReadProfileStatus(p.Name())
+			status, err := clientStore.ReadProfileStatusByName(p.Name())
 			require.NoError(t, err)
 			require.NotNil(t, status.ScopePin)
 			require.Equal(t, "/production", status.ScopePin.Scope)

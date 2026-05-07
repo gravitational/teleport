@@ -55,7 +55,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		}
 	}
 
-	profile, err := clientStore.ReadProfileStatus(proxyAddr)
+	profile, err := clientStore.ReadProfileStatusByName(proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
