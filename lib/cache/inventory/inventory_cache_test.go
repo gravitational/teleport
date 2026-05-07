@@ -208,9 +208,6 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	recordingEncryption, err := local.NewRecordingEncryptionService(bkWrapper)
 	require.NoError(t, err)
 
-	workloadClusters, err := local.NewWorkloadClusterService(bkWrapper)
-	require.NoError(t, err)
-
 	plugin := local.NewPluginsService(bkWrapper)
 
 	summaries, err := local.NewSummarizerService(local.SummarizerServiceConfig{
@@ -268,7 +265,6 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Plugin:                  plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
-		WorkloadClusterService:  workloadClusters,
 		Summarizer:              summaries,
 	}))
 	require.NoError(t, err)

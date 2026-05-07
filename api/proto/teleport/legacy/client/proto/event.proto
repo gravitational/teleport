@@ -40,7 +40,6 @@ import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
-import "teleport/workloadcluster/v1/workloadcluster.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 import "teleport/workloadidentity/v1/revocation_resource.proto";
 
@@ -63,9 +62,11 @@ message Event {
   reserved 49;
   reserved 63;
   reserved 68;
+  reserved 88;
   reserved "ExternalCloudAudit";
   reserved "StaticHostUser";
   reserved "AutoUpdateAgentPlan";
+  reserved "WorkloadCluster";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -236,8 +237,6 @@ message Event {
     types.PluginV1 plugin = 84;
     // AutoUpdateAgentReport is a resource for counting connected bot instances.
     teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
-    // WorkloadCluster is a resource for defining workload clusters.
-    teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
     // InferenceModel is a resource for defining inference models.
     teleport.summarizer.v1.InferenceModel InferenceModel = 91;
     // InferenceSecret is a resource for defining inference secrets.

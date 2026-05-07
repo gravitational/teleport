@@ -61,7 +61,6 @@ import (
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -171,7 +170,6 @@ type testPack struct {
 	botInstanceService      *local.BotInstanceService
 	plugin                  *local.PluginsService
 	recordingEncryption     *local.RecordingEncryptionService
-	workloadClusters        *local.WorkloadClusterService
 	summarizer              *local.SummarizerService
 }
 
@@ -528,12 +526,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	workloadClusterSvc, err := local.NewWorkloadClusterService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	p.workloadClusters = workloadClusterSvc
-
 	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
 		Backend: p.backend,
 	})
@@ -604,7 +596,6 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
 	}))
 	if err != nil {
@@ -876,7 +867,6 @@ func TestCompletenessInit(t *testing.T) {
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
 			StaticScopedToken:       p.clusterConfigS,
-			WorkloadClusterService:  p.workloadClusters,
 			Summarizer:              p.summarizer,
 		}))
 		require.NoError(t, err)
@@ -967,7 +957,6 @@ func TestCompletenessReset(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
@@ -1134,7 +1123,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
@@ -1236,7 +1224,6 @@ func initStrategy(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
@@ -1983,7 +1970,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
-		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
 		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
 		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
@@ -2059,8 +2045,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
@@ -2680,18 +2664,6 @@ func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInsta
 			},
 		},
 	}
-}
-
-func newWorkloadCluster(t *testing.T, name string) *workloadclusterv1.WorkloadCluster {
-	t.Helper()
-
-	workloadCluster := &workloadclusterv1.WorkloadCluster{
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-	}
-
-	return workloadCluster
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

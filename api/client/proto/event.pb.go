@@ -38,11 +38,10 @@ import (
 	v119 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	v117 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	v13 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
-	v121 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	v120 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	v2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	v112 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	v120 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	v115 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -202,7 +201,6 @@ type Event struct {
 	//	*Event_RecordingEncryption
 	//	*Event_Plugin
 	//	*Event_AutoUpdateBotInstanceReport
-	//	*Event_WorkloadCluster
 	//	*Event_InferenceModel
 	//	*Event_InferenceSecret
 	//	*Event_InferencePolicy
@@ -976,16 +974,7 @@ func (x *Event) GetAutoUpdateBotInstanceReport() *v111.AutoUpdateBotInstanceRepo
 	return nil
 }
 
-func (x *Event) GetWorkloadCluster() *v120.WorkloadCluster {
-	if x != nil {
-		if x, ok := x.Resource.(*Event_WorkloadCluster); ok {
-			return x.WorkloadCluster
-		}
-	}
-	return nil
-}
-
-func (x *Event) GetInferenceModel() *v121.InferenceModel {
+func (x *Event) GetInferenceModel() *v120.InferenceModel {
 	if x != nil {
 		if x, ok := x.Resource.(*Event_InferenceModel); ok {
 			return x.InferenceModel
@@ -994,7 +983,7 @@ func (x *Event) GetInferenceModel() *v121.InferenceModel {
 	return nil
 }
 
-func (x *Event) GetInferenceSecret() *v121.InferenceSecret {
+func (x *Event) GetInferenceSecret() *v120.InferenceSecret {
 	if x != nil {
 		if x, ok := x.Resource.(*Event_InferenceSecret); ok {
 			return x.InferenceSecret
@@ -1003,7 +992,7 @@ func (x *Event) GetInferenceSecret() *v121.InferenceSecret {
 	return nil
 }
 
-func (x *Event) GetInferencePolicy() *v121.InferencePolicy {
+func (x *Event) GetInferencePolicy() *v120.InferencePolicy {
 	if x != nil {
 		if x, ok := x.Resource.(*Event_InferencePolicy); ok {
 			return x.InferencePolicy
@@ -1012,7 +1001,7 @@ func (x *Event) GetInferencePolicy() *v121.InferencePolicy {
 	return nil
 }
 
-func (x *Event) GetRetrievalModel() *v121.RetrievalModel {
+func (x *Event) GetRetrievalModel() *v120.RetrievalModel {
 	if x != nil {
 		if x, ok := x.Resource.(*Event_RetrievalModel); ok {
 			return x.RetrievalModel
@@ -1430,29 +1419,24 @@ type Event_AutoUpdateBotInstanceReport struct {
 	AutoUpdateBotInstanceReport *v111.AutoUpdateBotInstanceReport `protobuf:"bytes,85,opt,name=AutoUpdateBotInstanceReport,proto3,oneof"`
 }
 
-type Event_WorkloadCluster struct {
-	// WorkloadCluster is a resource for defining workload clusters.
-	WorkloadCluster *v120.WorkloadCluster `protobuf:"bytes,88,opt,name=WorkloadCluster,proto3,oneof"`
-}
-
 type Event_InferenceModel struct {
 	// InferenceModel is a resource for defining inference models.
-	InferenceModel *v121.InferenceModel `protobuf:"bytes,91,opt,name=InferenceModel,proto3,oneof"`
+	InferenceModel *v120.InferenceModel `protobuf:"bytes,91,opt,name=InferenceModel,proto3,oneof"`
 }
 
 type Event_InferenceSecret struct {
 	// InferenceSecret is a resource for defining inference secrets.
-	InferenceSecret *v121.InferenceSecret `protobuf:"bytes,92,opt,name=InferenceSecret,proto3,oneof"`
+	InferenceSecret *v120.InferenceSecret `protobuf:"bytes,92,opt,name=InferenceSecret,proto3,oneof"`
 }
 
 type Event_InferencePolicy struct {
 	// InferencePolicy is a resource for defining inference policies.
-	InferencePolicy *v121.InferencePolicy `protobuf:"bytes,93,opt,name=InferencePolicy,proto3,oneof"`
+	InferencePolicy *v120.InferencePolicy `protobuf:"bytes,93,opt,name=InferencePolicy,proto3,oneof"`
 }
 
 type Event_RetrievalModel struct {
 	// RetrievalModel is a resource for defining retrieval models.
-	RetrievalModel *v121.RetrievalModel `protobuf:"bytes,94,opt,name=RetrievalModel,proto3,oneof"`
+	RetrievalModel *v120.RetrievalModel `protobuf:"bytes,94,opt,name=RetrievalModel,proto3,oneof"`
 }
 
 func (*Event_ResourceHeader) isEvent_Resource() {}
@@ -1615,8 +1599,6 @@ func (*Event_Plugin) isEvent_Resource() {}
 
 func (*Event_AutoUpdateBotInstanceReport) isEvent_Resource() {}
 
-func (*Event_WorkloadCluster) isEvent_Resource() {}
-
 func (*Event_InferenceModel) isEvent_Resource() {}
 
 func (*Event_InferenceSecret) isEvent_Resource() {}
@@ -1629,7 +1611,7 @@ var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a1teleport/workloadcluster/v1/workloadcluster.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\x8b4\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xc83\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1724,14 +1706,13 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\frelay_server\x18R \x01(\v2!.teleport.presence.v1.RelayServerH\x00R\vrelayServer\x12h\n" +
 	"\x13RecordingEncryption\x18S \x01(\v24.teleport.recordingencryption.v1.RecordingEncryptionH\x00R\x13RecordingEncryption\x12)\n" +
 	"\x06plugin\x18T \x01(\v2\x0f.types.PluginV1H\x00R\x06plugin\x12w\n" +
-	"\x1bAutoUpdateBotInstanceReport\x18U \x01(\v23.teleport.autoupdate.v1.AutoUpdateBotInstanceReportH\x00R\x1bAutoUpdateBotInstanceReport\x12X\n" +
-	"\x0fWorkloadCluster\x18X \x01(\v2,.teleport.workloadcluster.v1.WorkloadClusterH\x00R\x0fWorkloadCluster\x12P\n" +
+	"\x1bAutoUpdateBotInstanceReport\x18U \x01(\v23.teleport.autoupdate.v1.AutoUpdateBotInstanceReportH\x00R\x1bAutoUpdateBotInstanceReport\x12P\n" +
 	"\x0eInferenceModel\x18[ \x01(\v2&.teleport.summarizer.v1.InferenceModelH\x00R\x0eInferenceModel\x12S\n" +
 	"\x0fInferenceSecret\x18\\ \x01(\v2'.teleport.summarizer.v1.InferenceSecretH\x00R\x0fInferenceSecret\x12S\n" +
 	"\x0fInferencePolicy\x18] \x01(\v2'.teleport.summarizer.v1.InferencePolicyH\x00R\x0fInferencePolicy\x12P\n" +
 	"\x0eRetrievalModel\x18^ \x01(\v2&.teleport.summarizer.v1.RetrievalModelH\x00R\x0eRetrievalModelB\n" +
 	"\n" +
-	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10ER\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlan**\n" +
+	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10EJ\x04\bX\x10YR\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlanR\x0fWorkloadCluster**\n" +
 	"\tOperation\x12\b\n" +
 	"\x04INIT\x10\x00\x12\a\n" +
 	"\x03PUT\x10\x01\x12\n" +
@@ -1832,11 +1813,10 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v119.RecordingEncryption)(nil),            // 76: teleport.recordingencryption.v1.RecordingEncryption
 	(*types.PluginV1)(nil),                      // 77: types.PluginV1
 	(*v111.AutoUpdateBotInstanceReport)(nil),    // 78: teleport.autoupdate.v1.AutoUpdateBotInstanceReport
-	(*v120.WorkloadCluster)(nil),                // 79: teleport.workloadcluster.v1.WorkloadCluster
-	(*v121.InferenceModel)(nil),                 // 80: teleport.summarizer.v1.InferenceModel
-	(*v121.InferenceSecret)(nil),                // 81: teleport.summarizer.v1.InferenceSecret
-	(*v121.InferencePolicy)(nil),                // 82: teleport.summarizer.v1.InferencePolicy
-	(*v121.RetrievalModel)(nil),                 // 83: teleport.summarizer.v1.RetrievalModel
+	(*v120.InferenceModel)(nil),                 // 79: teleport.summarizer.v1.InferenceModel
+	(*v120.InferenceSecret)(nil),                // 80: teleport.summarizer.v1.InferenceSecret
+	(*v120.InferencePolicy)(nil),                // 81: teleport.summarizer.v1.InferencePolicy
+	(*v120.RetrievalModel)(nil),                 // 82: teleport.summarizer.v1.RetrievalModel
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -1920,16 +1900,15 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	76, // 78: proto.Event.RecordingEncryption:type_name -> teleport.recordingencryption.v1.RecordingEncryption
 	77, // 79: proto.Event.plugin:type_name -> types.PluginV1
 	78, // 80: proto.Event.AutoUpdateBotInstanceReport:type_name -> teleport.autoupdate.v1.AutoUpdateBotInstanceReport
-	79, // 81: proto.Event.WorkloadCluster:type_name -> teleport.workloadcluster.v1.WorkloadCluster
-	80, // 82: proto.Event.InferenceModel:type_name -> teleport.summarizer.v1.InferenceModel
-	81, // 83: proto.Event.InferenceSecret:type_name -> teleport.summarizer.v1.InferenceSecret
-	82, // 84: proto.Event.InferencePolicy:type_name -> teleport.summarizer.v1.InferencePolicy
-	83, // 85: proto.Event.RetrievalModel:type_name -> teleport.summarizer.v1.RetrievalModel
-	86, // [86:86] is the sub-list for method output_type
-	86, // [86:86] is the sub-list for method input_type
-	86, // [86:86] is the sub-list for extension type_name
-	86, // [86:86] is the sub-list for extension extendee
-	0,  // [0:86] is the sub-list for field type_name
+	79, // 81: proto.Event.InferenceModel:type_name -> teleport.summarizer.v1.InferenceModel
+	80, // 82: proto.Event.InferenceSecret:type_name -> teleport.summarizer.v1.InferenceSecret
+	81, // 83: proto.Event.InferencePolicy:type_name -> teleport.summarizer.v1.InferencePolicy
+	82, // 84: proto.Event.RetrievalModel:type_name -> teleport.summarizer.v1.RetrievalModel
+	85, // [85:85] is the sub-list for method output_type
+	85, // [85:85] is the sub-list for method input_type
+	85, // [85:85] is the sub-list for extension type_name
+	85, // [85:85] is the sub-list for extension extendee
+	0,  // [0:85] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -2018,7 +1997,6 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_RecordingEncryption)(nil),
 		(*Event_Plugin)(nil),
 		(*Event_AutoUpdateBotInstanceReport)(nil),
-		(*Event_WorkloadCluster)(nil),
 		(*Event_InferenceModel)(nil),
 		(*Event_InferenceSecret)(nil),
 		(*Event_InferencePolicy)(nil),
