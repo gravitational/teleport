@@ -24,6 +24,10 @@ import { canonicalUserKey } from './canonicalKey';
 import { test as base } from './fixtures';
 import type { StorageState } from './login';
 import { PlayerPage } from './pages/Player';
+import { RecordingsPage } from './pages/Recordings';
+import { RolesPage } from './pages/Roles';
+import { SideNavPage } from './pages/SideNav';
+import { TrustedClustersPage } from './pages/TrustedClusters';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';
 import { mockWebAuthn } from './webauthn';
 
@@ -75,6 +79,10 @@ interface E2EFixtures {
   recordingIds: Record<string, string>;
   unifiedResourcesPage: UnifiedResourcesPage;
   playerPage: PlayerPage;
+  recordingsPage: RecordingsPage;
+  rolesPage: RolesPage;
+  sideNavPage: SideNavPage;
+  trustedClustersPage: TrustedClustersPage;
 }
 
 export interface LoginAsResult {
@@ -206,6 +214,18 @@ export const test = base.extend<E2EFixtures>({
   },
   playerPage: async ({ page }, use) => {
     await use(new PlayerPage(page));
+  },
+  recordingsPage: async ({ page }, use) => {
+    await use(new RecordingsPage(page));
+  },
+  rolesPage: async ({ page }, use) => {
+    await use(new RolesPage(page));
+  },
+  sideNavPage: async ({ page }, use) => {
+    await use(new SideNavPage(page));
+  },
+  trustedClustersPage: async ({ page }, use) => {
+    await use(new TrustedClustersPage(page));
   },
 });
 
