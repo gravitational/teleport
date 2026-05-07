@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -64,9 +65,6 @@ const (
 	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
 	// per stream
 	ConcurrentUploadsPerStream = 1
-
-	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
-	MaxProtoMessageSizeBytes = 64 * 1024
 
 	// MinUploadPartSizeBytes is the minimum upload part size when uploading session recordings
 	// through a [MultipartUploader]. All uploaded parts are expected to meet this minimum size.
@@ -132,14 +130,18 @@ type ProtoStreamerConfig struct {
 	ForceFlush chan struct{}
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -166,16 +168,18 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool:        utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		onUploadComplete: cfg.OnUploadComplete,
 	}, nil
 }
 
 // ProtoStreamer creates protobuf-based streams uploaded to the storage
 // backends, for example S3 or GCS
 type ProtoStreamer struct {
-	cfg        ProtoStreamerConfig
-	bufferPool *utils.BufferSyncPool
-	slicePool  *utils.SliceSyncPool
+	cfg              ProtoStreamerConfig
+	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
+	bufferPool       *utils.BufferSyncPool
+	slicePool        *utils.SliceSyncPool
 }
 
 // CreateAuditStreamForUpload creates audit stream for existing upload,
@@ -190,10 +194,19 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ConcurrentUploads:         s.cfg.ConcurrentUploads,
 		ForceFlush:                s.cfg.ForceFlush,
 		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		Encrypter:                 s.cfg.Encrypter,
+		OnUploadComplete:          s.onUploadComplete,
 	})
+}
+
+// SetOnUploadComplete sets a callback to be invoked after an upload completes
+// when no session end event was observed in the stream. This allows callers to
+// recover or synthesize the session end event from an external source (e.g.
+// the audit log). It must be called before any streams are created.
+func (s *ProtoStreamer) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	s.onUploadComplete = fn
 }
 
 // CreateAuditStream creates audit stream and upload
@@ -222,9 +235,10 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		MinUploadBytes:            s.cfg.MinUploadBytes,
 		CompletedParts:            parts,
 		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		Encrypter:                 s.cfg.Encrypter,
+		OnUploadComplete:          s.onUploadComplete,
 	})
 }
 
@@ -257,14 +271,18 @@ type ProtoStreamConfig struct {
 	ConcurrentUploads int
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -467,10 +485,10 @@ func (s *ProtoStream) Done() <-chan struct{} {
 func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
 	event := pe.GetAuditEvent()
 	messageSize := event.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		event = event.TrimToMaxSize(MaxProtoMessageSizeBytes)
-		if event.Size() > MaxProtoMessageSizeBytes {
-			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+	if messageSize > constants.MaxProtoMessageSizeBytes {
+		event = event.TrimToMaxSize(constants.MaxProtoMessageSizeBytes)
+		if event.Size() > constants.MaxProtoMessageSizeBytes {
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, constants.MaxProtoMessageSizeBytes)
 		}
 	}
 
@@ -567,8 +585,6 @@ type sliceWriter struct {
 	emptyHeader [ProtoStreamV2PartHeaderSize]byte
 	// retryConfig  defines how to retry on a failed upload
 	retryConfig retryutils.LinearConfig
-	// encrypter wraps writes with encryption
-	encrypter EncryptionWrapper
 	// sessionStartTime is the time of the first event in the session
 	sessionStartTime time.Time
 	// sessionEndTime is the time of the last event in the session
@@ -589,6 +605,11 @@ type sliceWriter struct {
 	// point where the session end event has already been uploaded. If captured,
 	// it will be passed to the summarizer.
 	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	// encrypter wraps writes with encryption
+	encrypter EncryptionWrapper
+
+	// hasSessionEnd indicates if the session end event is present.
+	hasSessionEnd bool
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -656,7 +677,10 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		case <-flushCh:
 			now := clock.Now().UTC()
-			inactivityPeriod := max(now.Sub(lastEvent), 0)
+			inactivityPeriod := now.Sub(lastEvent)
+			if inactivityPeriod < 0 {
+				inactivityPeriod = 0
+			}
 			if inactivityPeriod >= w.proto.cfg.InactivityFlushPeriod {
 				// inactivity period exceeded threshold,
 				// there is no need to schedule a timer until the next
@@ -707,9 +731,17 @@ func (w *sliceWriter) receiveAndUpload() error {
 			case *apievents.OneOf_SessionEnd:
 				w.sshSessionEndEvent = e.SessionEnd
 				w.sessionEndTime = e.SessionEnd.Time
+				w.hasSessionEnd = true
 
 			case *apievents.OneOf_DatabaseSessionEnd:
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
+				w.hasSessionEnd = true
+			case *apievents.OneOf_WindowsDesktopSessionEnd:
+				w.hasSessionEnd = true
+			case *apievents.OneOf_AppSessionEnd:
+				w.hasSessionEnd = true
+			case *apievents.OneOf_MCPSessionEnd:
+				w.hasSessionEnd = true
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -838,6 +870,22 @@ func (w *sliceWriter) completeStream() {
 			return
 		}
 
+		if !w.hasSessionEnd && w.proto.cfg.OnUploadComplete != nil {
+			sessionEndEvent, err := w.proto.cfg.OnUploadComplete(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+				return
+			}
+			switch o := sessionEndEvent.(type) {
+			case *apievents.SessionEnd:
+				w.sshSessionEndEvent = o
+				w.shouldProcessSession = true
+				w.sessionEndTime = o.EndTime
+			case *apievents.DatabaseSessionEnd:
+				w.dbSessionEndEvent = o
+			}
+		}
+
 		if w.proto.cfg.RecordingMetadataProvider != nil {
 			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
 
@@ -920,7 +968,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			return
 		}
 
-		for i := range defaults.MaxIterationLimit {
+		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			log := log.With("attempt", i)
 
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)
@@ -932,7 +980,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			log.WarnContext(w.proto.cancelCtx, "failed to upload part", "error", err)
 
 			// upload is not found is not a transient error, so abort the operation
-			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) {
+			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
 				log.InfoContext(w.proto.cancelCtx, "aborting part upload")
 				activeUpload.setError(err)
 				return
@@ -1137,11 +1185,13 @@ const (
 
 // ProtoReader reads protobuf encoding from reader
 type ProtoReader struct {
-	gzipReader   *gzipReader
-	padding      int64
-	reader       io.Reader
-	sizeBytes    [Int64Size]byte
-	messageBytes [MaxProtoMessageSizeBytes]byte
+	gzipReader *gzipReader
+	padding    int64
+	reader     io.Reader
+	sizeBytes  [Int64Size]byte
+	// Extra metadata added after trimming can slightly increase message size,
+	// so include a little wiggle room.
+	messageBytes [constants.MaxProtoMessageSizeBytes + 4*1024]byte
 	state        int
 	error        error
 	lastIndex    int64

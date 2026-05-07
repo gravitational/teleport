@@ -24,6 +24,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -43,6 +44,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -53,8 +56,10 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinclient/oracle"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -338,29 +343,66 @@ func TestJoinOracle(t *testing.T) {
 			imdsClient, err := newFakeHTTPClient(imdsListener.Addr())
 			require.NoError(t, err)
 
+			spec := types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodOracle,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Oracle: &types.ProvisionTokenSpecV2Oracle{
+					Allow: tc.allowRules,
+				},
+			}
 			token, err := types.NewProvisionTokenFromSpec(
 				tc.tokenName,
 				time.Now().Add(time.Minute),
-				types.ProvisionTokenSpecV2{
-					JoinMethod: types.JoinMethodOracle,
-					Roles:      []types.SystemRole{types.RoleNode},
-					Oracle: &types.ProvisionTokenSpecV2Oracle{
-						Allow: tc.allowRules,
-					},
-				},
+				spec,
 			)
 			require.NoError(t, err)
 			require.NoError(t, server.Auth().UpsertToken(t.Context(), token))
 
-			_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-				Token: tc.requestTokenName,
-				ID: state.IdentityID{
-					Role: types.RoleInstance,
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
 				},
-				AuthClient:       nopClient,
-				OracleIMDSClient: imdsClient,
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
 			})
-			tc.assertion(t, err)
+			require.NoError(t, err)
+			_, err = server.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := server.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
+			t.Run("unscoped", func(t *testing.T) {
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient:       nopClient,
+					OracleIMDSClient: imdsClient,
+				})
+				tc.assertion(t, err)
+			})
+
+			t.Run("scoped", func(t *testing.T) {
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient:       nopClient,
+					OracleIMDSClient: imdsClient,
+				})
+				tc.assertion(t, err)
+			})
 		})
 	}
 }
@@ -422,15 +464,17 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		require.NoError(t, err)
 
 		var signature []byte
-		switch signatureKey.Public().(type) {
-		case *rsa.PublicKey:
-			signature, err = oracle.SignChallenge(signatureKey, challenge)
-		case *ecdsa.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.SHA256)
-		case ed25519.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.Hash(0))
+		switch priv := signatureKey.(type) {
+		case *rsa.PrivateKey:
+			signature, err = oracle.SignChallenge(priv, challenge)
+			require.NoError(t, err)
+		case *ecdsa.PrivateKey:
+			digest := sha256.Sum256([]byte(challenge))
+			signature, err = ecdsa.SignASN1(rand.Reader, priv, digest[:])
+			require.NoError(t, err)
+		case ed25519.PrivateKey:
+			signature = ed25519.Sign(priv, []byte(challenge))
 		}
-		require.NoError(t, err)
 
 		// Make the root CA request but there's no need to actually sign it
 		// since this will be sent to the test's fake Oracle API.

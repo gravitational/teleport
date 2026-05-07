@@ -20,9 +20,12 @@ package services
 
 import "github.com/gravitational/teleport/lib/auth/mfatypes"
 
-// SSOMFASessionData SSO MFA Session data.
-type SSOMFASessionData struct {
-	// RequestID is the ID of the corresponding SSO Auth request, which is used to
+// TODO(danielashare): Remove alias once `e` no longer references it
+type SSOMFASessionData = MFASessionData
+
+// MFASessionData is MFA Session data for SSO MFA or Browser MFA.
+type MFASessionData struct {
+	// RequestID is the ID of the corresponding Auth request, which is used to
 	// identity this session.
 	RequestID string `json:"request_id,omitempty"`
 	// Username is the Teleport username.
@@ -35,4 +38,7 @@ type SSOMFASessionData struct {
 	ConnectorType string `json:"connector_type,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions"`
+	// TSHRedirectURL is the redirect URL used to return a WebAuthn response back to tsh.
+	// This is used exclusively by Browser MFA.
+	TSHRedirectURL string `json:"tsh_redirect_url,omitempty"`
 }

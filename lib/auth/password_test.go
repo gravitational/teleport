@@ -32,14 +32,15 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -51,28 +52,28 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *auth.Server
 	mockEmitter *eventstest.MockRecorderEmitter
-	clock       *clockwork.FakeClock
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
-	s := passwordSuite{
-		clock: clockwork.NewFakeClock(),
-	}
+	s := passwordSuite{}
 
-	ctx := t.Context()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(time.Now())
 
 	var err error
+
 	s.bk, err = memory.New(memory.Config{
 		Context: ctx,
-		Clock:   s.clock,
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 
@@ -85,14 +86,22 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		s.bk.Close()
 	})
 
+	a, err := authority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
+	identity, err := local.NewTestIdentityService(s.bk)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              a,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
-		Clock:                  s.clock,
+		Identity:               identity,
+		FakePasswordHash:       []byte(authtest.FakePasswordHash),
+		FakeRecoveryCodeHash:   []byte(authtest.FakeRecoveryCodeHash),
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -140,44 +149,46 @@ func TestUserNotFound(t *testing.T) {
 func TestPasswordLengthChange(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	authServer := srv.Auth()
-
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	_, err = authServer.UpsertAuthPreference(ctx, ap)
-	require.NoError(t, err)
+	const (
+		username = "llama@goteleport.com"
+		password = "a"
+		// Pre-calculated bcrypt hash of "a" at minimum cost.
+		passwordHash = `$2a$10$xyxHFtG04s0kegyq1jwGB.faThKRIzDTCArbvKPxH6UKHriWz79H6`
+	)
 
-	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-	password := []byte("a")
-	u, _, err := authtest.CreateUserAndRole(authServer, username, []string{username}, nil)
-	require.NoError(t, err)
-
-	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
+	u, _, err := authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	// Set an initial password that is shorter than minimum length
-	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
-	authServer.UpsertUser(ctx, u)
+	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: []byte(passwordHash)})
+	_, err = as.AuthServer.UpsertUser(ctx, u)
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
-	err = authServer.CheckPasswordWOToken(ctx, username, password)
+	err = as.AuthServer.CheckPasswordWOToken(ctx, username, []byte(password))
 	require.NoError(t, err)
 }
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abcdef123456"), constants.SecondFactorOff)
 	require.NoError(t, err)
 
+	fakeClock := clockwork.NewFakeClock()
+	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("defceba654321")
 
 	err = s.a.ChangePassword(ctx, req)
@@ -187,7 +198,7 @@ func TestChangePassword(t *testing.T) {
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
-	s.clock.Advance(defaults.AccountLockInterval + time.Second)
+	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("123456abcdef")
 	err = s.a.ChangePassword(ctx, req)
@@ -201,8 +212,11 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	req, err := s.prepareForPasswordChange("user2", []byte("abcdef123456"), constants.SecondFactorOTP)
 	require.NoError(t, err)
 
+	fakeClock := clockwork.NewFakeClock()
+	s.a.SetClock(fakeClock)
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	dev, err := services.NewTOTPDevice("otp", otpSecret, fakeClock.Now())
 	require.NoError(t, err)
 	ctx := context.Background()
 	err = s.a.UpsertMFADevice(ctx, req.User, dev)
@@ -220,7 +234,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
-	s.clock.Advance(defaults.AccountLockInterval + time.Second)
+	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
 	validToken, _ = totp.GenerateCode(otpSecret, s.a.GetClock().Now())
 	req.OldPassword = req.NewPassword
@@ -762,6 +776,97 @@ func TestChangeUserAuthentication(t *testing.T) {
 	}
 }
 
+// TestChangeUserAuthentication_AccessListRolesApplied verifies that roles
+// granted via Access Lists are included in the web session created by the
+// password-reset flow (ChangeUserAuthentication).
+//
+// Regression test for: https://github.com/gravitational/teleport/issues/65722
+func TestChangeUserAuthentication_AccessListRolesApplied(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
+
+	// Disable second factor so the reset request only needs a password.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create the role that the access list will grant.
+	grantedRole, err := types.NewRole("al-granted-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, grantedRole)
+	require.NoError(t, err)
+
+	// Create a user with a single static role only.
+	username := "reset-al-test@goteleport.com"
+	_, _, err = authtest.CreateUserAndRole(authServer, username, []string{"access"}, nil)
+	require.NoError(t, err)
+
+	user, err := authServer.GetUser(ctx, username, false)
+	require.NoError(t, err)
+
+	// Create an access list that grants al-granted-role to its members.
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title: "Test Access List",
+		Owners: []accesslist.Owner{
+			{Name: username, Description: "owner"},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: authServer.GetClock().Now().Add(24 * time.Hour),
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"al-granted-role"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+
+	// Add the user as a member of the access list.
+	member, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: username,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: al.GetName(),
+		Name:       username,
+		Joined:     authServer.GetClock().Now(),
+		Expires:    authServer.GetClock().Now().Add(24 * time.Hour),
+		Reason:     "test",
+		AddedBy:    user.GetName(),
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	// Create a reset password token and call ChangeUserAuthentication.
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	resp, err := authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("newpassword123!"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.WebSession)
+
+	// Parse the TLS certificate from the web session and verify it contains
+	// the Access List-granted role.
+	_, identity := parseX509PEMAndIdentity(t, resp.WebSession.GetTLSCert())
+	require.Contains(t, identity.Groups, "al-granted-role",
+		"expected Access List-granted role in session certificate, got roles: %v", identity.Groups)
+}
+
 func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	t.Parallel()
 
@@ -889,7 +994,7 @@ func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.C
 	ctx := context.Background()
 	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
 	require.Empty(t, loginAttempts)
-	for i := range defaults.MaxLoginAttempts {
+	for i := 0; i < defaults.MaxLoginAttempts; i++ {
 		err := s.a.ChangePassword(ctx, req)
 		require.Error(t, err)
 		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)

@@ -94,7 +94,9 @@ func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
 	ctx, span := tracer.Start(ctx, "Query")
 	defer span.End()
 
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,7 +177,9 @@ func Attest(ctx context.Context, log *slog.Logger) (
 	ctx, span := tracer.Start(ctx, "Attest")
 	defer span.End()
 
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -251,9 +255,4 @@ func PrintQuery(data *QueryRes, debug bool, w io.Writer) {
 			}))
 		}
 	}
-}
-
-// openTPM opens the TPM device using a predetermined config.
-func openTPM() (*attest.TPM, error) {
-	return attest.OpenTPM(nil /* config */)
 }

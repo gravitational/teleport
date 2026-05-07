@@ -28,6 +28,7 @@ type Storage struct {
 	Users        map[string]*msgraph.User
 	Groups       map[string]*msgraph.Group
 	GroupMembers map[string][]msgraph.GroupMember
+	GroupOwners  map[string][]*msgraph.User
 	Applications map[string]*msgraph.Application
 }
 
@@ -37,6 +38,7 @@ func NewStorage() *Storage {
 		Users:        make(map[string]*msgraph.User),
 		Groups:       make(map[string]*msgraph.Group),
 		GroupMembers: make(map[string][]msgraph.GroupMember),
+		GroupOwners:  make(map[string][]*msgraph.User),
 		Applications: make(map[string]*msgraph.Application),
 	}
 }
@@ -117,6 +119,9 @@ func NewDefaultStorage() *Storage {
 	storage.GroupMembers["group1"] = []msgraph.GroupMember{alice, group2}
 	storage.GroupMembers["group2"] = []msgraph.GroupMember{alice, bob, carol}
 	storage.GroupMembers["group3"] = []msgraph.GroupMember{alice, bob, carol}
+
+	storage.GroupOwners["group1"] = []*msgraph.User{alice, bob}
+	storage.GroupOwners["group3"] = []*msgraph.User{bob, carol}
 
 	storage.Applications[*app1.AppID] = app1
 

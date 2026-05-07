@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -116,6 +117,40 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
 }
 
+// strongValidateProvisionTokenWithDefaults checks if the provision token is valid and sets defaults if necessary..
+func strongValidateProvisionTokenWithDefaults(token *types.ProvisionTokenV2) error {
+	if err := token.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// for now there are no additional, on-write validations for token types other than kubernetes
+	if token.GetJoinMethod() != types.JoinMethodKubernetes {
+		return nil
+	}
+
+	kube := token.GetKubernetes()
+	if kube == nil {
+		// technically should never happen since CheckAndSetDefaults() performs a similar check,
+		// but we'll be defensive just in case
+		return trace.BadParameter("allow: at least one rule must be set")
+	}
+
+	for i, rule := range kube.Allow {
+		// validation for empty namespace and account was added much later than the rest of the validations
+		// in CheckAndSetDefaults(), so we only enforce them when marshaling a token rather than when unmarshaling
+		namespace, account, _ := strings.Cut(rule.ServiceAccount, ":")
+		if namespace == "" || account == "" {
+			return trace.BadParameter(
+				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+				i,
+				rule.ServiceAccount,
+			)
+		}
+	}
+
+	return nil
+}
+
 // MarshalProvisionToken marshals the ProvisionToken resource to JSON.
 func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
@@ -125,7 +160,7 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 
 	switch provisionToken := provisionToken.(type) {
 	case *types.ProvisionTokenV2:
-		if err := provisionToken.CheckAndSetDefaults(); err != nil {
+		if err := strongValidateProvisionTokenWithDefaults(provisionToken); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

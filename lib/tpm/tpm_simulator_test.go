@@ -127,6 +127,7 @@ func TestWithSimulator(t *testing.T) {
 	const wantEKPubHash = "1b5bbe2e96054f7bc34ebe7ba9a4a9eac5611c6879285ceff6094fa556af485c"
 
 	attestTPM, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion:     attest.TPMVersion20,
 		CommandChannel: &fakeCmdChannel{ReadWriteCloser: sim},
 	})
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func TestWithSimulator(t *testing.T) {
 		}, att.Data))
 
 		t.Run("Success", func(t *testing.T) {
-			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			validated, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				AttestParams: att.AttestParams,
 				Solve:        att.Solve,
@@ -162,7 +163,7 @@ func TestWithSimulator(t *testing.T) {
 			}, validated))
 		})
 		t.Run("Failure due to missing EKCert", func(t *testing.T) {
-			_, err = tpm.Validate(ctx, log, tpm.ValidateParams{
+			_, err = tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				AttestParams: att.AttestParams,
 				Solve:        att.Solve,
@@ -201,7 +202,7 @@ func TestWithSimulator(t *testing.T) {
 		}, att.Data))
 
 		t.Run("Success without CAs", func(t *testing.T) {
-			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			validated, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				EKCert:       att.Data.EKCert.Raw,
 				AttestParams: att.AttestParams,
@@ -215,7 +216,7 @@ func TestWithSimulator(t *testing.T) {
 			}, validated))
 		})
 		t.Run("Success with CAs", func(t *testing.T) {
-			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			validated, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				EKCert:       att.Data.EKCert.Raw,
 				AttestParams: att.AttestParams,
@@ -230,7 +231,7 @@ func TestWithSimulator(t *testing.T) {
 			}, validated))
 		})
 		t.Run("Failure with wrong CA", func(t *testing.T) {
-			_, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			_, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				EKCert:       att.Data.EKCert.Raw,
 				AttestParams: att.AttestParams,

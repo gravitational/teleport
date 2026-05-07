@@ -151,7 +151,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -791,6 +791,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
@@ -1107,8 +1108,7 @@ func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, l
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
 
-	ta := testauthority.New()
-	pub, priv, err := ta.GenerateJWT()
+	pub, priv, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Minute)
@@ -1213,9 +1213,6 @@ func mustMakeDiscoveryConfig(t *testing.T, ig types.Integration) *discoveryconfi
 					Types:       []string{"ec2"},
 					Regions:     []string{"us-west-2"},
 					Integration: ig.GetName(),
-					Params: &types.InstallerParams{
-						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-					},
 				},
 			},
 		},

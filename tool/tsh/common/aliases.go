@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -168,8 +167,10 @@ func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeAr
 // getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
 func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (string, bool) {
 	// ignore aliases found in TSH_UNALIAS list
-	if slices.Contains(ar.getSeenAliases(), aliasCmd) {
-		return "", false
+	for _, usedAlias := range ar.getSeenAliases() {
+		if usedAlias == aliasCmd {
+			return "", false
+		}
 	}
 
 	aliasDef, ok := ar.aliases[aliasCmd]
@@ -187,7 +188,7 @@ func (ar *aliasRunner) markAliasSeen(alias string) error {
 func (ar *aliasRunner) getSeenAliases() []string {
 	var aliasesSeen []string
 
-	for val := range strings.SplitSeq(ar.getEnv(tshAliasEnvKey), ",") {
+	for _, val := range strings.Split(ar.getEnv(tshAliasEnvKey), ",") {
 		if strings.TrimSpace(val) != "" {
 			aliasesSeen = append(aliasesSeen, val)
 		}

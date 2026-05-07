@@ -56,6 +56,8 @@ type GlobalCLIFlags struct {
 	// Insecure, when set, skips validation of server TLS certificate when
 	// connecting through a proxy (specified in AuthServerAddr).
 	Insecure bool
+	// MFAMode is the preferred mode for MFA assertions.
+	MFAMode string
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
@@ -172,7 +174,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		return nil, trace.Wrap(err)
 	}
-	identity, err := storage.ReadLocalIdentityForRole(filepath.Join(cfg.DataDir, teleport.ComponentProcess), types.RoleAdmin)
+	identity, err := storage.ReadLocalIdentityForRole(ctx, filepath.Join(cfg.DataDir, teleport.ComponentProcess), types.RoleAdmin)
 	if err != nil {
 		// The "admin" identity is not present? This means the tctl is running
 		// NOT on the auth server

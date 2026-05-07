@@ -43,6 +43,8 @@ var ignoredFields = map[string]stringSet{
 		// Useless field for agentless servers, and potentially dangerous as it
 		// allows remote exec on agentful nodes.
 		"CmdLabels": struct{}{},
+		// Not intended for manual usage.
+		"component_features": struct{}{},
 	},
 	"TrustedClusterSpecV2": {
 		"Roles": struct{}{}, // Deprecated, use RoleMap instead.

@@ -167,7 +167,7 @@ func Test_filterBuffer(t *testing.T) {
 				require.NoError(t, err)
 				data := &bytes.Buffer{}
 				name := filepath.Base(tt.args.dataFile)
-				err = temp.ExecuteTemplate(data, name, map[string]any{
+				err = temp.ExecuteTemplate(data, name, map[string]interface{}{
 					"Kind": teleToKubeResource[r].obj,
 					"API":  teleToKubeResource[r].api,
 				},
@@ -186,7 +186,7 @@ func Test_filterBuffer(t *testing.T) {
 					},
 					verb: types.KubeVerbList,
 				}
-				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, logtest.NewLogger()), buf)
+				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowedResources, nil, logtest.NewLogger()), logtest.NewLogger()), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.

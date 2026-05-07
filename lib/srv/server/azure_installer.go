@@ -26,30 +26,38 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
-// AzureInstaller handles running commands that install Teleport on Azure
+// AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
-type AzureInstaller struct {
-	Emitter apievents.Emitter
+type AzureInstallRequest struct {
+	Instances            []*armcompute.VirtualMachine
+	InstallerParams      *types.InstallerParams
+	ProxyAddrGetter      func(context.Context) (string, error)
+	Region               string
+	ResourceGroup        string
+	OnRunCommandFinished func(result AzureInstallResult)
 }
 
-// AzureRunRequest combines parameters for running commands on a set of Azure
-// virtual machines.
-type AzureRunRequest struct {
-	Client          azure.RunCommandClient
-	Instances       []*armcompute.VirtualMachine
-	InstallerParams *types.InstallerParams
-	ProxyAddrGetter func(context.Context) (string, error)
-	Region          string
-	ResourceGroup   string
+// AzureInstallResult stores installation results for particular VM instance.
+type AzureInstallResult struct {
+	// Instance is VM instance.
+	Instance *armcompute.VirtualMachine
+	// APIError is potential API error encountered.
+	APIError error
+	// CommandResult is the result of run command: execution status, exit code, stdout, stderr.
+	CommandResult *azure.RunCommandResult
 }
 
-// Run runs a command on a set of virtual machines and then blocks until the
+// Failure returns true if the installation result is considered a failure.
+func (r AzureInstallResult) Failure() bool {
+	return r.APIError != nil || (r.CommandResult != nil && r.CommandResult.Failure())
+}
+
+// Run initiates Teleport installation on a set of virtual machines and then blocks until the
 // commands have completed.
-func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
+func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) error {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -60,20 +68,41 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 		return trace.Wrap(err)
 	}
 	g, ctx := errgroup.WithContext(ctx)
+
 	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
 	// hundreds of nodes at once.
-	g.SetLimit(10)
+	// TODO (Tener): increase limit/make it configurable.
+	const azureParallelInstallLimit = 10
+	g.SetLimit(azureParallelInstallLimit)
 
 	for _, inst := range req.Instances {
+		inst := inst
 		g.Go(func() error {
+			// If the caller cancels, stop trying to run more commands.
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,
 				ResourceGroup: req.ResourceGroup,
 				VMName:        azure.StringVal(inst.Name),
 				Script:        script,
 			}
-			return trace.Wrap(req.Client.Run(ctx, runRequest))
+
+			commandResult, apiError := client.Run(ctx, runRequest)
+			if req.OnRunCommandFinished != nil {
+				req.OnRunCommandFinished(AzureInstallResult{
+					Instance:      inst,
+					APIError:      apiError,
+					CommandResult: commandResult,
+				})
+			}
+
+			// local failure should not affect other runs.
+			return nil
 		})
 	}
+
 	return trace.Wrap(g.Wait())
 }

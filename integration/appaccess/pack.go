@@ -755,7 +755,7 @@ func (p *Pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := range count {
+	for i := 0; i < count; i++ {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
 		raConf.Logger = logtest.NewLogger()
@@ -925,7 +925,7 @@ func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, clusterNa
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := range count {
+	for i := 0; i < count; i++ {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
 		laConf.Logger = logtest.NewLogger()
@@ -1083,13 +1083,13 @@ func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, c
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := server.Cluster(ctx, clusterName)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		ap, err := cluster.CachingAccessPoint()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		apps, err := ap.GetApplicationServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		require.Subset(t,
 			slices.Collect(iterutils.Map(func(appServer types.AppServer) appHost {

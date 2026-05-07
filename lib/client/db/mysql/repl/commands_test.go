@@ -124,7 +124,7 @@ func TestCommands(t *testing.T) {
 			desc:    "teleport",
 			cmdName: "teleport",
 			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
-				require.Contains(t, val, "v19.0.0-dev", "expected teleport command to include current Teleport version")
+				require.Contains(t, val, "19.0.0-dev", "expected teleport command to include current Teleport version")
 			},
 		},
 		{

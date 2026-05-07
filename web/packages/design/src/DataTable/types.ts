@@ -28,6 +28,7 @@ export type TableProps<T> = {
   infiniteScrollProps?: {
     fetchStatus: FetchStatus;
   };
+  hideEmptyIcon?: boolean;
   emptyText: string;
   /**
    * Optional button that is rendered below emptyText if there's no data, during processing or on
@@ -92,6 +93,11 @@ export type TableProps<T> = {
      * dropdown selector.
      */
     customRow?(row: T): JSX.Element;
+    /**
+     * conditionally render a custom row after either `customRow` or
+     * the base table row.
+     */
+    renderAfter?(row: T): JSX.Element | null;
   };
 };
 

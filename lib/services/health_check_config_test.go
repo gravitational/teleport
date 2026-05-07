@@ -33,7 +33,7 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 	t.Parallel()
 
 	var errContains = func(substr string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, _ ...any) {
+		return func(t require.TestingT, err error, _ ...interface{}) {
 			t.(*testing.T).Helper()
 			require.ErrorContains(t, err, substr)
 		}

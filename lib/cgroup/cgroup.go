@@ -31,7 +31,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -143,10 +142,12 @@ func (s *Service) Remove(sessionID string) error {
 
 	// Move all PIDs to the root controller. This has to be done before a cgroup
 	// can be removed.
-	if err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids); err != nil {
+	err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// The rmdir syscall is used to remove a cgroup.
 	err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID))
 	if err != nil {
 		return trace.Wrap(err)
@@ -208,9 +209,7 @@ func writePids(path string, pids []string) error {
 
 	for _, pid := range pids {
 		_, err := f.WriteString(pid + "\n")
-		// ignore no such process that can be returned if the process has already
-		// exited.
-		if err != nil && !errors.Is(err, unix.ESRCH) {
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -218,7 +217,7 @@ func writePids(path string, pids []string) error {
 	return trace.Wrap(f.Sync())
 }
 
-// cleanupHierarchy removes any cgroups for any existing sessions.
+// cleanupHierarchy removes any cgroups for any exisiting sessions.
 func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
@@ -378,13 +377,15 @@ func (s *Service) ID(sessionID string) (uint64, error) {
 	return fh.CgroupID, nil
 }
 
-// pattern matches cgroup process files.
-var pattern = regexp.MustCompile(`cgroup\.procs$`)
+var (
+	// pattern matches cgroup process files.
+	pattern = regexp.MustCompile(`cgroup\.procs$`)
+)
 
 const (
 	// fileMode is the mode files and directories are created in within the
 	// cgroup filesystem.
-	fileMode = 0o555
+	fileMode = 0555
 
 	// teleportRoot is the prefix of the root cgroup that holds all other
 	// Teleport cgroups.

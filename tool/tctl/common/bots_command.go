@@ -35,7 +35,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -99,7 +99,7 @@ type BotsCommand struct {
 
 // Initialize sets up the "tctl bots" command.
 func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	bots := app.Command("bots", "Manage Machine ID bots on the cluster.").Alias("bot")
+	bots := app.Command("bots", "Manage Machine & Workload Identity bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
 	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
@@ -843,7 +843,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"executable":                   os.Args[0],
 		"instance":                     instance,
 		"initial_authentication_table": initialAuthenticationTable,
@@ -907,7 +907,7 @@ func outputToken(ctx context.Context, wr io.Writer, format string, client botsCo
 		joinMethod = types.JoinMethodToken
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"token":       token.GetName(),
 		"addr":        addr,
 		"join_method": joinMethod,
@@ -922,7 +922,7 @@ func outputToken(ctx context.Context, wr io.Writer, format string, client botsCo
 // ignoring empty or whitespace-only elements.
 func splitEntries(flag string) []string {
 	var roles []string
-	for s := range strings.SplitSeq(flag, ",") {
+	for _, s := range strings.Split(flag, ",") {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue
@@ -998,25 +998,32 @@ func formatServices(services []*machineidv1pb.BotInstanceServiceHealth) string {
 // formatStatus returns an human-readable representation of a service status.
 // Optionally, it can include a colored dot.
 func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) string {
+	var (
+		greenDot  = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+		redDot    = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+		whiteDot  = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+		yellowDot = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	)
+
 	switch status {
 	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY:
 		if useColor {
-			return color.GreenString("\u25CF") + " Healthy"
+			return greenDot.Render("\u25CF") + " Healthy"
 		}
 		return "Healthy"
 	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY:
 		if useColor {
-			return color.RedString("\u25CF") + " Unhealthy"
+			return redDot.Render("\u25CF") + " Unhealthy"
 		}
 		return "Unhealthy"
 	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING:
 		if useColor {
-			return color.WhiteString("\u25CF") + " Initializing"
+			return whiteDot.Render("\u25CF") + " Initializing"
 		}
 		return "Initializing"
 	default:
 		if useColor {
-			return color.YellowString("\u25CF") + " Unknown"
+			return yellowDot.Render("\u25CF") + " Unknown"
 		}
 		return "Unknown"
 	}

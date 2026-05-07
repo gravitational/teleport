@@ -132,7 +132,7 @@ name excludes the standard prefixes and suffixes.
 ## Agents and connected resources
 
 To enable users to access most infrastructure with Teleport, you must join a
-[Teleport Agent](../../../enroll-resources/agents/agents.mdx) to your Teleport
+[Teleport Agent](../../../installation/agents/agents.mdx) to your Teleport
 cluster and configure it to proxy your infrastructure. In a typical setup, an
 Agent establishes an SSH reverse tunnel with the Proxy Service. User traffic to
 Teleport-protected resources flows through the Proxy Service, an Agent, and
@@ -181,7 +181,7 @@ With an improperly scaled Proxy Service pool, the Proxy Service can become a
 bottleneck for traffic to Teleport-protected resources. If Proxy Service
 instances display heavy utilization of compute resources while the number of
 connected infrastructure resources is high, you can consider scaling out your
-Proxy Service pool and using [Proxy Peering](../../deploy-a-cluster/proxy-peering.mdx).
+Proxy Service pool and using [Proxy Peering](../proxy-peering.mdx).
 
 Use the following Grafana query to track the maximum number of reverse tunnels
 by type over a given interval:

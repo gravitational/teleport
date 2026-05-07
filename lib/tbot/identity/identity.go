@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -266,8 +265,10 @@ func parseSSHIdentity(
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, nil, nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	if slices.Contains(cert.ValidPrincipals, "") {
-		return nil, nil, nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, nil, nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
 	hostCheckers, err = apisshutils.ParseAuthorizedKeys(caBytes)
@@ -406,9 +407,14 @@ func (i *Identity) LogValue() slog.Value {
 		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
 	}
 
+	scopePin := ""
+	if tlsIdent.ScopePin != nil {
+		scopePin = tlsIdent.ScopePin.Scope
+	}
+
 	duration := cert.NotAfter.Sub(cert.NotBefore)
 	description := fmt.Sprintf(
-		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v, scopePin=%v",
 		tlsIdent.BotName,
 		botDesc,
 		cert.NotBefore.Format(time.RFC3339),
@@ -419,6 +425,7 @@ func (i *Identity) LogValue() slog.Value {
 		tlsIdent.Groups,
 		principals,
 		tlsIdent.Generation,
+		scopePin,
 	)
 	return slog.StringValue(description)
 }

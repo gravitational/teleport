@@ -31,6 +31,7 @@ import (
 )
 
 func TestTotalInstances(t *testing.T) {
+	t.Parallel()
 	instances := []*proto.UpstreamInventoryHello{
 		{},
 		{Version: "15.0.0"},
@@ -48,6 +49,7 @@ func TestTotalInstances(t *testing.T) {
 }
 
 func TestTotalEnrolledInUpgrades(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		desc      string
 		instances []*proto.UpstreamInventoryHello
@@ -99,6 +101,7 @@ func TestTotalEnrolledInUpgrades(t *testing.T) {
 }
 
 func TestUpgraderCounts(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		desc      string
 		instances []*proto.UpstreamInventoryHello
@@ -180,6 +183,7 @@ func TestUpgraderCounts(t *testing.T) {
 }
 
 func TestInstallMethodCounts(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		desc     string
 		metadata []*proto.UpstreamInventoryAgentMetadata
@@ -237,6 +241,7 @@ func TestInstallMethodCounts(t *testing.T) {
 }
 
 func TestRegisteredAgentsCounts(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		desc     string
 		instance []*proto.UpstreamInventoryHello
@@ -298,6 +303,7 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 }
 
 func TestUpgradeEnrollPeriodic(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		desc          string
 		enrolled      map[string]int
@@ -391,7 +397,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 			periodic := newUpgradeEnrollPeriodic()
 
 			for ver, count := range tt.enrolled {
-				for range count {
+				for i := 0; i < count; i++ {
 					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
 						Version:          ver,
 						ExternalUpgrader: "some-upgrader",
@@ -403,7 +409,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 			}
 
 			for ver, count := range tt.unenrolled {
-				for range count {
+				for i := 0; i < count; i++ {
 					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
 						Version:          ver,
 						ExternalUpgrader: "",

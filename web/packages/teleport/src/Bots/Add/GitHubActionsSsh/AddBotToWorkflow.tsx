@@ -107,7 +107,7 @@ jobs:
       with:
         version: ${version}
     # server access example
-    - name: Fetch credentials using Machine ID
+    - name: Fetch credentials using Machine & Workload Identity
       id: auth
       uses: teleport-actions/auth@v2
       with:

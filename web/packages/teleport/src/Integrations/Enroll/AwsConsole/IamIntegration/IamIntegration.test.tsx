@@ -122,11 +122,14 @@ test('flows through roles anywhere IAM setup', async () => {
   );
   fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
   expect(
-    screen.getByText('Name must be a lower case valid DNS subdomain')
+    screen.getByText(
+      "Name must only contain lowercase alphanumeric characters or '-'"
+    )
   ).toBeInTheDocument();
-  expect(screen.getAllByText(/Name can only contain characters/i)).toHaveLength(
-    3
-  );
+
+  expect(
+    screen.getAllByText(/Name must only contain characters/i)
+  ).toHaveLength(3);
 
   fireEvent.change(screen.getByLabelText('Integration Name'), {
     target: { value: 'some-integration-name' },

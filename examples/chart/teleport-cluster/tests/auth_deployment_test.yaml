@@ -709,7 +709,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
 
   - it: should mount tls.existingCASecretName and set extra environment when set in values
     template: auth/deployment.yaml
@@ -733,7 +733,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
       - contains:
           path: spec.template.spec.containers[0].env
           content:

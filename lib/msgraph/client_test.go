@@ -808,6 +808,58 @@ var userGroups = `
 ]
 `
 
+const listGroupsOwnersPayload = `[
+    {
+      "id": "9f615773-8219-4a5e-9eb1-8e701324c683",
+      "userPrincipalName": "alice@example.com"
+    },
+	{
+      "id": "1566d9a7-c652-44e7-a75e-665b77431435",
+      "userPrincipalName": "bob@example.com"
+    },
+	{
+      "id": "1566d9a7-c652-44e7-a75e-665b77431436",
+      "userPrincipalName": "carol@example.com"
+    }
+  ]`
+
+func TestIterateGroupOwners(t *testing.T) {
+	t.Parallel()
+
+	var ownersJSON []json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(listGroupsOwnersPayload), &ownersJSON))
+	mux := http.NewServeMux()
+	groupID := "fd5be192-6e51-4f54-bbdf-30407435ceb7"
+	mux.Handle("GET /v1.0/groups/{groupID}/owners/microsoft.graph.user", paginatedHandler(t, ownersJSON))
+
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	client, err := NewClient(Config{
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
+		RetryConfig:   &retryConfig,
+		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	})
+	require.NoError(t, err)
+
+	// owners are of User type.
+	var owners []*User
+	err = client.IterateGroupOwners(t.Context(), groupID, func(o *User) bool {
+		owners = append(owners, o)
+		return true
+	})
+	require.NoError(t, err)
+	require.Len(t, owners, 3)
+
+	expectedOwners := []string{"alice@example.com", "bob@example.com", "carol@example.com"}
+	gotOwners := []string{}
+	for _, o := range owners {
+		gotOwners = append(gotOwners, *o.UserPrincipalName)
+	}
+	require.ElementsMatch(t, expectedOwners, gotOwners)
+}
+
 func newHTTPClient(server *httptest.Server) *http.Client {
 	var d net.Dialer
 	httpClient := server.Client()

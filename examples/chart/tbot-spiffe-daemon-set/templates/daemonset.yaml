@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "tbot-spiffe-daemon-set.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}
+  {{- if .Values.extraLabels.daemonSet }}
+    {{- toYaml .Values.extraLabels.daemonSet | nindent 4 }}
+  {{- end }}
+  {{- if .Values.annotations.daemonSet }}
+  annotations: {{- toYaml .Values.annotations.daemonSet | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels: {{- include "tbot-spiffe-daemon-set.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+      {{- if .Values.annotations.pod }}
+        {{- toYaml .Values.annotations.pod | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "tbot-spiffe-daemon-set.labels" . | nindent 8 }}
+      {{- if .Values.extraLabels.pod }}
+        {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+      {{- end }}
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # Must be in host PID namespace for workload attestation to behave
+      # correctly.
+      hostPID: true
+      containers:
+        - name: tbot
+          image: {{ .Values.image }}:{{ template "tbot-spiffe-daemon-set.version" . }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - start
+            - -c
+            - /config/tbot.yaml
+            - --log-format
+            - json
+          {{- if .Values.debug }}
+            - --debug
+          {{- end }}
+          {{- if .Values.extraArgs }}
+            {{- toYaml .Values.extraArgs | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+            - name: tbot-sockets
+              mountPath: /run/tbot/sockets
+              readOnly: false
+            {{- if .Values.extraVolumeMounts }}
+              {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+          env:
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+          {{- if .Values.extraEnv }}
+            {{- toYaml .Values.extraEnv | nindent 12 }}
+          {{- end }}
+      serviceAccountName: {{ template "tbot-spiffe-daemon-set.serviceAccountName" . }}
+      volumes:
+        - name: tbot-sockets
+          hostPath:
+            path: /run/tbot/sockets
+            type: DirectoryOrCreate
+        - name: config
+          configMap:
+            name: {{ include "tbot-spiffe-daemon-set.fullname" . }}
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  # 600 seconds is the minimum that Kubernetes supports. We
+                  # recommend this value is used.
+                  expirationSeconds: 600
+                  audience: {{ .Values.clusterName }}
+      {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- end }}

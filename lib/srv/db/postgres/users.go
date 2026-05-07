@@ -29,10 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v4"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -75,7 +74,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	// bookkeeping group or stored procedures get deleted or changed offband.
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	err = withRetry(ctx, logger, func() error {
-		return trace.Wrap(e.updateAutoUsersRole(ctx, conn, sessionCtx.Database.GetAdminUser().Name))
+		return trace.Wrap(e.updateAutoUsersRole(ctx, conn, sessionCtx.Database))
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -254,7 +253,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		var pgErr *pq.Error
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == common.SQLStatePermissionsChanged {
 				logger.ErrorContext(ctx, "User permissions have changed, rejecting connection",
@@ -427,7 +426,7 @@ func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Sess
 
 // updateAutoUsersRole ensures the bookkeeping role for auto-provisioned users
 // is present.
-func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, adminUser string) error {
+func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, db types.Database) error {
 	_, err := conn.Exec(ctx, fmt.Sprintf("create role %q", teleportAutoUserRole))
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
@@ -436,6 +435,9 @@ func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, adminU
 		e.Log.DebugContext(ctx, "PostgreSQL role already exists", "role", teleportAutoUserRole)
 	} else {
 		e.Log.DebugContext(ctx, "Created PostgreSQL role", "role", teleportAutoUserRole)
+	}
+	if db.IsRedshift() {
+		return nil
 	}
 
 	// v16 Postgres changed the role grant permissions model such that you can
@@ -456,6 +458,7 @@ func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, adminU
 	// support WITH INHERIT FALSE or WITH SET FALSE syntax, so we only specify
 	// WITH ADMIN OPTION.
 	// See: https://www.postgresql.org/docs/16/release-16.html
+	adminUser := db.GetAdminUser().Name
 	stmt := fmt.Sprintf("grant %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
 	_, err = conn.Exec(ctx, stmt)
 	if err != nil {
@@ -673,7 +676,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 	}
 
 	// retry a finite number of times before giving up.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err := f()
 		if err == nil {
 			return nil

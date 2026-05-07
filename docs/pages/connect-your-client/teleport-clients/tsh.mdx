@@ -8,6 +8,10 @@ tags:
  - zero-trust
 ---
 
+<EnterpriseFeatureWidget title="Did you know?">
+   You can try out Teleport Enterprise capabilities like SSO, session recording summaries, and just-in-time Access Requests for free. No payment information required.
+</EnterpriseFeatureWidget>
+
 This guide shows you how to use the Teleport client tool `tsh` to connect to
 infrastructure resources in your cluster.
 
@@ -22,8 +26,10 @@ In addition to this document, you can type `tsh` into your terminal for
 the CLI reference, or explore the [`tsh` CLI
 Reference](../../reference/cli/tsh.mdx#tsh-login) in the documentation.
 
+{/*TODO: update this to the Access Request user guide when this is available*/}
+
 You can also use `tsh` to manage Access Requests. For instructions, see
-[Request Access to Roles and Resources](./request-access.mdx).
+[Access Requests](../../identity-governance/access-requests/access-requests.mdx).
 
 ## Installing tsh
 
@@ -45,7 +51,7 @@ Follow the instructions below to install the `tsh` binary.
      "(=teleport.version=)"
      ```
 
-1. Install a package the includes `tsh`:
+1. Install a package that includes `tsh`:
 
    (!docs/pages/includes/install-tsh.mdx!)
 
@@ -301,7 +307,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   It is recommended to always use [`tsh login`](../../reference/cli/tsh.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
-A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../../zero-trust-access/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
+A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../../zero-trust-access/sso/integrate-idp/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -600,10 +606,12 @@ $ ssh-add -L
 The SSH agent can be used to feed the certificate to other SSH clients, for example
 to OpenSSH (`ssh`).
 
-If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
-to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
-variable to `false` in your shell profile to make this permanent.
+If you wish to disable SSH agent integration, pass `--add-keys-to-agent=no` to
+`tsh`. You can also set the `TELEPORT_ADD_KEYS_TO_AGENT` environment variable to
+`no` in your shell profile to make this permanent.
 
+For a full reference of `tsh` flags and environment variables, see the [`tsh
+Reference`](../../reference/cli/tsh.mdx).
 
 ### SSH jump host
 
@@ -640,7 +648,7 @@ Known limitations:
 - **Nodename setting**: the `teleport` daemon supports the` nodename` flag, which allows Teleport administrators to assign alternative Node names.
 - **Labels**: you can address a Node by `name=value` pair.
 
-If we have two Node, one with `os:linux` label and one Node with `os:osx`, we
+If we have two Nodes, one with `os:linux` label and one Node with `os:osx`, we
 can log in to the OSX Node with:
 
 ```code
@@ -680,7 +688,7 @@ Teleport supports creating clusters of servers located behind firewalls
 tunnels from behind-firewall environments into a Teleport Proxy Service you have access to.
 
 To learn more about setting up a trust relationship between clusters behind firewalls, see
-[Configure Trusted Clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx).
+[Configure Trusted Clusters](../../zero-trust-access/management/trustedclusters.mdx).
 
 <Admonition type="note" >
   Trusted clusters are only available for self-hosted Teleport clusters.
@@ -725,7 +733,7 @@ this tunnel is used to establish inbound SSH connections.
 ### X11 forwarding
 
 In order to run graphical programs within an SSH session, such as an IDE like
-Virtual Studio Code, you'll need to request X11 forwarding for the session with
+Visual Studio Code, you'll need to request X11 forwarding for the session with
 the `-X` flag.
 
 ```code

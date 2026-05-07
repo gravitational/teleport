@@ -54,8 +54,9 @@ const (
 )
 
 const (
-	defaultRetentionPeriod = 8766 * time.Hour // 365.25 days, i.e. one year
-	defaultCleanupInterval = time.Hour
+	defaultRetentionPeriod    = 8766 * time.Hour // 365.25 days, i.e. one year
+	defaultCleanupInterval    = time.Hour
+	defaultCertReloadInterval = 0
 )
 
 // URL parameters for configuration.
@@ -67,6 +68,7 @@ const (
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
 	retentionPeriodParam = "retention_period"
+	certReloadParam      = "cert_reload_interval"
 )
 
 const (
@@ -114,9 +116,10 @@ type Config struct {
 	Log        *slog.Logger
 	PoolConfig *pgxpool.Config
 
-	DisableCleanup  bool
-	RetentionPeriod time.Duration
-	CleanupInterval time.Duration
+	DisableCleanup     bool
+	RetentionPeriod    time.Duration
+	CleanupInterval    time.Duration
+	CertReloadInterval time.Duration
 }
 
 // SetFromURL sets config params from the URL, as per [pgxpool.ParseConfig]
@@ -169,6 +172,14 @@ func (c *Config) SetFromURL(u *url.URL) error {
 		c.RetentionPeriod = d
 	}
 
+	if s := params.Get(certReloadParam); s != "" {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CertReloadInterval = d
+	}
+
 	return nil
 }
 
@@ -204,7 +215,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Returns a new Log given a Config. Starts a background cleanup task unless
+// New returns a new Log given a Config. Starts a background cleanup task unless
 // disabled in the Config.
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -217,6 +228,13 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.CertReloadInterval > 0 {
+		err := pgcommon.CreateClientCertReloader(ctx, "pgevents", cfg.PoolConfig.ConnString(), cfg.PoolConfig.ConnConfig, cfg.CertReloadInterval, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	cfg.Log.InfoContext(ctx, "Setting up events backend.")
@@ -412,7 +430,7 @@ func (l *Log) searchEvents(
 	fromTime, toTime time.Time,
 	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID string,
 	limit int, order types.EventOrder, startKey string,
-) ([]events.EventFields, string, error) {
+) ([]apievents.AuditEvent, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -480,7 +498,7 @@ func (l *Log) searchEvents(
 	const fetchSize = defaults.EventsIterationLimit
 	fetchQuery := fmt.Sprintf("FETCH %d FROM cur", fetchSize)
 
-	var evs []events.EventFields
+	var evs []apievents.AuditEvent
 	var sizeLimit bool
 	var endTime time.Time
 	var endID uuid.UUID
@@ -528,7 +546,12 @@ func (l *Log) searchEvents(
 				}
 				totalSize += len(data)
 
-				evs = append(evs, evf)
+				ev, err := events.FromEventFields(evf)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				evs = append(evs, ev)
 				endTime = t
 				endID = id
 
@@ -569,33 +592,7 @@ func (l *Log) searchEvents(
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
-
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
-	if err != nil {
-		return nil, next, trace.Wrap(err)
-	}
-
-	evts, err := events.FromEventFieldsSlice(evtsRaw)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-// SearchUnstructuredEvents implements [events.AuditLogger].
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	var emptyCond *utils.ToFieldsConditionConfig
-	const emptySessionID = ""
-
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
-	if err != nil {
-		return nil, next, trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(evtsRaw)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -608,15 +605,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
-	if err != nil {
-		return nil, next, trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(evtsRaw)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
 }
 
 // sessionIDBase is a randomly-generated UUID used as the basis for deriving

@@ -59,9 +59,9 @@ type Authorizer interface {
 // DownloadHandler downloads session recording metadata and thumbnails.
 type DownloadHandler interface {
 	// DownloadMetadata downloads session metadata and writes it to a writer.
-	DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+	DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error
 	// DownloadThumbnail downloads a session thumbnail and writes it to a writer.
-	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error
 }
 
 // ServiceConfig holds the configuration for the recording metadata service.

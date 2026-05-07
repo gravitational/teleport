@@ -36,7 +36,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -236,7 +236,7 @@ func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helper
 
 	cmd := []string{"echo", "hello world"}
 	err = retryutils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		return trace.Wrap(err)
 	})
 	require.NoError(t, err)
@@ -519,7 +519,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 		config.Listener = helpers.MustCreateListener(t)
 	}
 	if config.ParentContext == nil {
-		config.ParentContext = context.TODO()
+		config.ParentContext = t.Context()
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(config)

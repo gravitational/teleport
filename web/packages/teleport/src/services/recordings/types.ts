@@ -16,6 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export enum RiskLevel {
+  Low = 'RISK_LEVEL_LOW',
+  Medium = 'RISK_LEVEL_MEDIUM',
+  High = 'RISK_LEVEL_HIGH',
+  Critical = 'RISK_LEVEL_CRITICAL',
+  None = 'RISK_LEVEL_NONE',
+  Unspecified = 'RISK_LEVEL_UNSPECIFIED',
+}
+
 export type RecordingsQuery = {
   from: Date;
   to: Date;
@@ -65,6 +74,7 @@ export enum SessionRecordingEventType {
   Inactivity = 'inactivity',
   Join = 'join',
   Resize = 'resize',
+  Risk = 'risk',
 }
 
 export interface SessionRecordingThumbnail {
@@ -126,6 +136,13 @@ interface SessionRecordingJoinEvent extends BaseSessionRecordingEvent {
   user: string;
 }
 
+export interface SessionRecordingRiskEvent extends BaseSessionRecordingEvent {
+  type: SessionRecordingEventType.Risk;
+  riskLevel: RiskLevel;
+  description: string;
+  isError?: boolean;
+}
+
 export interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
   type: SessionRecordingEventType.Resize;
   cols: number;
@@ -135,4 +152,5 @@ export interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
 export type SessionRecordingEvent =
   | SessionRecordingJoinEvent
   | SessionRecordingResizeEvent
-  | SessionRecordingInactivityEvent;
+  | SessionRecordingInactivityEvent
+  | SessionRecordingRiskEvent;

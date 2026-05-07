@@ -18,8 +18,7 @@ package web
 
 import (
 	"context"
-	"net"
-	"strconv"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -27,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -77,6 +77,7 @@ func (p *ProxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 			WebListenAddr:    p.ServiceConfig.Proxy.WebAddr.String(),
 			DialTimeout:      sshDialTimeout,
 		},
+		ScopesEnabled: scopes.FeatureEnabled(),
 	}
 
 	p.setProxyPublicAddressesSettings(&proxySettings)
@@ -158,5 +159,5 @@ func (p *ProxySettings) getPostgresPublicAddr() string {
 	} else {
 		host = p.ServiceConfig.Proxy.WebAddr.Host()
 	}
-	return net.JoinHostPort(host, strconv.Itoa(p.ServiceConfig.Proxy.PostgresAddr.Port(defaults.PostgresListenPort)))
+	return fmt.Sprintf("%s:%d", host, p.ServiceConfig.Proxy.PostgresAddr.Port(defaults.PostgresListenPort))
 }

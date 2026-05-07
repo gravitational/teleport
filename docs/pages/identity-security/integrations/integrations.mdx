@@ -6,6 +6,7 @@ tags:
  - conceptual
  - identity-security
  - access-risks
+enterprise: Identity Security
 ---
 
 Teleport can integrate with identity providers (IdPs) like Okta and AWS OIDC
@@ -21,9 +22,8 @@ visualize role-based access controls from third-party services:
 ## Viewing available integrations
 
 The Integrations page shows integrations that can be enabled or are already
-enabled in Access Graph.
-
-![Integrations](../../../img/access-graph/integrations.png)
+enabled in Access Graph. Press the **Setup New Integration** button from that page
+to see the available integrations.
 
 Resources imported into Teleport through Teleport-enabled integrations are
 automatically imported into Identity Security without any additional
@@ -53,10 +53,4 @@ The preset `editor` role has the required permissions by default.
 On the left sidebar, click **Identity Security**. Click the connection icon labeled Integrations: 
 ![Connection view](../../../img/access-graph/connection_view.png) 
 Select the "Set up new integration" button.
-
-Teleport can also import and grant access to resources from Okta organizations,
-such as user profiles, groups and applications. You can view connection data in
-Access Graph. Enroll the Teleport [Okta
-integration](../../identity-governance/integrations/okta/okta.mdx) in your
-cluster.
 

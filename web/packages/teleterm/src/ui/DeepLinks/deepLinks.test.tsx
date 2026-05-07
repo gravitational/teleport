@@ -17,7 +17,6 @@
  */
 
 import 'jest-canvas-mock';
-
 import { render, screen } from 'design/utils/testing';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 

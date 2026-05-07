@@ -32,9 +32,9 @@ type Plugin interface {
 	// GetName returns plugin name
 	GetName() string
 	// RegisterProxyWebHandlers registers new methods with the ProxyWebHandler
-	RegisterProxyWebHandlers(handler any) error
+	RegisterProxyWebHandlers(handler interface{}) error
 	// RegisterAuthWebHandlers registers new methods with the Auth Web Handler
-	RegisterAuthWebHandlers(service any) error
+	RegisterAuthWebHandlers(service interface{}) error
 	// RegisterAuthServices registers new services on the AuthServer
 	RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error
 }
@@ -46,11 +46,21 @@ type Registry interface {
 	// Add adds plugin to the registry
 	Add(plugin Plugin) error
 	// RegisterProxyWebHandlers registers Teleport Proxy web handlers
-	RegisterProxyWebHandlers(handler any) error
+	RegisterProxyWebHandlers(handler interface{}) error
 	// RegisterAuthWebHandlers registers Teleport Auth web handlers
-	RegisterAuthWebHandlers(handler any) error
+	RegisterAuthWebHandlers(handler interface{}) error
 	// RegisterAuthServices registers Teleport AuthServer services
 	RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error
+	// SetUsageReportingInitFunc stores a callback that will be called once the OSS auth server is
+	// fully initialized. The callback receives a *service.TeleportProcess and is responsible for
+	// starting all usage-reporting pipelines. It must be set before service.NewTeleport is called.
+	SetUsageReportingInitFunc(func(process any) error)
+	// InitUsageReporting invokes the callback registered with SetUsageReportingInitFunc. It is
+	// called by initAuthService after setLocalAuth, ensuring the UsageReporter is available to
+	// auth-server enterprise extensions. The function process parameter is a *service.TeleportProcess
+	// instance.
+	// A no-op if no callback was registered.
+	InitUsageReporting(process any) error
 }
 
 // NewRegistry creates an instance of the Registry
@@ -61,7 +71,19 @@ func NewRegistry() Registry {
 }
 
 type registry struct {
-	plugins map[string]Plugin
+	plugins              map[string]Plugin
+	usageReportingInitFn func(process any) error
+}
+
+func (r *registry) SetUsageReportingInitFunc(f func(process any) error) {
+	r.usageReportingInitFn = f
+}
+
+func (r *registry) InitUsageReporting(process any) error {
+	if r.usageReportingInitFn != nil {
+		return r.usageReportingInitFn(process)
+	}
+	return nil
 }
 
 // IsRegistered returns whether a plugin with the give name exists.
@@ -91,7 +113,7 @@ func (r *registry) Add(p Plugin) error {
 }
 
 // RegisterProxyWebHandlers registers Teleport Proxy web handlers
-func (r *registry) RegisterProxyWebHandlers(handler any) error {
+func (r *registry) RegisterProxyWebHandlers(handler interface{}) error {
 	for _, p := range r.plugins {
 		if err := p.RegisterProxyWebHandlers(handler); err != nil {
 			return trace.Wrap(err, "plugin %v failed to register", p.GetName())
@@ -102,7 +124,7 @@ func (r *registry) RegisterProxyWebHandlers(handler any) error {
 }
 
 // RegisterAuthWebHandlers registers Teleport Auth web handlers
-func (r *registry) RegisterAuthWebHandlers(handler any) error {
+func (r *registry) RegisterAuthWebHandlers(handler interface{}) error {
 	for _, p := range r.plugins {
 		if err := p.RegisterAuthWebHandlers(handler); err != nil {
 			return trace.Wrap(err, "plugin %v failed to register", p.GetName())

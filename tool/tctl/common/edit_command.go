@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
@@ -65,12 +64,7 @@ func (e *EditCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
-	e.cmd.Arg("resource type/resource name", `Resource to update
-	<resource type>  Type of a resource [for example: rc]
-	<resource name>  Resource name to update
-
-	Example:
-	$ tctl edit rc/remote`).SetValue(&e.ref)
+	e.cmd.Arg("resource type/resource name", `Resource to update, e.g., "user/myuser"`).SetValue(&e.ref)
 	e.cmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&e.confirm)
 }
 
@@ -158,11 +152,22 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	key := func(r services.UnknownResource) string {
-		return fmt.Sprintf("%s/%s", r.Kind, r.GetName())
+		return r.Kind + "/" + r.SubKind + "/" + r.GetName()
 	}
 	originalResourcesMap := make(map[string][]byte)
 	for _, r := range originalResources {
 		originalResourcesMap[key(r)] = r.Raw
+	}
+	if len(originalResourcesMap) != len(originalResources) {
+		slog.DebugContext(ctx, "tctl edit clobbered resources on originalResourcesMap",
+			"ref", e.ref,
+			"original_resources_map_len", len(originalResourcesMap),
+			"original_resources_len", len(originalResources),
+		)
+		return trace.BadParameter(
+			"tctl edit cannot handle multiple resources of kind %q, please specify a single resource to edit",
+			e.ref.Kind,
+		)
 	}
 
 	if err := e.runEditor(ctx, f.Name()); err != nil {
@@ -184,9 +189,18 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if len(newResources) != len(originalResources) {
 		return trace.BadParameter("one or more resources were added or removed, renaming resources is not supported with tctl edit")
+	}
+
+	// Verify keying of new resources, similarly to originalResources.
+	newResourcesMap := make(map[string]struct{}, len(newResources))
+	for _, r := range newResources {
+		newResourcesMap[key(r)] = struct{}{}
+	}
+	if len(newResourcesMap) != len(newResources) {
+		return trace.BadParameter(
+			"one or more edited resources have duplicate kind/sub_kind/name keys, each resource must be unique")
 	}
 
 	for _, newResource := range newResources {
@@ -202,36 +216,11 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 			continue
 		}
 
-		// Try looking for a resource handler
-		if resourceHandler, found := resources.Handlers()[newResource.Kind]; found {
-			opts := resources.CreateOpts{
-				Force:   rc.force,
-				Confirm: rc.confirm,
-			}
-			if err := resourceHandler.Update(ctx, client, newResource, opts); err != nil {
-				// TODO(tross) remove the fallback to CreateHandlers once all the resources
-				// have been updated to implement an UpdateHandler.
-				if trace.IsNotImplemented(err) {
-					if err := resourceHandler.Create(ctx, client, newResource, opts); err != nil {
-						if trace.IsNotImplemented(err) {
-							return trace.BadParameter("updating resources of type %q is not supported", newResource.Kind)
-						}
-						return trace.Wrap(err)
-					}
-					return nil
-				}
-				return trace.Wrap(err)
-			}
-			continue
-		}
-
-		// Else fallback to the legacy logic
-
 		// Use the UpdateHandler if the resource has one, otherwise fallback to using
 		// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
 		// will not forcibly overwrite a resource unlike with create which requires the force
 		// flag to be set to update an existing resource.
-		if updator, found := rc.UpdateHandlers[newResource.Kind]; found {
+		if updator, found := rc.UpdateHandlers[ResourceKind(newResource.Kind)]; found {
 			if err := updator(ctx, client, newResource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -240,7 +229,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 
 		// TODO(tross) remove the fallback to CreateHandlers once all the resources
 		// have been updated to implement an UpdateHandler.
-		if creator, found := rc.CreateHandlers[newResource.Kind]; found {
+		if creator, found := rc.CreateHandlers[ResourceKind(newResource.Kind)]; found {
 			if err := creator(ctx, client, newResource); err != nil {
 				return trace.Wrap(err)
 			}

@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"slices"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/trace"
 	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -52,14 +50,15 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 var mdmTokenAddTemplate = template.Must(
@@ -190,10 +189,10 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenKubeOIDC.Flag("context", "Kubernetes context to use. When not set, defaults to the active context.").StringVar(&c.kubeContext)
 	c.tokenKubeOIDC.Flag("cluster-name", "Name of the Kubernetes cluster. When not set, defaults to the context name.").StringVar(&c.kubeName)
 	c.tokenKubeOIDC.Flag("token-name", "Optional name of the created join token. When not set, default to '<CLUSTER_NAME>(-<BOT_NAME>)'").StringVar(&c.tokenName)
-	c.tokenKubeOIDC.Flag("bot", "Name of the the bot that this token will grant access to. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
+	c.tokenKubeOIDC.Flag("bot", "Name of the bot that this token will grant access to. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
 	c.tokenKubeOIDC.Flag("type", "Type(s) of token to add, e.g. --type=kube,app,db,discovery,proxy,etc").Default("kube,app,discovery").StringVar(&c.tokenType)
 	c.tokenKubeOIDC.Flag("service-account", "Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.").Short('s').Required().StringVar(&c.serviceAccountName)
-	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
+	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
 	c.tokenKubeOIDC.Flag("update-group", "Optional update group used for version detection and agent updater configuration").StringVar(&c.updateGroup)
 	c.tokenKubeOIDC.Flag("force", "Force the token creation, even if the token already exists").Default("false").Short('f').BoolVar(&c.force)
 
@@ -275,14 +274,26 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 		return trace.Wrap(err, "creating token")
 	}
 
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	localCAResponse, err := client.GetClusterCACert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
-		tokenInfo := map[string]any{
+		tokenInfo := map[string]interface{}{
 			"token":   token,
 			"roles":   roles,
 			"expires": expires,
+			"ca_pins": caPins,
 		}
 
 		var (
@@ -316,6 +327,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 		dbName:     c.dbName,
 		dbURI:      c.dbURI,
 		dbProtocol: c.dbProtocol,
+		caPins:     caPins,
 	}))
 }
 
@@ -329,6 +341,71 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 	}
 	fmt.Fprintf(c.Stdout, "Token %s has been deleted\n", c.value)
 	return nil
+}
+
+// The caller MUST make sure the MFA ceremony has been performed and is stored in the context
+// Else this function will cause several MFA prompts.
+// The MFa ceremony cannot be done in this function because we don't know if
+// the caller already attempted one (e.g. tctl get all)
+func getAllTokens(ctx context.Context, clt *authclient.Client) ([]types.ProvisionToken, error) {
+	// There are 3 tokens types:
+	// - provision tokens
+	// - static tokens
+	// - user tokens
+	// This endpoint returns all 3 for compatibility reasons.
+	// Before, all 3 tokens were returned by the same "GetTokens" RPC, now we are using
+	// separate RPCs, with pagination. However, we don't know if the auth we are talking
+	// to supports the new RPCs. As the static token one got introduced last, we
+	// try to use it.If it works, we consume the two other RPCs. If it doesn't,
+	// we fallback to the legacy all-in-one RPC.
+	var tokens []types.ProvisionToken
+
+	// Trying to get static tokens
+	staticTokens, err := clt.GetStaticTokens(ctx)
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err, "getting static tokens")
+	}
+
+	// TODO(hugoShaka): DELETE IN 19.0.0
+	if trace.IsNotImplemented(err) {
+		// We are connected to an old auth, that doesn't support the per-token type RPCs
+		// so we fallback to the legacy all-in-one RPC.
+		tokens, err := clt.GetTokens(ctx)
+		return tokens, trace.Wrap(err, "getting all tokens through the legacy RPC")
+	}
+
+	// We are connected to a modern auth, we must collect all 3 tokens types.
+	// Getting the provision tokens.
+	provisionTokens, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+			return clt.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+		},
+	))
+	if err != nil {
+		return nil, trace.Wrap(err, "getting provision tokens")
+	}
+	tokens = append(staticTokens.GetStaticTokens(), provisionTokens...)
+
+	// Getting the user tokens.
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, clt.ListResetPasswordTokens))
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "getting user tokens")
+	}
+	// Converting the user tokens as provision tokens for presentation and
+	// backward compatibility.
+	for _, t := range userTokens {
+		roles := types.SystemRoles{types.RoleSignup}
+		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
+		if err != nil {
+			return nil, trace.Wrap(err, "converting user token as a provision token")
+		}
+		tokens = append(tokens, tok)
+	}
+
+	return tokens, nil
 }
 
 // List is called to execute "tokens ls" command.
@@ -346,7 +423,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	tokens, err := resources.GetAllTokens(ctx, client)
+	tokens, err := getAllTokens(ctx, client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -891,30 +968,21 @@ func generateAgentValues(params valueGeneratorParams) ([]byte, error) {
 }
 
 type joinInstructionsInput struct {
-	client     *authclient.Client
-	roles      types.SystemRoles
-	out        io.Writer
-	tokenName  string
-	ttl        time.Duration
-	appName    string
-	appURI     string
-	dbName     string
-	dbURI      string
-	dbProtocol string
+	client      *authclient.Client
+	roles       types.SystemRoles
+	out         io.Writer
+	tokenName   string
+	tokenSecret string
+	ttl         time.Duration
+	appName     string
+	appURI      string
+	dbName      string
+	dbURI       string
+	dbProtocol  string
+	caPins      []string
 }
 
 func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := in.client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Get list of auth servers. Used to print friendly signup message.
 	authServers, err := clientutils.CollectWithFallback(
 		ctx,
@@ -945,11 +1013,11 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		setRoles := strings.ToLower(strings.Join(in.roles.StringSlice(), "\\,"))
 		return kubeMessageTemplate.Execute(in.out,
 			map[string]any{
-				"auth_server": proxies[0].GetPublicAddr(),
-				"token":       in.tokenName,
-				"minutes":     in.ttl.Minutes(),
-				"set_roles":   setRoles,
-				"version":     proxies[0].GetTeleportVersion(),
+				"proxy_server": proxies[0].GetPublicAddr(),
+				"token":        in.tokenName,
+				"minutes":      in.ttl.Minutes(),
+				"set_roles":    setRoles,
+				"version":      proxies[0].GetTeleportVersion(),
 			})
 	case in.roles.Include(types.RoleApp):
 		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
@@ -968,8 +1036,8 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 			map[string]any{
 				"token":           in.tokenName,
 				"minutes":         in.ttl.Minutes(),
-				"ca_pins":         caPins,
-				"auth_server":     proxies[0].GetPublicAddr(),
+				"ca_pins":         in.caPins,
+				"proxy_server":    proxies[0].GetPublicAddr(),
 				"app_name":        in.appName,
 				"app_uri":         in.appURI,
 				"app_public_addr": appPublicAddr,
@@ -987,13 +1055,13 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		}
 		return dbMessageTemplate.Execute(in.out,
 			map[string]any{
-				"token":       in.tokenName,
-				"minutes":     in.ttl.Minutes(),
-				"ca_pins":     caPins,
-				"auth_server": proxies[0].GetPublicAddr(),
-				"db_name":     in.dbName,
-				"db_protocol": in.dbProtocol,
-				"db_uri":      in.dbURI,
+				"token":        in.tokenName,
+				"minutes":      in.ttl.Minutes(),
+				"ca_pins":      in.caPins,
+				"proxy_server": proxies[0].GetPublicAddr(),
+				"db_name":      in.dbName,
+				"db_protocol":  in.dbProtocol,
+				"db_uri":       in.dbURI,
 			})
 	case in.roles.Include(types.RoleTrustedCluster):
 		fmt.Fprintf(in.out, trustedClusterMessage,
@@ -1009,38 +1077,32 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		return mdmTokenAddTemplate.Execute(in.out, map[string]any{
 			"token":   in.tokenName,
 			"minutes": in.ttl.Minutes(),
-			"ca_pins": caPins,
+			"ca_pins": in.caPins,
 		})
 	default:
-		authServer := authServers[0].GetAddr()
-
-		pingResponse, err := in.client.Ping(ctx)
-		if err != nil {
-			slog.DebugContext(ctx, "unable to ping auth client", "error", err)
-		}
-
-		if err == nil && pingResponse.GetServerFeatures().Cloud {
-			proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
-				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-				return in.client.GetProxies()
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if len(proxies) != 0 {
-				authServer = proxies[0].GetPublicAddr()
-			}
-		}
-
 		return nodeMessageTemplate.Execute(in.out, map[string]any{
 			"token":       in.tokenName,
+			"secret":      in.tokenSecret,
 			"roles":       strings.ToLower(in.roles.String()),
 			"minutes":     int(in.ttl.Minutes()),
-			"ca_pins":     caPins,
-			"auth_server": authServer,
+			"ca_pins":     in.caPins,
+			"auth_server": controlPlaneAddr(ctx, in.client, authServers[0].GetAddr()),
 		})
 	}
 
 	return nil
+}
+
+// controlPlaneAddr gets the address of the cluster control plane for
+// agent joining, preferring the proxy public address.
+func controlPlaneAddr(ctx context.Context, client *authclient.Client, authAddr string) string {
+	proxies, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return client.GetProxies()
+	})
+	if err == nil && len(proxies) > 0 {
+		return proxies[0].GetPublicAddr()
+	}
+
+	return authAddr
 }

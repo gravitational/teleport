@@ -31,7 +31,7 @@ import { CheckboxInput } from 'design/Checkbox';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-type Option<T> = {
+export type Option<T> = {
   value: T;
   label: string | ReactNode;
   disabled?: boolean;
@@ -210,19 +210,7 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
               <MenuItem
                 disabled={opt.disabled}
                 px={2}
-                onClick={e => {
-                  const target = e.target as HTMLElement;
-                  // Check if the click originated from the checkbox
-                  if (
-                    (target as HTMLInputElement).type === 'checkbox' ||
-                    target.closest('input[type="checkbox"]')
-                  ) {
-                    return; // Don't handle if click came from checkbox
-                  }
-                  if (!opt.disabled) {
-                    handleSelect(opt.value);
-                  }
-                }}
+                onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
               >
                 {$checkbox}
               </MenuItem>

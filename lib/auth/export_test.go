@@ -70,6 +70,9 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
+
+	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
+	SAMLCertExpiryAlertID   = samlCertExpiryAlertIDPrefix
 )
 
 var (
@@ -79,14 +82,6 @@ var (
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
 )
-
-func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
-	remoteClusterRefreshLimit = limit
-}
-
-func (a *Server) RemoteClusterRefreshBuckets(buckets int) {
-	remoteClusterRefreshBuckets = buckets
-}
 
 func (a *Server) VerifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	return a.verifyRecoveryCode(ctx, username, recoveryCode)
@@ -193,7 +188,7 @@ func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBou
 	a.createBoundKeypairValidator = validator
 }
 
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 
@@ -225,16 +220,16 @@ func ValidateOracleJoinToken(token types.ProvisionToken) error {
 	return validateOracleJoinToken(token)
 }
 
-func CreatePresetUsers(ctx context.Context, um PresetUsers) error {
-	return createPresetUsers(ctx, um)
+func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
+	return createPresetUsers(ctx, buildType, um)
 }
 
-func CreatePresetRoles(ctx context.Context, um PresetRoleManager) error {
-	return createPresetRoles(ctx, um)
+func CreatePresetRoles(ctx context.Context, buildType string, um PresetRoleManager) error {
+	return createPresetRoles(ctx, buildType, um)
 }
 
-func GetPresetUsers() []types.User {
-	return getPresetUsers()
+func GetPresetUsers(buildType string) []types.User {
+	return getPresetUsers(buildType)
 }
 
 func CreatePresetDatabaseObjectImportRule(ctx context.Context, rules services.DatabaseObjectImportRules) error {
@@ -245,20 +240,21 @@ func ValidServerHostname(hostname string) bool {
 	return validServerHostname(hostname)
 }
 
-func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(context.TODO(), s, username, authHostname)
+func FormatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
+	return formatAccountName(ctx, s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
 	configureCAsForTrustedCluster(tc, cas)
 }
 
-func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
-	updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, promotions)
+// UpdateAccessRequestWithAdditionalReviewers updates the access request with the suggested reviewers.
+func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers []string) {
+	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 }
 
 func EncodeProquint(x uint16) string {
-	return encodeProquint(x)
+	return string(encodeProquint(x))
 }
 
 func EmitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
@@ -333,4 +329,10 @@ type GitHubManager = githubManager
 
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer
+}
+
+type MigrateWindowsCAParams = migrateWindowsCAParams
+
+func MigrateWindowsCA(ctx context.Context, params MigrateWindowsCAParams) error {
+	return migrateWindowsCA(ctx, params)
 }

@@ -23,22 +23,27 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base32"
 	"io"
 	"log/slog"
+	"math/big"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -46,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -121,6 +127,8 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 // TestGenerateCredentials verifies that the smartcard certificates generated
 // by Teleport meet the requirements for Windows logon.
 func TestGenerateCredentials(t *testing.T) {
+	t.Parallel()
+
 	const (
 		clusterName = "test"
 		user        = "test-user"
@@ -142,16 +150,13 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 
-	ca, err := authServer.AuthServer.GetCertAuthorities(t.Context(), types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, ca, 1)
-
-	keys := ca[0].GetActiveKeys()
-	require.Len(t, keys.TLS, 1)
-
-	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
-	require.NoError(t, err)
-	commonName := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + clusterName
+	windowsCA := fetchDesktopCAInfo(t, authServer.AuthServer, types.WindowsCA)
+	userCA := fetchDesktopCAInfo(t, authServer.AuthServer, types.UserCA)
+	// Sanity check.
+	require.NotEqual(t,
+		windowsCA.SerialNumber, userCA.SerialNumber,
+		"CA serial numbers must not match",
+	)
 
 	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
@@ -159,31 +164,56 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	testSID := "S-1-5-21-1329593140-2634913955-1900852804-500"
+	const testSID = "S-1-5-21-1329593140-2634913955-1900852804-500"
 
 	for _, test := range []struct {
-		name               string
-		activeDirectorySID string
+		name                    string
+		activeDirectorySID      string
+		wantSerialNumber        string
+		wantCRLCommonName       string
+		disableWindowsCASupport bool
 	}{
 		{
 			name:               "no ad sid",
 			activeDirectorySID: "",
+			wantSerialNumber:   windowsCA.SerialNumber,
+			wantCRLCommonName:  windowsCA.CRLCommonName,
 		},
 		{
 			name:               "with ad sid",
 			activeDirectorySID: testSID,
+			wantSerialNumber:   windowsCA.SerialNumber,
+			wantCRLCommonName:  windowsCA.CRLCommonName,
+		},
+		{
+			name:                    "old agent without AD SID",
+			activeDirectorySID:      "",
+			wantSerialNumber:        userCA.SerialNumber,
+			wantCRLCommonName:       userCA.CRLCommonName,
+			disableWindowsCASupport: true,
+		},
+		{
+			name:                    "old agent with AD SID",
+			activeDirectorySID:      testSID,
+			wantSerialNumber:        userCA.SerialNumber,
+			wantCRLCommonName:       userCA.CRLCommonName,
+			disableWindowsCASupport: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+
 			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
-				Username:           user,
-				Domain:             domain,
-				TTL:                5 * time.Minute,
-				ClusterName:        clusterName,
-				ActiveDirectorySID: test.activeDirectorySID,
+				AD:                                true,
+				Username:                          user,
+				Domain:                            domain,
+				TTL:                               5 * time.Minute,
+				ClusterName:                       clusterName,
+				ActiveDirectorySID:                test.activeDirectorySID,
+				DisableWindowsCASupportForTesting: test.disableWindowsCASupport,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, certb)
@@ -193,9 +223,13 @@ func TestGenerateCredentials(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cert)
 
-			require.Equal(t, user, cert.Subject.CommonName)
-			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=`+commonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+			require.Equal(t, test.wantSerialNumber, cert.Issuer.SerialNumber, "Issuer.SerialNumber")
+			require.Equal(t, user+"@"+domain, cert.Subject.CommonName, "Subject.CommonName")
+			require.Contains(t,
+				cert.CRLDistributionPoints,
+				`ldap:///CN=`+test.wantCRLCommonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
+				"CRLDistributionPoints",
+			)
 
 			foundKeyUsage := false
 			foundAltName := false
@@ -231,6 +265,40 @@ func TestGenerateCredentials(t *testing.T) {
 			require.True(t, foundAltName)
 			require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
 		})
+	}
+}
+
+type certAuthorityGetter interface {
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+}
+
+type desktopCAInfo struct {
+	SerialNumber  string
+	CRLCommonName string
+}
+
+func fetchDesktopCAInfo(
+	t *testing.T,
+	authClient certAuthorityGetter,
+	caType types.CertAuthType,
+) *desktopCAInfo {
+	t.Helper()
+
+	const loadKeys = false
+	cas, err := authClient.GetCertAuthorities(t.Context(), caType, loadKeys)
+	require.NoError(t, err)
+	require.Len(t, cas, 1)
+	ca := cas[0]
+
+	keys := ca.GetActiveKeys()
+	require.Len(t, keys.TLS, 1)
+
+	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
+	require.NoError(t, err)
+
+	return &desktopCAInfo{
+		SerialNumber:  cert.SerialNumber.String(),
+		CRLCommonName: base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + ca.GetClusterName(),
 	}
 }
 
@@ -273,7 +341,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message, which is way too big to be legitimate
-	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
+	maliciousPNG := make([]byte, constants.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	maliciousPNG[0] = byte(tdp.TypePNGFrame)
 
@@ -413,6 +481,7 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 	})
 
 	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+
 		return &WindowsService{
 			cfg: WindowsServiceConfig{
 				Clock:      clock,
@@ -422,11 +491,23 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 					Domain:   "test.example.com",
 					Username: "test-user",
 					Addr:     "ldap.example.com:389",
+					CAs:      []*x509.Certificate{newSelfSignedCA(t), newSelfSignedCA(t)},
 				},
 			},
 			closeCtx: context.Background(),
 		}
 	}
+
+	t.Run("issued cert supports multiple CAs", func(t *testing.T) {
+		s := newWindowsService(clockwork.NewFakeClock(), client)
+
+		config, err := s.issueNewTLSConfigForLDAP()
+		require.NoError(t, err)
+		// Validate that both configured CAs made it into
+		// the TLS config's cert pool.
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[0])
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[1])
+	})
 
 	t.Run("returns cached config when not expired", func(t *testing.T) {
 		clock := clockwork.NewFakeClock()
@@ -494,4 +575,304 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 			require.NotNil(t, cfg)
 		}
 	})
+}
+
+func TestCRLUpdateSchedule(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "zarq"
+	clock := clockwork.NewFakeClock()
+	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: clusterName,
+		Clock:       clock,
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
+
+	var runCRLLoopWG sync.WaitGroup
+	// IMPORTANT! Must t.Cleanup before "cancel" (ie, cancel() needs to happen
+	// first).
+	t.Cleanup(func() {
+		t.Log("Waiting for runCRLUpdateLoop() WaitGroup")
+		runCRLLoopWG.Wait()
+	})
+
+	wsCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	caClient := newMockCertificateStoreClient(t)
+	const publishInterval = 5 * time.Minute // Arbitrary. We use fake time.
+
+	// Create a "fake" WindowsService instance. This only needs enough setup to do
+	// runCRLUpdateLoop().
+	accessPoint := newWatcherAwareAccessPoint(t, testAuth.AuthServer)
+	winService := &WindowsService{
+		cfg: WindowsServiceConfig{
+			Logger:             logtest.NewLogger(),
+			Clock:              clock,
+			AccessPoint:        accessPoint,
+			PublishCRLInterval: publishInterval,
+		},
+		// Mock the actual CRL publishing.
+		ca: caClient,
+		// Short-circuit the "loadTLSConfigForLDAPlogic.
+		ldapTLSConfig:          &tls.Config{},
+		ldapTLSConfigExpiresAt: clock.Now().Add(1000000 * time.Hour), // Arbitrary. "Never" expires.
+		// ctx for background methods.
+		closeCtx: wsCtx,
+		close:    cancel,
+	}
+
+	runCRLLoopWG.Add(1)
+	go func() {
+		defer runCRLLoopWG.Done()
+		t.Log("Calling runCRLUpdateLoop()")
+		winService.runCRLUpdateLoop()
+	}()
+
+	select {
+	case <-accessPoint.InitReceived():
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for watcher initialization")
+	}
+
+	var wantUpdates int
+	waitForNextCRLUpdate := func(t *testing.T) {
+		t.Helper()
+
+		wantUpdates++
+		caClient.WaitForUpdate(t, wantUpdates)
+	}
+
+	// First run of the loop invokes the update right away.
+	waitForNextCRLUpdate(t)
+
+	t.Run("update by elapsed time", func(t *testing.T) {
+		// Don't t.Parallel().
+
+		clock.Advance(publishInterval)
+		waitForNextCRLUpdate(t)
+	})
+
+	t.Run("update by CA event", func(t *testing.T) {
+		// Don't t.Parallel().
+
+		ctx := t.Context()
+		authServer := testAuth.AuthServer
+
+		// Fetch current WindowsCA.
+		id := types.CertAuthID{
+			Type:       types.WindowsCA,
+			DomainName: clusterName,
+		}
+		ca, err := authServer.GetCertAuthority(ctx, id, true /* loadKeys */)
+		require.NoError(t, err)
+
+		// Simulate a rotation by addding an entry to AdditionalTrustedKeys.
+		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+			Organization: []string{clusterName},
+			CommonName:   clusterName,
+		}, nil /* dnsNames */, 1*time.Hour /* ttl */)
+		require.NoError(t, err)
+		atk := ca.GetAdditionalTrustedKeys()
+		atk.TLS = append(atk.TLS, &types.TLSKeyPair{
+			Cert: certPEM,
+			Key:  keyPEM,
+			CRL:  []byte("fake CRL"),
+		})
+		require.NoError(t, ca.SetAdditionalTrustedKeys(atk))
+
+		// Update. This generates a CA event.
+		t.Log("Calling UpdateCertAuthority")
+		_, err = authServer.UpdateCertAuthority(ctx, ca)
+		require.NoError(t, err)
+
+		waitForNextCRLUpdate(t)
+	})
+}
+
+// watcherAwareAccessPoint is a WindowsDesktopAccessPoint wrapper that
+// intercepts the creation of watchers, so we can know with certainty that the
+// expected watchers are ready.
+//
+// See [watcherAwareAccessPoint.InitReceived].
+type watcherAwareAccessPoint struct {
+	authclient.WindowsDesktopAccessPoint
+
+	initReceived      chan struct{}
+	initReceivedClose func()
+
+	done <-chan struct{} // signals end of test
+	wg   sync.WaitGroup
+}
+
+func newWatcherAwareAccessPoint(t *testing.T, ap authclient.WindowsDesktopAccessPoint) *watcherAwareAccessPoint {
+	ctx, cancel := context.WithCancel(t.Context())
+
+	watcherAP := &watcherAwareAccessPoint{
+		WindowsDesktopAccessPoint: ap,
+		initReceived:              make(chan struct{}),
+		done:                      ctx.Done(),
+	}
+	watcherAP.initReceivedClose = sync.OnceFunc(func() { close(watcherAP.initReceived) })
+	t.Cleanup(func() {
+		cancel()
+		t.Log("Waiting for watcherAwareAccessPoint sync.WaitGroup")
+		watcherAP.wg.Wait()
+	})
+
+	return watcherAP
+}
+
+func (a *watcherAwareAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	w, err := a.WindowsDesktopAccessPoint.NewWatcher(ctx, watch)
+	if err != nil {
+		return nil, err
+	}
+
+	ww := &watcherInitWrapper{
+		Watcher:          w,
+		markInitReceived: a.initReceivedClose,
+		done:             a.done,
+		events:           make(chan types.Event),
+	}
+	a.wg.Go(func() { ww.forwardEvents(ctx, w) })
+
+	return ww, nil
+}
+
+// InitReceived returns a channel that is closed once any watcher created by the
+// watcherAwareAccessPoint receives its first init event.
+//
+// Used as proxy to know that the underlying watcher is ready.
+func (a *watcherAwareAccessPoint) InitReceived() <-chan struct{} {
+	return a.initReceived
+}
+
+// watcherInitWrapper wraps a types.Watcher so it can wait for its first init
+// event.
+//
+// See watcherAwareAccessPoint.
+type watcherInitWrapper struct {
+	types.Watcher
+
+	markInitReceived func()
+
+	done   <-chan struct{} // signals end of test
+	events chan types.Event
+}
+
+func (w *watcherInitWrapper) Events() <-chan types.Event {
+	return w.events
+}
+
+func (w *watcherInitWrapper) forwardEvents(ctx context.Context, other types.Watcher) {
+	for {
+		select {
+		case <-w.done:
+			return
+		case <-ctx.Done():
+			return
+		case <-other.Done():
+			return
+		case e := <-other.Events():
+			if e.Type == types.OpInit {
+				w.markInitReceived()
+			}
+			// Forward event.
+			select {
+			case <-w.done:
+				return
+			case <-ctx.Done():
+				return
+			case <-other.Done():
+				return
+			case w.events <- e:
+			}
+		}
+	}
+}
+
+type mockCertificateStoreClient struct {
+	logf func(string, ...any)
+
+	mu       sync.Mutex
+	wait     chan struct{} // waits on the next numCalls update
+	numCalls int
+}
+
+func newMockCertificateStoreClient(t *testing.T) *mockCertificateStoreClient {
+	c := &mockCertificateStoreClient{
+		logf: t.Logf,
+		wait: make(chan struct{}),
+	}
+	return c
+}
+
+func (c *mockCertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
+	c.mu.Lock()
+	c.numCalls++
+	close(c.wait)
+	c.wait = make(chan struct{})
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *mockCertificateStoreClient) WaitForUpdate(t *testing.T, wantCalls int) {
+	t.Helper()
+
+	const timeout = 5 * time.Second // arbitrary
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	defer cancel()
+
+	for {
+		c.mu.Lock()
+		num := c.numCalls
+		ch := c.wait
+		c.mu.Unlock()
+		if num == wantCalls {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("Timed out before update: numCalls=%d, wantCalls=%d", c.numCalls, wantCalls)
+		case <-ch:
+			continue
+		}
+	}
+}
+
+func assertCertInPool(t *testing.T, pool *x509.CertPool, cert x509.Certificate) {
+	t.Helper()
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
+		t.Fatalf("cert not found/trusted in pool: %v", err)
+	}
+}
+
+func newSelfSignedCA(t *testing.T) *x509.Certificate {
+	t.Helper()
+
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test-ca",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, signer.Public(), signer)
+	require.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(certBytes)
+	require.NoError(t, err)
+	return cert
 }

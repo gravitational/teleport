@@ -18,7 +18,6 @@ package joinclient
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -46,7 +45,7 @@ func tpmJoin(
 	// TPMEncryptedCredential->TPMSolution flow, and receive and return the
 	// final result.
 
-	log := slog.Default()
+	log := joinParams.Log
 
 	attestation, close, err := joinParams.AttestTPM(ctx, log)
 	if err != nil {

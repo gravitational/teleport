@@ -308,14 +308,14 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            mountPath: /etc/teleport-tls-ca.pem
+            mountPath: /etc/teleport-tls-ca
             name: teleport-tls-ca
-            subPath: randomCASecretKeyName
+            readOnly: true
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca.pem
+            value: /etc/teleport-tls-ca/randomCASecretKeyName
 
   - it: sets GOMEMLIMIT by default (SI unit)
     template: deployment.yaml

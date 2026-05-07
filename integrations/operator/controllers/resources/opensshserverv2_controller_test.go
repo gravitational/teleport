@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -117,15 +118,20 @@ func (g *opensshServerV2TestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestTeleportOpensshServerV2Creation(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewOpenSSHServerV2Reconciler, test)
+}
+
+func TestTeleportOpensshServerV2Deletion(t *testing.T) {
+	test := &opensshServerV2TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewOpenSSHServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshServerV2DeletionDrift(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOpenSSHServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshServerV2Update(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewOpenSSHServerV2Reconciler, test)
 }

@@ -49,7 +49,7 @@ async function setupTest({
   recording = mockRecording,
   viewMode = ViewMode.List,
   density = Density.Comfortable,
-  actionSlot,
+  actionComponent,
 }: Partial<RecordingItemProps>) {
   const ctx = createTeleportContext();
 
@@ -57,7 +57,7 @@ async function setupTest({
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <RecordingItem
-          actionSlot={actionSlot}
+          actionComponent={actionComponent}
           recording={recording}
           viewMode={viewMode}
           density={density}
@@ -248,7 +248,7 @@ test('shows non-interactive session message for non-playable recordings', async 
 });
 
 test('allows custom action slot', async () => {
-  const actionSlot = jest
+  const actionComponent = jest
     .fn()
     .mockReturnValue(
       <button data-testid="custom-action">Custom Action</button>
@@ -258,7 +258,7 @@ test('allows custom action slot', async () => {
     recording: mockRecording,
     viewMode: ViewMode.List,
     density: Density.Comfortable,
-    actionSlot,
+    actionComponent,
   });
 
   const item = screen.getByTestId('recording-item');
@@ -267,6 +267,16 @@ test('allows custom action slot', async () => {
   const customAction = screen.getByTestId('custom-action');
 
   expect(customAction).toBeInTheDocument();
-  expect(actionSlot).toHaveBeenCalledWith(mockRecording.sid, 'ssh');
+  expect(actionComponent).toHaveBeenCalledWith(
+    {
+      durationMs: mockRecording.duration,
+      createdDate: mockRecording.createdDate,
+      recordingType: mockRecording.recordingType,
+      sessionId: mockRecording.sid,
+      username: mockRecording.user,
+      hostname: mockRecording.hostname,
+    },
+    undefined
+  );
   expect(customAction).toHaveTextContent('Custom Action');
 });

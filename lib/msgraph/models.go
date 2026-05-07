@@ -45,6 +45,8 @@ type Group struct {
 	OnPremisesNetBiosName *string `json:"onPremisesNetBiosName,omitempty"`
 	// OnPremisesSamAccountName is the on-premises SAM account name of the group.
 	OnPremisesSamAccountName *string `json:"onPremisesSamAccountName,omitempty"`
+	// Owners is a list of users who are the owners of this group.
+	Owners []*User `json:"owners,omitempty"`
 }
 
 func (g *Group) IsOffice365Group() bool {

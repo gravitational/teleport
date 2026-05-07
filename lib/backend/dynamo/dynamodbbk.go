@@ -1220,8 +1220,8 @@ func convertError(err error) error {
 	}
 
 	var collectionLimitExceededError *types.ItemCollectionSizeLimitExceededException
-	if errors.As(err, &notFoundError) {
-		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
+	if errors.As(err, &collectionLimitExceededError) {
+		return trace.LimitExceeded("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *types.InternalServerError

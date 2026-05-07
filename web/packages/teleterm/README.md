@@ -109,6 +109,12 @@ make grpc
 
 Resulting Go and JS files can be found in `gen/proto`.
 
+### Generating shared process gRPC protobuf files
+
+Run `generate-grpc-shared` script from `teleterm/package.json`.
+It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
+Resulting files can be found in `sharedProcess/api/protogen`.
+
 ## Build process
 
 `pnpm package-term` is responsible for packaging the app code for distribution.
@@ -144,6 +150,18 @@ GOOS=windows CGO_ENABLED=1 go build -o build/tsh.exe  -ldflags '-w -s' -buildvcs
 
 It's important for the executable to end with `.exe`. If that command doesn't work, you can always
 inspect what we currently do in [our Windows build pipeline scripts](https://github.com/gravitational/teleport/blob/983017b23f65e49350615bfbbe52b7f1080ea7b9/build.assets/windows/build.ps1#L377).
+
+#### Certificate requirements for updater
+
+The privileged updater on Windows (for per-machine updates) verifies update signatures before running the installer:
+
+- `WinVerifyTrust` must succeed for the update executable.
+- The signer subject must match the Teleport publisher subject:
+  `CN=Gravitational, Inc., O=Gravitational, Inc., L=Oakland, ST=California, C=US`.
+
+The hardcoded values are kept in `authenticode_windows.go`.
+As a result, the service binary itself does not need to be signed (e.g., in OSS builds), but all updates must be
+properly signed.
 
 #### Native dependencies on Windows
 
@@ -320,18 +338,18 @@ sequenceDiagram
     PS->>PHS: createPtyProcess(options)
     PHS->>PP: new PtyProcess()
     PHS-->>PS: ptyId of the process is returned
-    PS->>PHS: establishManagePtyProcess(ptyId) channel
+    PS->>PHS: establishExchangeEvents(ptyId) channel
     Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
     PS-->>DT: pty process object
     DT->>PS: start()
-    PS->>PHS: managePtyProcess.start()
-    Note left of PP: managePtyProcess attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
+    PS->>PHS: exchangeEvents.start()
+    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
     PHS->>PP: start()
     PP-->>PHS: onOpen()
-    PHS-->>PS: managePtyProcess.onOpen()
+    PHS-->>PS: exchangeEvents.onOpen()
     PS-->>DT: onOpen()
     DT->>PS: dispose()
-    PS->>PHS: end managePtyProcess channel
+    PS->>PHS: end exchangeEvents channel
     PHS->>PP: dispose process and remove it
 
 ```

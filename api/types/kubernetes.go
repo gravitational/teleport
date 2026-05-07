@@ -81,6 +81,12 @@ type KubeCluster interface {
 	GetCloud() string
 	// IsEqual determines if two Kubernetes cluster resources are equivalent.
 	IsEqual(KubeCluster) bool
+	// GetStatus gets the kube cluster status.
+	GetStatus() *KubernetesClusterStatus
+	// SetStatus sets the kube cluster status.
+	SetStatus(*KubernetesClusterStatus)
+	// GetScope gets the scope of the kube cluster.
+	GetScope() string
 }
 
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
@@ -260,7 +266,7 @@ func (k *KubernetesClusterV3) SetDynamicLabels(dl map[string]CommandLabel) {
 
 // GetAllLabels returns the combined static and dynamic labels.
 func (k *KubernetesClusterV3) GetAllLabels() map[string]string {
-	return CombineLabels(k.Metadata.Labels, k.Spec.DynamicLabels)
+	return CombineLabels(nil, k.Metadata.Labels, k.Spec.DynamicLabels)
 }
 
 // GetDescription returns the description.
@@ -342,6 +348,28 @@ func (k *KubernetesClusterV3) String() string {
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() KubeCluster {
 	return utils.CloneProtoMsg(k)
+}
+
+// GetStatus gets the kube cluster status.
+func (k *KubernetesClusterV3) GetStatus() *KubernetesClusterStatus {
+	if k == nil {
+		return nil
+	}
+	return k.Status
+}
+
+// SetStatus sets the kube cluster status.
+func (k *KubernetesClusterV3) SetStatus(status *KubernetesClusterStatus) {
+	k.Status = status
+}
+
+// GetScope returns the scope of the kube cluster.
+func (k *KubernetesClusterV3) GetScope() string {
+	if k == nil {
+		return ""
+	}
+
+	return k.Scope
 }
 
 // MatchSearch goes through select field values and tries to
@@ -766,3 +794,8 @@ func (m *RequestKubernetesResource) GetNamespace() string     { return "" }
 func (m *KubernetesResource) GetNamespace() string            { return m.Namespace }
 func (m *RequestKubernetesResource) SetNamespace(ns string)   {}
 func (m *KubernetesResource) SetNamespace(ns string)          { m.Namespace = ns }
+
+// IsEqual determines if two KubernetesClusterStatus are equivalent.
+func (c *KubernetesClusterStatus) IsEqual(other *KubernetesClusterStatus) bool {
+	return deriveTeleportEqualKubernetesClusterStatus(c, other)
+}

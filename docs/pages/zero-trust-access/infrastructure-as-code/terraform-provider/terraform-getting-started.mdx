@@ -24,9 +24,9 @@ for infrastructure resources.
 
 An Agent is a Teleport instance configured to run one or more Teleport services
 in order to proxy infrastructure resources (see [Introduction to Teleport
-Agents](../../../enroll-resources/agents/agents.mdx)). There are several methods
+Agents](../../../installation/agents/agents.mdx)). There are several methods
 you can use to join a Teleport Agent to your cluster, which we discuss in the
-[Joining Services to your Cluster](../../../enroll-resources/agents/agents.mdx)
+[Joining Services to your Cluster](../../../installation/agents/agents.mdx)
 guide. In this guide, we will use the **join token** method, where the operator
 stores a secure token on the Auth Service, and an Agent presents the token in
 order to join a cluster.
@@ -84,13 +84,13 @@ infrastructure. You can get started with a demo cluster using:
   you how to set up your IdP to support the SAML or OIDC authentication
   connector. **Read only the linked section**, since these guides assume you are
   using `tctl` instead of Terraform to manage authentication connectors:
-  - [AD FS](../../sso/adfs.mdx#step-13-configure-adfs)
-  - [GitLab](../../sso/gitlab.mdx#step-13-configure-gitlab)
+  - [AD FS](../../sso/integrate-idp/adfs.mdx#step-13-configure-adfs)
+  - [GitLab](../../sso/integrate-idp/gitlab.mdx#step-13-configure-gitlab)
   - [Google
-    Workspace](../../sso/google-workspace.mdx#step-13-configure-google-workspace)
-  - [OneLogin](../../sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
-  - [Entra ID](../../sso/entra-id.mdx#step-13-configure-microsoft-entra-id)
-  - [Okta](../../sso/okta.mdx#step-13-configure-okta)
+    Workspace](../../sso/integrate-idp/google-workspace.mdx#step-13-configure-google-workspace)
+  - [OneLogin](../../sso/integrate-idp/one-login.mdx#step-13-create-teleport-application-in-onelogin)
+  - [Entra ID](../../sso/integrate-idp/entra-id.mdx#step-13-configure-microsoft-entra-id)
+  - [Okta](../../sso/integrate-idp/okta.mdx#step-13-configure-okta)
 
 - To help with troubleshooting, we recommend completing the setup steps in this
   guide with a local user that has the preset `editor` and `auditor` roles. In
@@ -629,8 +629,8 @@ module "prod_role" {
 |`db_roles`|Roles the user can access on a database when they authenticate to a database server.|
 |`db_users`|Users the user can access on a database when they authenticate to a database server.|
 |`gcp_service_accounts`|Google Cloud service accounts the user can access when authenticating to a Google Cloud API.|
-|`kubernetes_groups`|Kubernetes groups the Teleport Database Service can impersonate when proxying requests from the user.|
-|`kubernetes_users`|Kubernetes users the Teleport Database Service can impersonate when proxying requests from the user.|
+|`kubernetes_groups`|Kubernetes groups the Teleport Kubernetes Service can impersonate when proxying requests from the user.|
+|`kubernetes_users`|Kubernetes users the Teleport Kubernetes Service can impersonate when proxying requests from the user.|
 |`logins`|Operating system logins the user can access when authenticating to a Linux server.|
 |`windows_desktop_logins`|Operating system logins the user can access when authenticating to a Windows desktop.|
 
@@ -689,7 +689,7 @@ If you plan to skip this step, make sure to remove the `module "saml"` or
    `https://example.teleport.sh:443/v1/webapi/oidc/callback`, replacing
    `example.teleport.sh` with the domain name of your Teleport cluster. 
 
-   Ensure that `oidc_redirect_url` matches match the URL you configured with
+   Ensure that `oidc_redirect_url` matches the URL you configured with
    your IdP when registering your Teleport cluster as a relying party.
 
    </TabItem>
@@ -849,7 +849,7 @@ ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
    <Admonition type="tip">
 
    If you receive errors logging in using your authentication connector, log in
-   as a local user with permissions to view the Teleport audit log. These is
+   as a local user with permissions to view the Teleport audit log. This is
    available in the preset `auditor` role. Check for error messages in events
    related with the "SSO Login" type.
 

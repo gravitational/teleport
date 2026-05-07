@@ -36,6 +36,9 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	ctx := context.Background()
 
 	type testCase struct {
@@ -69,7 +72,7 @@ func BenchmarkGetNodes(b *testing.B) {
 			} else {
 				dir := b.TempDir()
 
-				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+				bk, err = lite.NewWithConfig(b.Context(), lite.Config{
 					Path: dir,
 				})
 				require.NoError(b, err)
@@ -89,10 +92,10 @@ func BenchmarkGetNodes(b *testing.B) {
 func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := range labelCount {
+	for i := 0; i < labelCount; i++ {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
 		node := &types.ServerV2{
 			Kind:    types.KindNode,

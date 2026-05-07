@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -32,11 +31,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -149,7 +146,7 @@ func (a *sessionAuditor) appendStartEvent(ctx context.Context, options ...eventO
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
-		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.App.GetRewrite()),
+		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.rewriteAuthDetails),
 	})
 	if err != nil {
 		a.logger.ErrorContext(ctx, "failed to prepare session start event", "error", err)
@@ -398,7 +395,7 @@ func (a *sessionAuditor) updatePendingSessionStartEventWithInitializeRequest(msg
 		return
 	}
 	var params mcp.InitializeParams
-	if err := json.Unmarshal(paramsData, &params); err != nil {
+	if err := mcputils.UnmarshalJSONRPCMessage(paramsData, &params); err != nil {
 		return
 	}
 	a.updatePendingSessionStartEvent(func(sessionStartEvent *apievents.MCPSessionStart) {
@@ -447,42 +444,39 @@ func headersForAudit(h http.Header) http.Header {
 
 // guessEgressAuthType makes an educated guess on what kind of auth is used to
 // for the remote MCP server.
-func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
-	if rewrite != nil {
-		testJWTTraits := map[string][]string{
-			"jwt": {"test", "jwt"},
-		}
-
-		var rewriteAuth bool
-		for _, rewrite := range rewrite.Headers {
-			if strings.EqualFold(rewrite.Name, "Authorization") {
-				rewriteAuth = true
-			}
-
-			// Check if any header value includes "{{internal.jwt}}".
-			if strings.Contains(rewrite.Value, "internal.jwt") {
-				// Apply fake traits just to be sure. The fake traits will
-				// result two values if applied successfully.
-				if interpolated, _ := services.ApplyValueTraits(rewrite.Value, testJWTTraits); len(interpolated) > 1 {
-					return "app-jwt"
-				}
-			}
-		}
-
-		// Auth header has be defined in the app definition but not using
-		// "{{internal.jwt}}".
-		if rewriteAuth {
-			return "app-defined"
-		}
+func guessEgressAuthType(headerWithoutRewrite http.Header, rewriteDetails rewriteAuthDetails) string {
+	switch {
+	case rewriteDetails.hasIDTokenTrait:
+		return egressAuthTypeAppIDToken
+	case rewriteDetails.hasJWTTrait:
+		return egressAuthTypeAppJWT
+	case rewriteDetails.rewriteAuthHeader:
+		return egressAuthTypeAppDefined
 	}
 
 	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is
 	// defined by the user.
 	if headerWithoutRewrite.Get("Authorization") != "" {
-		return "user-defined"
+		return egressAuthTypeUserDefined
 	}
 
-	// No auth required for the remote MCP server or something we don't
-	// understand yet.
-	return "unknown"
+	return egressAuthTypeUnknown
 }
+
+const (
+	// egressAuthTypeUnknown is reported when no egress auth method can be
+	// determined.
+	egressAuthTypeUnknown = "unknown"
+	// egressAuthTypeUserDefined is reported when the auth header is set by the
+	// user and forwarded from the client.
+	egressAuthTypeUserDefined = "user-defined"
+	// egressAuthTypeAppJWT is reported when "{{internal.jwt}}" is defined in app
+	// rewrite rules.
+	egressAuthTypeAppJWT = "app-jwt"
+	// egressAuthTypeAppIDToken is reported when "{{internal.id_token}}" is
+	// defined in app rewrite rules.
+	egressAuthTypeAppIDToken = "app-id-token"
+	// egressAuthTypeAppDefined is reported when static credentials are defined in
+	// app rewrite rules.
+	egressAuthTypeAppDefined = "app-defined"
+)

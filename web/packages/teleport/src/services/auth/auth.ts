@@ -28,7 +28,6 @@ import {
 } from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import { defaultHeaders } from '../api/api';
 import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
@@ -123,13 +122,7 @@ const auth = {
       second_factor_token: otpCode,
     };
 
-    return api.postWithOptions(cfg.api.webSessionPath, {
-      data,
-      headers: {
-        ...defaultHeaders,
-        [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
-      },
-    });
+    return api.post(cfg.api.webSessionPath, data);
   },
 
   loginWithWebauthn(creds?: UserCredentials) {
@@ -139,7 +132,6 @@ const auth = {
       .then(res =>
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
-          mediation: 'silent',
         })
       )
       .then(res => {
@@ -148,13 +140,7 @@ const auth = {
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
         };
 
-        return api.postWithOptions(cfg.api.mfaLoginFinish, {
-          data: request,
-          headers: {
-            ...defaultHeaders,
-            [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
-          },
-        });
+        return api.post(cfg.api.mfaLoginFinish, request);
       });
   },
 
@@ -232,14 +218,16 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  headlessSsoGet(transactionId: string) {
-    return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
-      json = json || {};
+  headlessSsoGet(transactionId: string, abortSignal?: AbortSignal) {
+    return api
+      .get(cfg.getHeadlessSsoPath(transactionId), abortSignal)
+      .then((json: any) => {
+        json = json || {};
 
-      return {
-        clientIpAddress: json.client_ip_address,
-      };
-    });
+        return {
+          clientIpAddress: json.client_ip_address,
+        };
+      });
   },
 
   headlessSsoAccept(mfa: MfaState, transactionId: string) {
@@ -263,6 +251,16 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
+  browserMfaPut(mfa: MfaState, requestId: string, abortSignal: AbortSignal) {
+    return mfa.getChallengeResponse().then((res: MfaChallengeResponse) => {
+      const request = {
+        ...res,
+      };
+
+      return api.put(cfg.getBrowserMfaPath(requestId), request, abortSignal);
+    });
+  },
+
   // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
   // is provided and it is found that MFA is not required, returns undefined instead.
   async getMfaChallenge(
@@ -278,6 +276,7 @@ const auth = {
           challenge_allow_reuse: req.allowReuse,
           user_verification_requirement: req.userVerificationRequirement,
           proxy_address: cfg.baseUrl,
+          browser_mfa_request_id: req.browserMfaRequestId,
         },
         abortSignal
       )
@@ -543,9 +542,3 @@ export enum MfaChallengeScope {
   ADMIN_ACTION = 7,
   CHANGE_PASSWORD = 8,
 }
-
-/**
- * Header which reports navigator.maxTouchPoints to the proxy service. This piece of information is
- * later used by the Device Trust service.
- */
-const HEADER_MAX_TOUCH_POINTS = 'Max-Touch-Points';

@@ -178,6 +178,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 		apps   types.Apps
 	)
 	for _, service := range kubeServices {
+		service := service
 		g.Go(func() error {
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 

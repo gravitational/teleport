@@ -19,22 +19,28 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"slices"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -42,10 +48,11 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -64,57 +71,65 @@ func TestEditResources(t *testing.T) {
 	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
-		kind string
+		name string
 		edit func(t *testing.T, clt *authclient.Client)
 	}{
 		{
-			kind: types.KindGithubConnector,
+			name: types.KindGithubConnector,
 			edit: testEditGithubConnector,
 		},
 		{
-			kind: types.KindRole,
+			name: types.KindRole,
 			edit: testEditRole,
 		},
 		{
-			kind: types.KindUser,
+			name: types.KindUser,
 			edit: testEditUser,
 		},
 		{
-			kind: types.KindClusterNetworkingConfig,
+			name: types.KindClusterNetworkingConfig,
 			edit: testEditClusterNetworkingConfig,
 		},
 		{
-			kind: types.KindClusterAuthPreference,
+			name: types.KindClusterAuthPreference,
 			edit: testEditAuthPreference,
 		},
 		{
-			kind: types.KindSessionRecordingConfig,
+			name: types.KindSessionRecordingConfig,
 			edit: testEditSessionRecordingConfig,
 		},
 		{
-			kind: types.KindStaticHostUser,
+			name: types.KindStaticHostUser,
 			edit: testEditStaticHostUser,
 		},
 		{
-			kind: types.KindAutoUpdateConfig,
+			name: types.KindAutoUpdateConfig,
 			edit: testEditAutoUpdateConfig,
 		},
 		{
-			kind: types.KindAutoUpdateVersion,
+			name: types.KindAutoUpdateVersion,
 			edit: testEditAutoUpdateVersion,
 		},
 		{
-			kind: types.KindDynamicWindowsDesktop,
+			name: types.KindDynamicWindowsDesktop,
 			edit: testEditDynamicWindowsDesktop,
 		},
 		{
-			kind: types.KindHealthCheckConfig,
+			name: types.KindHealthCheckConfig,
 			edit: testEditHealthCheckConfig,
+		},
+		{
+			name: types.KindScopedToken,
+			edit: testEditScopedToken,
+		},
+		{
+			name: "edit multiple resources with SubKind (" + types.KindCertAuthority + ")",
+			edit: testEditMultipleWithSubKind,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.kind, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			test.edit(t, rootClient)
 		})
 	}
@@ -149,7 +164,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
+		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -186,7 +201,7 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := resources.NewRoleCollection([]types.Role{expected})
+		collection := &roleCollection{roles: []types.Role{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -225,7 +240,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetCreatedBy(created.GetCreatedBy())
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := resources.NewUserCollection([]types.User{expected})
+		collection := &userCollection{users: []types.User{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -262,7 +277,7 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetKeepAliveCountMax(1)
 		expected.SetCaseInsensitiveRouting(true)
 
-		collection := &fakeCollection{[]types.Resource{expected}}
+		collection := &netConfigCollection{netConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -300,7 +315,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
-		collection := &fakeCollection{[]types.Resource{expected}}
+		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -337,7 +352,7 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetMode(types.RecordAtProxy)
 
-		collection := &fakeCollection{[]types.Resource{expected}}
+		collection := &recConfigCollection{recConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -434,7 +449,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
+		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -502,7 +517,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
+		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -553,7 +568,7 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 		expected.GetMetadata().Revision = created.GetMetadata().Revision
 		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 
-		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
+		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -599,7 +614,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := resources.NewAutoUpdateConfigCollection(expected)
+		collection := &autoUpdateConfigCollection{config: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -641,7 +656,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := resources.NewAutoUpdateVersionCollection(expected)
+		collection := &autoUpdateVersionCollection{version: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -657,9 +672,13 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
-	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{Addr: "test"})
+	ctx := context.Background()
+
+	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
+		Addr: "test",
+	})
 	require.NoError(t, err)
-	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(t.Context(), expected)
+	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, expected)
 	require.NoError(t, err)
 
 	editor := func(name string) error {
@@ -671,18 +690,278 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.Spec.Addr = "test2"
 
-		collection := resources.NewDynamicDesktopCollection([]types.DynamicWindowsDesktop{expected})
+		collection := &dynamicWindowsDesktopCollection{desktops: []types.DynamicWindowsDesktop{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(t.Context(), expected.GetName())
+	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, expected.GetName())
 	require.NoError(t, err)
-
 	expected.SetRevision(actual.GetRevision())
 	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
+}
+
+func testEditScopedToken(t *testing.T, clt *authclient.Client) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	created, err := clt.CreateScopedToken(ctx, &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/staging",
+		Metadata: &headerv1.Metadata{
+			Name: "test-token",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/staging/aa",
+			Roles:         []string{string(types.RoleNode)},
+			UsageMode:     "unlimited",
+			JoinMethod:    string(types.JoinMethodToken),
+		},
+	})
+	require.NoError(t, err)
+
+	initialRevision := created.GetMetadata().GetRevision()
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		// Always use the original revision — it becomes stale after the first edit.
+		created.GetMetadata().Revision = initialRevision
+		if created.Metadata.Labels == nil {
+			created.Metadata.Labels = make(map[string]string)
+		}
+		created.Metadata.Labels["env"] = "test"
+
+		collection := &scopedTokenCollection{tokens: []*joiningv1.ScopedToken{created}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken + "/" + created.GetMetadata().GetName()}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
+	require.NoError(t, err)
+	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
+
+	// Second edit with the stale original revision should fail.
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken + "/" + created.GetMetadata().GetName()}, withEditor(editor))
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err))
+}
+
+func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
+	t.Parallel()
+
+	overwriteFile := func(f *os.File, valsYAML [][]byte) error {
+		if err := f.Truncate(0); err != nil {
+			return fmt.Errorf("truncate: %w", err)
+		}
+		if _, err := f.Seek(0, 0); err != nil {
+			return fmt.Errorf("seek to zero: %w", err)
+		}
+
+		for i, val := range valsYAML {
+			if i > 0 {
+				if _, err := f.WriteString("---\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+			if _, err := f.Write(val); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+			if !bytes.HasSuffix(val, []byte("\n")) {
+				if _, err := f.WriteString("\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	// Test add/remove detection when the number of resources stays the same.
+	t.Run("add/remove", func(t *testing.T) {
+		// Don't t.Parallel(), may edit resources on failure.
+
+		cn, err := clt.GetClusterName(t.Context())
+		require.NoError(t, err, "read cluster name")
+
+		const loadKeys = false
+		winCA, err := clt.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       types.WindowsCA,
+			DomainName: cn.GetClusterName(),
+		}, loadKeys)
+		require.NoError(t, err, "read Windows CA")
+
+		winJSON, err := services.MarshalCertAuthority(winCA)
+		require.NoError(t, err, "marshal Windows CA")
+		winYAML, err := yaml.JSONToYAML(winJSON)
+		require.NoError(t, err, "convert JSON to YAML")
+
+		editor := func(name string) error {
+			// Replace the editor file contents with the Windows CA.
+			return os.WriteFile(name, winYAML, 0644)
+		}
+
+		// Edit cas/host, then replace it with cas/windows.
+		_, err = runEditCommand(t, clt, []string{"edit", "cas/host"}, withEditor(editor))
+		assert.ErrorContains(t, err, "was added or removed", "tctl edit error mismatch")
+	})
+
+	// Test replacing one of the resources with a duplicate of another.
+	t.Run("duplicate", func(t *testing.T) {
+		// Don't t.Parallel(), may edit resources on failure.
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Read CA YAMLs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				casYAML = append(casYAML, raw.Raw)
+			}
+
+			// Replace an item with a duplicate.
+			casYAML[0] = casYAML[1]
+
+			// Overwrite.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		// Edit all CAs, then replace one of them with a duplicate.
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		assert.ErrorContains(t, err, "duplicate kind/sub_kind/name", "tctl edit error mismatch")
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		// Don't t.Parallel(), edits resources.
+
+		const caType1 = types.HostCA
+		const caType2 = types.WindowsCA
+
+		getCAs := func(t *testing.T) (_, _ types.CertAuthority) {
+			ctx := t.Context()
+			const loadKeys = false
+
+			cas1, err := clt.GetCertAuthorities(ctx, caType1, loadKeys)
+			require.NoError(t, err, "CA not found: %s", caType1)
+			require.Len(t, cas1, 1)
+
+			cas2, err := clt.GetCertAuthorities(ctx, caType2, loadKeys)
+			require.NoError(t, err, "CA not found: %s", caType2)
+			require.Len(t, cas2, 1)
+
+			return cas1[0], cas2[0]
+		}
+
+		// Prepare wanted CAs.
+		ca1, ca2 := getCAs(t)
+		md := ca1.GetMetadata()
+		md.Description = "description 1"
+		ca1.SetMetadata(md)
+		md = ca2.GetMetadata()
+		md.Description = "description 2"
+		ca2.SetMetadata(md)
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Parse/edit CAs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			editCount := 0
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				ca, err := services.UnmarshalCertAuthority(raw.Raw)
+				if err != nil {
+					return fmt.Errorf("unmarshal CA resource: %w", err)
+				}
+
+				switch ca.GetType() {
+				case ca1.GetType():
+					ca.SetMetadata(ca1.GetMetadata())
+					editCount++
+				case ca2.GetType():
+					ca.SetMetadata(ca2.GetMetadata())
+					editCount++
+				default:
+					// Don't change non-edited YAMLs.
+					casYAML = append(casYAML, raw.Raw)
+					continue
+				}
+
+				caJSON, err := services.MarshalCertAuthority(ca)
+				if err != nil {
+					return fmt.Errorf("marshal CA: %w", err)
+				}
+				caYAML, err := yaml.JSONToYAML(caJSON)
+				if err != nil {
+					return fmt.Errorf("convert JSON to YAML: %w", err)
+				}
+				casYAML = append(casYAML, caYAML)
+			}
+
+			const wantEdits = 2
+			if wantEdits != editCount {
+				return fmt.Errorf("edit count mismatch (want %d, got %d)", wantEdits, editCount)
+			}
+
+			// Write edited CAs.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		require.NoError(t, err, "tctl edit errored")
+
+		// Verify CA updates.
+		gotCA1, gotCA2 := getCAs(t)
+		ca1.SetRevision(gotCA1.GetRevision())
+		ca2.SetRevision(gotCA2.GetRevision())
+		assert.Equal(t, ca1, gotCA1, "CA1 edit failed")
+		assert.Equal(t, ca2, gotCA2, "CA2 edit failed")
+	})
 }
 
 func TestMultipleRoles(t *testing.T) {
@@ -723,7 +1002,7 @@ func TestMultipleRoles(t *testing.T) {
 			role.SetLogins(types.Allow, []string{"abcdef"})
 		}
 
-		collection := resources.NewRoleCollection(roles)
+		collection := &roleCollection{roles: roles}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -747,19 +1026,4 @@ func TestMultipleRoles(t *testing.T) {
 			require.NotEqual(t, role.GetRevision(), actual.GetRevision(), "revision should have been modified by edit")
 		}
 	}
-}
-
-// fakeCollection implements [resources.Collection] for testing purposes.
-type fakeCollection struct {
-	resources []types.Resource
-}
-
-// Resources implements [resources.Collection]
-func (c *fakeCollection) Resources() []types.Resource {
-	return c.resources
-}
-
-// WriteText implements [resources.Collection]
-func (c *fakeCollection) WriteText(w io.Writer, verbose bool) error {
-	return nil
 }

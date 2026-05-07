@@ -11,7 +11,7 @@ import Icon from '@site/src/components/Icon';
 
 After deploying your Teleport cluster, the next step is to enroll the infrastructure resources you want to secure.
 
-Teleport supports a wide range of resource types, including Linux servers, MCP servers,Kubernetes clusters, databases, internal web apps, and cloud provider APIs. You can enroll these through the Teleport Web UI's guided setup workflows.
+Teleport supports a wide range of resource types, including Linux servers, MCP servers, Kubernetes clusters, databases, internal web apps, and cloud provider APIs. You can enroll these through the Teleport Web UI's guided setup workflows.
 
 ## Demo: Enroll an Ubuntu server
 
@@ -75,6 +75,16 @@ Follow these steps to enroll your Ubuntu Linux server:
 6. Add `ubuntu` as an OS user you will use to connect to the server and test your connection to verify that the server is accessible before you finish the guided setup.
 
 Now you'll see your Ubuntu server listed under Resources in your Teleport Web UI. Click on the Connect button to SSH into the server.
+
+<Checkpoint
+  title="Verify server enrollment"
+  description="Confirm that your Ubuntu server appears in the Teleport Web UI and that you can connect to it via SSH."
+>
+  Here are some troubleshooting tips:
+  - If the server doesn't appear, verify the Teleport Agent is running on the server with `systemctl status teleport`.
+  - Ensure the server can reach your Teleport cluster over the network (check firewalls and security groups).
+  - Check the agent logs for errors: `journalctl -u teleport`.
+</Checkpoint>
 
 <details>
   <summary>How does passwordless SSH work?</summary>

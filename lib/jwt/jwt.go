@@ -20,6 +20,7 @@
 package jwt
 
 import (
+	"cmp"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -194,7 +195,7 @@ func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error
 // wrapping it in an opaque signer if necessary.
 func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
 	// Create a signer with configured private key and algorithm.
-	var signer any
+	var signer interface{}
 	switch priv.(type) {
 	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
 		signer = priv
@@ -221,8 +222,9 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
 			Subject:   p.Username,
-			Issuer:    k.config.ClusterName,
+			Issuer:    cmp.Or(p.Issuer, k.config.ClusterName),
 			Audience:  jwt.Audience{p.URI},
+			ID:        uuid.NewString(),
 			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
 			Expiry:    jwt.NewNumericDate(p.Expires),
@@ -479,6 +481,9 @@ type VerifyParams struct {
 
 	// Audience is the Audience for the token
 	Audience string
+
+	// Issuer is the Issuer for the token
+	Issuer string
 }
 
 // Check verifies all the values are valid.
@@ -567,7 +572,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   k.config.ClusterName,
+		Issuer:   cmp.Or(p.Issuer, k.config.ClusterName),
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),

@@ -443,6 +443,46 @@ func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
 	require.Contains(t, err.Error(), "simulated upload failure")
 }
 
+// TestProcessSessionRecording_RecoversFromPanic verifies that a panic from
+// downstream code (e.g. vt10x tripping over a corrupt recording) is converted
+// into an error return rather than propagating and crashing auth.
+func TestProcessSessionRecording_RecoversFromPanic(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	streamer := &mockStreamer{
+		events:       generateBasicSession(startTime),
+		errorOnEvent: -1,
+	}
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: &panickingUploadHandler{},
+	})
+	require.NoError(t, err)
+
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "internal error while processing session recording")
+
+	// Ensure that the panic stack trace is not included in the returned error.
+	require.NotContains(t, err.Error(), "simulated thumbnail upload panic")
+	require.NotContains(t, err.Error(), "goroutine")
+}
+
+// panickingUploadHandler panics from UploadThumbnail, which is invoked on the
+// same goroutine as ProcessSessionRecording so the defer/recover catches it.
+type panickingUploadHandler struct{}
+
+func (p *panickingUploadHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	_, _ = io.Copy(io.Discard, reader)
+	return "metadata/ok", nil
+}
+
+func (p *panickingUploadHandler) UploadThumbnail(context.Context, session.ID, io.Reader) (string, error) {
+	panic("simulated thumbnail upload panic")
+}
+
 // mockUploadHandlerFailAfterRead simulates an upload failure after reading some bytes
 type mockUploadHandlerFailAfterRead struct {
 	failAfterBytes int
@@ -860,19 +900,19 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 	return path, nil
 }
 
-func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 
-func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 
-func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 
-func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 

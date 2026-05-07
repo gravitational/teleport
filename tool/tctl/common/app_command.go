@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -98,7 +97,7 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt *authclient.Client) erro
 	}
 
 	var servers []types.AppServer
-	appServerResources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
@@ -111,20 +110,21 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt *authclient.Client) erro
 		}
 		return trace.Wrap(err)
 	default:
-		servers, err = types.ResourcesWithLabels(appServerResources).AsAppServers()
+		servers, err = types.ResourcesWithLabels(resources).AsAppServers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
+	coll := &appServerCollection{servers: servers}
+
 	switch c.format {
 	case teleport.Text:
-		coll := resources.NewAppServerCollection(servers)
-		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return utils.WriteJSONArray(os.Stdout, servers)
+		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
-		return utils.WriteYAML(os.Stdout, servers)
+		return trace.Wrap(coll.writeYAML(os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
@@ -138,7 +138,7 @@ Fill out and run this command on a node to make the application available:
 > teleport app start \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}} \
+   --auth-server={{.proxy_server}} \
    --name={{printf "%-30v" .app_name}} ` + "`" + `# Change "{{.app_name}}" to the name of your application.` + "`" + ` \
    --uri={{printf "%-31v" .app_uri}} ` + "`" + `# Change "{{.app_uri}}" to the address of your application.` + "`" + `
 
@@ -147,7 +147,7 @@ Your application will be available at {{.app_public_addr}}.
 Please note:
 
   - This invitation token will expire in {{.minutes}} minutes.
-  - {{.auth_server}} must be reachable from the new application service.
+  - {{.proxy_server}} must be reachable from the new application service.
   - Update DNS to point {{.app_public_addr}} to the Teleport proxy.
   - Add a TLS certificate for {{.app_public_addr}} to the Teleport proxy under "https_keypairs".
 `))

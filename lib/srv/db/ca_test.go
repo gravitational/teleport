@@ -19,7 +19,6 @@
 package db
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -240,7 +239,7 @@ func TestInitCACert(t *testing.T) {
 		{
 			desc:     "should download Azure CA when it's not set",
 			database: azureMySQL.GetName(),
-			cert:     fixtures.TLSCACertPEM + "\n" + fixtures.TLSCACertPEM, // Two CA files.
+			cert:     fixtures.TLSCACertPEM,
 		},
 		{
 			desc:     "should download MongoDB Atlas CA when it's not set",
@@ -435,7 +434,7 @@ func TestInitAzureCAs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	supportedHints := []string{filepath.Base(azureCAURLBaltimore), filepath.Base(azureCAURLDigiCert)}
+	supportedHints := []string{filepath.Base(azureCAURLDigiCert)}
 	initialCA := generateDatabaseCA(t)
 	caDownloader := &fakeDownloader{
 		cert:    initialCA,
@@ -457,9 +456,7 @@ func TestInitAzureCAs(t *testing.T) {
 	})
 
 	require.NoError(t, databaseServer.initCACert(ctx, azureDB))
-	// It must have the contents of two CAs. Since we're returning the same
-	// content for both, it should have 2 instances of "initialCA".
-	require.Equal(t, string(bytes.Join([][]byte{initialCA, initialCA}, []byte("\n"))), azureDB.GetStatusCA())
+	require.Equal(t, string(initialCA), azureDB.GetStatusCA())
 }
 
 func generateDatabaseCA(t *testing.T) []byte {
@@ -715,6 +712,7 @@ func TestTLSConfiguration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -724,6 +722,7 @@ func TestTLSConfiguration(t *testing.T) {
 				defaults.ProtocolMySQL,
 				defaults.ProtocolMongoDB,
 			} {
+				dbType := dbType
 				t.Run(dbType, func(t *testing.T) {
 					ctx := context.Background()
 					cfg := &setupTLSTestCfg{
@@ -883,7 +882,7 @@ func TestCADownloaderGetVersion(t *testing.T) {
 				desc:        "without support to ETag returns error",
 				database:    rds,
 				supportEtag: false,
-				expectError: func(t require.TestingT, err error, _ ...any) {
+				expectError: func(t require.TestingT, err error, _ ...interface{}) {
 					require.Error(t, err)
 					require.True(t, trace.IsNotImplemented(err), "expected trace.NotImplementedError but received %T", err)
 				},

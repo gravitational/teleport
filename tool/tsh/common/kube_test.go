@@ -67,6 +67,7 @@ func TestKube(t *testing.T) {
 	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
+	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
 }
 
 func TestKubeLogin(t *testing.T) {
@@ -152,6 +153,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			cfg.Kube.StaticLabels = rootLabels
 			cfg.Proxy.Kube.Enabled = true
 			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+			cfg.SSH.Enabled = false
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -163,6 +165,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 				cfg.Kube.StaticLabels = leafLabels
+				cfg.SSH.Enabled = false
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
@@ -291,6 +294,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -738,7 +742,7 @@ func TestKubeSelection(t *testing.T) {
 			}
 
 			equal := reflect.DeepEqual(
-				accessRequests[0].GetRequestedResourceIDs(),
+				types.RiskyExtractResourceIDs(accessRequests[0].GetAllRequestedResourceIDs()),
 				[]types.ResourceID{
 					{
 						ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),

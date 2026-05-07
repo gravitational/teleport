@@ -174,7 +174,7 @@ func (t Target) SecurityPatchAltOf(other Target) bool {
 // iterSecAlts is a helper for iterating the valide values of the
 // security-patch-alts label.
 func (t Target) iterSecAlts(fn func(v string)) {
-	for alt := range strings.SplitSeq(t[LabelSecurityPatchAlts], "|") {
+	for _, alt := range strings.Split(t[LabelSecurityPatchAlts], "|") {
 		alt = strings.TrimSpace(alt)
 		if !semver.IsValid(alt) {
 			continue

@@ -236,6 +236,47 @@ func TestPing(t *testing.T) {
 	}
 }
 
+func TestPing_scopesEnabled(t *testing.T) {
+	tests := []struct {
+		name                        string
+		envValue                    string
+		expectProxyEnabled          bool
+		expectAuthServerScopesField string
+	}{
+		{
+			name:                        "scopes disabled by default",
+			envValue:                    "",
+			expectProxyEnabled:          false,
+			expectAuthServerScopesField: "disabled",
+		},
+		{
+			name:                        "scopes enabled",
+			envValue:                    "yes",
+			expectProxyEnabled:          true,
+			expectAuthServerScopesField: "enabled",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("TELEPORT_UNSTABLE_SCOPES", test.envValue)
+			env := newWebPack(t, 1)
+
+			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+			require.NoError(t, err)
+
+			// /ping endpoint
+			resp, err := clt.Get(t.Context(), clt.Endpoint("webapi", "ping"), url.Values{})
+			require.NoError(t, err)
+			var pingResp webclient.PingResponse
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
+
+			assert.Equal(t, test.expectProxyEnabled, pingResp.Proxy.ScopesEnabled)
+			assert.Equal(t, test.expectAuthServerScopesField, pingResp.Auth.Scopes)
+		})
+	}
+}
+
 // TestPing_multiProxyAddr makes sure ping endpoint can be called over any of
 // the proxy's configured public addresses.
 func TestPing_multiProxyAddr(t *testing.T) {
@@ -289,7 +330,8 @@ func TestPing_autoUpdateResources(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testGroup := "test-group"
 	testUpdaterID := uuid.NewString()

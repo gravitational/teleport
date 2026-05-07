@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	accesslist "github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -35,10 +35,10 @@ func init() {
 // TeleportAccessList holds the kubernetes custom resources for login rules.
 type TeleportAccessList struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportAccessListSpec `json:"spec"`
-	Status resources.Status       `json:"status"`
+	Spec   TeleportAccessListSpec `json:"spec,omitempty"`
+	Status teleportcr.Status      `json:"status,omitempty"`
 }
 
 // TeleportAccessListSpec defines the desired state of TeleportProvisionToken
@@ -49,7 +49,7 @@ type TeleportAccessListSpec accesslist.Spec
 // TeleportAccessListList contains a list of TeleportAccessList
 type TeleportAccessListList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportAccessList `json:"items"`
 }
 
@@ -64,7 +64,7 @@ func (l TeleportAccessList) ToTeleport() *accesslist.AccessList {
 			Version: types.V1,
 			Metadata: header.Metadata{
 				Name:        l.Name,
-				Description: l.Annotations[resources.DescriptionKey],
+				Description: l.Annotations[teleportcr.DescriptionKey],
 				Labels:      l.Labels,
 			},
 		},

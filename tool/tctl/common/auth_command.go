@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // authCommandClient is aggregated client interface for auth command.
@@ -413,7 +412,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -489,17 +487,17 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 		return trace.Wrap(err)
 	}
 
-	sc := resources.NewServerCollection(servers)
+	sc := &serverCollection{servers}
 
 	switch a.format {
 	case teleport.Text:
 		// auth servers don't have labels.
 		verbose := false
-		return sc.WriteText(os.Stdout, verbose)
+		return sc.writeText(os.Stdout, verbose)
 	case teleport.YAML:
-		return sc.WriteYAML(os.Stdout)
+		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:
-		return sc.WriteJSON(os.Stdout)
+		return writeJSON(sc, os.Stdout)
 	}
 
 	return nil
@@ -726,7 +724,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-	tplVars := map[string]any{
+	tplVars := map[string]interface{}{
 		"files":     strings.Join(filesWritten, ", "),
 		"password":  password,
 		"output":    output,
@@ -843,7 +841,7 @@ tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
 
 For information on enabling Redis Cluster bus communication TLS, see:
-https://goteleport.com/docs/database-access/guides/redis-cluster
+https://goteleport.com/docs/enroll-resources/database-access/enrollment/self-hosted/redis-cluster/
 `))
 
 	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
@@ -1148,7 +1146,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	// someone is programatically parsing stdout.
 	_, _ = fmt.Fprintln(
 		os.Stderr,
-		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID! Find out more at https://goteleport.com/r/machineid-tip",
+		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine & Workload Identity! Find out more at https://goteleport.com/r/machineid-tip",
 	)
 
 	fmt.Fprintf(a.helperMsgDst(), "The credentials have been written to %s\n", strings.Join(filesWritten, ", "))

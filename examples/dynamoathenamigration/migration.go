@@ -151,7 +151,7 @@ type task struct {
 }
 
 type s3downloader interface {
-	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error) //nolint:staticcheck // TODO(tigrato)
 }
 
 type eventsEmitter interface {
@@ -163,7 +163,7 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 	return &task{
 		Config:       cfg,
 		dynamoClient: dynamodb.NewFromConfig(awsCfg),
-		s3Downloader: manager.NewDownloader(s3Client),
+		s3Downloader: manager.NewDownloader(s3Client), //nolint:staticcheck // TODO(tigrato)
 		eventsEmitter: athena.NewPublisher(athena.PublisherConfig{
 			MessagePublisher: athena.SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(awsCfg, func(o *sns.Options) {
 				o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
@@ -173,7 +173,7 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 					so.RateLimiter = ratelimit.NewTokenRateLimit(1000000)
 				})
 			})),
-			Uploader:      manager.NewUploader(s3Client),
+			Uploader:      manager.NewUploader(s3Client), //nolint:staticcheck // TODO(tigrato)
 			PayloadBucket: cfg.LargePayloadBucket,
 			PayloadPrefix: cfg.LargePayloadPrefix,
 		}),
@@ -205,7 +205,6 @@ func MigrateWithAWS(ctx context.Context, cfg Config, awsCfg aws.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO(Joerger): Take the exportARN from the checkpoint file rather than starting a new export.
 	exportInfo, err := t.GetOrStartExportAndWaitForResults(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -362,15 +361,9 @@ func (t *task) getDataObjectsInfo(ctx context.Context, manifestPath string) ([]d
 }
 
 func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInfo, eventsC chan<- apievents.AuditEvent) error {
-	// TODO(Joerger): Rather than loading the checkpoint and prompting the user after completing the export step,
-	// this should be done at the beginning of program execution.
 	checkpoint, err := t.loadEmitterCheckpoint(ctx, exportInfo.ExportARN)
 	if err != nil {
-		t.Logger.InfoContext(ctx, "Failed to load checkpoint file from previous migration attempt", "file", t.CheckpointPath, "error", err)
-		_, err := prompt.Confirmation(ctx, os.Stdout, prompt.Stdin(), fmt.Sprintf("It seems that a previous migration %s stopped with error and there was an issue resuming it. Would you like to start a new migration?", exportInfo.ExportARN))
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 
 	if checkpoint != nil {
@@ -669,12 +662,12 @@ func (pq *priorityQueue) Swap(i, j int) {
 	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
 }
 
-func (pq *priorityQueue) Push(x any) {
+func (pq *priorityQueue) Push(x interface{}) {
 	item := x.(*fileLine)
 	*pq = append(*pq, item)
 }
 
-func (pq *priorityQueue) Pop() any {
+func (pq *priorityQueue) Pop() interface{} {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -781,7 +774,6 @@ func (t *task) loadEmitterCheckpoint(ctx context.Context, exportARN string) (*ch
 		}
 		return nil, trace.Wrap(err)
 	}
-
 	var out checkpointData
 	if err := json.Unmarshal(bb, &out); err != nil {
 		return nil, trace.Wrap(err)
@@ -850,7 +842,8 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 
 	errG, workerCtx := errgroup.WithContext(ctx)
 
-	for i := range t.NoOfEmitWorkers {
+	for i := 0; i < t.NoOfEmitWorkers; i++ {
+		i := i
 		errG.Go(func() error {
 			for {
 				select {

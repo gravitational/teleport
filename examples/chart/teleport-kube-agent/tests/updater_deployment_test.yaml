@@ -1,6 +1,6 @@
 suite: Updater Deployment
 templates:
-  - updater/deployment.yaml
+  - updater.yaml
 tests:
   #
   # Basic tests
@@ -22,6 +22,7 @@ tests:
   # Testing the agent configuration
   #
   - it: sets the updater base image
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     set:
@@ -31,6 +32,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--base-image=repo.example.com/gravitational/teleport-distroless"
   - it: sets the updater base entreprise image
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     set:
@@ -40,6 +42,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--base-image=public.ecr.aws/gravitational/teleport-ent-distroless"
   - it: sets the updater agent name
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     release:
@@ -49,6 +52,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--agent-name=my-release"
   - it: sets the updater agent namespace
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     release:
@@ -58,6 +62,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--agent-namespace=my-namespace"
   - it: defaults the updater version server to the proxy address
+    documentIndex: 0
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
@@ -68,6 +73,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--version-server=https://proxy.teleport.example.com:443/v1/webapi/automaticupgrades/channel"
   - it: defaults the updater proxy server to the proxy address
+    documentIndex: 0
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
@@ -79,6 +85,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--proxy-address=proxy.teleport.example.com:443"
   - it: doesn't enable the RFD-184 proxy protocol if the versionServer is custom
+    documentIndex: 0
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
@@ -94,6 +101,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--update-group=foobar"
   - it: defaults the update group to the release channel when group is unset
+    documentIndex: 0
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
@@ -105,6 +113,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--update-group=default"
   - it: uses the update group when set
+    documentIndex: 0
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
@@ -117,6 +126,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--update-group=foobar"
   - it: unsets the version server when empty
+    documentIndex: 0
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
@@ -131,6 +141,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--version-channel=stable/cloud"
   - it: sets the updater version server
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     asserts:
@@ -138,6 +149,7 @@ tests:
         path: spec.template.spec.containers[0].args
         content: "--version-server=https://my-custom-version-server/v1"
   - it: sets the updater release channel
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     asserts:
@@ -148,6 +160,7 @@ tests:
   # Kubernetes-related tests
   #
   - it: sets the deployment annotations
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/annotations.yaml
@@ -159,6 +172,7 @@ tests:
           path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
   - it: sets the pod annotations
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/annotations.yaml
@@ -170,6 +184,7 @@ tests:
           path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
   - it: sets the affinity
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/affinity.yaml
@@ -179,6 +194,7 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
   - it: sets the tolerations
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/tolerations.yaml
@@ -188,6 +204,7 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
   - it: sets the imagePullSecrets
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/imagepullsecrets.yaml
@@ -196,6 +213,7 @@ tests:
           path: spec.template.spec.imagePullSecrets[0].name
           value: myRegistryKeySecretName
   - it: sets the nodeSelector
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/node-selector.yaml
@@ -205,6 +223,7 @@ tests:
           value:
             gravitational.io/k8s-role: node
   - it: sets the updater container image and version
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     set:
@@ -214,6 +233,7 @@ tests:
           path: spec.template.spec.containers[0].image
           value: public.ecr.aws/gravitational/teleport-kube-agent-updater:12.2.1
   - it: sets the updater container imagePullPolicy
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/image-pull-policy.yaml
@@ -222,6 +242,7 @@ tests:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
   - it: mounts the tls CA if provided and set the env var
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/existing-tls-secret-with-ca.yaml
@@ -242,8 +263,9 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
   - it: sets the updater container extraEnv
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/extra-env.yaml
@@ -254,6 +276,7 @@ tests:
             name: HTTPS_PROXY
             value: http://username:password@my.proxy.host:3128
   - it: sets the pod resources
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/resources.yaml
@@ -271,6 +294,7 @@ tests:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
   - it: sets the pod priorityClass
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/priority-class-name.yaml
@@ -279,6 +303,7 @@ tests:
           path: spec.template.spec.priorityClassName
           value: teleport-kube-agent
   - it: sets the pod service-account
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/service-account-name.yaml
@@ -287,6 +312,7 @@ tests:
           path: spec.template.spec.serviceAccountName
           value: teleport-kube-agent-sa-updater
   - it: sets the pod service-account (override)
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
       - ../.lint/service-account-name.yaml
@@ -300,6 +326,7 @@ tests:
           value: distinct-updater-sa
 
   - it: sets extraArgs when set
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     set:
@@ -312,6 +339,7 @@ tests:
           content: "--foo=bar"
 
   - it: sets the pull credentials when specified
+    documentIndex: 0
     values:
       - ../.lint/updater.yaml
     set:
@@ -323,6 +351,7 @@ tests:
           content: "--pull-credentials=amazon"
 
   - it: sets extraVolumes when specified
+    documentIndex: 0
     values:
       - ../.lint/updater-secret-docker.yaml
       - ../.lint/existing-tls-secret-with-ca.yaml
@@ -340,6 +369,7 @@ tests:
                         path: config.json
 
   - it: sets extraVolumeMounts when specified
+    documentIndex: 0
     values:
       - ../.lint/updater-secret-docker.yaml
       - ../.lint/existing-tls-secret-with-ca.yaml

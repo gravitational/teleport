@@ -84,12 +84,16 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 }
 
 type checkAndSetDefaulter interface {
-	CheckAndSetDefaults() error
+	CheckAndSetDefaults(scoped bool) error
 }
 
 type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 	name string
 	in   func() T
+
+	// scoped indicates that CheckAndSetDefaults should be called with
+	// scoped set to true.
+	scoped bool
 
 	// want specifies the desired state of the checkAndSetDefaulter after
 	// check and set defaults has been run. If want is nil, the Output is
@@ -104,7 +108,7 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.in()
-			err := got.CheckAndSetDefaults()
+			err := got.CheckAndSetDefaults(tt.scoped)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -156,7 +160,7 @@ func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Con
 
 // makeBot creates a server-side bot and returns joining parameters.
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	t.Helper()
 
 	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
@@ -194,8 +198,10 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 
 func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) error {
-		testenv.WithClusterName("root")(o)
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
+		if err := testenv.WithClusterName("root")(o); err != nil {
+			return err
+		}
+		if err := testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
@@ -203,7 +209,9 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
-		})(o)
+		})(o); err != nil {
+			return err
+		}
 		return nil
 	}
 }

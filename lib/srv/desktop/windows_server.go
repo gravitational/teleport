@@ -40,11 +40,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -52,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -106,6 +108,12 @@ var computerAttributes = []string{
 	attrPrimaryGroupID,
 }
 
+// certificateStoreClient is a stand in interface for
+// winpki.certificateStoreClient.
+type certificateStoreClient interface {
+	Update(ctx context.Context, tc *tls.Config) error
+}
+
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -113,9 +121,9 @@ var computerAttributes = []string{
 // protocol.
 type WindowsService struct {
 	cfg        WindowsServiceConfig
-	middleware *authz.Middleware
+	middleware *auth.Middleware
 
-	ca *winpki.CertificateStoreClient
+	ca certificateStoreClient
 
 	// lastDiscoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
@@ -206,7 +214,7 @@ type WindowsServiceConfig struct {
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
 	// ResourceMatchers match dynamic Windows desktop resources.
 	ResourceMatchers []services.ResourceMatcher
@@ -274,9 +282,6 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.ConnLimiter == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing ConnLimiter")
 	}
-	if cfg.ConnectedProxyGetter == nil {
-		return trace.BadParameter("WindowsServiceConfig is missing ConnectedProxyGetter")
-	}
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -291,6 +296,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	cfg.ConnectedProxyGetter = cmp.Or(cfg.ConnectedProxyGetter, reversetunnel.NewConnectedProxyGetter())
 
 	if !cfg.LocateServer.Enabled && cfg.LocateServer.Site != "" {
 		cfg.Logger.WarnContext(context.Background(), "site is set, but locate_server is false. site will be ignored.")
@@ -341,7 +347,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// (You may need this configuration in order to use certificates to
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
-	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
+	if len(cfg.LDAPConfig.CAs) > 0 && cfg.LDAPConfig.InsecureSkipVerify {
 		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
 	}
 
@@ -379,9 +385,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if cfg.LDAPConfig.Enabled() {
 		var err error
 		sidCache, err = utils.NewFnCache(utils.FnCacheConfig{
-			TTL:     4 * time.Hour,
-			Clock:   cfg.Clock,
-			Context: ctx,
+			TTL:         4 * time.Hour,
+			Clock:       cfg.Clock,
+			Context:     ctx,
+			ReloadOnErr: true, // don't cache the error state
 		})
 		if err != nil {
 			close()
@@ -391,7 +398,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 
 	s := &WindowsService{
 		cfg: cfg,
-		middleware: &authz.Middleware{
+		middleware: &auth.Middleware{
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
@@ -507,9 +514,11 @@ func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 		ServerName:         s.cfg.ServerName,
 	}
 
-	if s.cfg.CA != nil {
+	if len(s.cfg.CAs) > 0 {
 		pool := x509.NewCertPool()
-		pool.AddCert(s.cfg.CA)
+		for _, ca := range s.cfg.CAs {
+			pool.AddCert(ca)
+		}
 		tc.RootCAs = pool
 	}
 
@@ -866,6 +875,22 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
+	if nla {
+		// Note: SplitN with a non-empty separator always returns a slice with length >= 1
+		// 'userParts' is guaranteed to have length of either 1 or 2.
+		userParts := strings.SplitN(windowsUser, "@", 2)
+		// NLA doesn't like mixing user with and without domain, so make sure we have one
+		if len(userParts) == 1 {
+			// windowsUser is missing a domain suffix. Add our default domain target.
+			windowsUser = windowsUser + "@" + s.cfg.Domain
+		} else if !strings.EqualFold(userParts[1], s.cfg.Domain) {
+			// windowsUser has a domain, but it doesn't match our configured default.
+			s.cfg.Logger.WarnContext(ctx, "NLA cannot be enabled for users from different domain, disabling")
+			rdpc.DisableNLA()
+			audit.enableNLA = false
+		}
+	}
+
 	// Generate client certificates to be used for the RDP connection.
 	certDER, keyDER, err := s.generateUserCert(ctx, windowsUser, windowsUserCertTTL, desktop, createUsers, groups)
 	if err != nil {
@@ -985,7 +1010,7 @@ func (s *WindowsService) makeTDPSendHandler(
 				Message:           b,
 				DelayMilliseconds: delay(),
 			}
-			if e.Size() > libevents.MaxProtoMessageSizeBytes {
+			if e.Size() > constants.MaxProtoMessageSizeBytes {
 				// Technically a PNG frame is unbounded and could be too big for a single protobuf.
 				// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
 				// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
@@ -1059,7 +1084,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				Message:           b,
 				DelayMilliseconds: delay(),
 			}
-			if e.Size() > libevents.MaxProtoMessageSizeBytes {
+			if e.Size() > constants.MaxProtoMessageSizeBytes {
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
 				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", logutils.TypeAttr(m))
@@ -1213,43 +1238,56 @@ func timer() func() int64 {
 	}
 }
 
+type entry struct {
+	sid               string
+	distinguishedName string
+}
+
 // generateUserCert generates a keypair for the given Windows username,
 // optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
+	var distinguishedName string
+
 	if !desktop.NonAD() {
-		// Use FnCache to fetch the SID, or load it from cache if we already have it
-		// The cache key is the username and domain combined to handle multi-domain setups
-		cacheKey := fmt.Sprintf("%s@%s", username, desktop.GetDomain())
-		sid, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (string, error) {
+		cacheKey := username
+		if !strings.Contains(username, "@") {
+			cacheKey = fmt.Sprintf("%s@%s", username, desktop.GetDomain())
+		}
+		entry, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (entry, error) {
 			tc, err := s.loadTLSConfigForLDAP()
 			if err != nil {
-				return "", trace.Wrap(err)
+				return entry{}, trace.Wrap(err)
 			}
 
 			ldapClient, err := winpki.DialLDAP(ctx, s.getLDAPConfig(), tc)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return entry{}, trace.Wrap(err)
 			}
 			defer ldapClient.Close()
 
 			s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
-			sid, err := ldapClient.GetActiveDirectorySID(ctx, username)
+			sid, dn, err := ldapClient.GetActiveDirectorySIDAndDN(ctx, username)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return entry{}, trace.Wrap(err)
 			}
 
 			s.cfg.Logger.DebugContext(ctx, "Found objectSid for Windows user", "username", username)
-			return sid, nil
+			return entry{
+				sid:               sid,
+				distinguishedName: dn,
+			}, nil
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		activeDirectorySID = sid
+		activeDirectorySID = entry.sid
+		distinguishedName = entry.distinguishedName
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
 		domain:             desktop.GetDomain(),
+		distinguishedName:  distinguishedName,
 		ad:                 !desktop.NonAD(),
 		ttl:                ttl,
 		activeDirectorySID: activeDirectorySID,
@@ -1262,6 +1300,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 type generateCredentialsRequest struct {
 	// username is the Windows username
 	username string
+	// distinguishedName is the distinguished name of user in AD
+	distinguishedName string
 	// domain is the Windows domain
 	domain string
 	// ad is true if we're connecting to a domain-joined desktop
@@ -1286,8 +1326,8 @@ type generateCredentialsRequest struct {
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           request.username,
+		DistinguishedName:  request.distinguishedName,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,
 		AD:                 request.ad,
@@ -1361,27 +1401,167 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	return len(s), nil
 }
 
-// runCRLUpdateLoop publishes the Certificate Revocation List to the given
-// LDAP server. It continues to do so every 5 minutes (by default) to make sure it is present
-// and in the correct location.
+// runCRLUpdateLoop publishes the Certificate Revocation List to the given LDAP
+// server.
+//
+// It publishes all known CRLs of the WindowsCA:
+//   - Immediately, once called,
+//   - Periodically, as defined by PublishCRLInterval; and
+//   - Whenever the CA is updated, using a types.Watcher.
 func (s *WindowsService) runCRLUpdateLoop() {
 	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
 	defer t.Stop()
 
+	ctx := s.closeCtx
+	logger := s.cfg.Logger
+
+	caEvent := make(chan struct{}, 1)
+	go func() {
+		if err := s.watchCAEvents(ctx, caEvent); err != nil {
+			logger.WarnContext(ctx, "CA watcher loop exited", "error", err)
+		}
+	}()
+
 	for {
 		tlsConfig, err := s.loadTLSConfigForLDAP()
 		if err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to get TLS config for CRL update", "error", err)
+			logger.ErrorContext(ctx, "failed to get TLS config for CRL update", "error", err)
 		}
-		if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to publish CRL", "error", err)
+		if err := s.ca.Update(ctx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+			logger.ErrorContext(ctx, "failed to publish CRL", "error", err)
 		}
 
 		select {
-		case <-s.closeCtx.Done():
+		case <-ctx.Done():
 			return
 		case <-t.Chan():
 			continue
+		case <-caEvent:
+			continue
+		}
+	}
+}
+
+// watchCAEvents watches for WindowsCA updates, signaling those in the received
+// channel.
+// watchCAEvents runs until ctx is closed.
+func (s *WindowsService) watchCAEvents(
+	ctx context.Context,
+	signalCAEvent chan<- struct{},
+) error {
+	logger := s.cfg.Logger
+
+	timeC := make(chan time.Time, 1)
+	timeC <- time.Time{} // tick immediately
+	var afterC <-chan time.Time = timeC
+
+	resetTimer := func() {
+		const watcherCreatePeriod = 5 * time.Minute
+		afterC = time.After(watcherCreatePeriod)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-afterC:
+		}
+
+		watcher, err := s.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
+			Name: teleport.ComponentWindowsDesktop + "-ca-watcher",
+			Kinds: []types.WatchKind{
+				{
+					Kind:        types.KindCertAuthority,
+					LoadSecrets: false,
+					// Only watch the WindowsCA.
+					Filter: map[string]string{
+						string(types.WindowsCA): types.Wildcard,
+					},
+				},
+			},
+		})
+		if err != nil {
+			logger.WarnContext(ctx,
+				"Failed to create CA watcher. Service will be unable to react to CA rotation events.",
+				"error", err,
+			)
+			resetTimer()
+			continue
+		}
+		logger.DebugContext(ctx, "Initialized CA watcher")
+
+		// Handle events until we either:
+		//   1. Abort with an error (ctx is done); or
+		//   2. Need to re-create the watcher (watcher is done, first event is not
+		//      OpInit, etc)
+		err = runCAWatcherLoop(ctx, signalCAEvent, logger, watcher)
+		if closeErr := watcher.Close(); closeErr != nil {
+			logger.DebugContext(ctx, "Error closing CA watcher", "error", closeErr)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resetTimer()
+	}
+}
+
+func runCAWatcherLoop(
+	ctx context.Context,
+	signalCAEvent chan<- struct{},
+	logger *slog.Logger,
+	watcher types.Watcher,
+) error {
+	isFirstEvent := true
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+
+		case <-watcher.Done():
+			logger.DebugContext(ctx, "CA watcher closed prematurely. Attempting to re-create.")
+			return nil
+
+		case e := <-watcher.Events():
+			eLog := logger.With("op", e.Type)
+			if e.Resource != nil {
+				eLog = eLog.With(
+					"kind", e.Resource.GetKind(),
+					"sub_kind", e.Resource.GetSubKind(),
+					"name", e.Resource.GetName(),
+					"revision", e.Resource.GetRevision(),
+				)
+			}
+			eLog.DebugContext(ctx, "Received CA event")
+
+			// The first event MUST be an OpInit event, as dictated by the secret
+			// rules of watchers. If it's not then we must fail.
+			//
+			// * lib/services/watcher.go:336
+			// * https://github.com/gravitational/teleport/blob/1f0ca9e4ae66a47f39d10c40f35e55d5ac5e15ac/lib/services/watcher.go#L336-L338
+			switch {
+			case e.Type == types.OpInit && isFirstEvent:
+				isFirstEvent = false
+				continue // OK, expected.
+
+			case isFirstEvent:
+				logger.WarnContext(ctx,
+					"Received non-init event as the first event. Will attempt to re-create the watcher.",
+					"op", e.Type,
+				)
+				return nil
+
+			case e.Type != types.OpPut:
+				continue // OK, we only care about mutating events.
+			}
+
+			logger.InfoContext(ctx,
+				"Received mutating WindowsCA event, signaling CRL update",
+				"op", e.Type,
+			)
+			select {
+			case signalCAEvent <- struct{}{}:
+			default:
+			}
 		}
 	}
 }

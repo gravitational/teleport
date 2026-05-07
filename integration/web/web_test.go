@@ -345,5 +345,4 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 		require.NoError(t, err)
 		require.Len(t, appS, 2)
 	}, time.Second*10, 200*time.Millisecond)
-
 }

@@ -517,6 +517,17 @@ message PingResponse {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "licenseExpiry"
   ];
+  // ScopesStatus reports whether the scopes feature is enabled on the auth server.
+  ScopesStatus scopes_status = 11;
+}
+
+// ScopesStatus represents the state of the scopes feature on the auth server.
+enum ScopesStatus {
+  SCOPES_STATUS_UNSPECIFIED = 0;
+  // SCOPES_STATUS_ENABLED indicates the scopes feature is enabled.
+  SCOPES_STATUS_ENABLED = 1;
+  // SCOPES_STATUS_DISABLED indicates the scopes feature is disabled.
+  SCOPES_STATUS_DISABLED = 2;
 }
 
 // ProductType is the type of product.
@@ -799,6 +810,9 @@ message GenerateAppTokenRequest {
   ];
   // Traits are the traits assigned to the user within Teleport.
   map<string, wrappers.StringValues> Traits = 5 [(gogoproto.jsontag) = "traits"];
+  // AuthorityType configures which Teleport authority issues the JWT token.
+  // Defaults to JWTSigner ("jwt") if empty.
+  string authority_type = 6;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -1303,6 +1317,8 @@ message MFAAuthenticateChallenge {
   // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA token.
   // This token paired with the request id can then be used as MFA verification.
   SSOChallenge SSOChallenge = 5;
+  // Browser Challenge is an MFA challenge that the user solves in the browser.
+  BrowserMFAChallenge BrowserMFAChallenge = 6;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1313,6 +1329,7 @@ message MFAAuthenticateResponse {
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
     SSOResponse SSO = 4;
+    BrowserMFAResponse Browser = 5;
   }
 }
 
@@ -1345,6 +1362,20 @@ message SSOResponse {
   string request_id = 1;
   // Token is a secret token used to verify the user's SSO MFA session.
   string token = 2;
+}
+
+// BrowserMFAChallenge contains browser MFA request details to perform a browser MFA check.
+message BrowserMFAChallenge {
+  // RequestId is the ID of a browser MFA request.
+  string request_id = 1;
+}
+
+// BrowserMFAResponse is a response to BrowserMFAChallenge.
+message BrowserMFAResponse {
+  // RequestId is the ID of a browser MFA request.
+  string request_id = 1;
+  // WebauthnResponse is the WebAuthn credential assertion response from the browser MFA flow.
+  webauthn.CredentialAssertionResponse webauthn_response = 2;
 }
 
 // MFARegisterChallenge is a challenge for registering a new MFA device.
@@ -1794,6 +1825,20 @@ message WindowsDesktopCertRequest {
   int64 TTL = 3 [(gogoproto.casttype) = "Duration"];
   // CRLDomain is the Active Directory domain where CRLs are published.
   string CRLDomain = 4;
+  // Set by callers that fully support the new Windows CA.
+  //
+  // Auth issues certificates differently according to this parameter:
+  // - false issues certificates using the UserCA
+  //   (Teleport agent versions < 18.x, where 18.x marks the initial release of
+  //   the Windows CA split).
+  // - true issues certificates using the WindowsCA
+  //   (Teleport agent version >= 18.x)
+  //
+  // Transitional. To be removed on Teleport 20, when all agents are expected
+  // to support the Windows CA.
+  //
+  // TODO(codingllama): DELETE IN 20. Explained above.
+  bool SupportsWindowsCA = 5;
 }
 
 // WindowsDesktopCertResponse contains the signed Windows RDP certificate.
@@ -2068,6 +2113,13 @@ message CreateAuthenticateChallengeRequest {
   // When using SSO MFA, this address is required to determine which URL to redirect the
   // user to when there are multiple options.
   string ProxyAddress = 8 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+  // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA checks.
+  // This is used by tsh to provide the tsh callback URL for browser MFA flows.
+  string BrowserMFATSHRedirectURL = 9 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the SSOMFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string BrowserMFARequestID = 10 [(gogoproto.jsontag) = "browser_mfa_request_id,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
@@ -2453,6 +2505,13 @@ message PresenceMFAChallengeRequest {
   // ProxyAddress is the address of the proxy the client is connected to, used
   // to select a redirect URL for connectors that have more than one.
   string ProxyAddress = 3 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+  // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA.
+  // If unset, the server will only return non-Browser MFA challenges.
+  string BrowserMFATSHRedirectURL = 4 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the MFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string browser_mfa_request_id = 5;
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.
@@ -2704,6 +2763,12 @@ message GetAlertAcksResponse {
   ];
 }
 
+// DeleteClustAlertRequest specifies an alert or multiple alerts to delete.
+message DeleteClusterAlertRequest {
+  // The identifier of the alert to delete.
+  string alert_id = 1;
+}
+
 // ClearAlertAcksRequest specifies alerts acknowledgements to clear.
 message ClearAlertAcksRequest {
   // AlertID deletes an acknowledgement by ID. Deletes all acknowledgements if
@@ -2843,7 +2908,7 @@ message ListAccessRequestsRequest {
 
   // StartKey is used to resume a query in order to enable pagination.
   // If the previous response had NextKey set then this should be
-  // set to its value. Otherwise leave empty.
+  // set to its value. Should be empty on the first request.
   string StartKey = 5;
 }
 
@@ -2895,27 +2960,6 @@ message ListProvisionTokensResponse {
   // NextKey is used to resume a query in order to enable pagination.
   // Leave empty to start at the beginning.
   string NextKey = 2;
-}
-
-// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
-// RPC.
-message ValidateTrustedClusterRequest {
-  // Token is the join token to use to join.
-  string Token = 1;
-  // CertAuthorities are the certificate authorities submitted from the leaf to
-  // the root as part of the join process.
-  repeated types.CertAuthorityV2 CertAuthorities = 2;
-  // TeleportVersion is the version of Teleport that the leaf cluster is
-  // running.
-  string TeleportVersion = 3;
-}
-
-// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
-// RPC.
-message ValidateTrustedClusterResponse {
-  // CertAuthorities are the certificate authorities of the root cluster that
-  // should be trusted by the leaf cluster.
-  repeated types.CertAuthorityV2 CertAuthorities = 1;
 }
 
 message ListKubernetesClustersRequest {
@@ -2973,6 +3017,9 @@ service AuthService {
 
   // UpsertClusterAlert creates a cluster alert.
   rpc UpsertClusterAlert(UpsertClusterAlertRequest) returns (google.protobuf.Empty);
+
+  // DeleteClusterAlert deletes a cluster alert.
+  rpc DeleteClusterAlert(DeleteClusterAlertRequest) returns (google.protobuf.Empty);
 
   // CreateAlertAck marks a cluster alert as acknowledged.
   rpc CreateAlertAck(types.AlertAcknowledgement) returns (google.protobuf.Empty);
@@ -3127,9 +3174,7 @@ service AuthService {
   // CancelSemaphoreLease cancels semaphore lease early.
   rpc CancelSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
   // GetSemaphores returns a list of all semaphores matching the supplied filter.
-  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores) {
-    option deprecated = true;
-  }
+  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores);
   // ListSemaphores returns a page of all semaphores matching the supplied filter.
   rpc ListSemaphores(ListSemaphoresRequest) returns (ListSemaphoresResponse);
   // DeleteSemaphore deletes a semaphore matching the supplied filter.
@@ -3170,11 +3215,7 @@ service AuthService {
   // GetSnowflakeSession returns a web session with sub kind Snowflake.
   rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
   // GetSnowflakeSessions gets all Snowflake web sessions.
-  // Deprecated: Use [ListSnowflakeSessions] instead.
-  // TODO(okraport): DELETE IN 21.0.0
-  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse) {
-    option deprecated = true;
-  }
+  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
   // ListSnowflakeSessions returns a page of Snowflake web sessions.
   rpc ListSnowflakeSessions(ListSnowflakeSessionsRequest) returns (ListSnowflakeSessionsResponse);
 
@@ -3224,9 +3265,7 @@ service AuthService {
   // GetWebToken gets a web token.
   rpc GetWebToken(types.GetWebTokenRequest) returns (GetWebTokenResponse);
   // GetWebTokens gets all web tokens.
-  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse) {
-    option deprecated = true;
-  }
+  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
   // ListWebTokens returns a page of web tokens.
   rpc ListWebTokens(ListWebTokensRequest) returns (ListWebTokensResponse);
   // DeleteWebToken deletes a web token.
@@ -3349,11 +3388,7 @@ service AuthService {
   // GetOIDCConnector gets an OIDC connector resource by name.
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
-  //
-  // Deprecated: Use ListOIDCConnectors instead.
-  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List) {
-    option deprecated = true;
-  }
+  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
   // ListOIDCConnectors returns a page of current OIDC connector resources.
   rpc ListOIDCConnectors(ListOIDCConnectorsRequest) returns (ListOIDCConnectorsResponse);
   // UpsertOIDCConnector creates a new OIDC connector in the backend.
@@ -3378,11 +3413,7 @@ service AuthService {
   // GetSAMLConnector gets a SAML connector resource by name.
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
-  //
-  // Deprecated: Use ListSAMLConnectors instead.
-  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List) {
-    option deprecated = true;
-  }
+  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
   // ListSAMLConnectors returns a page of current SAML connector resources.
   rpc ListSAMLConnectors(ListSAMLConnectorsRequest) returns (ListSAMLConnectorsResponse);
   // CreateSAMLConnector creates a new SAML connector in the backend.
@@ -3407,11 +3438,7 @@ service AuthService {
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
-  //
-  // Deprecated: Use ListGithubConnectors instead.
-  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List) {
-    option deprecated = true;
-  }
+  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
   // ListGithubConnectors returns a page of current Github connector resources.
   rpc ListGithubConnectors(ListGithubConnectorsRequest) returns (ListGithubConnectorsResponse);
   // CreateGithubConnector creates a new Github connector in the backend.
@@ -3450,11 +3477,7 @@ service AuthService {
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
-  // Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
-  // TODO(okraport): DELETE IN 21.0.0
-  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List) {
-    option deprecated = true;
-  }
+  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
   // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
@@ -3549,9 +3572,7 @@ service AuthService {
   // GetLock gets a lock by name.
   rpc GetLock(GetLockRequest) returns (types.LockV2);
   // GetLocks gets all/in-force locks that match at least one of the targets when specified.
-  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse) {
-    option deprecated = true;
-  }
+  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
   // ListLocks returns a page of locks matching a filter.
   rpc ListLocks(ListLocksRequest) returns (ListLocksResponse);
   // UpsertLock upserts a lock.
@@ -3572,9 +3593,7 @@ service AuthService {
   rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetApps returns all registered applications.
-  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List) {
-    option deprecated = true;
-  }
+  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
   // ListApps returns a page of registered applications.
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
@@ -3589,9 +3608,7 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
-    option deprecated = true;
-  }
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
   // ListDatabases returns a page of registered databases.
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
@@ -3606,9 +3623,7 @@ service AuthService {
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetKubernetesClusters returns all registered kubernetes clusters.
-  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List) {
-    option deprecated = true;
-  }
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
   // ListKubernetesClusters returns a page of registered kubernetes clusters.
   rpc ListKubernetesClusters(ListKubernetesClustersRequest) returns (ListKubernetesClustersResponse);
   // GetKubernetesCluster returns a kubernetes cluster by name.
@@ -3739,9 +3754,7 @@ service AuthService {
   // GetInstaller retrieves the installer script resource
   rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
   // GetInstallers retrieves all of installer script resources.
-  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List) {
-    option deprecated = true;
-  }
+  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
   // ListInstallers returns a page of installer script resources.
   rpc ListInstallers(ListInstallersRequest) returns (ListInstallersResponse);
 
@@ -3847,9 +3860,4 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
-
-  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
-  // by the proxy on behalf of a cluster that wishes to join to this one as a
-  // leaf cluster.
-  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }

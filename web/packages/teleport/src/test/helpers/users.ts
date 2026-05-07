@@ -20,22 +20,41 @@ import { http, HttpResponse, HttpResponseResolver } from 'msw';
 
 import { User } from 'teleport/services/user';
 
+interface BadRequest {
+  error: {
+    message: string;
+  };
+}
+
+interface UsersV2Response {
+  items: User[];
+  startKey?: string;
+}
+
 const usersPath = '/v1/webapi/users';
 const usersPathV2 = '/v2/webapi/users';
 
-export function handleGetUsers(resolver: HttpResponseResolver) {
+export function handleGetUsers(
+  resolver: HttpResponseResolver<never, never, User[] | BadRequest>
+) {
   return http.get(usersPath, resolver);
 }
 
-function handleGetUsersV2(resolver: HttpResponseResolver) {
+export function handleGetUsersV2(
+  resolver: HttpResponseResolver<never, never, UsersV2Response | BadRequest>
+) {
   return http.get(usersPathV2, resolver);
 }
 
-export function handleUpdateUser(resolver: HttpResponseResolver) {
+export function handleUpdateUser(
+  resolver: HttpResponseResolver<never, never, User | BadRequest>
+) {
   return http.put(usersPath, resolver);
 }
 
-export function handleDeleteUser(resolver: HttpResponseResolver) {
+export function handleDeleteUser(
+  resolver: HttpResponseResolver<never, never, { message: string } | BadRequest>
+) {
   return http.delete(usersPath + '/*', resolver);
 }
 

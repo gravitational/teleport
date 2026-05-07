@@ -516,6 +516,8 @@ function makeSharedRequest(
         ...r.id,
         kind: r.id.kind as RequestableResourceKind,
       },
+      // TODO(kiosion): Would be more optimal to fix the types, but we only care about the 'id' here anyways.
+      constraints: undefined,
     })),
   };
 }

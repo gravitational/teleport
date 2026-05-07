@@ -31,6 +31,7 @@ import {
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
@@ -68,28 +69,32 @@ export function InfoGuideSidePanel() {
       <ConnectionsContextProvider>
         <VnetContextProvider>
           <MockWorkspaceContextProvider>
-            <ResourcesContextProvider>
-              <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-                <Wrapper>
-                  <InfoGuidePanelProvider>
-                    <Flex flexDirection="column" height="100%">
-                      <Flex flex="1" flexDirection="column">
-                        <TopBar
-                          connectMyComputerRef={topBarConnectMyComputerRef}
-                          accessRequestRef={topBarAccessRequestRef}
-                        />
-                        <StyledTabs width="100%" pl={2}>
-                          Dummy tab just for height placement for the guide
-                          info.
-                        </StyledTabs>
-                        <Example />
+            <AppUpdaterContextProvider>
+              <ResourcesContextProvider>
+                <ConnectMyComputerContextProvider
+                  rootClusterUri={rootClusterUri}
+                >
+                  <Wrapper>
+                    <InfoGuidePanelProvider>
+                      <Flex flexDirection="column" height="100%">
+                        <Flex flex="1" flexDirection="column">
+                          <TopBar
+                            connectMyComputerRef={topBarConnectMyComputerRef}
+                            accessRequestRef={topBarAccessRequestRef}
+                          />
+                          <StyledTabs width="100%" pl={2}>
+                            Dummy tab just for height placement for the guide
+                            info.
+                          </StyledTabs>
+                          <Example />
+                        </Flex>
+                        <StatusBar onAssumedRolesClick={() => null} />
                       </Flex>
-                      <StatusBar onAssumedRolesClick={() => null} />
-                    </Flex>
-                  </InfoGuidePanelProvider>
-                </Wrapper>
-              </ConnectMyComputerContextProvider>
-            </ResourcesContextProvider>
+                    </InfoGuidePanelProvider>
+                  </Wrapper>
+                </ConnectMyComputerContextProvider>
+              </ResourcesContextProvider>
+            </AppUpdaterContextProvider>
           </MockWorkspaceContextProvider>
         </VnetContextProvider>
       </ConnectionsContextProvider>

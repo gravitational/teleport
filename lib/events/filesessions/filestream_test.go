@@ -157,7 +157,10 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedContent, contents)
 
-			require.NoDirExists(t, handler.uploadRootPath(*upload))
+			// Part files directory should no longer exists.
+			_, err = os.ReadDir(handler.uploadRootPath(*upload))
+			require.Error(t, err)
+			require.True(t, os.IsNotExist(err))
 		})
 	}
 }

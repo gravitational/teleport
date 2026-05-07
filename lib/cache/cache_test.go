@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -59,8 +58,10 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -94,6 +95,7 @@ import (
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
 	modules.SetModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -105,7 +107,6 @@ func TestMain(m *testing.M) {
 			},
 		},
 	})
-	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -168,9 +169,10 @@ type testPack struct {
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
-	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
-	appAuthConfigs          *local.AppAuthConfigService
+	recordingEncryption     *local.RecordingEncryptionService
+	workloadClusters        *local.WorkloadClusterService
+	summarizer              *local.SummarizerService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -428,7 +430,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.secReports = secReportsSvc
 
-	accessListsSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: p.backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -511,6 +516,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	p.plugin = local.NewPluginsService(p.backend)
 
 	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
 	if err != nil {
@@ -521,9 +527,16 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.plugin = local.NewPluginsService(p.backend)
 
-	p.appAuthConfigs, err = local.NewAppAuthConfigService(p.backend)
+	workloadClusterSvc, err := local.NewWorkloadClusterService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.workloadClusters = workloadClusterSvc
+
+	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend: p.backend,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -586,11 +599,13 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
-		RecordingEncryption:     p.recordingEncryption,
 		Plugin:                  p.plugin,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -860,7 +875,9 @@ func TestCompletenessInit(t *testing.T) {
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
-			AppAuthConfig:           p.appAuthConfigs,
+			StaticScopedToken:       p.clusterConfigS,
+			WorkloadClusterService:  p.workloadClusters,
+			Summarizer:              p.summarizer,
 		}))
 		require.NoError(t, err)
 
@@ -949,7 +966,9 @@ func TestCompletenessReset(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
 
@@ -958,7 +977,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
-	for range resets {
+	for i := 0; i < resets; i++ {
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
@@ -982,7 +1001,7 @@ func TestCompletenessReset(t *testing.T) {
 func TestInitStrategy(t *testing.T) {
 	t.Parallel()
 
-	for range utils.GetIterations() {
+	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
 	}
 }
@@ -995,6 +1014,10 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+
 	p, err := newPack(b, ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
@@ -1002,7 +1025,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	ctx := context.Background()
 
 	count := 100000
-	for i := range count {
+	for i := 0; i < count; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
@@ -1110,11 +1133,13 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
 
-	for range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1140,11 +1165,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		require.Len(t, resources, nodeCount)
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -1210,7 +1235,9 @@ func initStrategy(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
 
@@ -1431,11 +1458,11 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 			// would be overly-pedantic about a service returning `nil` rather
 			// than an empty slice.
 			if len(expected) == 0 {
-				require.Empty(t, out)
+				assert.Empty(t, out)
 				return
 			}
 
-			require.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 10*time.Millisecond)
 	}
 
@@ -1528,7 +1555,7 @@ func TestRelativeExpiry(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := range nodeCount {
+	for i := int64(0); i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1537,7 +1564,7 @@ func TestRelativeExpiry(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for range nodeCount {
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1606,7 +1633,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1615,7 +1642,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1663,7 +1690,7 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 	})
 	t.Cleanup(p2.Close)
 
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		clock.Advance(time.Hour * 24)
 		drainEvents(p.eventsC)
 		unexpectedEvent(t, p.eventsC, RelativeExpiry)
@@ -1692,7 +1719,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
 	step := p.cache.Config.MaxRetryPeriod / 16.0
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
 		case event := <-p.eventsC:
@@ -1884,6 +1911,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSessionRecordingConfig:            types.DefaultSessionRecordingConfig(),
 		types.KindUIConfig:                          &types.UIConfigV1{},
 		types.KindStaticTokens:                      &types.StaticTokensV2{},
+		types.KindStaticScopedTokens:                &types.StaticTokensV2{},
 		types.KindToken:                             &types.ProvisionTokenV2{},
 		types.KindUser:                              &types.UserV2{},
 		types.KindRole:                              &types.RoleV6{Version: types.V4},
@@ -1929,7 +1957,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
 		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t, "test")),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
@@ -1951,11 +1979,15 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
+		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
-		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
-		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
+		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
+		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
+		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
+		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
+		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 	}
 
 	for name, cfg := range cases {
@@ -2019,16 +2051,25 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceSecret]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferencePolicy]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferencePolicy]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2179,8 +2220,8 @@ func TestInvalidDatabases(t *testing.T) {
 				// Wait until the database appear on cache.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbs, err := c.GetDatabases(ctx)
-					require.NoError(t, err)
-					require.Len(t, dbs, 1)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2198,6 +2239,7 @@ func TestInvalidDatabases(t *testing.T) {
 			},
 		},
 	} {
+		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			p := newTestPack(t, ForAuth)
@@ -2515,14 +2557,12 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	return notification
 }
 
-func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind:    types.KindAccessMonitoringRule,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
+		Kind:     types.KindAccessMonitoringRule,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "test",
@@ -2640,6 +2680,18 @@ func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInsta
 			},
 		},
 	}
+}
+
+func newWorkloadCluster(t *testing.T, name string) *workloadclusterv1.WorkloadCluster {
+	t.Helper()
+
+	workloadCluster := &workloadclusterv1.WorkloadCluster{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+
+	return workloadCluster
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

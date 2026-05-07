@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -146,6 +145,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
+		{Kind: types.KindStaticScopedTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
@@ -216,7 +216,11 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
-		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindWorkloadCluster},
+		{Kind: types.KindInferenceModel},
+		{Kind: types.KindInferencePolicy},
+		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindRetrievalModel},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -272,9 +276,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
-		{Kind: types.KindRelayServer},
 		{Kind: types.KindHealthCheckConfig},
-		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -656,6 +659,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// StaticScopedToken manages the cluster's static scoped tokens.
+	StaticScopedToken services.StaticScopedTokenService
 	// AutoUpdateService is an autoupdate service.
 	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service
@@ -785,12 +790,13 @@ type Config struct {
 	HealthCheckConfig services.HealthCheckConfigReader
 	// BotInstanceService is the upstream service that we're caching
 	BotInstanceService services.BotInstance
+	Plugin             services.Plugins
 	// RecordingEncryption manages state surrounding session recording encryption
 	RecordingEncryption services.RecordingEncryption
-	// Plugins is the plugin service used to retrieve plugin information.
-	Plugin services.Plugins
-	// AppAuthConfig is a app auth config service.
-	AppAuthConfig services.AppAuthConfigReader
+	// WorkloadClusterService is a workload cluster service
+	WorkloadClusterService services.WorkloadClusterService
+	// Summarizer is a summarizer service.
+	Summarizer services.Summarizer
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -903,7 +909,7 @@ func New(config Config) (*Cache, error) {
 
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
-	for range config.FanoutShards {
+	for i := 0; i < config.FanoutShards; i++ {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
@@ -1288,7 +1294,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			"duration", fetchAndApplyDuration.String(),
 		)
 	} else {
-		c.Logger.Log(ctx, logutils.TraceLevel, "fetch and apply",
+		c.Logger.DebugContext(ctx, "fetch and apply",
 			"cache_target", c.Config.target,
 			"duration", fetchAndApplyDuration.String(),
 		)

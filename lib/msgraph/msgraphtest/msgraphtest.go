@@ -67,6 +67,7 @@ func (s *Server) Handler() http.Handler {
 	r.HandleFunc("GET /v1.0/users", s.handleListUsers)
 	r.HandleFunc("GET /v1.0/groups", s.handleListGroups)
 	r.HandleFunc("GET /v1.0/groups/{id}/members", s.handleListGroupMembers)
+	r.HandleFunc("GET /v1.0/groups/{id}/owners/microsoft.graph.user", s.handleListGroupOwners)
 	r.HandleFunc("/v1.0/", s.handleCatchAll)
 	r.HandleFunc("/metadata/identity/oauth2/token", s.handleGetToken)
 
@@ -127,6 +128,18 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 
 	jsonResponse(w, map[string]interface{}{
 		"value": members,
+	})
+}
+
+func (s *Server) handleListGroupOwners(w http.ResponseWriter, r *http.Request) {
+	groupID := r.PathValue("id")
+
+	s.mu.RLock()
+	owners := s.Storage.GroupOwners[groupID]
+	s.mu.RUnlock()
+
+	jsonResponse(w, map[string]interface{}{
+		"value": owners,
 	})
 }
 
@@ -204,6 +217,13 @@ func (s *Server) SetGroupMembers(groupID string, members []msgraph.GroupMember) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Storage.GroupMembers[groupID] = members
+}
+
+// SetGroupOwners updates group owners storage.
+func (s *Server) SetGroupOwners(groupID string, users []*msgraph.User) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Storage.GroupOwners[groupID] = users
 }
 
 // SetApplications updates application storage.

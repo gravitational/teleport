@@ -122,7 +122,7 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 	var err error
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
+	suite.priv, suite.pub, err = testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	suite.me, err = user.Current()
@@ -2568,6 +2568,9 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// send exit command to close the session
 	term.Type("\aexit 0\n\r")
+
+	// drain participant stdout to ensure it doesn't block on writes
+	go io.Copy(io.Discard, participantStdoutR)
 
 	_ = term.Close()
 

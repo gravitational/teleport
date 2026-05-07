@@ -6,6 +6,8 @@ discovery_service:
        - "env": "prod"
       regions: ["us-west1", "us-east1"]
       install:
+        enroll_mode: script
+        install_teleport: true
         script_name: "default-installer"
       ssm:
         document_name: "AWS-RunShellScript"
@@ -14,6 +16,8 @@ discovery_service:
        - "env": "devel"
       regions: ["us-west1", "us-east1"]
       install:
+        enroll_mode: script
+        install_teleport: true
         script_name: "devel-installer"
       ssm:
         document_name: "AWS-RunShellScript"

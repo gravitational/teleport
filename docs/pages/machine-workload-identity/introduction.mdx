@@ -30,7 +30,10 @@ The tbot agent manages identity requests and renewals, authenticating to the Tel
 
 ## Zero Trust Access for machines
 
-Teleport provides machines with an identity ("bot") that can authenticate to the Teleport cluster. Bots are similar to human users with access controlled by roles and activities recorded in audit logs.
+Teleport provides machines with an identity ("bot") that can authenticate to the
+Teleport cluster. Bots have one or more Teleport roles, governing their access
+to resources in your infrastructure, and Teleport records
+their activity using audit logs.
 
 Bots authenticate using join tokens that specify which bot user they grant access to and what proof (join method) is needed. Each tbot client connection creates a server-side Bot Instance to track installations over time.
 

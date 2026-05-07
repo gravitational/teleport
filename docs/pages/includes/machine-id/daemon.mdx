@@ -6,7 +6,7 @@ fails.
 **If tbot was installed using the Teleport install script or `teleport-update`
 command, the `tbot` systemd service is automatically created for you.**
 
-After `tbot.yaml` is created, enable and start the service::
+After `tbot.yaml` is created, enable and start the service:
 
 ```code
 $ sudo systemctl enable tbot --now
@@ -18,7 +18,7 @@ Check the service has started successfully:
 $ sudo systemctl status tbot
 ```
 
-Service properties like `User` and `Group` may be configured using `systemctl edit tbot`.`
+Service properties like `User` and `Group` may be configured using `systemctl edit tbot`.
 
 **If tbot was installed manually, service configuration will need to be
 performed manually as well.**
@@ -34,6 +34,7 @@ $ sudo tbot install systemd \
    --config /etc/tbot.yaml \
    --user teleport \
    --group teleport \
+   --pid-file /run/tbot.pid \
    --anonymous-telemetry
 ```
 
@@ -41,6 +42,8 @@ Ensure that you replace:
 
 - `teleport` with the name of Linux user you wish to run `tbot` as.
 - `/etc/tbot.yaml` with the path to the configuration file you have created.
+- `/run/tbot.pid` with a path that the user configured for `tbot` has write
+  access to. By default, `tbot` writes its PID file to `/run/tbot.pid`.
 
 You can omit `--write` to print the systemd service file to the console instead
 of writing it to disk.

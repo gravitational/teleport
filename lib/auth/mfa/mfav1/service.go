@@ -16,18 +16,93 @@
 
 package mfav1
 
-import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+import (
+	"context"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
+)
+
+// AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
+type AuthServer interface {
+	CompleteBrowserMFAChallenge(
+		ctx context.Context,
+		requestID string,
+		webauthnResponse *webauthnpb.CredentialAssertionResponse,
+	) (string, error)
+}
 
 // ServiceConfig holds creation parameters for [Service].
-type ServiceConfig struct{}
+type ServiceConfig struct {
+	Authorizer authz.Authorizer
+	AuthServer AuthServer
+}
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
-// TODO(cthach): implement the API methods.
 type Service struct {
 	mfav1.UnimplementedMFAServiceServer
+
+	logger     *slog.Logger
+	authorizer authz.Authorizer
+	authServer AuthServer
 }
 
 // NewService creates a new [Service] instance.
-func NewService(_ ServiceConfig) (*Service, error) {
-	return &Service{}, nil
+func NewService(cfg ServiceConfig) (*Service, error) {
+	switch {
+	case cfg.Authorizer == nil:
+		return nil, trace.BadParameter("param Authorizer is required for MFA service")
+	case cfg.AuthServer == nil:
+		return nil, trace.BadParameter("param AuthServer is required for MFA service")
+	}
+
+	return &Service{
+		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
+		authorizer: cfg.Authorizer,
+		authServer: cfg.AuthServer,
+	}, nil
+}
+
+// CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
+// it via an encrypted response parameter in a callback URL for the browser to
+// return to tsh.
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can complete a browser MFA challenge")
+	}
+
+	if req.BrowserMfaResponse == nil {
+		return nil, trace.BadParameter("missing browser_mfa_response in request")
+	}
+
+	if req.BrowserMfaResponse.RequestId == "" {
+		return nil, trace.BadParameter("missing request_id in browser_mfa_response")
+	}
+
+	if req.BrowserMfaResponse.WebauthnResponse == nil {
+		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
+	}
+
+	tshRedirectURL, err := s.authServer.CompleteBrowserMFAChallenge(
+		ctx,
+		req.BrowserMfaResponse.RequestId,
+		req.BrowserMfaResponse.WebauthnResponse,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.CompleteBrowserMFAChallengeResponse{
+		TshRedirectUrl: tshRedirectURL,
+	}, nil
 }

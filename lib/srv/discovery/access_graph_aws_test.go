@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -58,10 +59,8 @@ func TestSQSPollEvents(t *testing.T) {
 
 	eventsC := make(chan payloadChannelMessage)
 	errC := make(chan error, 1)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer close(errC)
 		err := s.pollEventsFromSQSFilesImpl(
 			ctx,
 			"accountID",
@@ -73,6 +72,11 @@ func TestSQSPollEvents(t *testing.T) {
 			},
 			eventsC,
 		)
+
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
 		errC <- err
 	}()
 
@@ -97,7 +101,7 @@ func TestSQSPollEvents(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.ElementsMatch(t, []string{"messageID1"}, fakeSQSQueue.getDeletedMessages())
+		assert.ElementsMatch(t, []string{"messageID1"}, fakeSQSQueue.getDeletedMessages())
 	}, time.Second*5, time.Millisecond, "expected all messages to be deleted")
 
 	publish("bucket2", "messageID2", "key2", "key3")
@@ -118,7 +122,7 @@ func TestSQSPollEvents(t *testing.T) {
 	require.Len(t, messages, 3)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.ElementsMatch(t, []string{"messageID1", "messageID2", "messageID3"}, fakeSQSQueue.getDeletedMessages())
+		assert.ElementsMatch(t, []string{"messageID1", "messageID2", "messageID3"}, fakeSQSQueue.getDeletedMessages())
 	}, time.Second*5, time.Millisecond, "expected all messages to be deleted")
 
 	// Simulate a failure to get an object from S3 if only one key fails.
@@ -128,18 +132,20 @@ func TestSQSPollEvents(t *testing.T) {
 	// Check that the files were downloaded.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, file := range []string{"bucket4/key1", "bucket4/key2", "bucket4/key3"} {
-			require.Contains(t, fakeS3Bucket.getDownloadedFiles(), file)
+			assert.Contains(t, fakeS3Bucket.getDownloadedFiles(), file)
 		}
 	}, time.Second*5, time.Millisecond, "expected all files to be downloaded")
 
-	require.Never(t, func() bool {
-		// Check that the message is not deleted from the queue.
-		return slices.Contains(fakeSQSQueue.getDeletedMessages(), "messageID4")
-	}, time.Second*2, time.Millisecond, "expected message to not be deleted from the queue")
-
 	// Clean up the goroutine.
 	cancel()
-	wg.Wait()
+
+	// Wait for the goroutine to exit.
+	require.NoError(t, <-errC)
+
+	// Assert that messageID4 was never deleted.
+	deleted := fakeSQSQueue.getDeletedMessages()
+	slices.Sort(deleted)
+	require.Equal(t, []string{"messageID1", "messageID2", "messageID3"}, deleted)
 }
 
 // fakeQueue is used to fake SNS+SQS combination on AWS.

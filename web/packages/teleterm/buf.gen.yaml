@@ -1,0 +1,31 @@
+version: v2
+
+inputs:
+  - directory: src/sharedProcess/api/proto
+
+clean: true
+
+plugins:
+  - local:
+      - npm
+      - exec
+      - --yes
+      # we're using an exact version so if the package is already available
+      # there's no need to reach out to the registry, even if we could use more
+      # recent dependencies
+      - --prefer-offline
+      # this version should be kept in sync with build.assets/Dockerfile-grpcbox
+      - --package=@protobuf-ts/plugin@2.9.3
+      - --
+      - protoc-gen-ts
+    out: src/sharedProcess/api/protogen
+    opt:
+      # the next time we tweak the ts codegen we should put the options in
+      # alphabetical order
+      - long_type_number
+      - eslint_disable
+      - add_pb_suffix
+      - client_grpc1
+      - server_grpc1
+      - ts_nocheck
+    strategy: all

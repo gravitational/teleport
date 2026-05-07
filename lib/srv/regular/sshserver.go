@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/relaytunnel"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
@@ -71,9 +73,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -154,7 +159,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pamcfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -204,7 +209,7 @@ type Server struct {
 	lockWatcher *services.LockWatcher
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
-	connectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// relayInfoGetter gets the Relay group and Relay host IDs that this
 	// Teleport instance is connected to. The returned data must be owned by the
@@ -259,6 +264,9 @@ type Server struct {
 
 	// childLogConfig is the log config for child processes.
 	childLogConfig *srv.ChildLogConfig
+
+	// immutableLabels are the immutable labels assigned to the server's host certificate
+	immutableLabels map[string]string
 }
 
 // EventMetadata returns metadata about the server.
@@ -299,7 +307,7 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
 	return s.pamConfig
 }
 
@@ -352,6 +360,11 @@ func (s *Server) GetSELinuxEnabled() bool {
 	return s.enableSELinux
 }
 
+// GetProxyMode returns whether the server is started in SSH proxying mode.
+func (s *Server) GetProxyMode() bool {
+	return s.proxyMode
+}
+
 // ChildLogConfig returns the child log config.
 func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	if s.childLogConfig != nil {
@@ -360,7 +373,7 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,
@@ -439,8 +452,14 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	// Set the listener before starting heartbeats so the first node heartbeat
+	// does not advertise an empty address.
+	if err := s.srv.SetListener(l); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.startPeriodicOperations()
-	return trace.Wrap(s.srv.Serve(l))
+	return trace.Wrap(s.srv.Serve())
 }
 
 func (s *Server) startPeriodicOperations() {
@@ -619,7 +638,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pamcfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -706,7 +725,7 @@ func SetAllowFileCopying(allow bool) ServerOption {
 }
 
 // SetConnectedProxyGetter sets the ConnectedProxyGetter.
-func SetConnectedProxyGetter(getter reversetunnelclient.ConnectedProxyGetter) ServerOption {
+func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
 	return func(s *Server) error {
 		s.connectedProxyGetter = getter
 		return nil
@@ -797,12 +816,20 @@ func SetScope(scope string) ServerOption {
 	}
 }
 
+// SetImmutableLabels sets the server's immutable labels.
+func SetImmutableLabels(labels map[string]string) ServerOption {
+	return func(s *Server) error {
+		s.immutableLabels = labels
+		return nil
+	}
+}
+
 // SetChildLogConfig sets the config that will be used to handle logs
 // from child processes.
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			ExecLogConfig: reexec.ExecLogConfig{
 				Level:        cfg.LoggerLevel,
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
@@ -880,7 +907,7 @@ func New(
 	}
 
 	if s.connectedProxyGetter == nil {
-		return nil, trace.BadParameter("setup valid ConnectedProxyGetter parameter using SetConnectedProxyGetter")
+		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	if s.tracerProvider == nil {
@@ -1176,17 +1203,19 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			CmdLabels:  s.getDynamicLabels(),
-			Addr:       addr,
-			Hostname:   s.hostname,
-			UseTunnel:  s.useTunnel,
-			Version:    teleport.Version,
-			ProxyIDs:   s.connectedProxyGetter.GetProxyIDs(),
-			RelayGroup: relayGroup,
-			RelayIds:   relayIDs,
+			CmdLabels:       s.getDynamicLabels(),
+			Addr:            addr,
+			Hostname:        s.hostname,
+			UseTunnel:       s.useTunnel,
+			Version:         teleport.Version,
+			ProxyIDs:        s.connectedProxyGetter.GetProxyIDs(),
+			RelayGroup:      relayGroup,
+			RelayIds:        relayIDs,
+			ImmutableLabels: s.immutableLabels,
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
 
 	return srv
 }
@@ -1278,7 +1307,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
-	nsctx.ExecType = teleport.NetworkingSubCommand
+	nsctx.ExecType = reexecconstants.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The
@@ -2517,9 +2546,6 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 	}
 
 	switch r.Name {
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {

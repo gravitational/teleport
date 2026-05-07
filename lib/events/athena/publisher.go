@@ -146,7 +146,7 @@ func SQSPublisherFunc(queueURL string, sqsClient *sqs.Client) messagePublisherFu
 }
 
 type s3uploader interface {
-	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
+	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) //nolint:staticcheck // TODO(tigrato)
 }
 
 type PublisherConfig struct {
@@ -197,7 +197,7 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 
 	return NewPublisher(PublisherConfig{
 		MessagePublisher: messagePublisher,
-		Uploader: s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
+		Uploader: s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) { //nolint:staticcheck // TODO(tigrato)
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})),
 		PayloadBucket: cfg.largeEventsBucket,

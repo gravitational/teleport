@@ -1,0 +1,29 @@
+The callback address can be changed if calling back to a remote machine
+instead of the local machine is required:
+
+```code
+# --bind-addr sets the host and port tsh will listen on, and --callback changes
+# what link is displayed to the user
+$ tsh login --proxy=proxy.example.com --auth=github --bind-addr=localhost:1234 --callback https://remote.machine:1234
+```
+
+For this to work the hostname or CIDR of the remote machine that will be used for
+the callback will need to be allowed via your auth connector's `client_redirect_settings`:
+
+```yaml
+kind: oidc
+metadata:
+  name: example-connector
+spec:
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
+```

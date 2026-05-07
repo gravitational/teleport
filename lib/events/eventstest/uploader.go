@@ -23,7 +23,6 @@ import (
 	"context"
 	"io"
 	"iter"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -88,7 +87,7 @@ type MemoryUpload struct {
 	parts map[int64]part
 	// sessionID is the session ID associated with the upload
 	sessionID session.ID
-	//completed specifies upload as completed
+	// completed specifies upload as completed
 	completed bool
 	// Initiated contains the timestamp of when the upload
 	// was initiated, not always initialized
@@ -234,7 +233,9 @@ func (m *MemoryUploader) GetParts(uploadID string) ([][]byte, error) {
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
 	}
-	slices.Sort(partNumbers)
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
 	for _, partNumber := range partNumbers {
 		sortedParts = append(sortedParts, up.parts[partNumber].data)
 	}
@@ -264,7 +265,9 @@ func (m *MemoryUploader) ListParts(ctx context.Context, upload events.StreamUplo
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
 	}
-	slices.Sort(partNumbers)
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
 	for _, partNumber := range partNumbers {
 		sortedParts = append(sortedParts, events.StreamPart{Number: partNumber})
 	}
@@ -356,7 +359,7 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 }
 
 // Download downloads session tarball and writes it to writer
-func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -371,7 +374,7 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	return nil
 }
 
-func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -390,7 +393,7 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 }
 
 // DownloadMetadata downloads session metadata and writes it to writer
-func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -406,7 +409,7 @@ func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session
 }
 
 // DownloadThumbnail downloads session thumbnail and writes it to writer
-func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 

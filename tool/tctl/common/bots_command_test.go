@@ -102,6 +102,7 @@ func TestUpdateBotLogins(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		const botName = "test"
 
@@ -213,6 +214,7 @@ func TestUpdateBotRoles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		const botName = "test"
 
@@ -258,6 +260,14 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 				EnabledFlag:   "true",
 				ListenAddress: dynAddr.AuthAddr,
 			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.ProxySSHAddr,
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))

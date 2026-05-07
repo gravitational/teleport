@@ -26,7 +26,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -45,10 +45,10 @@ func init() {
 // TeleportAutoupdateConfigV1 holds the kubernetes custom resources for teleport's autoupdate_config v1 resource.
 type TeleportAutoupdateConfigV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   *TeleportAutoupdateConfigV1Spec `json:"spec,omitempty"`
-	Status resources.Status                `json:"status"`
+	Status teleportcr.Status               `json:"status,omitempty"`
 }
 
 // TeleportAutoupdateConfigV1Spec defines the desired state of TeleportAutoupdateConfigV1
@@ -59,7 +59,7 @@ type TeleportAutoupdateConfigV1Spec autoupdatev1pb.AutoUpdateConfigSpec
 // TeleportAutoupdateConfigV1List contains a list of TeleportAutoupdateConfigV1
 type TeleportAutoupdateConfigV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportAutoupdateConfigV1 `json:"items"`
 }
 
@@ -70,7 +70,7 @@ func (l *TeleportAutoupdateConfigV1) ToTeleport() *autoupdatev1pb.AutoUpdateConf
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
-			Description: l.Annotations[resources.DescriptionKey],
+			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
 		},
 		Spec: (*autoupdatev1pb.AutoUpdateConfigSpec)(l.Spec),

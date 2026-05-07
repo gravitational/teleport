@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -105,8 +104,10 @@ func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntr
 			continue
 		}
 
-		if slices.Contains(newEntry.hosts, oldHost) {
-			return true
+		for _, newHost := range newEntry.hosts {
+			if newHost == oldHost {
+				return true
+			}
 		}
 	}
 

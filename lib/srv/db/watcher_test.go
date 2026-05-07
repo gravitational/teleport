@@ -124,12 +124,20 @@ func TestWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-		require.Len(t, servers, 3)
-		require.Equal(t, "db0", servers[0].GetName())
+		if !assert.NoError(t, err) {
+			return
+		}
+		if !assert.Len(t, servers, 3) {
+			return
+		}
+		if !assert.Equal(t, "db0", servers[0].GetName()) {
+			return
+		}
 		wantDBs := types.Databases(types.DatabaseServers(servers).ToDatabases()).ToMap()
 		for _, db := range []types.Database{db0, db1, db2} {
-			require.Contains(t, wantDBs, db.GetName())
+			if !assert.Contains(t, wantDBs, db.GetName()) {
+				return
+			}
 		}
 	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be registered")
 
@@ -159,9 +167,15 @@ func TestWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-		require.Equal(t, "db0", servers[0].GetName())
+		if !assert.NoError(t, err) {
+			return
+		}
+		if !assert.Len(t, servers, 1) {
+			return
+		}
+		if !assert.Equal(t, "db0", servers[0].GetName()) {
+			return
+		}
 	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be cleaned up")
 }
 
@@ -469,7 +483,9 @@ func makeDatabase(name string, labels map[string]string, additionalLabels map[st
 		labels = make(map[string]string)
 	}
 
-	maps.Copy(labels, additionalLabels)
+	for k, v := range additionalLabels {
+		labels[k] = v
+	}
 
 	ds := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,

@@ -7,10 +7,6 @@ description: This page describes the supported values of the teleport_database r
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-{/* Disable the outdated name check since resource fields occasionally need
-to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This page describes the supported values of the teleport_database resource of the Teleport Terraform provider.
 Follow [the database dynamic registration guide](../../../../enroll-resources/database-access/guides/dynamic-registration.mdx)
 to complete deploying a database_service and access the database resource
@@ -124,7 +120,7 @@ Optional:
 - `rds` (Attributes) RDS contains RDS specific metadata. (see [below for nested schema](#nested-schema-for-specawsrds))
 - `rdsproxy` (Attributes) RDSProxy contains AWS Proxy specific metadata. (see [below for nested schema](#nested-schema-for-specawsrdsproxy))
 - `redshift` (Attributes) Redshift contains Redshift specific metadata. (see [below for nested schema](#nested-schema-for-specawsredshift))
-- `redshift_serverless` (Attributes) RedshiftServerless contains Amazon Redshift Serverless-specific metadata. (see [below for nested schema](#nested-schema-for-specawsredshift_serverless))
+- `redshift_serverless` (Attributes) RedshiftServerless contains metatada specific to Amazon Redshift Serverless. (see [below for nested schema](#nested-schema-for-specawsredshift_serverless))
 - `region` (String) Region is a AWS cloud region.
 - `secret_store` (Attributes) SecretStore contains secret store configurations. (see [below for nested schema](#nested-schema-for-specawssecret_store))
 - `session_tags` (Map of String) SessionTags is a list of AWS STS session tags.

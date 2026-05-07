@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 // RemoteFS provides API for accessing the files on
@@ -46,9 +47,7 @@ func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
 
 // OpenRemoteFilesystem opens a new remote file system on the given ssh client.
 func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moderatedSessionID string) (fs *RemoteFS, openErr error) {
-	s, err := sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
-		ModeratedSessionID: moderatedSessionID,
-	})
+	s, err := sshClient.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,15 +128,15 @@ func (r *RemoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 	return fileInfos, nil
 }
 
-func (r *RemoteFS) Open(path string) (File, error) {
+func (r *RemoteFS) Open(path string) (sftputils.File, error) {
 	return r.OpenFile(path, os.O_RDONLY)
 }
 
-func (r *RemoteFS) Create(path string, _ int64) (File, error) {
+func (r *RemoteFS) Create(path string, _ int64) (sftputils.File, error) {
 	return r.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
-func (r *RemoteFS) OpenFile(path string, flags int) (File, error) {
+func (r *RemoteFS) OpenFile(path string, flags int) (sftputils.File, error) {
 	return r.Client.OpenFile(path, flags)
 }
 

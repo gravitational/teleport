@@ -22,12 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestParseReviewFrequency(t *testing.T) {
@@ -262,7 +260,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}{
 		{
 			name:              "one month, first day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -271,7 +269,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, fifteenth day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -280,7 +278,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, last day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -289,7 +287,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -298,7 +296,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			accessListTypes:   []Type{Static, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Time{},
@@ -307,7 +305,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			accessListTypes:   []Type{Static, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -394,15 +392,6 @@ func TestAccessList_setInitialReviewDate(t *testing.T) {
 			require.Equal(t, test.expected, accessList.Spec.Audit.NextAuditDate)
 		})
 	}
-}
-
-func TestAccessListClone(t *testing.T) {
-	item := &AccessList{}
-	err := structfill.Fill(item)
-	require.NoError(t, err)
-	cpy := item.Clone()
-	require.Empty(t, cmp.Diff(item, cpy))
-	require.NotSame(t, item, cpy)
 }
 
 func TestEqualIgnoreEphemeralFields(t *testing.T) {

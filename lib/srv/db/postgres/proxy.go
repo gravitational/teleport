@@ -25,9 +25,9 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/ingress"
@@ -42,7 +42,7 @@ type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
-	Middleware *authz.Middleware
+	Middleware *auth.Middleware
 	// Service is used to connect to a remote database service.
 	Service common.Service
 	// Log is used for logging.
@@ -66,7 +66,8 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 	if err := p.handleConnection(ctx, tlsConn, startupMessage); err != nil {
-		if serr := backend.Send(toErrorResponse(err)); serr != nil {
+		backend.Send(toErrorResponse(err))
+		if serr := backend.Flush(); serr != nil {
 			p.Log.WarnContext(ctx, "Failed to send error to backend.", "error", serr)
 		}
 		return trace.Wrap(err)
@@ -107,10 +108,10 @@ func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, 
 	}
 	defer serviceConn.Close()
 	// Frontend acts as a client for the Postgres wire protocol.
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(serviceConn), serviceConn)
+	frontend := pgproto3.NewFrontend(serviceConn, serviceConn)
 	// Pass the startup message along to the Teleport database server.
-	err = frontend.Send(startupMessage)
-	if err != nil {
+	frontend.Send(startupMessage)
+	if err = frontend.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	err = p.Service.Proxy(ctx, proxyCtx, clientConn, serviceConn)
@@ -130,7 +131,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto
 	receivedGSSEncRequest := false
 	for {
 		// Backend acts as a server for the Postgres wire protocol.
-		backend := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
+		backend := pgproto3.NewBackend(clientConn, clientConn)
 		startupMessage, err := backend.ReceiveStartupMessage()
 		if err != nil {
 			return nil, nil, nil, trace.Wrap(err)

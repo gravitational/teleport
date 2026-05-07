@@ -24,15 +24,25 @@ const SAML_IDP_INITIATED_SSO_PATH = '/enterprise/saml-idp/login';
  * Processes a redirect URI to ensure it's valid and follows the expected format.
  *
  * This function handles various cases:
- * - Null or empty input: Returns the basePath
- * - Full URLs:
- *   - External: Uses only the pathname, prepending the basePath if not already present
- *   - Internal: Prepends the basePath if not already present
- * - Relative paths: Prepends the basePath if not already present
- * - Invalid URIs: Returns the basePath
+ * - Null or empty input: Returns the base path ('/web')
+ * - Full URLs: Skips the host and scheme, prepending the base path if not already present
+ * - Relative paths: Prepends the base path if not already present
+ * - Invalid URIs: Returns the base path
+ *
+ * Nobody seems to know why we need to prepend the base path to the URL, so we keep doing it. It
+ * might be related to the URLs we get from SSO redirects [1], but it's unclear why we'd be getting
+ * a URL that's missing the base path and becomes valid only after appending the base path.
+ *
+ * [1]: https://github.com/gravitational/teleport/pull/47221#discussion_r1792248868
+ *
+ * You might ask: why is the browser doing this work if it's then repeated in getRedirectURL in
+ * lib/web/device_trust.go. The answer is that the backend does it only when the authorization is
+ * successful. If the user opts to skip Device Trust, we still need to be able to get them to the
+ * redirect URL using the same logic.
  *
  * @param redirectUri - The redirect URI to process. Can be null, a relative path, or a full URL.
- * @returns A processed URI string that always starts with the basePath, unless it's an invalid input.
+ * @returns A relative path that always starts with the base path, unless it's a SAML redirect then
+ * the base path is not added.
  *
  * @example
  * processRedirectURI(null) // returns '/web'
@@ -46,34 +56,35 @@ export function processRedirectUri(redirectUri: string | null): string {
   if (!redirectUri) {
     return BASE_PATH;
   }
+
+  // Handle relative paths first.
+  if (redirectUri.startsWith('/')) {
+    return redirectUri.startsWith(BASE_PATH)
+      ? redirectUri
+      : `${BASE_PATH}${redirectUri}`;
+  }
+
+  let url: URL;
   try {
-    const url = new URL(redirectUri);
-    const path = url.pathname;
-    // If it already starts with basePath, return as is
-    if (path.startsWith(BASE_PATH)) {
-      return path;
-    }
-
-    if (
-      path.startsWith(SAML_IDP_INITIATED_SSO_PATH) ||
-      path.startsWith(SAML_SP_INITIATED_SSO_PATH)
-    ) {
-      return path + url.search;
-    }
-
-    if (path === '/') {
-      return BASE_PATH;
-    }
-
-    return `${BASE_PATH}${path.startsWith('/') ? '' : '/'}${path}`;
+    url = new URL(redirectUri);
   } catch {
-    // If it's not a valid URL, it might be a relative path
-    if (redirectUri.startsWith('/')) {
-      return redirectUri.startsWith(BASE_PATH)
-        ? redirectUri
-        : `${BASE_PATH}${redirectUri}`;
-    }
-    // For invalid URIs, return the default
     return BASE_PATH;
   }
+
+  // Do not prepend BASE_PATH to SAML redirects.
+  let path = url.pathname;
+  if (
+    path.startsWith(SAML_IDP_INITIATED_SSO_PATH) ||
+    path.startsWith(SAML_SP_INITIATED_SSO_PATH)
+  ) {
+    return path + url.search;
+  }
+
+  if (path === '/') {
+    path = BASE_PATH;
+  } else if (!path.startsWith(BASE_PATH)) {
+    path = `${BASE_PATH}${path.startsWith('/') ? '' : '/'}${path}`;
+  }
+
+  return path + url.search;
 }

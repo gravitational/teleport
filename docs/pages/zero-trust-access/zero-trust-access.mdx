@@ -42,22 +42,22 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
       tags: [
         {
           name: "Okta",
-          href: "./sso/okta/",
+          href: "./sso/integrate-idp/okta/",
           icon: "okta",
         },
         {
           name: "GitHub",
-          href: "./sso/github-sso/",
+          href: "./sso/integrate-idp/github-sso/",
           icon: "github",
         },
         {
           name: "Entra ID",
-          href: "./sso/entra-id-oidc/",
+          href: "./sso/integrate-idp/entra-id-oidc/",
           icon: "entraId",
         },
        {
           name: "More IdPs",
-          href: "./sso/",
+          href: "./sso/integrate-idp/",
           arrow: true,
         },
       ]
@@ -104,27 +104,6 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
         },
       ]
     },
-    {
-      title: "Self-host Teleport",
-      description: "Run Teleport Enterprise in your own infrastructure, with guides covering high availability and multi-region clusters, securing key material with KMS or HSMs, and more.",
-      href: "./deploy-a-cluster/",
-      tags: [
-        {
-          name: "AWS KMS",
-          href: "./deploy-a-cluster/private-keys/aws-kms/",
-          icon: "aws",
-        },
-        {
-          name: "Google Cloud KMS",
-          href: "./deploy-a-cluster/private-keys/gcp-kms/",
-          icon: "googleCloud",
-        },
-        {
-          name: "Helm chart",
-          href: "./deploy-a-cluster/helm-deployments/",
-        },
-      ]
-    },  
     {
       title: "Infrastructure as Code",
       description: "Manage Teleport's Dynamic Resources using infrastructure as code tools, including Terraform, Helm and the Teleport tctl client tool.",
@@ -189,6 +168,11 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
       title: "Passwordless authentication",
       description: "Log in securely using biometrics",
       href: "./authentication/passwordless/",
+    },
+    {
+      title: "Device Trust",
+      description: "Enforce access only from trusted, registered devices",
+      href: "./device-trust/guide/",
     },
     {
       title: "Integrate with SSO providers",

@@ -37,7 +37,7 @@ func TestPreparerIncrementalIndex(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		e, err := preparer.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		require.Equal(t, int64(i), e.GetAuditEvent().GetIndex(), "unexpected event index")
@@ -56,7 +56,7 @@ func TestPreparerTimeBasedIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	var lastIndex int64
-	for range 9 {
+	for i := 0; i < 9; i++ {
 		clock.Advance(time.Second)
 		e, err := preparer.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestPreparerTimeBasedIndexCollisions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for range 9 {
+	for i := 0; i < 9; i++ {
 		clock.Advance(time.Second)
 		evtOne, err := preparerOne.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)

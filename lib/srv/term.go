@@ -39,6 +39,11 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+)
+
+const (
+	defaultTerm = "xterm"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -602,13 +607,13 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		}
 
 		return &ExecResult{
-			Code:    teleport.RemoteCommandFailure,
+			Code:    reexecconstants.RemoteCommandFailure,
 			Command: execRequest.GetCommand(),
 		}, err
 	}
 
 	return &ExecResult{
-		Code:    teleport.RemoteCommandSuccess,
+		Code:    reexecconstants.RemoteCommandSuccess,
 		Command: execRequest.GetCommand(),
 	}, nil
 }

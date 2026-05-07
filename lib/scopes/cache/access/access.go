@@ -25,12 +25,17 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/cache/roles"
@@ -41,11 +46,23 @@ import (
 
 // CacheConfig configures the scoped access cache.
 type CacheConfig struct {
-	Events            types.Events
-	Reader            services.ScopedAccessReader
+	Events types.Events
+	Reader services.ScopedAccessReader
+
+	AccessListEvents types.Events
+	AccessListReader AccessListReader
+	Tracer           oteltrace.Tracer
+
 	MaxRetryPeriod    time.Duration
 	TTLCacheRetention time.Duration
 }
+
+var materializedAssignmentsMetric = prometheus.NewGauge(prometheus.GaugeOpts{
+	Namespace: teleport.MetricNamespace,
+	Subsystem: "scoped_access_cache",
+	Name:      "materialized_assignments",
+	Help:      "Current number of materialized scoped role assignments tracked by the scoped access cache materializer.",
+})
 
 // CheckAndSetDefaults verifies required fields and sets default values as appropriate.
 func (c *CacheConfig) CheckAndSetDefaults() error {
@@ -57,12 +74,24 @@ func (c *CacheConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing required parameter Reader in scoped access cache config")
 	}
 
+	if c.AccessListEvents == nil {
+		return trace.BadParameter("missing required parameter AccessListEvents in scoped access cache config")
+	}
+
+	if c.AccessListReader == nil {
+		return trace.BadParameter("missing required parameter AccessListReader in scoped access cache config")
+	}
+
 	if c.MaxRetryPeriod <= 0 {
 		c.MaxRetryPeriod = defaults.MaxLongWatcherBackoff
 	}
 
 	if c.TTLCacheRetention <= 0 {
 		c.TTLCacheRetention = time.Second * 3
+	}
+
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopTracer("scoped_access_cache")
 	}
 
 	return nil
@@ -94,6 +123,9 @@ type Cache struct {
 // but performance may be suboptimal until watcher init has completed.
 func NewCache(cfg CacheConfig) (*Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := metrics.RegisterPrometheusCollectors(materializedAssignmentsMetric); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -213,6 +245,23 @@ func (c *Cache) PopulatePinnedAssignmentsForUser(ctx context.Context, user strin
 	return state.assignments.PopulatePinnedAssignmentsForUser(ctx, user, pin)
 }
 
+// PopulatePinnedAssignmentsForBot populates the provided scope pin with all
+// relevant assignments related to the given bot. The provided pin must already
+// have its Scope field set.
+//
+// botScope should be the scope at which the bot in question is defined. This
+// must have already been validated to ensure this matches join token.
+func (c *Cache) PopulatePinnedAssignmentsForBot(
+	ctx context.Context, botName string, botScope string, pin *scopesv1.Pin,
+) error {
+	state, err := c.read(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return state.assignments.PopulatePinnedAssignmentsForBot(ctx, botName, botScope, pin)
+}
+
 // Close stops cache background operations and causes future reads to fail. It is safe to call multiple times.
 func (c *Cache) Close() error {
 	c.cancel()
@@ -269,28 +318,33 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 	if err != nil {
 		return trace.Errorf("failed to create watcher: %w", err)
 	}
-
 	defer watcher.Close()
 
-	select {
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
-		}
-	case <-watcher.Done():
-		if err := watcher.Error(); err != nil {
-			// watcher errors are expected if the watcher is closed before init completes.
-			return trace.Errorf("watcher failed while waiting for init event: %w", err)
-		}
-		return trace.Errorf("watcher failed while waiting for init event")
-	case <-time.After(retryutils.SeventhJitter(time.Minute)):
-		return trace.Errorf("timed out waiting for init event from watcher")
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
+	// Access list watcher watches cache events, it's separate from the base
+	// watcher which watches backend events. It is used for driving changes to
+	// scoped role assignments materialized from access lists and their
+	// memberships.
+	aclWatcher, err := c.cfg.AccessListEvents.NewWatcher(ctx, types.Watch{
+		Name: "scoped-access-cache-acl-watcher",
+		Kinds: []types.WatchKind{
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
+		},
+	})
+	if err != nil {
+		return trace.Errorf("failed to create access list watcher: %w", err)
+	}
+	defer aclWatcher.Close()
+
+	if err := waitForWatcherInit(ctx, watcher); err != nil {
+		return trace.Wrap(err, "waiting for backend watcher init")
+	}
+	if err := waitForWatcherInit(ctx, aclWatcher); err != nil {
+		return trace.Wrap(err, "waiting for access list watcher init")
 	}
 
 	fetchStart := time.Now()
-	state, err := c.fetch(ctx)
+	state, materializer, err := c.fetch(ctx)
 	if err != nil {
 		return trace.Errorf("failed to fetch initial state: %w", err)
 	}
@@ -310,6 +364,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 		close(c.init)
 	})
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go materializer.RepairEventLoop(ctx)
+
 	// start processing and applying changes
 	for {
 		select {
@@ -317,15 +375,46 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 			if err := processEvent(ctx, state, event); err != nil {
 				return trace.Errorf("failed to process event: %w", err)
 			}
+		case event := <-aclWatcher.Events():
+			if err := materializer.ProcessEvent(ctx, state, event); err != nil {
+				return trace.Errorf("materializer failed during event processing: %w", err)
+			}
+		case event := <-materializer.RepairEvents():
+			materializer.ProcessRepairEvent(ctx, state, event)
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				// watcher errors are expected if the watcher is closed before init completes.
 				return trace.Errorf("watcher failed during event processing: %w", err)
 			}
 			return trace.Errorf("watcher failed during event processing")
+		case <-aclWatcher.Done():
+			if err := aclWatcher.Error(); err != nil {
+				return trace.Errorf("access list watcher failed during event processing: %w", err)
+			}
+			return trace.Errorf("access list watcher failed during event processing")
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
+	}
+}
+
+func waitForWatcherInit(ctx context.Context, watcher types.Watcher) error {
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+		return nil
+	case <-watcher.Done():
+		if err := watcher.Error(); err != nil {
+			// watcher errors are expected if the watcher is closed before init completes.
+			return trace.Errorf("watcher failed while waiting for init event: %w", err)
+		}
+		return trace.Errorf("watcher failed while waiting for init event")
+	case <-time.After(retryutils.SeventhJitter(time.Minute)):
+		return trace.Errorf("timed out waiting for init event from watcher")
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
 	}
 }
 
@@ -350,7 +439,7 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 		case scopedaccess.KindScopedRole:
 			state.roles.Delete(event.Resource.GetName())
 		case scopedaccess.KindScopedRoleAssignment:
-			state.assignments.Delete(event.Resource.GetName())
+			state.assignments.Delete(event.Resource.GetName(), event.Resource.GetSubKind())
 		default:
 			return trace.BadParameter("unexpected resource kind %q in event delete event", event.Resource.GetKind())
 		}
@@ -381,7 +470,8 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 
 	// the cache is not ready, load a frozen readonly copy via ttl cache
 	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-cache", func(ctx context.Context) (state, error) {
-		return c.fetch(ctx)
+		state, _, err := c.fetch(ctx)
+		return state, err
 	})
 
 	// primary may have been concurrently loaded. prefer using it if so.
@@ -397,33 +487,40 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 }
 
 // fetch loads all currently available roles and assignments from the upstream and builds a cache state.
-func (c *Cache) fetch(ctx context.Context) (state, error) {
+func (c *Cache) fetch(ctx context.Context) (state, *materializer, error) {
 	roleCache := roles.NewRoleCache()
 
 	for role, err := range scopedutils.RangeScopedRoles(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRolesRequest{}) {
 		if err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 
 		if err := roleCache.Put(role); err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 	}
 
-	assignmentCache := assignments.NewAssignmentCache()
+	assignmentCache := assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
 
 	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		if err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 
 		if err := assignmentCache.Put(assignment); err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 	}
 
-	return state{
+	s := state{
 		roles:       roleCache,
 		assignments: assignmentCache,
-	}, nil
+	}
+
+	materializer := newMaterializer(c.cfg.AccessListReader, c.cfg.Tracer)
+	if err := materializer.Init(ctx, s); err != nil {
+		return s, nil, trace.Wrap(err)
+	}
+
+	return s, materializer, nil
 }

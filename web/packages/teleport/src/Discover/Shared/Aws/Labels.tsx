@@ -17,12 +17,13 @@
  */
 
 import { Flex, Label as Pill } from 'design';
+import { makeLabelTag } from 'design/formatters';
 
 import { Label } from 'teleport/types';
 
 export const Labels = ({ labels }: { labels: Label[] }) => {
   const $labels = labels.map((label, index) => {
-    const labelText = `${label.name}: ${label.value}`;
+    const labelText = makeLabelTag(label);
 
     return (
       <Pill key={`${label.name}${label.value}${index}`} mr="1" kind="secondary">

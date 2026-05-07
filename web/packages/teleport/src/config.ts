@@ -39,6 +39,7 @@ import {
   Regions,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -103,6 +104,12 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // terraform contains terraform related configuration
+  terraform: {
+    registry: 'terraform.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
+  },
+
   // enterprise non-exact routes will be merged into this
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],
@@ -154,6 +161,12 @@ const cfg = {
 
   defaultDatabaseTTL: '2190h',
 
+  identitySecurity: {
+    accessGraphConfigSet: false,
+    licensed: false,
+    sessionSummarizationEnabled: false,
+  },
+
   routes: {
     root: '/web',
     discover: '/web/discover',
@@ -188,6 +201,7 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
+    instances: '/web/instances',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -197,7 +211,6 @@ const cfg = {
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
-    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -206,8 +219,8 @@ const cfg = {
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
-    loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
+    loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
     samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
     userInviteContinue: '/web/invite/:tokenId/continue',
@@ -215,7 +228,9 @@ const cfg = {
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
+    browserMfa: `/web/mfa/browser/:requestId?`,
     integrations: '/web/integrations',
+    integrationOverview: '/web/integrations/overview/:type/:name',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -226,6 +241,7 @@ const cfg = {
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
+    managedUpdates: '/web/managedupdates',
 
     // sso routes
     ssoConnector: {
@@ -259,9 +275,7 @@ const cfg = {
     clustersPath: '/v1/webapi/sites',
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
-    // TODO (avatus): Delete in v21.0.0
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsPathV2: `/v2/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?&search=:search?&order=:order?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
@@ -293,6 +307,8 @@ const cfg = {
     databaseServer: {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
+
+    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -372,6 +388,8 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
+    browserMfaPath: `/v1/webapi/mfa/browser/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -547,6 +565,11 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
+
+    managedUpdates: {
+      details: '/v1/webapi/managedupdates',
+      groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
+    },
   },
 
   playable_db_protocols: [],
@@ -591,7 +614,7 @@ const cfg = {
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
-    return generatePath(cfg.api.clusterEventsPathV2, {
+    return generatePath(cfg.api.clusterEventsPath, {
       clusterId,
       ...params,
     });
@@ -709,6 +732,21 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
+  getManagedUpdatesRoute() {
+    return cfg.routes.managedUpdates;
+  },
+
+  getManagedUpdatesUrl() {
+    return cfg.api.managedUpdates.details;
+  },
+
+  getManagedUpdatesGroupActionUrl(groupName: string, action: GroupAction) {
+    return generatePath(cfg.api.managedUpdates.groupAction, {
+      groupName,
+      action,
+    });
+  },
+
   /**
    * getIntegrationsEnrollRoute returns a path to the page which lists all integrations.
    */
@@ -757,6 +795,10 @@ const cfg = {
     subPage?: string
   ) {
     return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
+  },
+
+  getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationOverview, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(
@@ -895,6 +937,10 @@ const cfg = {
     return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
+  getInstancesRoute() {
+    return generatePath(cfg.routes.instances);
+  },
+
   getWorkloadIdentitiesRoute() {
     return generatePath(cfg.routes.workloadIdentities);
   },
@@ -943,10 +989,6 @@ const cfg = {
 
   getDbConnectRoute(params: UrlDbConnectParams) {
     return generatePath(cfg.routes.dbConnect, { ...params });
-  },
-
-  getDbSessionRoute({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
@@ -1052,6 +1094,10 @@ const cfg = {
 
   getHeadlessSsoPath(requestId: string) {
     return generatePath(cfg.api.headlessSsoPath, { requestId });
+  },
+
+  getBrowserMfaPath(requestId: string) {
+    return generatePath(cfg.api.browserMfaPath, { requestId });
   },
 
   getUserInviteTokenRoute(tokenId = '') {
@@ -1166,6 +1212,13 @@ const cfg = {
 
   getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databaseServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.instancesPath, {
       clusterId,
       ...params,
     });
@@ -1399,13 +1452,17 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
+  getIntegrationsUrl(integrationName?: string, withSummaries: boolean = false) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
+    let url = generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
     });
+    if (withSummaries) {
+      url += `?withSummaries=true`;
+    }
+    return url;
   },
 
   getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
@@ -1923,8 +1980,6 @@ export interface UrlClusterEventsParams {
   limit?: number;
   include?: string;
   startKey?: string;
-  search?: string;
-  order?: string;
 }
 
 export interface UrlLauncherParams {

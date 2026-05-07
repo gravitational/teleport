@@ -134,7 +134,6 @@ type Manager struct {
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
 	logger             *slog.Logger
-	clock              clockwork.Clock
 }
 
 // backend is an interface that holds private keys and provides signing and decryption
@@ -195,12 +194,11 @@ type Options struct {
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
 	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
-	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
-	OAEPHash crypto.Hash
 	// RSAKeyPairSource is an optional function used by the software keystore when
 	// generating RSA keys.
 	RSAKeyPairSource RSAKeyPairSource
-	Clock            clockwork.Clock
+	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
+	OAEPHash crypto.Hash
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -208,6 +206,7 @@ type Options struct {
 	kmsClient    *kms.KeyManagementClient
 	awsRGTClient rgtClient
 
+	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
 	faketimeOverride faketime.Clock
 }
@@ -223,9 +222,6 @@ func (opts *Options) CheckAndSetDefaults() error {
 	if opts.Logger == nil {
 		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
 	}
-	if opts.Clock == nil {
-		opts.Clock = clockwork.NewRealClock()
-	}
 	return nil
 }
 
@@ -234,6 +230,8 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	if err := metrics.RegisterPrometheusCollectors(
 		signCounter,
 		signErrorCounter,
+		decryptCounter,
+		decryptErrorCounter,
 		createCounter,
 		createErrorCounter,
 	); err != nil {
@@ -274,13 +272,24 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableBackends = []backend{awsBackend, softwareBackend}
 	}
 
-	return &Manager{
+	m := &Manager{
 		backendForNewKeys:  backendForNewKeys,
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
-		clock:              opts.Clock,
-	}, nil
+	}
+
+	// Initialize metrics to zero so they exist in Prometheus from startup.
+	for _, b := range usableBackends {
+		for _, keyType := range []string{keyTypeTLS, keyTypeSSH, keyTypeJWT} {
+			signCounter.WithLabelValues(keyType, b.name())
+			signErrorCounter.WithLabelValues(keyType, b.name())
+		}
+		decryptCounter.WithLabelValues(keyTypeEncryption, b.name())
+		decryptErrorCounter.WithLabelValues(keyTypeEncryption, b.name())
+	}
+
+	return m, nil
 }
 
 type cryptoCountSigner struct {
@@ -479,6 +488,13 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 	return cert, signer, trace.Wrap(err)
 }
 
+// GetTLSSigner selects a usable TLS keypair from the given CA and returns a
+// [crypto.Signer].
+func (m *Manager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	_, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
+	return signer, trace.Wrap(err)
+}
+
 // GetAdditionalTrustedTLSCertAndSigner selects a usable TLS keypair from the given CA
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
@@ -651,20 +667,12 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: &cryptoCountSigner{
-			Signer:  signer,
-			keyType: keyTypeTLS,
-			store:   m.backendForNewKeys.name(),
-		},
-		Entity: pkix.Name{
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		&cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: m.backendForNewKeys.name()},
+		pkix.Name{
 			CommonName:   clusterName,
 			Organization: []string{clusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: m.clock,
-	})
+		}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

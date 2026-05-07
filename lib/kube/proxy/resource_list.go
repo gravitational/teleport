@@ -62,6 +62,16 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	// status holds the returned response code.
 	var status int
+	defer func() {
+		if err != nil {
+			return
+		}
+		if status == 0 {
+			// Preserve pre-streaming behavior: treat unset status as 200 OK.
+			status = http.StatusOK
+		}
+		f.emitAuditEvent(req, sess, status)
+	}()
 	// Check if the target Kubernetes cluster is not served by the current service.
 	// If it's the case, forward the request to the target Kube Service where the
 	// filtering logic will be applied.
@@ -100,7 +110,6 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		}
 	}
 
-	f.emitAuditEvent(req, sess, status)
 	return nil, nil
 }
 
@@ -110,28 +119,41 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 // the response. Finally, the filtered response is serialized and sent back to
 // the user with the appropriate headers.
 func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
-	// Creates a memory response writer that collects the response status, headers
-	// and payload into memory.
-	memBuffer := responsewriters.NewMemoryResponseWriter()
-	// Forward the request to the target cluster.
-	sess.forwarder.ServeHTTP(memBuffer, req)
+	ctx, span := f.cfg.tracer.Start(
+		req.Context(),
+		"kube.Forwarder/listResourcesList",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+	req = req.WithContext(ctx)
+
 	if _, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource); !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
 
-	// filterBuffer filters the response to exclude resources the user doesn't have access to.
-	// The filtered payload will be written into memBuffer again.
-	if err := filterBuffer(
-		newResourceFilterer(sess.metaResource, sess.codecFactory, allowedResources, deniedResources, f.log),
-		memBuffer,
-	); err != nil {
-		return memBuffer.Status(), trace.Wrap(err)
+	// Check if filtering is needed before buffering the entire response.
+	// If the user has wildcard access and no denied resources, we can skip
+	// buffering and directly forward the response for better performance.
+	if !needsFiltering(allowedResources, deniedResources) {
+		// No filtering needed - use direct forwarding with status recording only.
+		// This avoids buffering the entire response in memory and the subsequent
+		// deserialization/re-serialization overhead.
+		rw := httplib.NewResponseStatusRecorder(w)
+		sess.forwarder.ServeHTTP(rw, req)
+		return rw.Status(), nil
 	}
-	// Copy the filtered payload into target http.ResponseWriter.
-	err := memBuffer.CopyInto(w)
 
-	// Returns the status and any filter error.
-	return memBuffer.Status(), trace.Wrap(err)
+	// Filtering is needed. Use a filtering response writer that inspects headers
+	// and routes the body to either the streaming or buffered filter path.
+	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
+	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, matcher, f.log)
+	fw := newFilteringResponseWriter(w, matcher, filterWrapper, f.log, ctx, f.cfg.tracer, f.cfg.KubeServiceType)
+	sess.forwarder.ServeHTTP(fw, req)
+	return fw.Finish()
 }
 
 // matchListRequestShouldBeAllowed assess whether the user is permitted to perform its request
@@ -171,21 +193,38 @@ func matchListRequestShouldBeAllowed(mr metaResource, allowedResources, deniedRe
 // If it does not match, the watcher ignores the event and continues waiting
 // for the next event.
 func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
+	ctx, span := f.cfg.tracer.Start(
+		req.Context(),
+		"kube.Forwarder/listResourcesWatcher",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+	req = req.WithContext(ctx)
+
 	negotiator := newClientNegotiator(sess.codecFactory)
 	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
+
+	var filter responsewriters.FilterWrapper
+	if needsFiltering(allowedResources, deniedResources) {
+		filter = newResourceFilterer(
+			sess.metaResource,
+			sess.codecFactory,
+			newMatcher(sess.metaResource, allowedResources, deniedResources, f.log),
+			f.log,
+		)
+	}
+
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
-		newResourceFilterer(
-			sess.metaResource,
-			sess.codecFactory,
-			allowedResources,
-			deniedResources,
-			f.log,
-		),
+		filter,
 	)
 	if err != nil {
 		return http.StatusInternalServerError, trace.Wrap(err)

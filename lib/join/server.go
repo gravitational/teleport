@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -90,6 +92,9 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter
+	GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
@@ -99,23 +104,25 @@ type AuthService interface {
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
-	GetTPMValidator() tpmjoin.TPMValidator
 	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
 	GetK8sJWKSValidator() kubetoken.JWKSValidator
 	GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator
 	GetSpaceliftIDTokenValidator() spacelift.Validator
+	GetTPMValidator() tpmjoin.TPMValidator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
+	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
 }
 
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
 	AuthService        AuthService
-	Authorizer         authz.Authorizer
+	ScopedAuthorizer   authz.ScopedAuthorizer
 	FIPS               bool
-	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
+	ScopedTokenService services.ScopedTokenService
+	Logger             *slog.Logger
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -126,6 +133,9 @@ type Server struct {
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "join")
+	}
 	return &Server{
 		cfg:               cfg,
 		oracleRootCACache: oraclejoin.NewRootCACache(),
@@ -143,19 +153,47 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 	var classicErr error
 
 	wg := &sync.WaitGroup{}
-	wg.Go(func() {
-		tok, err := s.cfg.ScopedTokenService.UseScopedToken(ctx, name)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
+			}
+		}
+
+		// short circuit if a matching static scoped token is found
+		for _, tok := range staticTokens.GetSpec().GetTokens() {
+			if tok.GetMetadata().GetName() == name {
+				scoped, scopedErr = joining.NewToken(tok)
+				return
+			}
+		}
+
+		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       name,
+			WithSecret: true,
+		})
 		if err != nil {
 			scopedErr = err
 			return
 		}
+		if err := joining.ValidateTokenForUse(res.GetToken()); err != nil {
+			scopedErr = err
+			return
+		}
 
-		scoped, scopedErr = joining.NewToken(tok)
-	})
-	wg.Go(func() {
+		scoped, scopedErr = joining.NewToken(res.GetToken())
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		// Fetch the provision token and validate that it is not expired.
 		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
-	})
+	}()
 	wg.Wait()
 
 	// we explicitly disallow a join if the provided token name returns both a scoped and classic provision token
@@ -201,6 +239,7 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 // token expires).
 //
 // Only secret tokens are currently supported.
+// TODO(nklaassen): support all join methods.
 func (s *Server) Join(stream messages.ServerStream) (err error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -245,6 +284,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
 		i.BotName = token.GetBotName()
+
+		// It's not worth fetching the true bot scope here (via bot user label)
+		// so we'll just include the one embedded in the token.
+		i.BotScope = token.GetBotScope()
 	})
 
 	// Validate that the requested join method matches the join method
@@ -325,19 +368,20 @@ func (s *Server) handleJoinMethod(
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodSpacelift:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
-	case types.JoinMethodTerraformCloud:
-		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
-	case types.JoinMethodToken:
-		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodToken:
+		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodTerraformCloud:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
 	default:
-		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
+		// TODO(nklaassen): implement checks for all join methods.
+		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
 	}
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err, "unexpected error authorizing request")
 	}
@@ -345,9 +389,20 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		// No authentication or AccessDenied is okay, this is not normally an
 		// authenticated endpoint unless the client is re-joining or the
 		// request was forwarded by a proxy, just return an empty Context.
+
+		// A note around use of ScopedAuthorizer: it will return an empty
+		// context if the scopes feature is disabled even if an otherwise-valid
+		// scoped identity is presented, so they will be treated as
+		// unauthenticated and ultimately will fail to join. This edge case will
+		// be resolved when the scopes feature flag is removed.
 		return &joinauthz.Context{}, nil
 	}
-	isProxy := authz.HasBuiltinRole(*authCtx, types.RoleProxy.String())
+	var isProxy bool
+	if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+		// Proxy identities are always unscoped, so the unscoped context should
+		// always be available.
+		isProxy = authz.HasBuiltinRole(*unscopedCtx, types.RoleProxy.String())
+	}
 	if !isProxy && clientInit.ProxySuppliedParams != nil {
 		return nil, trace.AccessDenied("client set ProxySuppliedParameters but did not authenticate as a proxy")
 	}
@@ -479,7 +534,7 @@ func (s *Server) makeHostResult(
 	token provision.Token,
 	rawClaims any,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), token.GetAssignedScope(), rawClaims)
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), rawClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -492,8 +547,9 @@ func (s *Server) makeHostResult(
 		return nil, trace.Wrap(err)
 	}
 	return &messages.HostResult{
-		Certificates: *certificates,
-		HostID:       certsParams.HostID,
+		Certificates:    *certificates,
+		HostID:          certsParams.HostID,
+		ImmutableLabels: token.GetImmutableLabels(),
 	}, nil
 }
 
@@ -505,7 +561,6 @@ func makeHostCertsParams(
 	authCtx *joinauthz.Context,
 	hostParams *messages.HostParams,
 	joinMethod types.JoinMethod,
-	scope string,
 	rawClaims any,
 ) (*HostCertsParams, error) {
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
@@ -735,6 +790,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			TokenName:     info.SafeTokenName,
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
+			Scope:         info.BotScope,
 			Attributes:    attributesStruct,
 		}
 	}

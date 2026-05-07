@@ -47,15 +47,20 @@ func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	waitConn := utils.NewWaitConn(conn)
-	context.AfterFunc(ctx, func() { waitConn.Close() })
+	waitConn := utils.NewCloserConn(conn)
+	listener := listenerutils.NewSingleUseListener(waitConn)
+	go func() {
+		// Make sure connection is closed when ctx is canceled.
+		<-ctx.Done()
+		waitConn.Close()
+	}()
 
 	httpServer := &http.Server{
-		Handler:     handler,
-		BaseContext: func(net.Listener) context.Context { return ctx },
+		Handler: handler,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
 	}
-
-	listener := listenerutils.NewSingleUseListener(waitConn)
 	if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
@@ -170,7 +175,7 @@ func (t *streamableHTTPTransport) setExternalSessionID(header http.Header) {
 	}
 }
 
-func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request {
+func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) (*http.Request, error) {
 	r = r.Clone(r.Context())
 	r.URL.Scheme = t.targetURI.Scheme
 	r.URL.Host = t.targetURI.Host
@@ -183,12 +188,17 @@ func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request 
 		r.URL.Path = t.targetURI.Path
 	}
 
-	t.rewriteHTTPRequestHeaders(r)
-	return r
+	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r, nil
 }
 
 func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
-	rCopy := t.rewriteRequest(r)
+	rCopy, err := t.rewriteRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return t.targetTransport.RoundTrip(rCopy)
 }
 

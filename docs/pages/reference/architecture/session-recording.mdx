@@ -49,7 +49,7 @@ informally referred to as "chunks."
 
 ### Database sessions
 
-Teleport captures database queries and a stream of audit events 
+Teleport captures database queries and a stream of audit events
 related to the database being accessed.
 
 ## Session recording configurations
@@ -70,7 +70,7 @@ Teleport cluster. It can be configured by setting `session_recording`
 in the `auth_service` section of your `teleport.yaml`, or dynamically using
 the `session_recording_config` resource. If you need to apply different
 recording configurations to different sets of resources, you can set up
-[trusted clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx) with their own
+[trusted clusters](../../zero-trust-access/management/trustedclusters.mdx) with their own
 recording configurations.
 
 <Admonition type="note">
@@ -113,11 +113,10 @@ Any encryption keys are provisioned using the same key storage backend
 configured for CAs.
 
 <Admonition type="note">
-In distributed HA environments where there are multiple Teleport Auth Service
-instances, it is important that all services have access to the same key storage
-backend and keys. Otherwise availability of session replay may be degraded. This
-holds true even when using [Manual Encryption Key
-Management](#manual-encryption-key-management).
+In distributed HA environments where there are multiple Teleport Auth Services,
+it is important that all services have access to the same key storage backend
+and keys. Otherwise availability of session replay may be degraded. This holds
+true even when using [Manual Encryption Key Management](#manual-encryption-key-management).
 </Admonition>
 
 ### Record at the SSH node
@@ -141,7 +140,7 @@ The Proxy Service then establishes its own connection to the destination server 
 - For [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh-agentless.mdx), the Proxy Service requests a certificate signed by the Teleport OpenSSH CA, which will be trusted by the OpenSSH server.
 
 With both sides of the connections decrypted, the Proxy Service acts as a pipe between the client
-and the destination server, performing RBAC checks, recording the session, and emitting audit events 
+and the destination server, performing RBAC checks, recording the session, and emitting audit events
 in the process as shown below:
 
 ![recording-proxy](../../../img/recording-proxy.svg)
@@ -257,6 +256,18 @@ This is sometimes surprising to Teleport users, because even though the recordin
 and audit log are stored in separate backends, both need to be operational in
 order to play recordings.
 
+## Download
+
+Session recordings can be downloaded from the cluster storage using the
+[`tctl recordings download`](../cli/tctl.mdx#tctl-recordings-download) command.
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
+```
+
+All downloaded recordings are decrypted during the streaming process if session
+recording encryption is enabled.
+
 ## Upload completer
 
 Every Teleport process runs a service called the *upload completer* which periodically
@@ -276,6 +287,26 @@ to storage. If the Auth Service goes down during a session, the uncompleted uplo
 as a series of parts (in cloud storage or on an Auth Service instance's disk) and it is the
 responsibility of the Auth Service's upload completer to detect the abandoned upload and
 complete it.
+
+## Recording summaries
+
+With Teleport Identity Security, you can run language models against session
+recordings to generate session summaries. This feature supports SSH,
+Kubernetes, and database sessions and is only available if the Teleport cluster
+is licensed for Identity Security.
+
+After each recording is uploaded, Teleport Auth Service matches session metadata
+against all `inference_policy` resources. If a match is found, it will then use
+configuration from a corresponding `inference_model` resource to generate
+session recording. The inference model specifies, among other options, which
+inference provider and provider-specific model is used to generate a summary.
+
+No more than 150 concurrent summary jobs will be executed per Auth Service. If
+more sessions arrive, the auth server will wait until the previous ones are
+summarized.
+
+Session recording summaries are stored along with session recordings and can be
+viewed using the Teleport web app.
 
 ## Manual Encryption Key Management
 
@@ -313,30 +344,10 @@ for decryption. What this means varies per key storage backend, but generally mu
 defined when the key is first provisioned.
 </Admonition>
 
-## Recording summaries
-
-With Teleport Identity Security, you can run language models against session
-recordings to generate session summaries. This feature supports SSH,
-Kubernetes, and database sessions and is only available if the Teleport cluster
-is licensed for Identity Security.
-
-After each recording is uploaded, Teleport Auth Service matches session metadata
-against all `inference_policy` resources. If a match is found, it will then use
-configuration from a corresponding `inference_model` resource to generate
-session recording. The inference model specifies, among other options, which
-inference provider and provider-specific model is used to generate a summary.
-
-No more than 150 concurrent summary jobs will be executed per Auth Service
-instance. If more sessions arrive, the Auth Service instance will wait until the
-previous ones are summarized.
-
-Session recording summaries are stored along with session recordings and can be
-viewed using the Teleport web app.
-
 ## Related reading
 
 - [RBAC for session recordings](../access-controls/roles.mdx#rbac-for-session-recordings)
 - [SSH recording modes](../deployment/monitoring/audit.mdx)
 - [Session recording for desktops](../../enroll-resources/desktop-access/reference/sessions.mdx)
 - [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx)
-- [Session recording summaries](../../identity-security/session-summaries.mdx) 
+- [Session recording summaries](../../identity-security/session-summaries.mdx)

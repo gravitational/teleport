@@ -53,6 +53,13 @@ const (
 	SummarizerService_ListInferencePolicies_FullMethodName = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
 	SummarizerService_GetSummary_FullMethodName            = "/teleport.summarizer.v1.SummarizerService/GetSummary"
 	SummarizerService_IsEnabled_FullMethodName             = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
+	SummarizerService_TestInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestInferenceModel"
+	SummarizerService_CreateRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/CreateRetrievalModel"
+	SummarizerService_GetRetrievalModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/GetRetrievalModel"
+	SummarizerService_UpdateRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpdateRetrievalModel"
+	SummarizerService_UpsertRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpsertRetrievalModel"
+	SummarizerService_DeleteRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/DeleteRetrievalModel"
+	SummarizerService_TestRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestRetrievalModel"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -109,6 +116,24 @@ type SummarizerServiceClient interface {
 	// configured. (Note that this doesn't tell anything about actual correctness
 	// of the configuration or presence of recording summaries.)
 	IsEnabled(ctx context.Context, in *IsEnabledRequest, opts ...grpc.CallOption) (*IsEnabledResponse, error)
+	// TestInferenceModel tests an InferenceModel configuration by making a test
+	// request to the configured provider (AWS Bedrock or OpenAI).
+	TestInferenceModel(ctx context.Context, in *TestInferenceModelRequest, opts ...grpc.CallOption) (*TestInferenceModelResponse, error)
+	// CreateRetrievalModel creates the RetrievalModel.
+	CreateRetrievalModel(ctx context.Context, in *CreateRetrievalModelRequest, opts ...grpc.CallOption) (*CreateRetrievalModelResponse, error)
+	// GetRetrievalModel retrieves the existing RetrievalModel.
+	GetRetrievalModel(ctx context.Context, in *GetRetrievalModelRequest, opts ...grpc.CallOption) (*GetRetrievalModelResponse, error)
+	// UpdateRetrievalModel updates the existing RetrievalModel.
+	UpdateRetrievalModel(ctx context.Context, in *UpdateRetrievalModelRequest, opts ...grpc.CallOption) (*UpdateRetrievalModelResponse, error)
+	// UpsertRetrievalModel creates a new RetrievalModel or updates the existing
+	// one.
+	UpsertRetrievalModel(ctx context.Context, in *UpsertRetrievalModelRequest, opts ...grpc.CallOption) (*UpsertRetrievalModelResponse, error)
+	// DeleteRetrievalModel deletes the existing RetrievalModel by name.
+	DeleteRetrievalModel(ctx context.Context, in *DeleteRetrievalModelRequest, opts ...grpc.CallOption) (*DeleteRetrievalModelResponse, error)
+	// TestRetrievalModel tests a RetrievalModel configuration by generating a
+	// test embedding using the configured embeddings provider (AWS Bedrock or
+	// OpenAI).
+	TestRetrievalModel(ctx context.Context, in *TestRetrievalModelRequest, opts ...grpc.CallOption) (*TestRetrievalModelResponse, error)
 }
 
 type summarizerServiceClient struct {
@@ -319,6 +344,76 @@ func (c *summarizerServiceClient) IsEnabled(ctx context.Context, in *IsEnabledRe
 	return out, nil
 }
 
+func (c *summarizerServiceClient) TestInferenceModel(ctx context.Context, in *TestInferenceModelRequest, opts ...grpc.CallOption) (*TestInferenceModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestInferenceModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_TestInferenceModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) CreateRetrievalModel(ctx context.Context, in *CreateRetrievalModelRequest, opts ...grpc.CallOption) (*CreateRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_CreateRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) GetRetrievalModel(ctx context.Context, in *GetRetrievalModelRequest, opts ...grpc.CallOption) (*GetRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_GetRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpdateRetrievalModel(ctx context.Context, in *UpdateRetrievalModelRequest, opts ...grpc.CallOption) (*UpdateRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_UpdateRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpsertRetrievalModel(ctx context.Context, in *UpsertRetrievalModelRequest, opts ...grpc.CallOption) (*UpsertRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_UpsertRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) DeleteRetrievalModel(ctx context.Context, in *DeleteRetrievalModelRequest, opts ...grpc.CallOption) (*DeleteRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_DeleteRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) TestRetrievalModel(ctx context.Context, in *TestRetrievalModelRequest, opts ...grpc.CallOption) (*TestRetrievalModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestRetrievalModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_TestRetrievalModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SummarizerServiceServer is the server API for SummarizerService service.
 // All implementations must embed UnimplementedSummarizerServiceServer
 // for forward compatibility.
@@ -373,6 +468,24 @@ type SummarizerServiceServer interface {
 	// configured. (Note that this doesn't tell anything about actual correctness
 	// of the configuration or presence of recording summaries.)
 	IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error)
+	// TestInferenceModel tests an InferenceModel configuration by making a test
+	// request to the configured provider (AWS Bedrock or OpenAI).
+	TestInferenceModel(context.Context, *TestInferenceModelRequest) (*TestInferenceModelResponse, error)
+	// CreateRetrievalModel creates the RetrievalModel.
+	CreateRetrievalModel(context.Context, *CreateRetrievalModelRequest) (*CreateRetrievalModelResponse, error)
+	// GetRetrievalModel retrieves the existing RetrievalModel.
+	GetRetrievalModel(context.Context, *GetRetrievalModelRequest) (*GetRetrievalModelResponse, error)
+	// UpdateRetrievalModel updates the existing RetrievalModel.
+	UpdateRetrievalModel(context.Context, *UpdateRetrievalModelRequest) (*UpdateRetrievalModelResponse, error)
+	// UpsertRetrievalModel creates a new RetrievalModel or updates the existing
+	// one.
+	UpsertRetrievalModel(context.Context, *UpsertRetrievalModelRequest) (*UpsertRetrievalModelResponse, error)
+	// DeleteRetrievalModel deletes the existing RetrievalModel by name.
+	DeleteRetrievalModel(context.Context, *DeleteRetrievalModelRequest) (*DeleteRetrievalModelResponse, error)
+	// TestRetrievalModel tests a RetrievalModel configuration by generating a
+	// test embedding using the configured embeddings provider (AWS Bedrock or
+	// OpenAI).
+	TestRetrievalModel(context.Context, *TestRetrievalModelRequest) (*TestRetrievalModelResponse, error)
 	mustEmbedUnimplementedSummarizerServiceServer()
 }
 
@@ -442,6 +555,27 @@ func (UnimplementedSummarizerServiceServer) GetSummary(context.Context, *GetSumm
 }
 func (UnimplementedSummarizerServiceServer) IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsEnabled not implemented")
+}
+func (UnimplementedSummarizerServiceServer) TestInferenceModel(context.Context, *TestInferenceModelRequest) (*TestInferenceModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestInferenceModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) CreateRetrievalModel(context.Context, *CreateRetrievalModelRequest) (*CreateRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateRetrievalModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) GetRetrievalModel(context.Context, *GetRetrievalModelRequest) (*GetRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRetrievalModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) UpdateRetrievalModel(context.Context, *UpdateRetrievalModelRequest) (*UpdateRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateRetrievalModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) UpsertRetrievalModel(context.Context, *UpsertRetrievalModelRequest) (*UpsertRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertRetrievalModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) DeleteRetrievalModel(context.Context, *DeleteRetrievalModelRequest) (*DeleteRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteRetrievalModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) TestRetrievalModel(context.Context, *TestRetrievalModelRequest) (*TestRetrievalModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestRetrievalModel not implemented")
 }
 func (UnimplementedSummarizerServiceServer) mustEmbedUnimplementedSummarizerServiceServer() {}
 func (UnimplementedSummarizerServiceServer) testEmbeddedByValue()                           {}
@@ -824,6 +958,132 @@ func _SummarizerService_IsEnabled_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_TestInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestInferenceModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).TestInferenceModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_TestInferenceModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).TestInferenceModel(ctx, req.(*TestInferenceModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_CreateRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).CreateRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_CreateRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).CreateRetrievalModel(ctx, req.(*CreateRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_GetRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).GetRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_GetRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).GetRetrievalModel(ctx, req.(*GetRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_UpdateRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).UpdateRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_UpdateRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).UpdateRetrievalModel(ctx, req.(*UpdateRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_UpsertRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).UpsertRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_UpsertRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).UpsertRetrievalModel(ctx, req.(*UpsertRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_DeleteRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).DeleteRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_DeleteRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).DeleteRetrievalModel(ctx, req.(*DeleteRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_TestRetrievalModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestRetrievalModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).TestRetrievalModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_TestRetrievalModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).TestRetrievalModel(ctx, req.(*TestRetrievalModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SummarizerService_ServiceDesc is the grpc.ServiceDesc for SummarizerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -910,6 +1170,34 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsEnabled",
 			Handler:    _SummarizerService_IsEnabled_Handler,
+		},
+		{
+			MethodName: "TestInferenceModel",
+			Handler:    _SummarizerService_TestInferenceModel_Handler,
+		},
+		{
+			MethodName: "CreateRetrievalModel",
+			Handler:    _SummarizerService_CreateRetrievalModel_Handler,
+		},
+		{
+			MethodName: "GetRetrievalModel",
+			Handler:    _SummarizerService_GetRetrievalModel_Handler,
+		},
+		{
+			MethodName: "UpdateRetrievalModel",
+			Handler:    _SummarizerService_UpdateRetrievalModel_Handler,
+		},
+		{
+			MethodName: "UpsertRetrievalModel",
+			Handler:    _SummarizerService_UpsertRetrievalModel_Handler,
+		},
+		{
+			MethodName: "DeleteRetrievalModel",
+			Handler:    _SummarizerService_DeleteRetrievalModel_Handler,
+		},
+		{
+			MethodName: "TestRetrievalModel",
+			Handler:    _SummarizerService_TestRetrievalModel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

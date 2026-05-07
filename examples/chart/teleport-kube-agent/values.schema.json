@@ -272,13 +272,19 @@
             "$id": "#/properties/tls",
             "type": "object",
             "required": [
-                "existingCASecretName"
+                "existingCASecretName",
+                "existingCASecretKeyName"
             ],
             "properties": {
                 "existingCASecretName": {
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
+                },
+                "existingCASecretKeyName": {
+                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
+                    "type": "string",
+                    "default": "ca.pem"
                 }
             }
         },

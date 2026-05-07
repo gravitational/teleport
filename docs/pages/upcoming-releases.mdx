@@ -12,7 +12,7 @@ support each major version for 24 months.
 
 The most recent major version of Teleport, referred to as the **current version**,
 is the only major version of Teleport that will receive new features. The
-previous major version, referred to as the **stable Version**, will only receive
+previous major version, referred to as the **stable version**, will only receive
 bug fixes and security patches.
 
 ## Teleport
@@ -30,67 +30,96 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                       |
-|---------|----------------------------|
-| 18.3.0  | Week of October 27, 2025   |
-| 18.4.0  | Week of November 10, 2025  |
-| 19.0.0  | August 2026                |
+| Version | Date                   |
+|---------|------------------------|
+| 18.8.0  | Week of May 4, 2026    |
+| 18.9.0  | Week of June 1, 2026   |
+| 19.0.0  | August 2026            |
 
-### 18.3.0
+### 18.8.0
 
-#### Web UI Workload ID
+#### VNet for Linux
 
-Teleport's web UI will list all workload identity resources registered in the cluster.
+Teleport VNet support will be extended to Linux workstations.
 
-#### Relay Service
+*Delayed from 18.7.0.*
 
-Teleport will ship with a new Relay Service that acts as a lightweight Proxy Service,
-receiving connections from both SSH clients and agents.
+#### Improvements to access list creation UX
 
-The Relay Service can be used to avoid routing SSH connections through the broader Teleport
-control plane, providing the ability to optimize network flows in large or complex deployments.
+Teleport will provide guided in-product UX for creating common types of access
+lists centered around granting users permissions to resources and permissions
+to request access to resources.
 
-#### Multi-cluster Discovery
+*Delayed from 18.7.0.*
 
-Teleport EC2 auto-discovery will support a use-case in which multiple Teleport clusters
-discover the same EC2 instances without interfering with each other.
+#### `tsh` MFA via browser
 
-#### Kubernetes Health Checks
+`tsh` will be able to delegate MFA checks (both on login and for per-session
+MFA) to the browser, enabling the use of browser based passkeys or password
+managers with `tsh`.
 
-The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
-Health status will be reported in the Teleport web UI and reflected in kube_server resources.
-Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
+#### Multi-domain support for Windows desktop access
 
-#### ElastiCache Serverless
+Teleport will support RDP connections to Windows hosts where the Windows users
+belong to different Active Directory domains than the target hosts.
 
-Teleport will support connecting to ElastiCache Serverless databases.
+#### Bound keypair joining for agents
 
-### 18.4.0
+Teleport's bound keypair join method will be extended to support arbitrary
+Teleport agents in addition to bots.
 
-#### Streamable-HTTP and SSE support for MCP Zero-Trust Access
+#### Session summaries search
 
-MCP Zero-Trust Access users will be able to secure and audit connections to MCP
-servers that use HTTP-based transport protocols in addition to stdio.
+Identity Security will provide users with CLI tooling for searching session
+summaries allowing users to find sessions based on natural language queries.
 
-#### Improved Bot Instances Dashboard
+#### Reduce resource consumption of SSH sessions
 
-The Bot Instances dashboard will now provide a more intuitive interface
-for managing a fleet of Machine & Workload Identity bot instances. This will
-include improved filtering, sorting and searching capabilities, and a high-level
-overview of the versions of all bot instances in the cluster.
+Teleport SSH session latency will be reduced and each session will consume
+less memory.
 
-#### Kubernetes support for Relay Service
+### 18.9.0
 
-The relay service will be extended to facilitate Kubernetes connections.
+#### Device Bound Session Credentials for App Access
+
+Application access session cookies will be compatible with Google's [Device
+Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
+adding a layer of protection against session hijacking and cookie theft.
+
+#### Directory sharing enhancements for Windows desktop access
+
+Teleport will support sharing multiple directories in a single RDP session.  In
+addition, users will be able to unmount shared directories without terminating
+the session.
+
+#### Windows sessions summaries
+
+Identity Security will support AI summarization for Windows desktop access session
+recordings.
+
+#### Terraform support for AWS EKS discovery
+
+Users will be able to set up AWS EKS discovery on an AWS account level using
+Terraform module.
+
+#### Terraform support for Azure VM discovery
+
+Users will be able to set up Azure VM discovery on a subscription level using
+Terraform module.
+
+#### Terraform support for access list workflows
+
+Short and long term access list creation flows in the web UI will include terraform
+support allowing users to define access with infrastructure-as-code.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of            | Description                                                  |
-|--------------------|--------------------------------------------------------------|
-| October 20, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
-| October 20, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
+| Week of          | Description                                                 |
+|------------------|-------------------------------------------------------------|
+| May 11, 2026     | Teleport 18.8 will begin rollout on Cloud.                   |
+| May 11, 2026     | Teleport 18.8 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

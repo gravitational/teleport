@@ -90,6 +90,13 @@ const (
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
+	// CloudProxyListenPort is the Proxy Service port when running in Teleport Cloud.
+	CloudProxyListenPort = 443
+
+	// CloudDomainSuffix can be used to identify when an address is a Teleport Cloud domain
+	// and provide helpful Cloud-specific instructions.
+	CloudDomainSuffix = "teleport.sh"
+
 	// BackendDir is a default backend subdirectory
 	BackendDir = "backend"
 
@@ -542,11 +549,13 @@ func ReadableDatabaseProtocol(p string) string {
 }
 
 const (
-	// PerfBufferPageCount is the size of the perf ring buffer.
-	PerfBufferPageCount = 64
+	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
+	// Must be power of 2.
+	PerfBufferPageCount = 8
 
 	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
 	// events generate many events so this buffer needs to be extra large.
+	// Must be power of 2.
 	OpenPerfBufferPageCount = 128
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
@@ -818,14 +827,25 @@ var (
 type HTTPClientOption func(*httpClientOptions) *httpClientOptions
 
 type httpClientOptions struct {
-	useProxyFromEnvironment bool
+	useProxyFromEnvironment *bool
 }
 
 // UseProxyFromEnvironment configures the HTTP client to use proxy
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func UseProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		opts.useProxyFromEnvironment = true
+		var enable = true
+		opts.useProxyFromEnvironment = &enable
+		return opts
+	}
+}
+
+// DisableProxyFromEnvironment configures the HTTP client to ignore proxy
+// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+func DisableProxyFromEnvironment() HTTPClientOption {
+	return func(opts *httpClientOptions) *httpClientOptions {
+		var enable = false
+		opts.useProxyFromEnvironment = &enable
 		return opts
 	}
 }
@@ -842,8 +862,12 @@ func HTTPClient(opts ...HTTPClientOption) (*http.Client, error) {
 		httpOpts = o(httpOpts)
 	}
 
-	if httpOpts.useProxyFromEnvironment {
+	switch {
+	case httpOpts.useProxyFromEnvironment == nil:
+	case *httpOpts.useProxyFromEnvironment == true:
 		transport.Proxy = http.ProxyFromEnvironment
+	case *httpOpts.useProxyFromEnvironment == false:
+		transport.Proxy = nil
 	}
 
 	return &http.Client{
@@ -914,7 +938,7 @@ var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // FormatFlagDescription creates the description for the --format flag.
 func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s).", strings.Join(formats, ", "))
+	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
 }
 
 func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {

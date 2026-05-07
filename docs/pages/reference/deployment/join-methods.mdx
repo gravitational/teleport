@@ -197,6 +197,7 @@ spec:
   # - "WindowsDesktop" for Windows Desktop Service
   # - "Discovery" for Discovery Service
   # - "Bot" for Machine & Workload Identity (when set, "spec.bot_name" must be set in the token)
+  # - "MDM" for Jamf Service
   roles:
     - Node
     - App
@@ -271,7 +272,7 @@ New Bot deployments should consider upgrading to the
 </Admonition>
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with a Secure Token](../../enroll-resources/agents/join-token.mdx).
+- How to [Join Services with a Secure Token](../../installation/agents/join-token.mdx).
 - [Deploying Machine & Workload Identity on Linux](../../machine-workload-identity/deployment/linux.mdx)
 </Admonition>
 
@@ -288,7 +289,7 @@ This join method is recommended for on-prem environments
 without a specialized [delegated join method](#delegated-join-methods).
 
 At this time, `bound_keypair` can only be used to join Machine and Workload ID
-bots, and cannot be used to join other Teleport Agent types.
+bots, and cannot be used to join other Teleport agent types.
 
 (!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
 
@@ -308,7 +309,7 @@ This is the recommended method to join workload running on AWS.
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via AWS IAM Role](../../enroll-resources/agents/aws-iam.mdx).
+- [Joining Services via AWS IAM Role](../../installation/agents/aws-iam.mdx).
 - [Deploying Machine & Workload Identity on AWS](../../machine-workload-identity/deployment/aws.mdx)
 </Admonition>
 
@@ -333,19 +334,18 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-[Joining Services via AWS EC2 Identity Document](../../enroll-resources/agents/aws-ec2.mdx).
+[Joining Services via AWS EC2 Identity Document](../../installation/agents/aws-ec2.mdx).
 </Admonition>
 
 ### Azure managed identity: `azure`
 
 The Azure join method is available to any Teleport process running in an
-Azure Virtual Machine. Support for joining a cluster with the Proxy Service
-behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
+Azure Virtual Machine.
 
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Azure Managed Identity](../../enroll-resources/agents/azure.mdx).
+- [Joining Services via Azure Managed Identity](../../installation/agents/azure.mdx).
 - [Deploying Machine & Workload Identity on Azure](../../machine-workload-identity/deployment/azure.mdx)
 </Admonition>
 
@@ -393,7 +393,7 @@ on the Teleport process joining the cluster.
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with GCP](../../enroll-resources/agents/gcp.mdx).
+- How to [Join Services with GCP](../../installation/agents/gcp.mdx).
 - [Deploying Machine & Workload Identity on GCP](../../machine-workload-identity/deployment/gcp.mdx)
 </Admonition>
 
@@ -462,7 +462,7 @@ The Kubernetes join methods exists in three variants:
 #### Kubernetes In-cluster
 
 Kubernetes in-cluster joining is available for any Teleport process running
-in the same Kubernetes cluster than the Auth Service. It uses the Kubernetes
+in the same Kubernetes cluster as the Auth Service. It uses the Kubernetes
 ServiceAccount tokens to validate the pod identity. The method relies on the
 [Kubernetes TokenReview API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-review-v1/)
 which is typically only reachable from within the Kubernetes cluster. Because of
@@ -475,7 +475,7 @@ the pod enters the `Terminated` state.
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Kubernetes ServiceAccount Token](../../enroll-resources/agents/kubernetes.mdx)
+- [Joining Services via Kubernetes ServiceAccount Token](../../installation/agents/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes JWKS
@@ -587,7 +587,7 @@ Cloud Compute instance.
 (!docs/pages/includes/provision-token/oracle-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with Oracle Cloud](../../enroll-resources/agents/oracle.mdx).
+- How to [Join Services with Oracle Cloud](../../installation/agents/oracle.mdx).
 </Admonition>
 
 [discovery]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery

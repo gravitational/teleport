@@ -38,21 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func scimCommon() apievents.SCIMCommonData {
-	return apievents.SCIMCommonData{
-		Request: &apievents.SCIMRequest{
-			Body: apievents.MustEncodeMap(map[string]any{
-				"zero": nil,
-				"one":  3.14159,
-				"two":  eventString + eventString,
-				"three": map[string]any{
-					"nested": eventString,
-				},
-			}),
-		},
-	}
-}
-
 // eventsMap maps event names to event types for testing. Be sure to update
 // this map if you add a new event type.
 var eventsMap = map[string]apievents.AuditEvent{
@@ -179,6 +164,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	UpgradeWindowStartUpdateEvent:                 &apievents.UpgradeWindowStartUpdate{},
 	SessionRecordingAccessEvent:                   &apievents.SessionRecordingAccess{},
 	SSMRunEvent:                                   &apievents.SSMRun{},
+	AzureRunEvent:                                 &apievents.AzureRun{},
 	KubernetesClusterCreateEvent:                  &apievents.KubernetesClusterCreate{},
 	KubernetesClusterUpdateEvent:                  &apievents.KubernetesClusterUpdate{},
 	KubernetesClusterDeleteEvent:                  &apievents.KubernetesClusterDelete{},
@@ -282,20 +268,31 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
 	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
 	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
-
-	// SCIM events contain a protobuf struct, which will cause the default data
-	// generator to infinitely recurse while trying to populate an infinitely
-	// nested map of maps. Providing a pre-built value bypasses the data generator.
-	// SCIMListingEvent: &apievents.SCIMListingEvent{SCIMCommonData: scimCommon()},
-	// SCIMGetEvent:     &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMCreateEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMUpdateEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMDeleteEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	SCIMListingEvent: &apievents.SCIMListingEvent{SCIMCommonData: scimCommon()},
-	SCIMGetEvent:     &apievents.SCIMResourceEvent{},
-	SCIMCreateEvent:  &apievents.SCIMResourceEvent{},
-	SCIMUpdateEvent:  &apievents.SCIMResourceEvent{},
-	SCIMDeleteEvent:  &apievents.SCIMResourceEvent{},
+	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
+	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
+	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
+	WorkloadClusterCreateEvent:                    &apievents.WorkloadClusterCreate{},
+	WorkloadClusterUpdateEvent:                    &apievents.WorkloadClusterUpdate{},
+	WorkloadClusterDeleteEvent:                    &apievents.WorkloadClusterDelete{},
+	InferenceModelCreateEvent:                     &apievents.InferenceModelCreate{},
+	InferenceModelUpdateEvent:                     &apievents.InferenceModelUpdate{},
+	InferenceModelDeleteEvent:                     &apievents.InferenceModelDelete{},
+	InferenceSecretCreateEvent:                    &apievents.InferenceSecretCreate{},
+	InferenceSecretUpdateEvent:                    &apievents.InferenceSecretUpdate{},
+	InferenceSecretDeleteEvent:                    &apievents.InferenceSecretDelete{},
+	InferencePolicyCreateEvent:                    &apievents.InferencePolicyCreate{},
+	InferencePolicyUpdateEvent:                    &apievents.InferencePolicyUpdate{},
+	InferencePolicyDeleteEvent:                    &apievents.InferencePolicyDelete{},
+	RetrievalModelCreateEvent:                     &apievents.RetrievalModelCreate{},
+	RetrievalModelUpdateEvent:                     &apievents.RetrievalModelUpdate{},
+	RetrievalModelDeleteEvent:                     &apievents.RetrievalModelDelete{},
+	SessionSummarizedEvent:                        &apievents.SessionSummarized{},
+	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
+	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
+	SCIMCreateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
 }
 
 // TestJSON tests JSON marshal events
@@ -303,7 +300,7 @@ func TestJSON(t *testing.T) {
 	type testCase struct {
 		name  string
 		json  string
-		event any
+		event interface{}
 	}
 	testCases := []testCase{
 		{
@@ -536,20 +533,20 @@ func TestJSON(t *testing.T) {
 				UserMetadata: apievents.UserMetadata{
 					User: "bob@example.com",
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]any{
+				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{
 					"followers_url": "https://api.github.com/users/bob/followers",
 					"err":           nil,
 					"public_repos":  20,
 					"site_admin":    false,
-					"app_metadata":  map[string]any{"roles": []any{"example/admins", "example/devc"}},
-					"emails": []any{
-						map[string]any{
+					"app_metadata":  map[string]interface{}{"roles": []interface{}{"example/admins", "example/devc"}},
+					"emails": []interface{}{
+						map[string]interface{}{
 							"email":      "bob@example.com",
 							"primary":    true,
 							"verified":   true,
 							"visibility": "public",
 						},
-						map[string]any{
+						map[string]interface{}{
 							"email":      "bob@alternative.com",
 							"primary":    false,
 							"verified":   true,
@@ -1110,8 +1107,78 @@ func TestJSON(t *testing.T) {
 				Display:    "root user",
 			},
 		},
+		{
+			name: "VNetConfig Create",
+			json: `{"ei":0,"event":"vnet.config.create","uid":"vnet-create-id","success":true,"code":"TVNET001I","time":"2022-02-22T22:22:22.222Z","cluster_name":"test-cluster","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigCreate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-create-id",
+					Type:        VnetConfigCreateEvent,
+					Code:        VnetConfigCreateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Update",
+			json: `{"ei":0,"event":"vnet.config.update","uid":"vnet-update-id","success":true,"code":"TVNET002I","time":"2022-02-22T22:22:22.222Z","cluster_name":"root","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigUpdate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-update-id",
+					Type:        VnetConfigUpdateEvent,
+					Code:        VnetConfigUpdateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "root",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Delete",
+			json: `{"ei":0,"event":"vnet.config.delete","uid":"vnet-delete-id","success":true,"code":"TVNET003I","time":"2022-02-22T22:22:22.222Z","cluster_name":"leaf","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigDelete{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-delete-id",
+					Type:        VnetConfigDeleteEvent,
+					Code:        VnetConfigDeleteCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "leaf",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1194,7 +1261,7 @@ func setProtoFields(msg proto.Message) {
 
 	fields := m.Descriptor().Fields()
 
-	for i := range fields.Len() {
+	for i := 0; i < fields.Len(); i++ {
 		fd := fields.Get(i)
 		if m.Has(fd) {
 			continue
@@ -1290,4 +1357,291 @@ func toV2Proto(t testingVal, e apievents.AuditEvent) protoreflect.ProtoMessage {
 	pm, ok := e.(protoiface.MessageV1)
 	require.True(t, ok)
 	return protoadapt.MessageV2Of(pm)
+}
+
+// TestInferenceEvents tests the inference model, secret, and policy events
+func TestInferenceEvents(t *testing.T) {
+	t.Parallel()
+
+	testTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		event      apievents.AuditEvent
+		eventType  string
+		eventCode  string
+		hasPayload bool
+	}{
+		{
+			name: "InferenceModelCreate",
+			event: &apievents.InferenceModelCreate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceModelCreateEvent,
+					Code:        InferenceModelCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceModelCreateEvent,
+			eventCode:  InferenceModelCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferenceModelUpdate",
+			event: &apievents.InferenceModelUpdate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceModelUpdateEvent,
+					Code:        InferenceModelUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceModelUpdateEvent,
+			eventCode:  InferenceModelUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferenceModelDelete",
+			event: &apievents.InferenceModelDelete{
+				Metadata: apievents.Metadata{
+					Type:        InferenceModelDeleteEvent,
+					Code:        InferenceModelDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceModelDeleteEvent,
+			eventCode:  InferenceModelDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferenceSecretCreate",
+			event: &apievents.InferenceSecretCreate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceSecretCreateEvent,
+					Code:        InferenceSecretCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-secret",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceSecretCreateEvent,
+			eventCode:  InferenceSecretCreateCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferenceSecretUpdate",
+			event: &apievents.InferenceSecretUpdate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceSecretUpdateEvent,
+					Code:        InferenceSecretUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-secret",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceSecretUpdateEvent,
+			eventCode:  InferenceSecretUpdateCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferenceSecretDelete",
+			event: &apievents.InferenceSecretDelete{
+				Metadata: apievents.Metadata{
+					Type:        InferenceSecretDeleteEvent,
+					Code:        InferenceSecretDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-secret",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceSecretDeleteEvent,
+			eventCode:  InferenceSecretDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferencePolicyCreate",
+			event: &apievents.InferencePolicyCreate{
+				Metadata: apievents.Metadata{
+					Type:        InferencePolicyCreateEvent,
+					Code:        InferencePolicyCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-policy",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferencePolicyCreateEvent,
+			eventCode:  InferencePolicyCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferencePolicyUpdate",
+			event: &apievents.InferencePolicyUpdate{
+				Metadata: apievents.Metadata{
+					Type:        InferencePolicyUpdateEvent,
+					Code:        InferencePolicyUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-policy",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferencePolicyUpdateEvent,
+			eventCode:  InferencePolicyUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferencePolicyDelete",
+			event: &apievents.InferencePolicyDelete{
+				Metadata: apievents.Metadata{
+					Type:        InferencePolicyDeleteEvent,
+					Code:        InferencePolicyDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-policy",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferencePolicyDeleteEvent,
+			eventCode:  InferencePolicyDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "RetrievalModelCreate",
+			event: &apievents.RetrievalModelCreate{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelCreateEvent,
+					Code:        RetrievalModelCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelCreateEvent,
+			eventCode:  RetrievalModelCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "RetrievalModelUpdate",
+			event: &apievents.RetrievalModelUpdate{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelUpdateEvent,
+					Code:        RetrievalModelUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelUpdateEvent,
+			eventCode:  RetrievalModelUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "RetrievalModelDelete",
+			event: &apievents.RetrievalModelDelete{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelDeleteEvent,
+					Code:        RetrievalModelDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelDeleteEvent,
+			eventCode:  RetrievalModelDeleteCode,
+			hasPayload: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			require.Equal(t, tt.eventType, tt.event.GetType())
+			require.Equal(t, tt.eventCode, tt.event.GetCode())
+			require.Equal(t, "test-cluster", tt.event.GetClusterName())
+
+			data, err := json.Marshal(tt.event)
+			require.NoError(t, err)
+
+			fields := make(EventFields)
+			err = json.Unmarshal(data, &fields)
+			require.NoError(t, err)
+			require.Equal(t, tt.eventType, fields.GetType())
+			require.Equal(t, tt.eventCode, fields.GetCode())
+
+			converted, err := FromEventFields(fields)
+			require.NoError(t, err)
+			require.IsType(t, tt.event, converted)
+
+			oneOf, err := apievents.ToOneOf(tt.event)
+			require.NoError(t, err)
+			fromOneOf, err := apievents.FromOneOf(*oneOf)
+			require.NoError(t, err)
+			require.IsType(t, tt.event, fromOneOf)
+
+			trimmed := tt.event.TrimToMaxSize(100)
+			require.Equal(t, tt.event, trimmed)
+		})
+	}
 }

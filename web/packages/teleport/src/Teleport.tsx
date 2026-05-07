@@ -33,6 +33,7 @@ import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import { AppLauncher } from './AppLauncher';
+import { BrowserMfa } from './BrowserMFA/BrowserMFA';
 import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
@@ -92,9 +93,9 @@ const Teleport: React.FC<Props> = props => {
   }, []);
 
   return (
-    <CatchError>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <CatchError>
           <LayoutContextProvider>
             <Router history={history}>
               <Suspense fallback={null}>
@@ -121,9 +122,9 @@ const Teleport: React.FC<Props> = props => {
               </Suspense>
             </Router>
           </LayoutContextProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </CatchError>
+        </CatchError>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 
@@ -221,6 +222,11 @@ export function getSharedPrivateRoutes() {
       key="headlessSSO"
       path={cfg.routes.headlessSso}
       component={HeadlessRequest}
+    />,
+    <Route
+      key="browserMFA"
+      path={cfg.routes.browserMfa}
+      component={BrowserMfa}
     />,
   ];
 }

@@ -117,12 +117,12 @@ func (l *Handler) Close() error {
 }
 
 // Download reads a session recording from a local directory.
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(downloadFile(l.recordingPath(sessionID), writer))
 }
 
 // DownloadSummary reads a session summary from a local directory.
-func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	// Happy path: the final summary exists.
 	err := downloadFile(l.summaryPath(sessionID), writer)
 	if trace.IsNotFound(err) {
@@ -139,16 +139,16 @@ func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 }
 
 // DownloadMetadata reads session metadata from a local directory.
-func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(downloadFile(l.metadataPath(sessionID), writer))
 }
 
 // DownloadThumbnail reads a session thumbnail from a local directory.
-func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return trace.Wrap(downloadFile(l.thumbnailPath(sessionID), writer))
 }
 
-func downloadFile(path string, writer events.RandomAccessWriter) error {
+func downloadFile(path string, writer io.Writer) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -223,7 +223,7 @@ func uploadFile(path string, reader io.Reader, opts ...fileUploadOption) (string
 	if !cfg.overwrite {
 		flags |= os.O_EXCL
 	}
-	f, err := os.OpenFile(path, flags, 0666)
+	f, err := os.OpenFile(path, flags, 0o666)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

@@ -7,6 +7,7 @@ tags:
  - how-to
  - identity-governance
  - privileged-access
+enterprise: Identity Governance
 ---
 
 The Teleport Okta integration can import and grant access to resources from an
@@ -29,7 +30,7 @@ Enrolling the Okta integration is a guided process and contains four components:
    available only if Teleport Identity Governance is enabled. The SCIM
    integration is optional for enabling user, application, and group sync.
 3. **User sync:** Imports Okta users as Teleport users via a continuous
-   reconciliation loop. It is usually slower than SCIM, but but more reliable,
+   reconciliation loop. It is usually slower than SCIM, but more reliable,
    and does not require a publicly accessible Teleport cluster. Combined with
    SCIM, it provides both speed and reliability.
 4. **Application and group sync:** imports Okta applications and groups as Teleport

@@ -21,6 +21,7 @@ package servicecfg
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -280,6 +282,11 @@ type Config struct {
 	// using Token()
 	token string
 
+	// tokenSecret is either the secret needed to join with the token defined for the config, or
+	// a path that contains the secret. This is private to avoid external packages reading the
+	// value - the value should be obtained using TokenSecret()
+	tokenSecret string
+
 	// v1, v2 -
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -293,6 +300,10 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// UserMonitor config contains configuration for the user monitor service, which is responsible for monitoring
+	// user related changes and updating user_state accordingly.
+	UserMonitor UserMonitorConfig
 }
 
 type ConfigTesting struct {
@@ -320,14 +331,17 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
+}
 
-	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
-	// a locking operation for backend objects.
-	// This setting is particularly useful in test environments,
-	// as it can help accelerate operations such as updating the access list,
-	// especially when the list is also being modified concurrently by the background
-	// eligibility handler.
-	RunWhileLockedRetryInterval time.Duration
+// UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
+// user related changes and updating user_state accordingly.
+type UserMonitorConfig struct {
+	// ReconcileInterval overrides the default user monitor reconcile interval.
+	// Used in tests to speed up reconciliation. Zero value uses the default.
+	ReconcileInterval time.Duration
+	// LockTTL overrides the default user monitor lock TTL.
+	// Used in tests to speed up lock acquisition. Zero value uses the default.
+	LockTTL time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
@@ -433,12 +447,80 @@ func DisableLongRunningServices(cfg *Config) {
 
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
-	Azure AzureJoinParams
+	Azure        AzureJoinParams
+	BoundKeypair BoundKeypairParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
 type AzureJoinParams struct {
 	ClientID string
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string
+}
+
+// RegistrationSecret returns the currently configured bound keypair
+// registration secret, if any. Registration secrets are optional, and only used
+// at first join when no existing identity can be used to authenticate the join
+// request, no pregenerated key exists, and no static key is configured.
+func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
+	if b.RegistrationSecretValue != "" && b.RegistrationSecretPath != "" {
+		return "", trace.BadParameter("only one of `registration_secret` and `registration_secret_path` may be specified")
+	}
+
+	// Note: no env var support like in tbot, we could consider adding it in the
+	// future.
+
+	switch {
+	case b.RegistrationSecretPath != "":
+		bytes, err := os.ReadFile(b.RegistrationSecretPath)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+
+		return strings.TrimSpace(string(bytes)), nil
+	case b.RegistrationSecretValue != "":
+		return b.RegistrationSecretValue, nil
+	default:
+		return "", nil
+	}
+}
+
+// StaticPrivateKeyBytes returns the configured static private key if one has
+// been configured. If not nil, this value should be used to initialize a
+// bound keypair `StaticClientState` instead of the process-stored state. Static
+// keys do not support automatic rotation or join state verification.
+func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
+	if b.StaticPrivateKeyPath != "" {
+		bytes, err := os.ReadFile(b.StaticPrivateKeyPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "reading static key from %s", b.StaticPrivateKeyPath)
+		}
+
+		return bytes, nil
+	}
+
+	// Note: no env var support like in tbot, may consider adding it in the
+	// future.
+
+	// No static key configured, nothing to return.
+	return nil, nil
 }
 
 // CachePolicy sets caching policy for proxies and nodes
@@ -533,11 +615,34 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
+// TokenSecret returns token secret needed to join the auth server with the configured token
+//
+// If the value stored points to a file, it will attempt to read the token secret from the file
+// and return an error if it wasn't successful.
+// If the value stored doesn't point to a file, it'll return the value stored.
+// If the secret hasn't been set, an empty string will be returned
+func (cfg *Config) TokenSecret() (string, error) {
+	secret, err := utils.TryReadValueAsFile(cfg.tokenSecret)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return secret, nil
+}
+
 // SetToken stores the value for --token or auth_token in the config
 //
 // This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
+}
+
+// SetTokenSecret stores the value for --token-secret or join_params.token_secret in the
+// config.
+//
+// This can be either the secret or an absolute path to a file containing the secret.
+func (cfg *Config) SetTokenSecret(secret string) {
+	cfg.tokenSecret = secret
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -682,7 +787,7 @@ func ApplyDefaults(cfg *Config) {
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &PAMConfig{Enabled: false}
+	cfg.SSH.PAM = &pamcfg.PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
@@ -809,6 +914,21 @@ func applyDefaults(cfg *Config) {
 	}
 }
 
+func warnIfUsingCloudOnWrongPort(log *slog.Logger, addr utils.NetAddr, defaultPort int) {
+	ctx := context.Background()
+	isCloud := strings.HasSuffix(addr.Host(), "."+defaults.CloudDomainSuffix)
+
+	if port := addr.Port(defaultPort); isCloud && port != defaults.CloudProxyListenPort {
+		//nolint:sloglint // We want to craft user-friendly and actionable messages here.
+		log.WarnContext(ctx,
+			fmt.Sprintf("Teleport Cloud Proxy Service runs on port 443, but the process is connecting to port %d. This is likely a misconfiguration and will prevent successfully joining the cluster.", port),
+			"port", port,
+			"address", addr.String())
+		//nolint:sloglint // We want to craft user-friendly and actionable messages here.
+		log.WarnContext(ctx, fmt.Sprintf("If you are experiencing connectivity issues, try using the following address: \"%s:%d\".", addr.Host(), defaults.CloudProxyListenPort))
+	}
+}
+
 func validateAuthOrProxyServices(cfg *Config) error {
 	haveAuthServers := len(cfg.authServers) > 0
 	haveProxyServer := !cfg.ProxyServer.IsEmpty()
@@ -837,6 +957,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 			if port == defaults.AuthListenPort {
 				cfg.Logger.WarnContext(context.Background(), "config: proxy_server is pointing to port 3025, is this the auth server address?")
 			}
+			warnIfUsingCloudOnWrongPort(cfg.Logger, cfg.ProxyServer, defaults.HTTPListenPort)
 		}
 
 		if haveAuthServers {
@@ -859,6 +980,8 @@ func validateAuthOrProxyServices(cfg *Config) error {
 	if !haveAuthServers {
 		return trace.BadParameter("config: auth_servers is required")
 	}
+
+	warnIfUsingCloudOnWrongPort(cfg.Logger, cfg.authServers[0], defaults.AuthListenPort)
 
 	return nil
 }

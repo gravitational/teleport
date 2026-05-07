@@ -103,10 +103,10 @@ func TestWatcherCapacity(t *testing.T) {
 
 	// emit and then consume 10 events.  this is much larger than our queue size,
 	// but should succeed since we consume within our grace period.
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		b.Emit(Event{Item: Item{Key: NewKey(strconv.Itoa(i + 1))}})
 	}
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		select {
 		case e := <-w.Events():
 			require.Equal(t, string(Separator)+strconv.Itoa(i+1), e.Item.Key.String())
@@ -130,7 +130,7 @@ func TestWatcherCapacity(t *testing.T) {
 	}
 
 	// create backlog again, and this time advance past grace period without draining it.
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		b.Emit(Event{Item: Item{Key: NewKey(strconv.Itoa(i + 12))}})
 	}
 	clock.Advance(gracePeriod + time.Second)
@@ -176,7 +176,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 	}
 
 	// emit enough events to create a backlog
-	for range queueSize * 2 {
+	for i := 0; i < queueSize*2; i++ {
 		b.Emit(Event{Item: Item{Key: NewKey("")}})
 	}
 

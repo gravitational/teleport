@@ -198,7 +198,7 @@ func (a *UnixAttestor) hashBinary(ctx context.Context, proc *process.Process) st
 	select {
 	case res := <-resCh:
 		if res.err != nil {
-			a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", err)
+			a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", res.err)
 		}
 		return res.sum
 	case <-time.After(BinaryHashReadTimeout):

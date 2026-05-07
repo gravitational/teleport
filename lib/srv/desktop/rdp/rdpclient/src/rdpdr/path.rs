@@ -75,7 +75,7 @@ impl UnixPath {
     }
 
     pub fn last(&self) -> Option<&str> {
-        self.path.split('/').next_back()
+        self.path.split('/').last()
     }
 }
 

@@ -472,6 +472,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SSMRun{
 			SSMRun: e,
 		}
+	case *AzureRun:
+		out.Event = &OneOf_AzureRun{
+			AzureRun: e,
+		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
 			Unknown: e,
@@ -928,21 +932,81 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SCIMResourceEvent{SCIMResourceEvent: e}
 	case *ClientIPRestrictionsUpdate:
 		out.Event = &OneOf_ClientIPRestrictionsUpdate{ClientIPRestrictionsUpdate: e}
-	case *AppAuthConfigCreate:
-		out.Event = &OneOf_AppAuthConfigCreate{
-			AppAuthConfigCreate: e,
+	case *VnetConfigCreate:
+		out.Event = &OneOf_VnetConfigCreate{
+			VnetConfigCreate: e,
 		}
-	case *AppAuthConfigUpdate:
-		out.Event = &OneOf_AppAuthConfigUpdate{
-			AppAuthConfigUpdate: e,
+	case *VnetConfigUpdate:
+		out.Event = &OneOf_VnetConfigUpdate{
+			VnetConfigUpdate: e,
 		}
-	case *AppAuthConfigDelete:
-		out.Event = &OneOf_AppAuthConfigDelete{
-			AppAuthConfigDelete: e,
+	case *VnetConfigDelete:
+		out.Event = &OneOf_VnetConfigDelete{
+			VnetConfigDelete: e,
 		}
-	case *AppAuthConfigVerify:
-		out.Event = &OneOf_AppAuthConfigVerify{
-			AppAuthConfigVerify: e,
+	case *WorkloadClusterCreate:
+		out.Event = &OneOf_WorkloadClusterCreate{
+			WorkloadClusterCreate: e,
+		}
+	case *WorkloadClusterUpdate:
+		out.Event = &OneOf_WorkloadClusterUpdate{
+			WorkloadClusterUpdate: e,
+		}
+	case *WorkloadClusterDelete:
+		out.Event = &OneOf_WorkloadClusterDelete{
+			WorkloadClusterDelete: e,
+		}
+	case *InferenceModelCreate:
+		out.Event = &OneOf_InferenceModelCreate{
+			InferenceModelCreate: e,
+		}
+	case *InferenceModelUpdate:
+		out.Event = &OneOf_InferenceModelUpdate{
+			InferenceModelUpdate: e,
+		}
+	case *InferenceModelDelete:
+		out.Event = &OneOf_InferenceModelDelete{
+			InferenceModelDelete: e,
+		}
+	case *InferenceSecretCreate:
+		out.Event = &OneOf_InferenceSecretCreate{
+			InferenceSecretCreate: e,
+		}
+	case *InferenceSecretUpdate:
+		out.Event = &OneOf_InferenceSecretUpdate{
+			InferenceSecretUpdate: e,
+		}
+	case *InferenceSecretDelete:
+		out.Event = &OneOf_InferenceSecretDelete{
+			InferenceSecretDelete: e,
+		}
+	case *InferencePolicyCreate:
+		out.Event = &OneOf_InferencePolicyCreate{
+			InferencePolicyCreate: e,
+		}
+	case *InferencePolicyUpdate:
+		out.Event = &OneOf_InferencePolicyUpdate{
+			InferencePolicyUpdate: e,
+		}
+	case *InferencePolicyDelete:
+		out.Event = &OneOf_InferencePolicyDelete{
+			InferencePolicyDelete: e,
+		}
+	case *RetrievalModelCreate:
+		out.Event = &OneOf_RetrievalModelCreate{
+			RetrievalModelCreate: e,
+		}
+	case *RetrievalModelUpdate:
+		out.Event = &OneOf_RetrievalModelUpdate{
+			RetrievalModelUpdate: e,
+		}
+	case *RetrievalModelDelete:
+		out.Event = &OneOf_RetrievalModelDelete{
+			RetrievalModelDelete: e,
+		}
+	case *SessionSummarized:
+		out.Event = &OneOf_SessionSummarized{
+			SessionSummarized: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

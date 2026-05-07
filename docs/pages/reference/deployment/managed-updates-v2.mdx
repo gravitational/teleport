@@ -208,12 +208,12 @@ of a failed update that might not be caught by earlier groups due to environment
 
 **Key characteristics:**
 
-- Up to five Linux agent hosts are selected automatically and updated first.
+- Up to five total Linux and Kubernetes agents are randomly selected and updated first.
 - If any canary fails to update, the group is marked as failed and not updated.
 - Subsequent groups will not be updated until the group successfully updates.
-- Kubernetes agents are not currently selected as canaries.
-- tbot-only installations are not selected as canaries, but agents may be deployed
-  alongside tbot to detect tbot update failures.
+- Linux and Kubernetes agents can be placed in separate groups to ensure both are covered by canaries.
+- tbot-only installations are not selected as canaries. However, agents may be deployed
+  alongside tbot to detect tbot update failures, roll back both the agent and tbot, and fail the canary.
 
 **Example configuration:**
 

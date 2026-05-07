@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
+Copyright 2015-2026 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 						Description: "TimeSchedule specifies an in-line schedule.",
 						Optional:    true,
 					}}),
-					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.  Available in Teleport v18.2.8 or higher.",
 					Optional:    true,
 				},
 				"states": {

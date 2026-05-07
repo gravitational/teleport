@@ -35,6 +35,7 @@ import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/trackingTester';
@@ -49,6 +50,7 @@ beforeAll(() => {
 
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
+  server.use(fetchUnifiedResourcesSuccess());
   server.use(userEventCaptureSuccess());
 
   jest.useFakeTimers();
@@ -72,12 +74,13 @@ describe('ConnectGitHub', () => {
         environment: 'production',
         gitHubUrl: 'https://github.com/gravitational/teleport',
         isBranchDisabled: false,
-        ref: 'main',
+        ref: 'refs/heads/main',
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: '',
       },
     });
 
@@ -97,7 +100,9 @@ describe('ConnectGitHub', () => {
 
     expect(screen.getByPlaceholderText('production')).toHaveValue('production');
 
-    expect(screen.getByPlaceholderText('ref/heads/main')).toHaveValue('main');
+    expect(screen.getByPlaceholderText('refs/heads/main')).toHaveValue(
+      'refs/heads/main'
+    );
 
     expect(screen.getByPlaceholderText('octo-enterprise')).toHaveValue(
       'octo-enterprise'
@@ -118,12 +123,13 @@ describe('ConnectGitHub', () => {
         environment: 'production',
         gitHubUrl: 'https://github.com/gravitational/teleport',
         isBranchDisabled: false,
-        ref: 'main',
+        ref: 'refs/heads/main',
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: '',
       },
     });
 
@@ -167,7 +173,7 @@ describe('ConnectGitHub', () => {
     await user.type(input, 'main');
 
     expect(input).toHaveValue('main');
-    expect(screen.getByLabelText('Git Ref')).toHaveValue('main');
+    expect(screen.getByLabelText('Git Ref')).toHaveValue('refs/heads/main');
 
     // Skip start event
     tracking.skip();

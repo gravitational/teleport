@@ -40,7 +40,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 	sseServer := mcpserver.NewSSEServer(mcptest.NewServer())
 	sseServerWithAuth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify rewrite headers.
-		if r.Header.Get("Authorization") != "Bearer app-token-for-ai" {
+		if r.Header.Get("Authorization") != "Bearer app-token-for-ai-by-jwt" {
 			w.WriteHeader(http.StatusUnauthorized)
 		}
 		sseServer.ServeHTTP(w, r)
@@ -68,7 +68,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -83,12 +83,13 @@ func Test_handleStdioToSSE(t *testing.T) {
 	// Use a real client. Double check start event has the external MCP session
 	// ID.
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
+
 	resp := mcptest.MustInitializeClient(t, stdioClient)
 	require.Equal(t, "test-server", resp.ServerInfo.Name)
 	checkSessionStartAndInitializeEvents(t, emitter.Events(),
 		checkSessionStartWithServerInfo("test-server", "1.0.0"),
 		checkSessionStartHasExternalSessionID(),
-		checkSessionStartWithEgressAuthType("app-jwt"),
+		checkSessionStartWithEgressAuthType(egressAuthTypeAppJWT),
 	)
 
 	// Make a tools call.

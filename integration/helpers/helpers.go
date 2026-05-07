@@ -92,8 +92,8 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	// ControlMaster is often used by applications like Ansible.
 	if o.ControlPath != "" {
 		execArgs = append(execArgs, "-oControlMaster=auto")
-		execArgs = append(execArgs, "-oControlPersist=1s")
-		execArgs = append(execArgs, "-oConnectTimeout=2")
+		execArgs = append(execArgs, "-oControlPersist=0")
+		execArgs = append(execArgs, "-oConnectTimeout=10")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
 	}
 
@@ -262,7 +262,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
-	max := time.Second * 2
+	max := time.Second * 10
 	timeout := time.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
@@ -564,6 +564,6 @@ func UpsertAuthPrefAndWaitForCache(
 		rp, err := srv.GetReadOnlyAuthPreference(ctx)
 		require.NoError(t, err)
 		p := rp.Clone()
-		require.Empty(t, cmp.Diff(&pref, &p))
+		assert.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
 }

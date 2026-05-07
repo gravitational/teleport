@@ -28,9 +28,9 @@ import (
 
 // GetEffectiveMode returns the effective device trust mode, considering both
 // `dt` and the current modules.
-func GetEffectiveMode(dt *types.DeviceTrust) string {
+func GetEffectiveMode(dt *types.DeviceTrust, mod modules.Modules) string {
 	// OSS doesn't support device trust.
-	if modules.GetModules().IsOSSBuild() {
+	if mod.IsOSSBuild() {
 		return constants.DeviceTrustModeOff
 	}
 
@@ -46,10 +46,10 @@ func GetEffectiveMode(dt *types.DeviceTrust) string {
 // provenance of the binary if the mode is set.
 // Used for device enforcement checks. Guarantees that OSS binaries paired with
 // an Enterprise Auth will correctly enforce device trust.
-func GetEnforcementMode(dt *types.DeviceTrust) string {
+func GetEnforcementMode(dt *types.DeviceTrust, m modules.Modules) string {
 	// If absent use the defaults from GetEffectiveMode.
 	if dt == nil || dt.Mode == "" {
-		return GetEffectiveMode(dt)
+		return GetEffectiveMode(dt, m)
 	}
 	return dt.Mode
 }
@@ -58,11 +58,11 @@ func GetEnforcementMode(dt *types.DeviceTrust) string {
 // the current modules.
 // This method exists to provide feedback to users about invalid configurations,
 // Teleport itself checks the features where appropriate and reacts accordingly.
-func ValidateConfigAgainstModules(dt *types.DeviceTrust) error {
+func ValidateConfigAgainstModules(dt *types.DeviceTrust, m modules.Modules) error {
 	switch {
 	case dt == nil || dt.Mode == "": // OK, always allowed.
 		return nil
-	case GetEffectiveMode(dt) != dt.Mode: // Mismatch means invalid OSS config.
+	case GetEffectiveMode(dt, m) != dt.Mode: // Mismatch means invalid OSS config.
 		return trace.BadParameter("device trust mode %q requires Teleport Enterprise", dt.Mode)
 	default:
 		return nil

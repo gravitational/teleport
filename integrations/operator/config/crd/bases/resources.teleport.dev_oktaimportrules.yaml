@@ -40,14 +40,11 @@ spec:
                 items:
                   properties:
                     add_labels:
+                      additionalProperties:
+                        type: string
                       description: AddLabels specifies which labels to add if any
                         of the previous matches match.
                       nullable: true
-                      properties:
-                        key:
-                          type: string
-                        value:
-                          type: string
                       type: object
                     match:
                       description: Match is a set of matching rules for this mapping.

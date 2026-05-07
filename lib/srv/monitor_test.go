@@ -69,7 +69,8 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer
 func TestConnectionMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -160,7 +161,8 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -207,7 +209,8 @@ func TestMonitorLockInForce(t *testing.T) {
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -268,7 +271,8 @@ func TestWritesDisconnectMessage(t *testing.T) {
 
 	var sw strings.Builder
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	clock := clockwork.NewFakeClock()
 	conn, _, _ := newTestMonitor(ctx, t, asrv, func(cfg *MonitorConfig) {
@@ -311,7 +315,8 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -328,6 +333,35 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	select {
 	case <-conn.closedC:
 	case <-time.After(5 * time.Second):
+		t.Fatal("Client is still connected.")
+	}
+}
+
+// TestFakeClockCanSafelyAdvance verifies that advancing a fake clock immediately
+// after StartMonitor returns correctly triggers the idle timeout.
+func TestFakeClockCanSafelyAdvance(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, asrv.Close()) })
+
+	conn, _, _ := newTestMonitor(t.Context(), t, asrv, func(config *MonitorConfig) {
+		config.ClientIdleTimeout = 1 * time.Minute
+		// default activity tracker appears always active due to clock moving forward.
+		// replace it with inactive one.
+		config.Tracker = &mockActivityTracker{clock: clockwork.NewFakeClock()}
+	})
+	clock.Advance(2 * time.Minute)
+
+	select {
+	case <-conn.closedC:
+	case <-time.After(1 * time.Second):
 		t.Fatal("Client is still connected.")
 	}
 }

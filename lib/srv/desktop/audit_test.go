@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -75,8 +74,7 @@ func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAudito
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",
 			},
-			Clock:                clockwork.NewFakeClockAt(startTime),
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			Clock: clockwork.NewFakeClockAt(startTime),
 		},
 		auditCache: newSharedDirectoryAuditCache(),
 	}
@@ -197,13 +195,13 @@ func TestSessionEndEvent(t *testing.T) {
 			Protocol:   libevents.EventProtocolTDP,
 		},
 		WindowsDesktopService: audit.desktopServiceUUID,
-		DesktopName:           testDesktop.GetName(),
 		DesktopAddr:           testDesktop.GetAddr(),
 		Domain:                testDesktop.GetDomain(),
 		WindowsUser:           "Administrator",
 		DesktopLabels:         map[string]string{"env": "production"},
 		StartTime:             audit.startTime,
 		EndTime:               audit.clock.Now().UTC(),
+		DesktopName:           testDesktop.GetName(),
 		Recorded:              true,
 		Participants:          []string{"foo"},
 	}
@@ -603,7 +601,7 @@ func fillReadRequestCache(cache *sharedDirectoryAuditCache, did directoryID) {
 	cache.Lock()
 	defer cache.Unlock()
 
-	for i := range maxAuditCacheItems {
+	for i := 0; i < maxAuditCacheItems; i++ {
 		cache.readRequestCache[completionID(i)] = readRequestInfo{
 			directoryID: did,
 		}

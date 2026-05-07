@@ -195,7 +195,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../../zero-trust-access/management/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -527,7 +527,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../../enroll-resources/agents/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../../installation/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -574,7 +574,7 @@ If you prefer a different directory, you can configure it via the `tshHome` prop
 Teleport Connect actively monitors the tsh directory, so updates made with tsh (such as logging in, logging out,
 or adding new clusters) will automatically appear in the app.
 
-<Admonition title="Note">
+<Admonition type="note" title="Note">
 Older versions of Teleport Connect used a separate set of profiles stored in an internal tsh directory.
 On the first launch, the app will automatically migrate your profiles to the new location.
 </Admonition>
@@ -646,6 +646,7 @@ Below is the list of the supported config properties.
 | `terminal.customShell` |  | Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…). |
 | `terminal.rightClick`         | `menu` on macOS/Linux `copyPaste` on Windows | `paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.                                                         |
 | `terminal.copyOnSelect`       | `false` | Automatically copies selected text to the clipboard.                                                                                                                                                                      |
+| `terminal.setTeleportAuthServerEnvVar` | `true` | Whether to set `TELEPORT_AUTH_SERVER` in local terminal sessions. Setting it helps tctl choose the right profile. |
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)).                                     |
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS   `Ctrl+1` - `Ctrl+9` on Windows `Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                                                                  |
 | `keymap.closeTab`             | `Command+W` on macOS `Ctrl+Shift+W` on Windows/Linux                                                             | Shortcut to close a tab.                                                                                   |
@@ -694,7 +695,7 @@ Available key codes:
 ### `tsh ssh` environment variables
 
 Under the hood, Teleport Connect uses `tsh ssh` to connect to SSH servers. As a result,
-Teleport Connect will respect many [tsh environment variables](../../reference/cli/tsh.mdx#tsh-environment-variables)
+Teleport Connect will respect many [tsh environment variables](../../reference/cli/tsh.mdx)
 related to `tsh ssh`. This can make it easier to share common settings between `tsh` and Teleport Connect.
 
 Below is a list of environment variables supported by Teleport Connect for SSH connections:
@@ -813,7 +814,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../../zero-trust-access/deploy-a-cluster/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../../installation/self-hosted/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>

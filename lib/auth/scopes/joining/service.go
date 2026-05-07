@@ -28,15 +28,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const defaultTokenPageSize = 100
@@ -90,27 +87,11 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 	}
 
 	ruleCtx := authzContext.RuleContext()
-	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbCreate)
+	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbCreate)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to create scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
 		return nil, trace.Wrap(err)
-	}
-
-	token := req.GetToken()
-	if token.GetMetadata().GetName() == "" {
-		if token.Metadata == nil {
-			token.Metadata = &headerv1.Metadata{}
-		}
-		name, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating token value")
-		}
-		token.Metadata.Name = name
-	}
-
-	if token.GetSpec() != nil && token.GetSpec().GetJoinMethod() == "" {
-		token.Spec.JoinMethod = string(types.JoinMethodToken)
 	}
 
 	res, err := s.backend.CreateScopedToken(ctx, req)
@@ -129,8 +110,8 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	// perform an early check for root scope delete permission to allow us to short-circuit
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting tokens that are so malformed that they cannot be read.
-	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbDelete)
+	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
 	}); err == nil {
 		return s.backend.DeleteScopedToken(ctx, req)
 	}
@@ -143,8 +124,8 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRes.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
+	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRes.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to delete scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", preAuthzRes.GetToken().GetScope())
 		return nil, trace.Wrap(err)
@@ -161,20 +142,23 @@ func (s *Server) GetScopedToken(ctx context.Context, req *scopedjoiningv1.GetSco
 		return nil, trace.Wrap(err)
 	}
 
+	readVerb := types.VerbReadNoSecrets
+	if req.GetWithSecret() {
+		readVerb = types.VerbRead
+	}
+
 	ruleCtx := authzContext.RuleContext()
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	preAuthzRes, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
-		Name: req.GetName(),
-	})
+	preAuthzRes, err := s.backend.GetScopedToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRes.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead)
+	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRes.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to read scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", preAuthzRes.GetToken().GetScope())
 		return nil, trace.Wrap(err)
@@ -232,8 +216,13 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 		return nil, trace.Wrap(err)
 	}
 
+	readVerb := types.VerbReadNoSecrets
+	if req.GetWithSecrets() {
+		readVerb = types.VerbRead
+	}
+
 	ruleCtx := authzContext.RuleContext()
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead, types.VerbList); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -248,8 +237,8 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 			return nil, trace.Wrap(err)
 		}
 
-		if err := authzContext.CheckerContext.Decision(ctx, token.GetScope(), func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead, types.VerbList)
+		if err := authzContext.CheckerContext.Decision(ctx, token.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb, types.VerbList)
 		}); err != nil {
 			continue
 		}
@@ -271,7 +260,58 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 	}, nil
 }
 
+// UpsertScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
+func (s *Server) UpsertScopedToken(ctx context.Context, req *scopedjoiningv1.UpsertScopedTokenRequest) (*scopedjoiningv1.UpsertScopedTokenResponse, error) {
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We rely on the backend guarantee that scoped tokens updates won't overwrite an existing token if it has a different scope, usage mode, or secret.
+	ruleCtx := authzContext.RuleContext()
+	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate, types.VerbCreate)
+	}); err != nil {
+		s.logger.WarnContext(ctx, "user does not have permission to upsert scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := s.backend.UpsertScopedToken(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // UpdateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.UpdateScopedTokenRequest) (*scopedjoiningv1.UpdateScopedTokenResponse, error) {
-	return nil, trace.NotImplemented("scoped tokens must be recreated, they cannot be updated")
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authzContext.RuleContext()
+
+	// do a pre-check to weed out requests that definitely won't be authorized.
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extant, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+		Name: req.GetToken().GetMetadata().GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if scopes.Compare(req.GetToken().GetScope(), extant.GetToken().GetScope()) != scopes.Equivalent {
+		return nil, trace.BadParameter("cannot modify the resource scope of scoped token %q (%q -> %q)", req.GetToken().GetMetadata().GetName(), extant.GetToken().GetScope(), req.GetToken().GetScope())
+	}
+
+	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate)
+	}); err != nil {
+		s.logger.WarnContext(ctx, "user does not have permission to update scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := s.backend.UpdateScopedToken(ctx, req)
+	return res, trace.Wrap(err)
 }

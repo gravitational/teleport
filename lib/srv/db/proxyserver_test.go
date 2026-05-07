@@ -79,6 +79,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Keep close functions to all connections. Call and release all active connection at the end of test.
@@ -91,7 +92,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			})
 
 			t.Run("limit can be hit", func(t *testing.T) {
-				for range connLimitNumber {
+				for i := 0; i < connLimitNumber; i++ {
 					// Try to connect to the database.
 					dbConn, err := tt.connect()
 					require.NoError(t, err)
@@ -205,6 +206,7 @@ func TestProxyRateLimiting(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Keep close functions to all connections. Call and release all active connection at the end of test.
@@ -216,7 +218,7 @@ func TestProxyRateLimiting(t *testing.T) {
 				}
 			})
 
-			for range connLimitNumber {
+			for i := 0; i < connLimitNumber; i++ {
 				// Try to connect to the database.
 				pgConn, err := tt.connect()
 				if err == nil {

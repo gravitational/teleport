@@ -221,7 +221,7 @@ func TestFormatAccountName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			accountName, err := auth.FormatAccountName(tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
+			accountName, err := auth.FormatAccountName(t.Context(), tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
 			tt.outError(t, err)
 			require.Equal(t, accountName, tt.outAccountName)
 		})
@@ -416,6 +416,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

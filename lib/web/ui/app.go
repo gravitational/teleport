@@ -24,7 +24,9 @@ import (
 	"log/slog"
 	"sort"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -81,6 +83,9 @@ type App struct {
 
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
+
+	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
+	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -129,12 +134,17 @@ type MakeAppsConfig struct {
 	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
 	// Only used for AWS Console Apps.
 	AllowedAWSRolesLookup map[string][]string
+	// GrantedAWSRolesLookup is a map of AWS IAM Role ARNs that the logged user has been granted
+	// for each App. Only used for AWS Console Apps.
+	GrantedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
 	Logger *slog.Logger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool
+	// SupportedFeatures contains ComponentFeatures supported by this App and all other involved components.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
 }
 
 // MakeApp creates an application object for the WebUI.
@@ -187,12 +197,35 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
+		SupportedFeatureIDs:   componentfeatures.ToIntegers(c.SupportedFeatures),
 	}
 
 	if app.IsAWSConsole() {
-		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
-		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
-			app.GetAWSAccountID())
+		// TODO(kiosion): This visible/granted role handling is quite bad. Ideally, modify AccessChecker's [GetAllowedLoginsForResource]
+		// to return a struct containing all visible roles, plus a subset of granted (if present), out-of-the-box, rather than having to
+		// invoke [GetAllowedLoginsForResource] twice to diff visible vs granted roles.
+		visible := c.AllowedAWSRolesLookup[app.GetName()]
+		visibleRoles := aws.FilterAWSRoles(visible, app.GetAWSAccountID())
+
+		granted := c.GrantedAWSRolesLookup[app.GetName()]
+		grantedRoles := aws.FilterAWSRoles(granted, app.GetAWSAccountID())
+		grantedSet := make(map[string]struct{}, len(grantedRoles))
+		for _, gr := range grantedRoles {
+			grantedSet[gr.ARN] = struct{}{}
+		}
+
+		uiRoles := make([]aws.Role, 0, len(visibleRoles))
+		for _, r := range visibleRoles {
+			_, isGranted := grantedSet[r.ARN]
+			uiRoles = append(uiRoles, aws.Role{
+				Name:            r.Name,
+				Display:         r.Display,
+				ARN:             r.ARN,
+				AccountID:       r.AccountID,
+				RequiresRequest: !isGranted,
+			})
+		}
+		resultApp.AWSRoles = uiRoles
 	}
 
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {

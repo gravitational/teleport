@@ -674,7 +674,7 @@ func TestRateLimit(t *testing.T) {
 
 	items := make(chan struct{}, tokens+1)
 
-	for range workers {
+	for i := 0; i < workers; i++ {
 		go func() {
 			stream := RateLimit(repeat("some-item", maxItemsPerWorker), func() error {
 				select {
@@ -707,7 +707,7 @@ func TestRateLimit(t *testing.T) {
 
 	// limiter isn't applied until after the first item is yielded, so pop the first item
 	// from each worker immediately to simplify test logic.
-	for range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case <-items:
 		case <-time.After(time.Second * 10):
@@ -719,7 +719,7 @@ func TestRateLimit(t *testing.T) {
 	var yielded int
 
 	// do an initial fill of limiter channel
-	for range burst {
+	for i := 0; i < burst; i++ {
 		select {
 		case lim <- struct{}{}:
 			yielded++
@@ -732,7 +732,7 @@ func TestRateLimit(t *testing.T) {
 
 	// consume item receipt events
 	timeoutC := time.After(time.Second * 30)
-	for range burst {
+	for i := 0; i < burst; i++ {
 		select {
 		case <-items:
 			consumed++
@@ -763,7 +763,7 @@ func TestRateLimit(t *testing.T) {
 	close(done)
 
 	// wait for all workers to finish
-	for range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case err := <-results:
 			require.NoError(t, err)

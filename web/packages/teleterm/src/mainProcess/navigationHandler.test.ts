@@ -82,6 +82,16 @@ describe('opening links to', () => {
       url: 'https://google.com',
       allowed: false,
     },
+    {
+      name: 'AWS IC',
+      url: 'https://d-1234.awsapps.com/start/#/console?account_id=1234',
+      allowed: true,
+    },
+    {
+      name: 'AWS IC US gov',
+      url: 'https://start.us-gov-home.awsapps.com/directory/foo#/console?account_id=1234',
+      allowed: true,
+    },
   ])('$name', test => {
     let handler: Parameters<WebContents['setWindowOpenHandler']>[0];
     registerNavigationHandlers(
@@ -105,7 +115,7 @@ describe('opening links to', () => {
     });
 
     expect(result).toEqual({ action: 'deny' });
-    /* eslint-disable jest/no-conditional-expect */
+    /* oxlint-disable jest/no-conditional-expect */
     if (test.allowed) {
       expect(shell.openExternal).toHaveBeenCalledWith(test.url);
       expect(dialog.showErrorBox).not.toHaveBeenCalled();
@@ -116,5 +126,6 @@ describe('opening links to', () => {
         'The domain does not match any of the allowed domains. Check main.log for more details.'
       );
     }
+    /* oxlint-enable jest/no-conditional-expect */
   });
 });

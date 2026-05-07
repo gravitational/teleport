@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -90,7 +91,9 @@ func TestDBAuthorityDown(t *testing.T) {
 }
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
-	ta := testauthority.New()
+	ta, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 

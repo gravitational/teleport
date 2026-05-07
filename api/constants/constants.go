@@ -67,6 +67,9 @@ const (
 	// Github means authentication will happen remotely using a Github connector.
 	Github = "github"
 
+	// BrowserMFA is for CLI flows that delegate MFA to the browser.
+	BrowserMFA = "browser_mfa"
+
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan 2 2006 15:04:05 UTC"
 
@@ -135,6 +138,8 @@ const (
 	// AWSCNConsoleURL is the URL of AWS management console for AWS China
 	// Partition.
 	AWSCNConsoleURL = "https://console.amazonaws.cn"
+	// AWSQuickSightURL is the URL for accessing AWS QuickSight
+	AWSQuickSightURL = "https://quicksight.aws.amazon.com"
 
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
@@ -293,6 +298,9 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size.
+const MaxProtoMessageSizeBytes = 64 * 1024
+
 // DeviceTrustMode is the mode of verification for trusted devices.
 // DeviceTrustMode is always "off" for OSS.
 // Defaults to "optional" for Enterprise.
@@ -424,6 +432,9 @@ const (
 	// TraitJWT is the name of the trait containing JWT header for app access.
 	TraitJWT = "jwt"
 
+	// TraitIDToken is the name of the trait containing ID token header for app access.
+	TraitIDToken = "id_token"
+
 	// TraitHostUserUID is the name of the variable used to specify
 	// the UID to create host user account with.
 	TraitHostUserUID = "host_user_uid"
@@ -454,6 +465,12 @@ const (
 	// start time can be
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
+
+// MaxAuthConnectorNameLength is the maximum allowed length of an authentication connector name.
+// The connector name is used as its backend key. This value is selected to be large enough for
+// all real-world use cases, but small enough to not exceed the key length on Teleport's supported
+// backends.
+const MaxAuthConnectorNameLength = 768
 
 const (
 	// MaxHealthCheckInterval is the minimum interval between resource health
@@ -589,13 +606,15 @@ const AutoUpdateAgentReportPeriod = time.Minute
 const AutoUpdateBotInstanceReportPeriod = time.Minute
 
 const (
-	// UnstableEnableEICEEnvVar is the environment variable that enables EC2 Instance Connect Endpoint (EICE) functionality.
-	// Accessing EC2 instances using EICE was deprecated in v15, and will definitely be removed in a future release.
-	// This variable allows users to temporarily re-enable this functionality if they need more time to migrate away from it.
-	// Users must be encoraged to use other methods of accessing EC2 Instances: using a teleport agent or OpenSSH integration.
-	//
-	// Set its value to "yes" to re-enable EICE functionality.
-	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
-	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
-	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )

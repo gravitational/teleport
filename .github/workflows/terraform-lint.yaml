@@ -20,6 +20,9 @@ jobs:
       # TODO: Fix Terraform linting issues and stop using force to pass the job.
       tflint_force: true
       tflint_config_path: $GITHUB_WORKSPACE/.tflint.hcl
+      # TODO(gavin): update shared-workflow version to lint module docs 
+      # terraform_docs_config_path: $GITHUB_WORKSPACE/integrations/terraform-modules/.terraform-docs.yml
+      # terraform_docs_find_dir: $GITHUB_WORKSPACE/integrations/terraform-modules
     permissions:
       actions: read
       contents: read

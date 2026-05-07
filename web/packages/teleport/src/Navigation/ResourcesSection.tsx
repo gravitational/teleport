@@ -48,6 +48,7 @@ import {
   SubsectionItem,
   verticalPadding,
 } from './Section';
+import { useDefaultNavigation } from './useDefaultNavigation';
 
 /**
  * getResourcesSection returns a NavigationSection for resources,
@@ -311,7 +312,7 @@ export function ResourcesSection({
 
   const isExpanded = expandedSection?.category === NavigationCategory.Resources;
 
-  const subsections = getResourcesSubsections({
+  section.subsections = getResourcesSubsections({
     clusterId,
     preferences,
     updatePreferences,
@@ -337,6 +338,7 @@ export function ResourcesSection({
       isExpanded={isExpanded}
       showPoweredByLogo={showPoweredByLogo}
       {...getReferenceProps()}
+      {...useDefaultNavigation(section)}
     >
       <RightPanel
         ref={refs.setFloating}
@@ -363,7 +365,7 @@ export function ResourcesSection({
               toggleStickyMode={toggleStickyMode}
               canToggleStickyMode={canToggleStickyMode}
             />
-            {subsections
+            {section.subsections
               .filter(section => !section.subCategory)
               .map(section => (
                 <SubsectionItem
@@ -385,7 +387,7 @@ export function ResourcesSection({
               </Text>
             </Flex>
 
-            {subsections
+            {section.subsections
               .filter(
                 section =>
                   section.subCategory ===

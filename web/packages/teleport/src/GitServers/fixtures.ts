@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { GitServer } from 'web/packages/teleport/src/services/gitServers';
+import { GitServer } from 'teleport/services/gitServers';
 
 export const gitServers: GitServer[] = [
   {

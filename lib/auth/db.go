@@ -170,7 +170,10 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// If there's only 1 active key we don't include SKID in CDP for backward compatibility.
 		if req.CRLDomain != "" {
 			includeSKID := len(ca.GetActiveKeys().TLS) > 1
-			cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.DatabaseClientCA, tlsCA, includeSKID)
+			cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, types.DatabaseClientCA, tlsCA, includeSKID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			certReq.CRLDistributionPoints = []string{cdp}
 		} else if req.CRLEndpoint != "" {
 			// legacy clients will specify CRL endpoint instead of CRL domain
@@ -272,7 +275,10 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Extract user roles from the identity.
-	roles, err := services.FetchRoles(id.Groups, a, id.Traits)
+	roles, err := services.FetchRolesWithContext(id.Groups, a, services.RoleTemplateContext{
+		Username: id.Username,
+		Traits:   id.Traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

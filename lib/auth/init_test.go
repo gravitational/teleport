@@ -85,8 +85,11 @@ import (
 // TestReadIdentity makes parses identity from private key and certificate
 // and checks that all parameters are valid
 func TestReadIdentity(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	a := testauthority.NewWithClock(clock)
+	a, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -133,7 +136,10 @@ func TestReadIdentity(t *testing.T) {
 }
 
 func TestBadIdentity(t *testing.T) {
-	a := testauthority.New()
+	t.Parallel()
+	a, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -874,6 +880,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 }
 
 func TestClusterID(t *testing.T) {
+	t.Parallel()
 	conf := setupConfig(t)
 	ctx := context.Background()
 	authServer, err := auth.Init(ctx, conf)
@@ -897,6 +904,7 @@ func TestClusterID(t *testing.T) {
 
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
+	t.Parallel()
 	conf := setupConfig(t)
 	ctx := context.Background()
 	authServer, err := auth.Init(ctx, conf)
@@ -931,6 +939,7 @@ func (t *failingTrustInternal) CreateCertAuthority(ctx context.Context, ca types
 // TestInitCertFailureRecovery ensures the auth server is able to recover from
 // a failure in the cert creation process.
 func TestInitCertFailureRecovery(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: constants.SAML,
@@ -971,12 +980,14 @@ func TestPresets(t *testing.T) {
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
-		err := auth.CreatePresetRoles(ctx, as)
+		err := auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -989,13 +1000,15 @@ func TestPresets(t *testing.T) {
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
 		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -1012,6 +1025,8 @@ func TestPresets(t *testing.T) {
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1036,7 +1051,7 @@ func TestPresets(t *testing.T) {
 		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1062,6 +1077,8 @@ func TestPresets(t *testing.T) {
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1098,7 +1115,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1122,7 +1139,7 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
+	upsertRoleTest := func(t *testing.T, buildType string, expectedPresetRoles []string, expectedSystemRoles []string) {
 		// test state
 		ctx := context.Background()
 		// mu protects created resource maps
@@ -1169,7 +1186,7 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err := auth.CreatePresetRoles(ctx, roleManager)
+		err := auth.CreatePresetRoles(ctx, buildType, roleManager)
 		require.NoError(t, err)
 		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
 		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
@@ -1209,7 +1226,7 @@ func TestPresets(t *testing.T) {
 				Return(role, nil)
 		}
 
-		err = auth.CreatePresetRoles(ctx, roleManager)
+		err = auth.CreatePresetRoles(ctx, buildType, roleManager)
 		require.NoError(t, err)
 		roleManager.AssertExpectations(t)
 
@@ -1266,14 +1283,14 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err = auth.CreatePresetRoles(ctx, roleManager)
+		err = auth.CreatePresetRoles(ctx, buildType, roleManager)
 		require.NoError(t, err)
 		require.Empty(t, remainingPresets)
 		roleManager.AssertExpectations(t)
 	}
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		upsertRoleTest(t, presetRoleNames, nil)
+		upsertRoleTest(t, modules.BuildOSS, presetRoleNames, nil)
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
@@ -1298,20 +1315,22 @@ func TestPresets(t *testing.T) {
 		}
 
 		enterpriseUsers := []types.User{
-			services.NewSystemAutomaticAccessBotUser(),
+			services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
 		}
 
 		t.Run("EmptyCluster", func(t *testing.T) {
 			as := newTestAuthServer(ctx, t)
+			clock := clockwork.NewFakeClock()
+			as.SetClock(clock)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
 			for range 2 {
-				err := auth.CreatePresetRoles(ctx, as)
+				err := auth.CreatePresetRoles(ctx, modules.BuildEnterprise, as)
 				require.NoError(t, err)
 
-				err = auth.CreatePresetUsers(ctx, as)
+				err = auth.CreatePresetUsers(ctx, modules.BuildEnterprise, as)
 				require.NoError(t, err)
 			}
 
@@ -1329,12 +1348,12 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, enterprisePresetRoleNames, enterpriseSystemRoleNames)
+			upsertRoleTest(t, modules.BuildEnterprise, enterprisePresetRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
 			ctx := context.Background()
-			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
+			sysUser := services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise).(*types.UserV2)
 
 			// GIVEN a user database...
 			manager := newMockUserManager(t)
@@ -1356,7 +1375,7 @@ func TestPresets(t *testing.T) {
 				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
-			err := auth.CreatePresetUsers(ctx, manager)
+			err := auth.CreatePresetUsers(ctx, modules.BuildEnterprise, manager)
 
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
@@ -1367,13 +1386,17 @@ func TestPresets(t *testing.T) {
 }
 
 func TestDashboardMode(t *testing.T) {
-	// dashboard mode is determined via cloud and recovery codes
-	modulestest.SetTestModules(t, modulestest.Modules{
+
+	testModules := modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud:         false,
 			RecoveryCodes: true,
 		},
-	})
+	}
+
+	// dashboard mode is determined via cloud and recovery codes
+	modulestest.SetTestModules(t, testModules)
 
 	conf := setupConfig(t)
 	ctx := t.Context()
@@ -1389,7 +1412,7 @@ func TestDashboardMode(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that preset roles were NOT created in dashboard mode
-	presetRoles := auth.GetPresetRoles()
+	presetRoles := auth.GetPresetRoles(testModules.BuildType())
 
 	for _, role := range presetRoles {
 		_, err := authServer.GetRole(ctx, role.GetName())
@@ -1397,7 +1420,7 @@ func TestDashboardMode(t *testing.T) {
 	}
 
 	// verify preset users were NOT created in dashboard mode
-	presetUsers := auth.GetPresetUsers()
+	presetUsers := auth.GetPresetUsers(testModules.BuildType())
 
 	for _, user := range presetUsers {
 		_, err := authServer.GetUser(ctx, user.GetName(), false)
@@ -1406,19 +1429,14 @@ func TestDashboardMode(t *testing.T) {
 }
 
 func TestGetPresetUsers(t *testing.T) {
+	t.Parallel()
 	// no preset users for OSS
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildOSS,
-	})
-	require.Empty(t, auth.GetPresetUsers())
+	require.Empty(t, auth.GetPresetUsers(modules.BuildOSS))
 
 	// preset user @teleport-access-approval-bot on enterprise
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
 	require.Equal(t, []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}, auth.GetPresetUsers())
+		services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
+	}, auth.GetPresetUsers(modules.BuildEnterprise))
 }
 
 type mockUserManager struct {
@@ -1536,13 +1554,16 @@ func setupConfig(t *testing.T) auth.InitConfig {
 		processStorage.Close()
 	})
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	return auth.InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
 		Backend:                 bk,
 		VersionStorage:          processStorage,
-		Authority:               testauthority.New(),
+		Authority:               authority,
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
@@ -1943,6 +1964,14 @@ spec:
   type: local
 version: v2
 `
+	workloadIdentityYAML = `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`
 	botYAML = `kind: bot
 metadata:
   name: my-bot
@@ -1960,6 +1989,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	workloadIdentity := resourceFromYAML(t, workloadIdentityYAML)
 	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
@@ -2030,6 +2060,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name: "Apply WorkloadIdentity",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, workloadIdentity)
+			},
+			assertError: require.NoError,
+		},
+		{
 			name: "Apply Role+Bot",
 			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
@@ -2087,6 +2124,7 @@ func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.Health
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
 // hour behavior.
 func TestSyncUpgradeWindowStartHour(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	conf := setupConfig(t)
@@ -2227,6 +2265,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 // TestIdentityChecker verifies auth identity properly validates host
 // certificates when connecting to an SSH server.
 func TestIdentityChecker(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	conf := setupConfig(t)
@@ -2321,6 +2360,7 @@ func TestIdentityChecker(t *testing.T) {
 }
 
 func TestInitCreatesCertsIfMissing(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	conf := setupConfig(t)
 	auth, err := auth.Init(ctx, conf)
@@ -2418,19 +2458,24 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			authCfg := setupConfig(t)
 			service, err := local.NewBackendInfoService(authCfg.Backend)
 			require.NoError(t, err)
 
 			if test.initialProcVersion != "" {
-				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, *semver.New(test.initialProcVersion))
+				ver, err := semver.NewVersion(test.initialProcVersion)
+				require.NoError(t, err)
+				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, *ver)
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
+				ver, err := semver.NewVersion(test.initialVersion)
+				require.NoError(t, err)
 				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
-					TeleportVersion: semver.New(test.initialVersion).String(),
+					TeleportVersion: ver.String(),
 				})
 				require.NoError(t, err)
 				_, err = service.CreateBackendInfo(ctx, backendInfo)
@@ -2550,6 +2595,7 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			m := &mockDatabaseObjectImportRules{
@@ -2611,6 +2657,34 @@ version: v1`
 			version, err := auth.GetAutoUpdateVersion(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+		})
+	}
+}
+
+func TestInitWithWorkloadIdentityResources(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	resources := []types.Resource{
+		resourceFromYAML(t, workloadIdentityYAML),
+	}
+
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *auth.InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *auth.InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *auth.InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := auth.Init(ctx, cfg)
+			require.NoError(t, err)
+
+			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, "example-workload-identity")
+			require.NoError(t, err)
+			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})
 	}
 }

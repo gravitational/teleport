@@ -198,7 +198,16 @@ tls:
   # ```code
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   # ```
+  # <Admonition type="danger">
+  # The Teleport operator container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+  # When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+  # If you need the operator to interact with other systems (e.g. AWS joining), the secret must contain their CA.
+  # Else, Teleport will fail to establish TLS connections with external services.
+  # </Admonition>
   existingCASecretName: ""
+  # tls.existingCASecretKeyName(string) -- determines which key in the CA secret
+  # will be used as a trusted CA bundle file.
+  existingCASecretKeyName: "ca.pem"
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)

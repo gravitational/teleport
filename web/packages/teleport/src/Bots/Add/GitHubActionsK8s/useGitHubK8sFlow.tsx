@@ -25,6 +25,8 @@ import React, {
 } from 'react';
 import { useDebounceCallback } from 'usehooks-ts';
 
+import { usePrevious } from 'shared/hooks/usePrevious';
+
 import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
 import { RefType } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
@@ -152,7 +154,7 @@ export function GitHubK8sFlowProvider(
       ghaWorkflow: makeGhaWorkflow({
         tokenName: `gha-${state.info?.owner ?? 'gravitational'}-${state.info?.repository ?? 'teleport'}`,
         clusterPublicUrl: cluster.publicURL,
-        toolsVersion: cluster.authVersion,
+        clusterName: state.kubernetesCluster,
       }),
     },
   };
@@ -176,11 +178,17 @@ function reducer(prev: State, action: Action): State {
         info,
       };
     case 'branch-changed':
+      const branch = action.value;
+      const ref = branch
+        ? branch.startsWith('refs/heads/')
+          ? branch
+          : `refs/heads/${branch}`
+        : '';
       return {
         ...prev,
-        branch: action.value,
+        branch,
         allowAnyBranch: false,
-        ref: action.value,
+        ref,
         refType: 'branch',
       };
     case 'allow-any-branch-toggled':
@@ -190,14 +198,19 @@ function reducer(prev: State, action: Action): State {
         branch: '',
         ref: '',
       };
-    case 'ref-changed':
+    case 'ref-changed': {
+      const branch =
+        prev.refType === 'branch'
+          ? action.value.replace(/^refs\/heads\//, '')
+          : '';
       return {
         ...prev,
         ref: action.value,
         // Keep ref in sync with branch while ref type is 'branch'
-        branch: prev.refType === 'branch' ? action.value : '',
+        branch: branch,
         isBranchDisabled: prev.refType !== 'branch',
       };
+    }
     case 'ref-type-changed':
       return {
         ...prev,
@@ -241,6 +254,11 @@ function reducer(prev: State, action: Action): State {
         ...prev,
         kubernetesUsers: action.value,
       };
+    case 'kubernetes-cluster-changed':
+      return {
+        ...prev,
+        kubernetesCluster: action.value,
+      };
     default:
       const exhaustiveCheck: never = action;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
@@ -256,7 +274,8 @@ type Action =
         | 'workflow-changed'
         | 'environment-changed'
         | 'slug-changed'
-        | 'jwks-changed';
+        | 'jwks-changed'
+        | 'kubernetes-cluster-changed';
       value: string;
     }
   | {
@@ -295,6 +314,7 @@ type State = {
   kubernetesGroups: string[];
   kubernetesLabels: KubernetesLabel[];
   kubernetesUsers: string[];
+  kubernetesCluster: string;
 };
 
 const defaultState: State = {
@@ -311,6 +331,7 @@ const defaultState: State = {
   kubernetesGroups: [],
   kubernetesLabels: [{ name: '*', values: ['*'] }],
   kubernetesUsers: [],
+  kubernetesCluster: '',
 };
 
 type Context = {
@@ -337,15 +358,3 @@ const context = React.createContext<Context>({
     },
   },
 });
-
-function usePrevious<T>(value: T) {
-  const [current, setCurrent] = React.useState<T>(value);
-  const [previous, setPrevious] = React.useState<T | undefined>(undefined);
-
-  if (value !== current) {
-    setPrevious(current);
-    setCurrent(value);
-  }
-
-  return previous;
-}

@@ -244,7 +244,7 @@ func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 			ctx,
 			defaults.DefaultChunkSize,
 			nextToken,
-			&services.ListBotInstancesRequestOptions{},
+			nil,
 		)
 		if err != nil {
 			return trace.Wrap(err, "listing bot instances")

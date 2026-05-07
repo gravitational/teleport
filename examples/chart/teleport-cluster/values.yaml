@@ -585,8 +585,14 @@ tls:
   # Useful for building trust when using intermediate certificate authorities.
   # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
-  # The filename inside the secret is important - it _must_ be ca.pem
+  #
+  # DANGER: The Teleport distroless container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+  # When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+  # If you need Teleport to interact with other systems (e.g. AWS, GitHub, ...), the secret must contain their CA.
+  # Else, Teleport will fail to establish TLS connections with external services.
   existingCASecretName: ""
+  # (optional) Name of an existing key in the CA secret which will be used as a trusted CA bundle file.
+  existingCASecretKeyName: "ca.pem"
 
 ##################################################
 # Values that you shouldn't need to change.
@@ -824,6 +830,19 @@ resources: {}
 #    memory: "2Gi"
 #  limits:
 #    memory: "2Gi"
+
+# Resources to request for the teleport pre-deploy jobs.
+# https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+#
+# Jobs currently include config validation and potentially migration hooks.
+# The resource requirements are typically lower than for the main teleport deployment.
+# In most cases, you should leave these limits unset.
+jobResources: {}
+#  requests:
+#    cpu: "20m"
+#    memory: "500Mi"
+#  limits:
+#    memory: "500Mi"
 
 # goMemLimitRatio configures the GOMEMLIMIT env var set by the chart.
 # GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory

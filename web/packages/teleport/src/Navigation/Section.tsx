@@ -41,6 +41,7 @@ import {
   NavigationSubsection,
   useFloatingUiWithRestMs,
 } from './Navigation';
+import { useDefaultNavigation } from './useDefaultNavigation';
 import { zIndexMap } from './zIndexMap';
 
 type SharedSectionProps = {
@@ -90,6 +91,7 @@ export function DefaultSection({
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
         {...getReferenceProps()}
+        {...useDefaultNavigation(section)}
       >
         <CategoryIcon category={section.category} />
         {section.category}

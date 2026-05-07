@@ -52,6 +52,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
@@ -105,7 +106,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		name           string
 		expectedResult bool
 		expectedError  string
-		req            *FileTransferRequest
+		req            *fileTransferRequestWithApprovers
 		reqID          string
 		location       string
 	}{
@@ -121,9 +122,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: false,
 			expectedError:  "Teleport user does not match original requester",
 			reqID:          "123",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "michael",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "michael",
+				},
 				approvers: make(map[string]*party),
 			},
 		},
@@ -133,11 +136,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/badlocation",
+				},
 				approvers: make(map[string]*party),
-				Location:  "~/badlocation",
 			},
 		},
 		{
@@ -146,11 +151,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/Downloads",
+				},
 				approvers: approvers,
-				Location:  "~/Downloads",
 			},
 		},
 	}
@@ -196,7 +203,7 @@ func TestSession_newRecorder(t *testing.T) {
 
 	logger := logtest.NewLogger()
 
-	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
+	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
 		_, ok := i.(*events.SessionWriter)
 		require.False(t, ok)
@@ -285,7 +292,7 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, _ ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -307,7 +314,7 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, i2 ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -393,7 +400,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
@@ -483,7 +491,8 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -545,7 +554,8 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -828,7 +838,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
 			}, time.Second*5, time.Millisecond*500, "Some events not received")
 		})
 	}
@@ -901,7 +911,8 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1158,7 +1169,8 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentForwardingNode
@@ -1205,7 +1217,8 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentForwardingNode

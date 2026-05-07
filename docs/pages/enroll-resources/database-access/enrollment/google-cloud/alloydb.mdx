@@ -27,7 +27,7 @@ tags:
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5: Configure GCP IAM 
-### IAM setup: roles for the database user and Teleport Database Service
+### IAM setup: roles for the database user and database service
 
 To grant Teleport access to your AlloyDB instances, you need to create two service accounts:
 - `teleport-db-service`: for the Teleport Database Service to access AlloyDB metadata.
@@ -247,7 +247,7 @@ $ sudo teleport db configure create \
 This command will generate a Teleport Database Service configuration file and
 save it to `/etc/teleport.yaml`.
 
-<Admonition title="Choose how Teleport connects to AlloyDB">
+<Admonition type="tip" title="Choose how Teleport connects to AlloyDB">
 By default, Teleport uses [_private_](https://cloud.google.com/alloydb/docs/about-private-services-access) AlloyDB endpoint. To change this to either [public](https://cloud.google.com/alloydb/docs/connect-public-ip) or [PSC](https://cloud.google.com/alloydb/docs/about-private-service-connect) endpoints, update the `endpoint_type` field:
 
 ```yaml
@@ -343,6 +343,18 @@ to it:
 ```code
 $ tsh db connect --db-user=alloydb-user@<Var name="project-id"/>.iam --db-name=postgres alloydb
 ```
+
+<Admonition type="tip">
+To connect to the database using a tool of your choice, like a graphical
+database client, you can create a local tunnel and point it to your software:
+
+```code
+$ tsh proxy db alloydb --tunnel --db-user=alloydb-user@<Var name="project-id"/>.iam --db-name=postgres
+```
+
+See [Database GUI Clients](../../../../connect-your-client/third-party/gui-clients.mdx)
+guide for more information on specific tools.
+</Admonition>
 
 <Admonition type="tip" title="Tip">
   Starting from version `17.1`, you can now [access your PostgreSQL databases using the Web UI.](../../../../connect-your-client/teleport-clients/web-ui.mdx#starting-a-database-session)

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -197,7 +198,7 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *authz.Middleware
+	authMiddleware *auth.Middleware
 
 	proxyPort string
 
@@ -252,7 +253,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
 	c.cache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             5 * time.Minute,
+		TTL:             common.MaxSessionChunkDuration,
 		Context:         c.closeContext,
 		Clock:           c.cfg.Clock,
 		CleanupInterval: time.Second,
@@ -325,14 +326,18 @@ func (c *ConnectionsHandler) expireSessions() {
 // HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancelCause(c.closeContext)
+	// HandleConnection owns the context. handleConnection passes cancel
+	// to TrackingReadConn, which may call it first with io.EOF when the
+	// connection closes. The second cancel call is a no-op.
+	defer cancel(nil)
 
-	// Wrap conn to detect when it is closed.
+	// Wrap conn in a CloserConn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
-	waitConn := utils.NewWaitConn(conn)
+	closerConn := utils.NewCloserConn(conn)
 
-	cleanup, err := c.handleConnection(waitConn)
+	cleanup, err := c.handleConnection(ctx, cancel, closerConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -348,15 +353,19 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	// Wait for connection to close.
-	waitConn.Wait()
+	// Wait for the connection to close. TCP and MCP handlers block until
+	// done, so closerConn is already closed by the time we get here. The
+	// HTTP handler returns immediately after handing the conn to
+	// http.Server, so this is where we block until the HTTP server
+	// closes it.
+	closerConn.Wait()
 }
 
 // serveSession finds the app session and forwards the request.
 func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) error {
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
-	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), 5*time.Minute)
+	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
 		session, err := c.newSessionChunk(ctx, identity, app, c.sessionStartTime(r.Context()), opts...)
 		return session, trace.Wrap(err)
@@ -583,8 +592,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	return authContext, app, nil
 }
 
-func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancelCause(c.closeContext)
+func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   c.cfg.Clock,
@@ -635,16 +643,17 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// initialization to ensure value is present on the context.
 	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
 
-	// Application access supports plain TCP connections which are handled
-	// differently than HTTP requests from web apps.
+	// TCP and MCP handlers block until the session is done, so they return
+	// (nil, err) and the caller has nothing to clean up. The HTTP handler is
+	// asynchronous: handleHTTPApp hands the conn to http.Server.Serve and
+	// returns immediately, so it returns a cleanup function and the caller
+	// blocks on closerConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
-		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
 
 	case app.IsMCP():
-		defer cancel(nil)
 		sessionCtx := mcp.SessionCtx{
 			ClientConn: tlsConn,
 			AuthCtx:    authCtx,
@@ -654,7 +663,6 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 
 	default:
 		cleanup := func() {
-			cancel(nil)
 			c.deleteConnAuth(tlsConn)
 		}
 		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
@@ -693,11 +701,11 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &authz.Middleware{
+	c.authMiddleware = &auth.Middleware{
 		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
-		Handler:       c,
 	}
+	c.authMiddleware.Wrap(c)
 
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -761,7 +769,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
-	user, err := c.authMiddleware.GetUser(ctx, tlsConn.ConnectionState())
+	user, err := c.authMiddleware.GetUser(tlsConn.ConnectionState())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

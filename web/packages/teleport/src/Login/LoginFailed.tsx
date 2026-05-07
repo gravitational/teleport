@@ -28,13 +28,15 @@ export function LoginFailed() {
       <Route path={cfg.routes.loginErrorCallback}>
         <LoginFailedComponent message="Unable to process SSO callback." />
       </Route>
-      <Route path={cfg.routes.loginErrorCallbackMissingRole}>
-        <LoginFailedComponent message="Unable to process SSO callback. The connector has a mapping to role that does not exist. Please contact your SSO administrator." />
-      </Route>
       <Route path={cfg.routes.loginErrorUnauthorized}>
         <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />
       </Route>
-      <Route component={LoginFailed} />
+      <Route path={cfg.routes.loginErrorEntraIDGroupsOverage}>
+        <LoginFailedComponent message="Your account is a member of more than 150 Entra ID groups. Please contact your SSO administrator to configure Graph API access on the Teleport SAML connector." />
+      </Route>
+      <Route>
+        <LoginFailedComponent />
+      </Route>
     </Switch>
   );
 }

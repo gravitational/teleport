@@ -122,6 +122,8 @@ func (s *Service) Run(ctx context.Context) error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}))
+	mux.Handle("/wait", readyz.HTTPWaitHandler(s.statusRegistry))
+	mux.Handle("/wait/", readyz.HTTPWaitHandler(s.statusRegistry))
 	mux.Handle("/readyz", readyz.HTTPHandler(s.statusRegistry))
 	mux.Handle("/readyz/", readyz.HTTPHandler(s.statusRegistry))
 	srv := http.Server{

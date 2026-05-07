@@ -167,6 +167,7 @@ func testDatabaseLogin(t *testing.T) {
 				accessRequestorRole,
 				alice,
 			)
+			cfg.SSH.Enabled = false
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -440,6 +441,7 @@ func testDatabaseLogin(t *testing.T) {
 	// to enable parallel test runs.
 	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
@@ -551,7 +553,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 			if accessRequest.GetRequestReason() != wantRequestReason {
 				continue
 			}
-			for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+			for _, resourceID := range types.RiskyExtractResourceIDs(accessRequest.GetAllRequestedResourceIDs()) {
 				if resourceID.Kind == types.KindDatabase &&
 					resourceID.Name == wantDBName {
 					accessRequestID = accessRequest.GetName()
@@ -570,7 +572,8 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 }
 
 func TestLocalProxyRequirement(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
@@ -709,6 +712,7 @@ func testListDatabase(t *testing.T) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     fullName,
 				Protocol: defaults.ProtocolPostgres,
@@ -728,6 +732,7 @@ func testListDatabase(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+			cfg.SSH.Enabled = false
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     "leaf-postgres",
@@ -1424,7 +1429,8 @@ func TestChooseOneDatabase(t *testing.T) {
 			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) matches multiple databases`,
 		},
 	}
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			cf := &CLIConf{
@@ -1599,6 +1605,7 @@ func testDatabaseSelection(t *testing.T) {
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{
 				fooDB1, fooRDSDB, fooRDSCustomDB,
 				barRDSDB1, barRDSDB2,
@@ -1670,6 +1677,7 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, tt := range tests {
+			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1838,6 +1846,7 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
+			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1914,6 +1923,7 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
+			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -2002,6 +2012,7 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			test.checkOutput(t, shouldRetryGetDatabaseUsingSearchAsRoles(test.cf, test.tc, test.inputError))

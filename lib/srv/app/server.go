@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -35,9 +36,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -87,7 +89,7 @@ type Config struct {
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
@@ -124,7 +126,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("connections handler missing")
 	}
 	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("ConnectedProxyGetter missing")
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	return nil
 }
@@ -153,6 +155,12 @@ type Server struct {
 
 	// watcher monitors changes to application resources.
 	watcher *services.GenericWatcher[types.Application, readonly.Application]
+
+	// reconcileDone is closed after the first successful
+	// reconciliation cycle completes. It is only signaled
+	// when a resource watcher is active (s.watcher != nil).
+	reconcileDone     chan struct{}
+	reconcileDoneOnce sync.Once
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -206,9 +214,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh:  make(chan struct{}),
-		closeFunc:    closeFunc,
-		closeContext: closeContext,
+		reconcileCh:   make(chan struct{}),
+		reconcileDone: make(chan struct{}),
+		closeFunc:     closeFunc,
+		closeContext:  closeContext,
 	}
 
 	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
@@ -351,8 +360,13 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 		App:      copy,
 		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return server, trace.Wrap(err)
+	server.SetComponentFeatures(componentfeatures.ForAppServer(server))
+
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -447,7 +461,92 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		}()
 	}
 
+	// Clean up orphaned app server records left behind by a previous
+	// instance (e.g. after SIGHUP reload removed an app from config).
+	go s.cleanupOrphanedAppServers(ctx)
+
 	return nil
+}
+
+// cleanupOrphanedAppServers deletes app server heartbeat
+// records belonging to this host that no longer correspond
+// to a running app.
+//
+// When an app is removed from config and the agent is
+// reloaded via SIGHUP, the removed app's heartbeat record
+// is not deleted. It lingers in the auth backend until TTL
+// expiry (up to [apidefaults.ServerAnnounceTTL]). This
+// method runs on startup to clean up those orphaned records
+// immediately.
+//
+// For agents with dynamic apps (ResourceMatchers), cleanup
+// waits for the first successful reconciliation so that
+// s.apps includes dynamic apps before deciding what is
+// orphaned. If reconciliation does not complete within a
+// timeout, cleanup is skipped entirely to avoid mistakenly
+// deleting valid dynamic app records.
+func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
+	// Bail out if reconciliation does not complete within a
+	// reasonable time. Without a full picture of dynamic apps
+	// we could mistakenly delete valid records.
+	if s.watcher != nil {
+		timer := time.NewTimer(2 * time.Minute)
+		defer timer.Stop()
+		select {
+		case <-s.reconcileDone:
+		case <-timer.C:
+			s.log.WarnContext(ctx, "Timed out waiting for first reconciliation, skipping orphan cleanup.")
+			return
+		case <-s.closeContext.Done():
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	// Snapshot the current app set before the RPC call. close()
+	// clears s.apps under the write lock before canceling
+	// closeContext, so snapshotting early ensures we see the full
+	// set even if close() runs during GetApplicationServers.
+	s.mu.RLock()
+	currentApps := make(map[string]bool, len(s.apps))
+	for name := range s.apps {
+		currentApps[name] = true
+	}
+	s.mu.RUnlock()
+
+	servers, err := s.c.AuthClient.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		s.log.WarnContext(ctx, "Failed to list app servers for orphan cleanup.", "error", err)
+		return
+	}
+
+	for _, server := range servers {
+		if s.closeContext.Err() != nil {
+			return
+		}
+		if server.GetHostID() != s.c.HostID {
+			continue
+		}
+		// Skip app servers managed by other components (e.g. AWS
+		// OIDC integration servers upserted by the proxy web
+		// handler). In all-in-one deployments these share our
+		// HostID but are not part of the app service's app set.
+		if server.GetApp().GetIntegration() != "" {
+			continue
+		}
+		name := server.GetApp().GetName()
+		if currentApps[name] {
+			continue
+		}
+		if err := s.removeAppServer(ctx, name); err != nil {
+			if !trace.IsNotFound(err) {
+				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", name, "error", err)
+			}
+			continue
+		}
+		s.log.InfoContext(ctx, "Removed orphaned app server on startup.", "app", name)
+	}
 }
 
 // Close will shut the server down and unblock any resources.
@@ -486,6 +585,7 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.apps {
+		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {
@@ -531,7 +631,7 @@ func (s *Server) close(ctx context.Context) error {
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
 
-	// Stop the database resource watcher.
+	// Stop the application resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
 	}

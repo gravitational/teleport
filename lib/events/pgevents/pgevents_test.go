@@ -202,6 +202,11 @@ func TestConfig(t *testing.T) {
 			RetentionPeriod: defaultRetentionPeriod,
 			CleanupInterval: defaultCleanupInterval,
 		},
+		"postgres://foo#cert_reload_interval=1h": {
+			RetentionPeriod:    defaultRetentionPeriod,
+			CleanupInterval:    defaultCleanupInterval,
+			CertReloadInterval: time.Hour,
+		},
 
 		"postgres://foo#auth_mode=invalid-auth-mode": nil,
 	}

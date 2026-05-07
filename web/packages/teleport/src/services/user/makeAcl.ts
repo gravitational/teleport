@@ -86,9 +86,20 @@ export function makeAcl(json): Acl {
 
   const botInstances = json.botInstances || defaultAccess;
 
+  const instances = json.instances || defaultAccess;
+
   const workloadIdentity = json.workloadIdentity || defaultAccess;
 
   const clientIpRestriction = json.clientIpRestriction || defaultAccess;
+
+  const autoUpdateConfig = json.autoUpdateConfig || defaultAccess;
+  const autoUpdateVersion = json.autoUpdateVersion || defaultAccess;
+  const autoUpdateAgentRollout = json.autoUpdateAgentRollout || defaultAccess;
+  const autoUpdateAgentReport = json.autoUpdateAgentReport || defaultAccess;
+
+  const inferencePolicy = json.inferencePolicy || defaultAccess;
+  const inferenceModel = json.inferenceModel || defaultAccess;
+  const inferenceSecret = json.inferenceSecret || defaultAccess;
 
   return {
     accessList,
@@ -132,8 +143,16 @@ export function makeAcl(json): Acl {
     gitServers,
     accessGraphSettings,
     botInstances,
+    instances,
     workloadIdentity,
     clientIpRestriction,
+    autoUpdateConfig,
+    autoUpdateVersion,
+    autoUpdateAgentRollout,
+    autoUpdateAgentReport,
+    inferencePolicy,
+    inferenceModel,
+    inferenceSecret,
   };
 }
 

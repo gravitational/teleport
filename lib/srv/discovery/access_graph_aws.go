@@ -107,6 +107,9 @@ func (s *Server) reconcileAccessGraph(
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
+	s.Log.InfoContext(ctx, "Access graph AWS discovery iteration started")
+	defer s.Log.InfoContext(ctx, "Access graph AWS discovery iteration finished")
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -128,7 +131,7 @@ func (s *Server) reconcileAccessGraph(
 	errs := make([]error, 0, len(allFetchers))
 	// Collect the results from all fetchers.
 	// Each fetcher can return an error and a result.
-	for range allFetchers {
+	for i := 0; i < len(allFetchers); i++ {
 		fetcherResult := <-resultsC
 		fetcher, result, err := fetcherResult.fetcher, fetcherResult.result, fetcherResult.err
 		if err != nil {
@@ -244,7 +247,10 @@ func pushUpsertInBatches(
 	upsert *accessgraphv1alpha.AWSResourceList,
 ) error {
 	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+		end := i + batchSize
+		if end > len(upsert.Resources) {
+			end = len(upsert.Resources)
+		}
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Upsert{
@@ -266,7 +272,10 @@ func pushDeleteInBatches(
 	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
 	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+		end := i + batchSize
+		if end > len(toDel.Resources) {
+			end = len(toDel.Resources)
+		}
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
@@ -534,7 +543,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers without CloudTrail configured. Access graph sync without CloudTrail will will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers without CloudTrail configured. Access graph sync without CloudTrail will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
@@ -962,7 +971,7 @@ func (s *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 ) error {
 	parallelDownloads := make(chan struct{}, 60)
 	errG, ctx := errgroup.WithContext(ctx)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		errG.Go(
 			s.processMessagesWorker(
 				ctx,

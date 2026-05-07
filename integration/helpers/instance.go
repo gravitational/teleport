@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -61,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -370,8 +370,12 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(t.Context(), keygen.SetClock(cfg.Clock))
-	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	// TODO(tross): replace modules.GetModules with cfg.Modules
+	authority, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	fatalIf(err)
+
+	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
@@ -384,8 +388,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
-
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(types.RoleAdmin)},
@@ -393,23 +395,15 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	subject, err := identity.Subject()
 	fatalIf(err)
 
-	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{
-			CommonName:   cfg.ClusterName,
-			Organization: []string{cfg.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: clock,
-	})
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
 	fatalIf(err)
-
 	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
-
 	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
-
 	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: hostCryptoPubKey,
@@ -418,17 +412,11 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{
-			CommonName:   cfg.ClusterName,
-			Organization: []string{cfg.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: clock,
-	})
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
 	fatalIf(err)
-
 	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
 	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
@@ -633,7 +621,13 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
-	tconf.Keygen = testauthority.New()
+	// TODO(tross): replace modules.GetModules with tconf.Modules
+	clock := cmp.Or(tconf.Clock, clockwork.NewRealClock())
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Keygen = keygen
 	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
@@ -920,7 +914,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for range configs {
+	for j := 0; j < len(configs); j++ {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)
@@ -1512,6 +1506,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Stdout:                        cfg.Stdout,
 		NonInteractive:                true,
 		DisableSSHResumption:          cfg.DisableSSHResumption,
+		AddKeysToAgent:                client.AddKeysToAgentNo,
 	}
 
 	// JumpHost turns on jump host mode

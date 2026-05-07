@@ -27,7 +27,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"time"
 
@@ -51,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -637,6 +637,8 @@ type sessionCacheOptions struct {
 	proxySigner multiplexer.PROXYHeaderSigner
 	// See [sessionCache.sessionWatcherStartImmediately]. Used for testing.
 	sessionWatcherStartImmediately bool
+	// See [sessionCache.sessionWatcherInitializedChannel]. Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
@@ -660,19 +662,26 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	}
 
 	cache := &sessionCache{
-		clusterName:                         clusterName.GetClusterName(),
-		proxyClient:                         config.proxyClient,
-		accessPoint:                         config.accessPoint,
-		sessions:                            make(map[string]*SessionContext),
-		resources:                           make(map[string]*sessionResources),
-		authServers:                         config.servers,
-		closer:                              utils.NewCloseBroadcaster(),
-		cipherSuites:                        config.cipherSuites,
-		log:                                 config.logger,
-		clock:                               config.clock,
-		sessionLingeringThreshold:           config.sessionLingeringThreshold,
-		proxySigner:                         config.proxySigner,
-		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
+		clusterName:                      clusterName.GetClusterName(),
+		proxyClient:                      config.proxyClient,
+		accessPoint:                      config.accessPoint,
+		sessions:                         make(map[string]*SessionContext),
+		resources:                        make(map[string]*sessionResources),
+		authServers:                      config.servers,
+		closer:                           utils.NewCloseBroadcaster(),
+		cipherSuites:                     config.cipherSuites,
+		log:                              config.logger,
+		clock:                            config.clock,
+		sessionLingeringThreshold:        config.sessionLingeringThreshold,
+		proxySigner:                      config.proxySigner,
+		sessionWatcherStartImmediately:   config.sessionWatcherStartImmediately,
+		sessionWatcherInitializedChannel: config.sessionWatcherInitializedChannel,
+		sessionWatcherMarkInitialized: sync.OnceFunc(func() {
+			c := config.sessionWatcherInitializedChannel
+			if c != nil {
+				close(c)
+			}
+		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
 	}
 
@@ -724,7 +733,14 @@ type sessionCache struct {
 	// backoff used to start the WebSession watcher.
 	// Used for testing.
 	sessionWatcherStartImmediately bool
-
+	// sessionWatcherInitializedChannel is used to signal that the sessionWatcher
+	// received its first OpInit event and is ready to observe updates.
+	// May be nil.
+	// Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
+	// sessionWatcherMarkInitialized safely closes
+	// sessionWatcherInitializedChannel.
+	sessionWatcherMarkInitialized func()
 	// sessionWatcherEventProcessedChannel is used to signal that the
 	// sessionWatcher processed an event.
 	// May be nil.
@@ -854,6 +870,10 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 				"event", logutils.StringerAttr(event),
 			)
 
+			if event.Type == types.OpInit {
+				s.sessionWatcherMarkInitialized()
+				continue
+			}
 			if event.Type != types.OpPut {
 				continue // We only care about OpPut at the moment.
 			}
@@ -954,7 +974,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -972,6 +992,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
@@ -1016,6 +1042,21 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	sctx, ok := i.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return sctx, nil
@@ -1143,6 +1184,26 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	userClient, err := authclient.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
@@ -1257,7 +1318,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = slices.Delete(c.closers, i, i+1)
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
 			return
 		}
 	}

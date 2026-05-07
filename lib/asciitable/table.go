@@ -132,7 +132,7 @@ func (t *Table) AddColumn(c Column) {
 // AddRow adds a row of cells to the table.
 func (t *Table) AddRow(row []string) {
 	limit := min(len(row), len(t.columns))
-	for i := range limit {
+	for i := 0; i < limit; i++ {
 		cell, _ := t.truncateCell(i, row[i])
 		t.columns[i].width = max(len(cell), t.columns[i].width)
 	}
@@ -184,8 +184,8 @@ func (t *Table) WriteTo(w io.Writer) error {
 
 	// Header and separator.
 	if !t.IsHeadless() {
-		var colh []any
-		var cols []any
+		var colh []interface{}
+		var cols []interface{}
 
 		for _, col := range t.columns {
 			colh = append(colh, col.Title)
@@ -202,7 +202,7 @@ func (t *Table) WriteTo(w io.Writer) error {
 	// Body.
 	footnoteLabels := make(map[string]struct{})
 	for _, row := range t.rows {
-		var rowi []any
+		var rowi []interface{}
 		for i := range row {
 			cell, addFootnote := t.truncateCell(i, row[i])
 			if addFootnote {

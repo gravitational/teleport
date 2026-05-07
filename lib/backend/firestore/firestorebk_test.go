@@ -81,6 +81,7 @@ func firestoreParams() backend.Params {
 	collection := "tp-cluster-data-test"
 	projectID := "tp-testproj"
 	endpoint := ""
+	databaseId := ""
 
 	if c := os.Getenv("TELEPORT_FIRESTORE_TEST_COLLECTION"); c != "" {
 		collection = c
@@ -94,10 +95,15 @@ func firestoreParams() backend.Params {
 		endpoint = e
 	}
 
+	if d := os.Getenv("TELEPORT_FIRESTORE_TEST_DATABASE"); d != "" {
+		databaseId = d
+	}
+
 	return map[string]any{
 		"collection_name":                       collection,
 		"project_id":                            projectID,
 		"endpoint":                              endpoint,
+		"database_id":                           databaseId,
 		"purge_expired_documents_poll_interval": 300 * time.Millisecond,
 	}
 }
@@ -109,7 +115,7 @@ func ensureTestsEnabled(t *testing.T) {
 	}
 }
 
-func ensureEmulatorRunning(t *testing.T, cfg map[string]any) {
+func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
 	endpoint, _ := cfg["endpoint"].(string)
 	if endpoint == "" {
 		return
@@ -161,7 +167,7 @@ func TestFirestoreDB(t *testing.T) {
 }
 
 // newBackend creates a self-closing firestore backend
-func newBackend(t *testing.T, cfg map[string]any) *Backend {
+func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 	clock := clockwork.NewFakeClock()
 
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
@@ -373,11 +379,12 @@ func TestDeleteDocuments(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			docs := make([]*firestore.DocumentSnapshot, 0, tt.documents)
-			for i := range tt.documents {
+			for i := 0; i < tt.documents; i++ {
 				docs = append(docs, &firestore.DocumentSnapshot{
 					Ref: &firestore.DocumentRef{
 						Path: fmt.Sprintf("projects/test-project/databases/test-db/documents/test/%d", i+1),
@@ -483,8 +490,8 @@ func TestFirestoreMigration(t *testing.T) {
 		RevisionV1 string    `firestore:"-"`
 	}
 
-	for i := range 301 {
-		key := fmt.Appendf(nil, "test-%d", i)
+	for i := 0; i < 301; i++ {
+		key := []byte(fmt.Sprintf("test-%d", i))
 		_, err = uut.svc.Collection(uut.CollectionName).
 			Doc(base64.URLEncoding.EncodeToString(key)).
 			Set(context.Background(), &badRecord{
