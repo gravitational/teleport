@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -693,4 +694,33 @@ func (ac *AthenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 		QueueURL: aws.ToString(queueCreated.QueueUrl),
 		Region:   awsCfg.Region,
 	}
+}
+
+func TestIntegration_sqsMaxDirectMessageSize(t *testing.T) {
+	if ok, _ := strconv.ParseBool(os.Getenv(teleport.AWSRunTests)); !ok {
+		t.Skip("Skipping AWS integration test. Set TEST_AWS=true to run.")
+	}
+
+	ctx := t.Context()
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
+	require.NoError(t, err)
+
+	sqsClient := sqs.NewFromConfig(awsCfg)
+
+	queueName := fmt.Sprintf("sqsMaxDirectMessageSize-test-%s", uuid.New().String())
+	created, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
+		QueueName: aws.String(queueName),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := sqsClient.DeleteQueue(context.Background(), &sqs.DeleteQueueInput{
+			QueueUrl: created.QueueUrl,
+		})
+		assert.NoError(t, err)
+	})
+
+	got := sqsMaxDirectMessageSize(ctx, sqsClient, *created.QueueUrl, slog.Default())
+
+	// SQS default MaximumMessageSize is 1 MiB; expect value minus overhead.
+	require.Equal(t, (1024-10)*1024, got)
 }

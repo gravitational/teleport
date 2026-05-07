@@ -169,11 +169,16 @@ func NewPublisher(cfg PublisherConfig) *publisher {
 	}
 }
 
+// sqsGetQueueAttributer is the subset of the SQS API used by sqsMaxDirectMessageSize.
+type sqsGetQueueAttributer interface {
+	GetQueueAttributes(ctx context.Context, params *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error)
+}
+
 // sqsMaxDirectMessageSize queries the queue's MaximumMessageSize attribute and
 // returns a safe direct-send limit (attribute value minus sqsMessageAttributeOverhead).
 // Falls back to maxSNSDirectMessageSize and logs a warning if the attribute
 // cannot be retrieved or parsed.
-func sqsMaxDirectMessageSize(ctx context.Context, client *sqs.Client, queueURL string, logger *slog.Logger) int {
+func sqsMaxDirectMessageSize(ctx context.Context, client sqsGetQueueAttributer, queueURL string, logger *slog.Logger) int {
 	// sqsMessageAttributeOverhead is the amount subtracted from a queue's
 	// MaximumMessageSize when deriving the usable direct-send limit, to leave
 	// room for SQS message attributes.

@@ -21,16 +21,33 @@ package athena
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
+
+type mockSQSGetQueueAttributer struct {
+	attrs map[string]string
+	err   error
+}
+
+func (m *mockSQSGetQueueAttributer) GetQueueAttributes(_ context.Context, _ *sqs.GetQueueAttributesInput, _ ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &sqs.GetQueueAttributesOutput{Attributes: m.attrs}, nil
+}
 
 func init() {
 	// Override maxS3BasedSize so we don't have to allocate 2GiB to test it.
@@ -184,4 +201,52 @@ type mockUploader struct{}
 
 func (m mockUploader) UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error) {
 	return &transfermanager.UploadObjectOutput{}, nil
+}
+
+func Test_sqsMaxDirectMessageSize(t *testing.T) {
+	const overhead = 10 * 1024
+	const queueURL = "https://sqs.us-east-1.amazonaws.com/123456789/test-queue"
+
+	maxSizeAttr := func(v int) map[string]string {
+		return map[string]string{string(sqstypes.QueueAttributeNameMaximumMessageSize): strconv.Itoa(v)}
+	}
+
+	tests := []struct {
+		name     string
+		mock     *mockSQSGetQueueAttributer
+		wantSize int
+	}{
+		{
+			name:     "returns attribute value minus overhead",
+			mock:     &mockSQSGetQueueAttributer{attrs: maxSizeAttr(262144)},
+			wantSize: 262144 - overhead,
+		},
+		{
+			name:     "falls back to SNS limit when API call fails",
+			mock:     &mockSQSGetQueueAttributer{err: errors.New("connection refused")},
+			wantSize: maxSNSDirectMessageSize,
+		},
+		{
+			name:     "falls back to SNS limit when attribute is missing",
+			mock:     &mockSQSGetQueueAttributer{attrs: map[string]string{}},
+			wantSize: maxSNSDirectMessageSize,
+		},
+		{
+			name:     "falls back to SNS limit when value is not a number",
+			mock:     &mockSQSGetQueueAttributer{attrs: map[string]string{string(sqstypes.QueueAttributeNameMaximumMessageSize): "not-a-number"}},
+			wantSize: maxSNSDirectMessageSize,
+		},
+		{
+			name:     "falls back to SNS limit when value is too small to subtract overhead",
+			mock:     &mockSQSGetQueueAttributer{attrs: maxSizeAttr(overhead)},
+			wantSize: maxSNSDirectMessageSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sqsMaxDirectMessageSize(context.Background(), tt.mock, queueURL, slog.Default())
+			assert.Equal(t, tt.wantSize, got)
+		})
+	}
 }
