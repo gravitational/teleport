@@ -221,7 +221,13 @@ async function* debounceWatch(
   let signal = Promise.withResolvers<void>();
   let closed = false;
   let eventsToDebounce = 0;
+  let uniqueFiles = new Set<string | null>();
   const scheduleYield = debounce(() => {
+    logger.info('Received debounced file system events', {
+      eventCount: eventsToDebounce,
+      files: Array.from(uniqueFiles.values()),
+    });
+    uniqueFiles.clear();
     eventsToDebounce = 0;
     signal.resolve();
   }, debounceMs);
@@ -245,10 +251,7 @@ async function* debounceWatch(
     path,
     signal: abortSignal,
     onEvent: (event: WatchEventType, filename: string | null) => {
-      logger.info('Received file system event', {
-        event,
-        filename,
-      });
+      uniqueFiles.add(filename);
       queueFileSystemEvent();
     },
   });
