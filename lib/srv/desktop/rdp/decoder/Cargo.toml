@@ -11,4 +11,5 @@ crate-type = ["staticlib", "lib"]
 [dependencies]
 ironrdp-core.workspace = true
 ironrdp-graphics.workspace = true
+ironrdp-pdu.workspace = true
 ironrdp-session.workspace = true
