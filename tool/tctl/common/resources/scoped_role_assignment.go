@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package resources
 
 import (
@@ -33,17 +34,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type scopedRoleAssignmentCollection struct {
+type ScopedRoleAssignmentCollection struct {
 	roleAssignments []*scopedaccessv1.ScopedRoleAssignment
 }
 
-func NewScopedRoleAssignmentCollection(roles []*scopedaccessv1.ScopedRoleAssignment) Collection {
-	return &scopedRoleAssignmentCollection{
-		roleAssignments: roles,
+func NewScopedRoleAssignmentCollection(assignments []*scopedaccessv1.ScopedRoleAssignment) Collection {
+	return &ScopedRoleAssignmentCollection{
+		roleAssignments: assignments,
 	}
 }
 
-func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
+func (c *ScopedRoleAssignmentCollection) Resources() []types.Resource {
 	r := make([]types.Resource, len(c.roleAssignments))
 	for i, resource := range c.roleAssignments {
 		r[i] = types.Resource153ToLegacy(resource)
@@ -51,7 +52,7 @@ func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
 	return r
 }
 
-func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
+func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"SubKind", "Scope", "Name", "User", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
@@ -160,14 +161,14 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref
 			return nil, trace.Wrap(err)
 		}
 
-		return &scopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
+		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
 	}
 
 	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &scopedRoleAssignmentCollection{roleAssignments: items}, nil
+	return NewScopedRoleAssignmentCollection(items), nil
 }
 
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref) error {

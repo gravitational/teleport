@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -415,6 +416,168 @@ func TestUserV2IsEqual(t *testing.T) {
 			a := tt.a(t)
 			b := tt.b(t)
 			require.Equal(t, tt.want, a.IsEqual(b))
+		})
+	}
+}
+
+// TestUserMatchSearch tests the SearchKeywords filter for users, which includes keys and values
+// for labels and traits.
+func TestUserMatchSearch(t *testing.T) {
+	u := newUser(t)
+
+	tests := []struct {
+		name           string
+		searchKeywords []string
+		want           bool
+	}{
+		{
+			name:           "match empty search",
+			searchKeywords: []string{""},
+			want:           true,
+		},
+		{
+			name:           "match by name",
+			searchKeywords: []string{"alice"},
+			want:           true,
+		},
+		{
+			name:           "match by label",
+			searchKeywords: []string{"env", "prod"},
+			want:           true,
+		},
+		{
+			name:           "match by role",
+			searchKeywords: []string{"admin", "dev"},
+			want:           true,
+		},
+		{
+			name:           "match by trait",
+			searchKeywords: []string{"logins", "root"},
+			want:           true,
+		},
+		{
+			name:           "match none",
+			searchKeywords: []string{"fake"},
+			want:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, u.MatchSearch(tt.searchKeywords))
+		})
+	}
+}
+
+func TestUserMatchTraits(t *testing.T) {
+	u := newUser(t)
+
+	tests := []struct {
+		name   string
+		traits map[string][]string
+		want   bool
+	}{
+		{
+			name:   "match nil",
+			traits: nil,
+			want:   true,
+		},
+		{
+			name:   "match empty",
+			traits: map[string][]string{},
+			want:   true,
+		},
+		{
+			name:   "match full",
+			traits: map[string][]string{"logins": {"root", "alice"}},
+			want:   true,
+		},
+		{
+			name:   "match subset",
+			traits: map[string][]string{"logins": {"alice"}},
+			want:   true,
+		},
+		{
+			name:   "match none",
+			traits: map[string][]string{"logins": {"nobody"}},
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, u.MatchTraits(tt.traits))
+		})
+	}
+}
+
+func BenchmarkMatchSearch(b *testing.B) {
+	const count = 50
+
+	u := &UserV2{
+		Kind:    KindUser,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      "alice",
+			Namespace: "default",
+		},
+	}
+
+	u.Metadata.Labels = make(map[string]string, count)
+	u.Spec.Traits = make(map[string][]string, count)
+	for i := range count {
+		u.Metadata.Labels[fmt.Sprintf("label-%d", i)] = fmt.Sprintf("value-%d", i)
+		u.Spec.Roles = append(u.Spec.Roles, fmt.Sprintf("role-%d", i))
+		u.Spec.Traits[fmt.Sprintf("trait-%d", i)] = []string{
+			fmt.Sprintf("trait-value-%d-a", i),
+			fmt.Sprintf("trait-value-%d-b", i),
+		}
+	}
+
+	benchmarks := []struct {
+		name           string
+		searchKeywords []string
+		want           bool
+	}{
+		{
+			name:           "match empty search",
+			searchKeywords: []string{""},
+			want:           true,
+		},
+		{
+			name:           "match by name",
+			searchKeywords: []string{"alice"},
+			want:           true,
+		},
+		{
+			name:           "match by label",
+			searchKeywords: []string{"label-49", "value-49"},
+			want:           true,
+		},
+		{
+			name:           "match by role",
+			searchKeywords: []string{"role-49"},
+			want:           true,
+		},
+		{
+			name:           "match by trait",
+			searchKeywords: []string{"trait-49", "trait-value-49-b"},
+			want:           true,
+		},
+		{
+			name:           "match none",
+			searchKeywords: []string{"fake"},
+			want:           false,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				require.Equal(b, bm.want, u.MatchSearch(bm.searchKeywords))
+			}
 		})
 	}
 }

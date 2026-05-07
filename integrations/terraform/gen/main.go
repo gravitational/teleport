@@ -179,6 +179,11 @@ type RequestWrapper struct {
 	// RequestResourceField is the field name in request
 	// types that holds the resource object - ex) "Role" in ScopedRoles.
 	RequestResourceField string
+	// ReturnsUnwrappedResource describes whether the response needs to be unwrapped.
+	// Should be false if `GetRequest` returns a GetResponse struct.
+	// Should be true if `GetRequest` returns the resource itself.
+	ReturnsUnwrappedResource bool
+
 	// GetRequest is the type name for the Get request - ex) "GetScopedRoleRequest".
 	GetRequest string
 	// CreateRequest is the type name for the Create request - ex) "CreateScopedRoleRequest".
@@ -1040,6 +1045,65 @@ var (
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
 
+	scopedRole = payload{
+		Name:                  "ScopedRole",
+		TypeName:              "ScopedRole",
+		VarName:               "scopedRole",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRole",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRole",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRole",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRole",
+		ID:                    "scopedRole.Metadata.Name",
+		Kind:                  "scoped_role",
+		HasStaticID:           false,
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1",
+		TerraformResourceType: "teleport_scoped_role",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRole",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Role",
+			GetRequest:           "GetScopedRoleRequest",
+			CreateRequest:        "CreateScopedRoleRequest",
+			UpdateRequest:        "UpsertScopedRoleRequest",
+			DeleteRequest:        "DeleteScopedRoleRequest",
+		},
+	}
+
+	scopedRoleAssignment = payload{
+		Name:                  "ScopedRoleAssignment",
+		TypeName:              "ScopedRoleAssignment",
+		VarName:               "scopedRoleAssignment",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRoleAssignment",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRoleAssignment",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRoleAssignment",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRoleAssignment",
+		ID:                    "scopedRoleAssignment.Metadata.Name",
+		Kind:                  "scoped_role_assignment",
+		HasStaticID:           false,
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
+		SchemaPackage:         "assignmentschemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/assignment/v1",
+		TerraformResourceType: "teleport_scoped_role_assignment",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRoleAssignment",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Assignment",
+			GetRequest:           "GetScopedRoleAssignmentRequest",
+			CreateRequest:        "CreateScopedRoleAssignmentRequest",
+			UpdateRequest:        "UpsertScopedRoleAssignmentRequest",
+			DeleteRequest:        "DeleteScopedRoleAssignmentRequest",
+		},
+		DefaultSubKind: "\"dynamic\"",
+	}
+
 	scopedToken = payload{
 		Name:                  "ScopedToken",
 		TypeName:              "ScopedToken",
@@ -1096,6 +1160,35 @@ var (
 			TargetStates:             []string{"active"},
 			StatePollIntervalSeconds: 30,
 			StateTimeoutSeconds:      15 * 60,
+		},
+	}
+	databaseObjectImportRule = payload{
+		Name:                  "DatabaseObjectImportRule",
+		TypeName:              "DatabaseObjectImportRule",
+		VarName:               "importRule",
+		GetMethod:             "DatabaseObjectImportRuleClient().GetDatabaseObjectImportRule",
+		CreateMethod:          "DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule",
+		DeleteMethod:          "DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule",
+		ID:                    "importRule.GetMetadata().GetName()",
+		Kind:                  "db_object_import_rule",
+		HasStaticID:           false,
+		ProtoPackage:          "dbobjectimportrulev1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/dbobjectimportrule/v1",
+		TerraformResourceType: "teleport_db_object_import_rule",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindDatabaseObjectImportRule",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField:     "Rule",
+			ReturnsUnwrappedResource: true,
+			GetRequest:               "GetDatabaseObjectImportRuleRequest",
+			CreateRequest:            "CreateDatabaseObjectImportRuleRequest",
+			UpdateRequest:            "UpsertDatabaseObjectImportRuleRequest",
+			DeleteRequest:            "DeleteDatabaseObjectImportRuleRequest",
 		},
 	}
 	/*
@@ -1215,10 +1308,16 @@ func genTFSchema() {
 	generateDataSource(inferencePolicy, pluralDataSource)
 	generateResource(retrievalModel, singularResource)
 	generateDataSource(retrievalModel, singularDataSource)
+	generateResource(scopedRole, pluralResource)
+	generateDataSource(scopedRole, pluralDataSource)
+	generateResource(scopedRoleAssignment, pluralResource)
+	generateDataSource(scopedRoleAssignment, pluralDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
+	generateResource(databaseObjectImportRule, pluralResource)
+	generateDataSource(databaseObjectImportRule, pluralDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 

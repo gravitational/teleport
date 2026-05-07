@@ -1297,3 +1297,8 @@ func isEmpty(b bool) C.uint8_t {
 	}
 	return 0
 }
+
+// DisableNLA disables NLA in the client configuration.
+func (c *Client) DisableNLA() {
+	c.cfg.NLA = false
+}

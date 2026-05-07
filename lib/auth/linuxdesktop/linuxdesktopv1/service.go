@@ -240,14 +240,9 @@ func (s *Service) UpsertLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Up
 		if err := checkAccess(authCtx, existing); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if err := checkAccess(authCtx, desktop); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := checkAccess(authCtx, desktop); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	}
+	if err := checkAccess(authCtx, desktop); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	rsp, err := s.backend.UpsertLinuxDesktop(ctx, desktop)

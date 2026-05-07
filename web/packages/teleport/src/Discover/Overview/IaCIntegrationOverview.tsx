@@ -44,7 +44,10 @@ import {
   InfoGuideSwitch,
   useTerraformInfoGuide,
 } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
-import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
+import {
+  latestSyncDate,
+  SummaryStatusLabel,
+} from 'teleport/Integrations/shared/StatusLabel';
 import { useNoMinWidth } from 'teleport/Main';
 import {
   INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS,
@@ -214,7 +217,7 @@ function IntegrationHealthCard({
   }, []);
 
   const hasIssues = stats.unresolvedUserTasks > 0;
-  const lastScanDate = getIntegrationLastScan(stats);
+  const lastScanDate = latestSyncDate(stats);
   const lastScanText = formatRelativeDate(lastScanDate);
   const nextScanText = formatTimeUntilNextScan(lastScanDate, nowMs);
   const configDetails = getIntegrationConfigDetails(stats);
@@ -375,19 +378,6 @@ function IssueItem(props: { text: string }) {
   );
 }
 
-function getIntegrationLastScan(
-  stats: IntegrationWithSummary
-): Date | undefined {
-  const lastScan = Math.max(
-    getTimestamp(stats.awsec2?.discoverLastSync),
-    getTimestamp(stats.awsrds?.discoverLastSync),
-    getTimestamp(stats.awseks?.discoverLastSync),
-    getTimestamp(stats.rolesAnywhereProfileSync?.syncEndTime)
-  );
-
-  return lastScan ? new Date(lastScan) : undefined;
-}
-
 function getIntegrationConfigDetails(
   stats: IntegrationWithSummary
 ): Array<{ label: string; value: string }> {
@@ -430,7 +420,8 @@ function formatResourceCounts(stats: IntegrationWithSummary): string {
   const ec2Count = stats.awsec2?.resourcesFound || 0;
   const rdsCount = stats.awsrds?.resourcesFound || 0;
   const eksCount = stats.awseks?.resourcesFound || 0;
-  const total = ec2Count + rdsCount + eksCount;
+  const azureVmCount = stats.azurevm?.resourcesFound || 0;
+  const total = ec2Count + rdsCount + eksCount + azureVmCount;
 
   if (total === 0) {
     return 'No resources discovered';
@@ -445,6 +436,9 @@ function formatResourceCounts(stats: IntegrationWithSummary): string {
   }
   if (eksCount > 0) {
     parts.push(`EKS: ${eksCount}`);
+  }
+  if (azureVmCount > 0) {
+    parts.push(`Azure VMs: ${azureVmCount}`);
   }
 
   return `${total} Discovered (${parts.join(', ')})`;
@@ -473,7 +467,7 @@ function formatTimeUntilNextScan(
 }
 
 function getStatsRefetchIntervalMs(stats: IntegrationWithSummary | undefined) {
-  const lastScanDate = stats ? getIntegrationLastScan(stats) : undefined;
+  const lastScanDate = stats ? latestSyncDate(stats) : undefined;
 
   if (!lastScanDate) {
     return OVERDUE_REFETCH_INTERVAL_MS;
@@ -485,21 +479,4 @@ function getStatsRefetchIntervalMs(stats: IntegrationWithSummary | undefined) {
     Date.now();
 
   return remainingMs <= 0 ? OVERDUE_REFETCH_INTERVAL_MS : remainingMs;
-}
-
-function getTimestamp(value: unknown): number {
-  if (!value) {
-    return 0;
-  }
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
 }

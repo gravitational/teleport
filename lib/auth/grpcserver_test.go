@@ -59,7 +59,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -88,6 +91,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -6824,6 +6828,140 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 
 			if test.assertCert != nil {
 				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
+func TestGenerateUserCertsScopedBot(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+			},
+		},
+	}))
+	adminClient, err := testServer.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		botName  string
+		scope    string
+		internal bool
+		expect   func(t *testing.T, err error)
+	}{
+		{
+			name:     "internal scoped",
+			botName:  "scoped_internal",
+			internal: true,
+			scope:    "/test",
+			expect: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.Contains(t, err.Error(), "scoped bots can not generate user certs")
+
+			},
+		},
+		{
+			name:    "scoped bot",
+			botName: "scoped_bot",
+			scope:   "/test",
+			expect: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.Contains(t, err.Error(), "scoped bots can not generate user certs")
+			},
+		},
+		{
+			name:     "internal unscoped",
+			botName:  "internal",
+			internal: true,
+		},
+		{
+			name:    "unscoped",
+			botName: "unscoped",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := t.Context()
+			bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+				Bot: &machineidv1.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: c.botName,
+					},
+					Scope: c.scope,
+					Spec:  &machineidv1.BotSpec{},
+				},
+			})
+			require.NoError(t, err)
+
+			ident := authtest.TestBot(c.botName, c.internal)
+			if c.scope != "" {
+				scopedSvc := adminClient.ScopedAccessServiceClient()
+				roleResp, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+					Role: &scopedaccessv1.ScopedRole{
+						Kind:    scopedaccess.KindScopedRole,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: c.botName + "-role",
+						},
+						Scope: c.scope,
+						Spec: &scopedaccessv1.ScopedRoleSpec{
+							AssignableScopes: []string{c.scope},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+					Assignment: &scopedaccessv1.ScopedRoleAssignment{
+						Kind:    scopedaccess.KindScopedRoleAssignment,
+						SubKind: scopedaccess.SubKindDynamic,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: uuid.NewString(),
+						},
+						Scope: c.scope,
+						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+							BotName:  bot.GetMetadata().GetName(),
+							BotScope: c.scope,
+							Assignments: []*scopedaccessv1.Assignment{
+								{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				waitForSRACache(t, testServer, sra)
+				ident = authtest.TestScopedBot(c.botName, c.scope, c.internal)
+			}
+
+			client, err := testServer.NewClient(ident)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = client.Close() })
+
+			_, sshPub, _, _ := newSSHAndTLSKeyPairs(t)
+			_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				SSHPublicKey:   sshPub,
+				Username:       ident.GetUsername(),
+				Expires:        time.Now().Add(time.Hour),
+				RouteToCluster: testServer.ClusterName(),
+				NodeName:       "mynode",
+				Usage:          proto.UserCertsRequest_SSH,
+				SSHLogin:       "llama",
+			})
+			if c.expect != nil {
+				c.expect(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

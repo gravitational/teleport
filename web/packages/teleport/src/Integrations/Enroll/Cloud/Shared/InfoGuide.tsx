@@ -49,10 +49,9 @@ export const ContentWithSidePanel = styled(Box)<{
   transition: ${p => (p.isPanelOpen ? 'margin 150ms' : 'margin 300ms')};
 `;
 
-export function useTerraformInfoGuide(defaultOpen = true) {
-  const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
-    defaultOpen ? 'info' : null
-  );
+export function useTerraformInfoGuide(defaultTab: InfoGuideTab = 'info') {
+  const [activeInfoGuideTab, setActiveInfoGuideTab] =
+    useState<InfoGuideTab>(defaultTab);
 
   const isPanelOpen = activeInfoGuideTab !== null;
 

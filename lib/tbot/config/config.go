@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
@@ -103,7 +104,7 @@ type BotConfig struct {
 
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
-	// - Refuse to run if not compiled with boringcrypto
+	// - Refuse to run if not compiled in FIPS140 mode
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - RSA2048 or ECDSA with NIST-P256 curve should be used for private key generation
@@ -444,6 +445,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case application.ProxyServiceType:
 			v := &application.ProxyServiceConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case beams.VNetServiceType:
+			v := &beams.VNetServiceConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

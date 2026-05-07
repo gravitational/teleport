@@ -367,7 +367,7 @@ foos, err := clientutils.Resources(ctx, client.ListFoos)
 #### Delete
 
 The `Delete` RPC takes the parameters required to match a resource and performs a hard delete of the specified resource
-from the backend and returns a `google.protobuf.Empty`.
+from the backend and returns an empty response message. 
 
 The request MUST fail and return a `trace.NotFound` error if there is no matching resource in the backend.
 
@@ -906,6 +906,11 @@ message GetFooRequest {
   string foo_id = 1;
 }
 
+// Response for GetFoo.
+message GetFooResponse {
+  // The retrieved foo resource.
+  Foo foo = 1;
+}
 
 // Request for ListFoos.
 //

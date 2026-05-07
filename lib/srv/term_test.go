@@ -120,7 +120,8 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	}()
 
 	// Continue execution
-	scx.execRequest.Continue()
+	err = term.cmd.Continue()
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)

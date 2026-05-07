@@ -108,6 +108,7 @@ linters:
             - '!**/integrations/operator/controllers/resources/testlib/**'
             - '!**/lib/auth/test/**'
             - '!**/lib/services/suite/**'
+            - '!**/build.assets/tooling/**'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'

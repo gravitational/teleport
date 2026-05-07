@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package access
+package access_test
 
 import (
 	"context"
@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -110,7 +111,7 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 	}
 
 	// Create the scoped access cache.
-	cache, err := NewCache(CacheConfig{
+	cache, err := access.NewCache(access.CacheConfig{
 		Events:           events,
 		Reader:           scopedAccessService,
 		AccessListEvents: aclCache,
@@ -975,7 +976,7 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 						// Fix the access list reader and the assignment should be materialized.
 						synctest.Wait()
 						state.breakableACLReader.Fix()
-						time.Sleep(missedMembersRepairBackoff)
+						time.Sleep(access.MissedMembersRepairBackoff)
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "child", []*scopedaccessv1.Assignment{{
@@ -1005,7 +1006,7 @@ func TestMaterializerRepairFailedReads(t *testing.T) {
 						// assignments should be materialized.
 						synctest.Wait()
 						state.breakableACLReader.Fix()
-						time.Sleep(missedMembersRepairBackoff)
+						time.Sleep(access.MissedMembersRepairBackoff)
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 						expectedScopedRoleAssignment("tester", "child", []*scopedaccessv1.Assignment{{
@@ -1214,32 +1215,29 @@ creating the input:     %v
 inserting to backend:   %v
 initializing acl cache: %v`, t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 
-			// Store the state outside the benchmark loop just so we can
-			// reference the final materialized assignments after the benchmark
-			// is done.
-			state := state{}
+			var assignmentCache *assignments.AssignmentCache
 
 			b.Run("init", func(b *testing.B) {
 				// Initialize a new materializer with a new assignment state
 				// for each benchmark loop.
 				for b.Loop() {
-					state.assignments = assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
-					materializer := newMaterializer(aclCache, tracing.NoopTracer("test"))
-					require.NoError(b, materializer.Init(b.Context(), state))
+					assignmentCache = assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
+					materializer := access.NewMaterializer(assignmentCache, aclCache, tracing.NoopTracer("test"))
+					require.NoError(b, materializer.Init(b.Context()))
 				}
 			})
 
-			b.Logf("Materialized %d assignments", state.assignments.Len())
+			b.Logf("Materialized %d assignments", assignmentCache.Len())
 
 			// How long does it take to literally just copy every already
 			// materialized assignment into a new assignment cache. This is a
 			// nice baseline for how fast it's physically possible to go.
 			b.Run("init baseline", func(b *testing.B) {
 				for b.Loop() {
-					assignmentCache := assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
-					for assignment, err := range utils.RangeScopedRoleAssignments(b.Context(), state.assignments, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+					clonedCache := assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
+					for assignment, err := range utils.RangeScopedRoleAssignments(b.Context(), assignmentCache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 						require.NoError(b, err)
-						assignmentCache.Put(assignment)
+						clonedCache.Put(assignment)
 					}
 				}
 			})
@@ -1252,12 +1250,12 @@ initializing acl cache: %v`, t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 					if !member.IsUser() {
 						continue
 					}
-					key := materializedAssignmentKey{
-						list: listName,
-						user: member.GetName(),
+					key := access.MaterializedAssignmentKey{
+						List: listName,
+						User: member.GetName(),
 					}
-					_, err := state.assignments.GetScopedRoleAssignment(b.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-						Name:    key.assignmentName(),
+					_, err := assignmentCache.GetScopedRoleAssignment(b.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+						Name:    key.AssignmentName(),
 						SubKind: scopedaccess.SubKindMaterialized,
 					})
 					assert.NoError(b, err)
@@ -1393,16 +1391,16 @@ func newAccessListMember(t require.TestingT, parent, member, membershipKind stri
 }
 
 func expectedScopedRoleAssignment(userName, listName string, assignments []*scopedaccessv1.Assignment) *scopedaccessv1.ScopedRoleAssignment {
-	key := materializedAssignmentKey{
-		user: userName,
-		list: listName,
+	key := access.MaterializedAssignmentKey{
+		User: userName,
+		List: listName,
 	}
 	return &scopedaccessv1.ScopedRoleAssignment{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindMaterialized,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: key.assignmentName(),
+			Name: key.AssignmentName(),
 		},
 		Scope: "/",
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
@@ -1419,7 +1417,7 @@ func expectedScopedRoleAssignment(userName, listName string, assignments []*scop
 }
 
 type breakableAccessListReader struct {
-	AccessListReader
+	access.AccessListReader
 
 	broken atomic.Bool
 }
