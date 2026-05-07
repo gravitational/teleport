@@ -50,6 +50,12 @@ export function parseMfaRegistrationChallengeJson(
         ...credential,
         id: base64urlToBuffer(credential.id),
       })),
+      // extensions.largeBlob.write of PublicKeyCredentialCreationOptions is BufferSource, while
+      // its JSON counterpart is a string. largeBlob isn't used here, but TypeScript 7's stricter
+      // overlap check rejects a direct `as` cast on the whole object. Casting just extensions
+      // through `unknown` preserves type checking on the other fields.
+      extensions:
+        json.extensions as unknown as AuthenticationExtensionsClientInputs,
     }) as PublicKeyCredentialCreationOptions;
 
   return {
@@ -86,6 +92,12 @@ export function parseMfaChallengeJson(
         ...credential,
         id: base64urlToBuffer(credential.id),
       })),
+      // extensions.largeBlob.write of PublicKeyCredentialRequestOptions is BufferSource, while
+      // its JSON counterpart is a string. largeBlob isn't used here, but TypeScript 7's stricter
+      // overlap check rejects a direct `as` cast on the whole object. Casting just extensions
+      // through `unknown` preserves type checking on the other fields.
+      extensions:
+        json.extensions as unknown as AuthenticationExtensionsClientInputs,
     }) as PublicKeyCredentialRequestOptions;
 
   return {
