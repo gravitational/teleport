@@ -341,6 +341,7 @@ test.each(tests)('$name', async ({ setup, expect: testExpect }) => {
     consumer
   );
   const mockRendererHandler = {
+    id: 'test-renderer-handler',
     send: throwInRendererHandler
       ? jest.fn().mockRejectedValue(new Error('Error in renderer'))
       : jest.fn().mockResolvedValue(undefined),
