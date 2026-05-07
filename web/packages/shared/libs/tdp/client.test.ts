@@ -45,7 +45,7 @@ jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 test('tdp upgrade', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess)
+    () => Promise.resolve(mockSharedDirectoryAccess),
   );
 
   const transportOpen = new Promise<void>(client.onTransportOpen);
@@ -60,7 +60,7 @@ test('tdp upgrade', async () => {
   expect(mockTransport.send).toHaveBeenCalledTimes(2);
 
   let onMessage = mockTransport.onMessage.mock.calls[0][0] as (
-    data: ArrayBufferLike
+    data: ArrayBufferLike,
   ) => void;
   // Hand jam a tdpb upgrade message
   let msg = new Uint8Array(1);
@@ -81,7 +81,7 @@ test('tdp upgrade', async () => {
   // Should have received a ClientHello
   if (envelope.payload.oneofKind !== 'clientHello') {
     throw Error(
-      `Expected kind="clientHello", got ${envelope.payload.oneofKind}`
+      `Expected kind="clientHello", got ${envelope.payload.oneofKind}`,
     );
   }
 
@@ -93,25 +93,41 @@ test('tdp upgrade', async () => {
 test('shared directory management', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => {
-      return Promise.resolve(mockSharedDirectoryAccess);
-    }
+    () => Promise.resolve(mockSharedDirectoryAccess),
+    // Remove operations are only supported on the TDPB codec.
+    { mode: 'tdpb' },
   );
 
-  let manager = client['directoryManager'];
-  await Array.from({ length: 10 }, () => manager.shareDirectory());
+  // Must connect before shared directory functions can be called.
+  let transportOpen = new Promise<void>(client.onTransportOpen);
+  client.connect({
+    screenSpec: { width: 1920, height: 1080 },
+    keyboardLayout: 1,
+  });
+  await transportOpen;
+
+  //let manager = client['directoryManager'];
+  await Array.from({ length: 10 }, () => client.shareDirectory());
   // Identifiers begin at 2
-  const directories = manager.listSharedDirectories();
+  const directories = client.listSharedDirectories();
   expect(directories).toHaveLength(10);
 
   // Reached maximum number of shared directories
-  await expect(manager.shareDirectory()).rejects.toThrow();
-  // unshare all
-  manager.reset();
+  await expect(client.shareDirectory()).rejects.toThrow();
+
+  // Internal directory management state should reset upon
+  // shutdown and subsequent connect.
+  client.shutdown();
+  transportOpen = new Promise<void>(client.onTransportOpen);
+  client.connect({
+    screenSpec: { width: 1920, height: 1080 },
+    keyboardLayout: 1,
+  });
+  await transportOpen;
 
   let shareUnshare = async () => {
-    const res = await manager.shareDirectory();
-    manager.unshareDirectory(res[0]);
+    const res = await client.shareDirectory();
+    client.unshareDirectory(res.id);
   };
 
   // 11 more
@@ -120,12 +136,12 @@ test('shared directory management', async () => {
   // The range of valid device identifiers is currently [2, 22]
   // Initial and released identifiers are added to a FIFO, so the
   // next leased identifier should be be 2.
-  const res = await manager.shareDirectory();
-  expect(res[0]).toEqual(2);
+  const res = await client.shareDirectory();
+  expect(res.id).toEqual(2);
 
   const warn = jest.spyOn(console, 'warn').mockImplementation();
   // releasing an unknown or unleased identifier does not throw, but
   // should log a warning.
-  manager.unshareDirectory(3);
+  client.unshareDirectory(3);
   expect(warn).toHaveBeenCalled();
 });

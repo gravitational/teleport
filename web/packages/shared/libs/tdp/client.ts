@@ -129,6 +129,11 @@ export enum LogType {
   TRACE = 'TRACE',
 }
 
+export type DirectoryEntry = {
+  name: string;
+  id: number;
+}
+
 export interface TdpTransport {
   /** Sends a message down the stream. */
   send(data: string | ArrayBufferLike): void;
@@ -904,10 +909,10 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.send(msg);
   }
 
-  async shareDirectory(): Promise<[number, string]> {
-    const [id, name] = await this.directoryManager.shareDirectory();
-    this.sendSharedDirectoryAnnounce(id, name);
-    return [id, name];
+  async shareDirectory(): Promise<DirectoryEntry> {
+    const entry = await this.directoryManager.shareDirectory();
+    this.sendSharedDirectoryAnnounce(entry.id, entry.name);
+    return entry;
   }
 
   unshareDirectory(directoryId: number) {
@@ -1073,8 +1078,8 @@ class SharedDirectoryManager {
     return directoryAccess;
   }
 
-  async shareDirectory(): Promise<[number, string]> {
-    if (this.sharedDirectories.size >= this.max_directories) {
+  async shareDirectory(): Promise<DirectoryEntry> {
+    if (this.sharedDirectories.size >= this.maxDirectories) {
       throw Error('Maximum allowed shared directories reached');
     }
 
@@ -1088,7 +1093,7 @@ class SharedDirectoryManager {
     this.logger.info(
       `Sharing directory '${directory.getDirectoryName()}' with device_id '${id}'`
     );
-    return [id, directory.getDirectoryName()];
+    return {name: directory.getDirectoryName(), id};
   }
 
   unshareDirectory(directoryId: number): void {
