@@ -2,6 +2,16 @@
 
 ## 18.8.0 (05/07/26)
 
+### Performance improvements in the SSH service
+
+Thanks to internal improvements ([#66220](https://github.com/gravitational/teleport/pull/66220)), users of the Teleport SSH service on Linux will enjoy reduced memory usage and improved latency when opening shells and running commands.
+
+The reduction in the latency compared to the previous version of Teleport, as measured on a `m7i.xlarge` EC2 instance, amounts to roughly 100 ms when opening shells or launching commands and about 150 ms when using SFTP, with an additional 40 ms improvement when establishing the very first port forward for a given SSH connection.
+
+The improvement in memory usage trades off an additional 7MiB of baseline memory usage for a significant reduction in the per-session memory usage of about 23 MiB for each shell or command execution, with another 20 MiB of memory savings for each SSH connection using port forwarding, and about 45 MiB for SFTP sessions.
+
+### Other fixes and improvements
+
 * Improved Teleport Connect startup reliability on Windows. [#66509](https://github.com/gravitational/teleport/pull/66509)
 * Added support for multi-domain sign-on to Windows Desktop Service. [#66471](https://github.com/gravitational/teleport/pull/66471)
 * Added user traits filtering in Web UI. [#66457](https://github.com/gravitational/teleport/pull/66457)
@@ -13,7 +23,6 @@
 * Fixed MCP clients' timeout and broken connections when the MCP server tries to resume the previous session. [#66343](https://github.com/gravitational/teleport/pull/66343)
 * Add `tsh beams` commands for the Beams public beta. [#66316](https://github.com/gravitational/teleport/pull/66316)
 * Fixed possible unavailability of Proxy service instances as a result of some API errors. [#66312](https://github.com/gravitational/teleport/pull/66312)
-* Reduced the memory usage and latency of SSH sessions. [#66220](https://github.com/gravitational/teleport/pull/66220)
 * Fixed an issue where WebAssembly not being available would crash the web UI. [#66216](https://github.com/gravitational/teleport/pull/66216)
 * Added audit events for Azure VM auto-discovery installations, with install script output and exit status. [#66067](https://github.com/gravitational/teleport/pull/66067)
 * Fixed an issue where EC2 auto-discovery could install Teleport on an instance but silently drop the failure when the agent could not join the cluster. A new `ec2-join-failure` user task is now raised with the actual join error message surfaced from the agent's readyz socket. [#66023](https://github.com/gravitational/teleport/pull/66023)
