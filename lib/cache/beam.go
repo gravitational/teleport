@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base32"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -196,9 +195,8 @@ func keyForBeamAliasIndex(beam *beamsv1.Beam) string {
 
 func keyForBeamUserIndex(r *beamsv1.Beam) bytestring {
 	user := r.GetStatus().GetUser()
-	lowerUser := strings.ToLower(user)
 	name := r.GetMetadata().GetName()
-	return string(ordered.Encode(lowerUser, name))
+	return string(ordered.Encode(user, name))
 }
 
 func keyForBeamExpiresIndex(r *beamsv1.Beam) bytestring {
