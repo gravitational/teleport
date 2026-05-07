@@ -66,7 +66,7 @@ const browserTypes = { chromium, firefox, webkit };
 const browserType =
   browserTypes[browserName as keyof typeof browserTypes] ?? chromium;
 const username = defaultUsername();
-const storageStatePath = join(e2eDir, `.auth/${username}.json`);
+const storageStatePath = join(e2eDir, `.auth/${browserName}-${username}.json`);
 
 info(`launching ${browserName} ${dim(`(mode: ${mode})`)}`);
 
