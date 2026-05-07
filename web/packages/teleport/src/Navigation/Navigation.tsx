@@ -127,10 +127,30 @@ function getNavigationSections(
   const categories = cfg.ui.showBeamsOnboarding
     ? BEAMS_NAVIGATION_CATEGORIES
     : NAVIGATION_CATEGORIES;
-  const navigationSections = categories.map(category => ({
-    category,
-    subsections: getSubsectionsForCategory(category, features),
-  }));
+  const navigationSections = categories.map(category => {
+    const subsections = getSubsectionsForCategory(category, features);
+    // If the only feature in this category is flagged standalone, render
+    // the category button as a plain clickable link with no hover drawer.
+    const standaloneFeature = features.find(
+      feature =>
+        feature.category === category &&
+        feature.standalone &&
+        !!feature.navigationItem &&
+        !feature.parent
+    );
+    if (standaloneFeature && subsections.length === 1) {
+      return {
+        category,
+        subsections,
+        standalone: {
+          title: standaloneFeature.navigationItem.title,
+          Icon: standaloneFeature.navigationItem.icon,
+          route: standaloneFeature.navigationItem.getLink(cfg.proxyCluster),
+        },
+      };
+    }
+    return { category, subsections };
+  });
 
   return navigationSections;
 }
