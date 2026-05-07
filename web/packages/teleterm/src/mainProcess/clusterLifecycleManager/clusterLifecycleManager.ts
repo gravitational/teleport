@@ -236,9 +236,11 @@ export class ClusterLifecycleManager {
   private async watchProfileChanges(): Promise<void> {
     try {
       for await (const changes of this.profileWatcher) {
-        this.logger.info('Detected profile changes', changes);
-
         for (const change of changes) {
+          this.logger.info('Processing profile change', {
+            op: change.op,
+            uri: getChangeUri(change),
+          });
           try {
             switch (change.op) {
               case 'added':
