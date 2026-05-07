@@ -44,7 +44,10 @@ type BeamReader interface {
 	GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam, error)
 
 	// ListBeams lists beams with pagination.
-	ListBeams(ctx context.Context, limit int, startKey string, options *ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error)
+	ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error)
+
+	// ListBeamsV2 lists beams with pagination, sorting and filtering.
+	ListBeamsV2(ctx context.Context, limit int, startKey string, options *ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error)
 
 	// IterateBeams returns a sequence of beams starting from the given
 	// pageToken.

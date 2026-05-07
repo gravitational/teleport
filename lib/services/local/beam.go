@@ -90,8 +90,13 @@ func (s *BeamService) GetBeamByAlias(ctx context.Context, alias string) (*beamsv
 	return s.GetBeam(ctx, string(item.Value))
 }
 
-// ListBeams returns a paginated list of Beam resources.
-func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
+// ListBeams lists beams with pagination.
+func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
+	return s.ListBeamsV2(ctx, pageSize, pageToken, nil)
+}
+
+// ListBeamsV2 lists beams with pagination, sorting and filtering.
+func (s *BeamService) ListBeamsV2(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
 	if err := validateListOptions(options); err != nil {
 		return nil, "", trace.Wrap(err)
 	}

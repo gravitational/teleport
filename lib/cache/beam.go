@@ -63,7 +63,7 @@ func newBeamCollection(upstream services.BeamReader, w types.WatchKind) (*collec
 		),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*beamsv1.Beam, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
-				return upstream.ListBeams(ctx, limit, startKey, nil)
+				return upstream.ListBeamsV2(ctx, limit, startKey, nil)
 			}))
 			return out, trace.Wrap(err)
 		},
@@ -110,8 +110,13 @@ func (c *Cache) GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam
 	return out, trace.Wrap(err)
 }
 
-// ListBeams returns a sorted and filtered page of beam resources.
-func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
+// ListBeams lists beams with pagination.
+func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
+	return c.ListBeamsV2(ctx, pageSize, pageToken, nil)
+}
+
+// ListBeamsV2 lists beams with pagination, sorting and filtering.
+func (c *Cache) ListBeamsV2(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBeams")
 	defer span.End()
 
@@ -135,7 +140,7 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 		index:      index,
 		isDesc:     isDesc,
 		upstreamList: func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
-			return c.Config.Beams.ListBeams(ctx, limit, startKey, options)
+			return c.Config.Beams.ListBeamsV2(ctx, limit, startKey, options)
 		},
 		filter: services.MakeBeamFilterFunc(options),
 		nextToken: func(t *beamsv1.Beam) string {
@@ -171,7 +176,7 @@ func (c *Cache) IterateBeamsV2(ctx context.Context, pageToken string, options *s
 		index:      index,
 		isDesc:     isDesc,
 		upstreamList: func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
-			return c.Config.Beams.ListBeams(ctx, limit, startKey, options)
+			return c.Config.Beams.ListBeamsV2(ctx, limit, startKey, options)
 		},
 		filter: services.MakeBeamFilterFunc(options),
 		nextToken: func(t *beamsv1.Beam) string {

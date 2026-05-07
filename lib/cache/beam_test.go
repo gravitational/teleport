@@ -60,13 +60,13 @@ func TestBeamCache(t *testing.T) {
 			return createBeamForCacheTest(ctx, p, beam)
 		},
 		list: func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
-			return p.beams.ListBeams(ctx, pageSize, pageToken, nil)
+			return p.beams.ListBeamsV2(ctx, pageSize, pageToken, nil)
 		},
 		delete: func(ctx context.Context, name string) error {
 			return deleteBeamForCacheTest(ctx, p, name)
 		},
 		deleteAll: func(ctx context.Context) error {
-			beams, _, err := p.beams.ListBeams(ctx, 0, "", nil)
+			beams, _, err := p.beams.ListBeamsV2(ctx, 0, "", nil)
 			require.NoError(t, err)
 			for _, beam := range beams {
 				require.NoError(t, deleteBeamForCacheTest(ctx, p, beam.GetMetadata().GetName()))
@@ -74,7 +74,7 @@ func TestBeamCache(t *testing.T) {
 			return nil
 		},
 		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
-			return p.cache.ListBeams(ctx, pageSize, pageToken, nil)
+			return p.cache.ListBeamsV2(ctx, pageSize, pageToken, nil)
 		},
 		cacheGet: p.cache.GetBeam,
 	})
@@ -121,12 +121,12 @@ func TestBeamCache_ListPaging(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 5)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	results, nextPageToken, err := p.cache.ListBeams(ctx, 0, "", nil)
+	results, nextPageToken, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, results, 5)
@@ -136,7 +136,7 @@ func TestBeamCache_ListPaging(t *testing.T) {
 	require.Equal(t, "beam-4", results[3].GetMetadata().GetName())
 	require.Equal(t, "beam-5", results[4].GetMetadata().GetName())
 
-	results, nextPageToken, err = p.cache.ListBeams(ctx, 3, "", nil)
+	results, nextPageToken, err = p.cache.ListBeamsV2(ctx, 3, "", nil)
 	require.NoError(t, err)
 	require.Equal(t, base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte("beam-4")), nextPageToken)
 	require.Len(t, results, 3)
@@ -144,7 +144,7 @@ func TestBeamCache_ListPaging(t *testing.T) {
 	require.Equal(t, "beam-2", results[1].GetMetadata().GetName())
 	require.Equal(t, "beam-3", results[2].GetMetadata().GetName())
 
-	results, nextPageToken, err = p.cache.ListBeams(ctx, 3, nextPageToken, nil)
+	results, nextPageToken, err = p.cache.ListBeamsV2(ctx, 3, nextPageToken, nil)
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, results, 2)
@@ -171,13 +171,13 @@ func TestBeamCache_ListSorting(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 3)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	t.Run("sort ascending by name", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 3)
 		assert.Equal(t, "beam-1", results[0].GetMetadata().GetName())
@@ -186,7 +186,7 @@ func TestBeamCache_ListSorting(t *testing.T) {
 	})
 
 	t.Run("sort descending by name", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_NAME,
 			SortOrder: beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING,
 		})
@@ -198,7 +198,7 @@ func TestBeamCache_ListSorting(t *testing.T) {
 	})
 
 	t.Run("sort ascending by alias", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_ALIAS,
 		})
 		require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestBeamCache_ListSorting(t *testing.T) {
 	})
 
 	t.Run("sort ascending by user", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_USER,
 		})
 		require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestBeamCache_ListSorting(t *testing.T) {
 	})
 
 	t.Run("sort ascending by expires", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES,
 		})
 		require.NoError(t, err)
@@ -244,12 +244,12 @@ func TestBeamCacheList_FilterByUser(t *testing.T) {
 	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-3", "copper-meadow", "alice", time.Now().Add(3*time.Hour))))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 3)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+	results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 		FilterUsers: set.New("alice"),
 	})
 	require.NoError(t, err)
@@ -257,7 +257,7 @@ func TestBeamCacheList_FilterByUser(t *testing.T) {
 	assert.Equal(t, "beam-1", results[0].GetMetadata().GetName())
 	assert.Equal(t, "beam-3", results[1].GetMetadata().GetName())
 
-	results, _, err = p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+	results, _, err = p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 		FilterUsers: set.New("bob"),
 	})
 	require.NoError(t, err)
@@ -280,13 +280,13 @@ func TestBeamCache_ListFallback(t *testing.T) {
 	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-2", "brisk-harbor", "bob", time.Now().Add(2*time.Hour))))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", nil)
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	t.Run("supported sort", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_NAME,
 			SortOrder: beamsv1.BeamSortOrder_BEAM_SORT_ORDER_ASCENDING,
 		})
@@ -295,7 +295,7 @@ func TestBeamCache_ListFallback(t *testing.T) {
 	})
 
 	t.Run("filter by user", func(t *testing.T) {
-		results, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			FilterUsers: set.New("bob"),
 		})
 		require.NoError(t, err)
@@ -304,14 +304,14 @@ func TestBeamCache_ListFallback(t *testing.T) {
 	})
 
 	t.Run("unsupported sort field", func(t *testing.T) {
-		_, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		_, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES,
 		})
 		require.ErrorContains(t, err, `unsupported sort, only name field is supported`)
 	})
 
 	t.Run("unsupported sort dir", func(t *testing.T) {
-		_, _, err := p.cache.ListBeams(ctx, 0, "", &services.ListBeamsRequestOptions{
+		_, _, err := p.cache.ListBeamsV2(ctx, 0, "", &services.ListBeamsRequestOptions{
 			SortOrder: beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING,
 		})
 		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
