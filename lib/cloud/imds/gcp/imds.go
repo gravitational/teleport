@@ -278,6 +278,13 @@ func getMetadataClient(ctx context.Context) (*metadata.Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Per GCP docs at https://docs.cloud.google.com/compute/docs/troubleshooting/troubleshoot-metadata-server#failed-proxy
+	//
+	// > If the VM is behind a proxy, you must set the NO_PROXY configuration for both the IP address and Hostname.
+	//
+	// This specific HTTP Client is only used to fetch instance metadata, so removing the usage of Proxy settings is safe.
+	transport.Proxy = nil
 	return metadata.NewClient(&http.Client{
 		Transport: contextRoundTripper{
 			ctx:       ctx,

@@ -1,9 +1,12 @@
 ---
 title: Teleport Agentic Identity Framework
 template: landing-page
+description: Describes a design and reference implementation for the secure deployment of agents on infrastructure. 
 ---
 
 {/* cspell:disable */}
+
+{/* TODO(zmb3): link to beams */}
 
 import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
 import EnrollmentMethods, { Method } from '@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods';
@@ -98,16 +101,16 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   Integrate security into agentic systems from the initial design phase.
 </LandingHero>
 
-<EnrollmentMethods 
-  title="Agentic Identity" 
-  description="You can use Teleport to issue and manage cryptographic identities for agents, including delegated identities and identities for long-running agents across all of your infrastructure." 
+<EnrollmentMethods
+  title="Agentic Identity"
+  description="You can use Teleport to issue and manage cryptographic identities for agents, including delegated identities and identities for long-running agents across all of your infrastructure."
   desktopColumnsCount={3}
   linkColor="purple"
   fontSize="xl"
 >
   <Method
     title="Digital Twins"
-    progressStatus="Started"
+    progressStatus="In-progress"
   >
     Agents operate on behalf of principals while preserving approval/authorization workflows.
    <hr />
@@ -136,14 +139,13 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
     Building LLM applications accessing external resources.
     <hr />
     <ul>
-        <li>[JWT MCP Authenticaction](enroll-resources/mcp-access/jwt.mdx)</li>
-        <li>Identity provider integration</li>
+        <li>[JWT MCP Authentication](enroll-resources/mcp-access/jwt.mdx)</li>
     </ul>
   </Method>
 </EnrollmentMethods>
 
-<EnrollmentMethods 
-  title="Agentic Access" 
+<EnrollmentMethods
+  title="Agentic Access"
   description="You can use Teleport to manage authorization to infrastructure, services, and data with discovery of MCP servers and LLM controls, including rate limiting, load balancing, budgets, prompt/response tracking, and guardrails."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -175,7 +177,7 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   </Method>
   <Method
     title="LLM Access"
-    progressStatus="Not started"
+    progressStatus="In-progress"
   >
     Control and observe LLM usage across teams with rate limiting, budgeting, model routing, and prompt/response tracking.
     <hr />
@@ -188,8 +190,8 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   </Method>
 </EnrollmentMethods>
 
-<EnrollmentMethods 
-  title="Agentic Security" 
+<EnrollmentMethods
+  title="Agentic Security"
   description="Teleport provides discovery, detection, and analytics for AI agents and MCP servers to reduce shadow deployments and context poisoning attacks."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -219,8 +221,8 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   </Method>
 </EnrollmentMethods>
 
-<EnrollmentMethods 
-  title="Scheduling & Orchestration" 
+<EnrollmentMethods
+  title="Scheduling & Orchestration"
   description="Integrations and SDKs for modern agentic orchestration tools enable secure identities for agentic workflows accessing resources like databases and git repositories, as well as file sharing and developer tooling."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -331,12 +333,12 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
       title: 'Redis',
       iconColor: '#FF45391A',
       iconComponent: redisSvg,
-    }, 
+    },
     {
       title: 'Elasticsearch',
       iconColor: '#1BA9F51A',
       iconComponent: elasticsearchSvg,
-    }, 
+    },
   ]}
   noBackgroundColor={true}
 />

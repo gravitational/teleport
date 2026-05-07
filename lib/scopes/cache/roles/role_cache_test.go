@@ -33,7 +33,7 @@ import (
 
 // TestListScopedRolesScenarios tests particular more tricky ListScopedRoles scenarios, such
 // as attempts to use an out-of-band cursor to read values outside of the target scope.
-func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
+func TestListScopedRolesScenarios(t *testing.T) {
 	t.Parallel()
 
 	roles := []*scopedaccessv1.ScopedRole{
@@ -386,6 +386,57 @@ func TestListScopedRolesBasics(t *testing.T) {
 					"user-01",
 					"admin-02",
 					"user-02",
+				},
+			},
+		},
+		{
+			name: "name filter",
+			req: &scopedaccessv1.ListScopedRolesRequest{
+				NameFilter: "admin",
+			},
+			expect: [][]string{
+				{
+					"admin-01",
+					"admin-02",
+				},
+			},
+		},
+		{
+			name: "name case insensitive",
+			req: &scopedaccessv1.ListScopedRolesRequest{
+				NameFilter: "AdMiN",
+			},
+			expect: [][]string{
+				{
+					"admin-01",
+					"admin-02",
+				},
+			},
+		},
+		{
+			name: "name filter paged",
+			req: &scopedaccessv1.ListScopedRolesRequest{
+				NameFilter: "min",
+				PageSize:   1,
+			},
+			expect: [][]string{
+				{"admin-01"},
+				{"admin-02"},
+			},
+		},
+		{
+			name: "name filter policy scope root",
+			req: &scopedaccessv1.ListScopedRolesRequest{
+				NameFilter: "01",
+				ResourceScope: &scopespb.Filter{
+					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+					Scope: "/",
+				},
+			},
+			expect: [][]string{
+				{
+					"admin-01",
+					"user-01",
 				},
 			},
 		},

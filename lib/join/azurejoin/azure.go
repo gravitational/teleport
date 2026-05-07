@@ -38,10 +38,10 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/provision"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -322,7 +322,7 @@ func verifyVMIdentity(
 	}
 
 	if err := tokenClaims.asJWTClaims().Validate(expectedClaims); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("Failed to validate token claims: %s", err.Error())
 	}
 
 	// Listing all VMs in an Azure subscription during the verification process
@@ -332,12 +332,11 @@ func verifyVMIdentity(
 	// parse required VM identifiers from the token claims. If this method fails,
 	// fallback to the original method of listing VMs and parsing the VM identifiers
 	// from the VM resource.
-	vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims)
-	if err == nil {
+	if vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims); err == nil {
 		if subscriptionID != vmSubscription {
 			return nil, trace.AccessDenied("subscription ID mismatch between attested data and access token")
 		}
-		return azureJoinToAttrs(vmSubscription, vmResourceGroup), nil
+		return azureJoinToAttrs(tokenClaims.TenantID, vmSubscription, vmResourceGroup), nil
 	}
 	logger.WarnContext(ctx, "Failed to parse VM identifiers from claims. Retrying with Azure VM API.",
 		"error", err)
@@ -382,7 +381,7 @@ func verifyVMIdentity(
 			return nil, trace.Wrap(err)
 		}
 	}
-	return azureJoinToAttrs(vm.Subscription, vm.ResourceGroup), nil
+	return azureJoinToAttrs(tokenClaims.TenantID, vm.Subscription, vm.ResourceGroup), nil
 }
 
 // claimsToIdentifiers returns the vm identifiers from the provided claims.
@@ -404,9 +403,16 @@ func claimsToIdentifiers(tokenClaims *AccessTokenClaims) (subscriptionID, resour
 	return "", "", trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
 }
 
-func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token *types.ProvisionTokenV2) error {
-	for _, rule := range token.Spec.Azure.Allow {
-		if rule.Subscription != attrs.Subscription {
+func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token provision.Token) error {
+	for _, rule := range token.GetAzure().Allow {
+		if rule.Tenant == "" && rule.Subscription == "" {
+			// require at least tenant or subscription is set to restrict joins.
+			continue
+		}
+		if rule.Tenant != "" && rule.Tenant != attrs.Tenant {
+			continue
+		}
+		if rule.Subscription != "" && rule.Subscription != attrs.Subscription {
 			continue
 		}
 		if !azureResourceGroupIsAllowed(rule.ResourceGroups, attrs.ResourceGroup) {
@@ -436,8 +442,9 @@ func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup
 	return false
 }
 
-func azureJoinToAttrs(subscriptionID, resourceGroupID string) *workloadidentityv1pb.JoinAttrsAzure {
+func azureJoinToAttrs(tenantID, subscriptionID, resourceGroupID string) *workloadidentityv1pb.JoinAttrsAzure {
 	return &workloadidentityv1pb.JoinAttrsAzure{
+		Tenant:        tenantID,
 		Subscription:  subscriptionID,
 		ResourceGroup: resourceGroupID,
 	}
@@ -448,7 +455,7 @@ type CheckAzureRequestParams struct {
 	// AzureJoinConfig holds configurable options for Azure joining.
 	AzureJoinConfig *AzureJoinConfig
 	// Token is the token used for the incoming request.
-	Token *types.ProvisionTokenV2
+	Token provision.Token
 	// Challenge is the challenge that was issued.
 	Challenge string
 	// AttestedData is the Azure attested data that was returned by the joining
@@ -466,9 +473,13 @@ type CheckAzureRequestParams struct {
 }
 
 func (p *CheckAzureRequestParams) checkAndSetDefaults() error {
-	switch {
-	case p.AzureJoinConfig == nil:
+	if p.AzureJoinConfig == nil {
 		p.AzureJoinConfig = &AzureJoinConfig{}
+	}
+	if p.Clock == nil {
+		p.Clock = clockwork.NewRealClock()
+	}
+	switch {
 	case p.Token == nil:
 		return trace.BadParameter("Token is required")
 	case len(p.Challenge) == 0:
@@ -479,8 +490,6 @@ func (p *CheckAzureRequestParams) checkAndSetDefaults() error {
 		return trace.BadParameter("AccessToken is required")
 	case p.Logger == nil:
 		return trace.BadParameter("Logger is required")
-	case p.Clock == nil:
-		p.Clock = clockwork.NewRealClock()
 	}
 	return trace.Wrap(p.AzureJoinConfig.checkAndSetDefaults())
 }

@@ -1459,6 +1459,60 @@ func (m *WindowsDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *LinuxDesktopSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.LinuxUser = ""
+	out.DesktopLabels = nil
+	out.DesktopName = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Status.nonEmptyStrs() +
+		nonEmptyStrs(m.LinuxUser, m.DesktopName) +
+		nonEmptyStrsInMap(m.DesktopLabels)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
+	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
+	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+
+	return out
+}
+
+func (m *LinuxDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.LinuxUser = ""
+	out.DesktopLabels = nil
+	out.DesktopName = ""
+	out.Participants = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.LinuxUser, m.DesktopName) +
+		nonEmptyStrsInMap(m.DesktopLabels) +
+		nonEmptyStrsInSlice(m.Participants)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
+	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+	out.Participants = trimStrSlice(m.Participants, maxFieldsSize)
+
+	return out
+}
+
 func (m *DesktopClipboardSend) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -1534,6 +1588,10 @@ func (m *UpgradeWindowStartUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *EnvironmentProfileUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *SessionRecordingAccess) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -1559,6 +1617,29 @@ func (m *SSMRun) TrimToMaxSize(maxSize int) AuditEvent {
 	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
 	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
 	out.InvocationURL = trimStr(m.InvocationURL, maxFieldsSize)
+
+	return out
+}
+
+func (m *AzureRun) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.StandardOutput = ""
+	out.StandardError = ""
+	out.APIError = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.StandardOutput, m.StandardError, m.APIError)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
+	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
+	out.APIError = trimStr(m.APIError, maxFieldsSize)
 
 	return out
 }
@@ -2820,12 +2901,52 @@ func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
-func (m *WorkloadClusterCreate) TrimToMaxSize(_ int) AuditEvent {
-	return m
+func (m *WorkloadClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Payload = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Payload.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Payload = m.Payload.trimToMaxFieldSize(maxFieldsSize)
+
+	return out
 }
 
-func (m *WorkloadClusterUpdate) TrimToMaxSize(_ int) AuditEvent {
-	return m
+func (m *WorkloadClusterUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Payload = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Payload.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Payload = m.Payload.trimToMaxFieldSize(maxFieldsSize)
+
+	return out
 }
 
 func (m *WorkloadClusterDelete) TrimToMaxSize(_ int) AuditEvent {
@@ -2868,6 +2989,37 @@ func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *RetrievalModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
+}
+
+func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *CertAuthorityOverrideEvent) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Status.Error, &out.Status.Error),
+			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
+		}
+	})
+}
+
+func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
+		}
+	})
 }

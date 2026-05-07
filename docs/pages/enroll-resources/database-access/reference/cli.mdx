@@ -119,7 +119,7 @@ $ teleport db configure create \
 | `--redshift-discovery` | List of AWS regions in which the agent will discover Redshift instances. |
 | `--redshift-serverless-discovery` | List of AWS regions in which the agent will discover Redshift Serverless instances. |
 | `--elasticache-discovery` | List of AWS regions in which the agent will discover ElastiCache Redis and Valkey clusters. |
-| `elasticache-serverless-discovery` | List of AWS regions in which the agent will discover ElastiCache Serverless Valkey or Redis caches. |
+| `--elasticache-serverless-discovery` | List of AWS regions in which the agent will discover ElastiCache Serverless Valkey or Redis caches. |
 | `--aws-tags` | (Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it |
 | `--memorydb-discovery` | List of AWS regions in which the agent will discover MemoryDB clusters. |
 | `--azure-mysql-discovery` | List of Azure regions in which the agent will discover MySQL servers. |
@@ -130,7 +130,7 @@ $ teleport db configure create \
 | `--azure-tags` | (Only for Azure discoveries) Comma-separated list of Azure resource tags to match, for example env=dev,dept=it |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Refer to the [configuration](./configuration.mdx#database-service-configuration) reference for supported values. |
+| `--protocol` | Proxied database protocol. Refer to the [`db` resource reference](../../../reference/infrastructure-as-code/teleport-resources/database-v3.mdx) for supported values. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `--output=stdout`, the default config file with `--output=file`, or a custom path with `--output=file:///path` |
@@ -184,7 +184,7 @@ configuring the Database Service with self-hosted database instances.
 
 <Admonition type="note" title="Note">
   For database formats, `tctl` must be run on an Auth Service host or the remote
-  user must be be able to impersonate the built-in `Db` role and user. See the
+  user must be able to impersonate the built-in `Db` role and user. See the
   [impersonation guide](../../../zero-trust-access/authentication/impersonation.mdx)
   for details on how to allow impersonation.
 </Admonition>

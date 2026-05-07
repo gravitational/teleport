@@ -45,9 +45,15 @@ type Token interface {
 	Expiry() time.Time
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
+	// GetBotScope returns the BotScope field which must be set for bots joining
+	// with a scoped token. It is empty for unscoped bots.
+	GetBotScope() string
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
 	// GetAWSAllowRules returns the list of AWS-specific allow rules.
 	GetAWSAllowRules() []*types.TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
@@ -55,7 +61,18 @@ type Token interface {
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
 	// Currently, this is only used to validate the AWS Organization.
 	GetIntegration() string
-	// GetImmutableLabels returns labels that must be applied to resources
-	// provisioned with this token.
-	GetImmutableLabels() *joiningv1.ImmutableLabels
+	// GetGCPRules returns the GCP-specific configuration for this token.
+	GetGCPRules() *types.ProvisionTokenSpecV2GCP
+	// GetAzure returns the Azure-specific configuration for this token.
+	GetAzure() *types.ProvisionTokenSpecV2Azure
+	// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
+	// GetOracle returns the Oracle-specific configuration for this token.
+	GetOracle() *types.ProvisionTokenSpecV2Oracle
+	// GetKubernetes returns the Kubernetes-specific configuration for this token.
+	GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
 }

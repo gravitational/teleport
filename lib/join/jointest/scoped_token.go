@@ -69,8 +69,8 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			}
 		}
 		scopedToken.Spec.Aws = &joiningv1.AWS{
-			Allow:     allow,
-			AwsIidTtl: int64(base.AWSIIDTTL),
+			Allow:  allow,
+			IidTtl: base.AWSIIDTTL.Duration().String(),
 		}
 	case types.JoinMethodIAM:
 		allow := make([]*joiningv1.AWS_Rule, len(base.Allow))
@@ -86,6 +86,93 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		scopedToken.Spec.Aws = &joiningv1.AWS{
 			Allow:       allow,
 			Integration: base.Integration,
+		}
+	case types.JoinMethodGCP:
+		allow := make([]*joiningv1.GCP_Rule, len(base.GCP.Allow))
+		for i, rule := range base.GCP.Allow {
+			allow[i] = &joiningv1.GCP_Rule{
+				ProjectIds:      rule.ProjectIDs,
+				Locations:       rule.Locations,
+				ServiceAccounts: rule.ServiceAccounts,
+			}
+		}
+		scopedToken.Spec.Gcp = &joiningv1.GCP{
+			Allow: allow,
+		}
+	case types.JoinMethodAzure:
+		allow := make([]*joiningv1.Azure_Rule, len(base.Azure.Allow))
+		for i, rule := range base.Azure.Allow {
+			allow[i] = &joiningv1.Azure_Rule{
+				Tenant:         rule.Tenant,
+				Subscription:   rule.Subscription,
+				ResourceGroups: rule.ResourceGroups,
+			}
+		}
+		scopedToken.Spec.Azure = &joiningv1.Azure{
+			Allow: allow,
+		}
+	case types.JoinMethodAzureDevops:
+		allow := make([]*joiningv1.AzureDevops_Rule, len(base.AzureDevops.Allow))
+		for i, rule := range base.AzureDevops.Allow {
+			allow[i] = &joiningv1.AzureDevops_Rule{
+				Sub:               rule.Sub,
+				ProjectName:       rule.ProjectName,
+				PipelineName:      rule.PipelineName,
+				ProjectId:         rule.ProjectID,
+				DefinitionId:      rule.DefinitionID,
+				RepositoryUri:     rule.RepositoryURI,
+				RepositoryVersion: rule.RepositoryVersion,
+				RepositoryRef:     rule.RepositoryRef,
+			}
+		}
+		scopedToken.Spec.AzureDevops = &joiningv1.AzureDevops{
+			Allow:          allow,
+			OrganizationId: base.AzureDevops.OrganizationID,
+		}
+	case types.JoinMethodOracle:
+		allow := make([]*joiningv1.Oracle_Rule, len(base.Oracle.Allow))
+		for i, rule := range base.Oracle.Allow {
+			allow[i] = &joiningv1.Oracle_Rule{
+				Tenancy:            rule.Tenancy,
+				ParentCompartments: rule.ParentCompartments,
+				Regions:            rule.Regions,
+				Instances:          rule.Instances,
+			}
+		}
+		scopedToken.Spec.Oracle = &joiningv1.Oracle{
+			Allow: allow,
+		}
+	case types.JoinMethodKubernetes:
+		if base.Kubernetes == nil {
+			return nil, trace.BadParameter("kubernetes configuration must be defined for kubernetes join method")
+		}
+		allow := make([]*joiningv1.Kubernetes_Rule, len(base.Kubernetes.Allow))
+		for i, rule := range base.Kubernetes.Allow {
+			allow[i] = &joiningv1.Kubernetes_Rule{
+				ServiceAccount: rule.ServiceAccount,
+			}
+		}
+
+		var staticJWKS *joiningv1.Kubernetes_StaticJWKSConfig
+		if base.Kubernetes.StaticJWKS != nil {
+			staticJWKS = &joiningv1.Kubernetes_StaticJWKSConfig{
+				Jwks: base.Kubernetes.StaticJWKS.JWKS,
+			}
+		}
+
+		var oidc *joiningv1.Kubernetes_OIDCConfig
+		if base.Kubernetes.OIDC != nil {
+			oidc = &joiningv1.Kubernetes_OIDCConfig{
+				Issuer:                  base.Kubernetes.OIDC.Issuer,
+				InsecureAllowHttpIssuer: base.Kubernetes.OIDC.InsecureAllowHTTPIssuer,
+			}
+		}
+
+		scopedToken.Spec.Kubernetes = &joiningv1.Kubernetes{
+			Allow:      allow,
+			Type:       string(base.Kubernetes.Type),
+			StaticJwks: staticJWKS,
+			Oidc:       oidc,
 		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)

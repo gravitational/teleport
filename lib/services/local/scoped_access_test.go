@@ -20,7 +20,7 @@ package local
 
 import (
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -39,7 +39,10 @@ import (
 // TestScopedRoleEvents verifies the expected behavior of backend events for the ScopedRole family of types.
 func TestScopedRoleEvents(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, testScopedRoleEvents)
+}
 
+func testScopedRoleEvents(t *testing.T) {
 	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
@@ -67,13 +70,15 @@ func TestScopedRoleEvents(t *testing.T) {
 	defer watcher.Close()
 
 	getNextEvent := func() types.Event {
+		t.Helper()
+		synctest.Wait()
 		select {
 		case event := <-watcher.Events():
 			return event
 		case <-watcher.Done():
 			require.FailNow(t, "Watcher exited with error", watcher.Error())
-		case <-time.After(time.Second * 5):
-			require.FailNow(t, "Timeout waiting for event", watcher.Error())
+		default:
+			require.FailNow(t, "No event ready, synctest bubble is durably blocked")
 		}
 
 		panic("unreachable")
@@ -123,7 +128,7 @@ func TestScopedRoleEvents(t *testing.T) {
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
-	crsp, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+	_, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
@@ -131,7 +136,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	_ = getNextEvent() // drain the role create event
 
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -150,9 +156,6 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
-		RoleRevisions: map[string]string{
-			role.Metadata.Name: crsp.Role.Metadata.Revision,
-		},
 	})
 	require.NoError(t, err)
 
@@ -163,7 +166,8 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	// delete the assignment and verify delete event is well-formed.
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment.Metadata.Name,
+		Name:    assignment.Metadata.Name,
+		SubKind: assignment.SubKind,
 	})
 	require.NoError(t, err)
 
@@ -171,11 +175,27 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+
+	// Assert that any materialized assignments put into the backend (possibly
+	// by an auth service on a later version) don't make it into the event
+	// stream. Use the backend directly to skip subkind validation.
+	assignment.SubKind = scopedaccess.SubKindMaterialized
+	item, err := scopedRoleAssignmentToItem(assignment)
+	require.NoError(t, err)
+	_, err = service.bk.Put(ctx, item)
+	require.NoError(t, err)
+	synctest.Wait()
+	select {
+	case evt := <-watcher.Events():
+		t.Fatalf("expected no event, got %v", evt)
+	default:
+	}
 }
 
 // TestScopedRoleBasicCRUD tests the basic CRUD operations of the ScopedAccessService, excluding the more non-trivial
@@ -319,7 +339,7 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 		Name: "non-existent",
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// verify that delete fails if the revision does not match
 	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
@@ -355,6 +375,46 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// verify upsert creates when role does not exist
+	basic04 := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "basic-04",
+		},
+		Scope: "/qux",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/qux"},
+		},
+		Version: types.V1,
+	}
+	uprsp, err := service.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: basic04,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, uprsp.Role.Metadata.Revision)
+	require.Empty(t, cmp.Diff(basic04, uprsp.Role, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// verify upsert updates when role already exists (including with a stale/wrong revision)
+	basic04Mod := apiutils.CloneProtoMsg(uprsp.Role)
+	basic04Mod.Spec.AssignableScopes = []string{"/qux", "/qux/sub"}
+	basic04Mod.Metadata.Revision = revisions[2] // deliberately stale revision
+
+	uprsp2, err := service.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: basic04Mod,
+	})
+	require.NoError(t, err, "upsert should succeed despite stale revision")
+	require.Empty(t, cmp.Diff(basic04Mod, uprsp2.Role, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// verify upsert rejects scope change
+	basic04ScopeChange := apiutils.CloneProtoMsg(uprsp2.Role)
+	basic04ScopeChange.Scope = "/other"
+	basic04ScopeChange.Spec.AssignableScopes = []string{"/other"}
+	_, err = service.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: basic04ScopeChange,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 }
 
 // TestScopedRoleAssignmentBasicCRD tests the basic CRD operations of the ScopedRoleAssignmentService, excluding the more non-trivial
@@ -381,7 +441,7 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 			},
 			Scope: "/",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/"},
+				AssignableScopes: []string{"/foo", "/bar"},
 			},
 			Version: types.V1,
 		},
@@ -421,10 +481,10 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 		roleRevisions = append(roleRevisions, rsp.Role.Metadata.Revision)
 	}
 
-	// basic root assignment to test standard CRD operations with (initially invalid,
-	// will be modified later to be valid)
+	// basic root assignment to test standard CRD operations with
 	assignment01 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -433,70 +493,146 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				{
-					Role:  "role-02", // not assignable to root
-					Scope: "/",
+					Role:  "role-02",
+					Scope: "/", // root scope of effect is not permitted
 				},
+			},
+		},
+		Status: &scopedaccessv1.ScopedRoleAssignmentStatus{
+			Origin: &scopedaccessv1.ScopedRoleAssignmentStatus_Origin{
+				CreatorKind: scopedaccess.CreatorKindAccessList,
+				CreatorName: "test-list",
 			},
 		},
 		Version: types.V1,
 	}
 
-	// check that assignment to root fails since the target role is only assignable to /foo
+	// check that root scope of effect is rejected
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-02": roleRevisions[1],
-		},
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
-	// check that assignment with an invalid resource scope fails
-	assignment01.Spec.Assignments[0].Role = "role-01" // fix role to be assignable to root
-	assignment01.Scope = "/foo"                       // invalid scope for root assignment
+	// check that a sub-assignment scope outside the assignment's resource scope is rejected
+	assignment01.Spec.Assignments[0].Scope = "/bar" // non-root, but outside resource scope /foo
+	assignment01.Scope = "/foo"
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-		},
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
-	// check that assignment of correct role still fails if revision is incorrect
-	assignment01.Scope = "/" // fix scope to be valid for root assignment
+	// check that otherwise valid assignment fails if subkind is unset.
+	assignment01.Scope = "/" // fix resource scope
+	assignment01.SubKind = ""
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[1], // revision of role-02, not role-01
-		},
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
-	// check that assignment of correct role with correct revision works
+	// check that otherwise valid assignment fails if subkind is materialized.
+	assignment01.SubKind = scopedaccess.SubKindMaterialized
+	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment01,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// check that otherwise valid assignment fails if subkind is unknown.
+	assignment01.SubKind = "unknown"
+	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment01,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// check that a valid assignment succeeds
+	assignment01.SubKind = scopedaccess.SubKindDynamic
 	crsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-		},
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, crsp.Assignment.Metadata.Revision)
 	require.Empty(t, cmp.Diff(crsp.Assignment, assignment01, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// Check that the assignment can be retrieved.
+	// check that the assignment can be retrieved.
 	grsp, err := service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignment01.Metadata.Name,
+		Name:    assignment01.Metadata.Name,
+		SubKind: scopedaccess.SubKindDynamic,
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
 
+	// verify that getting a materialized assignment from the backend is an error.
+	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name:    assignment01.Metadata.Name,
+		SubKind: scopedaccess.SubKindMaterialized,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
 	// verify that create fails if the assignment already exists
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify a basic allowable update
+	assignment01Mod := apiutils.CloneProtoMsg(crsp.Assignment)
+	assignment01Mod.Spec.Assignments[0].Scope = "/foo"
+	assignment01Mod.Metadata.Revision = crsp.Assignment.Metadata.Revision
+
+	ursp, err := service.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: assignment01Mod,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, ursp.Assignment.Metadata.Revision)
+	require.Empty(t, cmp.Diff(assignment01Mod, ursp.Assignment, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// verify that update really happened
+	grsp, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name:    assignment01Mod.Metadata.Name,
+		SubKind: assignment01Mod.SubKind,
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ursp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
+
+	// verify that update fails if the revision is wrong (stale revision from before the update)
+	_, err = service.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: assignment01Mod,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify that update is rejected if the assignment's resource scope is changed
+	assignment01ScopeChange := apiutils.CloneProtoMsg(ursp.Assignment)
+	assignment01ScopeChange.Scope = "/foo"
+	_, err = service.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: assignment01ScopeChange,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// verify that update fails if the assignment does not exist
+	_, err = service.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Metadata: &headerv1.Metadata{
+				Name:     "00000000-0000-0000-0000-000000000000",
+				Revision: crsp.Assignment.Metadata.Revision,
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: "alice",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "role-02", Scope: "/foo"},
+				},
+			},
+			Version: types.V1,
 		},
 	})
 	require.Error(t, err)
@@ -506,27 +642,52 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:     assignment01.Metadata.Name,
 		Revision: roleRevisions[0],
+		SubKind:  crsp.Assignment.SubKind,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
-	// verify that delete of assignment with correct revision works
+	// verify that delete of assignment with materialized subkind fails
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:     assignment01.Metadata.Name,
 		Revision: crsp.Assignment.Metadata.Revision,
+		SubKind:  scopedaccess.SubKindMaterialized,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// verify that delete of assignment with unknown subkind fails
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+		Name:     assignment01.Metadata.Name,
+		Revision: crsp.Assignment.Metadata.Revision,
+		SubKind:  "unknown",
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// verify that delete of assignment with correct revision works
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+		Name:     assignment01.Metadata.Name,
+		Revision: ursp.Assignment.Metadata.Revision,
+		SubKind:  ursp.Assignment.SubKind,
 	})
 	require.NoError(t, err)
 
 	// verify that the assignment is gone
 	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignment01.Metadata.Name,
+		Name:    assignment01.Metadata.Name,
+		SubKind: assignment01.SubKind,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// set up a more non-trivial assignment with multiple sub-assignments
+	// assignment02 mixes roles from different resource scopes. cross-resource consistency (e.g. whether
+	// a role at a given resource scope is accessible from the assignment's resource scope) is not enforced
+	// at write time; it is enforced exclusively at the policy decision point.
 	assignment02 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -543,7 +704,7 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 					Scope: "/foo/bar",
 				},
 				{
-					Role:  "role-03", // role-03 cannot by assigned to by an assignment in the root resource scope
+					Role:  "role-03", // resource scope /foo, different from assignment resource scope /
 					Scope: "/foo",
 				},
 			},
@@ -551,48 +712,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 		Version: types.V1,
 	}
 
-	// verify that assignment with a mix of conflicting and correct resource scopes fails
-	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: assignment02,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-			"role-02": roleRevisions[1],
-			"role-03": roleRevisions[2],
-		},
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
-
-	// verify that a mix of valid and invalid role revisions fails
-	assignment02.Spec.Assignments = assignment02.Spec.Assignments[:2] // remove role-03 assignment
-	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: assignment02,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-			"role-02": roleRevisions[2], // revision of role-03, not role-02
-		},
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
-
-	// verify that assignment with some but not all of the role revisions fails
-	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: assignment02,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-			// role-02 is missing
-		},
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
-
-	// verify that assignment with all of the role revisions works
 	crsp, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment02,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-			"role-02": roleRevisions[1],
-		},
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, crsp.Assignment.Metadata.Revision)
@@ -600,7 +721,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 
 	// Check that the assignment can be retrieved
 	grsp, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignment02.Metadata.Name,
+		Name:    assignment02.Metadata.Name,
+		SubKind: assignment02.SubKind,
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
@@ -609,7 +731,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	// bug where original impl would construct invalid conditional actions when multiple sub-assignments
 	// are made for the same role).
 	assignment03 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -633,187 +756,57 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	// check that creation of assignment works
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment03,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-		},
 	})
 	require.NoError(t, err)
 
 	// verify that deletion of assignment works
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment03.Metadata.Name,
-	})
-	require.NoError(t, err)
-}
-
-// TestScopedRoleAssignmentInteraction verifies the expected interaction rules between scoped roles and
-// scoped role assignments.
-func TestScopedRoleAssignmentInteraction(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	backend, err := memory.New(memory.Config{
-		Context: ctx,
+		Name:    assignment03.Metadata.Name,
+		SubKind: assignment03.SubKind,
 	})
 	require.NoError(t, err)
 
-	defer backend.Close()
-
-	service := NewScopedAccessService(backend)
-
-	roles := []*scopedaccessv1.ScopedRole{
-		{
-			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
-				Name: "role-01",
-			},
-			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/"},
-			},
-			Version: types.V1,
-		},
-		{
-			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
-				Name: "role-02",
-			},
-			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/foo"},
-			},
-			Version: types.V1,
-		},
-		{
-			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
-				Name: "role-03",
-			},
-			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/bar"},
-			},
-			Version: types.V1,
-		},
-		{
-			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
-				Name: "role-04",
-			},
-			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/bin"},
-			},
-			Version: types.V1,
-		},
-	}
-
-	var roleRevisions []string
-
-	// Create the roles.
-	for _, role := range roles {
-		rsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-			Role: role,
-		})
-		require.NoError(t, err)
-
-		roleRevisions = append(roleRevisions, rsp.Role.Metadata.Revision)
-	}
-
-	// set up a non-trivial assignment with multiple sub-assignments
-	assignment01 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+	// verify upsert creates when assignment does not exist
+	assignment04 := &scopedaccessv1.ScopedRoleAssignment{
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
 		Scope: "/",
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-			User: "alice",
+			User: "dave",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "role-01",
-					Scope: "/foo",
-				},
-				{
-					Role:  "role-02",
-					Scope: "/foo/bar",
-				},
-				{
-					Role:  "role-03",
-					Scope: "/bar",
-				},
+				{Role: "role-01", Scope: "/foo"},
 			},
 		},
 		Version: types.V1,
 	}
-
-	crsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-			"role-02": roleRevisions[1],
-			"role-03": roleRevisions[2],
-		},
+	uaprsp, err := service.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: assignment04,
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, crsp.Assignment.Metadata.Revision)
-	require.Empty(t, cmp.Diff(crsp.Assignment, assignment01, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+	require.NotEmpty(t, uaprsp.Assignment.Metadata.Revision)
+	require.Empty(t, cmp.Diff(assignment04, uaprsp.Assignment, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// check that unrelated role can be deleted
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name:     "role-04",
-		Revision: roleRevisions[3],
+	// verify upsert updates when assignment already exists (including with a stale/wrong revision)
+	assignment04Mod := apiutils.CloneProtoMsg(uaprsp.Assignment)
+	assignment04Mod.Spec.Assignments = append(assignment04Mod.Spec.Assignments, &scopedaccessv1.Assignment{
+		Role: "role-02", Scope: "/foo",
 	})
-	require.NoError(t, err)
+	assignment04Mod.Metadata.Revision = roleRevisions[0] // deliberately stale revision
 
-	// check that deleting a role referenced by an assignment fails
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name:     "role-01",
-		Revision: roleRevisions[0],
+	uaprsp2, err := service.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: assignment04Mod,
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+	require.NoError(t, err, "upsert should succeed despite stale revision")
+	require.Len(t, uaprsp2.Assignment.Spec.Assignments, 2)
 
-	// check that updated a role s.t. it would invalidate an assignment fails
-	updatedRole := apiutils.CloneProtoMsg(roles[1])
-	updatedRole.Spec.AssignableScopes = []string{"/bin"} // role-02 is now assignable to /bin, not /foo
-	updatedRole.Metadata.Revision = roleRevisions[1]
-	_, err = service.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
-		Role: updatedRole,
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
-
-	// check that deletion of a role s.t. it would invalidate an assignment fails
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name:     "role-02",
-		Revision: roleRevisions[1],
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
-
-	// delete the assignment
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:     assignment01.Metadata.Name,
-		Revision: crsp.Assignment.Metadata.Revision,
-	})
-	require.NoError(t, err)
-
-	// check that update of role now succeeds
-	urrsp, err := service.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
-		Role: updatedRole,
-	})
-	require.NoError(t, err)
-
-	// check that recreate of assignment would now fail due to conflicting role
-	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: assignment01,
-		RoleRevisions: map[string]string{
-			"role-01": roleRevisions[0],
-			"role-02": urrsp.Role.Metadata.Revision, // revision of updated role-02
-			"role-03": roleRevisions[2],
-		},
+	// verify upsert rejects scope change
+	assignment04ScopeChange := apiutils.CloneProtoMsg(uaprsp2.Assignment)
+	assignment04ScopeChange.Scope = "/foo"
+	_, err = service.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: assignment04ScopeChange,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)

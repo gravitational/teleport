@@ -17,19 +17,22 @@
  */
 
 import { existsSync, readFileSync } from 'fs';
+import { Agent as HttpsAgent, type RequestOptions } from 'https';
+import { isIP } from 'net';
 import { resolve } from 'path';
+import type { Duplex } from 'stream';
 
 import { visualizer } from 'rollup-plugin-visualizer';
-import { defineConfig, type UserConfig } from 'vite';
-import compression from 'vite-plugin-compression';
+import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
+import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
+import { guardWasmPlugin } from './guard-wasm';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
-import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
-const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+const DEFAULT_PROXY_TARGET = 'localhost:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
 
 export function createViteConfig(
@@ -57,6 +60,7 @@ export function createViteConfig(
 
     const config: UserConfig = {
       clearScreen: false,
+      cacheDir: process.env.VITE_CACHE_DIR,
       server: {
         allowedHosts: resolveAllowedHosts(target),
         fs: {
@@ -65,11 +69,38 @@ export function createViteConfig(
         host: '0.0.0.0',
         port: 3000,
       },
+      resolve: {
+        tsconfigPaths: true,
+      },
+      optimizeDeps: {
+        // Exclude from pre-bundling so the guard-wasm-globals plugin can transform the
+        // module during dev.
+        exclude: ['@xterm/addon-image'],
+      },
       build: {
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
-        rollupOptions: {
+        reportCompressedSize: false,
+        rolldownOptions: {
+          checks: {
+            // We don't really need rolldown to complain about react/assets/wasm taking a "long"
+            // time - the entire build takes ~7s with compression, which is plenty fast.
+            pluginTimings: false,
+          },
+          onLog(level, log, defaultHandler) {
+            // Suppress direct eval warning from @protobufjs/inquire.
+            // The eval is intentional (to call require without bundler detection) and patching
+            // it to indirect eval would break Electron's module-scoped require.
+            if (
+              log.code === 'EVAL' &&
+              log.id?.includes('@protobufjs/inquire')
+            ) {
+              return;
+            }
+
+            defaultHandler(level, log);
+          },
           output: {
             // removes hashing from our entry point file.
             entryFileNames: ENTRY_FILE_NAME,
@@ -79,15 +110,31 @@ export function createViteConfig(
             // this will remove hashing from asset (non-js) files.
             assetFileNames: `app/[name].[ext]`,
           },
+          plugins: [
+            {
+              // The wasm module is embedded into the main app earlier in the build.
+              // Exclude it here, otherwise rollup still emits it as a static asset
+              // by default.
+              name: 'drop-wasm-assets',
+              generateBundle(_, bundle) {
+                for (const file of Object.keys(bundle)) {
+                  if (file.endsWith('.wasm')) {
+                    delete bundle[file];
+                  }
+                }
+              },
+            },
+          ],
         },
       },
       plugins: [
+        guardWasmPlugin(),
         reactPlugin(mode),
-        tsconfigPathsPlugin(),
         transformPlugin(),
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
@@ -103,85 +150,42 @@ export function createViteConfig(
       if (!process.env.VITE_DISABLE_COMPRESSION) {
         config.plugins.push(
           compression({
-            algorithm: 'brotliCompress',
-            deleteOriginFile: true,
-            filter: /\.(js|svg|wasm)$/,
+            algorithms: ['brotliCompress'],
+            deleteOriginalAssets: true,
+            include: /\.(js|svg|wasm)$/,
             threshold: 1024 * 10, // 10KB
-            verbose: false,
+            logLevel: 'silent',
           })
         );
       }
     } else {
       config.plugins.push(htmlPlugin(target));
-      // siteName matches everything between the slashes.
+
+      // siteName matches everything between the slashes (regex format
+      // assumes slashes are escaped, e.g. `\/v1\/webapi\/sites\/:site\/connect`).
       const siteName = '([^\\/]+)';
 
-      config.server.proxy = {
-        // The format of the regex needs to assume that the slashes are escaped, for example:
-        // \/v1\/webapi\/sites\/:site\/connect
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/connect`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
-          {
-            target: `wss://${target}`,
-            changeOrigin: false,
-            secure: false,
-            ws: true,
-          },
-        // /webapi/sites/:site/kube/exec
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        // /webapi/sites/:site/(desktopplayback|sessionrecording|ttyplayback)/:sid
-        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|sessionrecording|ttyplayback)\\/(.*?))(\\/ws)?':
-          {
-            target: `wss://${target}`,
-            changeOrigin: true,
-            secure: false,
-            ws: true,
-            rewriteWsOrigin: true, // rewrite the origin so Teleport doesn't reject the connection
-          },
-        '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
-          target: `https://${target}`,
-          changeOrigin: false,
-          secure: false,
-        },
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        '^\\/v[0-9]+\\/webapi\\/command\\/(.*?)/execute': {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
-        '/web/config.js': {
-          target: `https://${target}`,
-          changeOrigin: true,
-          secure: false,
-        },
-        '^\\/v[0-9]+': {
-          target: `https://${target}`,
-          changeOrigin: true,
-          secure: false,
-        },
-        '/enterprise': {
-          target: `https://${target}`,
-          changeOrigin: true,
-          secure: false,
-        },
-      };
+      // All teleport websocket endpoints live under
+      // `/v{N}/webapi/(sites/<site>/{connect, desktops/<d>/connect, kube/exec,
+      // db/exec, (desktopplayback|sessionrecording|ttyplayback)/...} |
+      // command/<cmd>/execute)`. One alternation covers the lot.
+      const wsPath =
+        `^\\/v[0-9]+\\/webapi\\/(` +
+        [
+          `sites\\/${siteName}\\/connect`,
+          `sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`,
+          `sites\\/${siteName}\\/(kube|db)\\/exec`,
+          `sites\\/${siteName}\\/(desktopplayback|sessionrecording|ttyplayback)\\/.+`,
+          `command\\/.+\\/execute`,
+        ].join('|') +
+        `)`;
+
+      config.server.proxy = Object.fromEntries([
+        wsRoute(target, wsPath),
+        httpRoute(target, '/web/config.js'),
+        httpRoute(target, '^\\/v[0-9]+'),
+        httpRoute(target, '/enterprise'),
+      ]);
 
       if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
         config.server.https = {
@@ -239,4 +243,69 @@ function resolveTargetURL(url: string) {
   const parsed = new URL(target);
 
   return parsed.host;
+}
+
+// Rewrite Host / Origin only when VITE_HOST is set and its hostname differs
+// from the proxy target. Otherwise the original headers are correct as-is.
+function shouldChangeOrigin(target: string): boolean {
+  if (!process.env.VITE_HOST) {
+    return false;
+  }
+
+  const { hostname: viteHost } = new URL(`https://${process.env.VITE_HOST}`);
+  const { hostname: targetHost } = new URL(`https://${target}`);
+
+  return viteHost !== targetHost;
+}
+
+function wsRoute(target: string, path: string): [string, ProxyOptions] {
+  const changeOrigin = shouldChangeOrigin(target);
+
+  return [
+    path,
+    {
+      target: `wss://${target}`,
+      secure: false,
+      ws: true,
+      changeOrigin,
+      rewriteWsOrigin: changeOrigin,
+      agent: getProxyAgent(target),
+    },
+  ];
+}
+
+function httpRoute(target: string, path: string): [string, ProxyOptions] {
+  return [
+    path,
+    {
+      target: `https://${target}`,
+      secure: false,
+      changeOrigin: shouldChangeOrigin(target),
+      agent: getProxyAgent(target),
+    },
+  ];
+}
+
+// Suppress SNI for IP-literal targets. Newer Node either warns (DEP0123) or
+// drops the IP servername outright, which can break the upstream TLS handshake.
+class NoSniAgent extends HttpsAgent {
+  createConnection(
+    options: RequestOptions,
+    callback?: (err: Error | null, stream: Duplex) => void
+  ) {
+    return super.createConnection({ ...options, servername: '' }, callback);
+  }
+}
+
+let cachedNoSniAgent: NoSniAgent | null = null;
+
+function getProxyAgent(target: string): HttpsAgent | undefined {
+  const { hostname } = new URL(`https://${target}`);
+  if (!isIP(hostname)) {
+    return undefined;
+  }
+  if (!cachedNoSniAgent) {
+    cachedNoSniAgent = new NoSniAgent({ rejectUnauthorized: false });
+  }
+  return cachedNoSniAgent;
 }

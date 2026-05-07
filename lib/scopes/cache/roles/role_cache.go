@@ -21,6 +21,7 @@ package roles
 import (
 	"context"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -112,7 +113,7 @@ func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedac
 		case scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
 			getter = c.cache.PoliciesApplicableToResourceScope
 		default:
-			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role role resource scope filter", req.GetResourceScope().GetMode())
+			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role resource scope filter", req.GetResourceScope().GetMode())
 		}
 		scope = req.GetResourceScope().GetScope()
 	}
@@ -125,10 +126,17 @@ func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedac
 		return nil, trace.NotImplemented("assignable scope filtering for scoped role roles is not yet supported")
 	}
 
+	finalFilter := filter
+	if nameFilter := req.GetNameFilter(); nameFilter != "" {
+		finalFilter = func(role *scopedaccessv1.ScopedRole) bool {
+			return strcase.Contains(role.GetMetadata().GetName(), nameFilter) && filter(role)
+		}
+	}
+
 	var out []*scopedaccessv1.ScopedRole
 	var nextCursor cache.Cursor[string]
 Outer:
-	for scope := range getter(scope, c.cache.WithCursor(cursor), c.cache.WithFilter(filter)) {
+	for scope := range getter(scope, c.cache.WithCursor(cursor), c.cache.WithFilter(finalFilter)) {
 		for role := range scope.Items() {
 			if len(out) == pageSize {
 				nextCursor = cache.Cursor[string]{
@@ -165,7 +173,7 @@ func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
 	return nil
 }
 
-// Del removes an role from the cache by name.
+// Delete removes a role from the cache by name.
 func (c *RoleCache) Delete(name string) {
 	c.cache.Del(name)
 }

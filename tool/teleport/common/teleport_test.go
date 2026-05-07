@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -52,6 +53,9 @@ func TestMain(m *testing.M) {
 }
 
 func BenchmarkInit(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
@@ -74,15 +78,37 @@ func TestTeleportMain(t *testing.T) {
 	require.NoError(t, os.WriteFile(configFile, []byte(configData), 0660))
 
 	// generate the fixture bootstrap file
-	bootstrapEntries := []struct{ fileName, kind, name string }{
-		{"role.yaml", types.KindRole, "role_name"},
-		{"github.yaml", types.KindGithubConnector, "github"},
-		{"user.yaml", types.KindRole, "user"},
+	bootstrapEntries := []struct {
+		fileName string
+		kind     string
+		name     string
+		content  string
+	}{
+		{fileName: "role.yaml", kind: types.KindRole, name: "role_name"},
+		{fileName: "github.yaml", kind: types.KindGithubConnector, name: "github"},
+		{fileName: "user.yaml", kind: types.KindRole, name: "user"},
+		{
+			fileName: "workload-identity.yaml",
+			kind:     types.KindWorkloadIdentity,
+			name:     "example-workload-identity",
+			content: `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`,
+		},
 	}
 	var bootstrapData []byte
 	for _, entry := range bootstrapEntries {
-		data, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
-		require.NoError(t, err)
+		data := []byte(entry.content)
+		if entry.content == "" {
+			fileData, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
+			require.NoError(t, err)
+			data = fileData
+		}
 		bootstrapData = append(bootstrapData, data...)
 		bootstrapData = append(bootstrapData, "\n---\n"...)
 	}
@@ -253,6 +279,56 @@ func TestDumpConfigFile(t *testing.T) {
 			tc.assert(t, err)
 		})
 	}
+}
+
+func TestWriteInstallJoinFailureError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("all fields populated", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message:            "node did not become ready (join cluster) within 5m0s",
+			ServiceDiagnostics: `systemd service state: ActiveState="failed"`,
+			JournalOutput:      "error: token expired",
+		})
+
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+		require.Contains(t, out, `systemd service state: ActiveState="failed"`)
+		require.Contains(t, out, "Journal output:\nerror: token expired\n")
+	})
+
+	t.Run("message only", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message: "node did not become ready (join cluster) within 5m0s",
+		})
+
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+	})
+
+	t.Run("no journal output", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message:            "node did not become ready (join cluster) within 5m0s",
+			ServiceDiagnostics: "systemd service state: unavailable",
+		})
+
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+		require.Contains(t, out, "systemd service state: unavailable\n")
+		require.NotContains(t, out, "Journal output:")
+	})
 }
 
 const configData = `

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -79,8 +80,8 @@ func ValidRandomResourceName(prefix string) string {
 	return prefix + string(b)
 }
 
-func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.TeleInstance, string) {
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -88,22 +89,25 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
 		Logger:      slog.Default(),
+		Modules:     testModules,
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.Modules = testModules
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
+	rcConf.InsecureMode = insecureMode
 
 	roleName := ValidRandomResourceName("role-")
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
@@ -118,6 +122,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
 				types.NewRule(types.KindAuthConnector, unrestricted),
+				types.NewRule(types.KindLock, unrestricted),
 				types.NewRule(types.KindLoginRule, unrestricted),
 				types.NewRule(types.KindToken, unrestricted),
 				types.NewRule(types.KindOktaImportRule, unrestricted),
@@ -130,6 +135,15 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
 				types.NewRule(types.KindApp, unrestricted),
 				types.NewRule(types.KindDatabase, unrestricted),
+				types.NewRule(types.KindInferenceModel, unrestricted),
+				types.NewRule(types.KindInferencePolicy, unrestricted),
+				types.NewRule(types.KindInferenceSecret, unrestricted),
+				types.NewRule(types.KindRetrievalModel, unrestricted),
+				types.NewRule(types.KindAccessMonitoringRule, unrestricted),
+				types.NewRule(types.KindSAMLIdPServiceProvider, unrestricted),
+				types.NewRule(types.KindScopedToken, unrestricted),
+				types.NewRule(access.KindScopedRole, unrestricted),
+				types.NewRule(access.KindScopedRoleAssignment, unrestricted),
 			},
 		},
 	})
@@ -180,6 +194,7 @@ type TestSetup struct {
 	TeleportServer           *helpers.TeleInstance
 	ResourceName             string
 	Context                  context.Context
+	InsecureMode             bool
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -249,7 +264,7 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 
 	// Start a Teleport server for the test and set up a client connected to
 	// that server.
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+	teleportServer, operatorName := defaultTeleportServiceConfig(t, setup.InsecureMode)
 	setup.TeleportServer = teleportServer
 	require.NoError(t, teleportServer.Start())
 	setup.TeleportClient = clientForTeleport(t, teleportServer, operatorName)
@@ -270,6 +285,12 @@ type TestOption func(*TestSetup)
 func WithTeleportClient(clt *client.Client) TestOption {
 	return func(setup *TestSetup) {
 		setup.TeleportClient = clt
+	}
+}
+
+func WithInsecureMode() TestOption {
+	return func(setup *TestSetup) {
+		setup.InsecureMode = true
 	}
 }
 

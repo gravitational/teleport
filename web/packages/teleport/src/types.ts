@@ -115,6 +115,10 @@ export enum NavTitle {
 
   Support = 'Support',
   Downloads = 'Downloads',
+
+  // Beams
+  BeamsQuickstart = 'Quickstart',
+  BeamsList = 'Beams',
 }
 
 export interface TeleportFeatureRoute {
@@ -227,6 +231,9 @@ export interface FeatureFlags {
   readAutoUpdateVersion: boolean;
   readAutoUpdateAgentRollout: boolean;
   listAutoUpdateAgentReport: boolean;
+  sessionSummaries: boolean;
+  listBeam: boolean;
+  readBeam: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
@@ -235,16 +242,6 @@ export type LockedFeatures = {
   accessRequests: boolean;
   trustedDevices: boolean;
 };
-
-// RecommendFeature is used for recommending features if its usage status is zero.
-export type RecommendFeature = {
-  TrustedDevices: RecommendationStatus;
-};
-
-export enum RecommendationStatus {
-  Notify = 'NOTIFY',
-  Done = 'DONE',
-}
 
 // WebsocketStatus is used to indicate the auth status from a
 // websocket connection

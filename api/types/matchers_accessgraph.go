@@ -54,3 +54,8 @@ func (a *AccessGraphAWSSync) CheckAndSetDefaults() error {
 
 	return nil
 }
+
+// IsEqual determines if two resources are equivalent to one another.
+func (a *AccessGraphAWSSync) IsEqual(other *AccessGraphAWSSync) bool {
+	return deriveTeleportEqualAccessGraphAWSSync(a, other)
+}

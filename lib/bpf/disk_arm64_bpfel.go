@@ -14,14 +14,15 @@ import (
 )
 
 type diskDataT struct {
-	_          structs.HostLayout
-	Cgroup     uint64
-	Pid        uint64
-	ReturnCode int32
-	Command    [16]uint8
-	FilePath   [255]uint8
-	_          [1]byte
-	Flags      int32
+	_              structs.HostLayout
+	Cgroup         uint64
+	AuditSessionId uint32
+	_              [4]byte
+	Pid            uint64
+	ReturnCode     int32
+	Command        [16]uint8
+	FilePath       [4096]uint8
+	Flags          int32
 }
 
 // loadDisk returns the embedded CollectionSpec for disk.
@@ -66,25 +67,19 @@ type diskSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type diskProgramSpecs struct {
-	TracepointSyscallsSysEnterCreat   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_creat"`
-	TracepointSyscallsSysEnterOpen    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_open"`
-	TracepointSyscallsSysEnterOpenat  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat"`
-	TracepointSyscallsSysEnterOpenat2 *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat2"`
-	TracepointSyscallsSysExitCreat    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_creat"`
-	TracepointSyscallsSysExitOpen     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_open"`
-	TracepointSyscallsSysExitOpenat   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_openat"`
-	TracepointSyscallsSysExitOpenat2  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_openat2"`
+	DoFilpOpenExit   *ebpf.ProgramSpec `ebpf:"do_filp_open_exit"`
+	SecurityFileOpen *ebpf.ProgramSpec `ebpf:"security_file_open"`
 }
 
 // diskMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type diskMapSpecs struct {
-	Infotmp          *ebpf.MapSpec `ebpf:"infotmp"`
-	LostCounter      *ebpf.MapSpec `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.MapSpec `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.MapSpec `ebpf:"monitored_cgroups"`
-	OpenEvents       *ebpf.MapSpec `ebpf:"open_events"`
+	InflightOpen        *ebpf.MapSpec `ebpf:"inflight_open"`
+	LostCounter         *ebpf.MapSpec `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.MapSpec `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.MapSpec `ebpf:"monitored_sessionids"`
+	OpenEvents          *ebpf.MapSpec `ebpf:"open_events"`
 }
 
 // diskVariableSpecs contains global variables before they are loaded into the kernel.
@@ -114,19 +109,19 @@ func (o *diskObjects) Close() error {
 //
 // It can be passed to loadDiskObjects or ebpf.CollectionSpec.LoadAndAssign.
 type diskMaps struct {
-	Infotmp          *ebpf.Map `ebpf:"infotmp"`
-	LostCounter      *ebpf.Map `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.Map `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.Map `ebpf:"monitored_cgroups"`
-	OpenEvents       *ebpf.Map `ebpf:"open_events"`
+	InflightOpen        *ebpf.Map `ebpf:"inflight_open"`
+	LostCounter         *ebpf.Map `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.Map `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.Map `ebpf:"monitored_sessionids"`
+	OpenEvents          *ebpf.Map `ebpf:"open_events"`
 }
 
 func (m *diskMaps) Close() error {
 	return _DiskClose(
-		m.Infotmp,
+		m.InflightOpen,
 		m.LostCounter,
 		m.LostDoorbell,
-		m.MonitoredCgroups,
+		m.MonitoredSessionids,
 		m.OpenEvents,
 	)
 }
@@ -142,26 +137,14 @@ type diskVariables struct {
 //
 // It can be passed to loadDiskObjects or ebpf.CollectionSpec.LoadAndAssign.
 type diskPrograms struct {
-	TracepointSyscallsSysEnterCreat   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_creat"`
-	TracepointSyscallsSysEnterOpen    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_open"`
-	TracepointSyscallsSysEnterOpenat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
-	TracepointSyscallsSysEnterOpenat2 *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat2"`
-	TracepointSyscallsSysExitCreat    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_creat"`
-	TracepointSyscallsSysExitOpen     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_open"`
-	TracepointSyscallsSysExitOpenat   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_openat"`
-	TracepointSyscallsSysExitOpenat2  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_openat2"`
+	DoFilpOpenExit   *ebpf.Program `ebpf:"do_filp_open_exit"`
+	SecurityFileOpen *ebpf.Program `ebpf:"security_file_open"`
 }
 
 func (p *diskPrograms) Close() error {
 	return _DiskClose(
-		p.TracepointSyscallsSysEnterCreat,
-		p.TracepointSyscallsSysEnterOpen,
-		p.TracepointSyscallsSysEnterOpenat,
-		p.TracepointSyscallsSysEnterOpenat2,
-		p.TracepointSyscallsSysExitCreat,
-		p.TracepointSyscallsSysExitOpen,
-		p.TracepointSyscallsSysExitOpenat,
-		p.TracepointSyscallsSysExitOpenat2,
+		p.DoFilpOpenExit,
+		p.SecurityFileOpen,
 	)
 }
 

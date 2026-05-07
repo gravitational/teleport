@@ -18,6 +18,9 @@ const esModules = [
   '@nivo/bar',
   'react-error-boundary',
   'until-async',
+  '@exodus/bytes',
+  'rettime',
+  '@open-draft/deferred-promise',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
@@ -37,6 +40,10 @@ module.exports = {
   // We use a relative pattern to match the second 'node_modules/' in
   // 'node_modules/.pnpm/@scope+pkg-b@x.x.x/node_modules/@scope/pkg-b/'.
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
+  transform: {
+    '\\.[jt]sx?$': 'babel-jest', // This is the default transform.
+    '\\.mjs$': 'babel-jest',
+  },
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e'],
   testEnvironmentOptions: {

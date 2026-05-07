@@ -77,7 +77,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		return solution.Solution, nil
 	}
 
-	validatedEK, err := tpmjoin.CheckTPMRequest(ctx, tpmjoin.CheckTPMRequestParams{
+	validatedEK, err := tpmjoin.CheckTPMRequest(ctx, a.modules, tpmjoin.CheckTPMRequestParams{
 		Token:        ptv2,
 		TPMValidator: a.GetTPMValidator(),
 		EKCert:       initReq.GetEkCert(),

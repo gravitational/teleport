@@ -86,6 +86,10 @@ export const allAccessAcl: Acl = {
   autoUpdateVersion: fullAccess,
   autoUpdateAgentRollout: fullAccess,
   autoUpdateAgentReport: fullAccess,
+  inferencePolicy: fullAccess,
+  inferenceModel: fullAccess,
+  inferenceSecret: fullAccess,
+  beam: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

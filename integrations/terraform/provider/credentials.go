@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -65,7 +65,7 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 		}
 		if !active {
 			tflog.Info(ctx, "credentials source is not active, skipping", logFields)
-			inactiveReason.WriteString(fmt.Sprintf(" - cannot read credentials %s because %s\n", source.Name(), reason))
+			fmt.Fprintf(&inactiveReason, " - cannot read credentials %s because %s\n", source.Name(), reason)
 			continue
 		}
 		tflog.Info(ctx, "credentials source is active", logFields)
@@ -527,6 +527,9 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			},
 			Gitlab: onboarding.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
+			},
+			Kubernetes: onboarding.KubernetesOnboardingConfig{
+				TokenPath: config.KubernetesTokenPath.Value,
 			},
 		},
 		CredentialLifetime: bot.CredentialLifetime{

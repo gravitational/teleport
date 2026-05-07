@@ -402,7 +402,7 @@ databases:
 ```
 
 <Admonition type="tip" title="Supported values">
-  You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../enroll-resources/database-access/reference/configuration.mdx).
+  You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/deployment/config.mdx#database-service).
 </Admonition>
 
 <Admonition type="tip" title="Trusting Database CA">
@@ -934,7 +934,7 @@ PodSecurityPolicy resources (PSP) have been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
 Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
 The steps are documented in the
-[PSP removal guide](../../zero-trust-access/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+[PSP removal guide](../../installation/self-hosted/helm-deployments/migration-kubernetes-1-25-psp.mdx).
 
 This value will be removed in a future chart version.
 
@@ -1436,6 +1436,25 @@ Possible values are `text` (default) or `json`.
 
 See the [Teleport config file reference](../../reference/deployment/config.mdx) for
 more details on possible values for `extra_fields`.
+
+## `skipHooks`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`skipHooks` configures the chart to not render any hooks.
+This can be used in CI flows where the chart is rendered and applied separately.
+
+<Admonition type="danger">
+After disabling the hooks, uninstalling the `teleport-kube-agent` chart
+will no longer remove the agents state (stored in secrets named after the chart
+pods). If you set this boolean to true, you are responsible for deleting the
+secrets after uninstalling the chart.
+
+Failure to do so might leave valid Teleport credentials in your cluster, or cause
+issues when a new agent with the same name is deployed in the cluster.
+</Admonition>
 
 ## `affinity`
 

@@ -128,7 +128,7 @@ export function ListSessionRecordings({
         </Flex>
       </FeatureHeader>
 
-      <ExternalAuditStorageCta />
+      <ExternalAuditStorageCta mx="40px" mb={3} />
 
       <Flex flex={1} minHeight={0} overflow="hidden" width="100%">
         <ErrorSuspenseWrapper
@@ -152,7 +152,7 @@ export function ListSessionRecordings({
 function RecordingsListLoading() {
   return (
     <Box textAlign="center" m={10} width="100%">
-      <Indicator />
+      <Indicator delay="none" />
     </Box>
   );
 }

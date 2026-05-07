@@ -24,27 +24,22 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"math"
 	"math/rand/v2"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/hinshun/vt10x"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/terminal"
 )
 
 // UploadHandler uploads session recording metadata and thumbnails.
@@ -63,11 +58,12 @@ type UploadHandler interface {
 
 // RecordingMetadataService processes session recordings to generate metadata and thumbnails.
 type RecordingMetadataService struct {
-	logger             *slog.Logger
-	streamer           player.Streamer
-	uploadHandler      UploadHandler
-	concurrencyLimiter *semaphore.Weighted
-	encrypter          events.EncryptionWrapper
+	logger                    *slog.Logger
+	streamer                  player.Streamer
+	uploadHandler             UploadHandler
+	concurrencyLimiter        *semaphore.Weighted
+	desktopConcurrencyLimiter *semaphore.Weighted
+	encrypter                 events.EncryptionWrapper
 }
 
 // RecordingMetadataServiceConfig defines the configuration for the RecordingMetadataService.
@@ -84,11 +80,29 @@ const (
 	// inactivityThreshold is the duration after which an inactivity event is recorded.
 	inactivityThreshold = 10 * time.Second
 
-	// maxThumbnails is the maximum number of thumbnails to store in the session metadata.
+	// maxThumbnails is the maximum number of thumbnails to store in the session metadata. Sessions
+	// longer than maxThumbnails * (minimum interval) get a longer interval scaled to fit within
+	// this cap.
 	maxThumbnails = 1000
+
+	// ttyMinThumbnailInterval is the minimum gap between captured thumbnails for terminal sessions.
+	// SVG thumbnails are small and resolution-independent, so capturing once per second keeps fine
+	// timeline granularity at negligible cost.
+	ttyMinThumbnailInterval = 1 * time.Second
+
+	// desktopMinThumbnailInterval is the minimum gap between captured thumbnails for desktop
+	// sessions. Each PNG frame is on the order of tens of KB, so the interval is bumped to keep
+	// metadata file size reasonable. A 17-minute session produces ~145 thumbnails; a 2-hour session
+	// hits the maxThumbnails cap.
+	desktopMinThumbnailInterval = 7 * time.Second
 
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
+
+	// desktopConcurrencyLimit caps how many desktop sessions are processed in parallel. Each one
+	// materializes a full RGBA copy of the framebuffer (up to ~256 MiB at the 8192x8192 RDP max)
+	// when producing a thumbnail, so the cap is kept low to bound peak Auth memory use.
+	desktopConcurrencyLimit = 2
 )
 
 // NewRecordingMetadataService creates a new instance of RecordingMetadataService with the provided configuration.
@@ -101,17 +115,22 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 	}
 
 	return &RecordingMetadataService{
-		streamer:           cfg.Streamer,
-		uploadHandler:      cfg.UploadHandler,
-		logger:             slog.With(teleport.ComponentKey, "recording_metadata"),
-		concurrencyLimiter: semaphore.NewWeighted(concurrencyLimit),
-		encrypter:          cfg.Encrypter,
+		streamer:                  cfg.Streamer,
+		uploadHandler:             cfg.UploadHandler,
+		logger:                    slog.With(teleport.ComponentKey, "recording_metadata"),
+		concurrencyLimiter:        semaphore.NewWeighted(concurrencyLimit),
+		desktopConcurrencyLimiter: semaphore.NewWeighted(desktopConcurrencyLimit),
+		encrypter:                 cfg.Encrypter,
 	}, nil
 }
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
-func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error {
+func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+	if sessionType == recordingmetadata.SessionTypeUnspecified {
+		return nil
+	}
+
 	sessionsPendingMetric.Inc()
 
 	if err := s.concurrencyLimiter.Acquire(ctx, 1); err != nil {
@@ -120,6 +139,14 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	}
 	defer s.concurrencyLimiter.Release(1)
 
+	if sessionType == recordingmetadata.SessionTypeDesktop {
+		if err := s.desktopConcurrencyLimiter.Acquire(ctx, 1); err != nil {
+			sessionsPendingMetric.Dec()
+			return trace.Wrap(err)
+		}
+		defer s.desktopConcurrencyLimiter.Release(1)
+	}
+
 	sessionsPendingMetric.Dec()
 
 	sessionsProcessingMetric.Inc()
@@ -127,32 +154,6 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
-
-	var startTime time.Time
-	var lastEvent apievents.AuditEvent
-	var lastActivityTime time.Time
-	var lastThumbnailTime time.Time
-
-	activeUsers := make(map[string]time.Duration)
-
-	vt := vt10x.New()
-
-	metadata := &pb.SessionRecordingMetadata{}
-
-	addInactivityEvent := func(start, end time.Time) {
-		inactivityStart := durationpb.New(start.Sub(startTime))
-		inactivityEnd := durationpb.New(end.Sub(startTime))
-
-		metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-			StartOffset: inactivityStart,
-			EndOffset:   inactivityEnd,
-			Event: &pb.SessionRecordingEvent_Inactivity{
-				Inactivity: &pb.SessionRecordingInactivityEvent{},
-			},
-		})
-	}
 
 	// will either finish the upload or cancel it if exited early
 	var finish sync.Once
@@ -170,52 +171,10 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		})
 	}()
 
-	interval := calculateThumbnailInterval(duration, maxThumbnails)
-	thumbnailTime := getRandomThumbnailTime(duration)
+	processor := newRecordingProcessor(w, s.logger.With("session_id", sessionID), sessionType, startTime, duration)
+	defer processor.release()
 
-	// the thumbnail to upload for the session
-	var recordingThumbnail *pb.SessionRecordingThumbnail
-
-	recordThumbnail := func(start time.Time) {
-		cols, rows := vt.Size()
-		cursor := vt.Cursor()
-
-		startOffset := start.Sub(startTime)
-		endOffset := start.Add(interval).Add(-1 * time.Millisecond).Sub(startTime)
-
-		thumbnail := &pb.SessionRecordingThumbnail{
-			Svg:           terminal.VtToSvg(vt),
-			Cols:          int32(cols),
-			Rows:          int32(rows),
-			CursorX:       int32(cursor.X),
-			CursorY:       int32(cursor.Y),
-			CursorVisible: vt.CursorVisible(),
-			StartOffset:   durationpb.New(startOffset),
-			EndOffset:     durationpb.New(endOffset),
-		}
-
-		if _, err := protodelim.MarshalTo(w, thumbnail); err != nil {
-			// log the error but continue processing other thumbnails and the session metadata (metadata is more important)
-			s.logger.WarnContext(ctx, "Failed to marshal thumbnail entry",
-				"session_id", sessionID, "error", err)
-		}
-
-		if recordingThumbnail == nil {
-			recordingThumbnail = thumbnail
-
-			return
-		}
-
-		previousDiff := math.Abs(float64(thumbnailTime - recordingThumbnail.StartOffset.AsDuration()))
-		diff := math.Abs(float64(thumbnailTime - startOffset))
-
-		if diff < previousDiff {
-			// this thumbnail is closer to the ideal thumbnail time, use it instead
-			recordingThumbnail = thumbnail
-		}
-	}
-
-	var hasSeenPrintEvent bool
+	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
 
 loop:
 	for {
@@ -225,115 +184,8 @@ loop:
 				break loop
 			}
 
-			lastEvent = evt
-
-			switch e := evt.(type) {
-			case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
-				// Unsupported session recording types
-				return nil
-
-			case *apievents.Resize:
-				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
-				if err != nil {
-					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
-				}
-
-				// if we haven't seen a print event yet, update the starting size to the latest resize
-				// this handles cases where the initial terminal size is not 80x24 and is resized immediately
-				// before any output is printed
-				if !hasSeenPrintEvent {
-					metadata.StartCols = int32(size.W)
-					metadata.StartRows = int32(size.H)
-				}
-
-				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-					StartOffset: durationpb.New(e.Time.Sub(startTime)),
-					Event: &pb.SessionRecordingEvent_Resize{
-						Resize: &pb.SessionRecordingResizeEvent{
-							Cols: int32(size.W),
-							Rows: int32(size.H),
-						},
-					},
-				})
-
-				vt.Resize(size.W, size.H)
-
-			case *apievents.SessionEnd:
-				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
-					addInactivityEvent(lastActivityTime, e.Time)
-				}
-
-				if e.Time.Sub(lastThumbnailTime) >= interval {
-					lastThumbnailTime = e.Time
-					recordThumbnail(e.Time)
-				}
-
-			case *apievents.SessionJoin:
-				activeUsers[e.User] = e.Time.Sub(startTime)
-
-			case *apievents.SessionLeave:
-				if joinTime, ok := activeUsers[e.User]; ok {
-					metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-						StartOffset: durationpb.New(joinTime),
-						EndOffset:   durationpb.New(e.Time.Sub(startTime)),
-						Event: &pb.SessionRecordingEvent_Join{
-							Join: &pb.SessionRecordingJoinEvent{
-								User: e.User,
-							},
-						},
-					})
-
-					delete(activeUsers, e.User)
-				}
-
-			case *apievents.SessionPrint:
-				// mark that we've seen the first print event so we don't update the starting size anymore
-				if !hasSeenPrintEvent {
-					hasSeenPrintEvent = true
-				}
-
-				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
-					addInactivityEvent(lastActivityTime, e.Time)
-				}
-
-				if _, err := vt.Write(e.Data); err != nil {
-					return trace.Errorf("writing data to terminal: %w", err)
-				}
-
-				if e.Time.Sub(lastThumbnailTime) >= interval {
-					lastThumbnailTime = e.Time
-					recordThumbnail(e.Time)
-				}
-
-				lastActivityTime = e.Time
-
-			case *apievents.SessionStart:
-				lastActivityTime = e.Time
-				startTime = e.Time
-
-				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
-				if err != nil {
-					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
-				}
-
-				// store the initial terminal size, this is typically 80:24 and is resized immediately
-				metadata.StartCols = int32(size.W)
-				metadata.StartRows = int32(size.H)
-
-				metadata.ClusterName = e.ClusterName
-				metadata.User = e.User
-
-				switch e.Protocol {
-				case events.EventProtocolSSH:
-					metadata.ResourceName = e.ServerHostname
-					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
-
-				case events.EventProtocolKube:
-					metadata.ResourceName = e.KubernetesCluster
-					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
-				}
-
-				vt.Resize(size.W, size.H)
+			if err := processor.handleEvent(evt); err != nil {
+				return trace.Wrap(err)
 			}
 
 		case err := <-uploadErrs:
@@ -349,33 +201,17 @@ loop:
 		}
 	}
 
-	if lastEvent == nil {
+	metadata, thumbnail := processor.collect()
+	if metadata == nil {
 		return trace.NotFound("no events found for session %v", sessionID)
 	}
 
-	if recordingThumbnail != nil {
-		if err := s.uploadThumbnail(ctx, sessionID, recordingThumbnail); err != nil {
+	if thumbnail != nil {
+		if err := s.uploadThumbnail(ctx, sessionID, thumbnail); err != nil {
 			s.logger.WarnContext(ctx, "Failed to upload thumbnail",
 				"session_id", sessionID, "error", err)
 		}
 	}
-
-	// Finish off any remaining activity events
-	for user, userStartOffset := range activeUsers {
-		metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-			StartOffset: durationpb.New(userStartOffset),
-			EndOffset:   durationpb.New(lastEvent.GetTime().Sub(startTime)),
-			Event: &pb.SessionRecordingEvent_Join{
-				Join: &pb.SessionRecordingJoinEvent{
-					User: user,
-				},
-			},
-		})
-	}
-
-	metadata.Duration = durationpb.New(lastEvent.GetTime().Sub(startTime))
-	metadata.StartTime = timestamppb.New(startTime)
-	metadata.EndTime = timestamppb.New(lastEvent.GetTime())
 
 	if _, err := protodelim.MarshalTo(w, metadata); err != nil {
 		return trace.Wrap(err)
@@ -521,18 +357,10 @@ func getRandomThumbnailTime(duration time.Duration) time.Duration {
 	return time.Duration(rand.IntN(maxIndex-minIndex) + minIndex)
 }
 
-func calculateThumbnailInterval(duration time.Duration, maxThumbnails int) time.Duration {
-	interval := time.Second
-
-	if duration > time.Duration(maxThumbnails)*time.Second {
-		interval = duration / time.Duration(maxThumbnails)
+func calculateThumbnailInterval(duration time.Duration, maxThumbnails int, minInterval time.Duration) time.Duration {
+	interval := (duration / time.Duration(maxThumbnails)).Round(time.Second)
+	if interval < minInterval {
+		return minInterval
 	}
-
-	interval = interval.Round(time.Second)
-
-	if interval < time.Second {
-		interval = time.Second
-	}
-
 	return interval
 }

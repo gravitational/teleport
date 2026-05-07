@@ -83,11 +83,17 @@ detail about what is needed to complete a particular item.
 
 A resource MUST include a kind, version, `teleport.header.v1.Metadata`, a `spec` and a `status` message. While the kind and version may seem like they would be easy to derive from the message definition itself, they need to be defined so that anything processing a generic resource can identify which resource is being processed. For example, `tctl` interacts with resources in their in raw yaml text form and leverages `services.UnknownResource` to identify the resource and act appropriately.
 
-All properties defined in the `spec` of a resource MUST only be modified by the
+All properties defined in the `spec` and `metadata` of a resource MUST only be modified by the
 owner/creator of the resource. For example, if a resource is created via
 `tctl create`, then any fields within the `spec` MUST not be altered dynamically
 by the Teleport process. When Teleport automatically modifies the `spec` during
-runtime it causes drift between what is in the Teleport backend and the state stored by external IaC tools. If a resource has properties that are required to be modified dynamically by Teleport, a separate `status` field should be added to the resource to contain them. These fields will be ignored by IaC tools during their reconciliation.
+runtime it causes drift between what is in the Teleport backend and the state stored by external IaC tools.
+If a resource has properties that must be modified by Teleport, a separate `status` field should
+be added to the resource to contain them. These fields will be ignored by IaC tools during their reconciliation.
+
+The `CheckAndSetDefaults()` pattern is not compatible with the above property because the
+function edits the `spec`, and might run client-side. Adding logic in `CheckAndSetDefaults()`
+for existing resources MUST be avoided.
 
 ```protobuf
 import "teleport/header/v1/metadata.proto";
@@ -361,7 +367,7 @@ foos, err := clientutils.Resources(ctx, client.ListFoos)
 #### Delete
 
 The `Delete` RPC takes the parameters required to match a resource and performs a hard delete of the specified resource
-from the backend and returns a `google.protobuf.Empty`.
+from the backend and returns an empty response message. 
 
 The request MUST fail and return a `trace.NotFound` error if there is no matching resource in the backend.
 
@@ -655,15 +661,6 @@ func newHealthCheckConfigCollection(upstream services.Foo, w types.WatchKind) (*
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListFoos))
 			return out, trace.Wrap(err)
 		},
-		headerTransform: func(hdr *types.ResourceHeader) *foov1.Foo {
-			return &foov1.Foo{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
-		},
 		watch: w,
 	}, nil
 }
@@ -741,7 +738,7 @@ For example, to add a parser for `foo`:
 ```go
 func newFooParser() *fooParser {
 	return &fooParser{
-		baseParser: newBaseParser(backend.Key(fooPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(fooPrefix)),
 	}
 }
 
@@ -752,7 +749,15 @@ type fooParser struct {
 func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindFoo, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(fooPrefix))
+		return types.Resource153ToLegacy(&foov1.Foo{
+				Kind: types.KindFoo,
+				SubKind: ""
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: name
+				}
+		})
 	case types.OpPut:
 		foo, err := services.UnmarshalFoo(
 			event.Item.Value,
@@ -901,6 +906,11 @@ message GetFooRequest {
   string foo_id = 1;
 }
 
+// Response for GetFoo.
+message GetFooResponse {
+  // The retrieved foo resource.
+  Foo foo = 1;
+}
 
 // Request for ListFoos.
 //

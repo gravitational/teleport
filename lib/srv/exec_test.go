@@ -19,7 +19,7 @@
 package srv
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"os/user"
 	"strconv"
@@ -28,25 +28,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if IsReexec() {
-		RunAndExit(os.Args[1])
-		return
-	}
 
 	// Otherwise run tests as normal.
 	code := m.Run()
@@ -81,59 +77,62 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	}
 
 	tests := []struct {
-		inCommand  string
-		inError    error
-		outCommand string
-		outCode    string
+		name     string
+		inResult ExecResult
 	}{
-		// Successful execution.
 		{
-			inCommand:  "exit 0",
-			inError:    nil,
-			outCommand: "exit 0",
-			outCode:    strconv.Itoa(teleport.RemoteCommandSuccess),
+			name: "success",
+			inResult: ExecResult{
+				Command: "exit 0",
+				Error:   nil,
+				Code:    reexecconstants.RemoteCommandSuccess,
+			},
 		},
-		// Exited with error.
 		{
-			inCommand:  "exit 255",
-			inError:    fmt.Errorf("unknown error"),
-			outCommand: "exit 255",
-			outCode:    strconv.Itoa(teleport.RemoteCommandFailure),
+
+			name: "exit with error",
+			inResult: ExecResult{
+				Command: "exit 255",
+				Error:   errors.New("exit status 255"),
+				Code:    reexecconstants.RemoteCommandFailure,
+			},
 		},
-		// Command injection.
 		{
-			inCommand:  "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
-			inError:    fmt.Errorf("unknown error"),
-			outCommand: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
-			outCode:    strconv.Itoa(teleport.RemoteCommandFailure),
+			name: "command injection",
+			inResult: ExecResult{
+				Command: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+				Error:   errors.New("unknown error"),
+				Code:    reexecconstants.RemoteCommandFailure,
+			},
 		},
 	}
 	for _, tt := range tests {
-		emitExecAuditEvent(scx, tt.inCommand, tt.inError)
-		execEvent := rec.emitter.LastEvent().(*apievents.Exec)
-		require.Equal(t, tt.outCommand, execEvent.Command)
-		require.Equal(t, tt.outCode, execEvent.ExitCode)
-		require.Equal(t, expectedMeta, execEvent.UserMetadata)
-		require.Equal(t, "123", execEvent.ServerID)
-		require.Equal(t, "abc", execEvent.ForwardedBy)
-		require.Equal(t, expectedHostname, execEvent.ServerHostname)
-		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
-		require.Equal(t, "xxx", execEvent.SessionID)
-		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
-		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
-		require.NotEmpty(t, events.EventID)
+		t.Run(tt.name, func(t *testing.T) {
+			emitExecAuditEvent(scx, tt.inResult)
+			execEvent := rec.emitter.LastEvent().(*apievents.Exec)
+			require.Equal(t, tt.inResult.Command, execEvent.Command)
+			if tt.inResult.Error != nil {
+				require.Equal(t, tt.inResult.Error.Error(), execEvent.Error)
+			} else {
+				require.Empty(t, execEvent.Error)
+			}
+			if tt.inResult.Code == 0 {
+				require.Equal(t, events.ExecCode, execEvent.Code)
+			} else {
+				require.Equal(t, events.ExecFailureCode, execEvent.Code)
+			}
+			require.Equal(t, strconv.Itoa(tt.inResult.Code), execEvent.ExitCode)
+			require.Equal(t, expectedMeta, execEvent.UserMetadata)
+			require.Equal(t, "123", execEvent.ServerID)
+			require.Equal(t, "abc", execEvent.ForwardedBy)
+			require.Equal(t, expectedHostname, execEvent.ServerHostname)
+			require.Equal(t, "testNamespace", execEvent.ServerNamespace)
+			require.Equal(t, "xxx", execEvent.SessionID)
+			require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
+			require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
+			require.NotEmpty(t, events.EventID)
+		})
 	}
-}
-
-func TestLoginDefsParser(t *testing.T) {
-	t.Parallel()
-
-	expectedEnvSuPath := "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bar"
-	expectedSuPath := "PATH=/usr/local/bin:/usr/bin:/bin:/foo"
-
-	require.Equal(t, expectedEnvSuPath, getDefaultEnvPath("0", "../../fixtures/login.defs"))
-	require.Equal(t, expectedSuPath, getDefaultEnvPath("1000", "../../fixtures/login.defs"))
-	require.Equal(t, defaultEnvPath, getDefaultEnvPath("1000", "bad/file"))
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {

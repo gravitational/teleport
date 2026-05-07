@@ -728,11 +728,11 @@ func TestAuthenticate(t *testing.T) {
 					Expires:           certExpiration,
 				}),
 			}
-			authorizer := mockAuthorizer{ctx: &authCtx}
+			authorizer := mockAuthorizer{scopedCtx: authz.ScopedContextFromUnscopedContext(&authCtx)}
 			if tt.authzErr {
 				authorizer.err = trace.AccessDenied("denied!")
 			}
-			f.cfg.Authz = authorizer
+			f.cfg.ScopedAuthz = authorizer
 
 			req := &http.Request{
 				Host:       "example.com",
@@ -770,7 +770,7 @@ func TestAuthenticate(t *testing.T) {
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
@@ -967,6 +967,34 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:         "role with invalid kubernetes group containing newline",
+			kubeUsers:    []string{"kube-user-a"},
+			kubeGroups:   []string{"kube-group-a\r\nevil-header: injected"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
+		{
+			desc:         "role with invalid kubernetes user containing newline",
+			kubeUsers:    []string{"kube-user-a\r\nevil-header: injected"},
+			kubeGroups:   []string{"kube-group-a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
+		{
+			desc:         "role with invalid kubernetes group containing null byte",
+			kubeUsers:    []string{"kube-user-a"},
+			kubeGroups:   []string{"kube-group-\x00a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
+		{
+			desc:         "role with invalid kubernetes user containing null byte",
+			kubeUsers:    []string{"kube-user-\x00a"},
+			kubeGroups:   []string{"kube-group-a"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -978,11 +1006,11 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
-						Context: authz.Context{
+						ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 							User: &types.UserV2{
 								Metadata: types.Metadata{Name: tt.username},
 							},
-						},
+						}),
 						kubeUsers:       set.New(tt.kubeUsers...),
 						kubeGroups:      set.New(tt.kubeGroups...),
 						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
@@ -1010,11 +1038,11 @@ func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 	require.NoError(t, err)
 
 	return authContext{
-		Context: authz.Context{
+		ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 			User:             user,
 			Identity:         identity,
 			UnmappedIdentity: unmappedIdentity,
-		},
+		}),
 		teleportCluster: teleportClusterClient{
 			name:     "kube-cluster",
 			isRemote: isRemote,
@@ -1276,12 +1304,12 @@ func (t mockRevTunnel) Clusters(context.Context) ([]reversetunnelclient.Cluster,
 }
 
 type mockAuthorizer struct {
-	ctx *authz.Context
-	err error
+	scopedCtx *authz.ScopedContext
+	err       error
 }
 
-func (a mockAuthorizer) Authorize(context.Context) (*authz.Context, error) {
-	return a.ctx, a.err
+func (a mockAuthorizer) AuthorizeScoped(context.Context) (*authz.ScopedContext, error) {
+	return a.scopedCtx, a.err
 }
 
 type mockEventClient struct {
@@ -1416,13 +1444,13 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			})
 
 			identity := &authContext{
-				Context: authz.Context{
+				ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 					User: user,
 					Identity: authz.WrapIdentity(tlsca.Identity{
 						Username: user.GetName(),
 						Groups:   []string{testCase.role.GetName()},
 					}),
-				},
+				}),
 			}
 
 			for i := 0; i < testCase.connections; i++ {
@@ -1558,16 +1586,55 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 	}
 }
 
+func TestInvalidImpersonationGroupHeaderInjection(t *testing.T) {
+	t.Parallel()
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(
+		t.Context(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// Create a user whose role has a kubernetes_group containing a CRLF sequence,
+	// which is an invalid HTTP header field value and must be rejected to prevent
+	// header injection attacks.
+	invalidHeader := "kube-group-a\r\nevil-header: injected"
+	_, _ = testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeGroups: []string{invalidHeader},
+		},
+	)
+
+	client, _ := testCtx.GenTestKubeClientTLSCert(t, username, kubeCluster)
+
+	_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(t.Context(), metav1.ListOptions{})
+	require.Error(t, err)
+	var kubeErr *kubeerrors.StatusError
+	require.ErrorAs(t, err, &kubeErr)
+	require.Equal(t, int32(http.StatusBadRequest), kubeErr.ErrStatus.Code)
+	require.Contains(t, kubeErr.ErrStatus.Message, fmt.Sprintf("invalid impersonated group header value: %q", invalidHeader))
+}
+
 func Test_authContext_eventClusterMeta(t *testing.T) {
 	t.Parallel()
 	kubeClusterLabels := map[string]string{
 		"label": "value",
 	}
-	baseAuthCtx := authz.Context{
+	baseAuthCtx := authz.ScopedContextFromUnscopedContext(&authz.Context{
 		User: &types.UserV2{
 			Metadata: types.Metadata{Name: "ted-lasso"},
 		},
-	}
+	})
 	type args struct {
 		req *http.Request
 		ctx *authContext
@@ -1584,7 +1651,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
-					Context:           baseAuthCtx,
+					ScopedContext:     baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
@@ -1608,7 +1675,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					},
 				},
 				ctx: &authContext{
-					Context:           baseAuthCtx,
+					ScopedContext:     baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1629,7 +1696,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
-					Context:           baseAuthCtx,
+					ScopedContext:     baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1705,7 +1772,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	require.False(t, getConnTLSRootsCalled)
 
 	// generate tlsConfig for the local cluster
-	_, localTLSConfig, err := f.newLocalClusterTransport(clusterName)
+	_, localTLSConfig, err := f.newLocalClusterTransport(clusterName, "")
 	require.NoError(t, err)
 	_ = localTLSConfig.VerifyConnection(tls.ConnectionState{
 		ServerName: "nonempty",

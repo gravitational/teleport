@@ -17,8 +17,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
-import { Link as InternalRouteLink } from 'react-router-dom';
+import { Link as InternalRouteLink, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
@@ -41,6 +40,7 @@ import cfg from 'teleport/config';
 import {
   filterByIntegrationStatus,
   filterBySearch,
+  getAwsIcErrorMessage,
   sortByStatus,
 } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
@@ -78,6 +78,7 @@ const statusKinds = [
   'entra-id',
   IntegrationKind.AwsOidc,
   IntegrationKind.AwsRa,
+  IntegrationKind.AzureOidc,
 ];
 
 type Filters = {
@@ -85,16 +86,16 @@ type Filters = {
 };
 
 export function IntegrationList(props: Props) {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   function handleRowClick(row: IntegrationLike) {
     if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
-      history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+      navigate(cfg.getIaCIntegrationRoute(row.kind, row.name));
       return;
     }
 
     if (!statusKinds.includes(row.kind)) return;
-    history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
+    navigate(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
@@ -149,6 +150,7 @@ export function IntegrationList(props: Props) {
         row={{
           onClick: handleRowClick,
           getStyle: getRowStyle,
+          getKey: row => `${row.kind}:${row.name}`,
         }}
         columns={[
           {
@@ -188,6 +190,7 @@ export function IntegrationList(props: Props) {
               if (
                 item.kind === IntegrationKind.AwsOidc ||
                 item.kind === IntegrationKind.AwsRa ||
+                item.kind === IntegrationKind.AzureOidc ||
                 item.kind === 'entra-id'
               ) {
                 // action menu for these integrations are available on the status page dashboard.
@@ -259,12 +262,10 @@ export function IntegrationList(props: Props) {
                     <MenuButton>
                       <MenuItem
                         as={InternalRouteLink}
-                        to={{
-                          pathname: cfg.getIntegrationEnrollRoute(
-                            IntegrationKind.ExternalAuditStorage
-                          ),
-                          state: { continueDraft: true },
-                        }}
+                        to={cfg.getIntegrationEnrollRoute(
+                          IntegrationKind.ExternalAuditStorage
+                        )}
+                        state={{ continueDraft: true }}
                       >
                         Continue Setup...
                       </MenuItem>
@@ -389,7 +390,7 @@ const NameCell = ({ item }: { item: IntegrationLike }) => {
         icon = <IconContainer name="awsidentityandaccessmanagementiam" />;
         break;
       case IntegrationKind.AzureOidc:
-        formattedText = 'Azure OIDC';
+        formattedText = item.name;
         icon = <IconContainer name="azure" />;
         break;
       case IntegrationKind.GitHub:
@@ -492,7 +493,8 @@ export function percent(n: number, d: number): string {
 }
 
 const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
-  let content = <Text>{integration.details}</Text>;
+  const awsIcErrorMessage = getAwsIcErrorMessage(integration);
+  let content = <Text>{awsIcErrorMessage ?? integration.details}</Text>;
   switch (integration.kind) {
     case IntegrationKind.AwsOidc:
     case IntegrationKind.AzureOidc:

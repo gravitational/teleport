@@ -26,6 +26,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ProxyGetter is a service that gets proxies.
@@ -48,7 +49,8 @@ type NodesGetter interface {
 
 // DatabaseServersGetter is a service that gets database servers.
 type DatabaseServersGetter interface {
-	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.DatabaseServer, error)
 }
 
 // AppServersGetter is a service that gets application servers.
@@ -114,9 +116,6 @@ type Presence interface {
 
 	// DeleteProxy deletes proxy by name
 	DeleteProxy(ctx context.Context, name string) error
-
-	// DeleteAllProxies deletes all proxies
-	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
@@ -216,4 +215,21 @@ type PresenceInternal interface {
 	// same host ID and name exists in storage, no matter its contents (i.e., it
 	// doesn't check the revision of the app_server in storage).
 	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
+
+	// AppendPutNodeActions adds conditional actions to an atomic write to create
+	// or update a node resource.
+	AppendPutNodeActions(
+		actions []backend.ConditionalAction,
+		server types.Server,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteNodeActions adds conditional actions to an atomic write to
+	// delete a node resource.
+	AppendDeleteNodeActions(
+		actions []backend.ConditionalAction,
+		namespace string,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }

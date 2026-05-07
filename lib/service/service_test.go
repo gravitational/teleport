@@ -49,18 +49,20 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -833,6 +835,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"acme-tls/1",
 				"teleport-tcp-ping",
 				"teleport-mcp-ping",
+				"teleport-app-https-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -875,6 +878,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			wantNextProtos: []string{
 				"teleport-tcp-ping",
 				"teleport-mcp-ping",
+				"teleport-app-https-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -992,13 +996,66 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	wg.Wait()
 }
 
-// TestInstanceSelfRepair tests a node that first starts up with only the Proxy
-// service and joins the cluster with a token valid only for role Proxy, and
-// then restarts with the SSH service now enabled and a token valid only for
-// role Node. The instance identity should self-repair on the second startup to
-// get a certificate with both the Proxy and Node system roles.
+// TestInstanceSelfRepair exercises instance self-repair across both the new
+// join service and legacy fallback, with a second token that either contains
+// only the newly required role or all required roles.
 func TestInstanceSelfRepair(t *testing.T) {
-	// Setup: create an auth server with two tokens, one proxy proxies and one for nodes.
+	for _, tc := range []struct {
+		name   string
+		params instanceSelfRepairParams
+	}{
+		{
+			name: "new join service/second token only has newly required role",
+			params: instanceSelfRepairParams{
+				rejoinTokenRoles:      []types.SystemRole{types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String(), types.RoleNode.String()},
+			},
+		},
+		{
+			name: "new join service/second token has all required roles",
+			params: instanceSelfRepairParams{
+				rejoinTokenRoles:      []types.SystemRole{types.RoleProxy, types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String(), types.RoleNode.String()},
+			},
+		},
+		{
+			name: "legacy fallback/second token only has newly required role",
+			params: instanceSelfRepairParams{
+				// Disable the new join service to force a fallback to the
+				// legacy join method.
+				tlsServerOpts: []authtest.TestTLSServerOption{authtest.WithoutJoinV1()},
+				// Despite the instance identity being unable to gain the
+				// Node role not available in the new token, the process
+				// should still be able to get a working node identity.
+				rejoinTokenRoles:      []types.SystemRole{types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String()},
+			},
+		},
+		{
+			name: "legacy fallback/second token has all required roles",
+			params: instanceSelfRepairParams{
+				tlsServerOpts: []authtest.TestTLSServerOption{authtest.WithoutJoinV1()},
+				// With both roles available in the token, the Instance
+				// identity will end up with both roles.
+				rejoinTokenRoles:      []types.SystemRole{types.RoleProxy, types.RoleNode},
+				expectedRejoinedRoles: []string{types.RoleProxy.String(), types.RoleNode.String()},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testInstanceSelfRepair(t, tc.params)
+		})
+	}
+}
+
+type instanceSelfRepairParams struct {
+	tlsServerOpts         []authtest.TestTLSServerOption
+	rejoinTokenRoles      []types.SystemRole
+	expectedRejoinedRoles []string
+}
+
+func testInstanceSelfRepair(t *testing.T, params instanceSelfRepairParams) {
+	// Setup: create an auth server with two tokens, one for proxies and one for nodes.
 	const clusterName = "testcluster"
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         makeTempDir(t),
@@ -1007,7 +1064,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-	tlsServer, err := testAuthServer.NewTestTLSServer()
+	tlsServer, err := testAuthServer.NewTestTLSServer(params.tlsServerOpts...)
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
@@ -1016,18 +1073,18 @@ func TestInstanceSelfRepair(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), proxyToken))
-	sshToken, err := types.NewProvisionTokenFromSpec("sshToken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
-		Roles: []types.SystemRole{types.RoleNode},
+	rejoinToken, err := types.NewProvisionTokenFromSpec("rejoinToken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: params.rejoinTokenRoles,
 	})
 	require.NoError(t, err)
-	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), sshToken))
+	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), rejoinToken))
 
 	logger := logtest.NewLogger()
 	dataDir := makeTempDir(t)
 	const hostName = "testhost"
 	newStartedProcess := func(token string, sshEnabled bool) *TeleportProcess {
 		cfg := servicecfg.MakeDefaultConfig()
-		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Listener.Addr().String()))
+		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Addr().String()))
 		cfg.Clock = clockwork.NewRealClock()
 		cfg.DataDir = dataDir
 		cfg.Hostname = hostName
@@ -1057,8 +1114,8 @@ func TestInstanceSelfRepair(t *testing.T) {
 	require.NotNil(t, connector)
 	id := connector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, id.ID.Role)
-	require.Equal(t, []string{types.RoleProxy.String()}, id.SystemRoles)
-	originalHostID := id.ID.HostID()
+	require.ElementsMatch(t, []string{types.RoleProxy.String()}, id.SystemRoles)
+	originalHostID := id.ID.HostUUID
 
 	// Close the original process.
 	require.NoError(t, process.Close())
@@ -1067,7 +1124,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 	// Start up a new process using the same data dir so that it has access to
 	// the previous Instance and Proxy certs, but enable the SSH service and
 	// provide the token that allows only role Node.
-	process = newStartedProcess(sshToken.GetName(), true)
+	process = newStartedProcess(rejoinToken.GetName(), true)
 
 	// Get the new Instance identity and make sure it includes both the Proxy
 	// and Node system roles.
@@ -1076,21 +1133,21 @@ func TestInstanceSelfRepair(t *testing.T) {
 	require.NotNil(t, instanceConnector)
 	instanceID := instanceConnector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, instanceID.ID.Role)
-	assert.ElementsMatch(t, []string{types.RoleProxy.String(), types.RoleNode.String()}, instanceID.SystemRoles)
+	require.ElementsMatch(t, params.expectedRejoinedRoles, instanceID.SystemRoles)
 	// Make sure the host ID has not changed.
-	assert.Equal(t, instanceID.ID.HostID(), originalHostID)
+	require.Equal(t, originalHostID, instanceID.ID.HostUUID)
 
 	// Make sure the SSH identity becomes available.
 	sshConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
 	require.NoError(t, err)
 	require.NotNil(t, sshConnector)
 	sshID := sshConnector.clientState.Load().identity
-	require.Equal(t, types.RoleNode, sshID.ID.Role)
+	assert.Equal(t, types.RoleNode, sshID.ID.Role)
 	// Make sure the host ID matches the original instance host ID.
-	assert.Equal(t, sshID.ID.HostID(), originalHostID)
+	assert.Equal(t, originalHostID, sshID.ID.HostUUID)
 	// Make sure the SSH cert has all expected principals.
 	expectSSHPrincipals := expectedSSHPrincipals(sshID.ID.HostID(), hostName, clusterName)
-	require.ElementsMatch(t, expectSSHPrincipals, sshID.Cert.ValidPrincipals)
+	assert.ElementsMatch(t, expectSSHPrincipals, sshID.Cert.ValidPrincipals)
 
 	// Close the process to clean up.
 	require.NoError(t, process.Close())
@@ -1116,7 +1173,7 @@ func TestSSHPrincipals(t *testing.T) {
 	logger := logtest.NewLogger()
 	const hostName = "testhost"
 	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Listener.Addr().String()))
+	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Addr().String()))
 	nodeCfg.Clock = clockwork.NewRealClock()
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.Hostname = hostName
@@ -1158,9 +1215,6 @@ func expectedSSHPrincipals(hostID, hostName, clusterName string) []string {
 func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	t.Parallel()
 
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
 	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	token := "join-token"
 
@@ -1178,6 +1232,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.InsecureMode = true
 	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = makeTempDir(t)
 	authCfg.Auth.Enabled = true
@@ -1200,6 +1255,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	// Create Node process, pointing at the auth server's local port
 	authListenAddr := authProc.Config.AuthServerAddresses()[0]
 	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.InsecureMode = true
 	nodeCfg.SetAuthServerAddress(authListenAddr)
 	nodeCfg.DataDir = makeTempDir(t)
 	nodeCfg.SetToken(token)
@@ -1487,9 +1543,10 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-			modulestest.SetTestModules(t, modulestest.Modules{
+
+			tt.config.Modules = &modulestest.Modules{
 				TestBuildType: buildType,
-			})
+			}
 
 			process := &TeleportProcess{
 				Config: tt.config,
@@ -1629,12 +1686,12 @@ func TestDebugService(t *testing.T) {
 		Clock:   fakeClock,
 		DataDir: dataDir,
 	}
-	cfg.Clock = fakeClock
-	cfg.DataDir = dataDir
 
 	log := logtest.NewLogger()
 
 	localRegistry := prometheus.NewRegistry()
+	processRegistry, err := metrics.NewRegistry(localRegistry, teleport.MetricNamespace, "")
+	require.NoError(t, err)
 	additionalRegistry := prometheus.NewRegistry()
 
 	// In this test we don't want to spin a whole process and have to wait for
@@ -1646,7 +1703,7 @@ func TestDebugService(t *testing.T) {
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
-		metricsRegistry: localRegistry,
+		metricsRegistry: processRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
 		Supervisor:      supervisor,
 	}
@@ -1665,25 +1722,27 @@ func TestDebugService(t *testing.T) {
 	require.NoError(t, process.initDebugService(true))
 	require.NoError(t, process.Start())
 
+	assertStatus := func(t *testing.T, status int, url string) string {
+		t.Helper()
+		resp, err := httpClient.Get(url)
+		if !assert.NoError(t, err) {
+			return ""
+		}
+
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+
+		assert.Equal(t, status, resp.StatusCode, "fetching %s: %s", url, string(body))
+		return string(body)
+	}
+
 	// Testing the debug listener.
 	// Fetch a random path, it should return 404 error.
-	req, err := httpClient.Get("http://debug/random")
-	require.NoError(t, err)
-	defer req.Body.Close()
-	require.Equal(t, http.StatusNotFound, req.StatusCode)
+	assertStatus(t, http.StatusNotFound, "http://debug/random")
 
 	// Test the healthcheck endpoints.
-	// Fetch the liveness path
-	req, err = httpClient.Get("http://debug/healthz")
-	require.NoError(t, err)
-	defer req.Body.Close()
-	require.Equal(t, http.StatusOK, req.StatusCode)
-
-	// Fetch the readiness path
-	req, err = httpClient.Get("http://debug/readyz")
-	require.NoError(t, err)
-	defer req.Body.Close()
-	require.Equal(t, http.StatusOK, req.StatusCode)
+	assertStatus(t, http.StatusOK, "http://debug/healthz") // liveness
+	assertStatus(t, http.StatusOK, "http://debug/readyz")  // readiness
 
 	// Testing the metrics endpoint.
 	// Test setup: create our test metrics.
@@ -1705,37 +1764,25 @@ func TestDebugService(t *testing.T) {
 	require.NoError(t, additionalRegistry.Register(additionalMetric))
 
 	// Test execution: hit the metrics endpoint.
-	resp, err := httpClient.Get("http://debug/metrics")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
+	body := assertStatus(t, http.StatusOK, "http://debug/metrics")
 
 	// Test validation: check that the metrics server served both the local and global registry.
-	require.Contains(t, string(body), "local_metric_"+nonce)
-	require.Contains(t, string(body), "global_metric_"+nonce)
+	assert.Contains(t, body, "local_metric_"+nonce)
+	assert.Contains(t, body, "global_metric_"+nonce)
 	// the additional registry is not yet added
-	require.NotContains(t, string(body), "additional_metric_"+nonce)
+	assert.NotContains(t, body, "additional_metric_"+nonce)
 
 	// Test execution: add the additional registry and lookup again
 	process.AddGatherer(additionalRegistry)
 
 	// Test execution: hit the metrics endpoint.
-	resp, err = httpClient.Get("http://debug/metrics")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	body, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
+	body = assertStatus(t, http.StatusOK, "http://debug/metrics")
 
 	// Test validation: check that the metrics server served both the local and global registry.
-	require.Contains(t, string(body), "local_metric_"+nonce)
-	require.Contains(t, string(body), "global_metric_"+nonce)
+	assert.Contains(t, body, "local_metric_"+nonce)
+	assert.Contains(t, body, "global_metric_"+nonce)
 	// Metric has been added
-	require.Contains(t, string(body), "additional_metric_"+nonce)
+	assert.Contains(t, body, "additional_metric_"+nonce)
 }
 
 type mockInstanceMetadata struct {
@@ -2130,6 +2177,8 @@ func TestDiagnosticsService(t *testing.T) {
 
 	log := logtest.NewLogger()
 	localRegistry := prometheus.NewRegistry()
+	processRegistry, err := metrics.NewRegistry(localRegistry, teleport.MetricNamespace, "")
+	require.NoError(t, err)
 	additionalRegistry := prometheus.NewRegistry()
 
 	// In this test we don't want to spin a whole process and have to wait for
@@ -2141,7 +2190,7 @@ func TestDiagnosticsService(t *testing.T) {
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
-		metricsRegistry: localRegistry,
+		metricsRegistry: processRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
 		Supervisor:      supervisor,
 	}
@@ -2238,11 +2287,7 @@ func makeTempDir(t *testing.T) string {
 // the instance has malformed system roles using pre-constructed data directories
 // generated by an older teleport version that permitted token mix-and-match.
 func TestInstanceCertReissue(t *testing.T) {
-	t.Setenv("_insecuredevmode_no_parallel", "1") // panic if the test is or will become parallel
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
 	var eg errgroup.Group
 	defer func() { require.NoError(t, eg.Wait()) }()
 
@@ -2258,6 +2303,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	require.NoError(t, basicDirCopy("testdata/agent", agentDir))
 
 	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.InsecureMode = true
 	authCfg.Version = defaults.TeleportConfigVersionV3
 	authCfg.DataDir = authDir
 	authCfg.Auth.Enabled = true
@@ -2306,6 +2352,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	require.ElementsMatch(t, []string{string(types.RoleAuth), string(types.RoleProxy), string(types.RoleNode)}, authIdentity.SystemRoles)
 
 	agentCfg := servicecfg.MakeDefaultConfig()
+	agentCfg.InsecureMode = true
 	agentCfg.Version = defaults.TeleportConfigVersionV3
 	agentCfg.DataDir = agentDir
 	agentCfg.ProxyServer = utils.NetAddr{
@@ -2410,4 +2457,199 @@ func basicDirCopy(src string, dst string) error {
 	}
 
 	return nil
+}
+
+func TestInitAppsEmptyConfig(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	log := logtest.NewLogger()
+	supervisor, err := NewSupervisor("test-initApps", log, clock)
+	require.NoError(t, err)
+	t.Cleanup(func() { supervisor.Wait() })
+	process := &TeleportProcess{
+		Supervisor: supervisor,
+		Clock:      clock,
+		Config:     &servicecfg.Config{Apps: servicecfg.AppsConfig{Enabled: true}},
+		logger:     log,
+	}
+
+	process.initApps()
+
+	event, err := process.WaitForEventTimeout(5*time.Second, AppsReady)
+	require.NoError(t, err)
+	require.Equal(t, AppsReady, event.Name)
+}
+
+func TestInitKubernetesUnlicensed(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	log := logtest.NewLogger()
+	supervisor, err := NewSupervisor("test-initKube", log, clock)
+	require.NoError(t, err)
+	dataDir := t.TempDir()
+	stor, err := storage.NewProcessStorage(context.Background(), dataDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { stor.Close() })
+	t.Cleanup(func() { supervisor.signalExit(); supervisor.Wait() })
+
+	process := &TeleportProcess{
+		Supervisor:    supervisor,
+		Clock:         clock,
+		Config:        servicecfg.MakeDefaultConfig(),
+		logger:        log,
+		storage:       stor,
+		instanceRoles: map[types.SystemRole]string{types.RoleKube: KubeIdentityEvent},
+	}
+	// clusterFeatures is zero-valued so K8s entitlement is
+	// disabled, matching the unlicensed early-return path.
+	process.Config.Kube.Enabled = true
+	process.Config.DataDir = dataDir
+
+	process.initKubernetes()
+
+	// Broadcast a fake connector to unblock WaitForConnector
+	// inside the registered critical func.
+	process.BroadcastEvent(Event{Name: KubeIdentityEvent, Payload: &Connector{ReusedClient: true}})
+
+	err = supervisor.Start()
+	require.NoError(t, err)
+
+	event, err := process.WaitForEventTimeout(5*time.Second, KubernetesReady)
+	require.NoError(t, err)
+	require.Equal(t, KubernetesReady, event.Name)
+
+	// Verify OnHeartbeat transitioned the component to stateOK
+	// so that /readyz returns HTTP 200.
+	okEvent, err := process.WaitForEventTimeout(5*time.Second, TeleportOKEvent)
+	require.NoError(t, err)
+	require.Equal(t, teleport.ComponentKube, okEvent.Payload)
+}
+
+// TestInitAppsFromConfig given a list of static apps, ensure that they are
+// correctly registered.
+func TestInitAppsFromConfig(t *testing.T) {
+	t.Parallel()
+
+	authDir := t.TempDir()
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.InsecureMode = true
+	cfg.Version = defaults.TeleportConfigVersionV3
+	cfg.DataDir = authDir
+	cfg.Auth.Enabled = true
+	cfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &cfg.FileDescriptors)
+	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	var err error
+	cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "auth-server",
+	})
+	require.NoError(t, err)
+	cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr.Addr = newListener(t, ListenerProxyWeb, &cfg.FileDescriptors)
+
+	cfg.SSH.Enabled = false
+	cfg.Apps.Enabled = true
+	cfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: "example-http",
+			URI:  "http://localhost:8080",
+		},
+		{
+			Name: "example-mtls",
+			URI:  "https://localhost:8080",
+			TLS: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "localhost",
+				ServerSpiffeId: "spiffe://mycluster/svc/local",
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
+		{
+			Name: "example-llm",
+			URI:  "llm://",
+			LLM: &types.LLM{
+				Format:        types.LLMFormatAnthropic,
+				Provider:      types.LLMProviderAWSBedrock,
+				Models:        []*types.LLM_Model{{Name: "claude-opus-4-7", ProviderName: "global.claude-opus-4-7"}},
+				FallbackModel: "claude-opus-4-7",
+			},
+		},
+	}
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	authC := process.GetAuthServer()
+	watchCtx, watchCancel := context.WithTimeout(t.Context(), 20*time.Second)
+	watcher, err := authC.NewWatcher(watchCtx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		watchCancel()
+		_ = watcher.Close()
+	})
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		_ = process.Close()
+		_ = process.Wait()
+	})
+
+	_, err = process.WaitForEventTimeout(5*time.Second, TeleportReadyEvent)
+	require.NoError(t, err)
+
+	// Ensure watcher starts correctly.
+	select {
+	case ev := <-watcher.Events():
+		require.Equal(t, types.OpInit, ev.Type)
+	case <-watcher.Done():
+		t.Fatalf("watcher closed before init: %v", watcher.Error())
+	case <-watchCtx.Done():
+		t.Fatal("timed out waiting for watcher init")
+	}
+
+	// Subscribe to backend writes for KindAppServer so we can assert their
+	// contents. This is required because the available process events don't
+	// guarantee that the heartbeat event is fired after the resource is
+	// persisted.
+	expected := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, a := range cfg.Apps.Apps {
+		expected[a.Name] = struct{}{}
+	}
+	for len(expected) > 0 {
+		select {
+		case ev := <-watcher.Events():
+			if ev.Type != types.OpPut {
+				continue
+			}
+			srv, ok := ev.Resource.(types.AppServer)
+			if !ok {
+				continue
+			}
+			delete(expected, srv.GetApp().GetName())
+		case <-watcher.Done():
+			t.Fatalf("watcher closed before all apps were registered: %v", watcher.Error())
+		case <-watchCtx.Done():
+			t.Fatalf("timed out waiting for app servers, still expecting: %v", expected)
+		}
+	}
+
+	servers, err := authC.GetApplicationServers(t.Context(), apidefaults.Namespace)
+	require.NoError(t, err)
+
+	byName := make(map[string]types.Application, len(servers))
+	for _, s := range servers {
+		byName[s.GetApp().GetName()] = s.GetApp()
+	}
+	for _, appCfg := range cfg.Apps.Apps {
+		app, ok := byName[appCfg.Name]
+		require.True(t, ok, "expected app %q to be registered", appCfg.Name)
+		require.Equal(t, appCfg.URI, app.GetURI())
+		require.Empty(t, cmp.Diff(appCfg.TLS, app.GetTLS(), protocmp.Transform()))
+		require.Empty(t, cmp.Diff(appCfg.LLM, app.GetLLM(), protocmp.Transform()))
+	}
 }

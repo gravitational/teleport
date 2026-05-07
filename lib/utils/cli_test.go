@@ -19,15 +19,19 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"testing"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestUserMessageFromError(t *testing.T) {
@@ -254,4 +258,109 @@ func TestFormatCertError(t *testing.T) {
 		msg := formatCertError(err)
 		require.Empty(t, msg)
 	})
+}
+
+func TestInitCLIParser(t *testing.T) {
+	makeApp := func(usageWriter io.Writer) *kingpin.Application {
+		app := InitCLIParser("widget", "Widget is a tool for widgeting. It supports a variety of operations on widgets and the things widgets are made of.")
+		app.UsageWriter(usageWriter)
+		app.Terminate(func(int) {})
+
+		// Visible top-level flags exercising various attributes (short, envar,
+		// default, cumulative) plus a hidden flag to confirm it is excluded.
+		app.Flag("verbose", "Enable verbose output.").Short('v').Bool()
+		app.Flag("config", "Path to config file.").Short('c').Envar("WIDGET_CONFIG").Default("/etc/widget.yaml").String()
+		app.Flag("tag", "Tags to apply. Repeatable.").Short('t').Strings()
+		app.Flag("secret", "Secret flag that should not appear in help.").Hidden().String()
+
+		// Simple leaf commands used to exercise top-level command-list
+		// formatting and the hidden-command filter.
+		app.Command("hello", "Hello.")
+		app.Command("very-long-command", "Very long command.")
+		app.Command("hidden-very-long-command", "This command is hidden.").Hidden()
+
+		// Command with subcommand children.
+		create := app.Command("create", "Create.")
+		create.Command("box", "Box.")
+		create.Command("rocket", "Rocket.")
+
+		// Command with a default child — regression for #64126.
+		start := app.Command("start", "Start.")
+		start.Command("legacy", "Legacy.").Default()
+		start.Command("workload-identity", "Workload identity.")
+
+		// Command with aliases, required args, and a cumulative arg.
+		ship := app.Command("ship", "Ship a widget to a destination.").Alias("send").Alias("deliver")
+		ship.Arg("widget", "Name of the widget to ship.").Required().String()
+		ship.Arg("dest", "Destination, e.g. city or warehouse ID.").Required().String()
+		ship.Arg("note", "Optional shipping notes, repeatable.").Strings()
+		ship.Flag("express", "Use express shipping.").Bool()
+
+		// Command with children and grandchildren.
+		inventory := app.Command("inventory", "Manage the widget inventory.")
+		inventory.Command("list", "List all widgets currently in inventory.")
+		add := inventory.Command("add", "Add a widget to inventory.")
+		add.Arg("name", "Widget name.").Required().String()
+		add.Flag("count", "How many to add.").Default("1").Int()
+
+		// Command with a long help blurb that will wrap.
+		app.Command("reconcile", "Reconcile the local inventory against the remote source of truth. This operation is idempotent and safe to run repeatedly; mismatches are reported but not automatically corrected unless --fix is passed.").
+			Flag("fix", "Automatically correct any mismatches found during reconciliation.").Bool()
+
+		return app
+	}
+
+	tests := []struct {
+		name      string
+		inputArgs []string
+	}{
+		{
+			name:      "top-level help",
+			inputArgs: nil,
+		},
+		{
+			name:      "command width aligned for subcommand help",
+			inputArgs: []string{"create"},
+		},
+		{
+			name:      "command width aligned on unknown command error",
+			inputArgs: []string{"unknown"},
+		},
+		{
+			// Regression test for https://github.com/gravitational/teleport/issues/64126
+			name:      "default subcommand does not affect column width",
+			inputArgs: []string{"start"},
+		},
+		{
+			name:      "command with required args, optional cumulative arg, and aliases",
+			inputArgs: []string{"ship"},
+		},
+		{
+			name:      "command with children",
+			inputArgs: []string{"inventory"},
+		},
+		{
+			name:      "nested subcommand with required arg and flag",
+			inputArgs: []string{"inventory", "add"},
+		},
+		{
+			name:      "leaf subcommand under a parent",
+			inputArgs: []string{"inventory", "list"},
+		},
+		{
+			name:      "long help text triggers wrapping",
+			inputArgs: []string{"reconcile"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			app := makeApp(&buf)
+			app.Usage(append(tt.inputArgs, "--help"))
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+			require.Equal(t, golden.Get(t), buf.Bytes())
+		})
+	}
 }

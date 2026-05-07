@@ -18,17 +18,27 @@ Why monitor database connectivity with health checks?
 
 ## How it works
 
-When a user connects to a database through Teleport, the connection is routed via a Teleport Database Service.
-The Database Service must be able to reach the database's endpoint to proxy the connection.
+When a user connects to a database through Teleport, the connection is routed
+via a Teleport Database Service instance. The Database Service must be able to
+reach the database's endpoint to proxy the connection.
 
-Teleport Database Service instances will perform regular health checks for databases that match a global `health_check_config` resource's label selectors.
-If no `health_check_config` matches a database, then health checks will not be enabled for that database.
+The health check config is a Teleport dynamic resource that enables health
+checks for registered databases with certain labels. When a config is created,
+updated, or deleted, all Teleport Database Service instances reevaluate which
+health check config applies to each of the registered databases they proxy.
 
-To perform a health check, Teleport Database Service instances will attempt to establish a TCP connection to the database's endpoint and report whether the connection succeeded.
+For matching databases, Teleport Database Service instances perform regular
+health checks. If no health check config matches a database, then health checks
+will not be enabled for that database.
 
-<Admonition type="note">
-Only TCP health checks are available at this time.
-</Admonition>
+When a Database Service instance executes a health check, the nature of the
+check depends on the protocol of the database when it was registered with
+Teleport. For MySQL databases, the Database Service attempts to connect to the
+database and perform a MySQL authentication handshake, which does not need to
+succeed, to bypass the database server's restrictions against incoming
+connections. For other protocols, Database Service instances attempt to
+establish a TCP connection to the database's endpoint and report whether the
+connection succeeded.
 
 When a database is registered, it will initially have an "unknown" health status.
 If health checks are disabled, then the health status will remain "unknown".
@@ -126,8 +136,6 @@ To delete a health check config, run:
 $ tctl rm health_check_config/example
 ```
 
-When a config is created, updated, or deleted, all Teleport Database Service instances will reevaluate which health check config matches and applies for each of the registered databases they proxy.
-
 ## Target health
 
 Target health information is reported by Teleport Database Service instances in `db_server` heartbeat objects for each database that they proxy.
@@ -199,24 +207,15 @@ Refer to the [Database Service troubleshooting guide](../troubleshooting.mdx) fo
 
 ## FAQ
 
-### Why are MySQL health checks disabled?
+### Why do MySQL health checks use the MySQL protocol?
 
-MySQL tracks connection errors for each remote host that tries to connect to the database.
-Each TCP health check is counted as a connection error and eventually MySQL will
-block a host when `sum_connect_errors >= max_connect_errors`.
-As a result, TCP health checks eventually cause MySQL databases to block Teleport.
-
-To re-enable TCP health checks:
-- set `max_connect_errors` to its maximum value on the database to effectively disable the automatic host blocking.
-- set the environment variable `TELEPORT_ENABLE_MYSQL_DB_HEALTH_CHECKS=1` on your Teleport Database Service instance(s).
-
-<Admonition type="warning">
-[MySQL documentation](https://dev.mysql.com/doc/refman/8.4/en/host-cache.html#:~:text=The%20value%20of%20the%20max_connect_errors,host%20from%20further%20connection%20requests) notes:
-> The value of the max_connect_errors system variable determines how many successive interrupted connection requests the server permits before blocking a host. After max_connect_errors failed requests without a successful connection, the server assumes that something is wrong (for example, that someone is trying to break in), and blocks the host from further connection requests.
-
-Setting `max_connect_errors` to its maximum value will effectively disable MySQL's host blocking feature.
-See https://dev.mysql.com/doc/refman/8.4/en/server-system-variables.html#sysvar_max_connect_errors
-</Admonition>
+Health checks for MySQL databases begin with a MySQL authentication handshake,
+which does not need to complete for the health check to succeed. The reason is
+that MySQL tracks connection errors for each remote host that tries to connect
+to the database. Without an initial authentication handshake, each TCP health
+check is counted as a connection error and eventually MySQL will block a host
+when `sum_connect_errors >= max_connect_errors`. As a result, TCP health checks
+eventually cause MySQL databases to block Teleport.
 
 ### How to disable database health checks?
 

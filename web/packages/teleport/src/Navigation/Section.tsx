@@ -23,7 +23,7 @@ import React, {
   ReactNode,
   type JSX,
 } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
@@ -385,7 +385,7 @@ export function SubsectionItem({
     <StyledSubsectionItem
       $active={$active}
       to={to}
-      exact={exact}
+      end={exact}
       tabIndex={0}
       onClick={onClick}
       data-testid={to}
@@ -395,8 +395,11 @@ export function SubsectionItem({
   );
 }
 
-export const StyledSubsectionItem = styled(NavLink)<{
+export const StyledSubsectionItem = styled(NavLink).withConfig({
+  shouldForwardProp: prop => prop !== '$active' && prop !== 'end',
+})<{
   $active: boolean;
+  end?: boolean;
 }>`
   display: flex;
   position: relative;

@@ -173,6 +173,8 @@ type DynamicWindowsDesktop interface {
 	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this dynamic Windows desktop
 	Copy() DynamicWindowsDesktop
+	// IsEqual determines if two dynamic Windows desktops are equivalent to one another.
+	IsEqual(DynamicWindowsDesktop) bool
 }
 
 var _ DynamicWindowsDesktop = &DynamicWindowsDesktopV1{}
@@ -345,6 +347,8 @@ type WindowsDesktop interface {
 	Copy() WindowsDesktop
 	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
+	// IsEqual determines if two desktops are equivalent to one another.
+	IsEqual(WindowsDesktop) bool
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}

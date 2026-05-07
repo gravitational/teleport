@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -37,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,7 +102,8 @@ type Identity struct {
 	PreviousIdentityExpires time.Time
 	// LoginIP is an observed IP of the client on the moment of certificate creation.
 	LoginIP string
-	// PinnedIP is an IP from which client must communicate with Teleport.
+	// PinnedIP is an IP from which client must communicate with Teleport. If set,
+	// this implies that IP Pinning was required at the time of certificate creation.
 	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
@@ -149,6 +150,9 @@ type Identity struct {
 	// GitHubUsername indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
 	// ImmutableLabelHash is the immutable label hash used to verify
@@ -208,11 +212,11 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	// --- user extensions ---
 
 	if i.ScopePin != nil {
-		pin, err := protojson.Marshal(i.ScopePin)
+		pin, err := pinning.Encode(i.ScopePin)
 		if err != nil {
 			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = string(pin)
+		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = pin
 	}
 
 	if i.PermitX11Forwarding {
@@ -296,6 +300,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if credID := i.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
+	}
+	if i.DelegationSessionID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
 	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
@@ -396,6 +403,11 @@ func (id *Identity) IsBot() bool {
 	return id.BotName != ""
 }
 
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
+}
+
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident := &Identity{
@@ -443,11 +455,11 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	// --- user extensions ---
 
 	if v, ok := takeExtension(teleport.CertExtensionScopePin); ok {
-		var pin scopesv1.Pin
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(v), &pin); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
+		pin, err := pinning.Decode(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
 		}
-		ident.ScopePin = &pin
+		ident.ScopePin = pin
 	}
 
 	ident.AgentScope = takeValue(teleport.CertExtensionAgentScope)
@@ -521,6 +533,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceID = takeValue(teleport.CertExtensionDeviceID)
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
+	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 

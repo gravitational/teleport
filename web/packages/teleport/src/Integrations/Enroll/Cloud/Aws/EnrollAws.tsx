@@ -16,180 +16,97 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
-import styled from 'styled-components';
+import { useMemo, useState } from 'react';
+import { Link as InternalLink } from 'react-router';
 
-import {
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  Subtitle1,
-  Text,
-} from 'design';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
+import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
 
-import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
-import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import { ApiError } from 'teleport/services/api/parseError';
-import {
-  Regions as AwsRegion,
-  IntegrationKind,
-  integrationService,
-} from 'teleport/services/integrations';
+import { IntegrationKind } from 'teleport/services/integrations';
+import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
-import { DeploymentMethodSection } from './DeploymentMethodSection';
+import {
+  CheckIntegrationButton,
+  CircleNumber,
+  Container,
+  Divider,
+  useEnrollCloudIntegration,
+} from '../Shared';
 import {
   ContentWithSidePanel,
-  InfoGuideContent,
   InfoGuideSwitch,
-  InfoGuideTab,
-  InfoGuideTitle,
-  PANEL_WIDTH,
   TerraformInfoGuide,
-} from './InfoGuide';
-import { Prerequisites } from './Prerequisites';
-import { RegionsSection } from './RegionsSection';
+  TerraformInfoGuideSidePanel,
+  useTerraformInfoGuide,
+} from '../Shared/InfoGuide';
+import { DeploymentMethodSection } from './DeploymentMethodSection';
+import { InfoGuideContent } from './InfoGuide';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config, WildcardRegion } from './types';
-
-const INTEGRATION_CHECK_RETRIES = 6;
-const INTEGRATION_CHECK_RETRY_DELAY = 5000;
+import {
+  buildMatchers,
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
+} from './types';
 
 export function EnrollAws() {
   useNoMinWidth();
 
   const { clusterVersion } = useClusterVersion();
 
-  const [integrationName, setIntegrationName] = useState('');
+  const {
+    integrationName,
+    setIntegrationName,
+    copyTerraformConfig,
+    integrationExists,
+    isFetching,
+    isError,
+    checkIntegration,
+    cancelCheckIntegration,
+  } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
-    '*',
-  ] as WildcardRegion);
-
-  const [ec2Config, setEc2Config] = useState<Ec2Config>({
-    enabled: true,
-    tags: [],
+  const [configs, setConfigs] = useState<ServiceConfigs>({
+    ec2: { enabled: true, regions: [], tags: [] },
+    eks: { enabled: false, regions: [], tags: [], kubeAppDiscovery: true },
   });
+
+  const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
+    setConfigs(prev => ({
+      ...prev,
+      [type]: { ...prev[type], ...patch },
+    }));
+  };
 
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
-        regions,
-        ec2Config,
+        matchers: buildMatchers(configs),
         version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, configs, clusterVersion]
   );
 
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [activeInfoGuideTab, setActiveInfoGuideTab] =
-    useState<InfoGuideTab>('terraform');
-
-  const toastNotifications = useToastNotifications();
-
-  const integrationQueryKey = ['integration', integrationName];
-
   const {
-    data: integrationData,
-    isFetching,
-    isSuccess,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: integrationQueryKey,
-    queryFn: ({ signal }) =>
-      integrationService.fetchIntegration(integrationName, signal),
-    enabled: false,
-    retry: (failureCount, error: unknown) => {
-      const shouldRetry =
-        failureCount < INTEGRATION_CHECK_RETRIES &&
-        error instanceof ApiError &&
-        error.response.status === 404;
-      return shouldRetry;
-    },
-    retryDelay: INTEGRATION_CHECK_RETRY_DELAY,
-    gcTime: 0,
-  });
-
-  const queryClient = useQueryClient();
-
-  // show success toast
-  useEffect(() => {
-    if (isSuccess && !isFetching && integrationName) {
-      toastNotifications.add({
-        severity: 'success',
-        content: {
-          title: 'Amazon Web Services successfully added',
-          description:
-            'Amazon Web Services has been successfully added ' +
-            'to this Teleport Cluster. Your resources will appear ' +
-            "automatically as they're discovered. This may take a few minutes.",
-          action: {
-            content: 'View Integration',
-            linkTo: cfg.getIaCIntegrationRoute(
-              IntegrationKind.AwsOidc,
-              integrationName
-            ),
-          },
-          isAutoRemovable: false,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuccess, isFetching, integrationName]);
-
-  // show error toast
-  useEffect(() => {
-    if (isError && !isFetching && integrationName) {
-      toastNotifications.add({
-        severity: 'error',
-        content: {
-          title: 'Failed to detect integration',
-          description: `Unable to detect the AWS integration "${integrationName}". Please check your configuration and try again.`,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isError, isFetching, integrationName]);
-
-  const checkIntegration = () => {
-    refetch();
-  };
-
-  const integrationExists = !!integrationData;
-
-  const onInfoGuideClick = (section: InfoGuideTab) => {
-    if (isPanelOpen && activeInfoGuideTab === section) {
-      setIsPanelOpen(false);
-    } else {
-      setActiveInfoGuideTab(section);
-      setIsPanelOpen(true);
-    }
-  };
+    isPanelOpen,
+    activeInfoGuideTab,
+    setActiveInfoGuideTab,
+    onInfoGuideClick,
+  } = useTerraformInfoGuide();
 
   return (
     <Validation>
       {({ validator }) => (
         <Box pt={3}>
-          <ContentWithSidePanel
-            isPanelOpen={isPanelOpen}
-            panelWidth={PANEL_WIDTH}
-          >
-            <Flex justifyContent="space-between" alignItems="start" mb={1}>
+          <ContentWithSidePanel isPanelOpen={isPanelOpen}>
+            <Flex justifyContent="space-between" alignItems="center" mb={1}>
               <Header>Connect Amazon Web Services</Header>
               <InfoGuideSwitch
                 isPanelOpen={isPanelOpen}
@@ -201,9 +118,6 @@ export function EnrollAws() {
               Connect your AWS account to automatically discover and enroll
               resources in your Teleport Cluster.
             </Subtitle1>
-            <Container flexDirection="column" p={4} mb={4}>
-              <Prerequisites />
-            </Container>
             <Container flexDirection="column" p={4} mb={3}>
               <IntegrationSection
                 integrationName={integrationName}
@@ -211,20 +125,16 @@ export function EnrollAws() {
                 disabled={isFetching}
               />
               <Divider />
-              <ConfigurationScopeSection />
-              <Divider />
               <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+                configs={configs}
+                onConfigChange={updateConfig}
               />
-              <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
+                    copyTerraformConfig(terraformConfig);
                   }
                 }}
                 integrationExists={integrationExists}
@@ -234,34 +144,17 @@ export function EnrollAws() {
                     checkIntegration();
                   }
                 }}
-                handleCancelCheckIntegration={() => {
-                  queryClient.cancelQueries({ queryKey: integrationQueryKey });
-                  queryClient.resetQueries({ queryKey: integrationQueryKey });
-                }}
+                handleCancelCheckIntegration={cancelCheckIntegration}
                 isCheckingIntegration={isFetching}
                 checkIntegrationError={isError}
               />
             </Container>
             <Box mb={2}>
-              <ButtonPrimary
-                as={
-                  integrationExists && integrationName
-                    ? InternalLink
-                    : undefined
-                }
-                to={
-                  integrationExists && integrationName
-                    ? cfg.getIaCIntegrationRoute(
-                        IntegrationKind.AwsOidc,
-                        integrationName
-                      )
-                    : undefined
-                }
-                disabled={!integrationExists || !integrationName}
-                gap={2}
-              >
-                View Integration
-              </ButtonPrimary>
+              <CheckIntegrationButton
+                integrationExists={integrationExists}
+                integrationName={integrationName}
+                integrationKind={IntegrationKind.AwsOidc}
+              />
               <ButtonSecondary
                 ml={3}
                 as={InternalLink}
@@ -272,36 +165,21 @@ export function EnrollAws() {
             </Box>
           </ContentWithSidePanel>
 
-          <SlidingSidePanel
-            isVisible={isPanelOpen}
-            skipAnimation={false}
-            panelWidth={PANEL_WIDTH}
-            zIndex={zIndexMap.infoGuideSidePanel}
-            slideFrom="right"
-          >
-            <InfoGuideContainer
-              onClose={() => setIsPanelOpen(false)}
-              title={
-                <InfoGuideTitle
-                  activeSection={activeInfoGuideTab}
-                  onSectionChange={setActiveInfoGuideTab}
-                />
-              }
-            >
-              {activeInfoGuideTab === 'terraform' ? (
-                <TerraformInfoGuide
-                  terraformConfig={terraformConfig}
-                  handleCopy={() => {
-                    if (validator.validate() && terraformConfig) {
-                      copyToClipboard(terraformConfig);
-                    }
-                  }}
-                />
-              ) : (
-                <InfoGuideContent />
-              )}
-            </InfoGuideContainer>
-          </SlidingSidePanel>
+          <TerraformInfoGuideSidePanel
+            activeTab={activeInfoGuideTab}
+            onTabChange={setActiveInfoGuideTab}
+            InfoGuideContent={<InfoGuideContent />}
+            TerraformContent={
+              <TerraformInfoGuide
+                terraformConfig={terraformConfig}
+                handleCopy={() => {
+                  if (validator.validate() && terraformConfig) {
+                    copyTerraformConfig(terraformConfig);
+                  }
+                }}
+              />
+            }
+          />
         </Box>
       )}
     </Validation>
@@ -343,65 +221,3 @@ export function IntegrationSection({
     </>
   );
 }
-
-export function ConfigurationScopeSection() {
-  return (
-    <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
-        <CircleNumber>2</CircleNumber>
-        Configuration Scope
-      </Flex>
-      <Text ml={4}>Single AWS Account</Text>
-      <Text ml={4} mb={3} color="text.slightlyMuted">
-        Discover resources from one specific AWS account. Additional accounts
-        require separate integration setup. <br />
-        Best for: Single-account environments or testing.
-      </Text>
-      <Box ml={4} borderColor="interactive.tonal.neutral.0">
-        <Box
-          pl={4}
-          borderLeft="2px solid"
-          borderColor="interactive.tonal.neutral.0"
-        >
-          <Text fontSize={2}>
-            IAM resources used for discovery in Teleport will be created using
-            the account configured for your AWS Terraform provider.
-          </Text>
-        </Box>
-      </Box>
-    </>
-  );
-}
-
-export const Container = styled(Flex)`
-  border-radius: 8px;
-  background: ${props => props.theme.colors.levels.elevated};
-
-  box-shadow:
-    0 2px 1px -1px rgba(0, 0, 0, 0.2),
-    0 1px 1px 0 rgba(0, 0, 0, 0.14),
-    0 1px 3px 0 rgba(0, 0, 0, 0.12);
-`;
-
-export const CircleNumber = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: ${p => p.theme.space[3]}px;
-  height: ${p => p.theme.space[3]}px;
-  border: 1px solid ${p => p.theme.colors.text.main};
-  color: ${p => p.theme.colors.text.main};
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 500;
-  margin-right: ${p => p.theme.space[2]}px;
-  flex-shrink: 0;
-  box-sizing: border-box;
-`;
-
-export const Divider = styled.hr`
-  margin-top: ${p => p.theme.space[3]}px;
-  margin-bottom: ${p => p.theme.space[3]}px;
-  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
-  width: 100%;
-`;

@@ -107,7 +107,7 @@ func MarshalJWK(bytes []byte) (JWK, error) {
 	case *ecdsa.PublicKey:
 		return marshalECDSAJWK(p)
 	default:
-		return JWK{}, trace.BadParameter("unsupported public type type %T", pub)
+		return JWK{}, trace.BadParameter("unsupported public type %T", pub)
 	}
 }
 

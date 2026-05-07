@@ -55,7 +55,7 @@ db_service:
   # on the Database Service.
   #
   # NOTE: for most deployments, it is recommended to use the Discovery Service
-  # to register AWS databases instead of Database Service–based discovery.
+  # to register Azure databases instead of Database Service–based discovery.
   azure:
     # Database types. Valid options are:
     # 'mysql' - discovers and registers Azure MySQL databases.

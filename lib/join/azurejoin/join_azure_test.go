@@ -45,6 +45,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -52,6 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -122,7 +125,7 @@ func mockVerifyToken(err error) azurejoin.AzureVerifyTokenFunc {
 	}
 }
 
-func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time.Time) (string, error) {
+func makeToken(issuer, tenantID, managedIdentityResourceID, azureResourceID string, issueTime time.Time) (string, error) {
 	sig, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.HS256,
 		Key:       []byte("test-key"),
@@ -132,7 +135,7 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 	}
 	claims := azurejoin.AccessTokenClaims{
 		TokenClaims: oidc.TokenClaims{
-			Issuer:     "https://sts.windows.net/test-tenant-id/",
+			Issuer:     fmt.Sprintf("https://sts.windows.net/%s/", issuer),
 			Audience:   []string{azurejoin.AzureAccessTokenAudience},
 			Subject:    "test",
 			IssuedAt:   oidc.FromTime(issueTime),
@@ -142,7 +145,7 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 		},
 		ManangedIdentityResourceID: managedIdentityResourceID,
 		AzureResourceID:            azureResourceID,
-		TenantID:                   "test-tenant-id",
+		TenantID:                   tenantID,
 		Version:                    "1.0",
 	}
 	raw, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
@@ -227,6 +230,47 @@ func TestJoinAzure(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name:              "tenant-only allow rule matches",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: "test-tenant-id",
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:              "tenant and subscription allow rule matches",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant:       "test-tenant-id",
+							Subscription: defaultSubscription,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
 			name:              "resource group is case insensitive",
 			requestTokenName:  "test-token",
 			tokenSubscription: defaultSubscription,
@@ -298,6 +342,27 @@ func TestJoinAzure(t *testing.T) {
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
+							Subscription: "alternate-subscription-id",
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
+			name:              "tenant matches but subscription does not",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant:       "test-tenant-id",
 							Subscription: "alternate-subscription-id",
 						},
 					},
@@ -490,12 +555,39 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := a.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			mirID := tc.tokenManagedIdentityResourceID
 			if mirID == "" {
 				mirID = vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
 			}
 
-			accessToken, err := makeToken(mirID, "", a.GetClock().Now())
+			const (
+				tenantID = "test-tenant-id"
+				issuer   = tenantID
+			)
+			accessToken, err := makeToken(issuer, tenantID, mirID, "", a.GetClock().Now())
 			require.NoError(t, err)
 
 			imdsClient := &fakeIMDSClient{
@@ -527,6 +619,21 @@ func TestJoinAzure(t *testing.T) {
 			t.Run("new", func(t *testing.T) {
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
 					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -572,6 +679,7 @@ func TestJoinAzureClaims(t *testing.T) {
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
+	defaultTenant := uuid.NewString()
 	defaultSubscription := uuid.NewString()
 	defaultResourceGroup := "my-resource-group"
 	defaultVMName := "test-vm"
@@ -591,6 +699,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 	tests := []struct {
 		name                           string
+		tokenIssuer                    string
+		tokenTenantID                  string
 		tokenManagedIdentityResourceID string
 		tokenAzureResourceID           string
 		tokenSubscription              string
@@ -605,6 +715,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "system-managed identity ok",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
@@ -625,8 +737,79 @@ func TestJoinAzureClaims(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name:                           "system-managed identity ok with allowed tenant",
+			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
+			tokenSubscription:              "system-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: defaultTenant,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:                           "system-managed identity with wrong tenant",
+			requestTokenName:               "test-token",
+			tokenIssuer:                    "another-tenant",
+			tokenTenantID:                  "another-tenant",
+			tokenSubscription:              "system-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: defaultTenant,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
+			name:                           "token issuer does not match tenant",
+			requestTokenName:               "test-token",
+			tokenIssuer:                    "another-tenant",
+			tokenTenantID:                  defaultTenant,
+			tokenSubscription:              "system-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: defaultTenant,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
 			name:                           "system-managed identity with wrong subscription",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
@@ -649,6 +832,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "system-managed identity with wrong resource group",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
@@ -671,6 +856,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity ok",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
@@ -694,6 +881,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity with wrong subscription",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
@@ -717,6 +906,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity with wrong resource group",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
@@ -740,6 +931,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity from different subscription",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("invalid-user-managed-test", "invalid-user-managed-test", defaultIdentityName),
@@ -763,6 +956,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "subscription mismatch between attestation and token",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "attested-subscription",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("token-subscription", defaultResourceGroup, defaultVMName),
@@ -785,6 +980,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "vmss resource type",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "token-subscription",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmssResourceID("token-subscription", defaultResourceGroup, defaultVMName),
@@ -818,9 +1015,34 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := a.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
+			issuer := tc.tokenIssuer
+			tenantID := tc.tokenTenantID
 			mirID := tc.tokenManagedIdentityResourceID
 			azrID := tc.tokenAzureResourceID
-			accessToken, err := makeToken(mirID, azrID, a.GetClock().Now())
+			accessToken, err := makeToken(issuer, tenantID, mirID, azrID, a.GetClock().Now())
 			require.NoError(t, err)
 
 			vmClient := &mockAzureVMClient{
@@ -867,6 +1089,22 @@ func TestJoinAzureClaims(t *testing.T) {
 				// Try to join via the new join service.
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
 					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				// Try to join via the new join service.
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -957,7 +1195,11 @@ func TestAzureIssuerCert(t *testing.T) {
 
 	instanceID := vmResourceID("testsubscription", "testgroup", "testid")
 
-	accessToken, err := makeToken(instanceID, instanceID, a.GetClock().Now())
+	const (
+		tenantID = "test-tenant-id"
+		issuer   = tenantID
+	)
+	accessToken, err := makeToken(issuer, tenantID, instanceID, instanceID, a.GetClock().Now())
 	require.NoError(t, err)
 
 	defaultSubscription := uuid.NewString()

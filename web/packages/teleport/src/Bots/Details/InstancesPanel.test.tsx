@@ -17,14 +17,15 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
@@ -39,20 +40,12 @@ import {
 
 import { InstancesPanel } from './InstancesPanel';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('InstancesPanel', () => {
   it('should show a fetch error state', async () => {

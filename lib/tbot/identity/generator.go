@@ -21,15 +21,19 @@ package identity
 import (
 	"cmp"
 	"context"
+	"crypto"
 	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -39,6 +43,9 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/identity")
 
 // GeneratorConfig contains the configuration options for a Generator.
+//
+// TODO(strideynet): There's some general tidy-up work to be done here with how
+// we handle CAs to make it more uniform and clearly sourced
 type GeneratorConfig struct {
 	// Client that will be used to request identity certificates.
 	Client *apiclient.Client
@@ -99,15 +106,27 @@ type Generator struct {
 }
 
 type generateOpts struct {
+	delegationSessionID  string
 	roles                []string
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
 	logger               *slog.Logger
 	requestModifiers     []func(*proto.UserCertsRequest)
+	privateKey           crypto.Signer
 }
 
 // GenerateOption allows you to customize aspects of the generated identity.
 type GenerateOption func(*generateOpts)
+
+// WithDelegation uses the given delegation session ID to generate certificates
+// associated with a *human* user and delegation session.
+//
+// Note: this option is mutually-exclusive with WithRoles.
+func WithDelegation(sessionID string) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.delegationSessionID = sessionID
+	}
+}
 
 // WithRoles sets the roles the generated identity should include.
 //
@@ -205,6 +224,16 @@ func WithRouteToCluster(cluster string) GenerateOption {
 	}
 }
 
+// WithPrivateKey overrides the private key that will be used.
+//
+// In most cases, you should NOT provide this option, and allow the function to
+// use a throwaway key for each identity.
+func WithPrivateKey(key crypto.Signer) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.privateKey = key
+	}
+}
+
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
 func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
@@ -226,6 +255,10 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	}
 
 	log := cmp.Or(o.logger, g.logger)
+
+	if len(o.roles) != 0 && o.delegationSessionID != "" {
+		return nil, trace.BadParameter("delegation sessions and explicit roles are mutually-exclusive")
+	}
 
 	if len(o.roles) == 0 {
 		if o.currentIdentity != nil {
@@ -268,32 +301,49 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		keyPurpose = cryptosuites.DatabaseClient
 	}
 
-	// Generate a fresh keypair for the impersonated identity. We don't care to
-	// reuse keys here, constantly rotate private keys to limit their effective
-	// lifetime.
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
-		keyPurpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if o.privateKey == nil {
+		// Generate a fresh keypair for the impersonated identity. We generally
+		// don't care to reuse keys here, and instead constantly rotate private
+		// keys to limit their effective lifetime.
+		//
+		// In the beams/vnet service, the private key remains in-memory only and
+		// the benefit of rotating it is minimal. It's also convenient to reuse
+		// the key because VNet splits client certificate issuance and signing
+		// into separate RPCs, so we'd need to store and correlate keys to their
+		// respective applications.
+		var err error
+		o.privateKey, err = cryptosuites.GenerateKey(ctx,
+			cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+			keyPurpose)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	sshPub, err := ssh.NewPublicKey(key.Public())
+	sshPub, err := ssh.NewPublicKey(o.privateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.SSHPublicKey = ssh.MarshalAuthorizedKey(sshPub)
 
-	req.TLSPublicKey, err = keys.MarshalPublicKey(key.Public())
+	req.TLSPublicKey, err = keys.MarshalPublicKey(o.privateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// First, ask the auth server to generate a new set of certs with a new
-	// expiration date.
-	certs, err := g.client.GenerateUserCerts(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var certs *proto.Certs
+	if o.delegationSessionID == "" {
+		// Traditional bot certificates.
+		certs, err = g.client.GenerateUserCerts(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Delegation certificates, tied to a human user identity.
+		certs, err = g.generateDelegationCertificates(ctx, req, o)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// The root CA included with the returned user certs will only contain the
@@ -324,7 +374,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = o.currentIdentity.SSHCACertBytes
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	privateKeyPEM, err := keys.MarshalPrivateKey(o.privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -355,6 +405,146 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 	}
 	conditions := role.GetImpersonateConditions(types.Allow)
 	return conditions.Roles, nil
+}
+
+func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
+	certReq := &delegationv1.GenerateCertsRequest{
+		DelegationSessionId: o.delegationSessionID,
+		SshPublicKey:        req.SSHPublicKey,
+		TlsPublicKey:        req.TLSPublicKey,
+		Ttl:                 durationpb.New(o.ttl),
+	}
+	if req.GetRouteToCluster() != o.currentIdentity.ClusterName {
+		return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
+	}
+	switch {
+	case req.GetRouteToApp().Name != "":
+		route := req.GetRouteToApp()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
+			RouteToApp: &delegationv1.RouteToApp{
+				Name:              route.GetName(),
+				PublicAddr:        route.GetPublicAddr(),
+				ClusterName:       route.GetClusterName(),
+				Uri:               route.GetURI(),
+				TargetPort:        route.GetTargetPort(),
+				AwsRoleArn:        route.GetAWSRoleARN(),
+				AzureIdentity:     route.GetAzureIdentity(),
+				GcpServiceAccount: route.GetGCPServiceAccount(),
+			},
+		}
+	case req.GetRouteToDatabase().ServiceName != "":
+		route := req.GetRouteToDatabase()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
+			RouteToDatabase: &delegationv1.RouteToDatabase{
+				ServiceName: route.GetServiceName(),
+				Protocol:    route.GetProtocol(),
+				Username:    route.GetUsername(),
+				Database:    route.GetDatabase(),
+				Roles:       route.GetRoles(),
+			},
+		}
+	case req.GetKubernetesCluster() != "":
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
+			RouteToKubernetes: &delegationv1.RouteToKubernetes{
+				ClusterName: req.GetKubernetesCluster(),
+			},
+		}
+	}
+	certsRsp, err := g.client.DelegationSessionServiceClient().
+		GenerateCerts(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.Certs{
+		SSH:        certsRsp.GetSsh(),
+		TLS:        certsRsp.GetTls(),
+		SSHCACerts: o.currentIdentity.SSHCACertBytes,
+		TLSCACerts: o.currentIdentity.TLSCACertsBytes,
+	}, nil
+}
+
+// GenerateScoped generates scoped certificates. Bot must already be scoped/
+// hold a scoped identity.
+// TODO(noah): add optional args to this like for Generate.
+func (g *Generator) GenerateScoped(
+	ctx context.Context, ttl, renewalInterval time.Duration,
+) (*Identity, error) {
+	req := &issuancev1pb.IssueScopedBotCertsRequest{
+		Ttl:   durationpb.New(ttl),
+		Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+	}
+
+	keyPurpose := cryptosuites.BotImpersonatedIdentity
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+		keyPurpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SshPublicKey = ssh.MarshalAuthorizedKey(sshPub)
+
+	req.TlsPublicKey, err = keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := g.client.IssuanceClient().IssueScopedBotCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch CAs for new identity
+	localCA, err := g.client.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsHostCAs := [][]byte{}
+	// Append the host CAs from the auth server.
+	for _, cert := range caCerts {
+		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsHostCAs = append(tlsHostCAs, pemBytes)
+	}
+
+	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  req.SshPublicKey,
+	}, &proto.Certs{
+		SSH:        res.Certs.Ssh,
+		TLS:        res.Certs.Tls,
+		TLSCACerts: tlsHostCAs,
+		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	warnOnEarlyExpiration(
+		ctx,
+		log,
+		newIdentity,
+		ttl,
+		renewalInterval,
+	)
+
+	return newIdentity, nil
 }
 
 // warnOnEarlyExpiration logs a warning if the given identity is likely to

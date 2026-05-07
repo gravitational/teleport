@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
@@ -45,4 +46,16 @@ func AssertFeatureEnabled() error {
 	}
 
 	return nil
+}
+
+// ScopesStatusToString returns a user friendly status message based on [proto.ScopesStatus].
+func ScopesStatusToString(s proto.ScopesStatus) string {
+	switch s {
+	case proto.ScopesStatus_SCOPES_STATUS_ENABLED:
+		return "enabled"
+	case proto.ScopesStatus_SCOPES_STATUS_DISABLED:
+		return "disabled"
+	default:
+		return "unknown"
+	}
 }

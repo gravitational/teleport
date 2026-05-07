@@ -25,6 +25,8 @@ import init, {
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
+// Inlines the wasm module as a static asset bundled with our app.
+import wasmUrl from 'shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
 import {
@@ -339,13 +341,26 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   private async initWasm() {
+    if (typeof WebAssembly === 'undefined') {
+      throw new Error(
+        'WebAssembly is not supported in this browser. Desktop sessions and desktop session recordings require WebAssembly.'
+      );
+    }
+
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
       wasmLogLevel = LogType.TRACE;
     }
 
-    await init();
+    // Convert the inlined (base64) WASM to a raw buffer. The init function will
+    // load this directly which plays nicely with our current Content Security Policy.
+    const wasmBytes = Uint8Array.from(
+      atob(wasmUrl.slice(wasmUrl.indexOf(',') + 1)),
+      c => c.charCodeAt(0)
+    );
+
+    await init({ module_or_path: wasmBytes });
     init_wasm_log(wasmLogLevel);
   }
 
@@ -368,8 +383,17 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(buffer: ArrayBufferLike): Promise<void> {
-    const result = this.codec.decodeMessage(buffer);
+  async processMessage(
+    buffer: ArrayBufferLike,
+    codecOverride?: Codec
+  ): Promise<void> {
+    let codec = this.codec;
+    if (codecOverride) {
+      // Allow the caller to override the codec.
+      codec = codecOverride;
+    }
+
+    const result = codec.decodeMessage(buffer);
     if (!result) {
       // Codec implementations *should* return an 'unknown' result kind
       // instead of undefined, but double check anyway for safety.

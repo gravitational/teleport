@@ -1179,6 +1179,18 @@
           },
           {
             "resources": [
+              "retrieval_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "client_ip_restriction"
             ],
             "verbs": [
@@ -1240,6 +1252,18 @@
           {
             "resources": [
               "workload_cluster"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "recording_encryption"
             ],
             "verbs": [
               "list",

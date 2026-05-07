@@ -22,7 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon } from './Icon';
+export * from './Icon';
 
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
@@ -43,6 +43,7 @@ export { ArrowRight } from './Icons/ArrowRight';
 export { ArrowSquareIn } from './Icons/ArrowSquareIn';
 export { ArrowSquareOut } from './Icons/ArrowSquareOut';
 export { ArrowUp } from './Icons/ArrowUp';
+export { ArrowUpRight } from './Icons/ArrowUpRight';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
 export { BedrockLogo } from './Icons/BedrockLogo';
@@ -106,6 +107,7 @@ export { Desktop } from './Icons/Desktop';
 export { Detective } from './Icons/Detective';
 export { DeviceMobileCamera } from './Icons/DeviceMobileCamera';
 export { Devices } from './Icons/Devices';
+export { Dot } from './Icons/Dot';
 export { Download } from './Icons/Download';
 export { Earth } from './Icons/Earth';
 export { Edit } from './Icons/Edit';
@@ -118,6 +120,7 @@ export { Facebook } from './Icons/Facebook';
 export { FastForward } from './Icons/FastForward';
 export { FilmStrip } from './Icons/FilmStrip';
 export { FingerprintSimple } from './Icons/FingerprintSimple';
+export { Flag } from './Icons/Flag';
 export { Floppy } from './Icons/Floppy';
 export { FlowArrow } from './Icons/FlowArrow';
 export { FolderPlus } from './Icons/FolderPlus';

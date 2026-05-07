@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package resources
 
 import (
@@ -33,17 +34,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type scopedRoleAssignmentCollection struct {
+type ScopedRoleAssignmentCollection struct {
 	roleAssignments []*scopedaccessv1.ScopedRoleAssignment
 }
 
-func NewScopedRoleAssignmentCollection(roles []*scopedaccessv1.ScopedRoleAssignment) Collection {
-	return &scopedRoleAssignmentCollection{
-		roleAssignments: roles,
+func NewScopedRoleAssignmentCollection(assignments []*scopedaccessv1.ScopedRoleAssignment) Collection {
+	return &ScopedRoleAssignmentCollection{
+		roleAssignments: assignments,
 	}
 }
 
-func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
+func (c *ScopedRoleAssignmentCollection) Resources() []types.Resource {
 	r := make([]types.Resource, len(c.roleAssignments))
 	for i, resource := range c.roleAssignments {
 		r[i] = types.Resource153ToLegacy(resource)
@@ -51,8 +52,8 @@ func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
 	return r
 }
 
-func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
+func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
+	headers := []string{"SubKind", "Scope", "Name", "User", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
 	for i, item := range c.roleAssignments {
@@ -62,6 +63,7 @@ func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 		}
 
 		rows[i] = []string{
+			item.GetSubKind(),
 			item.GetScope(),
 			item.GetMetadata().GetName(),
 			item.GetSpec().GetUser(),
@@ -79,19 +81,34 @@ func scopedRoleAssignmentHandler() Handler {
 	return Handler{
 		getHandler:    getScopedRoleAssignment,
 		createHandler: createScopedRoleAssignment,
+		updateHandler: updateScopedRoleAssignment,
 		deleteHandler: deleteScopedRoleAssignment,
 		description:   "A scoped role assignment binds scoped role permissions to a user at a limited scope",
 	}
 }
 
 func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	if opts.Force {
-		return trace.BadParameter("scoped role assignment creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// use upsert when --force is set and the assignment already has a name (i.e. it was previously
+	// created and the user is re-applying the same resource file). if there is no name, fall through
+	// to create, which will generate one server-side.
+	if opts.Force && r.GetMetadata().GetName() != "" {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+			Assignment: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRoleAssignment,
+			rsp.GetAssignment().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -110,28 +127,60 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	return nil
 }
 
+func updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: r,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(
+		"%v %q has been updated\n",
+		scopedaccess.KindScopedRoleAssignment,
+		r.GetMetadata().GetName(),
+	)
+
+	return nil
+}
+
 func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name != "" {
+		if ref.SubKind == "" {
+			return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", ref.Name)
+		}
 		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: ref.Name,
+			Name:    ref.Name,
+			SubKind: ref.SubKind,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return &scopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
+		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
 	}
 
 	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &scopedRoleAssignmentCollection{roleAssignments: items}, nil
+	return NewScopedRoleAssignmentCollection(items), nil
 }
 
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if ref.SubKind == "" {
+		return trace.BadParameter("scoped_role_assignment requires an explicit subkind when deleting a resource, try: tctl rm scoped_role_assignment/%s/%s", scopedaccess.SubKindDynamic, ref.Name)
+	}
+	if ref.SubKind == scopedaccess.SubKindMaterialized {
+		return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
+	}
 	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: ref.Name,
+		Name:    ref.Name,
+		SubKind: ref.SubKind,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

@@ -311,7 +311,7 @@ func explainSkipped(skipped []skippedAccessPath) string {
 	var sb strings.Builder
 	sb.WriteString("\nWhen resolving access, the following access paths were ignored:")
 	for _, path := range skipped {
-		sb.WriteString(fmt.Sprintf("\n * %q because %s", path, path.reason))
+		fmt.Fprintf(&sb, "\n * %q because %s", path, path.reason)
 	}
 	return sb.String()
 }

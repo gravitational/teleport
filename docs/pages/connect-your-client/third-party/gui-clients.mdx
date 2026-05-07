@@ -20,7 +20,7 @@ Connect](../teleport-clients/teleport-connect.mdx#connecting-to-a-database).
   up](https://goteleport.com/signup) for a free trial or [set up a demo
   environment](../../get-started/deploy-community.mdx).
 
-- The `tsh` client tool. Visit [Installation](../../installation/installation.mdx) for instructions on downloading
+- The `tsh` client tool. Visit [Installation](../../installation/single-machine/single-machine.mdx) for instructions on downloading
   `tsh`. See the [Using Teleport Connect](../teleport-clients/teleport-connect.mdx) guide for a graphical desktop client
   that includes `tsh`.
 
@@ -105,7 +105,7 @@ is `127.0.0.1:62652`.
 Use the `tsh proxy db` command to start a local TLS proxy your GUI database
 client will be connecting to.
 
-Run a command similar to the following::
+Run a command similar to the following:
 
 ```code
 $ tsh proxy db <Var name="database-name" />
@@ -124,7 +124,7 @@ your GUI client below. When entering the hostname, use `localhost` rather than
 ### Remote host and port
 
 If you are self-hosting Teleport and not using [TLS
-routing](../../zero-trust-access/deploy-a-cluster/tls-routing.mdx), run the
+routing](../../zero-trust-access/management/tls-routing.mdx), run the
 following command to see the database connection information:
 
 ```code
@@ -656,7 +656,7 @@ The new connection should appear on the list.
 
 ### Toad
 
-Add new login record in the logins dialog.
+Add a new login record in the logins dialog.
 
 ![Toad Add Login Record](../../../img/database-access/guides/oracle/toad-add-login-record@2x.png)
 

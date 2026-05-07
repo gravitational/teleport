@@ -1,0 +1,44 @@
+kind: role
+metadata:
+  name: rbac-read-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    logins:
+    - root
+    node_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - event
+      verbs:
+      - list
+    - resources:
+      - session
+      verbs:
+      - list
+      - read
+    - resources:
+      - role
+      verbs:
+      - list
+      - read
+    - resources:
+      - auth_connector
+      verbs:
+      - list
+      - read
+    - resources:
+      - user
+      verbs:
+      - list
+      - read
+    - resources:
+      - trusted_cluster
+      verbs:
+      - list
+      - read
+  options:
+    max_session_ttl: 8h0m0s
+version: v3
