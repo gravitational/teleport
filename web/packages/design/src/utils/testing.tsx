@@ -35,6 +35,7 @@ import { MemoryRouter as Router } from 'react-router-dom';
 import { darkTheme } from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
+
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
 export const testQueryClient = new QueryClient({

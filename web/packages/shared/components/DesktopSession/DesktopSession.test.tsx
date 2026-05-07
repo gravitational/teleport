@@ -31,6 +31,7 @@ import {
   TdpClient,
 } from 'shared/libs/tdp';
 import 'jest-canvas-mock';
+
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import { DesktopSession } from './DesktopSession';
