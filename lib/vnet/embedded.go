@@ -81,10 +81,6 @@ type EmbeddedApplicationService interface {
 
 	// GetDBSigner returns the private key for the database certificate
 	GetDBSigner(ctx context.Context, dbKey *vnetv1.DatabaseKey) (crypto.Signer, error)
-
-	// OnNewDBConnection is called whenever a new database connection is
-	// established through VNet.
-	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error
 }
 
 // EmbeddedVNetHostConfig is passed to EmbeddedVNetConfig.ConfigureHost to
@@ -325,10 +321,7 @@ func (e *embeddedApplicationServiceClient) SignForDB(ctx context.Context, req *v
 	return &vnetv1.SignForDBResponse{Signature: sig}, nil
 }
 
-func (e *embeddedApplicationServiceClient) OnNewDBConnection(ctx context.Context, req *vnetv1.OnNewDBConnectionRequest, _ ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {
-	if err := e.service.OnNewDBConnection(ctx, req.GetDatabaseKey()); err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (*embeddedApplicationServiceClient) OnNewDBConnection(context.Context, *vnetv1.OnNewDBConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {
 	return &vnetv1.OnNewDBConnectionResponse{}, nil
 }
 

@@ -19,6 +19,7 @@ package beams_test
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -41,12 +43,15 @@ import (
 	vnetv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -156,24 +161,27 @@ func TestVNetService(t *testing.T) {
 	user, err = rootClient.CreateUser(t.Context(), user)
 	require.NoError(t, err)
 
-	// Register a db_server so VNet has something to resolve for DB FQDNs.
-	const dbName = "mypostgres"
-	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: dbName,
-	}, types.DatabaseServerSpecV3{
-		HostID:   "test-db-host",
-		Hostname: "test-db-host",
-		Database: &types.DatabaseV3{
-			Metadata: types.Metadata{Name: dbName},
-			Spec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-			},
-		},
+	const (
+		dbName = "mypostgres"
+		dbUser = "testUser"
+		dbDB   = "mydb"
+	)
+	pts, err := postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: rootClient,
+		Users:      []string{dbUser},
 	})
 	require.NoError(t, err)
-	_, err = rootClient.UpsertDatabaseServer(t.Context(), dbServer)
-	require.NoError(t, err)
+	go func() {
+		t.Logf("Postgres Fake server running at %s port", pts.Port())
+		require.NoError(t, pts.Serve())
+	}()
+	t.Cleanup(func() { pts.Close() })
+
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, testenv.StaticToken, nil, servicecfg.Database{
+		Name:     dbName,
+		URI:      net.JoinHostPort("localhost", pts.Port()),
+		Protocol: "postgres",
+	})
 
 	// Create a delegation session for the user.
 	aliceClient := makeUserClient(t, process, rootClient, user.GetName())
@@ -262,6 +270,19 @@ func TestVNetService(t *testing.T) {
 	require.Len(t, ips, 1)
 	require.False(t, ips[0].Equal(upstreamResolvedIP),
 		"VNet should resolve %s to a synthetic IP, got upstream IP", dbFQDN)
+
+	pgCfg, err := pgconn.ParseConfig(fmt.Sprintf(
+		"postgres://%s@%s:5432/%s?sslmode=disable", dbUser, dbFQDN, dbDB,
+	))
+	require.NoError(t, err)
+	pgCfg.DialFunc = hostNetwork.ResolveAndDial
+	pgCfg.LookupFunc = hostNetwork.DNSResolver().LookupHost
+	pgConn, err := pgconn.ConnectConfig(t.Context(), pgCfg)
+	require.NoError(t, err)
+	defer pgConn.Close(t.Context())
+	result := pgConn.ExecParams(t.Context(), "SELECT 1", nil, nil, nil, nil).Read()
+	require.NoError(t, result.Err)
+	require.Len(t, result.Rows, 1)
 
 	cancel()
 	require.NoError(t, <-errCh)

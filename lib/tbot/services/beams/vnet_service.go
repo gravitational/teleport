@@ -537,9 +537,6 @@ func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.D
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if id.TLSCert == nil || len(id.TLSCert.Certificate) == 0 {
-		return nil, trace.Errorf("identity generator returned no TLS certificate for database %q", dbInfo.GetDatabaseKey().GetName())
-	}
 	return id.TLSCert, nil
 }
 
@@ -547,12 +544,6 @@ func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.D
 // across all VNet-issued database certificates in this service.
 func (v *vnetApplicationService) GetDBSigner(context.Context, *vnetv1.DatabaseKey) (crypto.Signer, error) {
 	return v.privateKey, nil
-}
-
-// OnNewDBConnection is invoked for each new VNet database connection. tbot
-// has no per-connection observability hook today, so this is a no-op.
-func (v *vnetApplicationService) OnNewDBConnection(context.Context, *vnetv1.DatabaseKey) error {
-	return nil
 }
 
 func isDescendantSubdomain(fqdn, zone string) bool {
