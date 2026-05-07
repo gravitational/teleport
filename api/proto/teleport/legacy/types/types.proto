@@ -7671,6 +7671,23 @@ message PluginEntraIDSyncSettings {
 
   // Source of the Access List owners.
   EntraIDAccessListOwnersSource access_list_owners_source = 7;
+
+  // Plugin service sync intervals.
+  PluginEntraIDSyncIntervals sync_intervals = 8;
+}
+
+// PluginEntraIDSyncIntervals defines sync intervals to be
+// used by the plugin.
+message PluginEntraIDSyncIntervals {
+  option (gogoproto.equal) = true;
+
+  // Delta sync interval.
+  // Must be a valid Go duration string (e.g. "2m").
+  string delta = 1;
+
+  // Full sync interval.
+  // Must be a valid Go duration string (e.g. "1h").
+  string full = 2;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
