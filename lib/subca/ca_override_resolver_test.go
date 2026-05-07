@@ -229,6 +229,9 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 				OverrideActive: true,
 				PublicKeyHash:  o1.PublicKey,
 				CACertificate:  subca.Certificate{PEM: []byte(o1.Certificate)},
+				CAChain: []subca.Certificate{
+					{PEM: []byte(o1.Certificate)},
+				},
 			},
 		},
 		{
@@ -241,6 +244,7 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 				PublicKeyHash:  o4.PublicKey,
 				CACertificate:  subca.Certificate{PEM: []byte(o4.Certificate)},
 				CAChain: []subca.Certificate{
+					{PEM: []byte(o4.Certificate)},
 					{PEM: []byte(o4.Chain[0])},
 					{PEM: []byte(o4.Chain[1])},
 				},
