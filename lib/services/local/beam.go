@@ -97,6 +97,9 @@ func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken str
 
 // ListBeamsV2 lists beams with pagination, sorting and filtering.
 func (s *BeamService) ListBeamsV2(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
+	// The backend does not support sorting beyond the default (name:asc). This
+	// check raises an error if any other sort is requested. The cache should
+	// provide sorting and there are no plans to implement it here.
 	if err := validateListOptions(options); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -116,6 +119,9 @@ func (s *BeamService) IterateBeams(ctx context.Context, pageToken string) iter.S
 // IterateBeamsV2 returns a sequence of beams starting from the given pageToken
 // with sorting and filtering.
 func (s *BeamService) IterateBeamsV2(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
+	// The backend does not support sorting beyond the default (name:asc). This
+	// check raises an error if any other sort is requested. The cache should
+	// provide sorting and there are no plans to implement it here.
 	if err := validateListOptions(options); err != nil {
 		return func(yield func(*beamsv1.Beam, error) bool) {
 			yield(nil, trace.Wrap(err))
