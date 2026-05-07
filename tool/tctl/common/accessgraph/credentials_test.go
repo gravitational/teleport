@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // testCA bundles a self-signed CA and a clock; it mints Access Graph TLS
@@ -289,10 +290,8 @@ func TestResolveAccessGraphCredentials(t *testing.T) {
 		cluster   = "test-cluster"
 	)
 
-	// Fully populated profile pointing at a real keyring stored in an
-	// in-memory client store.
 	ca := newTestCA(t)
-	newStoreAndProfile := func(t *testing.T) (*client.Store, *client.ProfileStatus) {
+	newResolved := func(t *testing.T) *tctlcfg.ResolvedConfig {
 		t.Helper()
 		store := client.NewMemClientStore()
 		kr := ca.withTeleportTLSCert(t, newTestKeyRing(t), time.Hour)
@@ -302,58 +301,74 @@ func TestResolveAccessGraphCredentials(t *testing.T) {
 			ClusterName: cluster,
 		}
 		require.NoError(t, store.AddKeyRing(kr))
-		profile := &client.ProfileStatus{
-			Name:     proxyHost,
-			Username: username,
-			Cluster:  cluster,
-			ProxyURL: url.URL{Scheme: "https", Host: proxyHost + ":443"},
+		return &tctlcfg.ResolvedConfig{
+			ClientStore: store,
+			Profile: &client.ProfileStatus{
+				Name:     proxyHost,
+				Username: username,
+				Cluster:  cluster,
+				ProxyURL: url.URL{Scheme: "https", Host: proxyHost + ":443"},
+			},
 		}
-		return store, profile
 	}
 
-	t.Run("happy path", func(t *testing.T) {
+	t.Run("happy path (profile)", func(t *testing.T) {
 		t.Parallel()
-		store, profile := newStoreAndProfile(t)
+		resolved := newResolved(t)
 
-		creds, err := resolveAccessGraphCredentials(context.Background(), store, profile)
+		creds, err := resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, resolved)
 		require.NoError(t, err)
 		require.Equal(t, proxyHost+":443", creds.proxyAddr)
-		require.Same(t, store, creds.clientStore)
+		require.Same(t, resolved.ClientStore, creds.clientStore)
 		require.NotNil(t, creds.keyRing)
 		require.Equal(t, username, creds.keyRing.Username)
 		require.Equal(t, cluster, creds.keyRing.ClusterName)
 	})
 
+	t.Run("identity-file mode blanks proxyAddr", func(t *testing.T) {
+		t.Parallel()
+		// Identity-file blanks `proxyAddr`; covers
+		// `--auth-server=<host>:3025` (auth gRPC, not proxy). See
+		// https://goteleport.com/docs/reference/cli/tctl/.
+		resolved := newResolved(t)
+
+		creds, err := resolveAccessGraphCredentials(context.Background(),
+			&tctlcfg.GlobalCLIFlags{IdentityFilePath: "/path/to/identity"}, resolved)
+		require.NoError(t, err)
+		require.Empty(t, creds.proxyAddr, "identity-file mode must not trust profile.ProxyURL.Host")
+		require.Same(t, resolved.ClientStore, creds.clientStore)
+		require.NotNil(t, creds.keyRing)
+	})
+
 	t.Run("missing proxy URL host", func(t *testing.T) {
 		t.Parallel()
-		store, profile := newStoreAndProfile(t)
-		profile.ProxyURL = url.URL{}
+		resolved := newResolved(t)
+		resolved.Profile.ProxyURL = url.URL{}
 
-		_, err := resolveAccessGraphCredentials(context.Background(), store, profile)
+		_, err := resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, resolved)
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 
 	t.Run("keyring not in store", func(t *testing.T) {
 		t.Parallel()
-		// Empty store — profile points at a keyring that doesn't exist.
-		store := client.NewMemClientStore()
-		profile := &client.ProfileStatus{
-			Name:     proxyHost,
-			Username: username,
-			Cluster:  cluster,
-			ProxyURL: url.URL{Scheme: "https", Host: proxyHost + ":443"},
+		resolved := &tctlcfg.ResolvedConfig{
+			ClientStore: client.NewMemClientStore(),
+			Profile: &client.ProfileStatus{
+				Name:     proxyHost,
+				Username: username,
+				Cluster:  cluster,
+				ProxyURL: url.URL{Scheme: "https", Host: proxyHost + ":443"},
+			},
 		}
 
-		_, err := resolveAccessGraphCredentials(context.Background(), store, profile)
-		require.Error(t, err)
+		_, err := resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, resolved)
 		require.True(t, trace.IsNotFound(err), "expected NotFound from GetKeyRing, got %v", err)
 	})
 
 	t.Run("uses profile.Name as ProxyHost", func(t *testing.T) {
 		t.Parallel()
-		// Verify the index uses profile.Name (host-only, profile filename)
-		// rather than profile.ProxyURL.Host (which often includes a port).
-		// A keyring stored under "host:port" would not be found.
+		// Verify the index uses `profile.Name`` (host-only, profile filename)
+		// rather than `profile.ProxyURL.Host` (which often includes a port).
 		store := client.NewMemClientStore()
 		kr := ca.withTeleportTLSCert(t, newTestKeyRing(t), time.Hour)
 		kr.KeyRingIndex = client.KeyRingIndex{
@@ -362,15 +377,28 @@ func TestResolveAccessGraphCredentials(t *testing.T) {
 			ClusterName: cluster,
 		}
 		require.NoError(t, store.AddKeyRing(kr))
-		profile := &client.ProfileStatus{
-			Name:     proxyHost,
-			Username: username,
-			Cluster:  cluster,
-			ProxyURL: url.URL{Scheme: "https", Host: proxyHost + ":443"},
+		resolved := &tctlcfg.ResolvedConfig{
+			ClientStore: store,
+			Profile: &client.ProfileStatus{
+				Name:     proxyHost,
+				Username: username,
+				Cluster:  cluster,
+				ProxyURL: url.URL{Scheme: "https", Host: proxyHost + ":443"},
+			},
 		}
 
-		_, err := resolveAccessGraphCredentials(context.Background(), store, profile)
+		_, err := resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, resolved)
 		require.Error(t, err, "lookup should miss when profile.Name disagrees with the stored ProxyHost")
+	})
+
+	t.Run("nil arguments", func(t *testing.T) {
+		t.Parallel()
+		_, err := resolveAccessGraphCredentials(context.Background(), nil, &tctlcfg.ResolvedConfig{})
+		require.True(t, trace.IsBadParameter(err))
+		_, err = resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, nil)
+		require.True(t, trace.IsBadParameter(err))
+		_, err = resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, &tctlcfg.ResolvedConfig{})
+		require.True(t, trace.IsBadParameter(err))
 	})
 }
 
@@ -636,7 +664,6 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 	tests := []struct {
 		name       string
 		ping       proto.PingResponse
-		pingErr    error // when non-nil, returned in place of ping
 		wantErr    func(error) bool
 		wantSubstr []string // every substring must appear in err.Error()
 	}{
@@ -718,29 +745,12 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 				"Policy",
 			},
 		},
-		{
-			name:    "ping itself fails — error is propagated with context",
-			pingErr: errors.New("connection refused"),
-			wantErr: func(err error) bool { return err != nil },
-			wantSubstr: []string{
-				"pinging cluster",
-				"connection refused",
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			mock := &mockAuthClient{
-				ping: func(ctx context.Context) (proto.PingResponse, error) {
-					if tt.pingErr != nil {
-						return proto.PingResponse{}, tt.pingErr
-					}
-					return tt.ping, nil
-				},
-			}
-			_, err := checkAccessGraphSupported(context.Background(), mock)
+			err := checkAccessGraphSupported(context.Background(), tt.ping)
 			require.True(t, tt.wantErr(err), "wantErr predicate failed for err=%v", err)
 			if err != nil {
 				for _, s := range tt.wantSubstr {
@@ -749,27 +759,4 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestCheckAccessGraphSupported_BlocksIssue confirms a failing
-// precondition prevents GenerateUserCerts from being called.
-func TestCheckAccessGraphSupported_BlocksIssue(t *testing.T) {
-	t.Parallel()
-
-	mock := &mockAuthClient{
-		ping: func(ctx context.Context) (proto.PingResponse, error) {
-			// Unlicensed cluster.
-			return proto.PingResponse{
-				ServerFeatures: &proto.Features{AccessGraph: true},
-			}, nil
-		},
-		generate: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-			t.Fatalf("GenerateUserCerts must not be called when precondition check fails")
-			return nil, nil
-		},
-	}
-
-	_, err := checkAccessGraphSupported(context.Background(), mock)
-	require.True(t, trace.IsAccessDenied(err))
-	require.Nil(t, mock.gotReq, "GenerateUserCerts must not have been invoked")
 }

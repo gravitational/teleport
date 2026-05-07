@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // accessGraphSetupDocURL is surfaced in the user-visible error when
@@ -51,20 +52,16 @@ const unlicensedAccessGraphMessage = "this Teleport cluster's license does not i
 
 // unconfiguredAccessGraphMessage is returned when the cluster is
 // licensed for Access Graph but the operator has not wired up the
-// `access_graph` block in the auth service config. Carries a single
-// %s for accessGraphSetupDocURL.
+// `access_graph` block in the auth service config.
 const unconfiguredAccessGraphMessage = "Access Graph is licensed on this cluster but not configured. " +
 	"On self-hosted clusters, add an `access_graph` section to the " +
 	"auth_service config in teleport.yaml and restart auth; on " +
 	"Teleport Cloud, enable Access Graph from the cluster admin " +
 	"settings. See %s for setup instructions."
 
-// accessGraphMinPersistTTL is the minimum cert lifetime for disk persistence;
-// shorter-lived certs (MFA-elevated single-use, role TTL caps, etc.) are
-// kept in memory only. tool/tsh/common/app.go onAppLogin handles this with
-// a server-side IsMFARequired probe before issuance, but AG has no obvious
-// probe target, so this TTL floor is a preventative guard. 5m is well
-// above the 1m single-use MFA TTL.
+// accessGraphMinPersistTTL is a preventative cert-lifetime floor for
+// disk persistence — `IsMFARequired` (used by `tsh login` `onAppLogin`)
+// isn't available for AG. 5m exceeds the 1m single-use MFA clamp.
 const accessGraphMinPersistTTL = 5 * time.Minute
 
 // accessGraphCertExpiryBuffer is the pre-expiry guard for in-flight AG calls
@@ -72,38 +69,18 @@ const accessGraphMinPersistTTL = 5 * time.Minute
 // operational margin).
 const accessGraphCertExpiryBuffer = 2 * time.Minute
 
-// accessGraphCredentials bundles the client-side state needed to talk to
-// Access Graph: the proxy address, the optional client store (nil on
-// the auth host), and the keyring that holds (or will hold) the AG
-// TLS cert.
+// accessGraphCredentials bundles AG client state. The resolver only
+// sets `proxyAddr` for the `tsh login` flow; other modes get it from
+// `Ping` in `ensureAccessGraphCert`.
 type accessGraphCredentials struct {
 	proxyAddr   string
 	clientStore *client.Store
 	keyRing     *client.KeyRing
 }
 
-// shouldPersistAccessGraphCert reports whether the cert on creds.keyRing
-// should be added to the client store. False when there is no store, no
-// cert, the cert is unparseable, or the lifetime is below
-// accessGraphMinPersistTTL.
-func shouldPersistAccessGraphCert(ctx context.Context, creds *accessGraphCredentials) bool {
-	if creds.clientStore == nil {
-		return false
-	}
-	if len(creds.keyRing.AccessGraphTLSCert) == 0 {
-		return false
-	}
-	expires, err := creds.keyRing.AccessGraphTLSCertValidBefore()
-	if err != nil {
-		slog.DebugContext(ctx, "Failed to read Access Graph certificate expiration", "error", err)
-		return false
-	}
-	return expires.After(time.Now().Add(accessGraphMinPersistTTL))
-}
-
 // resolveAuthHostAccessGraphCredentials builds creds from the local
-// admin identity. proxyAddr may be empty for ensureAccessGraphCert
-// to backfill via the auth Ping.
+// admin identity. `proxyAddr` is left empty; `ensureAccessGraphCert`
+// resolves it from the auth `Ping`.
 func resolveAuthHostAccessGraphCredentials(ctx context.Context, cfg *servicecfg.Config, username string) (*accessGraphCredentials, error) {
 	if cfg == nil {
 		return nil, trace.BadParameter("missing service config")
@@ -124,21 +101,20 @@ func resolveAuthHostAccessGraphCredentials(ctx context.Context, cfg *servicecfg.
 		TLSPrivateKey: tlsPriv,
 		TLSCert:       ident.TLSCertBytes,
 	}
-	var proxyAddr string
-	if addrs := cfg.Proxy.PublicAddrs; len(addrs) > 0 {
-		proxyAddr = addrs[0].String()
-	}
 	return &accessGraphCredentials{
-		proxyAddr:   proxyAddr,
+		proxyAddr:   "",
 		clientStore: nil,
 		keyRing:     keyRing,
 	}, nil
 }
 
-// resolveAccessGraphCredentials builds an accessGraphCredentials from an
-// already-loaded client store and profile, so the lookup logic can be
-// tested without an on-disk profile.
-func resolveAccessGraphCredentials(ctx context.Context, clientStore *client.Store, profile *client.ProfileStatus) (*accessGraphCredentials, error) {
+// resolveAccessGraphCredentials builds an `accessGraphCredentials` from
+// an already-resolved tctl config (profile or identity file).
+func resolveAccessGraphCredentials(ctx context.Context, ccf *tctlcfg.GlobalCLIFlags, resolved *tctlcfg.ResolvedConfig) (*accessGraphCredentials, error) {
+	if ccf == nil || resolved == nil || resolved.ClientStore == nil || resolved.Profile == nil {
+		return nil, trace.BadParameter("missing client store or profile")
+	}
+	profile := resolved.Profile
 	if profile.ProxyURL.Host == "" {
 		return nil, trace.NotFound("could not find the proxy public address for the requested profile")
 	}
@@ -148,37 +124,46 @@ func resolveAccessGraphCredentials(ctx context.Context, clientStore *client.Stor
 		ClusterName: profile.Cluster,
 		Username:    profile.Username,
 	}
-	keyRing, err := clientStore.GetKeyRing(idx)
+	keyRing, err := resolved.ClientStore.GetKeyRing(idx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Identity-file mode: `profile.ProxyURL.Host` reflects `--auth-server`,
+	// which may be an auth gRPC address rather than the proxy.
+	// Force the issue path so `ensureAccessGraphCert` resolves `proxyAddr`
+	// from the auth `Ping` response.
+	proxyAddr := ""
+	if ccf.IdentityFilePath == "" {
+		proxyAddr = profile.ProxyURL.Host
+	}
+
 	slog.DebugContext(ctx, "Loaded Access Graph credentials",
-		"proxy_addr", profile.ProxyURL.Host,
+		"proxy_addr", proxyAddr,
 		"profile_name", profile.Name,
 		"cluster", profile.Cluster,
 		"username", profile.Username,
+		"identity_file", ccf.IdentityFilePath != "",
 		"has_access_graph_cert", len(keyRing.AccessGraphTLSCert) > 0,
 	)
 
 	return &accessGraphCredentials{
-		proxyAddr:   profile.ProxyURL.Host,
-		clientStore: clientStore,
+		proxyAddr:   proxyAddr,
+		clientStore: resolved.ClientStore,
 		keyRing:     keyRing,
 	}, nil
 }
 
-// ensureAccessGraphCert reuses the keyring's existing Access Graph cert
-// when it's still valid, otherwise initializes the auth client, checks
-// the license/feature gate, and re-issues. May populate creds.proxyAddr
-// from the auth Ping when the auth-host branch left it empty.
+// ensureAccessGraphCert reuses a valid cached cert or re-issues via
+// the auth client; on re-issue, `creds.proxyAddr` is set from `Ping`.
 func ensureAccessGraphCert(ctx context.Context, creds *accessGraphCredentials, clientFunc commonclient.InitFunc) error {
 	if creds == nil || creds.keyRing == nil {
 		return trace.BadParameter("missing access graph credentials")
 	}
 
-	// Fast path requires both a valid cert AND a known proxy addr — the
-	// auth-host branch may have left proxyAddr empty.
+	// Fast path: previously-issued cert is still on an FS-backed keyring
+	// and validates. Only the `tsh login` flow exercises this; auth-host
+	// and identity-file modes don't carry AG certs and always re-issue.
 	if creds.proxyAddr != "" && validateAccessGraphCert(ctx, creds.keyRing) {
 		slog.DebugContext(ctx, "Reusing existing Access Graph certificate from keyring on disk",
 			"proxy_addr", creds.proxyAddr,
@@ -198,37 +183,27 @@ func ensureAccessGraphCert(ctx context.Context, creds *accessGraphCredentials, c
 	}
 	defer closeFn(ctx)
 
-	ping, err := checkAccessGraphSupported(ctx, authClient)
+	ping, err := authClient.Ping(ctx)
 	if err != nil {
+		return trace.Wrap(err, "pinging cluster to check Access Graph support")
+	}
+	if err := checkAccessGraphSupported(ctx, ping); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Backfill proxy addr from auth when config didn't supply one.
+	creds.proxyAddr = ping.GetProxyPublicAddr()
 	if creds.proxyAddr == "" {
-		creds.proxyAddr = ping.GetProxyPublicAddr()
-		if creds.proxyAddr == "" {
-			return trace.NotFound("auth did not advertise a proxy public address; set proxy_service.public_addr")
-		}
-		slog.DebugContext(ctx, "Resolved Access Graph proxy address from auth ping",
-			"proxy_addr", creds.proxyAddr,
-		)
+		return trace.NotFound("auth server did not advertise a proxy public address; set proxy_service.public_addr")
 	}
-
+	slog.DebugContext(ctx, "Resolved Access Graph proxy address from auth ping",
+		"proxy_addr", creds.proxyAddr,
+	)
 	return trace.Wrap(issueAndStoreAccessGraphCert(ctx, creds, authClient))
 }
 
-// checkAccessGraphSupported pings auth and refuses if Access Graph isn't
-// licensed or isn't enabled on the cluster. The actual license gate is
-// the `Policy` entitlement: the `AccessGraph` and `AccessGraphDemoMode`
-// entitlement keys are never populated by either OSS or Enterprise
-// modules code, and `Features.AccessGraph` is derived server-side from
-// `entitlements.Policy.Enabled` (see `e/tool/modules/modules.go`).
+// checkAccessGraphSupported gates on the `Policy` entitlement.
 // Endpoint reachability is checked at AG call time, not here.
-func checkAccessGraphSupported(ctx context.Context, authClient authclient.ClientI) (proto.PingResponse, error) {
-	ping, err := authClient.Ping(ctx)
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err, "pinging cluster to check Access Graph support")
-	}
+func checkAccessGraphSupported(ctx context.Context, ping proto.PingResponse) error {
 	features := ping.GetServerFeatures()
 
 	// Distinct from the AccessGraph/DemoMode check below: this gate
@@ -238,11 +213,11 @@ func checkAccessGraphSupported(ctx context.Context, authClient authclient.Client
 	policy := features.GetEntitlements()[string(entitlements.Policy)]
 	licensed := policy.GetEnabled() || features.GetPolicy().GetEnabled()
 	if !licensed {
-		return proto.PingResponse{}, trace.AccessDenied(unlicensedAccessGraphMessage)
+		return trace.AccessDenied(unlicensedAccessGraphMessage)
 	}
 
 	if !features.GetAccessGraph() && !features.GetAccessGraphDemoMode() {
-		return proto.PingResponse{}, trace.AccessDenied(unconfiguredAccessGraphMessage, accessGraphSetupDocURL)
+		return trace.AccessDenied(unconfiguredAccessGraphMessage, accessGraphSetupDocURL)
 	}
 
 	slog.DebugContext(ctx, "Access Graph is available on this cluster",
@@ -250,7 +225,7 @@ func checkAccessGraphSupported(ctx context.Context, authClient authclient.Client
 		"access_graph_flag", features.GetAccessGraph(),
 		"access_graph_demo_mode_flag", features.GetAccessGraphDemoMode(),
 	)
-	return ping, nil
+	return nil
 }
 
 // issueAndStoreAccessGraphCert mints a new Access Graph cert and, when
@@ -280,6 +255,23 @@ func issueAndStoreAccessGraphCert(ctx context.Context, creds *accessGraphCredent
 	)
 
 	return nil
+}
+
+// shouldPersistAccessGraphCert gates `AddKeyRing`; identity-file uses
+// `MemClientStore` so this is a no-op for disk regardless.
+func shouldPersistAccessGraphCert(ctx context.Context, creds *accessGraphCredentials) bool {
+	if creds.clientStore == nil {
+		return false
+	}
+	if len(creds.keyRing.AccessGraphTLSCert) == 0 {
+		return false
+	}
+	expires, err := creds.keyRing.AccessGraphTLSCertValidBefore()
+	if err != nil {
+		slog.DebugContext(ctx, "Failed to read Access Graph certificate expiration", "error", err)
+		return false
+	}
+	return expires.After(time.Now().Add(accessGraphMinPersistTTL))
 }
 
 // validateAccessGraphCert reports whether the keyring's Access Graph
@@ -337,8 +329,8 @@ func validateAccessGraphPrivateKey(ctx context.Context, keyRing *client.KeyRing)
 }
 
 // issueAccessGraphCert mints a new Access Graph TLS cert and sets it on
-// keyRing in memory; the caller persists it. The cert's NotAfter is
-// bound to the keyring's Teleport TLS cert.
+// keyRing in memory; the caller persists it (when appropriate).
+// The cert's NotAfter is bound to the keyring's Teleport TLS cert.
 func issueAccessGraphCert(ctx context.Context, keyRing *client.KeyRing, rootAuthClient authclient.ClientI) error {
 	tlsPublicKey, err := keys.MarshalPublicKey(keyRing.TLSPrivateKey.Public())
 	if err != nil {
