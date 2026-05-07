@@ -76,7 +76,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
-	mfa "github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1251,6 +1251,10 @@ var (
 // successfully authenticated. An example would be creating objects based on the user.
 type LoginHook func(context.Context, types.User) error
 
+// SessionTrackerCreationHook is a function that will be called on the creation of a session tracker.
+// This will be used by enterprise services that need to perform operations when a session tracker is created.
+type SessionTrackerCreationHook func(ctx context.Context, session types.SessionTracker) error
+
 // CreateDeviceWebTokenFunc creates a new DeviceWebToken for the logged in user.
 //
 // Used during a successful Web login, after the user was verified and the
@@ -1476,6 +1480,10 @@ type Server struct {
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
 
+	sessionTrackerCreationHooksMu sync.RWMutex
+	// sessionTrackerCreationHooks are a list of hooks that will be called on session tracker creation.
+	sessionTrackerCreationHooks []SessionTrackerCreationHook
+
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
@@ -1669,6 +1677,38 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+// RegisterSessionTrackerCreationHook will register a session tracker creation hook with the auth server.
+func (a *Server) RegisterSessionTrackerCreationHook(hook SessionTrackerCreationHook) {
+	a.sessionTrackerCreationHooksMu.Lock()
+	defer a.sessionTrackerCreationHooksMu.Unlock()
+
+	a.sessionTrackerCreationHooks = append(a.sessionTrackerCreationHooks, hook)
+}
+
+// CallSessionTrackerCreationHooks will call the registered session tracker creation hooks.
+// It does not return an error if a hook fails, but will log a warning instead. This is because session tracker creation
+// is a critical path for session creation, and we don't want a failing hook to prevent users from creating sessions.
+func (a *Server) CallSessionTrackerCreationHooks(ctx context.Context, tracker types.SessionTracker) {
+	// Make a copy of the session tracker creation hooks to operate on.
+	a.sessionTrackerCreationHooksMu.RLock()
+	sessionTrackerCreationHooks := make([]SessionTrackerCreationHook, len(a.sessionTrackerCreationHooks))
+	copy(sessionTrackerCreationHooks, a.sessionTrackerCreationHooks)
+	a.sessionTrackerCreationHooksMu.RUnlock()
+
+	if len(sessionTrackerCreationHooks) == 0 {
+		return
+	}
+
+	// Clone the input session tracker so that hooks never mutate the original object.
+	tracker = tracker.Clone()
+	for _, hook := range sessionTrackerCreationHooks {
+		if err := hook(ctx, tracker); err != nil {
+			a.logger.WarnContext(ctx, "Session tracker creation hook failed",
+				"session_id", tracker.GetSessionID(), "error", err)
+		}
+	}
 }
 
 // ResetLoginHooks will clear out the login hooks.
@@ -7478,6 +7518,8 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 			}
 		}
 	}
+
+	a.CallSessionTrackerCreationHooks(ctx, tracker)
 
 	return a.Services.CreateSessionTracker(ctx, tracker)
 }
