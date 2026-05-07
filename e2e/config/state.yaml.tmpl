@@ -47,7 +47,7 @@ spec:
     {{- range $key, $vals := $user.Traits }}
     {{ $key }}:
       {{- range $vals }}
-      - {{ . }}
+      - {{ . | yamlQuote }}
       {{- end }}
     {{- end }}
 version: v2

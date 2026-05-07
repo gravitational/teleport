@@ -760,6 +760,9 @@ func parseTraits(traitsContent string) map[string][]string {
 	traits := make(map[string][]string)
 
 	for _, m := range traitKeyArrayRe.FindAllStringSubmatchIndex(traitsContent, -1) {
+		// traitKeyArrayRe has three alternation groups for the key:
+		// m[2:3] single-quoted, m[4:5] double-quoted, m[6:7] bare identifier.
+		// Exactly one group matches per match; the others have index -1.
 		var key string
 		switch {
 		case m[2] >= 0:

@@ -33,6 +33,8 @@ import (
 	"syscall"
 	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // clusterName is the name of the Teleport cluster used for E2E testing.
@@ -207,7 +209,9 @@ func renderTemplateToPath(templatePath, outPath string, data any) (string, error
 		return "", err
 	}
 
-	tmpl, err := template.ParseFiles(templatePath)
+	tmpl, err := template.New(filepath.Base(templatePath)).
+		Funcs(template.FuncMap{"yamlQuote": yamlQuote}).
+		ParseFiles(templatePath)
 	if err != nil {
 		return "", err
 	}
@@ -227,4 +231,12 @@ func renderTemplateToPath(templatePath, outPath string, data any) (string, error
 	}
 
 	return outPath, nil
+}
+
+func yamlQuote(v any) (string, error) {
+	out, err := yaml.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
 }
