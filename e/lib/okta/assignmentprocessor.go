@@ -31,9 +31,17 @@ import (
 )
 
 const (
-	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
-	// in the loop.
-	processAssignmentTimeout time.Duration = 5 * time.Minute
+	// processAssignmentTimeout is the maximum amount of time can be spent on processing
+	// okta_assignment targets.  It is long because short times don't make sense when the cache
+	// is cold. Listing a page of 500 users using the regular API (not Skinny Users Endpoints)
+	// may take minutes. For a group/application that has many users assigned we'll repeat the
+	// same listing for every user so if the time is shorter it may lead to significantly
+	// longer overall processing time.
+	//
+	// At the same time this timeout means the watcher goroutine may be blocked on reconciling
+	// a single assignment blocking other okta_assignment events being processed by the
+	// watcher, so it shouldn't be unbound either.
+	processAssignmentTimeout time.Duration = 10 * time.Minute
 )
 
 type assignmentProcessorAccessPoint struct {
