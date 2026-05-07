@@ -168,8 +168,18 @@ func (c *Cache) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*b
 // IterateBeamsV2 returns a sequence of beams starting from the given pageToken
 // with sorting and filtering.
 func (c *Cache) IterateBeamsV2(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
-	index, keyFn, _, _ := beamIndexForSortField(options.GetSortField())
+	index, keyFn, _, decodeFn := beamIndexForSortField(options.GetSortField())
 	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
+
+	if decodeFn != nil {
+		var err error
+		pageToken, err = decodeFn(pageToken)
+		if err != nil {
+			return func(yield func(*beamsv1.Beam, error) bool) {
+				yield(nil, trace.Wrap(err))
+			}
+		}
+	}
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
 		cache:      c,

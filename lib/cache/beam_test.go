@@ -264,6 +264,45 @@ func TestBeamCacheList_FilterByUser(t *testing.T) {
 	assert.Equal(t, "beam-2", results[0].GetMetadata().GetName())
 }
 
+// TestBeamCacheList_IterateBeamsContinuation tests that the next page token
+// returned from ListBeamsV2 can be used to continue reading records using
+// IterateBeamsV2.
+func TestBeamCacheList_IterateBeamsContinuation(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-1", "amber-forest", "alice", time.Now().Add(time.Hour))))
+	require.NoError(t, createBeamForCacheTest(ctx, p, newBeamResourceWithUser("beam-2", "brisk-harbor", "bob", time.Now().Add(2*time.Hour))))
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBeamsV2(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	results, next, err := p.cache.ListBeamsV2(ctx, 1, "", &services.ListBeamsRequestOptions{
+		SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_USER,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "beam-1", results[0].GetMetadata().GetName())
+
+	seq := p.cache.IterateBeamsV2(ctx, next, &services.ListBeamsRequestOptions{
+		SortField: beamsv1.BeamSortField_BEAM_SORT_FIELD_USER,
+	})
+	for result, err := range seq {
+		require.NoError(t, err)
+		results = append(results, result)
+	}
+
+	require.Len(t, results, 2)
+	assert.Equal(t, "beam-2", results[1].GetMetadata().GetName())
+}
+
 func TestBeamCache_ListFallback(t *testing.T) {
 	t.Parallel()
 
