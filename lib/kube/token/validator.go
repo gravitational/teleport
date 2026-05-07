@@ -63,7 +63,13 @@ type ValidationResult struct {
 	// This will be prepended with `system:serviceaccount:` for service
 	// accounts.
 	Username string `json:"username"`
-	attrs    *workloadidentityv1pb.JoinAttrsKubernetes
+	// ServiceAccountName is the name of the service account extracted from the
+	// identity.
+	ServiceAccountName string `json:"service_account_name"`
+	// ServiceAccountNamespace is the name of the service account extracted from
+	// the identity
+	ServiceAccountNamespace string `json:"service_account_namespace"`
+	attrs                   *workloadidentityv1pb.JoinAttrsKubernetes
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.
@@ -221,10 +227,12 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 	}
 
 	return &ValidationResult{
-		Raw:      reviewResult.Status,
-		Type:     types.KubernetesJoinTypeInCluster,
-		Username: reviewResult.Status.User.Username,
-		attrs:    attrs,
+		Raw:                     reviewResult.Status,
+		Type:                    types.KubernetesJoinTypeInCluster,
+		Username:                reviewResult.Status.User.Username,
+		attrs:                   attrs,
+		ServiceAccountName:      serviceAccount,
+		ServiceAccountNamespace: namespace,
 	}, nil
 }
 
@@ -326,6 +334,8 @@ func ValidateTokenWithJWKS(
 				Namespace: claims.Kubernetes.Namespace,
 			},
 		},
+		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
+		ServiceAccountNamespace: claims.Kubernetes.Namespace,
 	}, nil
 }
 
