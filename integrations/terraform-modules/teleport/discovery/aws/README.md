@@ -80,7 +80,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | terraform | >= 1.5.7 |
 | aws | >= 5.0 |
 | http | >= 3.0 |
-| teleport | >= 18.7.4 |
+| teleport | >= 18.8.0 |
 | tls | >= 4.0 |
 
 ## Providers
@@ -89,7 +89,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | ---- | ------- |
 | aws | >= 5.0 |
 | http | >= 3.0 |
-| teleport | >= 18.7.4 |
+| teleport | >= 18.8.0 |
 | tls | >= 4.0 |
 
 ## Modules

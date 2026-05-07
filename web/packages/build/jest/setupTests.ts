@@ -23,7 +23,6 @@ import { configure as configureTestingLibrary } from '@testing-library/react';
 import failOnConsole from 'jest-fail-on-console';
 import { configMocks } from 'jsdom-testing-mocks';
 import { act } from 'react';
-import 'whatwg-fetch';
 
 configMocks({ act });
 

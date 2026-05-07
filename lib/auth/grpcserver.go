@@ -6610,9 +6610,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsv1pb.RegisterNotificationServiceServer(server, notificationsServer)
 
 	vnetConfigServiceServer, err := vnetconfigv1.NewService(vnetconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Storage:    cfg.AuthServer.VnetConfigService,
-		Emitter:    cfg.Emitter,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Storage:          cfg.AuthServer.VnetConfigService,
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

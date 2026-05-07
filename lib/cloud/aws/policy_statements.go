@@ -560,6 +560,7 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 
 			// AllowAccountAssignmentOnOwner
 			"iam:GetSAMLProvider",
+			"iam:CreateSAMLProvider",
 
 			// ListProvisionedRoles
 			"iam:ListRoles",

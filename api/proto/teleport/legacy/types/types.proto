@@ -4513,6 +4513,12 @@ message UserFilter {
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
   // SkipSystemUsers filters out teleport system users from the results.
   bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
+  // Traits is a traits-based matcher if non-empty.
+  wrappers.LabelValues Traits = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "traits,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -7670,6 +7676,23 @@ message PluginEntraIDSyncSettings {
 
   // Source of the Access List owners.
   EntraIDAccessListOwnersSource access_list_owners_source = 7;
+
+  // Plugin service sync intervals.
+  PluginEntraIDSyncIntervals sync_intervals = 8;
+}
+
+// PluginEntraIDSyncIntervals defines sync intervals to be
+// used by the plugin.
+message PluginEntraIDSyncIntervals {
+  option (gogoproto.equal) = true;
+
+  // Delta sync interval.
+  // Must be a valid Go duration string (e.g. "2m").
+  string delta = 1;
+
+  // Full sync interval.
+  // Must be a valid Go duration string (e.g. "1h").
+  string full = 2;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.

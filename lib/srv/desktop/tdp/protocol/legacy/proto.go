@@ -36,7 +36,7 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfatypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
@@ -728,7 +728,7 @@ type MFA struct {
 	Type byte
 	// MFAAuthenticateChallenge is the challenge we send to the client.
 	// Used for messages from Teleport to the user's browser.
-	*client.MFAAuthenticateChallenge
+	*mfatypes.MFAAuthenticateChallenge
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
@@ -840,7 +840,7 @@ func DecodeMFAChallenge(in tdp.ByteReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req client.MFAAuthenticateChallenge
+	var req mfatypes.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

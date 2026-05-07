@@ -5530,7 +5530,12 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	testNames := []string{"a", "b", "c", "d"}
+	testNames := []string{
+		// unscoped cluster names
+		"a", "b", "c", "d",
+		// scoped cluster names
+		"a", "b", "c",
+	}
 
 	// Add a kube service with 3 clusters.
 	createKubeServer(t, srv.Auth(), []string{"d", "b", "a"}, "host1", "")
@@ -5562,8 +5567,11 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		// There are 4 unique clusters across all kube services.
-		require.Equal(t, 4, res.TotalCount)
+		// There are 4 unique clusters names total (a, b, c, and d)
+		// The two unscoped kube servers reference 5 clusters combined, but will be deduplicated to a count of 4.
+		// The two scoped kube servers reference 4 clusters combined, but will be deduplicated down to a count of 3.
+		// Deduplication does not cross scope boundaries, so we expect a total of 7 clusters.
+		require.Equal(t, 7, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -5615,7 +5623,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
 		require.NoError(t, err)
-		require.IsDecreasing(t, names)
+		require.IsNonIncreasing(t, names, "expected kube cluster names to be non-increasing")
 	})
 
 	t.Run("fetch all scoped", func(t *testing.T) {
@@ -5693,7 +5701,8 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostID, scope string) {
 	for _, clusterName := range clusterNames {
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
-			Name: clusterName,
+			Name:        clusterName,
+			Description: hostID,
 		}, types.KubernetesClusterSpecV3{})
 		require.NoError(t, err)
 		kubeCluster.Scope = scope
@@ -5704,6 +5713,217 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
+	}
+}
+
+func TestListResourcesScopedPagination(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+
+	resourceCount := 50
+	for i := range resourceCount {
+		scope := makeScope(i)
+		// all kube clusters and servers will have the same name, so the only way to
+		// correctly paginate clusters is by scope
+		kubeServer := &types.KubernetesServerV3{
+			Kind:  types.KindKubeServer,
+			Scope: scope,
+			Metadata: types.Metadata{
+				Name:        "a",
+				Description: strconv.Itoa(i),
+			},
+			Spec: types.KubernetesServerSpecV3{
+				Cluster: &types.KubernetesClusterV3{
+					Scope: scope,
+					Metadata: types.Metadata{
+						Name:        "a",
+						Description: strconv.Itoa(i),
+					},
+				},
+				// kube servers will actually be paginated by host ID, so we need this
+				// to be unique
+				HostID: fmt.Sprintf("ks-%d", i),
+			},
+		}
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+
+		// create some scoped nodes to make sure we haven't introduced regressions
+		// for existing scoped resources
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:        fmt.Sprintf("node-%d", i),
+				Description: strconv.Itoa(i),
+				Namespace:   apidefaults.Namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: "node",
+			},
+			Scope: scope,
+		}
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+
+		// create some databse servers as an unscoped control
+		db, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:        "db",
+			Description: strconv.Itoa(i),
+		}, types.DatabaseServerSpecV3{
+			HostID:   fmt.Sprintf("db-%d", i),
+			Hostname: "hostname",
+			Database: &types.DatabaseV3{
+				Metadata: types.Metadata{
+					Name: "db",
+				},
+				Spec: types.DatabaseSpecV3{
+					Protocol: "postgres",
+					URI:      "postgres://user:password@host",
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+	}
+
+	getIndex := func(resource types.ResourceWithLabels) (int, bool) {
+		switch res := resource.(type) {
+		case types.KubeCluster, types.KubeServer, types.Server, types.DatabaseServer:
+			id, err := strconv.Atoi(res.GetMetadata().Description)
+			return id, err == nil
+		default:
+			return -1, false
+		}
+	}
+
+	kinds := []string{types.KindKubeServer, types.KindKubernetesCluster, types.KindNode, types.KindDatabaseServer}
+	for _, kind := range kinds {
+		t.Run(kind, func(t *testing.T) {
+			found := make(map[int]struct{})
+			// try a few different page sizes
+			for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21, resourceCount} {
+				startKey := ""
+				count := 0
+				for range resourceCount/pageSize + 1 {
+					res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: kind,
+						Limit:        int32(pageSize),
+						StartKey:     startKey,
+					})
+					require.NoError(t, err)
+					for _, r := range res.Resources {
+						idx, ok := getIndex(r)
+						require.True(t, ok)
+						found[idx] = struct{}{}
+						count++
+					}
+					startKey = res.NextKey
+					if startKey == "" {
+						break
+					}
+				}
+
+				// pagination was successful if we visited each resource exactly once and all indexes were
+				// added to the found map
+				assert.Equal(t, resourceCount, count)
+				for i := range resourceCount {
+					_, ok := found[i]
+					assert.True(t, ok, "no resource found for idx %d", i)
+				}
+				clear(found)
+			}
+		})
+	}
+}
+
+// TestListResourcesScopedPaginateKubeClusters tests that scoped kube clusters can be paginated properly even when
+// there are resources that will be deduplicated.
+func TestListResourcesPaginateKubeClusters(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	scopes := []string{"", "/aa", "/bb", "/cc", "/dd", "/ee", "/ff", "/gg", "/hh", "/ii"}
+	scopeChangeFreq := 5
+	const resourceCount = 50
+	for i := range resourceCount {
+		// cluster scopes will change every scopeChangeFreq clusters
+		scope := scopes[i/scopeChangeFreq]
+		// all kube clusters and servers will have the same name, so the only way to
+		// paginate them is by scope
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+			Name:        "a",
+			Description: strconv.Itoa(i),
+		}, types.KubernetesClusterSpecV3{})
+		require.NoError(t, err)
+		kubeCluster.Scope = scope
+
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", fmt.Sprintf("ks-%d", i))
+		require.NoError(t, err)
+		kubeServer.Metadata.Description = strconv.Itoa(i)
+
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+	}
+
+	found := make(map[string]struct{})
+	// Because duplicate clusters within a scope are dropped, we need to ensure we only ever receive one unique
+	// cluster per scope while paginating
+	uniqueResourceCount := resourceCount / scopeChangeFreq
+	// try a few different page sizes
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21, resourceCount} {
+		startKey := ""
+		for page := range uniqueResourceCount/pageSize + 1 {
+			res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        int32(pageSize),
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+
+			// we should only get data from pages up to the uniqueResourceCount
+			if uniqueResourceCount-page*pageSize > pageSize {
+				require.Len(t, res.Resources, pageSize, "page=%d pageSize=%d", page, pageSize)
+			} else if uniqueResourceCount-page*pageSize > 0 {
+				require.Len(t, res.Resources, uniqueResourceCount-page*pageSize, "page=%d pageSize=%d", page, pageSize)
+			} else {
+				require.Empty(t, res.Resources)
+			}
+			for _, r := range res.Resources {
+				cluster, ok := r.(types.KubeCluster)
+				require.True(t, ok, "expected a kube cluster")
+				_, ok = found[cluster.GetScope()]
+				assert.False(t, ok) // we should only find each scope once per pageSize
+				found[cluster.GetScope()] = struct{}{}
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+
+		// we should have found all scopes after fully paging through the data
+		for _, scope := range scopes {
+			_, ok := found[scope]
+			assert.True(t, ok, "no resource found for scope %q", scope)
+		}
+		clear(found)
 	}
 }
 

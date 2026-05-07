@@ -268,6 +268,7 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	if len(dn) > 0 && len(cn) > 0 {
 		ou := strings.TrimPrefix(dn, "CN="+cn+",")
 		labels[types.DiscoveryLabelWindowsOU] = ou
+		labels[types.DiscoveryLabelWindowsDomain] = dnToDomain(dn)
 	}
 
 	// label domain controllers
@@ -282,6 +283,28 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
 		}
 	}
+}
+
+func dnToDomain(dn string) string {
+	// Leverage go-ldaps for parsing DNs.
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, rdn := range parsed.RDNs {
+		// Domain Component RDNs will only ever have one attribute/value pair
+		// in practice (even though the grammar technically allows multiple).
+		if len(rdn.Attributes) == 1 && strings.EqualFold(rdn.Attributes[0].Type, "dc") {
+			if b.Len() > 0 {
+				b.WriteRune('.')
+			}
+			b.WriteString(rdn.Attributes[0].Value)
+		}
+	}
+
+	return b.String()
 }
 
 const dnsQueryTimeout = 5 * time.Second
@@ -402,7 +425,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
-			Domain: s.cfg.Domain,
+			Domain: labels[types.DiscoveryLabelWindowsDomain],
 			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
