@@ -433,6 +433,23 @@ type CLIConf struct {
 	// MaxDuration specifies how long the access will be granted for.
 	MaxDuration time.Duration
 
+	// DelegationAllowNodes is the list of SSH nodes to include in a delegation session.
+	DelegationAllowNodes []string
+	// DelegationAllowDatabases is the list of databases to include in a delegation session.
+	DelegationAllowDatabases []string
+	// DelegationAllowApps is the list of applications to include in a delegation session.
+	DelegationAllowApps []string
+	// DelegationAllowKubeClusters is the list of Kubernetes clusters to include in a delegation session.
+	DelegationAllowKubeClusters []string
+	// DelegationAllowWindowsDesktops is the list of Windows desktops to include in a delegation session.
+	DelegationAllowWindowsDesktops []string
+	// DelegationAllowGitServers is the list of Git servers to include in a delegation session.
+	DelegationAllowGitServers []string
+	// DelegationAllowAll requests wildcard resource access in a delegation session.
+	DelegationAllowAll bool
+	// DelegationBots is the list of bots allowed to use a delegation session.
+	DelegationBots []string
+
 	// executablePath is the absolute path to the current executable.
 	executablePath string
 
@@ -1371,6 +1388,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables.").BoolVar(&cf.unsetEnvironment)
 
+	delegation := app.Command("delegation", "Manage delegation sessions.")
+	delegationCreateSession := delegation.Command("create-session", "Create a delegation session, allowing a bot or workload to temporarily act on your behalf.")
+	delegationCreateSession.Flag("allow-node", "Allow access to an SSH node.").StringsVar(&cf.DelegationAllowNodes)
+	delegationCreateSession.Flag("allow-db", "Allow access to a database.").StringsVar(&cf.DelegationAllowDatabases)
+	delegationCreateSession.Flag("allow-app", "Allow access to an application.").StringsVar(&cf.DelegationAllowApps)
+	delegationCreateSession.Flag("allow-kube-cluster", "Allow access to a Kubernetes cluster.").StringsVar(&cf.DelegationAllowKubeClusters)
+	delegationCreateSession.Flag("allow-windows-desktop", "Allow access to a Windows desktop.").StringsVar(&cf.DelegationAllowWindowsDesktops)
+	delegationCreateSession.Flag("allow-git-server", "Allow access to a Git server.").StringsVar(&cf.DelegationAllowGitServers)
+	delegationCreateSession.Flag("allow-all", "Allow access to all resources, including destructive administrative actions. Mutually exclusive with the other --allow-* flags.").BoolVar(&cf.DelegationAllowAll)
+	delegationCreateSession.Flag("bot", "Name of a bot allowed to use the delegation session. Repeat to allow multiple bots.").StringsVar(&cf.DelegationBots)
+	delegationCreateSession.Flag("session-ttl", "How long the delegation session should remain valid.").DurationVar(&cf.SessionTTL)
+
 	req := app.Command("request", "Manage Access Requests.").Alias("requests")
 
 	reqList := req.Command("ls", "List Access Requests.").Alias("list")
@@ -1896,6 +1925,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
+	case delegationCreateSession.FullCommand():
+		err = onDelegationCreateSession(&cf)
 	case mfa.ls.FullCommand():
 		err = mfa.ls.run(&cf)
 	case mfa.add.FullCommand():

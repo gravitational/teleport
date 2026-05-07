@@ -120,7 +120,8 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 
 	defer client.Close()
 
-	return client.GetActiveDirectorySID(ctx, username)
+	sid, _, err = client.GetActiveDirectorySIDAndDN(ctx, username)
+	return sid, err
 }
 
 func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string) (*tls.Config, error) {

@@ -20,7 +20,7 @@
 
 import { test as base } from '@playwright/test';
 
-type Fixture =
+export type Fixture =
   | 'ssh-node'
   | 'connect';
 

@@ -32,7 +32,7 @@ export async function signup(
     localStorage.setItem('grv_teleport_license_acknowledged', 'true')
   );
 
-  await mockWebAuthn(page);
+  await mockWebAuthn(page, username);
 
   const inviteURL = generateInviteURL(username);
   await page.goto(inviteURL);

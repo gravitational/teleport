@@ -926,6 +926,22 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
+	if nla {
+		// Note: SplitN with a non-empty separator always returns a slice with length >= 1
+		// 'userParts' is guaranteed to have length of either 1 or 2.
+		userParts := strings.SplitN(windowsUser, "@", 2)
+		// NLA doesn't like mixing user with and without domain, so make sure we have one
+		if len(userParts) == 1 {
+			// windowsUser is missing a domain suffix. Add our default domain target.
+			windowsUser = windowsUser + "@" + s.cfg.Domain
+		} else if !strings.EqualFold(userParts[1], s.cfg.Domain) {
+			// windowsUser has a domain, but it doesn't match our configured default.
+			s.cfg.Logger.WarnContext(ctx, "NLA cannot be enabled for users from different domain, disabling")
+			rdpc.DisableNLA()
+			audit.enableNLA = false
+		}
+	}
+
 	// Generate client certificates to be used for the RDP connection.
 	certDER, keyDER, err := s.generateUserCert(ctx, windowsUser, windowsUserCertTTL, desktop, createUsers, groups)
 	if err != nil {
@@ -1256,43 +1272,56 @@ func timer() func() int64 {
 	}
 }
 
+type entry struct {
+	sid               string
+	distinguishedName string
+}
+
 // generateUserCert generates a keypair for the given Windows username,
 // optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
+	var distinguishedName string
+
 	if !desktop.NonAD() {
-		// Use FnCache to fetch the SID, or load it from cache if we already have it
-		// The cache key is the username and domain combined to handle multi-domain setups
-		cacheKey := fmt.Sprintf("%s@%s", username, desktop.GetDomain())
-		sid, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (string, error) {
+		cacheKey := username
+		if !strings.Contains(username, "@") {
+			cacheKey = fmt.Sprintf("%s@%s", username, desktop.GetDomain())
+		}
+		entry, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (entry, error) {
 			tc, err := s.loadTLSConfigForLDAP()
 			if err != nil {
-				return "", trace.Wrap(err)
+				return entry{}, trace.Wrap(err)
 			}
 
 			ldapClient, err := winpki.DialLDAP(ctx, s.getLDAPConfig(), tc)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return entry{}, trace.Wrap(err)
 			}
 			defer ldapClient.Close()
 
 			s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
-			sid, err := ldapClient.GetActiveDirectorySID(ctx, username)
+			sid, dn, err := ldapClient.GetActiveDirectorySIDAndDN(ctx, username)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return entry{}, trace.Wrap(err)
 			}
 
 			s.cfg.Logger.DebugContext(ctx, "Found objectSid for Windows user", "username", username)
-			return sid, nil
+			return entry{
+				sid:               sid,
+				distinguishedName: dn,
+			}, nil
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		activeDirectorySID = sid
+		activeDirectorySID = entry.sid
+		distinguishedName = entry.distinguishedName
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
 		domain:             desktop.GetDomain(),
+		distinguishedName:  distinguishedName,
 		ad:                 !desktop.NonAD(),
 		ttl:                ttl,
 		activeDirectorySID: activeDirectorySID,
@@ -1305,6 +1334,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 type generateCredentialsRequest struct {
 	// username is the Windows username
 	username string
+	// distinguishedName is the distinguished name of user in AD
+	distinguishedName string
 	// domain is the Windows domain
 	domain string
 	// ad is true if we're connecting to a domain-joined desktop
@@ -1330,6 +1361,7 @@ type generateCredentialsRequest struct {
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
 		Username:           request.username,
+		DistinguishedName:  request.distinguishedName,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,
 		AD:                 request.ad,

@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet/db"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // fqdnResolver resolves fully-qualified domain names to possible VNet targets.
@@ -60,7 +62,7 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		return nil, trace.Wrap(err, "listing profiles")
 	}
 	for _, profileName := range profileNames {
-		if fqdn == fullyQualify(profileName) {
+		if fqdn == dns.FullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
 			// The DNS request must be forwarded upstream so that the VNet
 			// process can always dial the proxy address without recursively
@@ -76,6 +78,16 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		switch {
 		case err == nil:
 			// Found a matching app, return it immediately.
+			return result, nil
+		case !errors.Is(err, errNoMatch):
+			return nil, err
+		}
+
+		// Check if there's a matching database in this cluster.
+		result, err = r.resolveDBInfoForCluster(ctx, candidate, fqdn)
+		switch {
+		case err == nil:
+			// Found a matching database, return it immediately.
 			return result, nil
 		case !errors.Is(err, errNoMatch):
 			return nil, err
@@ -255,7 +267,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	// for a web app in a leaf cluster.
 	var potentialAppName string
 	if candidate.leafClusterName != "" && isDirectSubdomain(fqdn, candidate.profileName) {
-		potentialAppName = strings.TrimSuffix(fqdn, "."+fullyQualify(candidate.profileName))
+		potentialAppName = strings.TrimSuffix(fqdn, "."+dns.FullyQualify(candidate.profileName))
 		expr += fmt.Sprintf(` || name == "%s"`, potentialAppName)
 	}
 
@@ -283,7 +295,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			if !ok {
 				return nil, trace.BadParameter("expected *types.AppV3, got %T", resource.GetApp())
 			}
-			matchedByPublicAddr := fullyQualify(app.GetPublicAddr()) == fqdn
+			matchedByPublicAddr := dns.FullyQualify(app.GetPublicAddr()) == fqdn
 			matchedByName := app.GetName() == potentialAppName
 			if !matchedByName && !matchedByPublicAddr {
 				// This shouldn't happen if the backend query worked correctly.
@@ -357,6 +369,102 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	}, nil
 }
 
+func (r *fqdnResolver) resolveDBInfoForCluster(
+	ctx context.Context,
+	candidate clusterResolutionCandidate,
+	fqdn string,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
+
+	// Try to parse the FQDN as a database FQDN against each possible zone.
+	// Use the proxy public addr from the cluster config (which has the port
+	// stripped) as the primary zone. The profileName may contain a port
+	// (e.g. "proxy.example.com:3080") which is not valid in DNS names.
+	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get VNet config for database resolution", "error", err)
+		return nil, errNoMatch
+	}
+	if clusterConfig.ProxyPublicAddr == "" {
+		return nil, errNoMatch
+	}
+	identifier, ok := db.Parse(fqdn, clusterConfig.ProxyPublicAddr)
+	if !ok {
+		return nil, errNoMatch
+	}
+
+	// Query the cluster for a database whose status.vnet_dns_name or metadata.name matches the parsed
+	// identifier. Matching either lets the user type the database name or the hash.
+	expr := fmt.Sprintf(
+		`resource.status.vnet_dns_name == %q || name == %q`,
+		identifier, identifier,
+	)
+
+	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: expr,
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.InfoContext(ctx, "Failed to list database servers", "error", err)
+		return nil, errNoMatch
+	}
+	if len(resp.Resources) == 0 {
+		log.DebugContext(ctx, "Found no matching database servers")
+		return nil, errNoMatch
+	}
+
+	databases := types.DatabaseServers(resp.Resources).ToDatabases()
+	if len(databases) > 1 {
+		matchedNames := make([]string, 0, len(databases))
+		for _, db := range databases {
+			matchedNames = append(matchedNames, db.GetName())
+		}
+		log.WarnContext(ctx, "VNet identifier matched multiple databases, picking the first one",
+			"identifier", identifier,
+			"matched_db_names", matchedNames,
+		)
+	}
+
+	dbResource := databases[0]
+	dbName := dbResource.GetName()
+	protocol := dbResource.GetProtocol()
+
+	if !db.IsUserOptional(protocol) {
+		log.InfoContext(ctx, "Database protocol not currently supported by VNet",
+			"protocol", protocol, "db_name", dbName)
+		return nil, errNoMatch
+	}
+
+	dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, candidate.profileName)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
+		return nil, trace.Wrap(err, "getting dial options for matching database")
+	}
+
+	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "protocol", protocol)
+	dbInfo := &vnetv1.DatabaseInfo{
+		DatabaseKey: &vnetv1.DatabaseKey{
+			Profile:     candidate.profileName,
+			LeafCluster: candidate.leafClusterName,
+			Name:        dbName,
+		},
+		Cluster:       candidate.clusterName,
+		Protocol:      protocol,
+		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+		DialOptions:   dialOpts,
+	}
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+			MatchedDatabase: &vnetv1.MatchedDatabase{
+				DatabaseInfo: dbInfo,
+			},
+		},
+	}, nil
+}
+
 // VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where
 // the <cluster-name> may be the name of a root or leaf cluster.
 // We never actually query for whether or not a matching SSH node exists, we
@@ -400,23 +508,14 @@ func (r *fqdnResolver) resolveClusterMatch(ctx context.Context, log *slog.Logger
 
 // isDescendantSubdomain checks if fqdn is a subdomain of zone.
 func isDescendantSubdomain(fqdn, zone string) bool {
-	return strings.HasSuffix(fqdn, "."+fullyQualify(zone))
+	return strings.HasSuffix(fqdn, "."+dns.FullyQualify(zone))
 }
 
 // isDirectSubdomain checks if fqdn is a direct single-level subdomain of zone.
 func isDirectSubdomain(fqdn, zone string) bool {
-	trimmed := strings.TrimSuffix(fqdn, "."+fullyQualify(zone))
+	trimmed := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(zone))
 	if trimmed == fqdn {
 		return false
 	}
 	return !strings.ContainsRune(trimmed, '.')
-}
-
-// fullyQualify returns a fully-qualified domain name from [domain].
-// Fully-qualified domain names always end with a ".".
-func fullyQualify(domain string) string {
-	if strings.HasSuffix(domain, ".") {
-		return domain
-	}
-	return domain + "."
 }
