@@ -32,6 +32,7 @@ import {
   type BrowserContext,
 } from '@playwright/test';
 
+import { defaultUsername } from '../helpers/defaultUser';
 import { mockWebAuthn } from '../helpers/webauthn';
 
 const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
@@ -63,7 +64,8 @@ const browserName = (process.env.E2E_BROWSERS || 'chromium').split(',')[0];
 const browserTypes = { chromium, firefox, webkit };
 const browserType =
   browserTypes[browserName as keyof typeof browserTypes] ?? chromium;
-const storageStatePath = join(e2eDir, `.auth/${browserName}-user.json`);
+const username = defaultUsername();
+const storageStatePath = join(e2eDir, `.auth/${browserName}-${username}.json`);
 
 info(`launching ${browserName} ${dim(`(mode: ${mode})`)}`);
 
@@ -75,7 +77,7 @@ const context = await browser.newContext({
 
 const page = await context.newPage();
 
-await mockWebAuthn(page);
+await mockWebAuthn(page, username);
 
 info('virtual WebAuthn authenticator registered');
 

@@ -140,7 +140,7 @@ type e2eConfig struct {
 	connectAppDir     string
 	connectTshBinPath string
 
-	creds *credentials
+	creds map[string]*credentials
 
 	instances       []*testInstance
 	connectInstance *testInstance
@@ -272,14 +272,41 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 		}
 
-		creds, err := generateUserCredentials()
-		if err != nil {
-			return fmt.Errorf("failed to generate credentials: %w", err)
+		targets := flags.scanTargets
+		if targets == nil {
+			var err error
+			targets, err = resolveTargetsWithHelpers(e2eDir, flags.testFiles)
+			if err != nil {
+				return fmt.Errorf("failed to resolve scan targets: %w", err)
+			}
 		}
-		config.creds = creds
+
+		scannedUsers, err := scanUsersFromTargets(targets)
+		if err != nil {
+			return fmt.Errorf("failed to scan users: %w", err)
+		}
+		slog.Debug("discovered bootstrap users", "count", len(scannedUsers))
+
+		bootstrap, err := buildBootstrapState(e2eDir, scannedUsers)
+		if err != nil {
+			return fmt.Errorf("failed to build bootstrap state: %w", err)
+		}
+		config.creds = bootstrap.creds
+
+		userMappingPath := filepath.Join(e2eDir, ".auth", "user-mapping.json")
+		if err := writeUserMapping(userMappingPath, bootstrap.userMapping); err != nil {
+			return fmt.Errorf("failed to write user mapping: %w", err)
+		}
+		slog.Debug("wrote user mapping", "path", userMappingPath, "users", len(bootstrap.userMapping))
+
+		credsPath := filepath.Join(e2eDir, ".auth", "user-credentials.json")
+		if err := writeCredentialsFile(credsPath, bootstrap.creds); err != nil {
+			return fmt.Errorf("failed to write user credentials: %w", err)
+		}
+		slog.Debug("wrote user credentials", "path", credsPath, "users", len(bootstrap.creds))
 
 		// One shared state file used by all instances.
-		stateFile, err := generateStateFile(config.stateTemplate, creds)
+		stateFile, err := generateStateFile(config.stateTemplate, bootstrap.state)
 		if err != nil {
 			return fmt.Errorf("failed to generate state file: %w", err)
 		}

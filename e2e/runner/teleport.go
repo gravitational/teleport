@@ -31,9 +31,10 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"gopkg.in/yaml.v3"
 )
 
 // clusterName is the name of the Teleport cluster used for E2E testing.
@@ -195,20 +196,8 @@ func resolveDockerHost() (string, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
-type StateConfig struct {
-	PasswordHashBase64  string
-	CredentialIDBase64  string
-	PublicKeyCBORBase64 string
-}
-
-func generateStateFile(templatePath string, creds *credentials) (string, error) {
-	stateConfig := &StateConfig{
-		PasswordHashBase64:  creds.passwordHashBase64,
-		CredentialIDBase64:  creds.credentialIDBase64,
-		PublicKeyCBORBase64: creds.publicKeyCBORBase64,
-	}
-
-	return renderTemplate(templatePath, stateConfig)
+func generateStateFile(templatePath string, state *stateConfig) (string, error) {
+	return renderTemplate(templatePath, state)
 }
 
 func renderTemplate(templatePath string, data any) (string, error) {
@@ -220,7 +209,9 @@ func renderTemplateToPath(templatePath, outPath string, data any) (string, error
 		return "", err
 	}
 
-	tmpl, err := template.ParseFiles(templatePath)
+	tmpl, err := template.New(filepath.Base(templatePath)).
+		Funcs(template.FuncMap{"yamlQuote": yamlQuote}).
+		ParseFiles(templatePath)
 	if err != nil {
 		return "", err
 	}
@@ -240,4 +231,12 @@ func renderTemplateToPath(templatePath, outPath string, data any) (string, error
 	}
 
 	return outPath, nil
+}
+
+func yamlQuote(v any) (string, error) {
+	out, err := yaml.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
 }
