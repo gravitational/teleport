@@ -159,10 +159,15 @@ func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClien
 	return extractAndSortKubeClusters(kss), nil
 }
 
+type kubeClusterKey struct {
+	name  string
+	scope string
+}
+
 func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
-	uniqueClusters := make(map[string]types.KubeCluster)
+	uniqueClusters := make(map[kubeClusterKey]types.KubeCluster)
 	for _, ks := range kss {
-		uniqueClusters[ks.GetName()] = ks.GetCluster()
+		uniqueClusters[kubeClusterKey{name: ks.GetName(), scope: ks.GetScope()}] = ks.GetCluster()
 	}
 	kubeClusters := make([]types.KubeCluster, 0, len(uniqueClusters))
 	for _, cluster := range uniqueClusters {

@@ -2321,9 +2321,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
 
 ## Teleport Entra ID integration
   - [ ] Docs (including screenshots) are up to date.
-    - [ ] Verify that guided (Web UI) installation method is working as expected. 
+    - [ ] Verify that guided (Web UI) installation method is working as expected.
     - [ ] Verify that manual Entra ID configuration using Azure portal is working as expected.
-    - [ ] Verify that terraform-based Entra ID configuration is working as expected.  
+    - [ ] Verify that terraform-based Entra ID configuration is working as expected.
   - [ ] User sync - verify that all the users that exist in Entra ID directory are synced to Teleport.
   - [ ] Group sync - verify that all the groups that exist in the Entra ID directory are synced to Teleport.
       - [ ] Verify that group members are synced to Teleport.
@@ -2366,36 +2366,51 @@ Verify SAML IdP service provider resource management.
   - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
         relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
 
-## SSO MFA
+## Multi-factor Authentication (MFA)
 
-Verify SSO MFA core functionality. The tests below should be performed once
-with OIDC and once with SAML.
+### WebAuthn
 
-Configure both an OIDC connector and a SAML connector following the [Quick GitHub/SAML/OIDC Setup Tips]
-and [enable MFA on them](https://goteleport.com/docs/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
+- [ ] `tsh mfa ls` should
+  display the MFA device, and `tsh mfa add` / `tsh mfa rm` should work.
+- [ ] [Moderated Sessions](https://goteleport.com/docs/zero-trust-access/authentication/joining-sessions/)
+- [ ] [Admin Actions](https://goteleport.com/docs/zero-trust-access/authentication/mfa-for-admin-actions/) (`tctl tokens
+  ls`)
+- [ ] [Headless](https://goteleport.com/docs/zero-trust-access/authentication/headless/) (`tsh ls --headless`)
+- [ ] [Per-session MFA](https://goteleport.com/docs/zero-trust-access/authentication/per-session-mfa/)
+  - [ ] Server Access: verify MFA on `tsh ssh`
+  - [ ] File Transfer: verify MFA on `tsh scp`
+  - [ ] Kubernetes Access: verify MFA on `kubectl version` after `tsh kube login`, or on `tsh proxy kube --exec`
+  - [ ] Database Access: verify MFA on `tsh db connect`, `tsh proxy db --tunnel`, or `tsh db exec`
+  - [ ] App Access: verify MFA when starting an app session
+  - [ ] Desktop Access: verify MFA when starting a desktop session
+- [ ] Audit log should show [MFA challenge events](https://goteleport.com/docs/reference/audit-events/).
+- [ ] Force in-band MFA for SSH only (`TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA=yes`) ([RFD
+  234](https://github.com/gravitational/teleport/blob/a1478ef54c252db4a49c225015ede10e2baef7e0/rfd/0234-in-band-mfa-ssh-sessions.md))
+  - [ ] `tsh ssh`
+  - [ ] Web UI
+  - [ ] Teleport Connect
+  - [ ] VNet
+  - [ ] Any client <= v18 should get an access denied error due to lack of support for in-band MFA
 
-For simplicity, you can use the same IdP App (client id/secret or entity descriptor)
-for both login and MFA. This way, each Teleport MFA check will make you re-login via SSO.
+### OIDC SSO
 
-Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
-e.g. `cap.second_factors: ['webauthn', 'sso']`.
+Configure OIDC using [Quick GitHub/SAML/OIDC Setup Tips] and
+[SSO MFA](https://goteleport.com/docs/zero-trust-access/sso/sso-for-mfa/). Ensure `sso` is allowed in
+`cap.second_factors`.
 
-The following should work with SSO MFA, automatically opening the SSO MFA redirect URL:
-
+- [ ] Run the WebAuthn checks above using OIDC SSO MFA.
 - [ ] `tsh mfa ls` should display the SSO MFA device.
-  - [ ] SSO MFA device cannot be deleted or added
-- [ ] Add another MFA device (`tsh mfa add`)
-- [ ] Delete the other MFA device (`tsh --mfa-mode=sso mfa rm`)
-- [ ] Moderated Sessions
-- [ ] Admin Actions (e.g. `tctl tokens ls`)
-- [ ] Per-session MFA
-  - [ ] Server Access
-  - [ ] File Transfers
-  - [ ] Kubernetes Access
-  - [ ] App Access
-  - [ ] Database Access
-  - [ ] Desktop Access
-- [ ] Headless (`tsh ls --headless`)
+- [ ] SSO MFA devices cannot be added or removed with `tsh mfa add` / `tsh mfa rm`.
+
+### SAML SSO
+
+Configure SAML using [Quick GitHub/SAML/OIDC Setup Tips] and
+[SSO MFA](https://goteleport.com/docs/zero-trust-access/sso/sso-for-mfa/). Ensure `sso` is allowed in
+`cap.second_factors`.
+
+- [ ] Run the WebAuthn checks above using SAML SSO MFA.
+- [ ] `tsh mfa ls` should display the SSO MFA device.
+- [ ] SSO MFA devices cannot be added or removed with `tsh mfa add` / `tsh mfa rm`.
 
 ## MCP Access
 - [ ] Verify Teleport supports MCP servers in various transports

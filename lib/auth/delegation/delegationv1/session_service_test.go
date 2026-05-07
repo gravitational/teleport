@@ -109,10 +109,21 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 				)
 				require.NoError(t, err)
 
+				identity := authz.LocalUser{
+					Identity: tlsca.Identity{
+						Username:            pack.user.GetName(),
+						Groups:              pack.user.GetRoles(),
+						DelegationSessionID: pack.delegationSessionID,
+						DisallowReissue:     pack.disallowReissue,
+					},
+				}
+
 				return &authz.Context{
 					User:                 pack.user,
 					AdminActionAuthState: pack.adminActionAuthState,
 					Checker:              checker,
+					Identity:             identity,
+					UnmappedIdentity:     identity,
 				}, nil
 			}
 
@@ -159,9 +170,48 @@ type sessionTestPack struct {
 	adminActionAuthState authz.AdminActionAuthState
 	botName              string
 	delegationSessionID  string
+	disallowReissue      bool
 
 	onCreateAppSession func(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
 	onGenerateCert     func(context.Context, cert.Request) (*proto.Certs, error)
+}
+
+func (p *sessionTestPack) authenticateUser(
+	t *testing.T,
+	name string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.user = p.createUser(t, name, roleSpec)
+	p.adminActionAuthState = mfaState
+	p.delegationSessionID = ""
+}
+
+func (p *sessionTestPack) authenticateUserInDelegationSession(
+	t *testing.T,
+	name string,
+	delegationSessionID string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.authenticateUser(t, name, mfaState, roleSpec)
+	p.delegationSessionID = delegationSessionID
+}
+
+func (p *sessionTestPack) authenticateUserWithDisallowReissue(
+	t *testing.T,
+	name string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.authenticateUser(t, name, mfaState, roleSpec)
+	p.disallowReissue = true
 }
 
 func (p *sessionTestPack) createUser(

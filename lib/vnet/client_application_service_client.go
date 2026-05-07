@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"crypto/x509"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -36,8 +37,8 @@ import (
 // service. This client is used in the VNet admin process to make requests to
 // the VNet client application.
 type clientApplicationServiceClient struct {
-	clt  vnetv1.ClientApplicationServiceClient
-	conn *grpc.ClientConn
+	clt    vnetv1.ClientApplicationServiceClient
+	closer io.Closer
 }
 
 // newClientApplicationServiceClient creates a gRPC client over a TCP
@@ -56,13 +57,13 @@ func newClientApplicationServiceClient(ctx context.Context, creds *credentials, 
 		return nil, trace.Wrap(err, "creating user process gRPC client")
 	}
 	return &clientApplicationServiceClient{
-		clt:  vnetv1.NewClientApplicationServiceClient(conn),
-		conn: conn,
+		clt:    vnetv1.NewClientApplicationServiceClient(conn),
+		closer: conn,
 	}, nil
 }
 
 func (c *clientApplicationServiceClient) close() error {
-	return trace.Wrap(c.conn.Close())
+	return trace.Wrap(c.closer.Close())
 }
 
 // Authenticate process authenticates the client application process.
@@ -191,14 +192,23 @@ func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, req
 }
 
 // SessionSSHConfig returns user SSH configuration values for an SSH session.
-func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, target dialTarget, user string) (*vnetv1.SessionSSHConfigResponse, error) {
-	resp, err := c.clt.SessionSSHConfig(ctx, &vnetv1.SessionSSHConfigRequest{
-		Profile:     target.profile,
-		RootCluster: target.rootCluster,
-		LeafCluster: target.leafCluster,
-		Address:     target.addr,
-		User:        user,
-	})
+func (c *clientApplicationServiceClient) SessionSSHConfig(
+	ctx context.Context,
+	target dialTarget,
+	user string,
+	mode vnetv1.SessionSSHConfigCredentialMode,
+) (*vnetv1.SessionSSHConfigResponse, error) {
+	resp, err := c.clt.SessionSSHConfig(
+		ctx,
+		&vnetv1.SessionSSHConfigRequest{
+			Profile:        target.profile,
+			RootCluster:    target.rootCluster,
+			LeafCluster:    target.leafCluster,
+			Address:        target.addr,
+			User:           user,
+			CredentialMode: mode,
+		},
+	)
 	return resp, trace.Wrap(err, "calling SessionSSHConfig rpc")
 }
 
@@ -231,6 +241,71 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 		return nil, trace.Wrap(err, "parsing trusted user public key")
 	}
 	return userPublicKey, nil
+}
+
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (c *clientApplicationServiceClient) PerformSessionMFACeremony(
+	ctx context.Context,
+	profile string,
+	leafCluster string,
+	sessionID []byte,
+) (string, error) {
+	resp, err := c.clt.PerformSessionMFACeremony(
+		ctx,
+		&vnetv1.PerformSessionMFACeremonyRequest{
+			Profile:      profile,
+			LeafCluster:  leafCluster,
+			SshSessionId: sessionID,
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "calling PerformSessionMFACeremony rpc")
+	}
+
+	return resp.GetChallengeName(), nil
+}
+
+// ReissueDBCert issues a new certificate for the requested database.
+func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) ([]byte, error) {
+	resp, err := c.clt.ReissueDBCert(ctx, &vnetv1.ReissueDBCertRequest{
+		DatabaseInfo: dbInfo,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ReissueDBCert rpc")
+	}
+	return resp.GetCert(), nil
+}
+
+// SignForDB returns a cryptographic signature with the key associated with the database.
+func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest) ([]byte, error) {
+	resp, err := c.clt.SignForDB(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForDB rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+// OnNewDBConnection reports a new database connection for observability.
+func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+	_, err := c.clt.OnNewDBConnection(ctx, &vnetv1.OnNewDBConnectionRequest{
+		DatabaseKey: dbKey,
+	})
+	return trace.Wrap(err, "calling OnNewDBConnection rpc")
+}
+
+// newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a
+// function that sends sign requests over gRPC. It parses the x509 certificate
+// to extract the public key. This is the shared implementation used by both
+// [appProvider] and [dbProvider].
+func newRPCCertSigner(certDER []byte, sendRequest func(*vnetv1.SignRequest) ([]byte, error)) (*rpcSigner, error) {
+	x509Cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing x509 certificate")
+	}
+	return &rpcSigner{
+		pub:         x509Cert.PublicKey,
+		sendRequest: sendRequest,
+	}, nil
 }
 
 // rpcSigner implements [crypto.Signer] for signatures that are issued by the

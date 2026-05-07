@@ -58,11 +58,12 @@ type UploadHandler interface {
 
 // RecordingMetadataService processes session recordings to generate metadata and thumbnails.
 type RecordingMetadataService struct {
-	logger             *slog.Logger
-	streamer           player.Streamer
-	uploadHandler      UploadHandler
-	concurrencyLimiter *semaphore.Weighted
-	encrypter          events.EncryptionWrapper
+	logger                    *slog.Logger
+	streamer                  player.Streamer
+	uploadHandler             UploadHandler
+	concurrencyLimiter        *semaphore.Weighted
+	desktopConcurrencyLimiter *semaphore.Weighted
+	encrypter                 events.EncryptionWrapper
 }
 
 // RecordingMetadataServiceConfig defines the configuration for the RecordingMetadataService.
@@ -79,11 +80,29 @@ const (
 	// inactivityThreshold is the duration after which an inactivity event is recorded.
 	inactivityThreshold = 10 * time.Second
 
-	// maxThumbnails is the maximum number of thumbnails to store in the session metadata.
+	// maxThumbnails is the maximum number of thumbnails to store in the session metadata. Sessions
+	// longer than maxThumbnails * (minimum interval) get a longer interval scaled to fit within
+	// this cap.
 	maxThumbnails = 1000
+
+	// ttyMinThumbnailInterval is the minimum gap between captured thumbnails for terminal sessions.
+	// SVG thumbnails are small and resolution-independent, so capturing once per second keeps fine
+	// timeline granularity at negligible cost.
+	ttyMinThumbnailInterval = 1 * time.Second
+
+	// desktopMinThumbnailInterval is the minimum gap between captured thumbnails for desktop
+	// sessions. Each PNG frame is on the order of tens of KB, so the interval is bumped to keep
+	// metadata file size reasonable. A 17-minute session produces ~145 thumbnails; a 2-hour session
+	// hits the maxThumbnails cap.
+	desktopMinThumbnailInterval = 7 * time.Second
 
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
+
+	// desktopConcurrencyLimit caps how many desktop sessions are processed in parallel. Each one
+	// materializes a full RGBA copy of the framebuffer (up to ~256 MiB at the 8192x8192 RDP max)
+	// when producing a thumbnail, so the cap is kept low to bound peak Auth memory use.
+	desktopConcurrencyLimit = 2
 )
 
 // NewRecordingMetadataService creates a new instance of RecordingMetadataService with the provided configuration.
@@ -96,20 +115,19 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 	}
 
 	return &RecordingMetadataService{
-		streamer:           cfg.Streamer,
-		uploadHandler:      cfg.UploadHandler,
-		logger:             slog.With(teleport.ComponentKey, "recording_metadata"),
-		concurrencyLimiter: semaphore.NewWeighted(concurrencyLimit),
-		encrypter:          cfg.Encrypter,
+		streamer:                  cfg.Streamer,
+		uploadHandler:             cfg.UploadHandler,
+		logger:                    slog.With(teleport.ComponentKey, "recording_metadata"),
+		concurrencyLimiter:        semaphore.NewWeighted(concurrencyLimit),
+		desktopConcurrencyLimiter: semaphore.NewWeighted(desktopConcurrencyLimit),
+		encrypter:                 cfg.Encrypter,
 	}, nil
 }
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
-func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
-	if sessionType != recordingmetadata.SessionTypeTTY {
-		// Currently only TTY sessions (SSH + Kubernetes) are supported, so avoid doing any unnecessary work if the session
-		// is a different type.
+func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+	if sessionType == recordingmetadata.SessionTypeUnspecified {
 		return nil
 	}
 
@@ -120,6 +138,14 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		return trace.Wrap(err)
 	}
 	defer s.concurrencyLimiter.Release(1)
+
+	if sessionType == recordingmetadata.SessionTypeDesktop {
+		if err := s.desktopConcurrencyLimiter.Acquire(ctx, 1); err != nil {
+			sessionsPendingMetric.Dec()
+			return trace.Wrap(err)
+		}
+		defer s.desktopConcurrencyLimiter.Release(1)
+	}
 
 	sessionsPendingMetric.Dec()
 
@@ -145,7 +171,9 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		})
 	}()
 
-	processor := newRecordingProcessor(w, s.logger.With("session_id", sessionID), sessionType, duration)
+	processor := newRecordingProcessor(w, s.logger.With("session_id", sessionID), sessionType, startTime, duration)
+	defer processor.release()
+
 	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
 
 loop:
@@ -329,18 +357,10 @@ func getRandomThumbnailTime(duration time.Duration) time.Duration {
 	return time.Duration(rand.IntN(maxIndex-minIndex) + minIndex)
 }
 
-func calculateThumbnailInterval(duration time.Duration, maxThumbnails int) time.Duration {
-	interval := time.Second
-
-	if duration > time.Duration(maxThumbnails)*time.Second {
-		interval = duration / time.Duration(maxThumbnails)
+func calculateThumbnailInterval(duration time.Duration, maxThumbnails int, minInterval time.Duration) time.Duration {
+	interval := (duration / time.Duration(maxThumbnails)).Round(time.Second)
+	if interval < minInterval {
+		return minInterval
 	}
-
-	interval = interval.Round(time.Second)
-
-	if interval < time.Second {
-		interval = time.Second
-	}
-
 	return interval
 }

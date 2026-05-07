@@ -25,7 +25,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -36,9 +35,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils/reexec"
+	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	sessionsftputils "github.com/gravitational/teleport/session/sftputils"
@@ -48,7 +48,7 @@ type sftpSubsys struct {
 	logger *slog.Logger
 
 	fileTransferReq *reexecsftp.FileTransferRequest
-	sftpCmd         *exec.Cmd
+	sftpCmd         *reexec.CommandExecutor
 	serverCtx       *srv.ServerContext
 
 	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
@@ -119,8 +119,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err := serverCtx.SetSSHRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
-
-	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
+	s.sftpCmd, err = serverCtx.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.StdinFile:  chReadPipeOut,
+		reexec.StdoutFile: chWritePipeIn,
+		reexec.StderrFile: auditPipeIn,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -136,7 +139,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	s.waitForOutputStreams.Go(func() {
 		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
 			DecisionContext: s.serverCtx.Identity.AccessPermit.DecisionContext,
 			Login:           s.serverCtx.Identity.Login,
 		})
@@ -158,7 +161,9 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	execRequest.Continue()
+	if err := s.sftpCmd.Continue(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Send the file transfer request if applicable. The SFTP process
 	// expects the file transfer request data will end with a null byte,

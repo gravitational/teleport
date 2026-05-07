@@ -474,6 +474,18 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
+// ReissueDBCert is part of the [vnet.ClientApplication] interface but is not
+// supported in Teleport Connect.
+func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
+	return tls.Certificate{}, trace.NotImplemented("VNet database access is not supported in Teleport Connect")
+}
+
+// OnNewDBConnection is part of the [vnet.ClientApplication] interface. See
+// the note on ReissueDBCert above; this is a no-op in Connect.
+func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+	return nil
+}
+
 // UserTLSCert returns the user TLS certificate for the given profile.
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
 	// We don't have easy access to the user TLS cert from here, the only way
@@ -542,6 +554,24 @@ func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, ta
 			log.ErrorContext(ctx, "Failed to submit SSH usage event")
 		}
 	}()
+}
+
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (p *clientApplication) PerformSessionMFACeremony(
+	ctx context.Context,
+	profileName string,
+	leafClusterName string,
+	sessionID []byte,
+) (string, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+
+	_, tc, err := p.daemonService.ResolveClusterURI(uri)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challengeName, err := tc.PerformSessionMFACeremony(ctx, sessionID)
+	return challengeName, trace.Wrap(err)
 }
 
 // OnNewAppConnection submits an app usage event once per clientApplication lifetime.

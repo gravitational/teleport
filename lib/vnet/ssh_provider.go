@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -32,7 +33,9 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // sshProvider provides methods necessary for VNet SSH access.
@@ -179,10 +182,11 @@ func (p *sshProvider) sessionSSHConfig(
 	target dialTarget,
 	user string,
 	agent *sshAgent,
+	mode vnetv1.SessionSSHConfigCredentialMode,
 ) (apissh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
-	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
+	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user, mode)
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
@@ -230,6 +234,7 @@ func (p *sshProvider) sessionSSHConfig(
 				return []ssh.Signer{certSigner}, nil
 			},
 		},
+		AuthCallback:    buildAuthCallback(mode, target.profile, target.leafCluster, p.cfg.clt),
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
 	}, nil
@@ -267,7 +272,7 @@ func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialT
 	// matchedCluster.LeafCluster will be set if the host was in a leaf
 	// cluster, else it will be unset and the target cluster is the root.
 	targetCluster := cmp.Or(matchedCluster.GetLeafCluster(), matchedCluster.GetRootCluster())
-	targetHost := strings.TrimSuffix(fqdn, "."+fullyQualify(targetCluster))
+	targetHost := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(targetCluster))
 	return dialTarget{
 		fqdn:        fqdn,
 		profile:     matchedCluster.GetProfile(),
@@ -297,4 +302,49 @@ func newConnWithExtraCloser(conn net.Conn, extraCloser func() error) *connWithEx
 // Close closes the net.Conn and the extra closer.
 func (c *connWithExtraCloser) Close() error {
 	return trace.NewAggregate(c.Conn.Close(), c.extraCloser())
+}
+
+type mfaPerformerFunc func(context.Context, []byte) (string, error)
+
+func (f mfaPerformerFunc) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	name, err := f(ctx, sessionID)
+	return name, trace.Wrap(err)
+}
+
+func buildAuthCallback(
+	mode vnetv1.SessionSSHConfigCredentialMode,
+	profile string,
+	clusterName string,
+	clt *clientApplicationServiceClient,
+) ssh.ClientAuthCallback {
+	// If the credential mode is not direct, it means the session SSH cert cannot be used directly to authenticate to
+	// the target SSH node. In this case, no AuthCallback is needed.
+	if mode != vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		return nil
+	}
+
+	performer := mfaPerformerFunc(
+		func(ctx context.Context, sessionID []byte) (string, error) {
+			return clt.PerformSessionMFACeremony(
+				ctx,
+				profile,
+				clusterName,
+				sessionID,
+			)
+		},
+	)
+
+	return func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+		// If the server responds with partial success for publickey auth method and keyboard-interactive is allowed,
+		// then the server is likely enforcing in-band MFA. In this case, return a keyboard-interactive callback that
+		// will perform the MFA ceremony when invoked.
+		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
+			slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") {
+			return clientssh.KeyboardInteractive(context.Background(), performer, authCtx.Metadata), nil
+		}
+
+		// Returning nil, nil tells the SSH client there is no additional auth method to offer for this server response
+		// and fallback to the default behavior of trying the next auth method in the list.
+		return nil, nil
+	}
 }

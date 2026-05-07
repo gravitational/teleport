@@ -174,7 +174,8 @@ func createCertAuthorityOverride(ctx context.Context,
 	var action string
 	if opts.Force {
 		resp, err1 := subCA.UpsertCertAuthorityOverride(ctx, &subcav1.UpsertCertAuthorityOverrideRequest{
-			CaOverride: caOverride,
+			CaOverride:            caOverride,
+			ForceImmediateDisable: true,
 		})
 		created = resp.GetCaOverride()
 		err = err1

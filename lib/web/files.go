@@ -217,7 +217,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		req.serverID+":0",
 		req.serverID,
 		tc,
-		h.cfg.Modules.IsBoringBinary(),
+		h.cfg.Modules.IsFIPSBuild(),
 	)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because

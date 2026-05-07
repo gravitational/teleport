@@ -12,6 +12,67 @@ The Identity Center Integration can be configured to handle various advanced use
 cases that are not necessarily supported by the default installation flow. This
 guide describes these advanced options and use cases.
 
+## AWS authentication methods
+
+The AWS IAM Identity Center integration needs AWS credentials to read Identity
+Center resources and manage account assignments. Choose the credential source
+that matches your Teleport deployment before running `tctl plugins install
+awsic`.
+
+<Tabs>
+<TabItem label="Teleport Cloud">
+
+Teleport Cloud clusters use an [AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx)
+to authenticate with AWS. Create the AWS OIDC integration first, then pass its
+name to the Identity Center installer:
+
+```console
+$ tctl plugins install awsic \
+    --no-use-system-credentials \
+    --oidc-integration ${AWS_OIDC_INTEGRATION_NAME} \
+    ...
+```
+
+</TabItem>
+<TabItem label="Self-Hosted">
+
+Self-hosted clusters have two installation options: ambient system credentials
+and [AWS OIDC](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
+
+Use ambient credentials when the Auth Service already runs with AWS credentials,
+such as an EC2 instance profile or another AWS SDK credential source, or when
+your Teleport Proxy Service endpoint is private.
+
+Use AWS OIDC when AWS can reach your cluster's public Proxy Service endpoint and
+you want to manage AWS trust through a dedicated Teleport integration.
+
+### Ambient system credentials
+
+The ambient credentials must be able to assume the IAM role used by the
+integration.
+
+```console
+$ tctl plugins install awsic \
+    --use-system-credentials \
+    --assume-role-arn ${AWS_IAM_ROLE_ARN} \
+    ...
+```
+
+### AWS OIDC integration
+
+Create the AWS OIDC integration first, then pass its name to the Identity Center
+installer.
+
+```console
+$ tctl plugins install awsic \
+    --no-use-system-credentials \
+    --oidc-integration ${AWS_OIDC_INTEGRATION_NAME} \
+    ...
+```
+
+</TabItem>
+</Tabs>
+
 ## Disabling Account Assignment role creation
 
 By default, the AWS Identity Center integration will create a Teleport role for
@@ -32,6 +93,39 @@ Role Sync Mode `NONE` is only available during installation. The Roles Sync Mode
 can be changed to `ALL` later, but you can't go back the other way.
 </Admonition>
 
+Choose the installation command for your Teleport deployment:
+
+<Tabs>
+<TabItem label="Teleport Cloud">
+
+Teleport Cloud clusters authenticate with AWS through an [AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
+Create the AWS OIDC integration first, then use this command.
+
+```console
+$ tctl plugins install awsic \
+    --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
+    --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
+    --no-use-system-credentials \
+    --oidc-integration ${AWS_OIDC_INTEGRATION_NAME} \
+    --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
+    --roles-sync-mode NONE
+```
+
+</TabItem>
+<TabItem label="Self-Hosted">
+
+Self-hosted clusters can use either ambient system credentials or AWS OIDC. For
+guidance choosing a credential source, see [AWS authentication
+methods](#aws-authentication-methods).
+
+**Ambient system credentials**
+
+This command uses the AWS credential provider chain available to the Auth
+Service. The credentials must be able to assume the IAM role passed in
+`--assume-role-arn`.
+
 ```console
 $ tctl plugins install awsic \
     --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
@@ -43,6 +137,27 @@ $ tctl plugins install awsic \
     --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
     --roles-sync-mode NONE
 ```
+
+**AWS OIDC integration**
+
+This command uses the AWS OIDC integration named by `--oidc-integration` instead
+of ambient AWS credentials. Create the AWS OIDC integration before running the
+installer.
+
+```console
+$ tctl plugins install awsic \
+    --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
+    --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
+    --no-use-system-credentials \
+    --oidc-integration ${AWS_OIDC_INTEGRATION_NAME} \
+    --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
+    --roles-sync-mode NONE
+```
+
+</TabItem>
+</Tabs>
 
 ### Roles Sync Modes
 

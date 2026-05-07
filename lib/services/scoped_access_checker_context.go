@@ -25,12 +25,14 @@ import (
 	"github.com/gravitational/trace"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/once"
 )
 
@@ -116,10 +118,10 @@ func (c *ScopedAccessCheckerContext) CheckersForResourceScope(ctx context.Contex
 	return c.checkersForResourceScope(ctx, scope, enforcePinTrue)
 }
 
-// RiskyUnpinnedCheckersForResourceScope is equivalent to CheckersForResourceScope except that it bypasses
+// riskyUnpinnedCheckersForResourceScope is equivalent to CheckersForResourceScope except that it bypasses
 // enforcement of the pinning scope. This is a risky operation that should only be used for certain APIs that
 // make an exception to pinning exclusion rules (e.g. allowing read operations for resources at a parent scope).
-func (c *ScopedAccessCheckerContext) RiskyUnpinnedCheckersForResourceScope(ctx context.Context, scope string) stream.Stream[*ScopedAccessChecker] {
+func (c *ScopedAccessCheckerContext) riskyUnpinnedCheckersForResourceScope(ctx context.Context, scope string) stream.Stream[*ScopedAccessChecker] {
 	if !c.isScoped() {
 		return stream.Once(NewScopedAccessCheckerFromUnscoped(c.unscopedChecker))
 	}
@@ -245,11 +247,6 @@ func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string,
 	return c.decision(c.CheckersForResourceScope(ctx, scope), fn)
 }
 
-// RiskyUnpinnedDecision is equivalent to Decision except that it bypasses enforcement of the pinning scope.
-func (c *ScopedAccessCheckerContext) RiskyUnpinnedDecision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) error {
-	return c.decision(c.RiskyUnpinnedCheckersForResourceScope(ctx, scope), fn)
-}
-
 func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAccessChecker], fn func(*ScopedAccessChecker) error) error {
 	for checker, err := range checkers {
 		if err != nil {
@@ -300,6 +297,37 @@ func (c *ScopedAccessCheckerContext) AccessStateFromSSHIdentity(ctx context.Cont
 	}, nil
 }
 
+// AccessStateFromTLSIdentity builds an AccessState from an TLS identity, abstracting over scoped and
+// unscoped access state construction.
+func (c *ScopedAccessCheckerContext) AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	if !c.isScoped() {
+		return AccessStateFromTLSIdentity(ctx, ident, c.unscopedChecker, authPrefGetter)
+	}
+
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO(fspmarshall/scopes): implement scoped MFA
+		// NOTE: this will require additional refactoring of relevant access-checking logic. currently, we often
+		// check MFA requirements *before* we determine access to the underlying resource, but a scoped MFA model
+		// will need to first determine the scope of access *before* we can determine whether MFA is required for that scope.
+		return AccessState{}, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+
+	return AccessState{
+		// MFA state is hard-coded here because scoped roles do not support MFA yet, and the above check should reject
+		// cases where cluster-level config would obligate MFA.
+		MFARequired:              MFARequiredNever,
+		MFAVerified:              false,
+		EnableDeviceVerification: true,
+		DeviceVerified:           dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions),
+		IsBot:                    ident.IsBot(),
+	}, nil
+}
+
 // Traits returns the user traits for this context.
 func (c *ScopedAccessCheckerContext) Traits() wrappers.Traits {
 	if !c.isScoped() {
@@ -313,3 +341,101 @@ func (c *ScopedAccessCheckerContext) Traits() wrappers.Traits {
 func (c *ScopedAccessCheckerContext) CertParams() *CertificateParameterContext {
 	return &CertificateParameterContext{ctx: c}
 }
+
+// RiskyAuthorizeUnpinnedRead authorizes a read-only access check that bypasses
+// enforcement of the identity's pinned scope. This must only be used for
+// specific APIs that make an exception to pinning exclusion rules (e.g.
+// allowing read operations for resources at a parent scope). To avoid misuse,
+// a specific [UnpinnedReadAuthorization] must be provided that will encode the
+// effective scope of the access check and the allowed verbs.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedRead(
+	ctx context.Context,
+	authz UnpinnedReadAuthorization,
+	ruleCtx RuleContext,
+) error {
+	if err := authz.check(); err != nil {
+		return trace.Wrap(err, "invalid unpinned read authorization")
+	}
+
+	return c.decision(
+		c.riskyUnpinnedCheckersForResourceScope(ctx, authz.resourceScope),
+		func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(ruleCtx, authz.kind, authz.verbs...)
+		},
+	)
+}
+
+// UnpinnedReadAuthorization is a special authorization to complete an unscoped
+// read-only access check. This is meant to be used for access checks on
+// typically cluster-wide resources that need to be readable by identities with
+// a pinned scope.
+type UnpinnedReadAuthorization struct {
+	resourceScope string
+	kind          string
+	verbs         []string
+}
+
+func (a UnpinnedReadAuthorization) check() error {
+	switch {
+	case a.kind == "":
+		return trace.BadParameter("missing kind")
+	case len(a.verbs) == 0:
+		return trace.BadParameter("missing verbs")
+	}
+	for _, verb := range a.verbs {
+		switch verb {
+		case types.VerbList, types.VerbReadNoSecrets, types.VerbRead:
+		default:
+			return trace.BadParameter("invalid verb for unpinned read authorization: %q", verb)
+		}
+	}
+	if err := scopes.WeakValidate(a.resourceScope); err != nil {
+		return trace.Wrap(err, "invalid resourceScope")
+	}
+	return nil
+}
+
+var (
+	// UnpinnedReadCertAuthority is a special authorization to complete an
+	// unscoped access check to read a cert authority without secrets.
+	UnpinnedReadCertAuthority = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindCertAuthority,
+		verbs:         []string{types.VerbReadNoSecrets},
+	}
+	// UnpinnedReadCertAuthorities is a special authorization to complete an
+	// unscoped access check to list and read a cert authorities without secrets.
+	UnpinnedReadCertAuthorities = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindCertAuthority,
+		verbs:         []string{types.VerbList, types.VerbReadNoSecrets},
+	}
+	// UnpinnedReadAuthServers is a special authorization to complete an
+	// unscoped access check to list and read auth server resources.
+	UnpinnedReadAuthServers = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindAuthServer,
+		verbs:         []string{types.VerbList, types.VerbRead},
+	}
+	// UnpinnedReadProxies is a special authorization to complete an
+	// unscoped access check to list and read proxy resources.
+	UnpinnedReadProxies = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindProxy,
+		verbs:         []string{types.VerbList, types.VerbRead},
+	}
+	// UnpinnedReadAuthPreference is a special authorization to complete an
+	// unscoped access check to read a cluster auth preference.
+	UnpinnedReadAuthPreference = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindClusterAuthPreference,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadVnetConfig is a special authorization to complete an
+	// unscoped access check to read a cluster VNet config.
+	UnpinnedReadVnetConfig = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindVnetConfig,
+		verbs:         []string{types.VerbRead},
+	}
+)
