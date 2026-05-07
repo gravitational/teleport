@@ -61,7 +61,7 @@ func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionTy
 	case recordingmetadata.SessionTypeDesktop:
 		return newDesktopProcessor(base, duration)
 	default:
-		logger.WarnContext(context.Background(), "unsupported session type for recording metadata generation, skipping thumbnail generation", "sessionType", sessionType)
+		logger.WarnContext(context.Background(), "unsupported session type for recording metadata generation, skipping thumbnail generation", "session_type", sessionType)
 	}
 
 	return &noopRecordingProcessor{}
