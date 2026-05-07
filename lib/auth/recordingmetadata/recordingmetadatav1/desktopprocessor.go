@@ -82,8 +82,7 @@ func (d *desktopProcessor) handleDesktopRecording(evt *apievents.DesktopRecordin
 }
 
 func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.WindowsDesktopSessionEnd) error {
-	if d.startTime.IsZero() {
-		d.startTime = evt.StartTime
+	if d.metadata.Type == pb.SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED {
 		d.metadata.ClusterName = evt.ClusterName
 		d.metadata.User = evt.User
 		d.metadata.ResourceName = evt.DesktopName

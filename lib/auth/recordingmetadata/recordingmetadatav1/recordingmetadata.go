@@ -126,7 +126,7 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
-func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
+func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
 	if sessionType == recordingmetadata.SessionTypeUnspecified {
 		return nil
 	}
@@ -171,7 +171,7 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		})
 	}()
 
-	processor := newRecordingProcessor(w, s.logger.With("session_id", sessionID), sessionType, duration)
+	processor := newRecordingProcessor(w, s.logger.With("session_id", sessionID), sessionType, startTime, duration)
 	defer processor.release()
 
 	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)

@@ -47,11 +47,12 @@ type recordingProcessor interface {
 	release()
 }
 
-func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionType recordingmetadata.SessionType, duration time.Duration) recordingProcessor {
+func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) recordingProcessor {
 	base := baseRecordingProcessor{
 		metadata:      &pb.SessionRecordingMetadata{},
 		writer:        writer,
 		logger:        logger,
+		startTime:     startTime,
 		thumbnailTime: getRandomThumbnailTime(duration),
 	}
 

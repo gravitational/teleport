@@ -118,7 +118,7 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 			lastEventTime := tt.events[len(tt.events)-1].GetTime()
 			duration := lastEventTime.Sub(startTime)
 
-			processor := newTestDesktopProcessor(duration)
+			processor := newTestDesktopProcessor(startTime, duration)
 			defer processor.release()
 
 			for _, evt := range tt.events {
@@ -146,7 +146,7 @@ func TestDesktopRecordingProcessor_ThumbnailsWrittenToWriter(t *testing.T) {
 	duration := lastEventTime.Sub(startTime)
 
 	var buf bytes.Buffer
-	processor := newRecordingProcessor(&nopCloser{&buf}, slog.Default(), recordingmetadata.SessionTypeDesktop, duration)
+	processor := newRecordingProcessor(&nopCloser{&buf}, slog.Default(), recordingmetadata.SessionTypeDesktop, startTime, duration)
 	defer processor.release()
 
 	for _, evt := range events {
@@ -158,8 +158,8 @@ func TestDesktopRecordingProcessor_ThumbnailsWrittenToWriter(t *testing.T) {
 	require.NotEmpty(t, buf.Bytes(), "thumbnails should have been written to the writer")
 }
 
-func newTestDesktopProcessor(duration time.Duration) recordingProcessor {
-	return newRecordingProcessor(&nopCloser{io.Discard}, slog.Default(), recordingmetadata.SessionTypeDesktop, duration)
+func newTestDesktopProcessor(startTime time.Time, duration time.Duration) recordingProcessor {
+	return newRecordingProcessor(&nopCloser{io.Discard}, slog.Default(), recordingmetadata.SessionTypeDesktop, startTime, duration)
 }
 
 func generateCompleteDesktopSession(t *testing.T, startTime time.Time, width, height uint32, extraEvents []apievents.AuditEvent) []apievents.AuditEvent {

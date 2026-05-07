@@ -45,6 +45,7 @@ func TestSessionPostProcessor(t *testing.T) {
 		sessionID,
 		mock.Anything,
 		mock.Anything,
+		mock.Anything,
 	).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
@@ -91,6 +92,7 @@ func TestSessionPostProcessor_Desktop(t *testing.T) {
 		mock.Anything,
 		sessionID,
 		recordingmetadata.SessionTypeDesktop,
+		startTime,
 		endTime.Sub(startTime),
 	).Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
@@ -121,8 +123,8 @@ type fakeRecordingMetadata struct {
 	mock.Mock
 }
 
-func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
-	args := f.Called(ctx, sessionID, sessionType, duration)
+func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+	args := f.Called(ctx, sessionID, sessionType, startTime, duration)
 	return args.Error(0)
 }
 

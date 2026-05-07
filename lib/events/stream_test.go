@@ -759,8 +759,8 @@ type MockRecordingMetadataService struct {
 	mock.Mock
 }
 
-func (m *MockRecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
-	args := m.Called(ctx, sessionID, duration)
+func (m *MockRecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+	args := m.Called(ctx, sessionID, sessionType, startTime, duration)
 	return args.Error(0)
 }
 
@@ -799,7 +799,7 @@ func TestInBandWindowsDesktopSessionEnd(t *testing.T) {
 	mockSummarizer.AssertNotCalled(t, "SummarizeDatabase", mock.Anything, mock.Anything)
 
 	mockMetadata.
-		On("ProcessSessionRecording", mock.Anything, sid, endTime.Sub(startTime)).
+		On("ProcessSessionRecording", mock.Anything, sid, recordingmetadata.SessionTypeDesktop, startTime, endTime.Sub(startTime)).
 		Return(nil).
 		Once()
 
@@ -1038,7 +1038,7 @@ func TestRecordingMetadataProcessing(t *testing.T) {
 
 			if tc.expectProcess {
 				mockMetadata.
-					On("ProcessSessionRecording", mock.Anything, sid, tc.expectedDuration).
+					On("ProcessSessionRecording", mock.Anything, sid, mock.Anything, mock.Anything, tc.expectedDuration).
 					Return(tc.processingError).
 					Once()
 			}

@@ -368,8 +368,8 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 
 	// For PTY and Desktop sessions, process recording metadata.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
+	if startTime, duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, startTime, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
 	} else if sessionType == recordingmetadata.SessionTypeTTY || sessionType == recordingmetadata.SessionTypeDesktop {
@@ -407,23 +407,23 @@ func transformedUsername(u apievents.UserMetadata, localCluster string) string {
 // eligible but its start or end time is missing, signaling the caller to warn.
 // Returns (0, SessionTypeUnspecified) for session types that don't produce
 // recording metadata.
-func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Duration, recordingmetadata.SessionType) {
+func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Time, time.Duration, recordingmetadata.SessionType) {
 	switch evt := sessionEnd.(type) {
 	case *apievents.SessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeTTY
+			return time.Time{}, -1, recordingmetadata.SessionTypeTTY
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
 	case *apievents.DatabaseSessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeUnspecified
+			return time.Time{}, -1, recordingmetadata.SessionTypeUnspecified
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
 	case *apievents.WindowsDesktopSessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeDesktop
+			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
 	}
-	return 0, recordingmetadata.SessionTypeUnspecified
+	return time.Time{}, 0, recordingmetadata.SessionTypeUnspecified
 }
