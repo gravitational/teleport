@@ -159,6 +159,8 @@ func ValidateBeamAlias(alias string) error {
 	return trace.BadParameter("beam alias must be a hyphen-separated pair of two lowercase words")
 }
 
+// MakeBeamFilterFunc creates a filter function for beams based on the provided
+// options.
 func MakeBeamFilterFunc(options *ListBeamsRequestOptions) func(beam *beamsv1.Beam) bool {
 	return func(b *beamsv1.Beam) bool {
 		if options != nil && options.GetFilterUsers().Len() > 0 {
