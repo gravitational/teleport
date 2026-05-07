@@ -58,11 +58,12 @@ type UploadHandler interface {
 
 // RecordingMetadataService processes session recordings to generate metadata and thumbnails.
 type RecordingMetadataService struct {
-	logger             *slog.Logger
-	streamer           player.Streamer
-	uploadHandler      UploadHandler
-	concurrencyLimiter *semaphore.Weighted
-	encrypter          events.EncryptionWrapper
+	logger                    *slog.Logger
+	streamer                  player.Streamer
+	uploadHandler             UploadHandler
+	concurrencyLimiter        *semaphore.Weighted
+	desktopConcurrencyLimiter *semaphore.Weighted
+	encrypter                 events.EncryptionWrapper
 }
 
 // RecordingMetadataServiceConfig defines the configuration for the RecordingMetadataService.
@@ -97,6 +98,11 @@ const (
 
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
+
+	// desktopConcurrencyLimit caps how many desktop sessions are processed in parallel. Each one
+	// materializes a full RGBA copy of the framebuffer (up to ~256 MiB at the 8192x8192 RDP max)
+	// when producing a thumbnail, so the cap is kept low to bound peak Auth memory use.
+	desktopConcurrencyLimit = 2
 )
 
 // NewRecordingMetadataService creates a new instance of RecordingMetadataService with the provided configuration.
@@ -109,11 +115,12 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 	}
 
 	return &RecordingMetadataService{
-		streamer:           cfg.Streamer,
-		uploadHandler:      cfg.UploadHandler,
-		logger:             slog.With(teleport.ComponentKey, "recording_metadata"),
-		concurrencyLimiter: semaphore.NewWeighted(concurrencyLimit),
-		encrypter:          cfg.Encrypter,
+		streamer:                  cfg.Streamer,
+		uploadHandler:             cfg.UploadHandler,
+		logger:                    slog.With(teleport.ComponentKey, "recording_metadata"),
+		concurrencyLimiter:        semaphore.NewWeighted(concurrencyLimit),
+		desktopConcurrencyLimiter: semaphore.NewWeighted(desktopConcurrencyLimit),
+		encrypter:                 cfg.Encrypter,
 	}, nil
 }
 
@@ -131,6 +138,14 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		return trace.Wrap(err)
 	}
 	defer s.concurrencyLimiter.Release(1)
+
+	if sessionType == recordingmetadata.SessionTypeDesktop {
+		if err := s.desktopConcurrencyLimiter.Acquire(ctx, 1); err != nil {
+			sessionsPendingMetric.Dec()
+			return trace.Wrap(err)
+		}
+		defer s.desktopConcurrencyLimiter.Release(1)
+	}
 
 	sessionsPendingMetric.Dec()
 
