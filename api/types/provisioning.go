@@ -888,9 +888,10 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		serviceAccountNameSet := allowRule.ServiceAccountName != ""
 		serviceAccountNamespaceSet := allowRule.ServiceAccountNamespace != ""
 
-		if !(serviceAccountSet || (serviceAccountNameSet && serviceAccountNamespaceSet)) {
+		if !serviceAccountSet && !(serviceAccountNameSet && serviceAccountNamespaceSet) {
 			return trace.BadParameter(
 				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
+				i,
 			)
 		}
 		if serviceAccountSet {
