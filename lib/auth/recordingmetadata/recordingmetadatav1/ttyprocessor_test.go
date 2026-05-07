@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 )
 
-func newTestTTYProcessor(duration time.Duration) recordingProcessor {
-	return newRecordingProcessor(&nopCloser{io.Discard}, slog.Default(), recordingmetadata.SessionTypeTTY, duration)
+func newTestTTYProcessor(startTime time.Time, duration time.Duration) recordingProcessor {
+	return newRecordingProcessor(&nopCloser{io.Discard}, slog.Default(), recordingmetadata.SessionTypeTTY, startTime, duration)
 }
 
 func TestTTYRecordingProcessor(t *testing.T) {
@@ -136,7 +136,7 @@ func TestTTYRecordingProcessor(t *testing.T) {
 			lastEventTime := tt.events[len(tt.events)-1].GetTime()
 			duration := lastEventTime.Sub(startTime)
 
-			processor := newTestTTYProcessor(duration)
+			processor := newTestTTYProcessor(startTime, duration)
 
 			for _, evt := range tt.events {
 				require.NoError(t, processor.handleEvent(evt))
@@ -158,7 +158,7 @@ func TestTTYRecordingProcessor(t *testing.T) {
 func TestTTYRecordingProcessor_MalformedResizeEvent(t *testing.T) {
 	startTime := time.Now()
 
-	processor := newTestTTYProcessor(10 * time.Second)
+	processor := newTestTTYProcessor(startTime, 10*time.Second)
 
 	require.NoError(t, processor.handleEvent(sessionStartEvent(startTime, "80:24")))
 	require.NoError(t, processor.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "Hello\n")))

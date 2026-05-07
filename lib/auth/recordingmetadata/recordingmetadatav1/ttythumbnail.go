@@ -82,7 +82,9 @@ func (t *ttyThumbnailGenerator) handleTerminalResize(terminalSize string) error 
 	return nil
 }
 
-func (t *ttyThumbnailGenerator) produceThumbnail() *pb.SessionRecordingThumbnail {
+// produceThumbnail returns the current terminal as an SVG. The maxDim argument is ignored because
+// SVG output is resolution-independent.
+func (t *ttyThumbnailGenerator) produceThumbnail(_ int) (*pb.SessionRecordingThumbnail, error) {
 	cols, rows := t.vt.Size()
 	cursor := t.vt.Cursor()
 
@@ -93,5 +95,9 @@ func (t *ttyThumbnailGenerator) produceThumbnail() *pb.SessionRecordingThumbnail
 		CursorX:       int32(cursor.X),
 		CursorY:       int32(cursor.Y),
 		CursorVisible: t.vt.CursorVisible(),
-	}
+	}, nil
+}
+
+func (t *ttyThumbnailGenerator) release() {
+	// no resources to release for this thumbnail generator
 }
