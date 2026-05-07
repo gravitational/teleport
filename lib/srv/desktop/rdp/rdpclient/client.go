@@ -76,6 +76,7 @@ import (
 	"net"
 	"os"
 	"runtime/cgo"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -1307,19 +1308,15 @@ func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, 
 	defer C.free_encoding_result(encodingResult)
 	if encodingResult.error_code != C.ErrCodeSuccess {
 		buf := unsafe.Slice((*uint8)(encodingResult.error_msg), encodingResult.length)
-		msg := make([]uint8, encodingResult.length)
-		copy(msg, buf)
-		return nil, trace.Errorf("Couldn't encode frame: %s", string(msg))
+		return nil, trace.Errorf("Couldn't encode frame: %s", string(slices.Clone(buf)))
 	}
 	pdus := unsafe.Slice((*C.Pdu)(encodingResult.pdus), encodingResult.length)
 	messages := make([]*tdpb.FastPathPDU, 0, encodingResult.length)
 	for _, frame := range pdus {
 		// copy Rust memory to Go
-		cbuf := unsafe.Slice((*uint8)(frame.data), frame.length)
-		buf := make([]uint8, frame.length)
-		copy(buf, cbuf)
+		buf := unsafe.Slice((*uint8)(frame.data), frame.length)
 		messages = append(messages, &tdpb.FastPathPDU{
-			Pdu: buf,
+			Pdu: slices.Clone(buf),
 		})
 	}
 	return messages, nil
