@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client/mfatypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -112,83 +113,23 @@ type MFAChallengeRequest struct {
 	Pass string `json:"pass"`
 	// Passwordless explicitly requests a passwordless/usernameless challenge.
 	Passwordless bool `json:"passwordless"`
+	// BrowserMFATSHRedirectURL is the redirect url that tsh provides with a
+	// secret key that the server will use to return a WebAuthn response to.
+	// Format: http://localhost:12345/callback?secret_key=X
+	BrowserMFATSHRedirectURL string `json:"browser_mfa_tsh_redirect_url,omitempty"`
 }
 
 // MFAChallengeResponse holds the response to a MFA challenge.
-type MFAChallengeResponse struct {
-	// TOTPCode is a code for a otp device.
-	TOTPCode string `json:"totp_code,omitempty"`
-	// WebauthnResponse is a response from a webauthn device.
-	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
-	// SSOResponse is a response from an SSO MFA flow.
-	SSOResponse *SSOResponse `json:"sso_response"`
-	// TODO(Joerger): DELETE IN v20.0.0, WebauthnResponse used instead.
-	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
-}
+type MFAChallengeResponse = mfatypes.MFAChallengeResponse
 
 // SSOResponse is a json compatible [proto.SSOResponse].
-type SSOResponse struct {
-	RequestID string `json:"requestId,omitempty"`
-	Token     string `json:"token,omitempty"`
-}
+type SSOResponse = mfatypes.SSOResponse
 
-// GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
-// if there were any responses set. Otherwise returns nil.
-func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
-	if r == nil {
-		return nil, nil
-	}
-
-	var availableResponses int
-	if r.TOTPCode != "" {
-		availableResponses++
-	}
-	if r.WebauthnResponse != nil {
-		availableResponses++
-	}
-	if r.SSOResponse != nil {
-		availableResponses++
-	}
-
-	if availableResponses > 1 {
-		return nil, trace.BadParameter("only one MFA response field can be set")
-	}
-
-	switch {
-	case r.WebauthnResponse != nil:
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
-		}}, nil
-	case r.SSOResponse != nil:
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_SSO{
-			SSO: &proto.SSOResponse{
-				RequestId: r.SSOResponse.RequestID,
-				Token:     r.SSOResponse.Token,
-			},
-		}}, nil
-	case r.TOTPCode != "":
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
-		}}, nil
-	case r.WebauthnAssertionResponse != nil:
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnAssertionResponse),
-		}}, nil
-	}
-
-	return nil, nil
-}
+// BrowserMFAResponse is a json compatible [proto.BrowserMFAResponse].
+type BrowserMFAResponse = mfatypes.BrowserMFAResponse
 
 // ParseMFAChallengeResponse parses [MFAChallengeResponse] from JSON and returns it as a [proto.MFAAuthenticateResponse].
-func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateResponse, error) {
-	var resp MFAChallengeResponse
-	if err := json.Unmarshal(mfaResponseJSON, &resp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
-	return protoResp, trace.Wrap(err)
-}
+var ParseMFAChallengeResponse = mfatypes.ParseMFAChallengeResponse
 
 // HeadlessLoginReq is a headless login request for /webapi/headless/login.
 type HeadlessLoginReq struct {
@@ -257,6 +198,9 @@ type AuthenticateSSHUserRequest struct {
 	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
+	// BrowserMFAResponse is a response from a Browser MFA flow containing a
+	// webauthn response.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response,omitempty"`
 	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
 	// should be used as the subject of issued certificates, and optional
 	// hardware key attestation statements for each key.
@@ -357,6 +301,9 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// MFACeremonyConstructor is an optional MFA ceremony constructor.
+	// Currently used for Browser MFA during the login process.
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -397,44 +344,22 @@ type SSHLoginHeadless struct {
 
 // MFAAuthenticateChallenge is an MFA authentication challenge sent on user
 // login / authentication ceremonies.
-type MFAAuthenticateChallenge struct {
-	// WebauthnChallenge contains a WebAuthn credential assertion used for
-	// login/authentication ceremonies.
-	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
-	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool `json:"totp_challenge"`
-	// SSOChallenge is an SSO MFA challenge.
-	SSOChallenge *SSOChallenge `json:"sso_challenge"`
-}
+type MFAAuthenticateChallenge = mfatypes.MFAAuthenticateChallenge
 
 // SSOChallenge is a json compatible [proto.SSOChallenge].
-type SSOChallenge struct {
-	RequestID   string        `json:"requestId,omitempty"`
-	RedirectURL string        `json:"redirectUrl,omitempty"`
-	Device      *SSOMFADevice `json:"device"`
-	// ChannelID is used by the front end to differentiate multiple ongoing SSO
-	// MFA requests so they don't interfere with each other.
-	ChannelID string `json:"channelId"`
-}
+type SSOChallenge = mfatypes.SSOChallenge
 
 // SSOMFADevice is a json compatible [proto.SSOMFADevice].
-type SSOMFADevice struct {
-	ConnectorID   string `json:"connectorId,omitempty"`
-	ConnectorType string `json:"connectorType,omitempty"`
-	DisplayName   string `json:"displayName,omitempty"`
-}
+type SSOMFADevice = mfatypes.SSOMFADevice
 
-func SSOChallengeFromProto(ssoChal *proto.SSOChallenge) *SSOChallenge {
-	return &SSOChallenge{
-		RequestID:   ssoChal.RequestId,
-		RedirectURL: ssoChal.RedirectUrl,
-		Device: &SSOMFADevice{
-			ConnectorID:   ssoChal.Device.ConnectorId,
-			ConnectorType: ssoChal.Device.ConnectorType,
-			DisplayName:   ssoChal.Device.DisplayName,
-		},
-	}
-}
+// BrowserMFAChallenge is a json compatible [proto.BrowserMFAChallenge].
+type BrowserMFAChallenge = mfatypes.BrowserMFAChallenge
+
+var (
+	SSOChallengeFromProto     = mfatypes.SSOChallengeFromProto
+	BrowserChallengeToProto   = mfatypes.BrowserChallengeToProto
+	BrowserChallengeFromProto = mfatypes.BrowserChallengeFromProto
+)
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
@@ -664,6 +589,11 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILo
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnChallengeResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+	case *proto.MFAAuthenticateResponse_Browser:
+		challengeResp.BrowserMFAResponse = &BrowserMFAResponse{
+			RequestID:        r.Browser.RequestId,
+			WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(r.Browser.WebauthnResponse),
+		}
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -684,6 +614,9 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 				User: login.User,
 				Pass: login.Password,
 			}
+			if req != nil && req.BrowserMFATSHRedirectURL != "" {
+				beginReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
+			}
 			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -702,9 +635,13 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			if challenge.WebauthnChallenge != nil {
 				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 			}
+			if challenge.BrowserMFAChallenge != nil {
+				chal.BrowserMFAChallenge = BrowserChallengeToProto(challenge.BrowserMFAChallenge)
+			}
 			return chal, nil
 		},
-		PromptConstructor: login.MFAPromptConstructor,
+		PromptConstructor:      login.MFAPromptConstructor,
+		MFACeremonyConstructor: login.MFACeremonyConstructor,
 	}
 }
 

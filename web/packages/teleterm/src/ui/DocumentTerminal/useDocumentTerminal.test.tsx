@@ -18,6 +18,7 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 import 'jest-canvas-mock';
+
 import Logger, { NullService } from 'teleterm/logger';
 import {
   IPtyProcess,

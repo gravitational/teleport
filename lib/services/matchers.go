@@ -30,6 +30,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/utils"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -74,28 +77,24 @@ func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
 	}
 }
 
-// SimplifyAzureMatchers returns simplified Azure Matchers.
-// Selectors are deduplicated, wildcard in a selector reduces the selector
-// to just the wildcard, and defaults are applied.
+// SimplifyAzureMatchers returns simplified Azure matchers. Each selector list
+// is trimmed, deduplicated, and collapsed to the wildcard if any entry is the
+// wildcard or the list is empty. Lists where every entry is whitespace-only are
+// preserved verbatim rather than widened to wildcard, so invalid hand-edited
+// scopes fail closed downstream instead of matching all.
 func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 	result := make([]types.AzureMatcher, 0, len(matchers))
 	for _, m := range matchers {
-		subs := apiutils.Deduplicate(m.Subscriptions)
-		groups := apiutils.Deduplicate(m.ResourceGroups)
-		regions := apiutils.Deduplicate(m.Regions)
+		subs := simplifySelector(m.Subscriptions)
+		groups := simplifySelector(m.ResourceGroups)
 		ts := apiutils.Deduplicate(m.Types)
-		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
-			subs = []string{types.Wildcard}
-		}
-		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
-			groups = []string{types.Wildcard}
-		}
-		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
+		var regions []string
+		if len(m.Regions) == 0 || slices.Contains(m.Regions, types.Wildcard) {
 			regions = []string{types.Wildcard}
 		} else {
-			for i, region := range regions {
-				regions[i] = azureutils.NormalizeLocation(region)
-			}
+			// Normalize before dedup so case-variant inputs ("East US", "eastus") collapse.
+			// The fresh slice also keeps m.Regions safe from the watcher's concurrent IsEqual reads.
+			regions = apiutils.Deduplicate(libslices.Map(m.Regions, azureutils.NormalizeLocation))
 		}
 		elem := m
 		elem.Subscriptions = subs
@@ -106,6 +105,37 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 		result = append(result, elem)
 	}
 	return result
+}
+
+// simplifySelector applies the SimplifyAzureMatchers normalization rules to a
+// single selector list (Subscriptions or ResourceGroups). The four input
+// shapes are handled distinctly to avoid silently widening malformed config
+// to the wildcard:
+//
+//   - empty input (len == 0)                -> wildcard (existing convention)
+//   - any wildcard among trimmed entries    -> wildcard (existing convention)
+//   - non-empty input with at least one
+//     non-empty trimmed entry               -> trimmed, deduped entries
+//   - non-empty input that ALL trim to empty
+//     (e.g. [" "], ["", "  "])              -> original input preserved verbatim
+//     (do NOT widen to wildcard; the Azure
+//     SDK call surfaces the typo)
+func simplifySelector(input []string) []string {
+	if len(input) == 0 {
+		return []string{types.Wildcard}
+	}
+	trimmed := libslices.FilterMapUnique(input, utils.TrimNonEmpty)
+	if slices.Contains(trimmed, types.Wildcard) {
+		return []string{types.Wildcard}
+	}
+	if len(trimmed) == 0 {
+		// User supplied selectors but every entry was whitespace-only.
+		// This is a config typo, not a "match everything" signal.
+		// Preserve the original input so the Azure SDK rejects it as an
+		// invalid scope rather than silently broadening discovery.
+		return input
+	}
+	return trimmed
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -143,7 +173,7 @@ func (r *resourceWithTargetHealth) GetTargetHealthStatus() types.TargetHealthSta
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
-type ResourceSeenKey struct{ name, kind, addr string }
+type ResourceSeenKey struct{ name, kind, addr, scope string }
 
 // MatchResourcesByFilters filters provided resources with profiled filter.
 func MatchResourcesByFilters[E types.ResourceWithLabels, S ~[]E](all S, filter MatchResourceFilter) (S, error) {
@@ -174,17 +204,26 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	var specResource types.ResourceWithLabels
 	kind := resource.GetKind()
 
+	scope := ""
+	switch res := resource.(type) {
+	case *types.KubernetesClusterV3:
+		scope = res.GetScope()
+	case types.KubeServer:
+		scope = res.GetScope()
+	}
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	key := ResourceSeenKey{
-		kind: kind,
-		name: resource.GetName(),
+		kind:  kind,
+		name:  resource.GetName(),
+		scope: scopes.NormalizeForEquality(scope),
 	}
 	switch kind {
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindLinuxDesktop,
 		types.KindUserGroup,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,

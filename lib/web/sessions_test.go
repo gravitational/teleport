@@ -196,6 +196,7 @@ func TestSessionCache_watcher(t *testing.T) {
 	// cancel is used to make sure the sessionCache stops cleanly.
 	ctx := t.Context()
 
+	initializedC := make(chan struct{})
 	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{
 		buildType:   testModules.BuildType(),
@@ -207,10 +208,19 @@ func TestSessionCache_watcher(t *testing.T) {
 		clock:                               clock,
 		sessionLingeringThreshold:           1 * time.Minute,
 		sessionWatcherStartImmediately:      true,
+		sessionWatcherInitializedChannel:    initializedC,
 		sessionWatcherEventProcessedChannel: processedC,
 	})
 	require.NoError(t, err, "newSessionCache() failed")
 	defer sessionCache.Close()
+
+	// Wait for watcher initialization. This guarantees that the watcher is ready
+	// to observe updates.
+	select {
+	case <-initializedC:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for sessionCache watcher initialization")
+	}
 
 	// Sanity check active sessions.
 	require.Zero(t,

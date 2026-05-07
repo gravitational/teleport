@@ -113,6 +113,7 @@ export interface UnifiedResourceNode {
   tunnel: boolean;
   subKind: NodeSubKind;
   requiresRequest?: boolean;
+  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export interface UnifiedResourceKube {
@@ -124,7 +125,7 @@ export interface UnifiedResourceKube {
 }
 
 export type UnifiedResourceDesktop = {
-  kind: 'windows_desktop';
+  kind: 'windows_desktop' | 'linux_desktop';
   os: 'windows' | 'linux' | 'darwin';
   name: string;
   addr: string;

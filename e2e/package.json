@@ -6,14 +6,14 @@
   "scripts": {
     "test": "./run.sh",
     "type-check": "tsc --noEmit",
+    "test:canonical-key": "tsx scripts/verify-canonical-key.ts",
     "show-report": "playwright show-report --port 0"
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "@types/node": "^25.5.0",
+    "@playwright/test": "^1.59.1",
     "cbor-x": "^1.6.4",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "undici": "^7.24.5"
   }
 }

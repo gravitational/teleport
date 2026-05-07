@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -211,6 +210,7 @@ func TestGenerateCredentials(t *testing.T) {
 			defer cancel()
 
 			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
+				AD:                                true,
 				Username:                          user,
 				Domain:                            domain,
 				TTL:                               5 * time.Minute,
@@ -227,7 +227,7 @@ func TestGenerateCredentials(t *testing.T) {
 			require.NotNil(t, cert)
 
 			require.Equal(t, test.wantSerialNumber, cert.Issuer.SerialNumber, "Issuer.SerialNumber")
-			require.Equal(t, user, cert.Subject.CommonName, "Subject.CommonName")
+			require.Equal(t, user+"@"+domain, cert.Subject.CommonName, "Subject.CommonName")
 			require.Contains(t,
 				cert.CRLDistributionPoints,
 				`ldap:///CN=`+test.wantCRLCommonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
@@ -316,12 +316,12 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
 	encoded, err := msg.Encode()
 	require.NoError(t, err)
-	handler(msg, encoded)
+	require.NoError(t, handler(msg))
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)
@@ -345,13 +345,10 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	maliciousPNG := make([]byte, constants.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	png := &tdpb.PNGFrame{Data: maliciousPNG}
-	encoded, err := png.Encode()
-	require.NoError(t, err)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
-
-	handler(png, encoded)
+	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	require.NoError(t, handler(png))
 
 	require.Nil(t, emitter.LastEvent())
 }
@@ -367,7 +364,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := s.makeTDPReceiveAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.MouseButton{
 		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
@@ -394,11 +391,10 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPReceiveHandler(
+	handler := s.makeTDPReceiveAuditor(
 		context.Background(),
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdp.Conn{},
 		audit,
 	)
 
@@ -432,11 +428,10 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPSendHandler(
+	handler := s.makeTDPSendAuditor(
 		context.Background(),
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdp.Conn{},
 		audit,
 	)
 
@@ -445,9 +440,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 
 	start := s.cfg.Clock.Now().UTC()
 	msg := &tdpb.ClipboardData{Data: fakeClipboardData}
-	encoded, err := msg.Encode()
-	require.NoError(t, err)
-	handler(msg, encoded)
+	require.NoError(t, handler(msg))
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)

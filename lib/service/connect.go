@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -44,12 +43,14 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -722,6 +723,59 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 	return identity, trace.Wrap(err)
 }
 
+// initBoundKeypairClientState attempts to initialize or load an existing bound
+// keypair client state. This state could be static or stored in the local
+// process storage.
+func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.ClientState, string, error) {
+	cfg := process.Config.JoinParams.BoundKeypair
+
+	staticKey, err := cfg.StaticPrivateKeyBytes()
+	if err != nil {
+		process.logger.WarnContext(
+			process.ExitContext(),
+			"Could not load the configured bound keypair static key, will attempt to fall back to a standard keypair",
+			"error", err,
+		)
+	} else if staticKey != nil {
+		return boundkeypair.NewStaticClientState(staticKey), "", nil
+	}
+
+	adapter := process.boundKeypairStorageAdapter()
+	state, err := boundkeypair.LoadClientState(process.GracefulExitContext(), adapter)
+	if trace.IsNotFound(err) {
+		registrationSecret, err := cfg.RegistrationSecret()
+		if err != nil {
+			process.logger.ErrorContext(
+				process.ExitContext(),
+				"Could not complete bound keypair joining: no local credentials "+
+					"could be loaded and no registration secret was configured",
+				"error", err,
+			)
+
+			return nil, "", trace.Wrap(err, "loading bound keypair registration secret")
+		} else if registrationSecret == "" {
+			return nil, "", trace.BadParameter("no existing bound keypair credentials and no registration secret configured")
+		}
+
+		process.logger.InfoContext(
+			process.ExitContext(),
+			"No existing bound keypair client state found, will attempt to "+
+				"join with configured registration secret",
+		)
+		return boundkeypair.NewEmptyFSClientState(adapter), registrationSecret, nil
+	} else if err != nil {
+		process.logger.ErrorContext(
+			process.ExitContext(),
+			"Could not complete bound keypair joining: no local credentials "+
+				"could be loaded and no registration secret was configured",
+			"error", err,
+		)
+		return nil, "", trace.Wrap(err, "loading bound keypair client state")
+	}
+
+	return state, "", nil
+}
+
 func (process *TeleportProcess) makeJoinParams(
 	id state.IdentityID,
 	additionalPrincipals []string,
@@ -764,6 +818,15 @@ func (process *TeleportProcess) makeJoinParams(
 		joinParams.AzureParams = joinclient.AzureParams{
 			ClientID: process.Config.JoinParams.Azure.ClientID,
 		}
+	}
+	if joinParams.JoinMethod == types.JoinMethodBoundKeypair {
+		boundKeypairState, regSecret, err := process.initBoundKeypairClientState()
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		}
+
+		joinParams.BoundKeypairState = boundKeypairState
+		joinParams.BoundKeypairRegistrationSecret = regSecret
 	}
 	return joinParams, nil
 }
@@ -1482,7 +1545,7 @@ func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) brea
 	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,

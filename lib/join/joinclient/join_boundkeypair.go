@@ -38,6 +38,32 @@ type (
 	BoundKeypairResult = authjoin.BoundKeypairRegisterResult
 )
 
+// handleBoundKeypairResult handles a bound keypair result message upon
+// successful completion of a bound keypair challenge. This updates client state
+// and persists the result to the client's configured backend.
+func handleBoundKeypairResult(
+	ctx context.Context,
+	state boundkeypair.ClientState,
+	result *messages.BoundKeypairResult,
+) error {
+	if result == nil {
+		return trace.BadParameter("register result missing required bound keypair response")
+	}
+
+	if err := state.UpdateFromRegisterResult(
+		result.PublicKey,
+		result.JoinState,
+	); err != nil {
+		return trace.Wrap(err, "updating local bound keypair state")
+	}
+
+	if err := state.Store(ctx); err != nil {
+		return trace.Wrap(err, "storing updated bound keypair state")
+	}
+
+	return nil
+}
+
 func boundKeypairJoin(
 	ctx context.Context,
 	stream messages.ClientStream,
@@ -87,19 +113,15 @@ func boundKeypairJoin(
 		switch kind := msg.(type) {
 		case *messages.BotResult:
 			// Received join result, store and return.
-			if kind.BoundKeypairResult == nil {
-				return nil, trace.BadParameter("register result missing required bound keypair response")
+			if err := handleBoundKeypairResult(ctx, state, kind.BoundKeypairResult); err != nil {
+				return nil, trace.Wrap(err)
 			}
 
-			if err := state.UpdateFromRegisterResult(
-				kind.BoundKeypairResult.PublicKey,
-				kind.BoundKeypairResult.JoinState,
-			); err != nil {
-				return nil, trace.Wrap(err, "updating local bound keypair state")
-			}
-
-			if err := state.Store(ctx); err != nil {
-				return nil, trace.Wrap(err, "storing updated bound keypair state")
+			return kind, nil
+		case *messages.HostResult:
+			// Handled identically to bots.
+			if err := handleBoundKeypairResult(ctx, state, kind.BoundKeypairResult); err != nil {
+				return nil, trace.Wrap(err)
 			}
 
 			return kind, nil

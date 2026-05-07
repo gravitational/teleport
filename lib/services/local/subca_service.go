@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -42,10 +43,7 @@ func newCAOverridesPrefix() backend.Key {
 }
 
 // CertAuthorityOverrideID uniquely identifies a CertAuthorityOverride resource.
-type CertAuthorityOverrideID struct {
-	ClusterName string
-	CAType      string
-}
+type CertAuthorityOverrideID = types.CertAuthorityOverrideID
 
 // CertAuthorityOverrideIDFromResource returns the id of the specified resource.
 //
@@ -75,6 +73,9 @@ type SubCAServiceParams struct {
 type SubCAService struct {
 	service *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
 }
+
+// Keep interface in-sync with implementation.
+var _ services.SubCAService = (*SubCAService)(nil)
 
 // NewSubCAService creates a new service using the provided params.
 func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
@@ -152,7 +153,11 @@ func (s *SubCAService) GetCertAuthorityOverride(
 		return nil, trace.Wrap(err)
 	}
 
-	resource, err := service.GetResource(ctx, "")
+	// Name has no effect on the query, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.FullName()
+
+	resource, err := service.GetResource(ctx, name)
 	return resource, trace.Wrap(err)
 }
 
@@ -180,7 +185,11 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(service.DeleteResource(ctx, ""))
+	// Name has no effect on the query, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.FullName()
+
+	return trace.Wrap(service.DeleteResource(ctx, name))
 }
 
 func (s *SubCAService) serviceForResource(
@@ -206,4 +215,76 @@ func (s *SubCAService) serviceForClusterAndType(
 	return s.service.WithNameKeyFunc(func() backend.Key {
 		return backend.NewKey(clusterName, caType)
 	}), nil
+}
+
+type certAuthorityOverrideParser struct {
+	baseParser
+}
+
+func newCertAuthorityOverrideParser() *certAuthorityOverrideParser {
+	return &certAuthorityOverrideParser{
+		baseParser: newBaseParser(newCAOverridesPrefix()),
+	}
+}
+
+func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		trimmedKey := event.Item.Key.TrimPrefix(newCAOverridesPrefix())
+		parts := trimmedKey.Components()
+		if len(parts) != 2 {
+			return nil, trace.BadParameter("unexpected %s key: %s", types.KindCertAuthorityOverride, event.Item.Key)
+		}
+		// Note! Storage keys mimic CAs, so they go {ClusterName}/{CAType}.
+		// This is the inverse of almost everything else (CertAuthorityOverrideID,
+		// RPCs, audit, tctl, etc), which go {CAType}/{ClusterName} instead.
+		name := parts[0]
+		subKind := parts[1]
+
+		return types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{
+			Kind:    types.KindCertAuthorityOverride,
+			Version: types.V1,
+			SubKind: subKind,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+		}), nil
+	case types.OpPut:
+		r, err := services.UnmarshalCertAuthorityOverride(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+// itemFromCertAuthorityOverride is used by CreateResources.
+func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*backend.Item, error) {
+	if _, err := subca.ValidateAndParseCAOverride(resource); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalCertAuthorityOverride(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := newCAOverridesPrefix().AppendKey(backend.NewKey(
+		resource.Metadata.Name,
+		resource.SubKind,
+	))
+	return &backend.Item{
+		Key:      key,
+		Value:    value,
+		Expires:  expires,
+		Revision: resource.Metadata.Revision,
+	}, nil
 }

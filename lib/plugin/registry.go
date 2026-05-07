@@ -51,6 +51,16 @@ type Registry interface {
 	RegisterAuthWebHandlers(handler any) error
 	// RegisterAuthServices registers Teleport AuthServer services
 	RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error
+	// SetUsageReportingInitFunc stores a callback that will be called once the OSS auth server is
+	// fully initialized. The callback receives a *service.TeleportProcess and is responsible for
+	// starting all usage-reporting pipelines. It must be set before service.NewTeleport is called.
+	SetUsageReportingInitFunc(func(process any) error)
+	// InitUsageReporting invokes the callback registered with SetUsageReportingInitFunc. It is
+	// called by initAuthService after setLocalAuth, ensuring the UsageReporter is available to
+	// auth-server enterprise extensions. The function process parameter is a *service.TeleportProcess
+	// instance.
+	// A no-op if no callback was registered.
+	InitUsageReporting(process any) error
 }
 
 // NewRegistry creates an instance of the Registry
@@ -61,7 +71,19 @@ func NewRegistry() Registry {
 }
 
 type registry struct {
-	plugins map[string]Plugin
+	plugins              map[string]Plugin
+	usageReportingInitFn func(process any) error
+}
+
+func (r *registry) SetUsageReportingInitFunc(f func(process any) error) {
+	r.usageReportingInitFn = f
+}
+
+func (r *registry) InitUsageReporting(process any) error {
+	if r.usageReportingInitFn != nil {
+		return r.usageReportingInitFn(process)
+	}
+	return nil
 }
 
 // IsRegistered returns whether a plugin with the give name exists.

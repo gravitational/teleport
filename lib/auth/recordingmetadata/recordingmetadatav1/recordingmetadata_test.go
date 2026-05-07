@@ -48,7 +48,7 @@ func TestProcessSessionRecording_StreamError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, time.Now(), 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream error")
 }
@@ -70,7 +70,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, time.Now(), 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
 }
@@ -93,7 +93,7 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 
 	processDone := make(chan error, 1)
 	go func() {
-		processDone <- service.ProcessSessionRecording(ctx, sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
+		processDone <- service.ProcessSessionRecording(ctx, sessionID, recordingmetadata.SessionTypeTTY, time.Now(), 10*time.Second)
 	}()
 
 	streamer.WaitUntilBlocking()
@@ -123,7 +123,7 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeUnspecified, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeUnspecified, time.Now(), 10*time.Second)
 
 	require.NoError(t, err)
 
@@ -159,7 +159,7 @@ func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, time.Now(), 10*time.Second)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "parsing terminal size")
@@ -196,7 +196,7 @@ func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, time.Now(), 10*time.Second)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "simulated upload failure")
@@ -442,22 +442,6 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 	m.thumbnails[string(sessionID)] = data
 	m.thumbnailPaths[string(sessionID)] = path
 	return path, nil
-}
-
-func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return nil
 }
 
 func (m *mockUploadHandler) Complete(ctx context.Context, upload events.StreamUpload) error {

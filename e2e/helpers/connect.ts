@@ -25,15 +25,18 @@ import { fileURLToPath } from 'node:url';
 import {
   _electron as electron,
   expect,
-  test as base,
   type Page,
   TestInfo,
   ElectronApplication,
 } from '@playwright/test';
 
-import { connectTshBin, connectAppDir, password, startUrl } from './env';
+import { defaultUsername } from './defaultUser';
+import { connectTshBin, connectAppDir, users, startUrl } from './env';
+import type { UserCredentials } from './env';
+import { test as fixtureBase } from './test';
 
-export async function launchApp(homeDir: string) {
+export async function launchApp(homeDir: string, creds?: UserCredentials) {
+  const userCreds = creds ?? lookupCreds(defaultUsername());
   const requireFromApp = module.createRequire(
     path.join(connectAppDir, 'package.json')
   );
@@ -47,6 +50,8 @@ export async function launchApp(homeDir: string) {
       TELEPORT_TOOLS_VERSION: 'off',
       CONNECT_DATA_DIR: homeDir,
       CONNECT_TSH_BIN_PATH: connectTshBin,
+      E2E_WEBAUTHN_PRIVATE_KEY: userCreds.webauthnPrivateKey,
+      E2E_WEBAUTHN_CREDENTIAL_ID: userCreds.webauthnCredentialId,
     },
   });
 
@@ -65,7 +70,26 @@ export async function launchApp(homeDir: string) {
   }
 }
 
-export async function login(page: Page): Promise<void> {
+function lookupCreds(username: string): UserCredentials {
+  const creds = users[username];
+  if (!creds) {
+    throw new Error(`no credentials for user "${username}" in E2E_USERS_FILE`);
+  }
+  return creds;
+}
+
+export async function login(
+  page: Page,
+  username?: string,
+  password?: string
+): Promise<void> {
+  if (!username) {
+    username = defaultUsername();
+    password = lookupCreds(username).password;
+  }
+  if (!password) {
+    throw new Error('login: password required when username is provided');
+  }
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   const clusterInput = page.getByPlaceholder('teleport.example.com');
   await expect(clusterInput).toBeVisible();
@@ -74,7 +98,7 @@ export async function login(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
 
-  await page.getByPlaceholder('Username').fill('bob');
+  await page.getByPlaceholder('Username').fill(username);
   await page.getByPlaceholder('Password').fill(password);
   await page.getByRole('button', { name: 'Sign In' }).click();
   await expect(page.getByPlaceholder('Search or jump to')).toBeVisible();
@@ -86,7 +110,7 @@ export interface App {
   appConfigPath: string;
 }
 
-export const test = base.extend<{
+export const test = fixtureBase.extend<{
   autoLogin: boolean;
   /**
    * Sets app config before launching the app.
@@ -98,14 +122,21 @@ export const test = base.extend<{
 }>({
   autoLogin: [false, { option: true }],
   appConfig: [withDefaultAppConfig({}), { option: true }],
-  app: async ({ autoLogin, appConfig }, use, testInfo) => {
+  app: async ({ autoLogin, appConfig, username }, use, testInfo) => {
+    if (!username) {
+      throw new Error(
+        'Connect app fixture: no username resolved — was the runner started with user-mapping.json?'
+      );
+    }
+    const creds = lookupCreds(username);
+
     await using temp = await fs.mkdtempDisposable(
       path.join(os.tmpdir(), 'connect-e2e-test-')
     );
     const { appConfigPath } = await initializeDataDir(temp.path, appConfig);
-    await using launchedApp = await launchApp(temp.path);
+    await using launchedApp = await launchApp(temp.path, creds);
     if (autoLogin) {
-      await login(launchedApp.page);
+      await login(launchedApp.page, username, creds.password);
     }
     await use({
       electronApp: launchedApp.electronApp,
@@ -118,6 +149,8 @@ export const test = base.extend<{
     }
   },
 });
+
+test.use({ fixtures: ['connect'] });
 
 export type AppConfigSetup =
   | {

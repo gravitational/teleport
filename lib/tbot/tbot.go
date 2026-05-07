@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
@@ -281,6 +282,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
+		case *beams.VNetServiceConfig:
+			services = append(services, beams.VNetServiceBuilder(
+				svcCfg,
+				beams.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+			))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -298,6 +304,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		ReloadCh:           b.cfg.ReloadCh,
 		Services:           services,
 		ClientMetrics:      clientMetrics,
+		Scoped:             b.cfg.Scoped,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -342,9 +349,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	}
 
 	if b.cfg.FIPS {
-		if !b.modules.IsBoringBinary() {
+		if !b.modules.IsFIPSBuild() {
 			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
-			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled in FIPS140 mode")
 		}
 		b.log.InfoContext(ctx, "Bot is running in FIPS compliant mode.")
 	}

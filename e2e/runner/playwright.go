@@ -34,11 +34,10 @@ import (
 )
 
 type playwrightRunner struct {
-	config        *e2eConfig
-	extraProjects []string
+	config *e2eConfig
 }
 
-func (p *playwrightRunner) startURL(inst *browserInstance) string {
+func (p *playwrightRunner) startURL(inst *testInstance) string {
 	if p.config.teleportURL != "" {
 		return p.config.teleportURL + "/web"
 	}
@@ -91,9 +90,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
 
-	baseProjects := make([]string, 0, 2+len(p.extraProjects))
-	baseProjects = append(baseProjects, "authenticated", "unauthenticated")
-	baseProjects = append(baseProjects, p.extraProjects...)
+	baseProjects := []string{"authenticated", "unauthenticated"}
 
 	var extraArgs []string
 	if p.config.updateSnapshots {
@@ -101,8 +98,16 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 	}
 
 	var g errgroup.Group
+
+	g.SetLimit(2)
+
 	for _, inst := range p.config.instances {
 		g.Go(func() error {
+			if err := inst.start(ctx); err != nil {
+				return err
+			}
+			defer inst.stop()
+
 			env, err := p.startEnv(inst)
 			if err != nil {
 				return fmt.Errorf("building env for %s: %w", inst.browser, err)
@@ -115,7 +120,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,./scripts/dot-progress-reporter.ts")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
 
 			for _, proj := range baseProjects {
 				args = append(args, "--project="+inst.browser+":"+proj)
@@ -140,6 +145,11 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 	if ci := p.config.connectInstance; ci != nil {
 		g.Go(func() error {
+			if err := ci.start(ctx); err != nil {
+				return err
+			}
+			defer ci.stop()
+
 			env, err := p.startEnv(ci)
 			if err != nil {
 				return fmt.Errorf("building env for connect: %w", err)
@@ -152,7 +162,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,./scripts/dot-progress-reporter.ts", "--project=connect")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect")
 
 			if len(p.config.testFiles) > 0 {
 				args = append(args, p.config.testFiles...)
@@ -190,13 +200,27 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 func (p *playwrightRunner) ui(ctx context.Context) error {
 	slog.Info("starting playwright in UI mode")
 
+	if len(p.config.instances) == 0 {
+		return fmt.Errorf("no test instances configured")
+	}
+
 	inst := p.config.instances[0]
+	if err := inst.start(ctx); err != nil {
+		return err
+	}
+	defer inst.stop()
+
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
 	}
 
-	return p.pnpm(ctx, []string{"exec", "playwright", "test", "--ui"}, env)
+	args := []string{"exec", "playwright", "test", "--ui"}
+	if len(p.config.testFiles) > 0 {
+		args = append(args, p.config.testFiles...)
+	}
+
+	return p.pnpm(ctx, args, env)
 }
 
 func (p *playwrightRunner) codegen(ctx context.Context) error {
@@ -207,7 +231,16 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 // a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
 // MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
+	if len(p.config.instances) == 0 {
+		return fmt.Errorf("no test instances configured")
+	}
+
 	inst := p.config.instances[0]
+	if err := inst.start(ctx); err != nil {
+		return err
+	}
+	defer inst.stop()
+
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
@@ -221,7 +254,7 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 	slog.Info("opening playwright " + playwrightCmd + " (with auth and WebAuthn)")
 
 	return p.pnpm(ctx, []string{
-		"exec", "tsx", "scripts/open-with-webauthn.ts",
+		"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-with-webauthn.ts"),
 		playwrightCmd,
 		p.startURL(inst),
 	}, env)
@@ -230,8 +263,14 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 	inst := p.config.connectInstance
 	if inst == nil {
-		return fmt.Errorf("connect instance not configured (use --with-connect)")
+		return fmt.Errorf("connect instance not configured (run Connect specific tests or use --with-connect)")
 	}
+
+	if err := inst.start(ctx); err != nil {
+		return err
+	}
+	defer inst.stop()
+
 	env, err := p.startEnv(inst)
 	if err != nil {
 		return err
@@ -239,13 +278,12 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 
 	slog.Info("opening Teleport Connect (with auth)")
 
-	return p.pnpm(ctx, []string{"exec", "tsx", "scripts/open-connect.ts"}, env)
+	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-connect.ts")}, env)
 }
-
 
 // startEnv builds the environment variables that Playwright tests need,
 // including START_URL, credentials, and tctl paths for invite URL generation.
-func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
+func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 	env := os.Environ()
 	// Force color output since Playwright's TTY detection won't work
 	// when stdout/stderr are wrapped by the rewrite writer.
@@ -254,12 +292,8 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 		env = append(env, "START_URL="+p.startURL(inst))
 	}
 
-	if creds := p.config.creds; creds != nil {
-		env = append(env,
-			"E2E_PASSWORD="+creds.password,
-			"E2E_WEBAUTHN_PRIVATE_KEY="+creds.privateKeyPKCS8Base64,
-			"E2E_WEBAUTHN_CREDENTIAL_ID="+creds.credentialIDBase64,
-		)
+	if p.config.creds != nil {
+		env = append(env, "E2E_USERS_FILE="+filepath.Join(p.config.e2eDir, ".auth", "user-credentials.json"))
 	}
 
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
@@ -330,7 +364,7 @@ func (p *playwrightRunner) outputWriters() (io.Writer, io.Writer) {
 	var showReportCmd string
 	if p.config.isCI {
 		if pr := ciPRNumber(); pr > 0 {
-			showReportCmd = fmt.Sprintf("e2e/run.sh --report %d", pr)
+			showReportCmd = ciReportCmd(pr)
 		}
 	}
 	if showReportCmd == "" {

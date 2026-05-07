@@ -18,6 +18,8 @@
 
 package auth
 
+// TODO(hugoShaka): Delete once the teleport.e PR is merged.
+
 import (
 	"context"
 	"log/slog"

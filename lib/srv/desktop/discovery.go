@@ -99,6 +99,8 @@ func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.W
 			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
 				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
 				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+				Limit:                pageSize,
+				StartKey:             pageToken,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -123,6 +125,9 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		Matcher: func(d types.WindowsDesktop) bool {
 			_, ok := d.GetLabel(types.DiscoveryLabelWindowsOS)
 			return ok
+		},
+		CompareResources: func(wd1, wd2 types.WindowsDesktop) int {
+			return services.EqualFromBool(wd1.IsEqual(wd2))
 		},
 		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(s.closeCtx) },
 		GetNewResources:     s.getDesktopsFromLDAP,
@@ -175,13 +180,17 @@ func (s *WindowsService) getDesktopsFromLDAP() (result map[string]types.WindowsD
 	// the reconciler from deleting resources due to transient network errors.
 	defer func() {
 		for _, d := range s.lastDiscoveryResults {
+			// Enforce a TTL of at least 5 minutes to avoid thrashing
+			// when a very small discovery interval is configured.
+			ttl := max(s.cfg.DiscoveryInterval*3, 5*time.Minute)
+
 			// Bump the TTL out even in the error case. This will keep desktops in
 			// the inventory until we get confirmation from LDAP that the desktop
 			// is no longer present.
 			//
 			// Note that if there is an issue with LDAP connectivity, the RDP connection
 			// to the host will only succeed if we've already cached the user's SID.
-			d.SetExpiry(s.cfg.Clock.Now().UTC().Add(s.cfg.DiscoveryInterval * 3))
+			d.SetExpiry(s.cfg.Clock.Now().UTC().Add(ttl))
 		}
 		result = s.lastDiscoveryResults
 	}()
@@ -259,6 +268,7 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	if len(dn) > 0 && len(cn) > 0 {
 		ou := strings.TrimPrefix(dn, "CN="+cn+",")
 		labels[types.DiscoveryLabelWindowsOU] = ou
+		labels[types.DiscoveryLabelWindowsDomain] = dnToDomain(dn)
 	}
 
 	// label domain controllers
@@ -273,6 +283,28 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
 		}
 	}
+}
+
+func dnToDomain(dn string) string {
+	// Leverage go-ldaps for parsing DNs.
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, rdn := range parsed.RDNs {
+		// Domain Component RDNs will only ever have one attribute/value pair
+		// in practice (even though the grammar technically allows multiple).
+		if len(rdn.Attributes) == 1 && strings.EqualFold(rdn.Attributes[0].Type, "dc") {
+			if b.Len() > 0 {
+				b.WriteRune('.')
+			}
+			b.WriteString(rdn.Attributes[0].Value)
+		}
+	}
+
+	return b.String()
 }
 
 const dnsQueryTimeout = 5 * time.Second
@@ -393,15 +425,13 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
-			Domain: s.cfg.Domain,
+			Domain: labels[types.DiscoveryLabelWindowsDomain],
 			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(s.cfg.DiscoveryInterval * 3))
 
 	description := entry.GetAttributeValue(attrDescription)
 	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]
@@ -444,6 +474,9 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
 			Matcher: func(desktop types.WindowsDesktop) bool {
 				return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
+			},
+			CompareResources: func(wd1, wd2 types.WindowsDesktop) int {
+				return services.EqualFromBool(wd1.IsEqual(wd2))
 			},
 			GetCurrentResources: func() map[string]types.WindowsDesktop { return currentResources },
 			GetNewResources:     func() map[string]types.WindowsDesktop { return newResources },

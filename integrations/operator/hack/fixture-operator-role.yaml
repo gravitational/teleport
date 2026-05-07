@@ -46,6 +46,14 @@ spec:
           - update
           - delete
       - resources:
+          - lock
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
           - login_rule
         verbs:
           - list
@@ -166,6 +174,14 @@ spec:
           - update
           - delete
       - resources:
+          - retrieval_model
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
           - access_monitoring_rule
         verbs:
           - list
@@ -175,6 +191,22 @@ spec:
           - delete
       - resources:
           - scoped_token
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - scoped_role
+        verbs:
+          - list
+          - create
+          - readnosecrets
+          - update
+          - delete
+      - resources:
+          - scoped_role_assignment
         verbs:
           - list
           - create

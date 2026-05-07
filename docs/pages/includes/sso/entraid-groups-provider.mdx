@@ -1,0 +1,14 @@
+Groups overage claim setting can be customized by using the `entra_id_groups_provider`
+field in the Auth Connector spec.
+
+```yaml
+kind: {{ type }}
+metadata:
+  name: entra-id
+spec:
+  ... # other fields not displayed for brevity
+  entra_id_groups_provider: 
+    disabled: false # set value to "true" to turn off the groups overage claim 
+    group_type: "security-groups" # can be "directory-roles", "all-groups"
+    graph_endpoint: "https://graph.microsoft.com" # update this value to point to another official Graph API endpoint
+```

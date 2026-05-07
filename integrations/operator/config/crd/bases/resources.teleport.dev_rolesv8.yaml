@@ -72,6 +72,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  beam_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: BeamLabels are used in the RBAC system to allow/deny
+                      access to beams.
+                    type: object
+                  beam_labels_expression:
+                    description: BeamLabelsExpression is a predicate expression used
+                      to allow/deny access to beams.
+                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -706,6 +716,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  beam_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: BeamLabels are used in the RBAC system to allow/deny
+                      access to beams.
+                    type: object
+                  beam_labels_expression:
+                    description: BeamLabelsExpression is a predicate expression used
+                      to allow/deny access to beams.
+                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true

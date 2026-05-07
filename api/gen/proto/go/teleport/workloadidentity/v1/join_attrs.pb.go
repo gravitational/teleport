@@ -503,7 +503,11 @@ type JoinAttrsGitHub struct {
 	// The SHA of the commit that triggered the workflow run.
 	Sha string `protobuf:"bytes,10,opt,name=sha,proto3" json:"sha,omitempty"`
 	// The ID of this GitHub actions workflow run.
-	RunId         string `protobuf:"bytes,11,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	RunId string `protobuf:"bytes,11,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// The name of the enterprise that the repository belongs to, if any.
+	Enterprise string `protobuf:"bytes,12,opt,name=enterprise,proto3" json:"enterprise,omitempty"`
+	// The ID of the enterprise that the repository belongs to, if any.
+	EnterpriseId  string `protobuf:"bytes,13,opt,name=enterprise_id,json=enterpriseId,proto3" json:"enterprise_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -611,6 +615,20 @@ func (x *JoinAttrsGitHub) GetSha() string {
 func (x *JoinAttrsGitHub) GetRunId() string {
 	if x != nil {
 		return x.RunId
+	}
+	return ""
+}
+
+func (x *JoinAttrsGitHub) GetEnterprise() string {
+	if x != nil {
+		return x.Enterprise
+	}
+	return ""
+}
+
+func (x *JoinAttrsGitHub) GetEnterpriseId() string {
+	if x != nil {
+		return x.EnterpriseId
 	}
 	return ""
 }
@@ -748,6 +766,8 @@ type JoinAttrsAzure struct {
 	Subscription string `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
 	// The resource group of the Azure account that the joining entity is a part of.
 	ResourceGroup string `protobuf:"bytes,2,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
+	// The tenant ID of the Azure account that the joining entity is a part of.
+	Tenant        string `protobuf:"bytes,3,opt,name=tenant,proto3" json:"tenant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -792,6 +812,13 @@ func (x *JoinAttrsAzure) GetSubscription() string {
 func (x *JoinAttrsAzure) GetResourceGroup() string {
 	if x != nil {
 		return x.ResourceGroup
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzure) GetTenant() string {
+	if x != nil {
+		return x.Tenant
 	}
 	return ""
 }
@@ -1940,7 +1967,7 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x12runner_environment\x18\x0e \x01(\tR\x11runnerEnvironment\x12\x10\n" +
 	"\x03sha\x18\x0f \x01(\tR\x03sha\x12)\n" +
 	"\x11ci_config_ref_uri\x18\x10 \x01(\tR\x0eciConfigRefUri\x12\"\n" +
-	"\rci_config_sha\x18\x11 \x01(\tR\vciConfigSha\"\xb7\x02\n" +
+	"\rci_config_sha\x18\x11 \x01(\tR\vciConfigSha\"\xfc\x02\n" +
 	"\x0fJoinAttrsGitHub\x12\x10\n" +
 	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x14\n" +
 	"\x05actor\x18\x02 \x01(\tR\x05actor\x12 \n" +
@@ -1956,17 +1983,22 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"event_name\x18\t \x01(\tR\teventName\x12\x10\n" +
 	"\x03sha\x18\n" +
 	" \x01(\tR\x03sha\x12\x15\n" +
-	"\x06run_id\x18\v \x01(\tR\x05runId\"=\n" +
+	"\x06run_id\x18\v \x01(\tR\x05runId\x12\x1e\n" +
+	"\n" +
+	"enterprise\x18\f \x01(\tR\n" +
+	"enterprise\x12#\n" +
+	"\renterprise_id\x18\r \x01(\tR\fenterpriseId\"=\n" +
 	"\x0fJoinAttrsAWSIAM\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\"~\n" +
 	"\fJoinAttrsTPM\x12\x1e\n" +
 	"\vek_pub_hash\x18\x01 \x01(\tR\tekPubHash\x12$\n" +
 	"\x0eek_cert_serial\x18\x02 \x01(\tR\fekCertSerial\x12(\n" +
-	"\x10ek_cert_verified\x18\x03 \x01(\bR\x0eekCertVerified\"[\n" +
+	"\x10ek_cert_verified\x18\x03 \x01(\bR\x0eekCertVerified\"s\n" +
 	"\x0eJoinAttrsAzure\x12\"\n" +
 	"\fsubscription\x18\x01 \x01(\tR\fsubscription\x12%\n" +
-	"\x0eresource_group\x18\x02 \x01(\tR\rresourceGroup\"e\n" +
+	"\x0eresource_group\x18\x02 \x01(\tR\rresourceGroup\x12\x16\n" +
+	"\x06tenant\x18\x03 \x01(\tR\x06tenant\"e\n" +
 	"\x11JoinAttrsCircleCI\x12\x10\n" +
 	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x1f\n" +
 	"\vcontext_ids\x18\x02 \x03(\tR\n" +

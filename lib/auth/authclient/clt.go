@@ -36,14 +36,17 @@ import (
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/gitserver"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
@@ -55,6 +58,7 @@ import (
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -177,6 +181,11 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		TLS:                        httpTLS,
 		Dialer:                     httpDialer,
 		ALPNSNIAuthDialClusterName: cfg.ALPNSNIAuthDialClusterName,
+		// we are ok with the HTTP client using a separate circuit breaker with
+		// the same configuration, since there's so few auth API calls using
+		// HTTP and most of them are used by the Proxy, which is going to have a
+		// no-op circuit breaker to begin with
+		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
 	}
 	httpClient, err := NewHTTPClient(httpClientCfg, params...)
 	if err != nil {
@@ -510,11 +519,6 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
-// UpsertAppSession not implemented: can only be called locally.
-func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -831,6 +835,11 @@ func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertAuthServer is used by auth servers to report their presence.
+func (c *Client) UpsertAuthServer(ctx context.Context, s types.Server) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -848,19 +857,22 @@ type WebSessionReq struct {
 
 // WebService implements features used by Web UI clients
 type WebService interface {
-	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
-	// it is valid, or error otherwise.
-	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
-	// AppSession defines application session features.
-	services.AppSession
+	// AppSessionReader defines application session features available to remote clients.
+	services.AppSessionReader
 	// SnowflakeSession defines Snowflake session features.
 	services.SnowflakeSession
+
+	// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+	// resulting public key to an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error
+	// SignDBSCChallenge signs a DBSC challenge for app-session registration or refresh.
+	SignDBSCChallenge(ctx context.Context, sessionID string) (string, error)
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -1417,6 +1429,9 @@ type AuthenticateUserRequest struct {
 	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
+	// BrowserMFA is a Browser MFA message that a CLI client has sent to the proxy
+	// containing a WebAuthn response for auth
+	BrowserMFA *proto.BrowserMFAResponse `json:"browser,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client
@@ -1452,7 +1467,7 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	case a.Username == "" && a.Webauthn != nil: // OK, passwordless.
 	case a.Username == "":
 		return trace.BadParameter("missing parameter 'username'")
-	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
+	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "" && a.BrowserMFA == nil:
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -1626,7 +1641,7 @@ type ClientI interface {
 	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
-	services.WorkloadClusterService
+	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
@@ -1637,6 +1652,8 @@ type ClientI interface {
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
+	LinuxDesktopClient() *linuxdesktop.Client
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1955,4 +1972,14 @@ type ClientI interface {
 	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
 	// are of the scoped access API available in agent access points to only what is necessary.
 	ScopedRoleReader() services.ScopedRoleReader
+
+	// DelegationSessionServiceClient returns a client for the delegation
+	// session service.
+	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+	// SessionSearchServiceClient returns a client for the session search
+	// service.
+	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
+
+	// BeamServiceClient returns a client for the beam service.
+	BeamServiceClient() beamsv1.BeamServiceClient
 }

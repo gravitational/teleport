@@ -72,7 +72,7 @@ func TestReporter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
@@ -125,10 +125,17 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
 		UserName: "alice",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionSummarySearchEvent{
+		UserName:   "alice",
+		UserKind:   prehogv1a.UserKind_USER_KIND_HUMAN,
+		QueryCount: 3,
+		HasFilters: true,
+	})
 	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
 		UserName:    "alice",
 		SessionType: usagereporter.SAMLIdPSessionType,
 	})
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -158,6 +165,8 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
 	require.Equal(t, uint64(1), record.GetAccessListsReviewed())
 	require.Equal(t, uint64(1), record.GetAccessListsGrants())
+	require.Equal(t, uint64(1), record.GetSessionSummarySearchQueries())
+	require.Equal(t, uint64(1), record.GetSessionSummarySearchQueriesWithFilters())
 	require.Equal(t, uint64(1), record.SamlIdpSessions)
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
@@ -249,7 +258,7 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
@@ -416,7 +425,7 @@ func TestReporterSessionSummariesAccessed(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 		require.NoError(t, err)
 
 		r, err := NewReporter(ctx, ReporterConfig{
@@ -471,7 +480,7 @@ func TestReporterSessionSummariesAccessed(t *testing.T) {
 			recvIngested()
 
 			// Wait for the aggregation window to complete
-			time.Sleep(identitySecurityReportGranularity)
+			time.Sleep(sessionSummaryReportGranularity)
 			synctest.Wait()
 
 			require.Equal(t, types.OpPut, recvBackendEvent().Type)
@@ -523,7 +532,7 @@ func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
 		require.NoError(t, err)
 
 		r, err := NewReporter(ctx, ReporterConfig{
@@ -627,5 +636,117 @@ func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
 			require.NoError(t, svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, reports[0]))
 			require.Equal(t, types.OpDelete, recvBackendEvent().Type)
 		}
+	})
+}
+
+func TestReporterIdentitySecurity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		// Set up a watcher to not have to poll the backend for newly added items
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			return <-w.Events()
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      "host-id",
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		r.ingested = make(chan usagereporter.Anonymizable, 10)
+		recvIngested := func() {
+			<-r.ingested
+		}
+
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityGraphSizeEvent{
+			Provider:        "teleport",
+			TotalIdentities: 1,
+			TotalResources:  2,
+		})
+		recvIngested()
+
+		// Later size should overwrite earlier size for the same provider.
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityGraphSizeEvent{
+			Provider:        "teleport",
+			TotalIdentities: 3,
+			TotalResources:  4,
+		})
+		recvIngested()
+
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityAuditLogsIngestedEvent{
+			Provider:     "teleport",
+			LogsIngested: 5,
+		})
+		recvIngested()
+
+		// Audit log counts are accumulated.
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityAuditLogsIngestedEvent{
+			Provider:     "teleport",
+			LogsIngested: 7,
+		})
+		recvIngested()
+
+		time.Sleep(identitySecurityReportGranularity)
+
+		for putCount := 0; putCount < 2; {
+			if recvBackendEvent().Type == types.OpPut {
+				putCount++
+			}
+		}
+
+		reports, err := svc.listIdentitySecurityReports(ctx, 10)
+		require.NoError(t, err)
+		require.Len(t, reports, 2)
+
+		expectedCluster := anonymizer.AnonymizeNonEmpty(clusterName.GetClusterName())
+		expectedHostID := anonymizer.AnonymizeNonEmpty("host-id")
+
+		var graphReport *prehogv1.IdentitySecurityReport
+		var auditReport *prehogv1.IdentitySecurityReport
+		for _, report := range reports {
+			require.Equal(t, expectedCluster, report.ClusterName)
+			require.Equal(t, expectedHostID, report.ReporterHostid)
+			if len(report.GraphSizeRecords) > 0 {
+				graphReport = report
+			}
+			if len(report.AuditLogRecords) > 0 {
+				auditReport = report
+			}
+		}
+
+		require.NotNil(t, graphReport)
+		require.Len(t, graphReport.GraphSizeRecords, 1)
+		require.Equal(t, "teleport", graphReport.GraphSizeRecords[0].Provider)
+		require.Equal(t, uint64(3), graphReport.GraphSizeRecords[0].TotalIdentities)
+		require.Equal(t, uint64(4), graphReport.GraphSizeRecords[0].TotalResources)
+
+		require.NotNil(t, auditReport)
+		require.Len(t, auditReport.AuditLogRecords, 1)
+		require.Equal(t, "teleport", auditReport.AuditLogRecords[0].Provider)
+		require.Equal(t, uint64(12), auditReport.AuditLogRecords[0].LogsIngested)
 	})
 }

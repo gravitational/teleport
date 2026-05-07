@@ -35,6 +35,8 @@ import {
 } from 'electron';
 import { enableMapSet, enablePatches } from 'immer';
 
+import { AutoUpdateServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb.client';
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
@@ -60,12 +62,7 @@ import {
   KeepLastChunks,
   LoggerColor,
 } from 'teleterm/services/logger';
-import {
-  AutoUpdateClient,
-  createAutoUpdateClient,
-  createTshdClient,
-  TshdClient,
-} from 'teleterm/services/tshd';
+import { AutoUpdateClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -933,10 +930,13 @@ async function setUpTshdClients({
     host: tshdAddress,
     channelCredentials: creds,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
   return {
-    terminalService: createTshdClient(transport),
-    autoUpdateService: createAutoUpdateClient(transport),
+    terminalService: new TerminalServiceClient(transport),
+    autoUpdateService: new AutoUpdateServiceClient(transport),
   };
 }
 

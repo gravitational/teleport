@@ -66,6 +66,8 @@ type Features struct {
 	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
 	// license file).
 	CloudAnonymizationKey []byte
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -141,6 +143,7 @@ func (f Features) ToProto() *proto.Features {
 		},
 		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
 		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
+		BeamsUI:              f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled,
 	}
 }
 
@@ -252,8 +255,6 @@ type AccessListAndMembersGetter interface {
 type Modules interface {
 	// PrintVersion prints teleport version
 	PrintVersion()
-	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
 	// SetFeatures set features queried from Cloud
@@ -264,6 +265,8 @@ type Modules interface {
 	IsEnterpriseBuild() bool
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
+	// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+	IsFIPSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -406,8 +409,9 @@ func (p *defaultModules) Features() Features {
 func (p *defaultModules) SetFeatures(f Features) {
 }
 
-func (p *defaultModules) IsBoringBinary() bool {
-	return IsBoringBinary()
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *defaultModules) IsFIPSBuild() bool {
+	return IsFIPSBuild()
 }
 
 // AttestHardwareKey attests a hardware key.

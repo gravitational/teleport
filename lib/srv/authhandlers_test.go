@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -39,6 +40,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -122,7 +124,9 @@ func (m *mockGitForwardingChecker) evaluateGitForwarding(_ *sshca.Identity, _ ty
 	return nil, nil
 }
 
-type mockConnMetadata struct{}
+type mockConnMetadata struct {
+	clientVersion []byte
+}
 
 func (m mockConnMetadata) User() string {
 	return "testuser"
@@ -133,7 +137,7 @@ func (m mockConnMetadata) SessionID() []byte {
 }
 
 func (m mockConnMetadata) ClientVersion() []byte {
-	return nil
+	return m.clientVersion
 }
 
 func (m mockConnMetadata) ServerVersion() []byte {
@@ -299,7 +303,7 @@ func TestRBAC(t *testing.T) {
 			require.NoError(t, err)
 
 			// perform public key authentication
-			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+			_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
 			require.NoError(t, err)
 
 			tt.loginRBACCheck(t, lc.rbacChecked)
@@ -330,9 +334,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -350,9 +354,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"blue"},
@@ -370,9 +374,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/east",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/east"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -390,9 +394,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/prod/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -410,7 +414,7 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 				},
 			},
@@ -424,9 +428,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"wronguser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -533,7 +537,7 @@ func TestScopedRBAC(t *testing.T) {
 }
 
 // TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
-// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
+// during public key callback evaluation when the auth handler is running as a ForwardingGit component.
 func TestForwardingGitLocalOnly(t *testing.T) {
 	t.Parallel()
 
@@ -649,11 +653,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that authentication succeeds for local cert but is rejected categorically for remote
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
+	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, localCert)
 	require.NoError(t, err)
 	require.True(t, gc.rbacChecked)
 
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
+	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, remoteCert)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
@@ -830,14 +834,29 @@ func TestRBACJoinMFA(t *testing.T) {
 	_, err = server.auth.CreateRole(ctx, joinRole)
 	require.NoError(t, err)
 
+	pinJoinRole, err := types.NewRole("pinJoin", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, pinJoinRole)
+	require.NoError(t, err)
+
 	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
 	tests := []struct {
-		name      string
-		authPref  types.AuthPreference
-		role      string
-		testError func(t *testing.T, err error)
+		name              string
+		authPref          types.AuthPreference
+		role              string
+		expectPinSourceIP bool
+		testError         func(t *testing.T, err error)
 	}{
 		{
 			name:     "MFA cluster auth, MFA role",
@@ -870,6 +889,15 @@ func TestRBACJoinMFA(t *testing.T) {
 			name:     "no MFA cluster auth, no MFA role",
 			authPref: noMFAAuthPref,
 			role:     joinRole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:              "no MFA cluster auth, pin source IP role",
+			authPref:          noMFAAuthPref,
+			role:              pinJoinRole.GetName(),
+			expectPinSourceIP: true,
 			testError: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
@@ -907,8 +935,13 @@ func TestRBACJoinMFA(t *testing.T) {
 			ident, err := sshca.DecodeIdentity(cert)
 			require.NoError(t, err)
 
-			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			permit, err := ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
+			if err == nil && tt.expectPinSourceIP {
+				require.Contains(t, permit.Preconditions, &decisionpb.Precondition{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+				})
+			}
 		})
 	}
 }
@@ -1051,8 +1084,8 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	cert, err := sshutils.ParseCertificate(c)
 	require.NoError(t, err)
 
-	// perform public key authentication, should fail because no login checker set
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	// perform public key authentication, should fail because no login checker is set
+	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
 	require.Error(t, err)
 
 	// audit event (AuthAttempt) should include node's host id and hostname
@@ -1061,8 +1094,406 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
 }
 
+func TestVerifiedPublicKeyCallback(t *testing.T) {
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	rawCert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:    "testuser",
+				ClusterName: "localhost",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	cert, err := sshutils.ParseCertificate(rawCert)
+	require.NoError(t, err)
+
+	rawMFACert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:    "testuser",
+				ClusterName: "localhost",
+				MFAVerified: "verified",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	mfaCert, err := sshutils.ParseCertificate(rawMFACert)
+	require.NoError(t, err)
+
+	rawHardwareKeyMFACert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:         "testuser",
+				ClusterName:      "localhost",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	hardwareKeyMFACert, err := sshutils.ParseCertificate(rawHardwareKeyMFACert)
+	require.NoError(t, err)
+
+	precondsPermitRaw, err := protojson.Marshal(
+		&decisionpb.SSHAccessPermit{
+			Preconditions: []*decisionpb.Precondition{
+				{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	ipPinningPrecondPermitRaw, err := protojson.Marshal(
+		&decisionpb.SSHAccessPermit{
+			Preconditions: []*decisionpb.Precondition{
+				{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	modernClientConn := &mockConnMetadata{clientVersion: []byte(apissh.ClientVersionWithFeatures(apissh.InBandMFAFeature))}
+	legacyClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-Go")}
+
+	t.Run("no access permit returns original permissions", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("invalid access permit fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: "{",
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.ErrorContains(t, err, "unexpected EOF")
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("certificate with invalid identity fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		invalidIdentityCert, err := sshutils.ParseCertificate(rawCert)
+		require.NoError(t, err)
+		invalidIdentityCert.Extensions[teleport.CertExtensionTeleportTraits] = "{"
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, invalidIdentityCert, inPerms, "")
+		require.ErrorContains(t, err, "failed to decode ssh identity from cert")
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("non-certificate key fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		nonCertKey := privateKey.SSHPublicKey()
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, nonCertKey, inPerms, "")
+		require.ErrorIs(t, err, trace.BadParameter("unsupported key type: %v %v", nonCertKey.Type(), ssh.FingerprintSHA256(nonCertKey)))
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with no MFA required preconditions allows auth", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: "{}",
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with pin source ip precondition allows auth without keyboard interactive", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(ipPinningPrecondPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with unsupported preconditions fails closed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		unsupportedPermitRaw, err := protojson.Marshal(
+			&decisionpb.SSHAccessPermit{
+				Preconditions: []*decisionpb.Precondition{
+					{
+						Kind: decisionpb.PreconditionKind(999),
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(unsupportedPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
+		require.ErrorContains(t, err, "unexpected precondition type")
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and modern client requires additional auth", func(t *testing.T) {
+		ah := &AuthHandlers{
+			c: &AuthHandlerConfig{
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+			},
+		}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(
+			modernClientConn,
+			cert,
+			inPerms,
+			"",
+		)
+		require.Error(t, err)
+		require.Nil(t, outPerms)
+
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+	})
+
+	t.Run("permit with MFA required preconditions and legacy client with regular cert is denied", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, cert, inPerms, "")
+		require.ErrorIs(t, err, services.ErrSessionMFARequired)
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and legacy client with per-session MFA cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and modern client with per-session MFA cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, mfaCert, inPerms, "")
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and legacy client with hardware-key MFA cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, hardwareKeyMFACert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and modern client with hardware-key MFA cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and forced in-band MFA allows hardware-key MFA cert", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+
+	})
+
+	t.Run("permit with MFA required preconditions and invalid Teleport client version fails", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		invalidTeleportClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-Teleport_\x01")}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(invalidTeleportClientConn, cert, inPerms, "")
+		require.ErrorContains(t, err, "SSH client version contains invalid characters")
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and forced in-band MFA denies legacy client", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
+		require.ErrorContains(
+			t,
+			err,
+			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport SSH client to the latest version to connect.",
+		)
+		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and forced in-band MFA still requires additional auth for modern client", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+		ah := &AuthHandlers{
+			c: &AuthHandlerConfig{
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+			},
+		}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(
+			modernClientConn,
+			cert,
+			inPerms,
+			"",
+		)
+		require.Error(t, err)
+		require.Nil(t, outPerms)
+
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+	})
+}
+
 type mockMFAServiceClient struct {
 	mfav1.MFAServiceClient
+}
+
+// runPublicKeyCallbacks runs the auth handler's public key callbacks in sequence and returns the resulting permissions
+// or error. This emulates the flow of public key authentication in a real SSH server and allows tests to verify the
+// behavior of both the PublicKeyCallback and VerifiedPublicKeyCallback together.
+func runPublicKeyCallbacks(
+	ah *AuthHandlers,
+	conn ssh.ConnMetadata,
+	key ssh.PublicKey,
+) (*ssh.Permissions, error) {
+	perms, err := ah.PublicKeyCallback(conn, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	perms, err = ah.VerifiedPublicKeyCallback(conn, key, perms, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return perms, nil
 }
 
 // scopedAccessAuthzPack is a helper intended to simplify testing scoped authz logic.
@@ -1172,7 +1603,7 @@ func (h *scopedAccessAuthzPack) UserKeyAuthFromPin(t *testing.T, pin *scopesv1.P
 	require.NoError(t, err)
 
 	// perform public key authentication
-	perms, err := ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	perms, err := ah.PublicKeyCallback(&mockConnMetadata{}, cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1217,9 +1648,9 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
@@ -1237,16 +1668,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "10m",
 				},
 			},
@@ -1260,16 +1689,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "1h",
 				},
 			},
@@ -1283,16 +1710,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "25m",
 				},
 			},
@@ -1306,16 +1731,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "22m",
 				},
 			},
@@ -1329,16 +1752,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "15m",
 				},
 			},
@@ -1352,16 +1773,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"blue"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "12m",
 				},
 			},
@@ -1375,16 +1794,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "16m",
 				},
 			},
@@ -1398,16 +1815,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"wronguser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "18m",
 				},
 			},
@@ -1517,6 +1932,306 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			actualTimeout := permit.ClientIdleTimeout.AsDuration()
 			require.Equal(t, tt.expectTimeout, actualTimeout,
 				"ClientIdleTimeout should be %v but got %v", tt.expectTimeout, actualTimeout)
+		})
+	}
+}
+
+// newScopedSSHPermitTestPack is a helper to create newScopedAccessAuthzPack
+func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole) *scopedAccessAuthzPack {
+	t.Helper()
+
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testnode",
+	}, map[string]string{
+		"env": "test",
+	})
+	require.NoError(t, err)
+
+	serverV2 := node.(*types.ServerV2)
+	serverV2.Scope = "/staging/west"
+
+	// add standard logins and labels to each role so they match the test node
+	for _, role := range roles {
+		if role.Spec.Ssh.Logins == nil {
+			role.Spec.Ssh.Logins = []string{"testuser"}
+		}
+		if role.Spec.Ssh.Labels == nil {
+			role.Spec.Ssh.Labels = []*labelv1.Label{
+				{Name: "env", Values: []string{"test"}},
+			}
+		}
+	}
+
+	return newScopedAccessAuthzPack(t, serverV2, roles, types.DefaultClusterNetworkingConfig())
+}
+
+func pinForRole(roleName string) *scopesv1.Pin {
+	return &scopesv1.Pin{
+		Scope: "/staging",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/staging/west": {"/staging/west": {roleName}},
+		}),
+	}
+}
+
+func baseScopedRoleForAuthz(name string) *scopedaccessv1.ScopedRole {
+	return &scopedaccessv1.ScopedRole{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: name},
+		Scope:    "/staging/west",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/staging/west"},
+			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
+		},
+		Version: types.V1,
+	}
+}
+
+func TestScopedX11Forwarding(t *testing.T) {
+	const x11enabled = "x11-enabled"
+	const x11disabled = "x11-disabled"
+	const x11unset = "x11-unset"
+	enabled := baseScopedRoleForAuthz(x11enabled)
+	enabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(x11disabled)
+	disabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(x11unset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(x11enabled), true},
+		{"disabled", pinForRole(x11disabled), false},
+		{"unset defaults to false", pinForRole(x11unset), false},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.X11Forwarding)
+		})
+	}
+}
+
+func TestScopedForwardAgent(t *testing.T) {
+	const agentEnabled = "agent-enabled"
+	const agentDisabled = "agent-disabled"
+	const agentUnset = "agent-unset"
+
+	enabled := baseScopedRoleForAuthz(agentEnabled)
+	enabled.Spec.Ssh.ForwardAgent = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(agentDisabled)
+	disabled.Spec.Ssh.ForwardAgent = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(agentUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(agentEnabled), true},
+		{"disabled", pinForRole(agentDisabled), false},
+		{"unset defaults to false", pinForRole(agentUnset), false},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.ForwardAgent)
+		})
+	}
+}
+
+func TestScopedSSHFileCopy(t *testing.T) {
+	const copyEnabled = "copy-enabled"
+	const copyDisabled = "copy-disabled"
+	const copyUnset = "copy-unset"
+
+	enabled := baseScopedRoleForAuthz(copyEnabled)
+	enabled.Spec.Ssh.FileCopy = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(copyDisabled)
+	disabled.Spec.Ssh.FileCopy = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(copyUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(copyEnabled), true},
+		{"disabled", pinForRole(copyDisabled), false},
+		{"unset defaults to true", pinForRole(copyUnset), true},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.SshFileCopy)
+		})
+	}
+}
+
+func TestScopedSSHPortForwarding(t *testing.T) {
+	const pfBothOn = "pf-both-on"
+	const pfBothOff = "pf-both-off"
+	const pfLocalOnly = "pf-local-only"
+	const pfUnset = "pf-unset"
+
+	bothOn := baseScopedRoleForAuthz(pfBothOn)
+	bothOn.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+	}
+
+	bothOff := baseScopedRoleForAuthz(pfBothOff)
+	bothOff.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
+
+	localOnly := baseScopedRoleForAuthz(pfLocalOnly)
+	localOnly.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
+
+	unset := baseScopedRoleForAuthz(pfUnset)
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{bothOn, bothOff, localOnly, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect decisionpb.SSHPortForwardMode
+	}{
+		{"both on", pinForRole(pfBothOn), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON},
+		{"both off", pinForRole(pfBothOff), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF},
+		{"local only", pinForRole(pfLocalOnly), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL},
+		{"unset defaults to on", pinForRole(pfUnset), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.PortForwardMode)
+		})
+	}
+}
+
+func TestScopedMaxSessions(t *testing.T) {
+	const sessions5 = "sessions-5"
+	const sessions1 = "sessions-1"
+	const sessionsUnset = "sessions-unset"
+
+	five := baseScopedRoleForAuthz(sessions5)
+	five.Spec.Ssh.MaxSessions = proto.Int64(5)
+
+	one := baseScopedRoleForAuthz(sessions1)
+	one.Spec.Ssh.MaxSessions = proto.Int64(1)
+
+	unset := baseScopedRoleForAuthz(sessionsUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{five, one, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect int64
+	}{
+		{"set to 5", pinForRole(sessions5), 5},
+		{"set to 1", pinForRole(sessions1), 1},
+		{"unset defaults to 0", pinForRole(sessionsUnset), 0},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.MaxSessions)
+		})
+	}
+}
+
+func TestScopedHostUserCreation(t *testing.T) {
+	const hostUserKeep = "host-user-keep"
+	const hostUserOff = "host-user-off"
+	const hostUserUnset = "host-user-unset"
+
+	keep := baseScopedRoleForAuthz(hostUserKeep)
+	keep.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode:   "keep",
+		Groups: []string{"wheel"},
+		Shell:  "/bin/bash",
+	}
+
+	off := baseScopedRoleForAuthz(hostUserOff)
+	off.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode: "off",
+	}
+
+	unset := baseScopedRoleForAuthz(hostUserUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{keep, off, unset})
+
+	tts := []struct {
+		name      string
+		pin       *scopesv1.Pin
+		expectNil bool
+	}{
+		{"mode keep", pinForRole(hostUserKeep), false},
+		{"mode off", pinForRole(hostUserOff), true},
+		{"unset defaults to denied", pinForRole(hostUserUnset), true},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			if tt.expectNil {
+				require.Nil(t, permit.HostUsersInfo)
+			} else {
+				require.NotNil(t, permit.HostUsersInfo)
+			}
+		})
+	}
+}
+
+func TestHostSudoers(t *testing.T) {
+	const sudoersPresent = "sudoers-present"
+	const sudoersUnset = "sudoers-unset"
+
+	present := baseScopedRoleForAuthz(sudoersPresent)
+	expectedSudoers := []string{"ALL=(ALL) NOPASSWD:ALL"}
+	present.Spec.Ssh.HostSudoers = expectedSudoers
+	unset := baseScopedRoleForAuthz(sudoersUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{present, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect []string
+	}{
+		{"enabled", pinForRole(sudoersPresent), expectedSudoers},
+		{"unset defaults to false", pinForRole(sudoersUnset), nil},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.HostSudoers)
 		})
 	}
 }

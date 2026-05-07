@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1631,13 +1630,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var ssm *types.AWSSSM
+		if matcher.SSM.DocumentName != "" {
+			ssm = &types.AWSSSM{DocumentName: matcher.SSM.DocumentName}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
 			AssumeRole:        assumeRole,
 			Tags:              matcher.Tags,
 			Params:            installParams,
-			SSM:               &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			SSM:               ssm,
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
@@ -2147,6 +2151,38 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Command:       application.MCP.Command,
 				Args:          application.MCP.Args,
 				RunAsHostUser: application.MCP.RunAsHostUser,
+			}
+		}
+
+		if application.LLM != nil {
+			app.LLM = &types.LLM{
+				Format:        application.LLM.Format,
+				Provider:      application.LLM.Provider,
+				FallbackModel: application.LLM.FallbackModel,
+			}
+			app.LLM.Models = make([]*types.LLM_Model, 0, len(application.LLM.Models))
+			for _, model := range application.LLM.Models {
+				app.LLM.Models = append(app.LLM.Models, &types.LLM_Model{
+					Name:         model.Name,
+					ProviderName: model.ProviderName,
+				})
+			}
+		}
+
+		if application.TLS != nil {
+			app.TLS = &types.AppTLS{
+				Mode:           application.TLS.Mode,
+				ServerName:     application.TLS.ServerName,
+				ServerSpiffeId: application.TLS.ServerSpiffeId,
+				AllowedCas:     application.TLS.AllowedCas,
+				ClientCertMode: application.TLS.ClientCertMode,
+			}
+			for _, caCertPath := range application.TLS.AllowedCasFiles {
+				caCertContents, err := os.ReadFile(caCertPath)
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				app.TLS.AllowedCas = append(app.TLS.AllowedCas, string(caCertContents))
 			}
 		}
 
@@ -2742,7 +2778,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 
-			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, cfg.Modules.Features().Cloud); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2756,7 +2792,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
 			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
-			Cloud:         modules.GetModules().Features().Cloud,
+			Cloud:         cfg.Modules.Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -3164,6 +3200,16 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			cfg.JoinParams = servicecfg.JoinParams{
 				Azure: servicecfg.AzureJoinParams{
 					ClientID: fc.JoinParams.Azure.ClientID,
+				},
+			}
+		}
+
+		if fc.JoinParams.BoundKeypair != (BoundKeypairParams{}) {
+			cfg.JoinParams = servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: fc.JoinParams.BoundKeypair.RegistrationSecretValue,
+					RegistrationSecretPath:  fc.JoinParams.BoundKeypair.RegistrationSecretPath,
+					StaticPrivateKeyPath:    fc.JoinParams.BoundKeypair.StaticPrivateKeyPath,
 				},
 			}
 		}

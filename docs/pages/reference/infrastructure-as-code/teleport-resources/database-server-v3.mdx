@@ -11,7 +11,23 @@ sidebar_label: Database Server V3
 **Kind**: `db_server`<br/>
 **Version**: `v3`
 
-Represents a database access server.
+The `db_server` resource represents a database that has been registered
+with Teleport.
+
+The Teleport Database Service creates a `db_server` in two situations:
+
+  1. It reads information about the target database in its
+     configuration file when it first starts.
+  1. It fetches a dynamically registered `db` resource from the Teleport
+     backend that matches its dynamic resource watchers.
+
+There can be multiple instances of a `db_server` for a single database,
+each corresponding to a different Teleport Database Service instance that
+proxies the database. Read more about [High
+Availability](../../../installation/agents/high-availability.mdx) for
+the Teleport Database Service. Read the [reference guide](./database-v3.mdx) for
+the `db` resource.
+
 
 ## Top-level fields
 
@@ -313,6 +329,7 @@ managed_users:
   - "string"
   - "string"
 azure: # [...]
+vnet_dns_name: "string"
 ```
 
 |Field Name|Description|Type|
@@ -322,6 +339,7 @@ azure: # [...]
 |ca_cert|The auto-downloaded cloud database CA certificate.|string|
 |managed_users|A list of database users that are managed by Teleport.|[]string|
 |mysql|An additional section with MySQL runtime database information.|[MySQL Options](#mysql-options)|
+|vnet_dns_name|A DNS-safe, deterministic hash of the database name used by VNet for database FQDN resolution.|string|
 
 ## Database TLS
 

@@ -347,4 +347,34 @@ export const storageService = {
   clearRememberedSsoUsername() {
     window.localStorage.removeItem(KeysEnum.REMEMBERED_SSO_USERNAME);
   },
+
+  // setAppLauncherFragment stashes the URL fragment from a logged-out
+  // app-launcher request in sessionStorage so it can be reattached
+  // after the user completes the web login flow. sessionStorage is
+  // used (not localStorage or a query parameter) so the fragment
+  // value never reaches the server and never persists beyond the
+  // current tab.
+  setAppLauncherFragment(path: string, hash: string) {
+    window.sessionStorage.setItem(
+      KeysEnum.APP_LAUNCHER_FRAGMENT,
+      JSON.stringify({ path, hash })
+    );
+  },
+
+  // consumeAppLauncherFragment returns the previously stashed
+  // fragment if and only if it was stashed for the same launcher
+  // path. The entry is removed on read so a stale value cannot
+  // surface on a later launcher run.
+  consumeAppLauncherFragment(path: string): string {
+    const raw = window.sessionStorage.getItem(KeysEnum.APP_LAUNCHER_FRAGMENT);
+    if (!raw) {
+      return '';
+    }
+    window.sessionStorage.removeItem(KeysEnum.APP_LAUNCHER_FRAGMENT);
+    const parsed = JSON.parse(raw) as { path: string; hash: string };
+    if (parsed.path !== path) {
+      return '';
+    }
+    return parsed.hash;
+  },
 };

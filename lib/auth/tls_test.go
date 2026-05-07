@@ -79,7 +79,6 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -1156,10 +1155,18 @@ func TestListUsers(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	// set up some users with distinct names/labels (the only to user attributes currently relevant to filtering)
+	// set up some roles to assign users
+	_, err = authtest.CreateRole(ctx, clt, "good-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = authtest.CreateRole(ctx, clt, "evil-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// set up some users with distinct names/labels/roles/traits
 	usersToCreate := []struct {
 		name   string
 		labels map[string]string
+		roles  []string
+		traits map[string][]string
 	}{
 		{
 			name: "alice@good.example.com",
@@ -1167,6 +1174,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "red",
 				"location": "mauka",
 			},
+			roles:  []string{"good-role"},
+			traits: map[string][]string{"logins": {"good-login"}},
 		},
 		{
 			name: "bob@good.example.com",
@@ -1174,6 +1183,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "blue",
 				"location": "mauka",
 			},
+			roles:  []string{"good-role"},
+			traits: map[string][]string{"logins": {"good-login"}},
 		},
 		{
 			name: "carol@evil.example.com",
@@ -1181,6 +1192,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "red",
 				"location": "mauka",
 			},
+			roles:  []string{"evil-role"},
+			traits: map[string][]string{"logins": {"evil-login"}},
 		},
 		{
 			name: "dave@evil.example.com",
@@ -1188,6 +1201,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "blue",
 				"location": "makai",
 			},
+			roles:  []string{"evil-role"},
+			traits: map[string][]string{"logins": {"evil-login"}},
 		},
 	}
 
@@ -1199,6 +1214,8 @@ func TestListUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		user.SetStaticLabels(u.labels)
+		user.SetRoles(u.roles)
+		user.SetTraits(u.traits)
 
 		_, err = clt.CreateUser(ctx, user)
 		require.NoError(t, err)
@@ -1272,6 +1289,43 @@ func TestListUsers(t *testing.T) {
 		"alice@good.example.com",
 		"bob@good.example.com",
 		"carol@evil.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"good-role",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"good-login",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			Traits: map[string][]string{"logins": {"good-login"}},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
 	}, namesOf(users))
 }
 
@@ -1513,9 +1567,10 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
 	require.NoError(t, err)
 
-	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -1530,6 +1585,14 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: createResp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
 	require.NoError(t, err)
@@ -1589,15 +1652,13 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteAllTunnelConnections()
+	// Delete all to reset test environment
+	out, err = clt.GetAllTunnelConnections()
 	require.NoError(t, err)
-
-	out, err = clt.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = clt.DeleteAllTunnelConnections()
-	require.NoError(t, err)
+	for _, tc := range out {
+		err := testSrv.Auth().DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		require.NoError(t, err)
+	}
 
 	// test delete individual connection
 	err = clt.UpsertTunnelConnection(conn)
@@ -1698,7 +1759,7 @@ func TestServersCRUD(t *testing.T) {
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
 	auth.Spec.Hostname = "auth.llama"
-	require.NoError(t, clt.UpsertAuthServer(ctx, auth))
+	require.NoError(t, testSrv.Auth().UpsertAuthServer(ctx, auth))
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
@@ -1937,9 +1998,6 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.NoError(t, err)
-
 	ns, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
@@ -1951,10 +2009,16 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	err = web.DeleteUser(ctx, user)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.DeleteWebSession(ctx, user, ws.GetName())
+	err = clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
+	_, err = clt.WebSessions().Get(ctx, types.GetWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	require.Error(t, err)
 
 	_, err = web.ExtendWebSession(ctx, authclient.WebSessionReq{
@@ -1965,13 +2029,10 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 }
 
 func TestWebSessionMultiAccessRequests(t *testing.T) {
-	// Can not use t.Parallel() when changing modules
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
+	ctx := t.Context()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	testSrv := newTestTLSServer(t)
+	testSrv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -2218,7 +2279,10 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
+	initialSession, err := testSrv.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	require.NoError(t, err)
 
 	// Create a approved access request.
@@ -2594,9 +2658,10 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
 	require.NoError(t, err)
 
-	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -2611,6 +2676,14 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: createResp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
 	require.NoError(t, err)
@@ -3523,23 +3596,11 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication succeeds
-	ws, err := proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		OTP:      &authclient.OTPCreds{Password: pass, Token: validToken},
 	})
 	require.NoError(t, err)
-
-	userClient, err := testSrv.NewClientFromWebSession(ws)
-	require.NoError(t, err)
-
-	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.NoError(t, err)
-
-	err = clt.DeleteWebSession(ctx, user, ws.GetName())
-	require.NoError(t, err)
-
-	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.Error(t, err)
 }
 
 // TestLoginAttempts makes sure the login attempt counter is incremented and
@@ -3822,7 +3883,7 @@ func TestTLSFailover(t *testing.T) {
 func TestJoinCAPin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -3834,6 +3895,18 @@ func TestJoinCAPin(t *testing.T) {
 		time.Time{},
 		testSrv.Auth(),
 	)
+	joinParams := func() joinclient.JoinParams {
+		return joinclient.JoinParams{
+			AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
+			Token:       token,
+			ID: state.IdentityID{
+				NodeName: "node-name",
+				Role:     types.RoleInstance,
+			},
+			AdditionalPrincipals: []string{"example.com"},
+			Clock:                clock,
+		}
+	}
 
 	// Calculate what CA pin should be.
 	localCAResponse, err := testSrv.AuthServer.AuthServer.GetClusterCACert(ctx)
@@ -3844,60 +3917,54 @@ func TestJoinCAPin(t *testing.T) {
 	caPin := caPins[0]
 
 	// Attempt to join with valid CA pin, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{caPin},
-		Clock:                clock,
+	params := joinParams()
+	params.CAPins = []string{caPin}
+	_, err = joinclient.Join(ctx, params)
+	require.NoError(t, err)
+
+	// An unrelated active lock should not block unauthenticated CA pin bootstrap.
+	lockTarget := types.LockTarget{User: "definitely-not-a-real-user"}
+	lock, err := types.NewLock("test-join-ca-pin-unrelated-lock", types.LockSpecV2{
+		Target: lockTarget,
 	})
+	require.NoError(t, err)
+	// Wait for the lock to actually propagate through the cache and be
+	// enforced before attempting to join.
+	lockWatcher, err := testSrv.Auth().SubscribeToLockTarget(ctx, lockTarget)
+	require.NoError(t, err)
+	require.NoError(t, testSrv.Auth().UpsertLock(ctx, lock))
+	select {
+	case evt := <-lockWatcher.Events():
+		require.Equal(t, types.OpPut, evt.Type)
+		require.Equal(t, types.KindLock, evt.Resource.GetKind())
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "did not receive lock put event within 10 seconds")
+	}
+	lockInForceErr := testSrv.Auth().CheckLockInForce(constants.LockingModeStrict, []types.LockTarget{{User: "definitely-not-a-real-user"}})
+	require.ErrorAs(t, lockInForceErr, new(*trace.AccessDeniedError))
+
+	params = joinParams()
+	params.CAPins = []string{caPin}
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 
 	// Attempt to join with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123", caPin},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123", caPin}
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 
 	// Attempt to join with invalid CA pin, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123"},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123"}
+	_, err = joinclient.Join(ctx, params)
 	require.Error(t, err)
 
 	// Attempt to join with multiple invalid CA pins, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123", "sha256:456"},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123", "sha256:456"}
+	_, err = joinclient.Join(ctx, params)
 	require.Error(t, err)
 
 	// Add another cert to the CA (dupe the current one for simplicity)
@@ -3920,17 +3987,9 @@ func TestJoinCAPin(t *testing.T) {
 	require.Len(t, caPins, 2)
 
 	// Attempt to join with multiple CA pins, should work
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               caPins,
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = caPins
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 }
 
@@ -4169,7 +4228,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	}
 
 	// verify that we still reject unauthenticated clients
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4268,7 +4327,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4411,7 +4470,7 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch users and roles",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindUser},
 				{Kind: types.KindRole},
@@ -4419,12 +4478,12 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch cert authorities",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
 			name:     "nop role is not authorized to watch cluster config resources",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindClusterAuthPreference},
 				{Kind: types.KindClusterNetworkingConfig},
@@ -4770,8 +4829,9 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetProxies()
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteAllProxies()
-				require.NoError(t, err)
+				for _, p := range out {
+					require.NoError(t, testSrv.Auth().DeleteProxy(ctx, p.GetName()))
+				}
 
 				return out[0]
 			},
@@ -4795,7 +4855,7 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteAllTunnelConnections()
+				err = testSrv.Auth().DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]
@@ -4963,6 +5023,140 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 		out[i] = tc.kind
 	}
 	return out
+}
+
+// TestWatchEvents_ScopedIdentity verifies that scoped identities can use the
+// WatchEvents RPC to watch CertAuthorities without secrets (implicit permission),
+// and that watching with secrets is correctly denied.
+func TestWatchEvents_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = adminClient.Close()
+	})
+
+	// Create a scoped role with an empty allow block (no permissions).
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-watcher")
+	require.NoError(t, err)
+
+	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: createResp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClient.Close()
+
+	t.Run("ca without secrets", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "ca-watch",
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: false,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case e := <-watcher.Events():
+			require.Equal(t, types.OpInit, e.Type)
+		case <-watcher.Done():
+			t.Fatalf("watcher closed unexpectedly: %v", watcher.Error())
+		}
+	})
+
+	t.Run("ca with secrets", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "ca-watch-secrets",
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: true,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case <-watcher.Events():
+			t.Fatal("expected watcher to close with error, got event")
+		case <-watcher.Done():
+			require.True(t, trace.IsAccessDenied(watcher.Error()),
+				"expected access denied, got: %v", watcher.Error())
+		}
+	})
+
+	t.Run("unauthorized kind", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "user-watch",
+			Kinds: []types.WatchKind{{
+				Kind: types.KindUser,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case <-watcher.Events():
+			t.Fatal("expected watcher to close with error, got event")
+		case <-watcher.Done():
+			require.True(t, trace.IsAccessDenied(watcher.Error()),
+				"expected access denied, got: %v", watcher.Error())
+		}
+	})
 }
 
 // TestEventsClusterConfig test cluster configuration
@@ -5841,6 +6035,7 @@ type testTLSServerOptions struct {
 	accessGraph     *auth.AccessGraphConfig
 	clock           clockwork.Clock
 	bufconnListener bool
+	modules         *modulestest.Modules
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -5862,9 +6057,16 @@ func withClock(clock clockwork.Clock) testTLSServerOption {
 		options.clock = clock
 	}
 }
+
 func withBufconnListener() testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.bufconnListener = true
+	}
+}
+
+func withModules(mod *modulestest.Modules) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.modules = mod
 	}
 }
 
@@ -5881,10 +6083,14 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	if options.clock == nil {
 		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 	}
+	if options.modules == nil {
+		options.modules = modulestest.OSSModules()
+	}
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        options.clock,
 		CacheEnabled: options.cacheEnabled,
+		Modules:      options.modules,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
