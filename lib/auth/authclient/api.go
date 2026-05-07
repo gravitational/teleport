@@ -759,6 +759,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)

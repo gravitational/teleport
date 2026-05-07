@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -1475,8 +1476,9 @@ func (s *WindowsService) runCRLUpdateLoop() {
 	}
 }
 
-// watchCAEvents watches for WindowsCA updates, signaling those in the received
-// channel.
+// watchCAEvents watches for WindowsCA updates, for both CA and CA override
+// resources, signaling those in the received channel.
+//
 // watchCAEvents runs until ctx is closed.
 func (s *WindowsService) watchCAEvents(
 	ctx context.Context,
@@ -1510,6 +1512,10 @@ func (s *WindowsService) watchCAEvents(
 					Filter: map[string]string{
 						string(types.WindowsCA): types.Wildcard,
 					},
+				},
+				{
+					Kind: types.KindCertAuthorityOverride,
+					// Filters not supported for KindCertAuthorityOverride.
 				},
 			},
 		})
@@ -1577,7 +1583,7 @@ func runCAWatcherLoop(
 				continue // OK, expected.
 
 			case isFirstEvent:
-				logger.WarnContext(ctx,
+				eLog.WarnContext(ctx,
 					"Received non-init event as the first event. Will attempt to re-create the watcher.",
 					"op", e.Type,
 				)
@@ -1587,10 +1593,29 @@ func runCAWatcherLoop(
 				continue // OK, we only care about mutating events.
 			}
 
-			logger.InfoContext(ctx,
-				"Received mutating WindowsCA event, signaling CRL update",
-				"op", e.Type,
-			)
+			if e.Resource.GetKind() == types.KindCertAuthorityOverride {
+				if e.Resource.GetSubKind() != string(types.WindowsCA) {
+					eLog.DebugContext(ctx, "Skipping CA override update for unrelated CA type")
+					continue
+				}
+
+				uw, ok := e.Resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
+				if !ok {
+					eLog.WarnContext(ctx,
+						"Skipping CA override resource with unexpected underlying type",
+						"resource_type", logutils.TypeAttr(e.Resource),
+					)
+					continue
+				}
+
+				caOverride := uw.UnwrapT()
+				if len(caOverride.GetStatus().GetPublicKeyHashToCrl()) == 0 {
+					eLog.DebugContext(ctx, "Skipping CA override resource without CRLs")
+					continue
+				}
+			}
+
+			eLog.InfoContext(ctx, "Received mutating Windows CA event, signaling CRL update")
 			select {
 			case signalCAEvent <- struct{}{}:
 			default:

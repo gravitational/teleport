@@ -21,11 +21,15 @@ package winpki
 import (
 	"context"
 	"crypto/tls"
+	"encoding/pem"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -43,6 +47,8 @@ type CertificateStoreClient struct {
 // Teleport has its own locking concept that is used for revocation, so the CRLS generated here
 // are always empty and exist only to satisfy the Windows requirements for CRL checking.
 type CRLGenerator interface {
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
 	// GetCertAuthorities returns a list of cert authorities
@@ -62,9 +68,25 @@ type CertificateStoreConfig struct {
 	ClusterName string
 	// LC is the LDAPConfig
 	LC *LDAPConfig
+	// DialLDAPForTesting allows callers to provide an alternative implementation
+	// of the DialLDAP function.
+	// Used for testing.
+	DialLDAPForTesting func(ctx context.Context, cfg *LDAPConfig, credentials *tls.Config) (LDAPClientForCRLUpdate, error)
 }
 
-// Update publishes an empty certificate revocation list to LDAP.
+// LDAPClientForCRLUpdate defines the subset of [LDAPClient] necessary for CRL
+// updates.
+//
+// See [LDAPClient].
+type LDAPClientForCRLUpdate interface {
+	Close() error
+	CreateContainer(ctx context.Context, dn string) error
+	Create(dn string, class string, attrs map[string][]string) error
+	Update(ctx context.Context, dn string, replaceAttrs map[string][]string) error
+}
+
+// Update publishes an empty CRLs (Certificate Revocation Lists) to LDAP.
+// Both CA and CA override resources are queried for CRLs to publish.
 func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
 	caType := types.WindowsCA
 
@@ -113,7 +135,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 					"subject", cert.Subject,
 				)
 
-				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, ca.GetType(), tc); err != nil {
+				if err := c.updateCRL(ctx, cert.Subject.CommonName, cert.SubjectKeyId, keyPair.CRL, ca.GetType(), tc); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -136,7 +158,87 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 			return trace.Wrap(err, "updating CRL over LDAP")
 		}
 	}
+
+	if err := c.updateCAOverrideCRLs(ctx, tc); err != nil {
+		return trace.Wrap(err, "update CA override CRLs")
+	}
+
 	return nil
+}
+
+func (c *CertificateStoreClient) updateCAOverrideCRLs(ctx context.Context, tc *tls.Config) error {
+	const caType = types.WindowsCA
+	clusterName := c.cfg.ClusterName
+
+	caOverride, err := c.cfg.AccessPoint.GetCertAuthorityOverride(ctx, types.CertAuthorityOverrideID{
+		ClusterName: clusterName,
+		CAType:      string(caType),
+	})
+	if trace.IsNotFound(err) {
+		return nil // OK, overrides are optional.
+	}
+	if err != nil {
+		return trace.Wrap(err, "read CA overrides")
+	}
+
+	crlMap := caOverride.GetStatus().GetPublicKeyHashToCrl()
+
+	var errs []error
+	for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+		// Find a candidate override.
+		if co.GetCertificate() == "" {
+			continue
+		}
+
+		// Parse certificate.
+		cert, err := tlsutils.ParseCertificatePEM([]byte(co.GetCertificate()))
+		if err != nil {
+			c.cfg.Logger.WarnContext(ctx, "Failed to parse CA override certificate, skipping",
+				"ca_type", caType,
+				"cluster_name", clusterName,
+				"public_key_hash", co.GetPublicKey(), // Note, may be empty.
+			)
+			continue
+		}
+
+		// Produce PKH.
+		pkh := subca.HashCertificatePublicKey(cert)
+
+		logger := c.cfg.Logger.With(
+			"ca_type", caType,
+			"cluster_name", clusterName,
+			"public_key_hash", pkh,
+		)
+
+		// Find and parse CRL.
+		crlPB, ok := crlMap[pkh]
+		if !ok || crlPB == nil {
+			logger.WarnContext(ctx, "CA override lacks CRL for certificate, skipping",
+				"ca_type", caType,
+				"cluster_name", clusterName,
+				"public_key_hash", pkh,
+			)
+			continue
+		}
+		block, _ := pem.Decode([]byte(crlPB.Pem))
+		if block == nil {
+			logger.WarnContext(ctx, "Failed to decode CA override CRL PEM")
+			continue
+		}
+		crlDER := block.Bytes
+		if len(crlDER) == 0 {
+			logger.WarnContext(ctx, "CA override has empty CRL DER")
+			continue
+		}
+		logger.DebugContext(ctx, "Updating CA override CRL")
+
+		// Update CRL. Record errors from this step.
+		if err := c.updateCRL(ctx, cert.Subject.CommonName, cert.SubjectKeyId, crlDER, caType, tc); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string, issuerSKID []byte, crlDER []byte, caType types.CertAuthType, tc *tls.Config) error {
@@ -162,7 +264,12 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 		return trace.Wrap(err)
 	}
 
-	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
+	var ldapClient LDAPClientForCRLUpdate
+	if c.cfg.DialLDAPForTesting != nil {
+		ldapClient, err = c.cfg.DialLDAPForTesting(ctx, c.cfg.LC, tc)
+	} else {
+		ldapClient, err = DialLDAP(ctx, c.cfg.LC, tc)
+	}
 	if err != nil {
 		return trace.Wrap(err, "dialing LDAP server")
 	}
