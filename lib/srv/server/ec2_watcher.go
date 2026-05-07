@@ -118,6 +118,21 @@ func ToEC2Instances(insts []ec2types.Instance) []EC2Instance {
 	return ec2Insts
 }
 
+func (i *EC2Instances) LogValue() slog.Value {
+	if i == nil {
+		return slog.StringValue("<nil>")
+	}
+	return slog.GroupValue(
+		slog.Int("total_instances", len(i.Instances)),
+		slog.String("account_id", i.AccountID),
+		slog.String("assume_role_arn", i.AssumeRoleARN),
+		slog.String("discovery_config", i.DiscoveryConfigName),
+		slog.String("integration", i.Integration),
+		slog.String("region", i.Region),
+		slog.String("ssm_document", i.DocumentName),
+	)
+}
+
 // ServerInfos creates a ServerInfo resource for each discovered instance.
 func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
