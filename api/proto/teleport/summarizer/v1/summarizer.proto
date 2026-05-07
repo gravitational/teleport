@@ -356,9 +356,9 @@ message CommandEventDetails {
   // Command is the command that was executed.
   string command = 1;
   // Success indicates whether the command executed successfully.
-  bool success = 3;
+  bool success = 2;
   // ErrorMessages contains any error messages produced during the execution of the command.
-  repeated string error_messages = 11;
+  repeated string error_messages = 3;
 }
 
 // DesktopEventDetails represents the details of a desktop session event.
