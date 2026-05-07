@@ -36,6 +36,7 @@ type Credentials struct {
 }
 
 // Store defines the interface for persisting the short-lived OAuth2 credentials.
+// TODO(hugoShaka): delete this interface once the teleport.e PR is merged
 type Store interface {
 	GetCredentials(context.Context) (*Credentials, error)
 	PutCredentials(context.Context, *Credentials) error

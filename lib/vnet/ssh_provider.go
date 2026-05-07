@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // sshProvider provides methods necessary for VNet SSH access.
@@ -267,7 +268,7 @@ func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialT
 	// matchedCluster.LeafCluster will be set if the host was in a leaf
 	// cluster, else it will be unset and the target cluster is the root.
 	targetCluster := cmp.Or(matchedCluster.GetLeafCluster(), matchedCluster.GetRootCluster())
-	targetHost := strings.TrimSuffix(fqdn, "."+fullyQualify(targetCluster))
+	targetHost := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(targetCluster))
 	return dialTarget{
 		fqdn:        fqdn,
 		profile:     matchedCluster.GetProfile(),

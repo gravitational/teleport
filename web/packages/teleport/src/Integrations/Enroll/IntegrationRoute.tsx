@@ -23,6 +23,7 @@ import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';
 import { EnrollAws } from './Cloud/Aws';
+import { EnrollAzure } from './Cloud/Azure';
 
 export function getRoutesToEnrollIntegrations() {
   return [
@@ -42,6 +43,12 @@ export function getRoutesToEnrollIntegrations() {
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsCloud)}
       element={<EnrollAws />}
+    />,
+    <Route
+      key={IntegrationKind.AzureCloud}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AzureCloud)}
+      element={<EnrollAzure />}
     />,
   ];
 }
