@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -333,6 +334,10 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 
 // Run runs Teleport installation command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
+	runCommandTimeout := getRunCommandTimeout()
+	// pad the timeout so we can still attempt to collect output if it times out
+	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
+	defer cancel()
 	// TODO(Tener): make the run command name actual parameter.
 	const runCommandName = "teleport-install"
 
@@ -343,6 +348,7 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
+			TimeoutInSeconds: to.Ptr(int32(runCommandTimeout.Seconds())),
 		},
 	}, nil)
 	if err != nil {
@@ -382,4 +388,17 @@ func fromPtr[T any](ptr *T) T {
 		out = *ptr
 	}
 	return out
+}
+
+func getRunCommandTimeout() time.Duration {
+	const timeoutEnv = "TELEPORT_UNSTABLE_AZURE_RUN_COMMAND_TIMEOUT"
+	if dur, err := time.ParseDuration(os.Getenv(timeoutEnv)); err == nil {
+		// clamp the timeout to a reasonable duration.
+		const (
+			minTimeout = time.Second * 10
+			maxTimeout = time.Minute * 90
+		)
+		return min(maxTimeout, max(minTimeout, dur))
+	}
+	return 5 * time.Minute // default to 5m
 }
