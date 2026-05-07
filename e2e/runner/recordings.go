@@ -262,6 +262,7 @@ func readAndPatchEvent(ctx context.Context, inst recordingInstance, newStop time
 			}
 			e.SessionMetadata.SessionID = inst.destSessionID
 			e.User = inst.user
+			e.Participants = []string{inst.user}
 			e.ClusterName = clusterName
 			e.UserClusterName = clusterName
 			e.StartTime = newStop.Add(-duration)
@@ -277,6 +278,7 @@ func readAndPatchEvent(ctx context.Context, inst recordingInstance, newStop time
 			}
 			e.SessionMetadata.SessionID = inst.destSessionID
 			e.User = inst.user
+			e.Participants = []string{inst.user}
 			e.ClusterName = clusterName
 			e.UserClusterName = clusterName
 			e.StartTime = newStop.Add(-duration)
