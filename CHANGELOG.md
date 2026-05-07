@@ -10,6 +10,34 @@ The reduction in the latency compared to the previous version of Teleport, as me
 
 The improvement in memory usage trades off an additional 7MiB of baseline memory usage for a significant reduction in the per-session memory usage of about 23 MiB for each shell or command execution, with another 20 MiB of memory savings for each SSH connection using port forwarding, and about 45 MiB for SFTP sessions.
 
+### VNet for Linux
+
+Teleport VNet support extends to Linux workstations.
+
+### Improvements to access list creation UX
+
+Teleport provides guided in-product UX for creating common types of access lists centered around granting users permissions to resources and permissions to request access to resources.
+
+### tsh MFA via browser
+
+tsh delegates MFA checks (both on login and for per-session MFA) to the browser, enabling the use of browser based passkeys or password managers with tsh.
+
+### Multi-domain support for Windows desktop access
+
+Teleport supports RDP connections to Windows hosts where the Windows users belong to different Active Directory domains than the target hosts.
+
+### Bound keypair joining for agents
+
+Teleport's bound keypair join method extends to support arbitrary Teleport agents in addition to bots.
+
+### Session summaries search
+
+Identity Security provides users with CLI tooling for searching session summaries allowing users to find sessions based on natural language queries.
+
+### Reduce resource consumption of SSH sessions
+
+Teleport SSH session latency is reduced and each session consumes less memory.
+
 ### Other fixes and improvements
 
 * Improved Teleport Connect startup reliability on Windows. [#66509](https://github.com/gravitational/teleport/pull/66509)
