@@ -380,6 +380,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    beam: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({
