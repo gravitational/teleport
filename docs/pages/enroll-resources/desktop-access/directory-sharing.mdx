@@ -6,7 +6,7 @@ tags:
  - zero-trust
 ---
 
-Directory Sharing is a Teleport feature of that makes it easy to move files
+Directory Sharing is a Teleport feature that makes it easy to move files
 between a local machine and a remote desktop—and apply changes to those
 files—without compromising security.
 
@@ -54,7 +54,7 @@ find the desktop, and click 'Connect' to start a session.
 Once the session starts, click the three-dot menu on the top-right of the screen
 and click "Share Directory":
 
-![The "Share Desktop" button](../../../img/desktop-access/share.png)
+![The "Share Directory" button](../../../img/desktop-access/share.png)
 
 ### Limitations on directories you can share
 
@@ -236,7 +236,7 @@ a remote Windows desktop.
 On the remote side, Directory Sharing takes advantage of [file system-related
 messaging](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/)
 within the Remote Desktop Protocol (RDP). On the local side, Teleport Connect uses Go's
-native file system API to read from and write to the user-selected directory
+native file system API to read from and write to the user-selected directory.
 
 Teleport Connect establishes a secure mTLS connection to the Teleport Proxy Service,
 which forwards traffic to and from the relevant Teleport Desktop Service instance.
