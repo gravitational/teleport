@@ -2320,6 +2320,7 @@ version = "0.1.0"
 dependencies = [
  "ironrdp-core",
  "ironrdp-graphics",
+ "ironrdp-pdu",
  "ironrdp-session",
 ]
 
