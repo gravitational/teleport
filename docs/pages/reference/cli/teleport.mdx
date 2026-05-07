@@ -342,6 +342,16 @@ Flags:
 |`--token`|none|Invitation token or path to file with token value to register with an auth server \[none\].|
 |`--uri`|none|Address the proxied database is reachable at.|
 
+## teleport debug check-session-helper
+
+Checks if the embedded session helper is working, if available in this build.
+
+Usage:
+
+```code
+$ teleport debug check-session-helper
+```
+
 ## teleport debug get-log-level
 
 Fetches current log level.
@@ -383,7 +393,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,profile,trace,goroutine,heap,mutex,threadcreate. Default: goroutine,heap,profile|
+|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: goroutine,heap,mutex,threadcreate,trace,allocs,block,cmdline,profile. Default: goroutine,heap,profile|
 
 ## teleport debug readyz
 
@@ -393,6 +403,17 @@ Usage:
 
 ```code
 $ teleport debug readyz
+```
+
+## teleport debug require-session-helper
+
+Checks if the embedded session helper is working, failing if not available in
+this build.
+
+Usage:
+
+```code
+$ teleport debug require-session-helper
 ```
 
 ## teleport debug set-log-level
@@ -826,7 +847,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--advertise-ip`|none|IP to advertise to clients if running behind NAT|
-|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[user token cluster_networking_config cluster_auth_preference bot role, workload_identity\].|
+|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[cluster_auth_preference workload_identity bot role user token cluster_networking_config\].|
 |`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\]|
 |`--bootstrap`|none|Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)|
 |`--ca-pin`|none|CA pin to validate the Auth Server (can be repeated for multiple pins)|

@@ -222,6 +222,153 @@ Arguments:
 |---|---|---|
 |command|none (optional)|`az` command and subcommands arguments that are going to be forwarded to Azure CLI.|
 
+## tsh beams add
+
+Start a new beam, and optionally connect to it via SSH.
+
+Usage:
+
+```code
+$ tsh beams add [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+|`--[no-]console`|`true`|Connect to the beam via SSH after creation.|
+
+## tsh beams exec
+
+Run a command in a beam, via SSH.
+
+Usage:
+
+```code
+$ tsh beams exec <name> <command>...
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|command|none (required)|Command to execute in the instance.|
+|name|none (required)|ID (or UUID) of the beam to target.|
+
+## tsh beams ls
+
+List beam instances.
+
+Usage:
+
+```code
+$ tsh beams ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+|`--[no-]all`|`false`|List all beams. By default, filters to show only beams belonging to the current user.|
+
+## tsh beams publish
+
+Publish an HTTP or TCP service running in a beam.
+
+Usage:
+
+```code
+$ tsh beams publish [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+|`--[no-]tcp`|`false`|Publish as a TCP app instead of an HTTP app.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|ID (or UUID) of the beam to target.|
+
+## tsh beams rm
+
+Delete a beam.
+
+Usage:
+
+```code
+$ tsh beams rm <name>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|ID (or UUID) of the beam to delete.|
+
+## tsh beams scp
+
+Copy files between a beam and the local filesystem.
+
+Usage:
+
+```code
+$ tsh beams scp [<flags>] <src> <dest>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+|`-q`, `--[no-]quiet`|`false`|Quiet mode.|
+|`-r`, `--[no-]recursive`|`false`|Recursive copy of subdirectories.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|dest|none (required)|Destination path to copy, in the form `BEAM_ID:PATH` or `LOCAL_PATH`.|
+|src|none (required)|Source path to copy, in the form `BEAM_ID:PATH` or `LOCAL_PATH`.|
+
+## tsh beams ssh
+
+Start an interactive shell in a beam, via SSH.
+
+Usage:
+
+```code
+$ tsh beams ssh <name>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|ID (or UUID) of the beam to connect to.|
+
+## tsh beams unpublish
+
+Unpublish a previously published service in a beam.
+
+Usage:
+
+```code
+$ tsh beams unpublish <name>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|ID (or UUID) of the beam to target.|
+
 ## tsh clusters
 
 List available Teleport clusters.
@@ -438,6 +585,31 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |labels|none (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
+
+## tsh delegation create-session
+
+Create a delegation session, allowing a bot or workload to temporarily act on
+your behalf.
+
+Usage:
+
+```code
+$ tsh delegation create-session [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--allow-app`|none|Allow access to an application.|
+|`--allow-db`|none|Allow access to a database.|
+|`--allow-git-server`|none|Allow access to a Git server.|
+|`--allow-kube-cluster`|none|Allow access to a Kubernetes cluster.|
+|`--allow-node`|none|Allow access to an SSH node.|
+|`--allow-windows-desktop`|none|Allow access to a Windows desktop.|
+|`--bot`|none|Name of a bot allowed to use the delegation session. Repeat to allow multiple bots.|
+|`--[no-]allow-all`|`false`|Allow access to all resources, including destructive administrative actions. Mutually exclusive with the other --allow-* flags.|
+|`--session-ttl`|none|How long the delegation session should remain valid.|
 
 ## tsh device enroll
 
@@ -861,7 +1033,7 @@ Flags:
 |`--request-reason`|none|Reason for requesting additional roles.|
 |`--request-reviewers`|none|Suggested reviewers for role request.|
 |`--request-roles`|none|Request one or more extra roles.|
-|`--scope`|none|Scope pins credentials to a given scope.|
+|`--scope`|none|Scope pins credentials to a given scope. Use "" to explicitly remove scoping.|
 |`-v`, `--[no-]verbose`|`false`|Show extra status information.|
 
 Arguments:
@@ -1342,7 +1514,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z).|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
 |`--max-duration`|none|How long the access should be granted for.|
 |`--[no-]nowait`|`false`|Finish without waiting for request resolution.|
 |`--reason`|none|Reason for requesting.|
@@ -1354,7 +1526,7 @@ Flags:
 
 ## tsh request drop
 
-Drop one more Access Requests from current identity.
+Drop one or more Access Requests from current identity.
 
 Usage:
 
@@ -1401,7 +1573,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z).|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
 |`--[no-]approve`|`false`|Review proposes approval.|
 |`--[no-]deny`|`false`|Review proposes denial.|
 |`--reason`|none|Review reason message.|
@@ -1695,8 +1867,8 @@ $ tsh vnet-ssh-autoconfig
 
 ## tsh workload-identity issue-x509
 
-Use Teleport Workload Identity to issue an X509 credential write it to a local
-directory.
+Use Teleport Workload Identity to issue an X509 credential and write it to a
+local directory.
 
 Usage:
 
