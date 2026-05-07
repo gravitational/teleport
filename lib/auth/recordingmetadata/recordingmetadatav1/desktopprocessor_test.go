@@ -71,6 +71,30 @@ func TestDesktopRecordingProcessor(t *testing.T) {
 			},
 		},
 		{
+			name: "recovered session without start event populates metadata from end event",
+			events: []apievents.AuditEvent{
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 800, 600),
+				desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White)),
+				desktopRecoveredSessionEndEvent(startTime, startTime.Add(10*time.Second)),
+			},
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
+				require.NotNil(t, metadata.StartTime)
+				require.NotNil(t, metadata.EndTime)
+
+				require.True(t, metadata.StartTime.AsTime().Equal(startTime))
+				require.Equal(t, "test-cluster", metadata.ClusterName)
+				require.Equal(t, "test-user", metadata.User)
+				require.Equal(t, "test-desktop", metadata.ResourceName)
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP, metadata.Type)
+				require.Equal(t, 10*time.Second, metadata.Duration.AsDuration())
+			},
+			expectedThumbnail: func(t *testing.T, thumbnail *pb.SessionRecordingThumbnail) {
+				require.NotNil(t, thumbnail)
+				require.NotEmpty(t, thumbnail.Png)
+			},
+		},
+		{
 			name: "unhandled events are silently ignored",
 			events: generateCompleteDesktopSession(t, startTime, 800, 600, []apievents.AuditEvent{
 				&apievents.SessionJoin{Metadata: apievents.Metadata{Time: startTime.Add(2 * time.Second)}},
@@ -175,5 +199,19 @@ func desktopSessionEndEvent(eventTime time.Time) *apievents.WindowsDesktopSessio
 		Metadata: apievents.Metadata{
 			Time: eventTime,
 		},
+	}
+}
+
+func desktopRecoveredSessionEndEvent(sessionStart, eventTime time.Time) *apievents.WindowsDesktopSessionEnd {
+	return &apievents.WindowsDesktopSessionEnd{
+		Metadata: apievents.Metadata{
+			ClusterName: "test-cluster",
+			Time:        eventTime,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: "test-user",
+		},
+		DesktopName: "test-desktop",
+		StartTime:   sessionStart,
 	}
 }
