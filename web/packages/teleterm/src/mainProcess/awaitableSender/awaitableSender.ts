@@ -77,14 +77,14 @@ export class AwaitableSender<T> implements IAwaitableSender<T> {
    * This method returns a promise that resolves once the other side
    * acknowledges receiving and processing the message.
    * If the acknowledgment is not received within the specified timeout
-   * (default 10 seconds), the promise rejects with a `MessageAcknowledgementError`.
+   * (default 20 seconds), the promise rejects with a `MessageAcknowledgementError`.
    *
    * If the renderer received the message, but failed to process it, the promise
    * is also rejected.
    */
   send(
     payload: T,
-    { signal = AbortSignal.timeout(10_000) }: { signal?: AbortSignal } = {}
+    { signal = AbortSignal.timeout(20_000) }: { signal?: AbortSignal } = {}
   ): Promise<void> {
     const id = crypto.randomUUID();
 
