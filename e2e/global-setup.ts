@@ -20,25 +20,19 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { startUrl, users } from '@gravitational/e2e/helpers/env';
-import { directLogin } from '@gravitational/e2e/helpers/login';
-// oxlint-disable-next-line no-restricted-imports
-import { test as setup } from '@playwright/test';
+import { startUrl, users } from './helpers/env';
+import { directLogin } from './helpers/login';
 
-const authDir = join(dirname(fileURLToPath(import.meta.url)), '../../.auth');
+const authDir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
 
-mkdirSync(authDir, { recursive: true });
+export default async function globalSetup() {
+  mkdirSync(authDir, { recursive: true });
 
-for (const [username, creds] of Object.entries(users)) {
-  // oxlint-disable-next-line no-empty-pattern -- Playwright requires fixture argument to be destructured.
-  setup(`authenticate as ${username}`, async ({}, testInfo) => {
+  for (const [username, creds] of Object.entries(users)) {
     const state = await directLogin(startUrl, username, creds.password);
-
-    const browser = testInfo.project.name.split(':')[0];
-
     writeFileSync(
-      join(authDir, `${browser}-${username}.json`),
+      join(authDir, `${username}.json`),
       JSON.stringify(state, null, 2)
     );
-  });
+  }
 }
