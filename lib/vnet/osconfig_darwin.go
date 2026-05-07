@@ -22,22 +22,37 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 )
 
-// platformOSConfigState is not used on darwin.
-type platformOSConfigState struct{}
+// platformOSConfigState caches applied calls so the reconcile loop
+// can skip unchanged ones. macOS SIOCSIFADDR is delete-then-add, so
+// re-issuing ifconfig flaps the alias and trips linkmon subscribers.
+type platformOSConfigState struct {
+	configuredIPv4       bool
+	configuredIPv6       bool
+	configuredIPv6Route  bool
+	configuredCidrRanges []string
+}
 
-// platformConfigureOS configures the host OS according to cfg. It is safe to
-// call repeatedly, and it is meant to be called with an empty osConfig to
-// deconfigure anything necessary before exiting.
-func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfigState) error {
-	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
-	// process exits and the TUN is deleted.
+// platformConfigureOS reconciles host OS state for cfg. It is safe
+// to call repeatedly. An empty cfg deconfigures by resetting the
+// cached state so the next call re-applies.
+func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	// IPs and routes are cleaned up when the TUN is deleted on exit,
+	// so no removal is needed.
+	if cfg.tunName == "" {
+		if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+			return trace.Wrap(err, "configuring DNS")
+		}
+		*state = platformOSConfigState{}
+		return nil
+	}
 
-	if cfg.tunIPv4 != "" {
+	if cfg.tunIPv4 != "" && !state.configuredIPv4 {
 		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
 			"device", cfg.tunName, "address", cfg.tunIPv4)
 		if err := runCommand(ctx,
@@ -45,30 +60,44 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfig
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredIPv4 = true
 	}
 	for _, cidrRange := range cfg.cidrRanges {
+		if slices.Contains(state.configuredCidrRanges, cidrRange) {
+			continue
+		}
 		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
 		if err := runCommand(ctx,
 			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
 	}
 
-	if cfg.tunIPv6 != "" {
-		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
+	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv6)
 		if err := runCommand(ctx,
 			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredIPv6 = true
+	}
 
+	// Track the IPv6 route separately from the alias so a transient
+	// route-add failure can be retried on the next tick without
+	// re-running the ifconfig (which would re-trigger the alias flap
+	// this gating exists to prevent).
+	if cfg.tunIPv6 != "" && !state.configuredIPv6Route {
 		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
 		if err := runCommand(ctx,
 			"route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName,
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredIPv6Route = true
 	}
 
 	if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
