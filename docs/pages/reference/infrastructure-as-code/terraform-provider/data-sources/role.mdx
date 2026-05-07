@@ -234,6 +234,7 @@ Optional:
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specallowreview_requestsclaims_to_roles))
 - `preview_as_roles` (List of String) PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.
 - `roles` (List of String) Roles is the name of roles which may be reviewed.
+- `submit_for_users` (List of String) SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).
 - `where` (String) Where is an optional predicate which further limits which requests are reviewable.
 
 ### Nested Schema for `spec.allow.review_requests.claims_to_roles`
@@ -448,6 +449,7 @@ Optional:
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specdenyreview_requestsclaims_to_roles))
 - `preview_as_roles` (List of String) PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.
 - `roles` (List of String) Roles is the name of roles which may be reviewed.
+- `submit_for_users` (List of String) SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).
 - `where` (String) Where is an optional predicate which further limits which requests are reviewable.
 
 ### Nested Schema for `spec.deny.review_requests.claims_to_roles`
