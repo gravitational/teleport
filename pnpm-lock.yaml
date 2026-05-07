@@ -10,9 +10,7 @@ overrides:
 pnpmfileChecksum: sha256-TR6zTaL3sXZMyu+QoRdd27aSUTH6sH0gp+M2XjxgTUI=
 
 patchedDependencies:
-  jest-canvas-mock@2.5.2:
-    hash: 8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1
-    path: web/patches/jest-canvas-mock@2.5.2.patch
+  jest-canvas-mock@2.5.2: 8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1
 
 importers:
 
