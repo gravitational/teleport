@@ -121,9 +121,12 @@ spec:
       value: "{{external.env}}"
   # Optional dynamic labels.
   dynamic_labels:
-  - name: "hostname"
-    command: ["hostname"]
-    period: 1m0s
+    hostname:
+      command: ["hostname"]
+      period: 1m0s
+    uname:
+      command: ["uname", "-a"]
+      period: 5m0s
 ```
 
 You can create a new `app` resource by running the following commands, which
@@ -235,4 +238,3 @@ To run this command, one of the user's roles must include the
 Application Service. To learn how to set up secure access to Azure via Teleport,
 read [Protect the Azure CLI with Teleport Application
 Access](../../enroll-resources/application-access/cloud-apis/azure.mdx).
-
