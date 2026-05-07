@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type ResourceAccess struct {
@@ -261,7 +263,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
 	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
 
-	beam := newAccess(userRoles, ctx, types.KindBeam)
+	beamsEntitlement := modules.GetProtoEntitlement(&features, entitlements.Beams)
+	var beam ResourceAccess
+	if beamsEntitlement.Enabled {
+		beam = newAccess(userRoles, ctx, types.KindBeam)
+	}
 
 	return UserACL{
 		AccessRequests:          requestAccess,
