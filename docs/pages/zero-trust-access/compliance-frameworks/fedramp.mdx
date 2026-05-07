@@ -9,7 +9,7 @@ tags:
 enterprise: FedRAMP compliance
 ---
 
-Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure.
+Teleport provides the foundation to meet critical FedRAMP requirements for secure access to your infrastructure and workloads.
 This includes support for the [Federal Information Processing Standard FIPS 140](https://en.wikipedia.org/wiki/FIPS_140).
 This standard is the US government approved standard for cryptographic modules. This document explains how
 Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
@@ -36,7 +36,7 @@ Teleport includes FedRAMP and FIPS features to support companies that sell into 
 | [AC-10 Concurrent Session Control]((=fedramp.control_url=)AC-10) | Teleport administrators can define concurrent session limits using Teleport's RBAC. Supports both a maximum number of connections and maximum number of simultaneously connected users. |
 | [AC-12 Session Termination]((=fedramp.control_url=)AC-12) | Teleport can be configured to terminate active sessions as soon as the user's certificate expires. Users can exit a Teleport interactive session at any time by typing exit or sending an interrupt signal to the process for remote execution of a program. Administrators can apply [locks](../../identity-governance/locking.mdx) to forcibly terminate active sessions based on a variety of criteria. |
 | [AC-17 Remote Access]((=fedramp.control_url=)AC-17) | Teleport administrators create users with configurable roles that can be used to allow or deny access to system resources. |
-| [AC-20 Use of External Information Systems]((=fedramp.control_url=)AC-20) | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../management/trustedclusters.mdx). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access. |
+| [AC-20 Use of External Systems]((=fedramp.control_url=)AC-20) | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../management/trustedclusters.mdx). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access. |
 
 ### Audit and accountability
 
@@ -49,13 +49,13 @@ Teleport includes FedRAMP and FIPS features to support companies that sell into 
 
 | Control | Teleport Features |
 | - | - |
-| [CM-08 Information System Component Inventory]((=fedramp.control_url=)CM-08) | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time. |
+| [CM-08 System Component Inventory]((=fedramp.control_url=)CM-08) | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time. |
 
 ### Identification and authentication
 
 | Control | Teleport Features |
 | - | - |
-| [IA-02 Concurrent Session Control]((=fedramp.control_url=)IA-02) | Integrates with SSO providers such as GitHub, Okta, Google, etc. Acts as its own SSO provider. Supports the use of multi-factor authentication (MFA) including per-session MFA. Supports PIV-compatible hardware keys, as well as connection and user limits. |
+| [IA-02 Identification and Authentication (Organizational Users)]((=fedramp.control_url=)IA-02) | Integrates with SSO providers such as GitHub, Okta, Google, etc. Acts as its own SSO provider. Supports the use of multi-factor authentication (MFA) including per-session MFA. Supports PIV-compatible hardware keys, as well as connection and user limits. |
 | [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-03) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [IA-04 Identifier Management]((=fedramp.control_url=)IA-04) | Maintains several unique identifiers: local users are required to be unique (unique username), roles have unique names and tied to organization roles via SSO, identifiers for devices are unique randomly generated IDs (UUID). |
 | [IA-08 Identification and Authentication (Non-Organizational Users)]((=fedramp.control_url=)IA-08) | Teleport supports PIV-compatible hardware keys. |
@@ -66,7 +66,7 @@ Teleport includes FedRAMP and FIPS features to support companies that sell into 
 | - | - |
 | [SC-10 Network Disconnection]((=fedramp.control_url=)SC-10) | Teleport requires valid X.509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA. Teleport supports Hardware Security Modules (HSM).<br/>Teleport Enterprise builds against a FIPS 140 compliant library are available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS mode, Teleport will only start and use FIPS 140 compliant cryptography. |
-| [SC-13 Use of Cryptography]((=fedramp.control_url=)SC-13) | Teleport Enterprise builds against a FIPS 140 compliant library. In addition, when Teleport Enterprise is in FedRAMP/FIPS mode, Teleport will only start and use FIPS 140 compliant cryptography. |
+| [SC-13 Cryptographic Protection]((=fedramp.control_url=)SC-13) | Teleport Enterprise builds against a FIPS 140 compliant library. In addition, when Teleport Enterprise is in FedRAMP/FIPS mode, Teleport will only start and use FIPS 140 compliant cryptography. |
 | [SC-17 Public Key Infrastructure]((=fedramp.control_url=)SC-17) | Certificates Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue X.509 and SSH certificates. SSH and X.509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA. |
 | [SC-23 Session Authenticity]((=fedramp.control_url=)SC-23) | Teleport SSH and TLS sessions are protected with SSH user and X.509 client certificates. For access to the Web UI, Teleport uses bearer token auth stored in a browser token to authenticate a session. Upon user logout, SSH and TLS certificates are deleted from disk and cookies are removed from the browser. |
 
