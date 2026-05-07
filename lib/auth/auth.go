@@ -1832,19 +1832,9 @@ func (a *Server) bcryptCost() int {
 	return bcrypt.DefaultCost
 }
 
-// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
-// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
-func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
-	getter := a.getUpgradeWindowStartHourGetter()
-	if getter == nil {
-		return trace.Errorf("getter has not been registered")
-	}
-
-	startHour, err := getter(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+// SetAgentUpgradeWindowStartHour updates the ClusterMaintenanceConfig resource's
+// AgentUpgrade.UTCStartHour to the provided value.
+func (a *Server) SetAgentUpgradeWindowStartHour(ctx context.Context, startHour int64) error {
 	cmc, err := a.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -1862,11 +1852,23 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
-	if err := a.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+	return trace.Wrap(a.UpdateClusterMaintenanceConfig(ctx, cmc))
+}
+
+// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
+// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
+func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
+	getter := a.getUpgradeWindowStartHourGetter()
+	if getter == nil {
+		return trace.BadParameter("getter is not set")
+	}
+
+	startHour, err := getter(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(a.SetAgentUpgradeWindowStartHour(ctx, startHour))
 }
 
 // periodicIntervalKey is used to uniquely identify the subintervals registered with
