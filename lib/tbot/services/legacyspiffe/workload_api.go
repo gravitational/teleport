@@ -602,7 +602,7 @@ func (s *WorkloadAPIService) FetchX509SVID(
 		}
 		err = srv.Send(&workloadpb.X509SVIDResponse{
 			Svids:            svids,
-			FederatedBundles: bundleSet.EncodedX509Bundles(false),
+			FederatedBundles: bundleSet.EncodedX509Bundles(false, nil),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -656,7 +656,7 @@ func (s *WorkloadAPIService) FetchX509Bundles(
 
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
 		err = srv.Send(&workloadpb.X509BundlesResponse{
-			Bundles: bundleSet.EncodedX509Bundles(true),
+			Bundles: bundleSet.EncodedX509Bundles(true, nil),
 		})
 		if err != nil {
 			return trace.Wrap(err)
