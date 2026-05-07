@@ -39,6 +39,7 @@ const (
 	// Legacy TDP message types relevant for recording replay.
 	legacyTypeConnectionActivated = 31
 	legacyTypeRDPFastPathPDU      = 29
+	legacyTypeMouseMove           = 3
 
 	// tdpbHeaderLength is the size of the TDPB message length prefix.
 	tdpbHeaderLength = 4
@@ -202,6 +203,14 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 		}
 
 		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
+
+	case legacyTypeMouseMove:
+		var mm struct{ X, Y uint32 }
+		if err := binary.Read(r, binary.BigEndian, &mm); err != nil {
+			return trace.Wrap(err, "reading legacy MouseMove")
+		}
+
+		return s.handleMouseMove(&tdpbv1.MouseMove{X: mm.X, Y: mm.Y})
 	}
 
 	return nil
@@ -262,8 +271,12 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 	}
 
 	if s.decoder == nil {
-		ioChannelID := uint16(spec.GetIoChannelId())
-		userChannelID := uint16(spec.GetUserChannelId())
+		ioChan, userChan := spec.GetIoChannelId(), spec.GetUserChannelId()
+		if ioChan > math.MaxUint16 || userChan > math.MaxUint16 {
+			return trace.BadParameter("channel IDs out of range: io=%d, user=%d", ioChan, userChan)
+		}
+		ioChannelID := uint16(ioChan)
+		userChannelID := uint16(userChan)
 
 		//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 		d, err := decoder.New(
