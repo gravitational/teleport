@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/winpki"
 )
@@ -66,15 +67,6 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// databases should be configured to trust the DatabaseClientCA when
-	// clients connect so return DatabaseClientCA in the response.
-	dbClientCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: clusterName.GetClusterName(),
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	dbServerCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
@@ -83,13 +75,25 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := a.generateDatabaseCert(ctx, req, dbServerCA)
+	resp, err := a.generateDatabaseCert(ctx, req, dbServerCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// databases should be configured to trust the DatabaseClientCA when
+	// clients connect so return DatabaseClientCA in the response.
+	returnedCAID := types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: clusterName.GetClusterName(),
+	}
+	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
+	if err != nil {
+		return nil, trace.Wrap(err, "response CACerts")
+	}
+
 	return &proto.DatabaseCertResponse{
-		Cert:    cert,
-		CACerts: services.GetTLSCerts(dbClientCA),
+		Cert:    resp.CertPEM,
+		CACerts: caCerts,
 	}, nil
 }
 
@@ -108,10 +112,11 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := a.generateDatabaseCert(ctx, req, dbClientCA)
+	resp, err := a.generateDatabaseCert(ctx, req, dbClientCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// db clients should trust the Database Server CA when establishing
 	// connection to a database, so return that CA's certs in the response.
 	//
@@ -122,21 +127,32 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
 		returnedCAType = types.DatabaseClientCA
 	}
-
-	returnedCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+	returnedCAID := types.CertAuthID{
 		Type:       returnedCAType,
 		DomainName: clusterName.GetClusterName(),
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
+	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
+	if err != nil {
+		return nil, trace.Wrap(err, "response CACerts")
+	}
+
 	return &proto.DatabaseCertResponse{
-		Cert:    cert,
-		CACerts: services.GetTLSCerts(returnedCA),
+		Cert:       resp.CertPEM,
+		CACerts:    caCerts,
+		TrustChain: resp.TrustChainPEM,
 	}, nil
 }
 
-func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest, ca types.CertAuthority) ([]byte, error) {
+type generateDatabaseCertResponse struct {
+	CertPEM       []byte
+	TrustChainPEM [][]byte
+}
+
+func (a *Server) generateDatabaseCert(
+	ctx context.Context,
+	req *proto.DatabaseCertRequest,
+	ca types.CertAuthority,
+) (*generateDatabaseCertResponse, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,6 +161,31 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var trustChain [][]byte
+	if ca.GetType() == types.DatabaseClientCA {
+		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.subCAEnabled)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		overrideResult, err := subCAResolver.CalculateOverride(ctx, types.CertAuthorityOverrideID{
+			ClusterName: ca.GetClusterName(),
+			CAType:      string(ca.GetType()),
+		}, subca.Certificate{PEM: caCert})
+		if err != nil {
+			return nil, trace.Wrap(err, "calculate CA override")
+		}
+
+		caCert = overrideResult.CACertificate.PEM
+
+		if len(overrideResult.CAChain) > 0 {
+			trustChain = make([][]byte, len(overrideResult.CAChain))
+			for i, cert := range overrideResult.CAChain {
+				trustChain[i] = cert.PEM
+			}
+		}
+	}
+
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,7 +240,89 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		}
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
-	return cert, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &generateDatabaseCertResponse{
+		CertPEM:       cert,
+		TrustChainPEM: trustChain,
+	}, nil
+}
+
+// getDatabaseCACerts returns the client root CAs for the specified CA
+// (ie, `resp.CACerts`).
+//
+// This method is aware of and correctly applies CA overrides.
+func (a *Server) getDatabaseCACerts(ctx context.Context, id types.CertAuthID) (certPEMs [][]byte, _ error) {
+	const loadKeys = false
+	ca, err := a.GetCertAuthority(ctx, id, loadKeys)
+	if err != nil {
+		return nil, trace.Wrap(err, "read CA")
+	}
+
+	if !a.subCAEnabled || id.Type != types.DatabaseClientCA {
+		return services.GetTLSCerts(ca), nil
+	}
+
+	// DBClientCA may be targeted by overrides. If that's the case we must use the
+	// override certificate (instead of the self-signed) whenever applicable.
+	caOverride, err := a.GetCertAuthorityOverride(ctx, types.CertAuthorityOverrideID{
+		ClusterName: id.DomainName,
+		CAType:      string(id.Type),
+	})
+	if trace.IsNotFound(err) {
+		// OK, overrides are not mandatory.
+		return services.GetTLSCerts(ca), nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "read CA override")
+	}
+
+	// Verify if active overrides exist, otherwise we don't need to bother with
+	// parsing.
+	hasActiveOverrides := false
+	for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+		if !co.GetDisabled() && len(co.GetCertificate()) > 0 {
+			hasActiveOverrides = true
+			break
+		}
+	}
+	if !hasActiveOverrides {
+		return services.GetTLSCerts(ca), nil
+	}
+
+	// At least one active override exists, so we'll need to parse the certs and
+	// prioritize the overrides over the self-signed.
+	publicKeyToPEM := make(map[string][]byte)
+	for i, kp := range ca.GetTrustedTLSKeyPairs() {
+		if len(kp.Cert) == 0 {
+			continue
+		}
+		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err, "parse CA certificate (index %d)", i)
+		}
+		pkh := subca.HashCertificatePublicKey(cert)
+		publicKeyToPEM[pkh] = kp.Cert
+	}
+
+	parsedCAOverride, err := subca.ParseCAOverride(caOverride)
+	if err != nil {
+		return nil, trace.Wrap(err, "parse CA override")
+	}
+	for _, co := range parsedCAOverride.CertificateOverrides {
+		if co.CertificateOverride.GetDisabled() || co.Certificate == nil {
+			continue
+		}
+		publicKeyToPEM[co.PublicKey] = []byte(co.CertificateOverride.Certificate)
+	}
+
+	certPEMs = make([][]byte, 0, len(publicKeyToPEM))
+	for _, certPEM := range publicKeyToPEM {
+		certPEMs = append(certPEMs, certPEM)
+	}
+	return certPEMs, nil
 }
 
 // getCAandSigner returns correct signer and CA that should be used when generating database certificate.
@@ -237,14 +360,6 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	a.logger.DebugContext(ctx, "Signing database CSR for cluster", "cluster", req.ClusterName)
 
 	clusterName, err := a.GetClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: req.ClusterName,
-	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,9 +428,18 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
+	returnedCAID := types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: req.ClusterName,
+	}
+	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
+	if err != nil {
+		return nil, trace.Wrap(err, "response CACerts")
+	}
+
 	return &proto.DatabaseCSRResponse{
 		Cert:    tlsCert,
-		CACerts: services.GetTLSCerts(hostCA),
+		CACerts: caCerts,
 	}, nil
 }
 

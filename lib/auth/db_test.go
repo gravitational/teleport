@@ -24,17 +24,25 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"log/slog"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -105,15 +113,19 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 func TestDBCertSigning(t *testing.T) {
 	t.Parallel()
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:       clockwork.NewFakeClockAt(time.Now()),
-		ClusterName: "local.me",
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+	const clusterName = "local.me"
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Clock:       clock,
+		ClusterName: clusterName,
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-	ctx := context.Background()
+	authServer := testAuthServer.AuthServer
+	authServer.SetSubCAEnabled(true)
 
 	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
@@ -126,20 +138,20 @@ func TestDBCertSigning(t *testing.T) {
 	// Set rotation to init phase. New CA will be generated.
 	// DB service should use active key to sign certificates.
 	// tctl should use new key to sign certificates.
-	err = authServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
+	err = authServer.RotateCertAuthority(t.Context(), types.RotateRequest{
 		Type:        types.DatabaseCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
-	err = authServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
+	err = authServer.RotateCertAuthority(t.Context(), types.RotateRequest{
 		Type:        types.DatabaseClientCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	dbCAs, err := authServer.AuthServer.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	dbCAs, err := authServer.GetCertAuthorities(t.Context(), types.DatabaseCA, false)
 	require.NoError(t, err)
 	require.Len(t, dbCAs, 1)
 	require.Len(t, dbCAs[0].GetActiveKeys().TLS, 1)
@@ -147,7 +159,7 @@ func TestDBCertSigning(t *testing.T) {
 	activeDBCACert := dbCAs[0].GetActiveKeys().TLS[0].Cert
 	newDBCACert := dbCAs[0].GetAdditionalTrustedKeys().TLS[0].Cert
 
-	dbClientCAs, err := authServer.AuthServer.GetCertAuthorities(ctx, types.DatabaseClientCA, false)
+	dbClientCAs, err := authServer.GetCertAuthorities(t.Context(), types.DatabaseClientCA, false)
 	require.NoError(t, err)
 	require.Len(t, dbClientCAs, 1)
 	require.Len(t, dbClientCAs[0].GetActiveKeys().TLS, 1)
@@ -155,16 +167,92 @@ func TestDBCertSigning(t *testing.T) {
 	activeDBClientCACert := dbClientCAs[0].GetActiveKeys().TLS[0].Cert
 	newDBClientCACert := dbClientCAs[0].GetAdditionalTrustedKeys().TLS[0].Cert
 
-	tests := []struct {
+	// Prepare disabled CA overrides for activeDBClientCACert and
+	// newDBClientCACert, but do not create the overrides themselves yet.
+	var dbClientCAOverride *subcav1.CertAuthorityOverride
+	{
+		const chainLength = 2
+		externalChain, err := subcaenv.MakeCAChain(chainLength, &subcaenv.CAParams{
+			Clock: testAuthServer.Clock(),
+		})
+		require.NoError(t, err)
+		externalRoot := externalChain[chainLength-1]
+
+		subCAEnv := subcaenv.Env{
+			Clock:        clock,
+			ClusterName:  clusterName,
+			ExternalRoot: externalRoot,
+		}
+
+		parsedActiveDBClientCert, err := tlsutils.ParseCertificatePEM(activeDBClientCACert)
+		require.NoError(t, err)
+		parsedNewDBClientCert, err := tlsutils.ParseCertificatePEM(newDBClientCACert)
+		require.NoError(t, err)
+
+		dbClientCAOverride = &subcav1.CertAuthorityOverride{
+			Kind:    types.KindCertAuthorityOverride,
+			SubKind: string(types.DatabaseClientCA),
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: clusterName,
+			},
+			Spec: &subcav1.CertAuthorityOverrideSpec{
+				CertificateOverrides: []*subcav1.CertificateOverride{
+					subCAEnv.NewDisabledCertificateOverride(t, parsedActiveDBClientCert, nil),
+					subCAEnv.NewDisabledCertificateOverride(t, parsedNewDBClientCert, nil),
+				},
+			},
+		}
+		// Include external root in the first override's chain.
+		dbClientCAOverride.Spec.CertificateOverrides[0].Chain = []string{string(externalRoot.CertPEM)}
+	}
+
+	// Map self-signed certificates to their overrides.
+	// Certificates absent from the map don't need to change.
+	caOverrideCertificateMap := map[string]*subcav1.CertificateOverride{
+		string(activeDBClientCACert): dbClientCAOverride.Spec.CertificateOverrides[0],
+		string(newDBClientCACert):    dbClientCAOverride.Spec.CertificateOverrides[1],
+	}
+	getOverrideAwareCertificates := func(selfSignedCert []byte, includeChain bool) (cert []byte, chain [][]byte) {
+		co, ok := caOverrideCertificateMap[string(selfSignedCert)]
+		if !ok {
+			return selfSignedCert, nil // No overrides.
+		}
+
+		if includeChain {
+			chain = make([][]byte, 0, len(co.Chain)+1)
+			chain = append(chain, []byte(co.Certificate))
+			for _, pem := range co.Chain {
+				chain = append(chain, []byte(pem))
+			}
+		}
+
+		return []byte(co.Certificate), chain
+	}
+
+	mustDeleteCAOverrides := func(t *testing.T) {
+		t.Helper()
+		err := authServer.DeleteCertAuthorityOverride(t.Context(), types.CertAuthorityOverrideID{
+			ClusterName: dbClientCAOverride.Metadata.Name,
+			CAType:      dbClientCAOverride.SubKind,
+		})
+		require.NoError(t, err, "DeleteCertAuthorityOverride errored")
+	}
+
+	type testCase struct {
 		name           string
-		requester      proto.DatabaseCertRequest_Requester
-		extensions     proto.DatabaseCertRequest_Extensions
+		requester      clientpb.DatabaseCertRequest_Requester
+		extensions     clientpb.DatabaseCertRequest_Extensions
 		crlDomain      string
 		wantCertSigner []byte
 		wantCACerts    [][]byte
 		wantKeyUsage   []x509.ExtKeyUsage
 		wantCDP        []string
-	}{
+
+		wantOverrideTrustChain [][]byte // Automatically set by CA override tests.
+	}
+
+	tests := []testCase{
 		{
 			name:           "DB service request is signed by active db client CA and trusts db CAs",
 			wantCertSigner: activeDBClientCACert,
@@ -173,30 +261,30 @@ func TestDBCertSigning(t *testing.T) {
 		},
 		{
 			name:           "tctl request is signed by new db CA and trusts db client CAs",
-			requester:      proto.DatabaseCertRequest_TCTL,
+			requester:      clientpb.DatabaseCertRequest_TCTL,
 			wantCertSigner: newDBCACert,
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		},
 		{
 			name:           "DB service request for SQL Server databases is signed by active db client and trusts db client CAs",
-			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			extensions:     clientpb.DatabaseCertRequest_WINDOWS_SMARTCARD,
 			wantCertSigner: activeDBClientCACert,
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		},
 		{
 			name:           "tctl request for SQL Server databases is signed by new db CA and trusts db client CAs",
-			requester:      proto.DatabaseCertRequest_TCTL,
-			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			requester:      clientpb.DatabaseCertRequest_TCTL,
+			extensions:     clientpb.DatabaseCertRequest_WINDOWS_SMARTCARD,
 			wantCertSigner: newDBCACert,
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		},
 		{
 			name:           "tctl request for SQL Server database with CDPs",
-			requester:      proto.DatabaseCertRequest_TCTL,
-			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			requester:      clientpb.DatabaseCertRequest_TCTL,
+			extensions:     clientpb.DatabaseCertRequest_WINDOWS_SMARTCARD,
 			crlDomain:      "example.com",
 			wantCertSigner: newDBCACert,
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
@@ -205,23 +293,77 @@ func TestDBCertSigning(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			certResp, err := authServer.AuthServer.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
+		runTest := func(t *testing.T, tt *testCase) {
+			certResp, err := authServer.GenerateDatabaseCert(t.Context(), &clientpb.DatabaseCertRequest{
 				CSR:                   csr,
 				ServerName:            "localhost",
-				TTL:                   proto.Duration(time.Hour),
+				TTL:                   clientpb.Duration(time.Hour),
 				RequesterName:         tt.requester,
 				CertificateExtensions: tt.extensions,
 				CRLDomain:             tt.crlDomain,
 			})
 			require.NoError(t, err)
-			require.Equal(t, tt.wantCACerts, certResp.CACerts)
+
+			// Verify CA certs.
+			gotCAs := certResp.CACerts
+			wantCAs := slices.Clone(tt.wantCACerts)
+			slices.SortFunc(gotCAs, comparePEMs)
+			slices.SortFunc(wantCAs, comparePEMs)
+			if diff := cmp.Diff(wantCAs, gotCAs); diff != "" {
+				t.Errorf("resp.CACerts mismatch (-want +got)\n%s", diff)
+			}
+
+			// Verify trust chain.
+			if diff := cmp.Diff(tt.wantOverrideTrustChain, certResp.TrustChain); diff != "" {
+				t.Errorf("resp.TrustChain mismatch (-want +got)\n%s", diff)
+			}
 
 			// verify that the response cert is a DB CA cert.
 			mustVerifyCert(t, tt.wantCertSigner, certResp.Cert, tt.wantCDP, tt.wantKeyUsage...)
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			// "Plain" test, no CA overrides.
+			t.Run("ok", func(t *testing.T) { runTest(t, &tt) })
+
+			t.Run("disabled_ca_overrides", func(t *testing.T) {
+				_, err := authServer.CreateCertAuthorityOverride(t.Context(), dbClientCAOverride)
+				require.NoError(t, err, "CreateCertAuthorityOverride errored")
+				t.Cleanup(func() { mustDeleteCAOverrides(t) })
+
+				// Disabled overrides have no effect on the outcome.
+				runTest(t, &tt)
+			})
+
+			t.Run("active_ca_overrides", func(t *testing.T) {
+				// Take a copy, then enable all overrides.
+				caOverride := proto.Clone(dbClientCAOverride).(*subcav1.CertAuthorityOverride)
+				for _, co := range caOverride.Spec.CertificateOverrides {
+					co.Disabled = false
+				}
+				_, err := authServer.CreateCertAuthorityOverride(t.Context(), caOverride)
+				require.NoError(t, err, "CreateCertAuthorityOverride errored")
+				t.Cleanup(func() { mustDeleteCAOverrides(t) })
+
+				// Adjust wanted cert/CAs to account for overrides.
+				wantCertSigner, wantChain := getOverrideAwareCertificates(tt.wantCertSigner, true)
+				wantCACerts := make([][]byte, len(tt.wantCACerts))
+				for i, cert := range tt.wantCACerts {
+					wantCACerts[i], _ = getOverrideAwareCertificates(cert, false)
+				}
+
+				tt := tt // Take a copy.
+				tt.wantCertSigner = wantCertSigner
+				tt.wantCACerts = wantCACerts
+				tt.wantOverrideTrustChain = wantChain
+				runTest(t, &tt)
+			})
 		})
 	}
+}
+
+func comparePEMs(a, b []byte) int {
+	return strings.Compare(string(a), string(b))
 }
 
 // mustVerifyCert is a helper func that verifies leaf cert with root cert.

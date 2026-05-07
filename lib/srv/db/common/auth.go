@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -1102,10 +1103,23 @@ func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUs
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	clientCert, err := privateKey.TLSCertificate(resp.Cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	for i, certPEM := range resp.TrustChain {
+		block, rest := pem.Decode(certPEM)
+		if block == nil {
+			return nil, nil, trace.BadParameter("failed to decode trust chain certificate PEM (index %d)", i)
+		}
+		if len(rest) != 0 {
+			return nil, nil, trace.BadParameter("trust chain certificate PEM has unexpected trailing data (index %d)", i)
+		}
+		clientCert.Certificate = append(clientCert.Certificate, block.Bytes)
+	}
+
 	return &clientCert, resp.CACerts, nil
 }
 
