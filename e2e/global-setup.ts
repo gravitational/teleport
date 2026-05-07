@@ -26,12 +26,17 @@ import { directLogin } from './helpers/login';
 const authDir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
 
 export default async function globalSetup() {
+  const browser = process.env.E2E_BROWSER;
+  if (!browser) {
+    throw new Error('E2E_BROWSER must be set by the runner');
+  }
+
   mkdirSync(authDir, { recursive: true });
 
   for (const [username, creds] of Object.entries(users)) {
     const state = await directLogin(startUrl, username, creds.password);
     writeFileSync(
-      join(authDir, `${username}.json`),
+      join(authDir, `${browser}-${username}.json`),
       JSON.stringify(state, null, 2)
     );
   }

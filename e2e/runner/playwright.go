@@ -303,6 +303,7 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
 	env = append(env, "E2E_TELEPORT_CONFIG="+inst.teleportConfigPath)
 	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
+	env = append(env, "E2E_BROWSER="+inst.browser)
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)

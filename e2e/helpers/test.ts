@@ -126,6 +126,8 @@ export const test = base.extend<E2EFixtures>({
       );
     }
 
+    const browser = testInfo.project.name.split(':')[0];
+
     await use(async (index: number): Promise<LoginAsResult> => {
       const definition = users[index];
       if (!definition) {
@@ -145,7 +147,7 @@ export const test = base.extend<E2EFixtures>({
       }
 
       const state: StorageState = JSON.parse(
-        readFileSync(join(authDir, `${name}.json`), 'utf-8')
+        readFileSync(join(authDir, `${browser}-${name}.json`), 'utf-8')
       );
 
       const ctx = page.context();
@@ -209,7 +211,9 @@ export const test = base.extend<E2EFixtures>({
       return;
     }
 
-    await use(join(authDir, `${username}.json`));
+    const browser = testInfo.project.name.split(':')[0];
+
+    await use(join(authDir, `${browser}-${username}.json`));
   },
   unifiedResourcesPage: async ({ page }, use) => {
     await use(new UnifiedResourcesPage(page));
