@@ -170,18 +170,20 @@ func writeJobSummary(report pwReport, failures, flaky []mergedFailure) error {
 }
 
 func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []mergedFailure) {
+	stats := reportableStats(report)
+
 	fmt.Fprint(w, "### E2E Test Results\n\n")
 
 	fmt.Fprint(w, "```diff\n")
-	fmt.Fprintf(w, "+ %d passed\n", report.Stats.Expected)
-	if report.Stats.Unexpected > 0 {
-		fmt.Fprintf(w, "- %d failed\n", report.Stats.Unexpected)
+	fmt.Fprintf(w, "+ %d passed\n", stats.expected)
+	if stats.unexpected > 0 {
+		fmt.Fprintf(w, "- %d failed\n", stats.unexpected)
 	}
-	if report.Stats.Flaky > 0 {
-		fmt.Fprintf(w, "! %d flaky\n", report.Stats.Flaky)
+	if stats.flaky > 0 {
+		fmt.Fprintf(w, "! %d flaky\n", stats.flaky)
 	}
-	if report.Stats.Skipped > 0 {
-		fmt.Fprintf(w, "# %d skipped\n", report.Stats.Skipped)
+	if stats.skipped > 0 {
+		fmt.Fprintf(w, "# %d skipped\n", stats.skipped)
 	}
 	fmt.Fprintf(w, "# %s\n", formatDuration(report.Stats.Duration))
 	fmt.Fprint(w, "```\n")
@@ -370,6 +372,58 @@ func writeFailureErrors(w io.Writer, results []pwResult) {
 		fmt.Fprint(w, "*Retried once and failed with the same error.*\n\n")
 	} else {
 		fmt.Fprintf(w, "*Retried %d times and failed with the same error.*\n\n", retries)
+	}
+}
+
+type reportStats struct {
+	expected   int
+	unexpected int
+	flaky      int
+	skipped    int
+}
+
+// reportableStats walks the suite tree and tallies tests excluding the setup
+// projects (e.g. `chromium:setup`). Playwright's top-level stats include those
+// auth-setup tests, which are infrastructure rather than test cases readers
+// care about.
+func reportableStats(report pwReport) reportStats {
+	var stats reportStats
+	walkSpecs(report.Suites, func(s pwSpec) {
+		// Treat the spec as flaky if any retry succeeded, matching how
+		// Playwright classifies flaky specs in its top-level stats.
+		flaky := false
+		var finalStatus string
+		for _, t := range s.Tests {
+			if strings.HasSuffix(t.ProjectName, ":setup") {
+				continue
+			}
+			finalStatus = t.Status
+			if len(t.Results) > 1 && t.Status == "expected" {
+				flaky = true
+			}
+		}
+		switch {
+		case finalStatus == "":
+			// All tests for this spec were filtered out (setup-only).
+		case flaky:
+			stats.flaky++
+		case finalStatus == "expected":
+			stats.expected++
+		case finalStatus == "unexpected":
+			stats.unexpected++
+		case finalStatus == "skipped":
+			stats.skipped++
+		}
+	})
+	return stats
+}
+
+func walkSpecs(suites []pwSuite, fn func(pwSpec)) {
+	for _, s := range suites {
+		for _, spec := range s.Specs {
+			fn(spec)
+		}
+		walkSpecs(s.Suites, fn)
 	}
 }
 
