@@ -115,6 +115,10 @@ export enum NavTitle {
 
   Support = 'Support',
   Downloads = 'Downloads',
+
+  // Beams
+  BeamsQuickstart = 'Quickstart',
+  BeamsList = 'Beams',
 }
 
 export interface TeleportFeatureRoute {
@@ -228,6 +232,8 @@ export interface FeatureFlags {
   readAutoUpdateAgentRollout: boolean;
   listAutoUpdateAgentReport: boolean;
   sessionSummaries: boolean;
+  listBeam: boolean;
+  readBeam: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
