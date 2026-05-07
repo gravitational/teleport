@@ -630,6 +630,10 @@ func (sess *linuxSession) messageLoop() error {
 }
 
 func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
+	// Ignore multiple ClientHello messages
+	if sess.username != "" {
+		return nil
+	}
 	s := sess.service
 	sess.username = m.Username
 	sess.audit.targetUser = m.Username
