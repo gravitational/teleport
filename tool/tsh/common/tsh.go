@@ -2373,28 +2373,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// Resolve the desired scope based on CLI flags and current profile state.
-	scopeProfileStatus := storedProfileStatus
-	if scopeProfileStatus != nil && scopeProfileStatus.Username != desiredProfile.Username {
-		scopeProfileStatus = nil
-	}
-	targetScope, scopeChanged := resolveScope(cf, scopeProfileStatus)
-	cf.Scope = targetScope
-
-	if cf.Scope != "" {
-		// auto-request behavior is incompatible with scopes
-		autoRequest = false
-		// alerts don't support scoping yet, reduce log spam by disabling lookup attempts
-		showAlerts = false
-
-		// client-side validation of scopes isn't strictly necessary, but scope syntax is easy to mess
-		// up (especially accidentally omitting the leading slash), so its nice to find out if the scope
-		// is malformed before going through authentication.
-		if err := scopes.StrongValidate(cf.Scope); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// If the user requested tracing and the login succeeds (even if the user
 	// was already logged in) report the tracing client to the trace provider
 	// to that spans can be exported.
@@ -2428,23 +2406,52 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		desiredProfile = tc.Profile()
 	}
 
+	desiredProfileStatus, err := tc.ClientStore.ReadProfileStatus(desiredProfile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Resolve the desired scope based on CLI flags and the desired profile,
+	// not merely the profile currently stored for this proxy.
+	targetScope, scopeChanged := resolveScope(cf, desiredProfileStatus)
+	cf.Scope = targetScope
+	tc.Scope = targetScope
+	desiredProfile = tc.Profile()
+
+	if cf.Scope != "" {
+		// auto-request behavior is incompatible with scopes
+		autoRequest = false
+		// alerts don't support scoping yet, reduce log spam by disabling lookup attempts
+		showAlerts = false
+
+		// client-side validation of scopes isn't strictly necessary, but scope syntax is easy to mess
+		// up (especially accidentally omitting the leading slash), so its nice to find out if the scope
+		// is malformed before going through authentication.
+		if err := scopes.StrongValidate(cf.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if !scopeChanged {
-		success, err := useExistingProfile(cf, tc, storedProfileStatus, desiredProfile)
+		result, err := useExistingProfile(cf, tc, storedProfileStatus, desiredProfileStatus, desiredProfile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If an existing profile was found and utilized, update the kube config and print the status.
 		// Otherwise, continue to normal login below.
-		if success {
+		if result.used {
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
-				return trace.Wrap(err)
+				if !result.fallbackOnKubeConfigError {
+					return trace.Wrap(err)
+				}
+			} else {
+				profile, profiles, err := tc.ClientStore.FullProfileStatus(cf.Proxy)
+				if err != nil && !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+				return trace.Wrap(printLoginInformation(cf, profile, profiles))
 			}
-			profile, profiles, err := tc.ClientStore.FullProfileStatus(cf.Proxy)
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 		}
 	}
 
@@ -2627,35 +2634,49 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	return nil
 }
 
+type existingProfileResult struct {
+	used                      bool
+	fallbackOnKubeConfigError bool
+}
+
 // Attempt to use an existing profile.
-func useExistingProfile(cf *CLIConf, tc *client.TeleportClient, storedProfileStatus *client.ProfileStatus, desiredProfile *profile.Profile) (bool, error) {
+func useExistingProfile(cf *CLIConf, tc *client.TeleportClient, storedProfileStatus, desiredProfileStatus *client.ProfileStatus, desiredProfile *profile.Profile) (existingProfileResult, error) {
 	// Before starting a new login ceremony, check if there are any active certs
 	// matching the desired login profile. If so, we can skip the login ceremony
 	// and set the new profile, reissuing certificates for leaf clusters if
 	// needed.
-	desiredProfileStatus, err := tc.ClientStore.ReadProfileStatus(desiredProfile)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	desiredProfileHasCerts := desiredProfileStatus != nil && !desiredProfileStatus.IsExpired(time.Now())
-
+	desiredProfileHasCerts := profileStatusHasCerts(desiredProfileStatus)
 	currentProfileStatus, err := tc.ClientStore.ReadProfileStatusByName("")
 	if err != nil && !trace.IsNotFound(err) {
-		return false, trace.Wrap(err)
+		return existingProfileResult{}, trace.Wrap(err)
 	}
 	currentProfileIsDesired := currentProfileStatus != nil && currentProfileStatus.MatchesProfile(desiredProfile)
-	if currentProfileIsDesired && currentProfileStatus.IsExpired(time.Now()) {
-		return false, nil
-	}
-	rootProfileHasCerts := storedProfileStatus != nil && !storedProfileStatus.IsExpired(time.Now()) && storedProfileStatus.MatchesProfileRoot(desiredProfile)
+	rootProfileHasCerts := profileStatusHasCerts(storedProfileStatus) && storedProfileStatus.MatchesProfileRoot(desiredProfile)
 
 	needsClusterReissue := !desiredProfileHasCerts && rootProfileHasCerts &&
 		desiredProfile.SiteName != "" && desiredProfile.SiteName != storedProfileStatus.Cluster
 	needsProfileSwitch := !currentProfileIsDesired
 	accessRequested := cf.DesiredRoles != "" || cf.RequestID != "" || len(cf.RequestedResourceIDs) != 0
 
+	if accessRequested {
+		if !currentProfileIsDesired || !desiredProfileHasCerts {
+			return existingProfileResult{}, nil
+		}
+		if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
+			return existingProfileResult{}, trace.Wrap(err)
+		}
+		if err := executeAccessRequest(cf, tc); err != nil {
+			return existingProfileResult{}, trace.Wrap(err)
+		}
+		return existingProfileResult{used: true}, nil
+	}
+
+	if !desiredProfileHasCerts && !rootProfileHasCerts {
+		return existingProfileResult{}, nil
+	}
+
 	if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
-		return false, trace.Wrap(err)
+		return existingProfileResult{}, trace.Wrap(err)
 	}
 
 	// A key exists for the requested proxy/user, but not for the requested
@@ -2666,7 +2687,7 @@ func useExistingProfile(cf *CLIConf, tc *client.TeleportClient, storedProfileSta
 			RouteToCluster: desiredProfile.SiteName,
 		})
 		if err != nil {
-			return false, trace.Wrap(err)
+			return existingProfileResult{}, trace.Wrap(err)
 		}
 	}
 
@@ -2674,17 +2695,20 @@ func useExistingProfile(cf *CLIConf, tc *client.TeleportClient, storedProfileSta
 	// Make it active without starting a new login ceremony.
 	if needsProfileSwitch {
 		if err := tc.ClientStore.SaveProfile(desiredProfile, true); err != nil {
-			return false, trace.Wrap(err)
+			return existingProfileResult{}, trace.Wrap(err)
 		}
 	}
 
-	if accessRequested {
-		if err := executeAccessRequest(cf, tc); err != nil {
-			return false, trace.Wrap(err)
-		}
-	}
+	return existingProfileResult{
+		used:                      true,
+		fallbackOnKubeConfigError: needsProfileSwitch && !needsClusterReissue,
+	}, nil
+}
 
-	return false, nil
+func profileStatusHasCerts(status *client.ProfileStatus) bool {
+	return status != nil &&
+		status.GetKeyRingError == nil &&
+		!status.IsExpired(time.Now())
 }
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy

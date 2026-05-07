@@ -121,6 +121,27 @@ func TestProfileNameFromProxyAddress(t *testing.T) {
 	})
 }
 
+func TestProfileStatusMatchesProfile(t *testing.T) {
+	t.Parallel()
+
+	status := &ProfileStatus{
+		Name:     "proxy.example.com",
+		Username: "alice",
+		Cluster:  "root",
+	}
+
+	require.True(t, status.MatchesProfile(&profile.Profile{
+		WebProxyAddr: "proxy.example.com:443",
+		Username:     "alice",
+		SiteName:     "root",
+	}))
+	require.False(t, status.MatchesProfile(&profile.Profile{
+		WebProxyAddr: "proxy.example.com:443",
+		Username:     "alice",
+		SiteName:     "leaf",
+	}))
+}
+
 func TestProfileStatusAccessInfo(t *testing.T) {
 	allowedResourceAccessIDs := []types.ResourceAccessID{{
 		Id: types.ResourceID{

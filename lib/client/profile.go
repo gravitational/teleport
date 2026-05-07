@@ -465,7 +465,7 @@ func (p *ProfileStatus) MatchesProfile(profile *profile.Profile) bool {
 	if p == nil || profile == nil {
 		return false
 	}
-	return p.Name == profile.Name() && p.Username == profile.Username && p.Cluster != profile.SiteName
+	return p.Name == profile.Name() && p.Username == profile.Username && p.Cluster == profile.SiteName
 }
 
 // MatchesProfileRoot returns true if the profile status matches the given profile root,
