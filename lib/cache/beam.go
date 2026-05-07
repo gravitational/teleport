@@ -119,7 +119,7 @@ func (c *Cache) ListBeamsV2(ctx context.Context, pageSize int, pageToken string,
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBeams")
 	defer span.End()
 
-	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
+	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
 	}
 
