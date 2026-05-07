@@ -2816,6 +2816,12 @@ export const events = [
     upgrade_window_start: '23:00',
   },
   {
+    code: 'TCAGC003I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'access_graph_settings.update',
+  },
+  {
     code: 'TEP01I',
     time: '2022-04-13T20:00:05.000Z',
     user: 'alice@example.com',

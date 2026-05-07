@@ -1252,7 +1252,6 @@ func TestEventCodesInWebTypes(t *testing.T) {
 		"TCB00W":      true, // RenewableCertificateGenerationMismatchCode
 		"TSPIFFE001I": true, // SPIFFEFederationCreateCode
 		"TSPIFFE002I": true, // SPIFFEFederationDeleteCode
-		"TCAGC003I":   true, // AccessGraphSettingsUpdateCode
 		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
 		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
 		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode

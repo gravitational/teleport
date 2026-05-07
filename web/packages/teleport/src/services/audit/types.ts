@@ -299,6 +299,7 @@ export const eventCodes = {
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
   ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
+  ACCESS_GRAPH_SETTINGS_UPDATE: 'TCAGC003I',
   SPANNER_RPC: 'TSPN001I',
   SPANNER_RPC_DENIED: 'TSPN001W',
   DISCOVERY_CONFIG_CREATE: 'DC001I',
@@ -1844,6 +1845,12 @@ export type RawEvents = {
       affected_resource_name: string;
       affected_resource_source: string;
       affected_resource_kind: string;
+    }
+  >;
+  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE,
+    {
+      user: string;
     }
   >;
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
