@@ -121,6 +121,8 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 			args := []string{"exec", "playwright", "test", p.configFlag()}
 			args = append(args, extraArgs...)
 			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
+			// Avoid `.playwright-artifacts-<n>` collisions across parallel pnpm runs.
+			args = append(args, "--output=test-results/"+inst.browser)
 
 			for _, proj := range baseProjects {
 				args = append(args, "--project="+inst.browser+":"+proj)
@@ -162,7 +164,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test", p.configFlag()}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect", "--output=test-results/connect")
 
 			if len(p.config.testFiles) > 0 {
 				args = append(args, p.config.testFiles...)
