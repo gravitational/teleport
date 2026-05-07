@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"iter"
 	"log/slog"
 	"reflect"
 	"sync"
@@ -38,6 +39,7 @@ import (
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -49,6 +51,8 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
 type BundleSet struct {
 	// Local is the trust bundle for the local trust domain.
 	Local *spiffebundle.Bundle
+	// AppClient is the trust bundle for the app client trust domain.
+	AppClient *spiffebundle.Bundle
 	// Federated is a map of trust domains to trust bundles.
 	// It is keyed by the trust domain name
 	// (the name of the SPIFFEFederation resource) and excludes the spiffe://
@@ -70,6 +74,10 @@ func (b *BundleSet) Clone() *BundleSet {
 		Federated: make(map[string]*spiffebundle.Bundle),
 		stale:     b.stale,
 	}
+	if b.AppClient != nil {
+		clone.AppClient = b.AppClient.Clone()
+	}
+
 	for k, v := range b.Federated {
 		clone.Federated[k] = v.Clone()
 	}
@@ -91,7 +99,61 @@ func (b *BundleSet) Equal(other *BundleSet) bool {
 		}
 	}
 	// go-spiffe's Equal method correctly handles nils of either value.
-	return b.Local.Equal(other.Local)
+	return b.Local.Equal(other.Local) && b.AppClient.Equal(other.AppClient)
+}
+
+// TrustDomainsBundles yields the bundle for each requested trust domain.
+func (b *BundleSet) TrustDomainsBundles(tds bot.TrustDomainsSelector) iter.Seq2[*spiffebundle.Bundle, error] {
+	return func(yield func(*spiffebundle.Bundle, error) bool) {
+		for _, td := range tds {
+			switch td {
+			case bot.TrustDomainAppClient:
+				var err error
+				if b.AppClient == nil {
+					err = trace.NotImplemented("app client trust domain is not available")
+				}
+				// Let the caller decide how to handle if the AppClient is not
+				// available.
+				if !yield(b.AppClient, err) {
+					return
+				}
+			default:
+				// Note, this shouldn't happen if the selector is validated.
+				// Ensure the `bot.TrustDomainSelector.CheckAndSetDefaults` are
+				// aligned with this switch-case.
+				if !yield(nil, trace.BadParameter("invalid trust domain selector %q", td)) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// FederatedAndTrustDomains returns all federated bundles and bundles for the
+// requested trust domains. Trust-domain bundles that are unavailable (e.g. the
+// AppClient bundle on a server that does not support it) are silently skipped.
+//
+// Internal trust domain bundles takes precedence over federated bundles.
+// Effectively meaning that if a federated bundle has the same name of a
+// internal bundle, it will be overwritten by Teleport internal bundles.
+func (b *BundleSet) FederatedAndTrustDomains(tds bot.TrustDomainsSelector) []*spiffebundle.Bundle {
+	var bundles []*spiffebundle.Bundle
+	internalBundles := make(map[string]struct{})
+	for bundle, err := range b.TrustDomainsBundles(tds) {
+		if err != nil || bundle == nil {
+			continue
+		}
+		internalBundles[bundle.TrustDomain().Name()] = struct{}{}
+		bundles = append(bundles, bundle)
+	}
+	for _, bundle := range b.Federated {
+		// Skip federated if it conflicts with internal bundles.
+		if _, ok := internalBundles[bundle.TrustDomain().Name()]; ok {
+			continue
+		}
+		bundles = append(bundles, bundle)
+	}
+	return bundles
 }
 
 // MarshalX509Bundle converts a trust bundle's certs to raw bytes.
@@ -107,15 +169,17 @@ func MarshalX509Bundle(b *x509bundle.Bundle) []byte {
 }
 
 // EncodedX509Bundles returns a map of trust domain names to their trust bundles
-// encoded as raw bytes. If includeLocal is true, the local trust domain will be
-// included in the output. Uses MarshalX509Bundle to encode the bundles for
-// compatibility with the SPIFFE workload API specification.
-func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
+// encoded as raw bytes. Use `includeLocal` to include the local bundle, and
+// `tds` list to include the other trust domains bundle in the output.
+//
+// Uses MarshalX509Bundle to encode the bundles for compatibility with the
+// SPIFFE workload API specification.
+func (b *BundleSet) EncodedX509Bundles(includeLocal bool, tds bot.TrustDomainsSelector) map[string][]byte {
 	bundles := make(map[string][]byte)
 	if includeLocal {
 		bundles[b.Local.TrustDomain().IDString()] = MarshalX509Bundle(b.Local.X509Bundle())
 	}
-	for _, v := range b.Federated {
+	for _, v := range b.FederatedAndTrustDomains(tds) {
 		bundles[v.TrustDomain().IDString()] = MarshalX509Bundle(v.X509Bundle())
 	}
 	return bundles
@@ -124,6 +188,9 @@ func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 // MarshaledJWKSBundles returns a map of trust domain names to their JWT-SVID
 // signing keys encoded in the RFC 7517 JWKS format. If includeLocal is true,
 // the local trust domain will be included in the output.
+//
+// Note: Currently AppClient bundle doesn't support JWKS, so this function
+// doesn't return it, even when requested.
 func (b *BundleSet) MarshaledJWKSBundles(includeLocal bool) (map[string][]byte, error) {
 	bundles := make(map[string][]byte)
 	if includeLocal {
@@ -342,23 +409,7 @@ func (m *TrustBundleCache) Run(ctx context.Context) error {
 }
 
 func (m *TrustBundleCache) watch(ctx context.Context) error {
-	watcher, err := m.eventsClient.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{
-				// Only watch our local cert authority, we rely on the
-				// SPIFFEFederation resource for all non-local clusters.
-				Kind:        types.KindCertAuthority,
-				LoadSecrets: false,
-				Filter: types.CertAuthorityFilter{
-					types.SPIFFECA: m.clusterName,
-				}.IntoMap(),
-			},
-			{
-				Kind:        types.KindSPIFFEFederation,
-				LoadSecrets: false,
-			},
-		},
-	})
+	watcher, withAppClientCA, err := m.newWatcher(ctx)
 	if err != nil {
 		return trace.Wrap(err, "establishing watcher")
 	}
@@ -371,26 +422,6 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 			)
 		}
 	}()
-
-	select {
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			return trace.BadParameter("unexpected event type: %v", event.Type)
-		}
-		// When we receive the init event, we know the watcher is now active
-		// and we can begin streaming events.
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(trustBundleInitTimeout):
-		// If we don't explicitly time out here, then we'd "block" silently
-		// waiting for the init op to come through - which can be confusing to
-		// end users. This can happen if the auth cache fails to init. So
-		// instead, we give up after a reasonable amount of time and try again
-		// after a backoff.
-		return trace.LimitExceeded("timeout waiting for watcher init")
-	case <-watcher.Done():
-		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
-	}
 
 	m.statusReporter.Report(readyz.Healthy)
 
@@ -408,6 +439,14 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		return trace.Wrap(err, "fetching initial bundle set")
 	}
 
+	// Note that there might some inconsistencies between the watcher state and
+	// whats is returned by FetchInitialBundleSet. To ensure consistency, we
+	// will ignore CAs it if the watcher wasn't successfully initialized.
+	if !withAppClientCA {
+		bundleSet.AppClient = nil
+		m.logger.InfoContext(ctx, "Unable to watch AppClient CA, ignoring it")
+	}
+
 	// The initial state of the bundleSet is now complete, we can set it.
 	m.setBundleSet(bundleSet)
 
@@ -422,6 +461,91 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 			return trace.Wrap(watcher.Error(), "watcher closed")
 		}
 	}
+}
+
+func (m *TrustBundleCache) newWatcher(ctx context.Context) (watcher types.Watcher, withAppClient bool, err error) {
+	// We'll perform two attempts depending on which error is returned by the
+	// server.
+	//
+	// This guarantees backwards compatibility when using a server that wasn't
+	// updated and doesn't support new CAs.
+	//
+	// TODO(gabrielcorado): DELETE IN 20.0.0
+watchKindLoop:
+	for _, watchKind := range []types.WatchKind{
+		// Includes all CAs, new and existent ones.
+		{
+			Kind:        types.KindCertAuthority,
+			LoadSecrets: false,
+			Filter: types.CertAuthorityFilter{
+				types.SPIFFECA:    m.clusterName,
+				types.AppClientCA: m.clusterName,
+			}.IntoMap(),
+		},
+		// Includes only existent CAs.
+		{
+			Kind:        types.KindCertAuthority,
+			LoadSecrets: false,
+			Filter: types.CertAuthorityFilter{
+				types.SPIFFECA: m.clusterName,
+			}.IntoMap(),
+		},
+	} {
+		watcher, err = m.eventsClient.NewWatcher(ctx, types.Watch{
+			Kinds: []types.WatchKind{
+				// We rely on the SPIFFEFederation resource for all non-local
+				// clusters.
+				{
+					Kind:        types.KindSPIFFEFederation,
+					LoadSecrets: false,
+				},
+				watchKind,
+			},
+		})
+		if err != nil {
+			if trace.IsBadParameter(err) {
+				continue
+			}
+
+			return nil, false, trace.Wrap(err, "establishing watcher")
+		}
+
+		select {
+		case event := <-watcher.Events():
+			if event.Type != types.OpInit {
+				_ = watcher.Close()
+				return nil, false, trace.BadParameter("unexpected event type: %v", event.Type)
+			}
+			// When we receive the init event, we know the watcher is now active
+			// and we can begin streaming events.
+			_, withAppClient = watchKind.Filter[string(types.AppClientCA)]
+			break watchKindLoop
+		case <-ctx.Done():
+			_ = watcher.Close()
+			return nil, false, ctx.Err()
+		case <-time.After(trustBundleInitTimeout):
+			// If we don't explicitly time out here, then we'd "block" silently
+			// waiting for the init op to come through - which can be confusing to
+			// end users. This can happen if the auth cache fails to init. So
+			// instead, we give up after a reasonable amount of time and try again
+			// after a backoff.
+			_ = watcher.Close()
+			return nil, false, trace.LimitExceeded("timeout waiting for watcher init")
+		case <-watcher.Done():
+			err = trace.Wrap(watcher.Error(), "watcher closed before initialization")
+			_ = watcher.Close()
+			if trace.IsBadParameter(err) {
+				continue watchKindLoop
+			}
+
+			return nil, false, err
+		}
+	}
+	if err != nil {
+		return nil, false, trace.Wrap(err, "establishing watcher")
+	}
+
+	return
 }
 
 func (m *TrustBundleCache) getBundleSet() *BundleSet {
@@ -517,15 +641,6 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
-			if ca.GetType() != types.SPIFFECA {
-				// Safeguard against receiving an event not for the SPIFFE CA.
-				log.WarnContext(
-					ctx,
-					"Ignoring event for non-SPIFFE CA",
-					"type", ca.GetType(),
-				)
-				return
-			}
 			if ca.GetClusterName() != m.clusterName {
 				// Safeguard against receiving an event for a different cluster.
 				log.WarnContext(
@@ -535,38 +650,66 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
+
 			log.DebugContext(
 				ctx,
-				"Processing update for local trust bundle",
+				"Processing update for trust bundle",
 				"trusted_tls_key_pairs", len(ca.GetTrustedTLSKeyPairs()),
 			)
 
-			bundle, err := convertSPIFFECAToBundle(ca)
+			bundle, err := convertCAToBundle(ca)
 			if err != nil {
 				// This is "bad". Ideally, this situation should never occur,
 				// but if it does, it's preferable that subscribed workloads
 				// continue to use the last good bundle.
 				log.WarnContext(
 					ctx,
-					"Failed to convert SPIFFE CA to trust bundle",
+					"Failed to convert CA to trust bundle",
+					"type", ca.GetType(),
 					"error", err,
 				)
 				return
 			}
 
-			if bundleSet.Local.Equal(bundle) {
-				log.DebugContext(
+			switch ca.GetType() {
+			case types.SPIFFECA:
+				if bundleSet.Local.Equal(bundle) {
+					log.DebugContext(
+						ctx,
+						"Event resulted in no change to local trust bundle, ignoring",
+					)
+					return
+				}
+
+				bundleSet.Local = bundle
+			case types.AppClientCA:
+				if bundleSet.AppClient != nil && bundleSet.AppClient.Equal(bundle) {
+					log.DebugContext(
+						ctx,
+						"Event resulted in no change to app client trust bundle, ignoring",
+					)
+					return
+				}
+
+				bundleSet.AppClient = bundle
+			default:
+				// Safeguard against receiving an event not for the SPIFFE or
+				// App Client CAs.
+				log.WarnContext(
 					ctx,
-					"Event resulted in no change to local trust bundle, ignoring",
+					"Ignoring event for non-bundle CAs",
+					"type", ca.GetType(),
 				)
 				return
 			}
+
 			log.InfoContext(
 				ctx,
-				"Processed update for local trust bundle",
+				"Processed update for trust bundle",
+				"type", ca.GetType(),
 				"x509_authorities", len(bundle.X509Authorities()),
 			)
-			bundleSet.Local = bundle
+
 			m.setBundleSet(bundleSet)
 		case types.KindSPIFFEFederation:
 			r153, ok := event.Resource.(types.Resource153UnwrapperT[*machineidv1pb.SPIFFEFederation])
@@ -646,9 +789,26 @@ func FetchInitialBundleSet(
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching spiffe CA")
 	}
-	bs.Local, err = convertSPIFFECAToBundle(spiffeCA)
+	bs.Local, err = convertCAToBundle(spiffeCA)
 	if err != nil {
 		return nil, trace.Wrap(err, "converting SPIFFE CA to trust bundle")
+	}
+
+	appClientCA, err := trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+		Type:       string(types.AppClientCA),
+		Domain:     clusterName,
+		IncludeKey: false,
+	})
+	switch {
+	case types.IsUnsupportedAuthorityErr(err) || trace.IsNotFound(err):
+		log.InfoContext(ctx, "AppClient CA not found, it won't be included into the trust bundle if necessary")
+	case err != nil:
+		return nil, trace.Wrap(err, "fetching app_client CA")
+	default:
+		bs.AppClient, err = convertCAToBundle(appClientCA)
+		if err != nil {
+			return nil, trace.Wrap(err, "converting app client CA to trust bundle")
+		}
 	}
 
 	if fetchFederatedBundles {
@@ -699,8 +859,12 @@ func listAllSPIFFEFederations(
 	return spiffeFeds, nil
 }
 
-func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, error) {
-	td, err := spiffeid.TrustDomainFromString(ca.GetClusterName())
+func convertCAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, error) {
+	tdName := ca.GetClusterName()
+	if ca.GetType() == types.AppClientCA {
+		tdName = apiworkloadidentity.NewInternalAppTrustDomain(tdName)
+	}
+	td, err := spiffeid.TrustDomainFromString(tdName)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing trust domain name")
 	}
