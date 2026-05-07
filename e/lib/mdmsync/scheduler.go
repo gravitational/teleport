@@ -1,4 +1,4 @@
-package mdm
+package mdmsync
 
 import (
 	"cmp"
@@ -10,14 +10,14 @@ import (
 )
 
 // ErrScheduleNoEntries is returned when no entries are provided to the
-// [SyncScheduler].
+// [Scheduler].
 var ErrScheduleNoEntries = errors.New("no schedule entries provided")
 
 // ErrScheduleEmpty is returned when all schedule entries are inactive.
 var ErrScheduleEmpty = errors.New("schedule has no active entries")
 
-// ScheduleEntry is an entry in the sync schedule.
-type ScheduleEntry[E any] struct {
+// Entry is an entry in the sync schedule.
+type Entry[E any] struct {
 	// Entry is the underlying sync entry.
 	Entry E
 	// Mode is the sync mode to be used for the entry.
@@ -27,9 +27,10 @@ type ScheduleEntry[E any] struct {
 	offset          time.Duration
 }
 
-// ScheduleEntryInfo is a subset of the information in sync inventory entries,
+// EntryInfo defines the partial and full schedule durations.
+// It is typically a subset of the information in sync entries,
 // like [types.JamfInventoryEntry].
-type ScheduleEntryInfo struct {
+type EntryInfo struct {
 	// SyncPeriodPartial is the PARTIAL sync period.
 	// Zero or negavite disables PARTIAL syncs.
 	SyncPeriodPartial time.Duration
@@ -38,26 +39,26 @@ type ScheduleEntryInfo struct {
 	SyncPeriodFull time.Duration
 }
 
-// SyncScheduler calculates the sync schedule for MDM services.
+// Scheduler calculates the sync schedules.
 //
 // Call [NextOffset] to discover when the next sync entry is due. Call [Next] to
 // "advance" time to the next entry and pop it from the schedule.
 //
 // Sync schedules are endless and will always return more entries.
-type SyncScheduler[E any] struct {
+type Scheduler[E any] struct {
 	// schedule are the scheduled entries, sorted by ascending offset.
 	// Guaranteed to always have at least one entry.
-	schedule []ScheduleEntry[E]
-	infoFn   func(E) ScheduleEntryInfo
+	schedule []Entry[E]
+	infoFn   func(E) EntryInfo
 }
 
-// NewSyncScheduler creates a new MDM sync scheduler.
+// New creates a new sync scheduler.
 //
 // `initialDelayFn` calculates the initial sync delay for entries. Guaranteed to
 // be invoked once per entry in the `entries` slice, in input order.
 //
-// `infoFn` extracts a [ScheduleEntryInfo] from the underlying entry.
-func NewSyncScheduler[E any](entries []E, initialDelayFn func() time.Duration, infoFn func(E) ScheduleEntryInfo) (*SyncScheduler[E], error) {
+// `infoFn` extracts a [EntryInfo] from the underlying entry.
+func New[E any](entries []E, initialDelayFn func() time.Duration, infoFn func(E) EntryInfo) (*Scheduler[E], error) {
 	switch {
 	case len(entries) == 0:
 		return nil, trace.Wrap(ErrScheduleNoEntries)
@@ -67,7 +68,7 @@ func NewSyncScheduler[E any](entries []E, initialDelayFn func() time.Duration, i
 		return nil, trace.BadParameter("infoFn required")
 	}
 
-	t := &SyncScheduler[E]{
+	t := &Scheduler[E]{
 		infoFn: infoFn,
 	}
 	t.initializeSchedule(entries, initialDelayFn)
@@ -78,13 +79,13 @@ func NewSyncScheduler[E any](entries []E, initialDelayFn func() time.Duration, i
 	return t, nil
 }
 
-// NextOffset returns when the next [ScheduleEntry] is due.
-func (t *SyncScheduler[E]) NextOffset() time.Duration {
+// NextOffset returns when the next [Entry] is due.
+func (t *Scheduler[E]) NextOffset() time.Duration {
 	return t.schedule[0].offset
 }
 
-// Next advances the schedule to the next [ScheduleEntry] and returns it.
-func (t *SyncScheduler[E]) Next() ScheduleEntry[E] {
+// Next advances the schedule to the next [Entry] and returns it.
+func (t *Scheduler[E]) Next() Entry[E] {
 	// Pop next entry.
 	entry := t.schedule[0]
 	t.schedule = t.schedule[1:]
@@ -103,14 +104,14 @@ func (t *SyncScheduler[E]) Next() ScheduleEntry[E] {
 	return entry
 }
 
-func (t *SyncScheduler[E]) initializeSchedule(entries []E, initialDelayFn func() time.Duration) {
+func (t *Scheduler[E]) initializeSchedule(entries []E, initialDelayFn func() time.Duration) {
 	for _, e := range entries {
 		t.reschedule(e, initialDelayFn(), true /* initialSync */)
 	}
 	t.sort()
 }
 
-func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initialSync bool) {
+func (t *Scheduler[E]) reschedule(entry E, initialDelay time.Duration, initialSync bool) {
 	// There are 2 "types" of schedules:
 	//
 	// 1) FULL + PARTIAL (PARTIAL < FULL)
@@ -132,7 +133,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 	case hasFull && hasPartial && info.SyncPeriodPartial < info.SyncPeriodFull: // type "1"
 		// Schedule initial FULL sync.
 		if initialSync {
-			t.schedule = append(t.schedule, ScheduleEntry[E]{
+			t.schedule = append(t.schedule, Entry[E]{
 				Entry:           entry,
 				Mode:            SyncModeFull,
 				avoidReschedule: true,         // another FULL is in the schedule.
@@ -142,7 +143,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 
 		// Schedule delayed FULL sync.
 		fullOffset := initialDelay + info.SyncPeriodFull
-		t.schedule = append(t.schedule, ScheduleEntry[E]{
+		t.schedule = append(t.schedule, Entry[E]{
 			Entry:  entry,
 			Mode:   SyncModeFull,
 			offset: fullOffset,
@@ -151,7 +152,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 		// Schedule PARTIAL syncs in-between.
 		partialOffset := initialDelay + info.SyncPeriodPartial
 		for partialOffset < fullOffset {
-			t.schedule = append(t.schedule, ScheduleEntry[E]{
+			t.schedule = append(t.schedule, Entry[E]{
 				Entry:           entry,
 				Mode:            SyncModePartial,
 				avoidReschedule: true, // reschedule only on FULL.
@@ -178,7 +179,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 			offset += initialDelay
 		}
 
-		t.schedule = append(t.schedule, ScheduleEntry[E]{
+		t.schedule = append(t.schedule, Entry[E]{
 			Entry:  entry,
 			Mode:   mode,
 			offset: offset,
@@ -186,8 +187,8 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 	}
 }
 
-func (t *SyncScheduler[E]) sort() {
-	slices.SortFunc(t.schedule, func(a, b ScheduleEntry[E]) int {
+func (t *Scheduler[E]) sort() {
+	slices.SortFunc(t.schedule, func(a, b Entry[E]) int {
 		return cmp.Compare(a.offset, b.offset)
 	})
 }

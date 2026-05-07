@@ -22,7 +22,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf"
-	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -74,7 +74,7 @@ type S struct {
 	config    *servicecfg.JamfConfig
 	devices   devicepb.DeviceTrustServiceClient
 	jamf      *jamf.Client
-	scheduler *mdm.SyncScheduler[*scheduleEntry]
+	scheduler *mdmsync.Scheduler[*scheduleEntry]
 	// pluginStatusSink is only used when Jamf service is run as a hosted plugin in cloud.
 	pluginStatusSink common.StatusSink
 }
@@ -130,7 +130,7 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	// Create scheduler (and early detect empty schedules).
 	logger := opts.Logger
 	scheduler, err := newJamfScheduler(cfg.Spec)
-	if errors.Is(err, mdm.ErrScheduleEmpty) {
+	if errors.Is(err, mdmsync.ErrScheduleEmpty) {
 		logger.ErrorContext(ctx, "Jamf service has an empty sync schedule, aborting")
 		return nil, trace.Wrap(err)
 	} else if err != nil {
@@ -175,16 +175,16 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 type scheduleEntry struct {
 	*types.JamfInventoryEntry
 
-	onMissing mdm.DeviceAction
+	onMissing DeviceAction
 	cutTime   time.Time
 }
 
-func newJamfScheduler(spec *types.JamfSpecV1) (*mdm.SyncScheduler[*scheduleEntry], error) {
+func newJamfScheduler(spec *types.JamfSpecV1) (*mdmsync.Scheduler[*scheduleEntry], error) {
 	parsedInv := make([]*scheduleEntry, len(spec.Inventory))
 	for i, e := range spec.Inventory {
-		onMissing := mdm.DeviceActionNoop
+		onMissing := DeviceActionNoop
 		if e.OnMissing == types.JamfOnMissingDelete {
-			onMissing = mdm.DeviceActionDelete
+			onMissing = DeviceActionDelete
 		}
 		parsedInv[i] = &scheduleEntry{
 			JamfInventoryEntry: e,
@@ -202,12 +202,12 @@ func newJamfScheduler(spec *types.JamfSpecV1) (*mdm.SyncScheduler[*scheduleEntry
 		delayFn = func() time.Duration { return rand.N(2 * time.Minute) }
 	}
 
-	return mdm.NewSyncScheduler(
-		parsedInv, delayFn, func(e *scheduleEntry) mdm.ScheduleEntryInfo {
+	return mdmsync.New(
+		parsedInv, delayFn, func(e *scheduleEntry) mdmsync.EntryInfo {
 			if e == nil || e.JamfInventoryEntry == nil {
-				return mdm.ScheduleEntryInfo{}
+				return mdmsync.EntryInfo{}
 			}
-			return mdm.ScheduleEntryInfo{
+			return mdmsync.EntryInfo{
 				SyncPeriodPartial: time.Duration(e.SyncPeriodPartial),
 				SyncPeriodFull:    time.Duration(e.SyncPeriodFull),
 			}
@@ -297,8 +297,8 @@ func (s *S) Run(ctx context.Context) error {
 
 // RunSpec holds the parameters for an [S.RunOnce] invocation.
 type RunSpec struct {
-	Mode       mdm.SyncMode
-	OnMissing  mdm.DeviceAction
+	Mode       mdmsync.SyncMode
+	OnMissing  DeviceAction
 	FilterRSQL string
 	// CutTime is the cut time for partial syncs. The sync stops as soon as the
 	// first computer modified before `CutTime` is found.
@@ -345,7 +345,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 					Name:   sourceName,
 					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
 				},
-				TrackMissingDevices: spec.Mode == mdm.SyncModeFull && spec.OnMissing == mdm.DeviceActionDelete,
+				TrackMissingDevices: spec.Mode == mdmsync.SyncModeFull && spec.OnMissing == DeviceActionDelete,
 			},
 		},
 	}); err != nil {
@@ -384,7 +384,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 
 		// Sort by recent use on PARTIAL syncs.
 		// Alternatively we could use an RSQL filter.
-		if spec.Mode == mdm.SyncModePartial {
+		if spec.Mode == mdmsync.SyncModePartial {
 			req.Sort = []string{sortByReportDateDesc}
 		}
 
@@ -533,7 +533,7 @@ func (s *S) getDevicesPage(
 	devs := make([]*devicepb.Device, 0, len(jamfDevs))
 	for _, inv := range jamfDevs {
 		// Stop partial sync?
-		if spec.Mode == mdm.SyncModePartial &&
+		if spec.Mode == mdmsync.SyncModePartial &&
 			inv.General != nil &&
 			inv.General.ReportDate.Before(spec.CutTime) {
 			//nolint:sloglint // Keys mimic JSON object.

@@ -1,4 +1,4 @@
-package mdm
+package service
 
 // DeviceAction is an action taken against devices during an inventory sync.
 // Typically used to determine what to do with "missing" devices.

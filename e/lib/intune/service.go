@@ -26,7 +26,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/intune/api"
-	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/msgraph"
@@ -121,8 +121,8 @@ func NewService(ctx context.Context, config Config) (*Service, error) {
 	if config.syncImmediately {
 		delayFn = func() time.Duration { return 0 }
 	}
-	scheduler, err := mdm.NewSyncScheduler(schedulerEntries, delayFn, func(e *scheduleEntry) mdm.ScheduleEntryInfo {
-		return mdm.ScheduleEntryInfo{SyncPeriodPartial: e.SyncPeriodPartial, SyncPeriodFull: e.SyncPeriodFull}
+	scheduler, err := mdmsync.New(schedulerEntries, delayFn, func(e *scheduleEntry) mdmsync.EntryInfo {
+		return mdmsync.EntryInfo{SyncPeriodPartial: e.SyncPeriodPartial, SyncPeriodFull: e.SyncPeriodFull}
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -182,7 +182,7 @@ type scheduleEntry struct {
 type Service struct {
 	cfg       Config
 	msgraph   *msgraph.Client
-	scheduler *mdm.SyncScheduler[*scheduleEntry]
+	scheduler *mdmsync.Scheduler[*scheduleEntry]
 }
 
 // Run starts the Intune service, blocking until the context is closed.
@@ -223,7 +223,7 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 type runSpec struct {
-	mode                   mdm.SyncMode
+	mode                   mdmsync.SyncMode
 	deviceLastSyncDateTime time.Time
 }
 
@@ -256,7 +256,7 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 					Name:   "intune",
 					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE,
 				},
-				TrackMissingDevices: spec.mode == mdm.SyncModeFull,
+				TrackMissingDevices: spec.mode == mdmsync.SyncModeFull,
 			},
 		},
 	}); err != nil {
@@ -281,7 +281,7 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 	go func() {
 		defer close(devicesC)
 		var iterateOpts []msgraph.IterateOpt
-		if spec.mode == mdm.SyncModePartial {
+		if spec.mode == mdmsync.SyncModePartial {
 			iterateOpts = append(iterateOpts, msgraph.WithLastSyncDateTimeGt(spec.deviceLastSyncDateTime))
 		}
 

@@ -1,4 +1,4 @@
-package mdm_test
+package mdmsync_test
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 )
 
 func TestSyncScheduler_completeSchedule(t *testing.T) {
@@ -41,7 +41,7 @@ func TestSyncScheduler_completeSchedule(t *testing.T) {
 	partialOnly := entries[2]
 	// "none" is never scheduled
 
-	scheduler, err := mdm.NewSyncScheduler(entries, incDelay(), jamfInfo)
+	scheduler, err := mdmsync.New(entries, incDelay(), jamfInfo)
 	if err != nil {
 		t.Fatalf("NewSyncScheduler failed: %v", err)
 	}
@@ -51,84 +51,84 @@ func TestSyncScheduler_completeSchedule(t *testing.T) {
 		{
 			offset: 0,
 			entry:  fullPartial,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=1, initial sync
 		{
 			offset: 1,
 			entry:  fullOnly,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=2, initial sync
 		{
 			offset: 1,
 			entry:  partialOnly,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=5h
 		{
 			offset: 5 * time.Hour,
 			entry:  partialOnly,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=6h
 		{
 			offset: 1 * time.Hour,
 			entry:  fullPartial,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=8h
 		{
 			offset: 2 * time.Hour,
 			entry:  fullOnly,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=10h
 		{
 			offset: 2 * time.Hour,
 			entry:  partialOnly,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=12h
 		{
 			offset: 2 * time.Hour,
 			entry:  fullPartial,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=15h
 		{
 			offset: 3 * time.Hour,
 			entry:  partialOnly,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=16h
 		{
 			offset: 1 * time.Hour,
 			entry:  fullOnly,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=18h
 		{
 			offset: 2 * time.Hour,
 			entry:  fullPartial,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=20h
 		{
 			offset: 2 * time.Hour,
 			entry:  partialOnly,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=24h
 		{
 			offset: 4 * time.Hour,
 			entry:  fullPartial,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		{
 			offset: 1,
 			entry:  fullOnly,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// and so on...
 	})
@@ -142,7 +142,7 @@ func TestSyncScheduler_partialNotDivisor(t *testing.T) {
 		SyncPeriodFull:    types.DurationStringForJamfSpecV1(12 * time.Hour),
 	}
 
-	scheduler, err := mdm.NewSyncScheduler(
+	scheduler, err := mdmsync.New(
 		[]*types.JamfInventoryEntry{entry}, zeroDelay, jamfInfo)
 	if err != nil {
 		t.Fatalf("NewSyncScheduler failed: %v", err)
@@ -151,49 +151,49 @@ func TestSyncScheduler_partialNotDivisor(t *testing.T) {
 	assertSchedule(t, scheduler, []wantSchedule{
 		{
 			entry: entry,
-			mode:  mdm.SyncModeFull,
+			mode:  mdmsync.SyncModeFull,
 		},
 		// t=5h
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=10h
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=12h
 		{
 			offset: 2 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=17
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=22h
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// t=24
 		{
 			offset: 2 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModeFull,
+			mode:   mdmsync.SyncModeFull,
 		},
 		// t=29
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   mdm.SyncModePartial,
+			mode:   mdmsync.SyncModePartial,
 		},
 		// and so on...
 	})
@@ -216,9 +216,9 @@ func TestSyncScheduler_scheduleCantBeExhausted(t *testing.T) {
 		},
 	}
 
-	scheduler, err := mdm.NewSyncScheduler(entries, incDelay(), jamfInfo)
+	scheduler, err := mdmsync.New(entries, incDelay(), jamfInfo)
 	if err != nil {
-		t.Fatalf("NewSyncScheduler failed: %v", err)
+		t.Fatalf("New failed: %v", err)
 	}
 
 	// Skip initial entries, so we get to the "loop".
@@ -230,20 +230,20 @@ func TestSyncScheduler_scheduleCantBeExhausted(t *testing.T) {
 		// t=1
 		{
 			entry: entries[0],
-			mode:  mdm.SyncModePartial,
+			mode:  mdmsync.SyncModePartial,
 		},
 		// t=2
 		{
 			entry: entries[0],
-			mode:  mdm.SyncModeFull,
+			mode:  mdmsync.SyncModeFull,
 		},
 		{
 			entry: entries[1],
-			mode:  mdm.SyncModePartial,
+			mode:  mdmsync.SyncModePartial,
 		},
 		{
 			entry: entries[2],
-			mode:  mdm.SyncModeFull,
+			mode:  mdmsync.SyncModeFull,
 		},
 		// and then loops perfectly.
 	}
@@ -271,7 +271,7 @@ func TestNewSyncScheduler_errors(t *testing.T) {
 	}{
 		{
 			name:    "empty entries",
-			wantErr: mdm.ErrScheduleNoEntries,
+			wantErr: mdmsync.ErrScheduleNoEntries,
 		},
 		{
 			name: "empty schedule",
@@ -285,14 +285,14 @@ func TestNewSyncScheduler_errors(t *testing.T) {
 					SyncPeriodFull:    -1,
 				},
 			},
-			wantErr: mdm.ErrScheduleEmpty,
+			wantErr: mdmsync.ErrScheduleEmpty,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := mdm.NewSyncScheduler(test.entries, zeroDelay, jamfInfo)
+			_, err := mdmsync.New(test.entries, zeroDelay, jamfInfo)
 			if !errors.Is(err, test.wantErr) {
-				t.Errorf("NewSyncScheduler returned err=%v, want %q", err, test.wantErr)
+				t.Errorf("New returned err=%v, want %q", err, test.wantErr)
 			}
 		})
 	}
@@ -312,8 +312,8 @@ func zeroDelay() time.Duration {
 	return 0
 }
 
-func jamfInfo(e *types.JamfInventoryEntry) mdm.ScheduleEntryInfo {
-	return mdm.ScheduleEntryInfo{
+func jamfInfo(e *types.JamfInventoryEntry) mdmsync.EntryInfo {
+	return mdmsync.EntryInfo{
 		SyncPeriodPartial: time.Duration(e.SyncPeriodPartial),
 		SyncPeriodFull:    time.Duration(e.SyncPeriodFull),
 	}
@@ -323,10 +323,10 @@ type wantSchedule struct {
 	// offset is the offset of this entry in relation to the preceding entry.
 	offset time.Duration
 	entry  *types.JamfInventoryEntry
-	mode   mdm.SyncMode
+	mode   mdmsync.SyncMode
 }
 
-func assertSchedule(t *testing.T, scheduler *mdm.SyncScheduler[*types.JamfInventoryEntry], wantEntries []wantSchedule) {
+func assertSchedule(t *testing.T, scheduler *mdmsync.Scheduler[*types.JamfInventoryEntry], wantEntries []wantSchedule) {
 	var elapsed time.Duration
 	for i, want := range wantEntries {
 		// Ignore nanos if the offset doesn't include any.
@@ -346,7 +346,7 @@ func assertSchedule(t *testing.T, scheduler *mdm.SyncScheduler[*types.JamfInvent
 		// Assert Next() schedule entry.
 		t.Run(fmt.Sprintf("t=%v", elapsed), func(t *testing.T) {
 			gotEntry := scheduler.Next()
-			wantEntry := mdm.ScheduleEntry[*types.JamfInventoryEntry]{
+			wantEntry := mdmsync.Entry[*types.JamfInventoryEntry]{
 				Entry: want.entry,
 				Mode:  want.mode,
 			}

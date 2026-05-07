@@ -23,7 +23,7 @@ import (
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
-	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -100,8 +100,8 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 	// Run a quick sync to "warm up".
 	api.SetInventory(inv[:1])
 	if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
-		Mode:      mdm.SyncModeFull,
-		OnMissing: mdm.DeviceActionDelete,
+		Mode:      mdmsync.SyncModeFull,
+		OnMissing: jamfservice.DeviceActionDelete,
 	}); err != nil {
 		b.Fatalf("Warmup RunOnce failed: %v", err)
 	}
@@ -110,8 +110,8 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 	b.StartTimer()
 	api.SetInventory(inv)
 	_, err := s.RunOnce(ctx, jamfservice.RunSpec{
-		Mode:      mdm.SyncModeFull,
-		OnMissing: mdm.DeviceActionDelete,
+		Mode:      mdmsync.SyncModeFull,
+		OnMissing: jamfservice.DeviceActionDelete,
 	})
 	if err != nil {
 		b.Fatalf("RunOnce failed: %v", err)
@@ -807,7 +807,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	// Sync with a too-high cut time to begin with.
 	t.Run("t=now", func(t *testing.T) {
 		gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
-			Mode:    mdm.SyncModePartial,
+			Mode:    mdmsync.SyncModePartial,
 			CutTime: now,
 		})
 		if err != nil {
@@ -828,7 +828,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 
 		t.Run(fmt.Sprintf("t=%v", cutTime), func(t *testing.T) {
 			gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
-				Mode:    mdm.SyncModePartial,
+				Mode:    mdmsync.SyncModePartial,
 				CutTime: cutTime,
 			})
 			if err != nil {
@@ -900,8 +900,8 @@ func TestS_RunOnce_pagingGaps(t *testing.T) {
 
 	// Sync full inventory to Teleport.
 	if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
-		Mode:      mdm.SyncModeFull,
-		OnMissing: mdm.DeviceActionDelete,
+		Mode:      mdmsync.SyncModeFull,
+		OnMissing: jamfservice.DeviceActionDelete,
 	}); err != nil {
 		t.Fatalf("RunOnce failed: %v", err)
 	}
@@ -913,8 +913,8 @@ func TestS_RunOnce_pagingGaps(t *testing.T) {
 	// We expect no deletions to happen in Teleport.
 	api.SetSimulatePagingGaps(true)
 	if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
-		Mode:      mdm.SyncModeFull,
-		OnMissing: mdm.DeviceActionDelete,
+		Mode:      mdmsync.SyncModeFull,
+		OnMissing: jamfservice.DeviceActionDelete,
 	}); err != nil {
 		t.Fatalf("RunOnce failed: %v", err)
 	}
