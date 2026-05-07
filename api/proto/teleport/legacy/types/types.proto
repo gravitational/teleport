@@ -3226,7 +3226,7 @@ message AccessReview {
 
   // SubmittedBy is the Teleport plugin identity that submitted this review request
   // to the Auth Service on behalf of the Author.
-  // Author remains the actual Teleport human/bot user that performed the review.
+  // Author remains the actual Teleport user that performed the review.
   string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
 }
 
