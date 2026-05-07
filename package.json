@@ -22,6 +22,7 @@
     "lint": "pnpm oxlint && pnpm format-check",
     "lint-fix": "pnpm oxlint --fix && pnpm format",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
+    "type-check-native": "tsgo --build",
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
     "format-check": "pnpm format --check",
     "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}'",
@@ -47,6 +48,7 @@
     "@types/react-router-dom": "^5.1.1",
     "@types/react-transition-group": "^4.4.12",
     "@types/wicg-file-system-access": "^2023.10.6",
+    "@typescript/native-preview": "7.0.0-dev.20260503.1",
     "cspell": "^9.0.1",
     "eslint": "^9.39.2",
     "eslint-plugin-jest-dom": "^5.5.0",
@@ -64,7 +66,7 @@
     "react-select-event": "^5.5.1",
     "storybook": "^10.2.14",
     "svgo": "^4.0.1",
-    "typescript": "^5.8.3",
+    "typescript": "^6.0.3",
     "vite": "^8.0.8"
   },
   "dependencies": {
