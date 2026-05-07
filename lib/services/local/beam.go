@@ -104,7 +104,13 @@ func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken str
 }
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
-func (s *BeamService) IterateBeams(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
+func (s *BeamService) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+	return s.IterateBeamsV2(ctx, pageToken, nil)
+}
+
+// IterateBeamsV2 returns a sequence of beams starting from the given pageToken
+// with sorting and filtering.
+func (s *BeamService) IterateBeamsV2(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
 	if err := validateListOptions(options); err != nil {
 		return func(yield func(*beamsv1.Beam, error) bool) {
 			yield(nil, trace.Wrap(err))

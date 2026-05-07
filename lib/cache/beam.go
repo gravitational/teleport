@@ -155,7 +155,13 @@ func (c *Cache) ListBeams(ctx context.Context, pageSize int, pageToken string, o
 }
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
-func (c *Cache) IterateBeams(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
+func (c *Cache) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+	return c.IterateBeamsV2(ctx, pageToken, nil)
+}
+
+// IterateBeamsV2 returns a sequence of beams starting from the given pageToken
+// with sorting and filtering.
+func (c *Cache) IterateBeamsV2(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
 	index, keyFn := beamIndexForSortField(options.GetSortField())
 	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
 
