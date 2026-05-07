@@ -4,7 +4,7 @@
 
 ### Performance improvements in the SSH service
 
-Thanks to internal improvements ([#66220](https://github.com/gravitational/teleport/pull/66220)), users of the Teleport SSH service on Linux will enjoy reduced memory usage and improved latency when opening shells and running commands.
+Thanks to internal improvements ([#66220](https://github.com/gravitational/teleport/pull/66220)), the Teleport SSH service memory usage and latency when opening shells/running commands is significantly lower than previous versions.
 
 The reduction in the latency compared to the previous version of Teleport, as measured on a `m7i.xlarge` EC2 instance, amounts to roughly 100 ms when opening shells or launching commands and about 150 ms when using SFTP, with an additional 40 ms improvement when establishing the very first port forward for a given SSH connection.
 
