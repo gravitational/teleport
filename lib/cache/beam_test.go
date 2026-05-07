@@ -18,7 +18,6 @@ package cache
 
 import (
 	"context"
-	"encoding/base32"
 	"testing"
 	"time"
 
@@ -138,7 +137,7 @@ func TestBeamCache_ListPaging(t *testing.T) {
 
 	results, nextPageToken, err = p.cache.ListBeamsV2(ctx, 3, "", nil)
 	require.NoError(t, err)
-	require.Equal(t, base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte("beam-4")), nextPageToken)
+	require.Equal(t, "beam-4", nextPageToken)
 	require.Len(t, results, 3)
 	require.Equal(t, "beam-1", results[0].GetMetadata().GetName())
 	require.Equal(t, "beam-2", results[1].GetMetadata().GetName())

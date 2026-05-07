@@ -123,15 +123,17 @@ func (c *Cache) ListBeamsV2(ctx context.Context, pageSize int, pageToken string,
 		pageSize = defaults.DefaultChunkSize
 	}
 
-	index, keyFn := beamIndexForSortField(options.GetSortField())
+	index, keyFn, encodeFn, decodeFn := beamIndexForSortField(options.GetSortField())
 	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
 
-	// Decode the PageToken from base32hex
-	decodedPageToken, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(pageToken)
-	if err != nil {
-		return nil, "", trace.BadParameter("invalid page token: %v", err)
+	// Decode the PageToken
+	if decodeFn != nil {
+		var err error
+		pageToken, err = decodeFn(pageToken)
+		if err != nil {
+			return nil, "", trace.BadParameter("invalid page token: %v", err)
+		}
 	}
-	pageToken = string(decodedPageToken)
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
 		cache:      c,
@@ -141,10 +143,8 @@ func (c *Cache) ListBeamsV2(ctx context.Context, pageSize int, pageToken string,
 		upstreamList: func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
 			return c.Config.Beams.ListBeamsV2(ctx, limit, startKey, options)
 		},
-		filter: services.MakeBeamFilterFunc(options),
-		nextToken: func(t *beamsv1.Beam) string {
-			return keyFn(t)
-		},
+		filter:    services.MakeBeamFilterFunc(options),
+		nextToken: keyFn,
 	}
 
 	out, next, err := lister.list(ctx, pageSize, pageToken)
@@ -152,10 +152,12 @@ func (c *Cache) ListBeamsV2(ctx context.Context, pageSize int, pageToken string,
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Encode the next page token to base32hex
-	nextToken := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(next))
+	// Encode the next page token
+	if encodeFn != nil {
+		next = encodeFn(next)
+	}
 
-	return out, nextToken, nil
+	return out, next, nil
 }
 
 // IterateBeams returns a sequence of beams starting from the given pageToken.
@@ -166,7 +168,7 @@ func (c *Cache) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*b
 // IterateBeamsV2 returns a sequence of beams starting from the given pageToken
 // with sorting and filtering.
 func (c *Cache) IterateBeamsV2(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
-	index, keyFn := beamIndexForSortField(options.GetSortField())
+	index, keyFn, _, _ := beamIndexForSortField(options.GetSortField())
 	isDesc := options.GetSortOrder() == beamsv1.BeamSortOrder_BEAM_SORT_ORDER_DESCENDING
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
@@ -177,14 +179,14 @@ func (c *Cache) IterateBeamsV2(ctx context.Context, pageToken string, options *s
 		upstreamList: func(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error) {
 			return c.Config.Beams.ListBeamsV2(ctx, limit, startKey, options)
 		},
-		filter: services.MakeBeamFilterFunc(options),
-		nextToken: func(t *beamsv1.Beam) string {
-			return keyFn(t)
-		},
+		filter:    services.MakeBeamFilterFunc(options),
+		nextToken: keyFn,
 	}
 	return lister.Range(ctx, pageToken, "")
 }
 
+// keyForBeamNameIndex should return a key which matches the backend's storage
+// keys to allow consistent paging
 func keyForBeamNameIndex(beam *beamsv1.Beam) string {
 	return beam.GetMetadata().GetName()
 }
@@ -208,15 +210,29 @@ func keyForBeamExpiresIndex(r *beamsv1.Beam) bytestring {
 	return string(ordered.Encode(expires.AsTime().UnixMilli(), name))
 }
 
-func beamIndexForSortField(sortField beamsv1.BeamSortField) (beamIndex, func(*beamsv1.Beam) string) {
+func beamIndexForSortField(sortField beamsv1.BeamSortField) (beamIndex, func(*beamsv1.Beam) string, func(raw string) (encoded string), func(encoded string) (string, error)) {
 	switch sortField {
 	case beamsv1.BeamSortField_BEAM_SORT_FIELD_ALIAS:
-		return beamAliasIndex, keyForBeamAliasIndex
+		return beamAliasIndex, keyForBeamAliasIndex, nil, nil // No encoding/decoding required for string key
 	case beamsv1.BeamSortField_BEAM_SORT_FIELD_USER:
-		return beamUserIndex, keyForBeamUserIndex
+		return beamUserIndex, keyForBeamUserIndex, base32Encode, base32Decode
 	case beamsv1.BeamSortField_BEAM_SORT_FIELD_EXPIRES:
-		return beamExpiresIndex, keyForBeamExpiresIndex
+		return beamExpiresIndex, keyForBeamExpiresIndex, base32Encode, base32Decode
 	default:
-		return beamNameIndex, keyForBeamNameIndex
+		return beamNameIndex, keyForBeamNameIndex, nil, nil // No encoding/decoding to match backend keys
 	}
+}
+
+// base32Encode encodes the input in base32hex format.
+func base32Encode(raw string) string {
+	return base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(raw))
+}
+
+// base32Decode secode the input from base32hex format.
+func base32Decode(encoded string) (string, error) {
+	decoded, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(encoded)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(decoded), nil
 }
