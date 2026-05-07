@@ -136,11 +136,16 @@ func TestVNetService(t *testing.T) {
 	user, err := types.NewUser("alice")
 	require.NoError(t, err)
 
-	role, err := types.NewRole("app-access", types.RoleSpecV6{
+	role, err := types.NewRole("vnet-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				"*": {"*"},
 			},
+			DatabaseLabels: types.Labels{
+				"*": {"*"},
+			},
+			DatabaseUsers: []string{types.Wildcard},
+			DatabaseNames: []string{types.Wildcard},
 		},
 	})
 	require.NoError(t, err)
@@ -149,6 +154,25 @@ func TestVNetService(t *testing.T) {
 
 	user.AddRole(role.GetName())
 	user, err = rootClient.CreateUser(t.Context(), user)
+	require.NoError(t, err)
+
+	// Register a db_server so VNet has something to resolve for DB FQDNs.
+	const dbName = "mypostgres"
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   "test-db-host",
+		Hostname: "test-db-host",
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{Name: dbName},
+			Spec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = rootClient.UpsertDatabaseServer(t.Context(), dbServer)
 	require.NoError(t, err)
 
 	// Create a delegation session for the user.
@@ -230,6 +254,14 @@ func TestVNetService(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ips, 1)
 	require.True(t, ips[0].Equal(upstreamResolvedIP))
+
+	// db_server should resolve to a VNet-assigned address from the configured CIDR range.
+	dbFQDN := dbName + ".db.localhost"
+	ips, err = hostNetwork.DNSResolver().LookupIP(t.Context(), "ip4", dbFQDN)
+	require.NoError(t, err)
+	require.Len(t, ips, 1)
+	require.False(t, ips[0].Equal(upstreamResolvedIP),
+		"VNet should resolve %s to a synthetic IP, got upstream IP", dbFQDN)
 
 	cancel()
 	require.NoError(t, <-errCh)
