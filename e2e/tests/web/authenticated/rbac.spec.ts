@@ -114,9 +114,7 @@ test.describe('read-only access', () => {
     await test.step('User can see roles but cant create/delete/update', async () => {
       await rolesPage.goto();
 
-      await expect(
-        page.getByRole('heading', { name: 'Roles' })
-      ).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Roles' })).toBeVisible();
 
       await expect(rolesPage.createNewRoleButton).toBeDisabled();
 
