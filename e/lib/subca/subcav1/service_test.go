@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"math/big"
 	"slices"
 	"testing"
 	"time"
@@ -37,6 +38,7 @@ import (
 	subcapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/e/lib/subca/subcav1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -774,9 +776,12 @@ func TestService_Create(t *testing.T) {
 		got := createResp.CaOverride
 		want := caOverride
 		want.Metadata.Revision = got.GetMetadata().GetRevision()
+		want.Status = got.Status
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Fatalf("Create mismatch (-want +got)\n%s", diff)
 		}
+
+		assertCRLs(t, got, env.Clock.Now())
 
 		// Assert audit.
 		emitter := env.MockEmitter
@@ -799,6 +804,47 @@ func TestService_Create(t *testing.T) {
 			t.Errorf("Get mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+func assertCRLs(
+	t *testing.T,
+	caOverride *subcapb.CertAuthorityOverride,
+	now time.Time,
+) {
+	t.Helper()
+
+	// Simpler to work with the parsed variant.
+	parsed, err := subca.ParseCAOverride(caOverride)
+	require.NoError(t, err, "ParseCAOverride errored")
+
+	// All overrides with a certificate have valid CRLs.
+	for i, co := range parsed.CertificateOverrides {
+		if co.Certificate == nil {
+			continue
+		}
+
+		// Fetch and parse CRL.
+		crlPB, ok := parsed.CAOverride.GetStatus().GetPublicKeyHashToCrl()[co.PublicKey]
+		require.True(t, ok, "CRL not on Status (i=%d)", i)
+		block, _ := pem.Decode([]byte(crlPB.Pem))
+		require.NotNil(t, block, "Failed to decode CRL PEM")
+		crl, err := x509.ParseRevocationList(block.Bytes)
+		require.NoError(t, err, "Parse CRL")
+
+		// Assert CRL.
+		assert.True(t, crl.ThisUpdate.Before(now), "CRL ThisUpdate >= now")
+		assert.False(t, crl.NextUpdate.Before(co.Certificate.NotAfter), "CRL NextUpdate < Certificate NotAfter")
+		assert.Equal(t,
+			co.Certificate.Subject.String(),
+			crl.Issuer.String(),
+			"CRL issuer mismatch (i=%d)", i,
+		)
+		// Verify signature.
+		assert.NoError(t,
+			crl.CheckSignatureFrom(co.Certificate),
+			"CRL signature verification failed (i=%d)", i,
+		)
+	}
 }
 
 func TestService_Create_fromCSR(t *testing.T) {
@@ -1116,9 +1162,12 @@ func TestService_Upsert(t *testing.T) {
 		// Verify response.
 		want := caOverride
 		want.Metadata.Revision = created.GetMetadata().GetRevision()
+		want.Status = created.Status
 		if diff := cmp.Diff(want, created, protocmp.Transform()); diff != "" {
 			t.Fatalf("Upsert mismatch (-want +got)\n%s", diff)
 		}
+
+		assertCRLs(t, created, env.Clock.Now())
 
 		assertStored(t, want)
 
@@ -1154,6 +1203,295 @@ func TestService_Upsert(t *testing.T) {
 			assertUpsertAudit(t, emitter.Events())
 		})
 	})
+}
+
+func TestService_Upsert_reusesStatusCRLs(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	subCA := env.SubCAClient
+
+	mustUpsert := func(t *testing.T, caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+		t.Helper()
+
+		resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+			CaOverride: caOverride,
+		})
+		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
+		return resp.CaOverride
+	}
+
+	mustDelete := func(t *testing.T) {
+		t.Helper()
+
+		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), &subcapb.DeleteCertAuthorityOverrideRequest{
+			CaId: &subcapb.CertAuthorityOverrideID{
+				CaType: string(caType),
+			},
+		})
+		require.NoError(t, err, "DeleteCertAuthorityOverride errored")
+	}
+
+	// Create the initial CA override. We'll save it and re-create later.
+	template1 := env.NewOverrideForCAType(t, caType)
+	ca1 := mustUpsert(t, template1)
+
+	// Update using a different certificate. CRLs should differ.
+	template2 := env.NewOverrideForCAType(t, caType)
+	template2.Status = ca1.Status // ineffective, certificate changed.
+	ca2 := mustUpsert(t, template2)
+	require.NotEqual(t,
+		makeCRLMap(ca1.Status),
+		makeCRLMap(ca2.Status),
+		"CRL map not expected to match",
+	)
+
+	// Re-create initial version, without Status. CRLs should differ.
+	mustDelete(t)
+	ca3 := mustUpsert(t, template1)
+	require.NotEqual(t,
+		makeCRLMap(ca1.Status),
+		makeCRLMap(ca3.Status),
+		"CRL map not expected to match",
+	)
+
+	// Update to the initial version, including Status. CRLs should match.
+	ca4 := mustUpsert(t, ca1)
+	want := makeCRLMap(ca1.Status)
+	got := makeCRLMap(ca4.Status)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("CRL map mismatch (-want +got)\n%s", diff)
+	}
+}
+
+func TestService_Upsert_inputCRLInvalid(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		},
+	})
+	clock := env.Clock
+	subCA := env.SubCAClient
+
+	const unusedKey = "unused"
+	template := env.NewOverrideForCAType(t, caType)
+	template.Status = &subcapb.CertAuthorityOverrideStatus{
+		PublicKeyHashToCrl: map[string]*subcapb.CertificateRevocationList{
+			unusedKey: nil,
+		},
+	}
+	resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+		CaOverride: template,
+	})
+	require.NoError(t, err, "UpsertCertAuthorityOverride errored")
+
+	// Assert that unusedKey is deleted.
+	caOverride := resp.CaOverride
+	_, ok := caOverride.Status.PublicKeyHashToCrl[unusedKey]
+	assert.False(t, ok, "ca1.Status has unexpected key %q", unusedKey)
+
+	// Find the key for the server-created CRL.
+	var crlKey string
+	for k := range caOverride.Status.PublicKeyHashToCrl {
+		crlKey = k
+		break
+	}
+	require.NotEmpty(t, crlKey, "CRL map is unexpectedly empty")
+
+	createExternalCRL := func(t *testing.T, params *subcaenv.CAParams) (rootCA *subcaenv.CA, crlDER []byte) {
+		t.Helper()
+
+		rootCA, err := subcaenv.NewSelfSignedCA(params)
+		require.NoError(t, err, "NewSelfSignedCA errored")
+
+		now := env.Clock.Now()
+		crlDER, err = x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			Number:     big.NewInt(1),
+			ThisUpdate: now.Add(-1 * time.Minute),
+			NextUpdate: now.Add(1 * time.Hour),
+		}, rootCA.Cert, rootCA.Key)
+		require.NoError(t, err, "CreateRevocationList errored")
+
+		return rootCA, pem.EncodeToMemory(&pem.Block{
+			Type:  "X509 CRL",
+			Bytes: crlDER,
+		})
+	}
+
+	// Prepare an unrelated CRL.
+	_, unrelatedCRLPEM := createExternalCRL(t, &subcaenv.CAParams{
+		Clock: env.Clock,
+	})
+
+	// Prepare a similar, but still unrelated, CRL.
+	parsed, err := subca.ParseCAOverride(caOverride)
+	require.NoError(t, err, "ParseCAOverride errored")
+	// Sanity check.
+	require.Equal(t,
+		crlKey,
+		parsed.CertificateOverrides[0].PublicKey,
+		"crlKey and parsed override publicKey mismatch",
+	)
+	_, similarCRLPEM := createExternalCRL(t, &subcaenv.CAParams{
+		Clock: env.Clock,
+		Template: &x509.Certificate{
+			// CRL Issuer matches the override certificate.
+			Subject: parsed.CertificateOverrides[0].Certificate.Subject,
+		},
+	})
+
+	createCRLUsingCA := func(t *testing.T, modifyCRL func(crl *x509.RevocationList)) (crlPEM []byte) {
+		t.Helper()
+
+		// Fetch the private key from the Teleport CA.
+		const loadKeys = true
+		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       caType,
+			DomainName: env.ClusterName,
+		}, loadKeys)
+		require.NoError(t, err)
+		caKey, err := keys.ParsePrivateKey(ca.GetActiveKeys().TLS[0].Key)
+		require.NoError(t, err)
+
+		// Fetch the certificate from the override.
+		overrideCert, err := tlsutils.ParseCertificatePEM([]byte(caOverride.Spec.CertificateOverrides[0].Certificate))
+		require.NoError(t, err)
+
+		// Start from a valid CRL, then let the caller modify it.
+		now := env.Clock.Now()
+		crl := &x509.RevocationList{
+			Number:     big.NewInt(1),
+			ThisUpdate: now.Add(-1 * time.Minute),
+			NextUpdate: now.Add(1 * time.Hour),
+		}
+		modifyCRL(crl)
+
+		crlDER, err := x509.CreateRevocationList(rand.Reader, crl, overrideCert, caKey)
+		require.NoError(t, err, "CreateRevocationList errored")
+
+		return pem.EncodeToMemory(&pem.Block{
+			Type:  "X509 CRL",
+			Bytes: crlDER,
+		})
+	}
+
+	// Prepare a few valid CRLs with invalid timestamps.
+	invalidThisUpdatePEM := createCRLUsingCA(t, func(crl *x509.RevocationList) {
+		crl.ThisUpdate = clock.Now().Add(10 * time.Minute) // should be < now-2m
+	})
+	invalidNextUpdatePEM := createCRLUsingCA(t, func(crl *x509.RevocationList) {
+		crl.NextUpdate = clock.Now() // should be >= overrideCert.NotAfter
+	})
+
+	// Upsert a variety of invalid CRLs using a known CRL key, so it gets parsed.
+	// None should cause failures.
+	tests := []struct {
+		name         string
+		modifyStatus func(status *subcapb.CertAuthorityOverrideStatus)
+	}{
+		{
+			name: "CRLPB nil",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = nil
+			},
+		},
+		{
+			name: "CRLPB empty",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{}
+			},
+		},
+		{
+			name: "CRLPB PEM invalid",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+					Pem: "not a PEM",
+				}
+			},
+		},
+		{
+			name: "CRLPB CRL invalid",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				val := pem.EncodeToMemory(&pem.Block{
+					Type:  "X509 CRL",
+					Bytes: []byte("not a CRL"),
+				})
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+					Pem: string(val),
+				}
+			},
+		},
+		{
+			name: "CRLPB CRL Issuer-Subject mismatch",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+					Pem: string(unrelatedCRLPEM),
+				}
+			},
+		},
+		{
+			name: "CRLPB CRL signature mismatch",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+					Pem: string(similarCRLPEM),
+				}
+			},
+		},
+		{
+			name: "CRLPB CRL ThisUpdate invalid",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+					Pem: string(invalidThisUpdatePEM),
+				}
+			},
+		},
+		{
+			name: "CRLPB CRL NextUpdate invalid",
+			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
+				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+					Pem: string(invalidNextUpdatePEM),
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			caOverride := proto.Clone(caOverride).(*subcapb.CertAuthorityOverride)
+			test.modifyStatus(caOverride.Status)
+
+			// Upsert. It should not fail.
+			resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+				CaOverride: caOverride,
+			})
+			require.NoError(t, err, "UpsertCertAuthorityOverride errored")
+
+			// Assert that the CRLs changed.
+			assert.NotEqual(t,
+				makeCRLMap(caOverride.Status),
+				makeCRLMap(resp.CaOverride.Status),
+				"CA override CRLs did not change",
+			)
+
+			// Assert that the new CRLs are valid.
+			assertCRLs(t, resp.CaOverride, env.Clock.Now())
+		})
+	}
+}
+
+func makeCRLMap(s *subcapb.CertAuthorityOverrideStatus) map[string]string {
+	m := make(map[string]string)
+	for k, v := range s.GetPublicKeyHashToCrl() {
+		m[k] = v.GetPem()
+	}
+	return m
 }
 
 // TestService_Write_errors tests error conditions common to multiple CA

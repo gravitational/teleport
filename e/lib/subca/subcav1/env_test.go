@@ -94,6 +94,7 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 
 	// subcav1.Service.
 	service, err := New(ServiceParams{
+		Clock:                   env.Clock,
 		Logger:                  logtest.NewLogger(),
 		CachedClusterNameGetter: ccs,
 		CachedSubCA:             env.SubCA,

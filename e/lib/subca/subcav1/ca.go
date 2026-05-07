@@ -28,22 +28,24 @@ import (
 	"github.com/gravitational/teleport/lib/subca"
 )
 
-type parsedCA struct {
+type parsedCertAuthority struct {
 	CA                  types.CertAuthority
 	ActiveKeyHashes     map[string]*x509.Certificate // key is the PublicKeyHash
 	AdditionalKeyHashes map[string]*x509.Certificate // key is the PublicKeyHash
+	IndexedKeyPairs     map[string]*types.TLSKeyPair // key is the PublicKeyHash
 }
 
-func parseCA(ctx context.Context, ca types.CertAuthority) (*parsedCA, error) {
+func parseCA(ctx context.Context, ca types.CertAuthority) (*parsedCertAuthority, error) {
 	// Unexpected. Defensive only.
 	if ca == nil {
 		return nil, trace.BadParameter("nil CA")
 	}
 
-	parsed := &parsedCA{
+	parsed := &parsedCertAuthority{
 		CA:                  ca,
 		ActiveKeyHashes:     make(map[string]*x509.Certificate),
 		AdditionalKeyHashes: make(map[string]*x509.Certificate),
+		IndexedKeyPairs:     make(map[string]*types.TLSKeyPair),
 	}
 
 	activeKeys := ca.GetActiveKeys()
@@ -78,6 +80,7 @@ func parseCA(ctx context.Context, ca types.CertAuthority) (*parsedCA, error) {
 			} else {
 				parsed.AdditionalKeyHashes[pkh] = cert
 			}
+			parsed.IndexedKeyPairs[pkh] = kp
 		}
 	}
 

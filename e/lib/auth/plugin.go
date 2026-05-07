@@ -1013,6 +1013,7 @@ func registerSubCAService(
 
 	authServer := authGRPC.AuthServer
 	subCAService, err := subcav1.New(subcav1.ServiceParams{
+		Clock:                   authServer.GetClock(),
 		Logger:                  logger,
 		CachedClusterNameGetter: authServer.Cache,
 		CachedSubCA:             authServer.Cache,

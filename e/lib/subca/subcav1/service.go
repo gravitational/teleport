@@ -26,8 +26,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -91,6 +94,7 @@ type KeystoreManager interface {
 
 // ServiceParams holds creation parameters for [Service].
 type ServiceParams struct {
+	Clock  clockwork.Clock
 	Logger *slog.Logger
 
 	// CachedClusterNameGetter is a cached ClusterNameGetter.
@@ -120,6 +124,7 @@ type ServiceParams struct {
 type Service struct {
 	subcav1.UnimplementedSubCAServiceServer
 
+	clock  clockwork.Clock
 	logger *slog.Logger
 
 	cachedClusterNameGetter services.ClusterNameGetter
@@ -136,6 +141,8 @@ type Service struct {
 // New creates a new [Service].
 func New(p ServiceParams) (*Service, error) {
 	switch {
+	case p.Clock == nil:
+		return nil, trace.BadParameter("param Clock required")
 	case p.Logger == nil:
 		return nil, trace.BadParameter("param Logger required")
 	case p.CachedClusterNameGetter == nil:
@@ -155,6 +162,7 @@ func New(p ServiceParams) (*Service, error) {
 	}
 
 	return &Service{
+		clock:                   p.Clock,
 		logger:                  p.Logger,
 		cachedClusterNameGetter: p.CachedClusterNameGetter,
 		cachedSubCA:             p.CachedSubCA,
@@ -463,18 +471,64 @@ func (s *Service) writeCAOverride(
 		)
 	}
 
+	// Prepare CA read.
+	// Needed for lateral validation and to issue CRLs.
+	// In some scenarios we don't actually need to read the CA (forced updates
+	// with known CRLs, creates/updates with empty overrides, etc), so the read is
+	// lazy.
+	const loadKeys = true // Necessary for new CRLs.
+	getParsedCA := s.getParsedCAOnce(ctx, types.CertAuthID{
+		Type:       types.CertAuthType(parsed.CAOverride.SubKind),
+		DomainName: cn.GetClusterName(),
+	}, loadKeys)
+
+	// Read existing CA override.
+	// Needed for lateral validation and to consolidate the Status field.
+	var existingCAOverride *subcav1.CertAuthorityOverride
+	if mode != writeCreate {
+		id := local.CertAuthorityOverrideIDFromResource(parsed.CAOverride)
+		var err error
+		existingCAOverride, err = s.subCA.GetCertAuthorityOverride(ctx, id)
+		switch {
+		case mode == writeUpsert && err != nil && trace.IsNotFound(err):
+			// OK, new resource.
+		case err != nil:
+			return nil, trace.Wrap(err, "read existing override")
+		case mode == writeUpdate && parsed.CAOverride.Metadata.Revision != existingCAOverride.Metadata.Revision:
+			// Don't bother continuing, doomed to fail.
+			return nil, trace.Wrap(backend.ErrIncorrectRevision)
+		}
+	}
+
 	// If --force is set we allow overrides to be created as long as they are
 	// internally consistent (ValidateAndParseCAOverride passes), regardless of
 	// the system state.
 	// This allows "tctl create -f" (and similar) to reconstruct a previous
 	// system state.
+	//
+	// The system still needs the CRLs in Status to function, so either the caller
+	// provides the old Status (which we do accept), or we must be able to
+	// re-create the necessary CRLs.
 	if !forceImmediateDisable {
-		if err := s.performWriteLateralValidation(ctx, mode, cn.GetClusterName(), parsed); err != nil {
+		if err := s.performWriteLateralValidation(getParsedCA, parsed, existingCAOverride); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	// TODO(codingllama): Create CRLs.
+	status := &subcav1.CertAuthorityOverrideStatus{
+		PublicKeyHashToCrl: make(map[string]*subcav1.CertificateRevocationList),
+	}
+	// Combine CRLs from existing and new overrides. createOverrideCRLs trims the
+	// list as necessary.
+	// We'll give the new CA override precedence, so it's possible to use a CRL
+	// from a previously stored resource.
+	maps.Copy(status.PublicKeyHashToCrl, existingCAOverride.GetStatus().GetPublicKeyHashToCrl())
+	maps.Copy(status.PublicKeyHashToCrl, parsed.CAOverride.Status.GetPublicKeyHashToCrl())
+	parsed.CAOverride.Status = status
+
+	if err := s.createOverrideCRLs(ctx, getParsedCA, parsed); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var updated *subcav1.CertAuthorityOverride
 	switch mode {
@@ -505,43 +559,23 @@ func (s *Service) writeCAOverride(
 // resource, as well against a possibly-existing CA override, in an attempt to
 // prevent a multitude of invalid, ineffective or dangerous changes.
 func (s *Service) performWriteLateralValidation(
-	ctx context.Context,
-	mode writeMode,
-	clusterName string,
+	getParsedCA getParsedCAFunc,
 	parsedNew *subca.ParsedCertAuthorityOverride,
+	existingCAOverride *subcav1.CertAuthorityOverride,
 ) error {
-	// Read CA.
-	const loadKeys = false
-	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(parsedNew.CAOverride.SubKind),
-		DomainName: clusterName,
-	}, loadKeys)
+	// Read/parse CA.
+	parsedCA, err := getParsedCA()
 	if err != nil {
-		return trace.Wrap(err, "read CA")
-	}
-	parsedCA, err := parseCA(ctx, ca)
-	if err != nil {
-		return trace.Wrap(err, "parse CA")
+		return trace.Wrap(err)
 	}
 
-	// Read existing CA override.
+	// Parse existing CA override.
 	var parsedExisting *subca.ParsedCertAuthorityOverride
-	if mode != writeCreate {
-		id := local.CertAuthorityOverrideIDFromResource(parsedNew.CAOverride)
-		existingOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
-		switch {
-		case mode == writeUpsert && err != nil && trace.IsNotFound(err):
-			// OK, new resource. Let parsedExisting be nil.
-		case err != nil:
-			return trace.Wrap(err, "read existing override")
-		case mode == writeUpdate && parsedNew.CAOverride.Metadata.Revision != existingOverride.Metadata.Revision:
-			// Don't bother continuing, doomed to fail.
-			return trace.Wrap(backend.ErrIncorrectRevision)
-		default:
-			parsedExisting, err = subca.ParseCAOverride(existingOverride)
-			if err != nil {
-				return trace.Wrap(err, "parse existing override")
-			}
+	if existingCAOverride != nil {
+		var err error
+		parsedExisting, err = subca.ParseCAOverride(existingCAOverride)
+		if err != nil {
+			return trace.Wrap(err, "parse existing override")
 		}
 	}
 
@@ -558,6 +592,22 @@ func (s *Service) performWriteLateralValidation(
 	return trace.Wrap(
 		validateCAOverrideAgainstSystemState(parsedCA, correlatedData),
 	)
+}
+
+type getParsedCAFunc func() (*parsedCertAuthority, error)
+
+func (s *Service) getParsedCAOnce(ctx context.Context, id types.CertAuthID, loadKeys bool) getParsedCAFunc {
+	return sync.OnceValues(func() (*parsedCertAuthority, error) {
+		ca, err := s.trust.GetCertAuthority(ctx, id, loadKeys)
+		if err != nil {
+			return nil, trace.Wrap(err, "read CA")
+		}
+		parsed, err := parseCA(ctx, ca)
+		if err != nil {
+			return nil, trace.Wrap(err, "parse CA")
+		}
+		return parsed, nil
+	})
 }
 
 // correlateOverrideData is created by comparing 2 versions of the same CA
@@ -638,7 +688,7 @@ func correlateOverrides(newCA, existingCA *subca.ParsedCertAuthorityOverride) *c
 //  5. Existing certificate overrides cannot be enabled if they target an
 //     unknown CA certificate. This is special case of (4).
 func validateCAOverrideAgainstSystemState(
-	parsedCA *parsedCA,
+	parsedCA *parsedCertAuthority,
 	correlatedData *correlateOverrideData,
 ) error {
 	validateTargetAndBounds := func(co *subca.ParsedCertificateOverride, allowUnknown bool) error {
