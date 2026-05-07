@@ -861,26 +861,30 @@ domain to user's domain. For example, if Windows Desktop Service is configured a
 `user@dev.example.com` for logon to a desktop in the root domain. Similarly, if `example.com` has an outgoing
 trust relationship to an external domain `partner.com`, then `user@partner.com` can access desktops in `example.com`.
 
-### Configure Permissions for Users from Foreign Domains
+### Configure permissions for users from foreign domains
 
 In order for users from foreign domains to login to desktops in the target domain, they must be granted
 "Remote Desktop Access" rights. In addition, they must be added to the "Remote Desktop Users" group.
 
-#### Grant Remote Desktop Access to External Users
+#### Grant remote desktop access to foreign users
 
 1. Open the `Teleport Access Policy` group policy object in the
    group policy editor.
 1. Expand **`Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment`**
 1. Double-click  **Allow logon through remote desktop services**
 1. Under **Security Policy Setting** click **Add User Or Group** then click **Browse**.
-1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain.
+1. Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
+1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
+1. Click **OK** and then **Apply**
 
-#### Add External Users to the 'Remote Desktop Users' AD Group
+#### Add foreign users to the 'Remote Desktop Users' AD group
 
 1. Open **Active Directory Users and Computers** 
 1. Navigate to **`$YOUR_DOMAIN -> Builtin`** and double-click **Remote Desktop Users**
 1. Select the **Members** tab and click **Add**
-1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain.
+1. Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
+1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
+1. Click **OK** and then **Apply**
 
 ### Teleport Configuration for Cross-Domain Login
 
