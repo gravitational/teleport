@@ -186,7 +186,6 @@ export class ClusterLifecycleManager {
         void this.watchProfileChanges();
         return;
       }
-      this.logger.info('Profile watcher already started');
     } catch (error) {
       this.logger.error('Failed to sync root clusters', error);
       throw error;
