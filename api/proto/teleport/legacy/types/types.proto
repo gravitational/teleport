@@ -379,6 +379,9 @@ message DatabaseStatusV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure"
   ];
+  // VNetDNSName is a DNS-safe, deterministic hash of the database name
+  // used by VNet for database FQDN resolution.
+  string VNetDNSName = 6 [(gogoproto.jsontag) = "vnet_dns_name,omitempty"];
 }
 
 // IAMPolicyStatus represents states that describe if an AWS database
@@ -1169,6 +1172,8 @@ message AppSpecV3 {
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
   // LLM contains LLM inference endpoint related configurations.
   LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
+  // TLS contains the app TLS configuration.
+  AppTLS TLS = 17 [(gogoproto.jsontag) = "tls,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
@@ -1236,6 +1241,35 @@ message LLM {
   // Defines a model that will be used if the model requested is not on the list.
   // The fallback model must be in the "models" list.
   string fallback_model = 4;
+}
+
+// AppTLS contains the app TLS configuration.
+message AppTLS {
+  // Mode defines the TLS verification.
+  // Supported values:
+  //   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),
+  //   "verify-server-name" (performs certificate validation, and asserts server name),
+  //   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),
+  //   "insecure": (accepts any certificate provided by app)
+  string mode = 1;
+  // ServerName specifies a custom hostname used for TLS verification against
+  // the upstream certificate.
+  string server_name = 2;
+  // ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+  // certificate.
+  string server_spiffe_id = 3;
+  // AllowedCas is the list of user provided CAs used for verifying upstream
+  // certificates. Accepted values are PEM-encoded CA certificates and
+  // Teleport CA aliases.
+  // Supported aliases:
+  //   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).
+  repeated string allowed_cas = 4;
+  // ClientCertMode specifies which client certificate mode to use for the
+  // upstream connection.
+  // Supported values:
+  //   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),
+  //   "disabled" (app upstream connection won't use client certificates).
+  string client_cert_mode = 5;
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -1507,6 +1541,10 @@ message TokenRule {
   // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
   // must belong to this organization.
   string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
+  // AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units.
+  // Requires AWS Organization ID to be specified.
+  // The account's root ID is considered an Organizational Unit when validating the rule.
+  AWSOrganizationUnitsMatcher AWSOrganizationalUnits = 6 [(gogoproto.jsontag) = "aws_organizational_units,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -4475,6 +4513,12 @@ message UserFilter {
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
   // SkipSystemUsers filters out teleport system users from the results.
   bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
+  // Traits is a traits-based matcher if non-empty.
+  wrappers.LabelValues Traits = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "traits,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -6432,6 +6476,9 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
+
+  // LinuxDesktop specifies the name of a Linux desktop.
+  string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources
@@ -7629,6 +7676,23 @@ message PluginEntraIDSyncSettings {
 
   // Source of the Access List owners.
   EntraIDAccessListOwnersSource access_list_owners_source = 7;
+
+  // Plugin service sync intervals.
+  PluginEntraIDSyncIntervals sync_intervals = 8;
+}
+
+// PluginEntraIDSyncIntervals defines sync intervals to be
+// used by the plugin.
+message PluginEntraIDSyncIntervals {
+  option (gogoproto.equal) = true;
+
+  // Delta sync interval.
+  // Must be a valid Go duration string (e.g. "2m").
+  string delta = 1;
+
+  // Full sync interval.
+  // Must be a valid Go duration string (e.g. "1h").
+  string full = 2;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
@@ -9050,7 +9114,7 @@ message JamfSpecV1 {
   // Defaults to a random delay (a few minutes max).
   int64 sync_delay = 3 [
     (gogoproto.jsontag) = "sync_delay,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // Jamf Pro API endpoint.
   // Example: "https://yourtenant.jamfcloud.com/api".
@@ -9076,7 +9140,7 @@ message JamfInventoryEntry {
   // Set to zero or negative to disable PARTIAL syncs.
   int64 sync_period_partial = 2 [
     (gogoproto.jsontag) = "sync_period_partial,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // Sync period for FULL syncs.
   // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
@@ -9084,7 +9148,7 @@ message JamfInventoryEntry {
   // Set to zero or negative to disable FULL syncs.
   int64 sync_period_full = 3 [
     (gogoproto.jsontag) = "sync_period_full,omitempty",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.casttype) = "DurationStringForJamfSpecV1"
   ];
   // on_missing is the trigger used on devices missing from the MDM view in a
   // FULL sync.

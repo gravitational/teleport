@@ -18,6 +18,7 @@ package subca
 
 import (
 	"crypto/x509/pkix"
+	"math"
 
 	"github.com/gravitational/trace"
 
@@ -42,11 +43,18 @@ func RDNSequenceToDistinguishedNameProto(rdns pkix.RDNSequence) (*subcav1.Distin
 	for i, nameSet := range rdns {
 		for j, atv := range nameSet {
 			oid := make([]int32, len(atv.Type))
-			for i, x := range atv.Type {
+			for k, x := range atv.Type {
 				// OID components are guaranteed to fit in a 32 bit integer as checked
 				// by encoding/asn1.parseBase128Int.
 				// https://cs.opensource.google/go/go/+/refs/tags/go1.26.2:src/encoding/asn1/asn1.go;l=323
-				oid[i] = int32(x)
+				if x < 0 || x > math.MaxInt32 {
+					return nil, trace.BadParameter(
+						`rdns[%d][%d]: OID component out of bounds: %d (must be "0 <= OID <= %d")`,
+						i, j,
+						x, math.MaxInt32,
+					)
+				}
+				oid[k] = int32(x)
 			}
 			val, ok := atv.Value.(string)
 			if !ok {
@@ -89,6 +97,9 @@ func DistinguishedNameProtoToRDNSequence(dn *subcav1.DistinguishedName) (pkix.RD
 
 		oid := make([]int, len(atv.Oid))
 		for j, x := range atv.Oid {
+			if x < 0 {
+				return nil, trace.BadParameter("names[%d]: OID component out of bounds: %d (must be >= 0)", i, x)
+			}
 			oid[j] = int(x)
 		}
 		rdns = append(rdns, pkix.RelativeDistinguishedNameSET{

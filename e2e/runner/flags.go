@@ -45,6 +45,7 @@ type e2eFlags struct {
 	teleportLogLevel string
 	browsers         []string
 	testFiles        []string
+	scanTargets      []scanTarget // resolved scan targets, computed once during flag parsing
 	reportPR         int
 	reportRepo       string
 	reportSHA        string
@@ -152,8 +153,14 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		}
 
 		if len(f.testFiles) > 0 || mode != modeUI {
-			for _, fix := range scanFixtures(e2eDir, f.testFiles) {
-				fix.Enabled = true
+			targets, resolveErr := resolveTargetsWithHelpers(e2eDir, f.testFiles)
+			if resolveErr != nil {
+				slog.Warn("scan: error resolving files", "error", resolveErr)
+			} else {
+				f.scanTargets = targets
+				for _, fix := range scanFixturesFromTargets(targets) {
+					fix.Enabled = true
+				}
 			}
 		}
 	}

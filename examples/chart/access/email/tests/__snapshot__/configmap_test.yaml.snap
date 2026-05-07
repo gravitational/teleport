@@ -12,7 +12,6 @@ should match the snapshot (mailgun on):
         domain           = "mymailgunsubdomain.mailgun.org"
         private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
 
-
         [delivery]
         sender = ""
         recipients = []

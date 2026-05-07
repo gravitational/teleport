@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.29.6"
+      "version": "1.29.7"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -283,6 +283,21 @@
     {
       "source": "/reference/agent-services/kubernetes-application-discovery/",
       "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/aws/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes/eks-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/azure/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes/aks-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/google-cloud/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes/gke-discovery/",
       "permanent": true
     },
     {

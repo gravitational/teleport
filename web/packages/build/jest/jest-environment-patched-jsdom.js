@@ -88,6 +88,24 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     if (!global.WritableStream) {
       global.WritableStream = WritableStream;
     }
+
+    // JSDOM doesn't provide fetch. We use Node's native fetch instead of the
+    // whatwg-fetch polyfill in tests because whatwg-fetch's XHR-based
+    // implementation doesn't read response bodies correctly when intercepted
+    // by MSW v2. whatwg-fetch's import is a no-op when these globals already
+    // exist, so production code that imports it still works.
+    //
+    // AbortController/AbortSignal must come from the same realm as fetch,
+    // otherwise undici rejects the signal as not being an instance of its
+    // AbortSignal.
+    if (!global.fetch) {
+      global.fetch = fetch;
+      global.Request = Request;
+      global.Response = Response;
+      global.Headers = Headers;
+      global.AbortController = AbortController;
+      global.AbortSignal = AbortSignal;
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;

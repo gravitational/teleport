@@ -17,9 +17,9 @@ minimal access permissions.
 
 ## Supported clouds
 
-- [AWS](aws.mdx): Discovery for AWS EKS clusters.
-- [Azure](azure.mdx): Discovery for Azure AKS clusters.
-- [Google Cloud](google-cloud.mdx): Discovery for
+- [AWS](eks-discovery/eks-discovery.mdx): Discovery for AWS EKS clusters.
+- [Azure](aks-discovery.mdx): Discovery for Azure AKS clusters.
+- [Google Cloud](gke-discovery.mdx): Discovery for
   Google Kubernetes Engine clusters.
 
 ## How Kubernetes Clusters Discovery works
@@ -73,7 +73,9 @@ discovery_service:
        # eks - discovers and registers AWS EKS clusters
        # ec2 - discovers and registers AWS EC2 Machines
      - types: ["eks"]
-       # AWS regions to search for resources from
+       # AWS regions to search for resources from. Valid options are:
+       # '*' - discovers resources in all enabled regions (default).
+       # Any valid AWS region name, e.g. "us-east-1".
        regions: ["us-east-1", "us-west-1"]
        # AWS resource tags to match when registering resources
        # Optional section: Defaults to "*":"*"

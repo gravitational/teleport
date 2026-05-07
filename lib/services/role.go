@@ -19,8 +19,10 @@
 package services
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -938,6 +940,12 @@ func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(role), nil
+}
+
+// WO is a shortcut that returns create and update verbs, granting the ability
+// to emit/write resources but not list, read, or delete them.
+func WO() []string {
+	return []string{types.VerbCreate, types.VerbUpdate}
 }
 
 // RW is a shortcut that returns all CRUD verbs.
@@ -3844,6 +3852,12 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
 	}
 
+	if cfg.DisallowUnknown {
+		if err := checkUnknownFields(bytes); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if err := ValidateRole(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3876,6 +3890,17 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
+// checkUnknownFields rejects JSON with fields not defined in the RoleV6 struct.
+func checkUnknownFields(data []byte) error {
+	var unused types.RoleV6
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&unused); err != nil {
+		return trace.BadParameter("role has unknown or misspelled fields: %v", err)
+	}
+	return nil
+}
+
 // AuthPreferenceGetter defines an interface for getting the authentication
 // preferences.
 type AuthPreferenceGetter interface {
@@ -3899,6 +3924,26 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
+	state.IsBot = ident.IsBot()
+	return state, nil
+}
+
+// AccessStateFromTLSIdentity populates access state based on user's TLS
+// identity and auth preference.
+func AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	state.MFAVerified = ident.MFAVerified != ""
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if ident.PrivateKeyPolicy.MFAVerified() {
+		state.MFAVerified = true
+	}
+
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions)
 	state.IsBot = ident.IsBot()
 	return state, nil
 }

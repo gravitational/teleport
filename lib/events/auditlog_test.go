@@ -393,7 +393,7 @@ func TestCallingSummarizerMetadata(t *testing.T) {
 	require.NoError(t, err)
 	metadataProvider := recordingmetadata.NewProvider()
 	recorderMetadata := &fakeRecordingMetadata{}
-	recorderMetadata.On("ProcessSessionRecording", mock.Anything, session.ID(sessionID.String()), mock.Anything, mock.Anything).
+	recorderMetadata.On("ProcessSessionRecording", mock.Anything, session.ID(sessionID.String()), mock.Anything, mock.Anything, mock.Anything).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
 
@@ -410,6 +410,14 @@ func TestCallingSummarizerMetadata(t *testing.T) {
 		UploadHandler:             uploader,
 		SessionSummarizerProvider: summarizerProvider,
 		RecordingMetadataProvider: metadataProvider,
+		OnUploadComplete: func(_ context.Context, sid session.ID) (apievents.AuditEvent, error) {
+			now := time.Now()
+			return &apievents.SessionEnd{
+				SessionMetadata: apievents.SessionMetadata{SessionID: string(sid)},
+				StartTime:       now.Add(-time.Minute),
+				EndTime:         now,
+			}, nil
+		},
 	})
 	require.NoError(t, err)
 	defer alog.Close()
@@ -439,8 +447,8 @@ type fakeRecordingMetadata struct {
 	mock.Mock
 }
 
-func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
-	args := f.Called(ctx, sessionID, sessionType, duration)
+func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+	args := f.Called(ctx, sessionID, sessionType, startTime, duration)
 	return args.Error(0)
 }
 

@@ -2468,6 +2468,9 @@ type App struct {
 
 	// LLM contains LLM inference endpoint related configurations.
 	LLM *LLM `yaml:"inference,omitempty"`
+
+	// TLS contains the app TLS configuration.
+	TLS *AppTLS `yaml:"tls,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2558,6 +2561,28 @@ type LLMModel struct {
 	Name string `yaml:"name"`
 	// ProviderName is the model name in the configured provider.
 	ProviderName string `yaml:"provider_name,omitempty"`
+}
+
+// AppTLS contains the app TLS configuration.
+type AppTLS struct {
+	// Mode defines the TLS verification.
+	Mode string `yaml:"mode,omitempty"`
+	// ServerName specifies a custom hostname used for TLS verification against
+	// the upstream certificate.
+	ServerName string `yaml:"server_name,omitempty"`
+	// ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+	// certificate.
+	ServerSpiffeId string `yaml:"server_spiffe_id,omitempty"`
+	// AllowedCas is the list of user provided CAs used for verifying upstream
+	// certificates. Accepted values are PEM-encoded CA certificates and
+	// Teleport CA aliases.
+	AllowedCas []string `yaml:"allowed_cas,omitempty"`
+	// AllowedCasFiles list of CA certificates file paths that will be used for
+	// verifying upstream certificates.
+	AllowedCasFiles []string `yaml:"allowed_cas_files,omitempty"`
+	// ClientCertMode specifies which client certificate mode to use for the
+	// upstream connection.
+	ClientCertMode string `yaml:"client_cert_mode,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -3174,8 +3199,8 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
 			DeviceType:        e.DeviceType,
@@ -3184,7 +3209,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
+		SyncDelay:   types.DurationStringForJamfSpecV1(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
 	}

@@ -102,12 +102,12 @@ func TestReadChildError(t *testing.T) {
 			t.Parallel()
 
 			if tt.readErr != nil {
-				_, err := ReadChildError(iotest.ErrReader(tt.readErr), tt.context)
+				_, err := ReadChildErrorWithContext(iotest.ErrReader(tt.readErr), tt.context)
 				require.ErrorIs(t, err, tt.readErr)
 				return
 			}
 
-			got, err := ReadChildError(strings.NewReader(tt.childErrIn), tt.context)
+			got, err := ReadChildErrorWithContext(strings.NewReader(tt.childErrIn), tt.context)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantChildErr, got)
 		})

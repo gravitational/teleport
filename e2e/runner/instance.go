@@ -56,7 +56,7 @@ func (inst *testInstance) start(ctx context.Context) error {
 		if err = inst.teleport.waitReady(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
 		}
-		if err = seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
+		if err = inst.teleport.seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
 			return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 		}
 	}
