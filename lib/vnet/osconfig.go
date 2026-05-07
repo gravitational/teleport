@@ -126,7 +126,11 @@ func tunIPv6ForPrefix(ipv6Prefix string) (string, error) {
 	return addr.Next().String(), nil
 }
 
-func runCommand(ctx context.Context, path string, args ...string) error {
+// runCommand is a test seam aliased to shellOut.
+var runCommand = shellOut
+
+// shellOut runs path with args. Errors include combined stdout/stderr.
+func shellOut(ctx context.Context, path string, args ...string) error {
 	cmdString := strings.Join(append([]string{path}, args...), " ")
 	log.DebugContext(ctx, "Running command", "cmd", cmdString)
 	cmd := exec.CommandContext(ctx, path, args...)
