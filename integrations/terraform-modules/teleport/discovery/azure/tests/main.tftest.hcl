@@ -83,6 +83,53 @@ run "create" {
   }
 }
 
+run "create_false" {
+  variables {
+    create = false
+  }
+
+  assert {
+    condition     = length(random_id.suffix) == 0
+    error_message = "random_id suffix should not be created"
+  }
+  assert {
+    condition     = length(data.http.teleport_ping) == 0
+    error_message = "data.http.teleport_ping should not be fetched"
+  }
+  assert {
+    condition     = length(data.azurerm_client_config.this) == 0
+    error_message = "data.azurerm_client_config should not be fetched"
+  }
+  assert {
+    condition     = length(azurerm_user_assigned_identity.teleport_discovery_service) == 0
+    error_message = "azurerm_user_assigned_identity should not be created"
+  }
+  assert {
+    condition     = length(azurerm_federated_identity_credential.teleport_discovery_service) == 0
+    error_message = "azurerm_federated_identity_credential should not be created"
+  }
+  assert {
+    condition     = length(azurerm_role_definition.teleport_discovery) == 0
+    error_message = "azurerm_role_definition should not be created"
+  }
+  assert {
+    condition     = length(azurerm_role_assignment.teleport_discovery) == 0
+    error_message = "azurerm_role_assignment should not be created"
+  }
+  assert {
+    condition     = length(teleport_integration.azure_oidc) == 0
+    error_message = "teleport_integration should not be created"
+  }
+  assert {
+    condition     = length(teleport_provision_token.azure) == 0
+    error_message = "teleport_provision_token should not be created"
+  }
+  assert {
+    condition     = length(teleport_discovery_config.azure) == 0
+    error_message = "teleport_discovery_config should not be created"
+  }
+}
+
 run "use_oidc_integration_false" {
   variables {
     use_oidc_integration = false
