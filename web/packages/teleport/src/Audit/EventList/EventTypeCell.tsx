@@ -23,7 +23,7 @@ import * as Icons from 'design/Icon';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
-const EventIconMap: Record<EventCode, any> = {
+export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,
@@ -219,6 +219,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.X11_FORWARD_FAILURE]: Icons.Info,
   [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
   [eventCodes.UPGRADE_WINDOW_UPDATED]: Icons.Info,
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: Icons.Info,
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
   [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
   [eventCodes.SSMRUN_FAIL]: Icons.Warning,

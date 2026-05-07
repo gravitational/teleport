@@ -464,6 +464,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UpgradeWindowStartUpdate{
 			UpgradeWindowStartUpdate: e,
 		}
+	case *EnvironmentProfileUpdate:
+		out.Event = &OneOf_EnvironmentProfileUpdate{
+			EnvironmentProfileUpdate: e,
+		}
 	case *SessionRecordingAccess:
 		out.Event = &OneOf_SessionRecordingAccess{
 			SessionRecordingAccess: e,

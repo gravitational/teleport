@@ -1450,6 +1450,13 @@ export const formatters: Formatters = {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
     },
   },
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: {
+    type: 'environmentprofile.update',
+    desc: 'Environment Profile Updated',
+    format: ({ user, environment_profile }) => {
+      return `Environment profile updated to [${environment_profile}] by user [${user}]`;
+    },
+  },
   [eventCodes.SESSION_RECORDING_ACCESS]: {
     type: 'session.recording.access',
     desc: 'Session Recording Accessed',
