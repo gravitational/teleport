@@ -334,8 +334,9 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 
 // Run runs Teleport installation command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
-	timeout := getRunCommandTimeout()
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	runCommandTimeout := getRunCommandTimeout()
+	// pad the timeout so we can still attempt to collect output if it times out
+	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
 	defer cancel()
 	// TODO(Tener): make the run command name actual parameter.
 	const runCommandName = "teleport-install"
@@ -347,7 +348,7 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
-			TimeoutInSeconds: to.Ptr(int32(timeout.Seconds())),
+			TimeoutInSeconds: to.Ptr(int32(runCommandTimeout.Seconds())),
 		},
 	}, nil)
 	if err != nil {
