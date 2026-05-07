@@ -79,6 +79,7 @@ export function ResourceCard({
   const {
     name,
     primaryIconName,
+    PrimaryIconComponent,
     SecondaryIcon,
     cardViewProps,
     ActionButton,
@@ -236,15 +237,21 @@ export function ResourceCard({
               />
             </Box>
           )}
-          <ResourceIcon
-            name={primaryIconName}
-            width="45px"
-            height="45px"
-            ml={2}
-            css={`
-              opacity: ${requiresRequest ? '0.5' : '1'};
-            `}
-          />
+          {PrimaryIconComponent ? (
+            <IconWrapper ml={2} $requiresRequest={requiresRequest}>
+              <PrimaryIconComponent size={45} />
+            </IconWrapper>
+          ) : (
+            <ResourceIcon
+              name={primaryIconName}
+              width="45px"
+              height="45px"
+              ml={2}
+              css={`
+                opacity: ${requiresRequest ? '0.5' : '1'};
+              `}
+            />
+          )}
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
             <Flex flexDirection="row" alignItems="center" gap={1}>
@@ -564,4 +571,12 @@ const MoreLabelsButton = styled(ButtonLink)`
   &:hover {
     background-color: transparent;
   }
+`;
+
+const IconWrapper = styled(Flex)<{ $requiresRequest?: boolean }>`
+  width: 45px;
+  height: 45px;
+  align-items: center;
+  justify-content: center;
+  opacity: ${p => (p.$requiresRequest ? 0.5 : 1)};
 `;

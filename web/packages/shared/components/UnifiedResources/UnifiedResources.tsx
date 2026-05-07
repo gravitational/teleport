@@ -136,12 +136,13 @@ export type SelectedResource = {
  * ResourceFilterKind are resource kinds that can be used for filtering through
  * ListUnifiedResources API.
  *
- * 'mcp' can be used to filter MCP servers by the backend, even though they are
- * internally just app resources atm.
+ * 'mcp' and 'beam' are virtual kinds handled by the backend: MCP servers are
+ * apps with subkind 'mcp', and beams are nodes with the BeamIDLabel.
  */
 export type ResourceFilterKind =
   | SharedUnifiedResource['resource']['kind']
-  | 'mcp';
+  | 'mcp'
+  | 'beam';
 
 export type FilterKind = {
   kind: ResourceFilterKind;
@@ -157,6 +158,7 @@ const filterKindNameMap: Record<ResourceFilterKind, string> = {
   user_group: 'User Groups',
   git_server: 'Git Servers',
   mcp: 'MCP Servers',
+  beam: 'Beams',
 };
 
 /*

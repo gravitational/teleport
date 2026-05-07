@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
-
 export enum NavigationCategory {
   Resources = 'Resources',
   ZeroTrustAccess = 'Zero Trust Access',

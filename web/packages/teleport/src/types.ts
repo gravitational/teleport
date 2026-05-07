@@ -113,7 +113,7 @@ export enum NavTitle {
 
   // Beams
   Beams = 'Beams',
-  BeamsInstances = 'Instances',
+  BeamsInstances = 'Beams List',
   BeamsLLM = 'LLM Providers',
   BeamsQuickstart = 'Get Started',
 }

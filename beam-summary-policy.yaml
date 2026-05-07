@@ -1,0 +1,7 @@
+kind: inference_policy
+version: v1
+metadata:
+  name: summarize-beam-sessions
+spec:
+  kinds: ["ssh"]
+  model: teleport-cloud-default
