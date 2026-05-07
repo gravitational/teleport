@@ -129,10 +129,10 @@ func resolveAccessGraphCredentials(ctx context.Context, ccf *tctlcfg.GlobalCLIFl
 		return nil, trace.Wrap(err)
 	}
 
-	// Identity-file mode: `profile.ProxyURL.Host` reflects `--auth-server`,
-	// which may be an auth gRPC address rather than the proxy.
-	// Force the issue path so `ensureAccessGraphCert` resolves `proxyAddr`
-	// from the auth `Ping` response.
+	// Identity-file mode: `profile.ProxyURL.Host` reflects
+	// `--auth-server`, which may be an auth gRPC address. Leave
+	// `proxyAddr` empty so `ensureAccessGraphCert` resolves it
+	// from `Ping`.
 	proxyAddr := ""
 	if ccf.IdentityFilePath == "" {
 		proxyAddr = profile.ProxyURL.Host
@@ -155,7 +155,8 @@ func resolveAccessGraphCredentials(ctx context.Context, ccf *tctlcfg.GlobalCLIFl
 }
 
 // ensureAccessGraphCert reuses a valid cached cert or re-issues via
-// the auth client; on re-issue, `creds.proxyAddr` is set from `Ping`.
+// the auth client; on re-issue, an empty `creds.proxyAddr` is filled
+// from `Ping`.
 func ensureAccessGraphCert(ctx context.Context, creds *accessGraphCredentials, clientFunc commonclient.InitFunc) error {
 	if creds == nil || creds.keyRing == nil {
 		return trace.BadParameter("missing access graph credentials")
@@ -191,13 +192,18 @@ func ensureAccessGraphCert(ctx context.Context, creds *accessGraphCredentials, c
 		return trace.Wrap(err)
 	}
 
-	creds.proxyAddr = ping.GetProxyPublicAddr()
+	// Backfill `proxyAddr` only when the resolver left it empty so
+	// `tsh login` keeps `profile.ProxyURL.Host` even on clusters
+	// without `proxy_service.public_addr`.
 	if creds.proxyAddr == "" {
-		return trace.NotFound("auth server did not advertise a proxy public address; set proxy_service.public_addr")
+		creds.proxyAddr = ping.GetProxyPublicAddr()
+		if creds.proxyAddr == "" {
+			return trace.NotFound("auth server did not advertise a proxy public address; set proxy_service.public_addr")
+		}
+		slog.DebugContext(ctx, "Resolved Access Graph proxy address from auth ping",
+			"proxy_addr", creds.proxyAddr,
+		)
 	}
-	slog.DebugContext(ctx, "Resolved Access Graph proxy address from auth ping",
-		"proxy_addr", creds.proxyAddr,
-	)
 	return trace.Wrap(issueAndStoreAccessGraphCert(ctx, creds, authClient))
 }
 
