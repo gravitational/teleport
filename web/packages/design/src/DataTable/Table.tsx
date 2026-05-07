@@ -114,6 +114,7 @@ export default function Table<T>(props: TableProps<T>) {
     data.forEach((item, rowIdx) => {
       const customRow = row?.customRow?.(item);
       const renderAfter = row?.renderAfter?.(item);
+      const rowKey = row?.getKey?.(item) ?? rowIdx;
 
       const trContent = customRow
         ? customRow
@@ -129,7 +130,7 @@ export default function Table<T>(props: TableProps<T>) {
             );
 
             return (
-              <React.Fragment key={`${rowIdx} ${columnIdx}`}>
+              <React.Fragment key={`${rowKey} ${columnIdx}`}>
                 {$cell}
               </React.Fragment>
             );
@@ -137,7 +138,7 @@ export default function Table<T>(props: TableProps<T>) {
 
       rows.push(
         <tr
-          key={rowIdx}
+          key={rowKey}
           onClick={() => row?.onClick?.(item)}
           style={row?.getStyle?.(item)}
         >
@@ -147,7 +148,7 @@ export default function Table<T>(props: TableProps<T>) {
 
       if (renderAfter) {
         rows.push(
-          <React.Fragment key={`${rowIdx}-after`}>{renderAfter}</React.Fragment>
+          <React.Fragment key={`${rowKey}-after`}>{renderAfter}</React.Fragment>
         );
       }
     });
