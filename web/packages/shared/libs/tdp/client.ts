@@ -1108,11 +1108,15 @@ class SharedDirectoryManager {
 
   // returns an array of tuples (directoryName, directoryId) representing
   // the set of currently shared directories.
-  listSharedDirectories(): [string, number][] {
-    return Array.from(this.sharedDirectories).map(entry => [
-      entry[1].getDirectoryName(),
-      entry[0],
-    ]);
+  listSharedDirectories(): DirectoryEntry[] {
+    return Array.from(this.sharedDirectories).map(
+      ([id, directory]): DirectoryEntry => {
+        return {
+          name: directory.getDirectoryName(),
+          id,
+        };
+      },
+    );
   }
 }
 
