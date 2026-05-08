@@ -143,7 +143,7 @@ func checkKubernetesAllowRules(allow []*types.ProvisionTokenSpecV2Kubernetes_Rul
 	// If a single rule passes, accept the token
 	for i, rule := range allow {
 		wantUsername := fmt.Sprintf("%s:%s", ServiceAccountNamePrefix, rule.ServiceAccount)
-		if wantUsername != got.Username {
+		if rule.ServiceAccount != "" && wantUsername != got.Username {
 			continue
 		}
 		saMatch, err := joinutils.GlobMatchAllowEmptyPattern(

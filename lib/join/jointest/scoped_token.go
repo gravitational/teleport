@@ -149,7 +149,9 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		allow := make([]*joiningv1.Kubernetes_Rule, len(base.Kubernetes.Allow))
 		for i, rule := range base.Kubernetes.Allow {
 			allow[i] = &joiningv1.Kubernetes_Rule{
-				ServiceAccount: rule.ServiceAccount,
+				ServiceAccount:          rule.ServiceAccount,
+				ServiceAccountNamespace: rule.ServiceAccountNamespace,
+				ServiceAccountName:      rule.ServiceAccountName,
 			}
 		}
 
