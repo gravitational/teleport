@@ -56,6 +56,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
     <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
+    <IconBox IconCmpt={Icon.Beams} text="Beams" />
     <IconBox IconCmpt={Icon.BedrockLogo} text="BedrockLogo" />
     <IconBox IconCmpt={Icon.BellRinging} text="BellRinging" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
