@@ -1999,7 +1999,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				DisconnectExpiredCert: types.NewBool(true),
 				// With a MaxSessionTTL of just a few seconds, certificate expiry
 				// can natually race with the establishment of a session, so we
-				// use a longer 10s ttl instead.
+				// use a longer ttl instead.
 				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
 		},
@@ -2011,7 +2011,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				DisconnectExpiredCert: types.NewBool(true),
 				// With a MaxSessionTTL of just a few seconds, certificate expiry
 				// can natually race with the establishment of a session, so we
-				// use a longer 10s ttl instead.
+				// use a longer ttl instead.
 				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
 		},
