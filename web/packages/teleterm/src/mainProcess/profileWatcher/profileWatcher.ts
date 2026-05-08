@@ -237,11 +237,6 @@ async function* debounceWatch(
   const queueFileSystemEvent = () => {
     ++eventsToDebounce;
     if (eventsToDebounce > maxFileSystemEvents) {
-      logger.error('File system event limit exceeded', {
-        eventsToDebounce,
-        maxFileSystemEvents,
-        debounceMs,
-      });
       signal.reject(
         new FileSystemEventsOverflowError(maxFileSystemEvents, debounceMs)
       );
