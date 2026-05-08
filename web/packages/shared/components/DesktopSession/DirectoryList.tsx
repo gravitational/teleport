@@ -50,7 +50,7 @@ export function SharedDirectoryList({
 }: SharedDirectoriesProps) {
   return (
     <MenuIcon
-      Icon={props => <FolderPlus {...props} size="large" />}
+      Icon={(props) => <FolderPlus {...props} size="large" />}
       buttonIconProps={{
         disabled: !canSharedDirectories,
         // square highlight instead of default circle
@@ -75,38 +75,52 @@ export function SharedDirectoryList({
       }
     >
       <Container data-testid="shared-directory-menu">
-        <Stack gap={3} fullWidth onClick={e => e.stopPropagation()}>
+        <Stack gap={3} fullWidth onClick={(e) => e.stopPropagation()}>
           {/* Header/Share Button */}
-          {shareDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
+          <div>
+            <Flex justifyContent="space-between" alignItems="center">
+              {dropdownHeader(sharedDirectories.length)}
+              <ButtonPrimary
+                title="Share a directory"
+                size="small"
+                onClick={onAddSharedDirectory}
+                compact={true}
+                $inputAlignment={false}
+              >
+                <Plus size="small" />
+              </ButtonPrimary>
+            </Flex>
+          </div>
 
           {/* Directory list */}
-          {sharedDirectories.map(dir =>
-            directoryEntry(
-              dir.name,
-              dir.id,
-              canRemoveSharedDirectory,
-              onRemoveSharedDirectory
-            )
-          )}
+          {sharedDirectories.map((dir) => (
+            <DirectoryEntry
+              name={dir.name}
+              id={dir.id}
+              isRemoveSupported={canRemoveSharedDirectory}
+              onRemove={onRemoveSharedDirectory}
+              key={dir.id}
+            />
+          ))}
 
           {/* If not supported, explain to the user that removal is not supported for the
               connected WDS version, but may be supported on new versions. */}
-          {removalSupportInformation(
-            canRemoveSharedDirectory,
-            sharedDirectories.length
-          )}
+          <RemovalSupportInformation
+            isRemoveSupported={canRemoveSharedDirectory}
+            directoryCount={sharedDirectories.length}
+          />
         </Stack>
       </Container>
     </MenuIcon>
   );
 }
 
-function directoryEntry(
-  name: string,
-  id: number,
-  isRemoveSupported: boolean,
-  onRemove: (id: number) => void
-) {
+function DirectoryEntry(props: {
+  name: string;
+  id: number;
+  isRemoveSupported: boolean;
+  onRemove: (id: number) => void;
+}) {
   let buttonProps: {
     disabled: boolean;
     intent: ButtonIntent;
@@ -117,7 +131,7 @@ function directoryEntry(
     fill: 'minimal',
   };
   let hoverText = 'Disconnect 1 shared directory';
-  if (!isRemoveSupported) {
+  if (!props.isRemoveSupported) {
     hoverText = `
       Disconnecting shared directories is not supported by this version of
       Windows Desktop Service. To enable this feature, contact your Teleport
@@ -126,7 +140,7 @@ function directoryEntry(
       `;
   }
 
-  if (!isRemoveSupported) {
+  if (!props.isRemoveSupported) {
     buttonProps = {
       disabled: true,
       intent: 'neutral',
@@ -138,18 +152,17 @@ function directoryEntry(
     <Flex
       justifyContent="space-between"
       alignItems="center"
-      data-testid={`direntry-${id}`}
-      key={id}
+      data-testid={`direntry-${props.id}`}
     >
       <Text data-testid="dirname" fontSize={2}>
-        {name}
+        {props.name}
       </Text>
       <HoverTooltip placement="bottom" tipContent={hoverText}>
         <Flex flexShrink={0}>
           <ButtonSecondary
             size="small"
             compact={true}
-            onClick={() => onRemove(id)}
+            onClick={() => props.onRemove(props.id)}
             {...buttonProps}
           >
             <Eject size="small" />
@@ -160,47 +173,29 @@ function directoryEntry(
   );
 }
 
-function removalSupportInformation(
-  isRemoveSupported: boolean,
-  directoryCount: number
-) {
-  let copyText = 'Disconnect this shared directory by restarting your session.';
-  if (directoryCount > 1) {
-    copyText =
-      'Disconnect these shared directories by restarting your session.';
+function RemovalSupportInformation(props: {
+  isRemoveSupported: boolean;
+  directoryCount: number;
+}) {
+  if (props.isRemoveSupported) {
+    return;
   }
 
-  if (!isRemoveSupported) {
-    return (
-      <Text fontSize={1} color="text.muted">
-        {copyText}
-      </Text>
-    );
-  }
-}
+  const copyText =
+    props.directoryCount > 1
+      ? 'Disconnect these shared directories by restarting your session.'
+      : 'Disconnect this shared directory by restarting your session.';
 
-function shareDirectoryButton(directoryCount: number, onClick: () => void) {
   return (
-    <div>
-      <Flex justifyContent="space-between" alignItems="center">
-        {dropdownHeader(directoryCount)}
-        <ButtonPrimary
-          title="Share a directory"
-          size="small"
-          onClick={onClick}
-          compact={true}
-          $inputAlignment={false}
-        >
-          <Plus size="small" />
-        </ButtonPrimary>
-      </Flex>
-    </div>
+    <Text fontSize={1} color="text.muted">
+      {copyText}
+    </Text>
   );
 }
 
 function dropdownHeader(directoryCount: number) {
   if (directoryCount == 0) {
-    return <Text typography="h3">Connect a shared directory</Text>;
+    return <Text typography="h3">Share a directory</Text>;
   }
   const headerText =
     directoryCount == 1 ? 'shared directory' : 'shared directories';
@@ -212,7 +207,7 @@ function dropdownHeader(directoryCount: number) {
 }
 
 const Container = styled.div`
-  background: ${props => props.theme.colors.levels.elevated};
-  padding: ${props => props.theme.space[3]}px;
+  background: ${(props) => props.theme.colors.levels.elevated};
+  padding: ${(props) => props.theme.space[3]}px;
   width: 370px;
 `;
