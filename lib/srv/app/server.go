@@ -85,7 +85,7 @@ type Config struct {
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 
-	// OnReconcile is called after each database resource reconciliation.
+	// OnReconcile is called after each app resource reconciliation.
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
@@ -96,6 +96,10 @@ type Config struct {
 
 	// InventoryHandle is used to send app server heartbeats via the inventory control stream.
 	InventoryHandle inventory.DownstreamHandle
+
+	// IgnoreAppsWithCommandLabels configures the app server to reject app resources
+	// with dynamic/command labels even if the app's labels otherwise match.
+	IgnoreAppsWithCommandLabels bool
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required

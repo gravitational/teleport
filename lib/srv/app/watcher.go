@@ -21,13 +21,11 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -188,20 +186,13 @@ func (s *Server) onDelete(ctx context.Context, app types.Application) error {
 	return s.unregisterAndRemoveApp(ctx, app.GetName())
 }
 
-const teleportBeamsEnvVar = "TELEPORT_BEAMS_RUNTIME"
-
 func (s *Server) matcher(app types.Application) bool {
 	matchesLabels := services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
 	if !matchesLabels {
 		return false
 	}
 
-	// When the app_service itself is running on Teleport Cloud, then we reject any app
-	// with dynamic labels, which allow for code execution.
-	// This is primarily for the beams use case, where the only apps we expect
-	// to see are those created by `tsh beams publish`.
-	runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleportBeamsEnvVar))
-	if runningOnBeams {
+	if s.c.IgnoreAppsWithCommandLabels {
 		if len(app.GetDynamicLabels()) > 0 {
 			s.log.WarnContext(
 				context.Background(),
