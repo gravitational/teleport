@@ -34,7 +34,7 @@ import (
 )
 
 func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
-	t.Setenv(teleportBeamsEnvVar, "yes")
+	t.Parallel()
 
 	reconcileCh := make(chan types.Apps)
 
@@ -46,6 +46,8 @@ func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 			reconcileCh <- a
 		},
 	})
+
+	s.appServer.c.IgnoreAppsWithCommandLabels = true
 
 	// Drain the initial event that fires when the watcher starts up
 	// (before we create any dynamic apps).

@@ -59,7 +59,8 @@ if (!mode || !startURL) {
   process.exit(1);
 }
 
-const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+const e2eDir =
+  process.env.E2E_DIR || join(dirname(fileURLToPath(import.meta.url)), '..');
 const browserName = (process.env.E2E_BROWSERS || 'chromium').split(',')[0];
 const browserTypes = { chromium, firefox, webkit };
 const browserType =
@@ -73,6 +74,7 @@ const browser = await browserType.launch({ headless: false });
 const context = await browser.newContext({
   storageState: storageStatePath,
   ignoreHTTPSErrors: true,
+  viewport: null,
 });
 
 const page = await context.newPage();
