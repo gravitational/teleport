@@ -80,7 +80,7 @@ func (h *Handler) linuxDesktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToLinuxService, true); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToLinuxService, proto.UserCertsRequest_LinuxDesktop); err != nil {
 		// createDesktopConnection makes a best-effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -111,7 +111,7 @@ func (h *Handler) desktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToWindowsService, false); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToWindowsService, proto.UserCertsRequest_WindowsDesktop); err != nil {
 		// createDesktopConnection makes a best-effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -395,7 +395,7 @@ func (h *Handler) createDesktopConnection(
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 	connectFunc connectorFunc,
-	linuxDesktop bool,
+	certUsage proto.UserCertsRequest_CertUsage,
 ) error {
 	defer ws.Close()
 	ctx := r.Context()
@@ -438,7 +438,7 @@ func (h *Handler) createDesktopConnection(
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username, linuxDesktop)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username, certUsage)
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
 	}
@@ -530,7 +530,7 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-func createUserCertsRequest(sctx *SessionContext, publicKey crypto.PublicKey, desktopName, username, siteName string, linuxDesktop bool) (*proto.UserCertsRequest, error) {
+func createUserCertsRequest(sctx *SessionContext, publicKey crypto.PublicKey, desktopName, username, siteName string, certUsage proto.UserCertsRequest_CertUsage) (*proto.UserCertsRequest, error) {
 	tlsCert, err := sctx.GetX509Certificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -548,14 +548,14 @@ func createUserCertsRequest(sctx *SessionContext, publicKey crypto.PublicKey, de
 		RouteToCluster: siteName,
 	}
 
-	if linuxDesktop {
-		certsReq.Usage = proto.UserCertsRequest_LinuxDesktop
+	certsReq.Usage = certUsage
+
+	if certUsage == proto.UserCertsRequest_LinuxDesktop {
 		certsReq.RouteToLinuxDesktop = proto.RouteToLinuxDesktop{
 			LinuxDesktop: desktopName,
 			Login:        username,
 		}
 	} else {
-		certsReq.Usage = proto.UserCertsRequest_WindowsDesktop
 		certsReq.RouteToWindowsDesktop = proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
 			Login:          username,
@@ -573,11 +573,11 @@ func (h *Handler) prepareForCertIssuance(
 	cluster reversetunnelclient.Cluster,
 	publicKey crypto.PublicKey,
 	desktopName, username string,
-	linuxDesktop bool,
+	certUsage proto.UserCertsRequest_CertUsage,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
 	var mfaRequest *IsMFARequiredRequest
-	if linuxDesktop {
+	if certUsage == proto.UserCertsRequest_LinuxDesktop {
 		mfaRequest = &IsMFARequiredRequest{
 			LinuxDesktop: &isMFARequiredLinuxDesktop{
 				DesktopName: desktopName,
@@ -597,7 +597,7 @@ func (h *Handler) prepareForCertIssuance(
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName(), linuxDesktop)
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName(), certUsage)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
