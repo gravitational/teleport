@@ -43,23 +43,19 @@ import (
 func GetAvailableXSessions(included, excluded *regexp.Regexp) (map[string]string, error) {
 	path := cmp.Or(os.Getenv("TELEPORT_XSESSIONS_PATH"), "/usr/share/xsessions")
 	entries := make(map[string]string)
-	dirEntries, err := os.ReadDir(path)
+	files, err := filepath.Glob(path + "/*.desktop")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, entry := range dirEntries {
-		var found bool
-		var fileName string
-		if fileName, found = strings.CutSuffix(entry.Name(), ".desktop"); !found {
-			continue
-		}
+	for _, f := range files {
+		fileName := strings.TrimSuffix(filepath.Base(f), ".desktop")
 		if included != nil && !included.MatchString(fileName) {
 			continue
 		}
 		if excluded != nil && excluded.MatchString(fileName) {
 			continue
 		}
-		file, err := os.Open(filepath.Join(path, entry.Name()))
+		file, err := os.Open(f)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
