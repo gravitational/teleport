@@ -91,7 +91,7 @@ $ kubectl exec -i <Var name="pod-name"/> -- tctl create -f < my-local-file.yaml
 $ kubectl get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
 
 # retrieving output via stdout and tar
-$ kubectl exec -i <Var name="pod-name"/> -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
+$ kubectl exec -i <Var name="pod-name"/> -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin | tar xv -C local
 $ ls -l local
 total 24
 -rw-------  1 trent  staff  1318 Jul 24 15:52 admin.cas
@@ -123,8 +123,7 @@ To learn more, read the [Deploying Machine & Workload Identity on Kubernetes](..
 
 ## Running Teleport on Docker
 
-When running a container from one of the images listed above, consider the container equivalent to running the `teleport` binary. 
-The Teleport container requires access to a file system and network ports.
+When running a container from one of the images listed above, treat the container as equivalent to running the `teleport` binary directly. The Teleport container requires access to a file system and network ports.
 
 ### Configuration
 
@@ -134,7 +133,7 @@ Mount the directory containing your configuration file to `/etc/teleport` inside
 ### Data directory
 
 All Teleport processes read from and write to a data directory, which by default is `/var/lib/teleport`. 
-Make sure the data directory is mounted to your Teleport container.
+Make sure the data directory is mounted to your Teleport container. If you do not mount persistent storage, cluster state is lost when the container is recreated.
 
 ### License file
 
@@ -240,8 +239,9 @@ You can, however, join other local Docker containers to it using the [token meth
 
 To upgrade a Teleport container running on Docker:
 
-1. Leave the container's data directory in place.
+1. Back up the Teleport backend before upgrading. Major-version upgrades run schema migrations on the data directory that cannot be reversed by starting an older image. For backup procedures and supported upgrade paths, see [Upgrading Teleport](../../upgrading/overview.mdx).
 1. Stop the container with `docker stop teleport`.
+1. Leave the container's data directory in place.
 1. Run a new container with an image based on a newer Teleport version, mounting the data directory as you did when running the container initially. As long as the data directory contains the same content as before the upgrade, the Teleport container does not need to re-join the cluster.
 1. Verify the upgraded version:
 
@@ -277,4 +277,4 @@ To diagnose, run `tctl auth sign` without the `--tar` flag and confirm that the 
 
 If the container fails to start after upgrading to a newer Teleport version, check the logs with `docker logs teleport` for migration or compatibility errors. Confirm that you did not skip a major version: Teleport supports upgrades from one major version to the next, and skipping versions is not supported.
 
-To roll back, stop the new container and start a container using the previous image version with the same data directory.
+Do not roll back by starting the previous image version against the upgraded data directory. Major-version upgrades run schema migrations that an older Auth Service cannot read, and doing so can leave the backend in an unusable state. To roll back safely, restore the backend from the backup taken before the upgrade. See [Upgrading Teleport](../../upgrading/overview.mdx) for the supported procedure.
