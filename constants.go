@@ -757,6 +757,10 @@ const (
 	// permissions required by self-hosted access request plugin.
 	PresetAccessPluginRoleName = "access-plugin"
 
+	// PresetAccessPluginWithReviewRoleName is a name of a preset role that includes
+	// permissions required by self-hosted access request plugin that permits review.
+	PresetAccessPluginWithReviewRoleName = "access-plugin-with-review"
+
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"

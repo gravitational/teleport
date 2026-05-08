@@ -642,6 +642,43 @@ func NewPresetAccessPluginRole() types.Role {
 	return role
 }
 
+// NewPresetAccessPluginWithReviewRole returns a new pre-defined role for self-hosted
+// access request plugins that permits review.
+func NewPresetAccessPluginWithReviewRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessPluginWithReviewRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default access plugin with review role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessRequest, RO()),
+					types.NewRule(types.KindAccessPluginData, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RO()),
+					types.NewRule(types.KindAccessList, RO()),
+					types.NewRule(types.KindRole, RO()),
+					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
+				},
+				ReviewRequests: &types.AccessReviewConditions{
+					PreviewAsRoles: []string{
+						teleport.PresetListAccessRequestResourcesRoleName,
+					},
+					SubmitForUsers: []string{"*"},
+				},
+			},
+		},
+	}
+	return role
+}
+
 // NewPresetListAccessRequestResourcesRole returns a new pre-defined role that
 // allows reading access request resources.
 func NewPresetListAccessRequestResourcesRole() types.Role {
@@ -968,6 +1005,7 @@ var defaultAllowRulesMap = map[string][]types.Rule{
 	teleport.PresetAccessRoleName:                     NewPresetAccessRole().GetRules(types.Allow),
 	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
 	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
+	teleport.PresetAccessPluginWithReviewRoleName:     NewPresetAccessPluginWithReviewRole().GetRules(types.Allow),
 	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
 }
 
