@@ -1666,11 +1666,11 @@ message AccessRequestCreate {
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID RequestedResourceAccessIDs = 18 [(gogoproto.nullable) = false];
 
-  // SubmittedBy is the Teleport plugin identity that submitted this review request
+  // The Teleport plugin identity that submitted this review request
   // to the Auth Service on behalf of the review author.
   // Reviewer remains the actual Teleport user that performed the review.
   // (only used in the access_request.review event variant).
-  string SubmittedBy = 19 [(gogoproto.jsontag) = "submitted_by,omitempty"];
+  string submitted_by = 19;
 }
 
 // AccessRequestExpire is emitted when access request has expired.
