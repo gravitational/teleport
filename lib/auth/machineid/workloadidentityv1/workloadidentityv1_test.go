@@ -61,6 +61,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -1779,7 +1780,7 @@ func TestIssueTeleportWorkloadIdentity(t *testing.T) {
 				require.NoError(tt, err)
 				require.Len(t, cert.URIs, 1)
 				// TODO
-				td, err := spiffeid.TrustDomainFromString("_teleport." + tp.srv.ClusterName())
+				td, err := spiffeid.TrustDomainFromString(apiworkloadidentity.NewInternalAppTrustDomain(tp.srv.ClusterName()))
 				require.NoError(tt, err)
 				require.True(tt, spiffeID.MemberOf(td), "expected the returned SPIFFE ID %q to be part of internal trust domain %q", spiffeID, td)
 				// require.True(tt, spiffeID.TrustDomain())

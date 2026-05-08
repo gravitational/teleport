@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -148,7 +149,7 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("sigstore policy evaluator is required")
 	}
 
-	td, err := spiffeid.TrustDomainFromString("_teleport." + cfg.ClusterName)
+	td, err := spiffeid.TrustDomainFromString(apiworkloadidentity.NewInternalAppTrustDomain(cfg.ClusterName))
 	if err != nil {
 		return nil, trace.BadParameter("unable to generate internal trust domain: %v", err)
 	}
