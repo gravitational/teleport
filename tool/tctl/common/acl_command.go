@@ -87,17 +87,17 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 	acl := app.Command("acl", "Manage Access Lists.").Alias("access-lists")
 
 	c.ls = acl.Command("ls", "List cluster Access Lists.")
-	c.ls.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
+	c.ls.Flag("format", "Output format.").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 	c.ls.Flag("review-only", "List only access lists that are due for review within the next 2 weeks or past due").BoolVar(&c.reviewOnly)
 
 	c.get = acl.Command("get", "Get detailed information for an Access List.")
 	c.get.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.get.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
+	c.get.Flag("format", "Output format.").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
 	users := acl.Command("users", "Manage user membership to Access Lists.")
 
 	c.usersAdd = users.Command("add", "Add a user to an Access List.")
-	c.usersAdd.Flag("kind", "Access list member kind, 'user' or 'list'").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
+	c.usersAdd.Flag("kind", "Access list member kind.").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
 	c.usersAdd.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.usersAdd.Arg("user", "The user to add to the Access List.").Required().StringVar(&c.userName)
 	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.").StringVar(&c.expires)
@@ -109,7 +109,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 
 	c.usersList = users.Command("ls", "List users that are members of an Access List.")
 	c.usersList.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.usersList.Flag("format", "Output format 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
+	c.usersList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
 
 	reviews := acl.Command("reviews", "Manage access list reviews.")
 
@@ -120,7 +120,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 
 	c.reviewsList = reviews.Command("ls", "List past audit history for a given access list.")
 	c.reviewsList.Arg("access-list-name", "The access list name to fetch review history for.").Required().StringVar(&c.accessListName)
-	c.reviewsList.Flag("format", "Output format 'yaml', 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
+	c.reviewsList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
