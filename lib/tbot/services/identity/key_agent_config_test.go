@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
 func TestKeyAgentService_YAML(t *testing.T) {
@@ -66,7 +67,9 @@ func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *KeyAgentConfig {
 				return &KeyAgentConfig{
 					Destination: &destination.Directory{
-						Path: "/opt/machine-id",
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
 					},
 				}
 			},
@@ -76,7 +79,9 @@ func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *KeyAgentConfig {
 				return &KeyAgentConfig{
 					Destination: &destination.Directory{
-						Path: "/opt/machine-id",
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
 					},
 					Roles: []string{"access"},
 				}
@@ -87,7 +92,9 @@ func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *KeyAgentConfig {
 				return &KeyAgentConfig{
 					Destination: &destination.Directory{
-						Path: "/opt/machine-id",
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
 					},
 					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				}
