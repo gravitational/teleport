@@ -39,11 +39,6 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_ENT_MESSAGE := with-FIPS-support
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
-# See the comment in tool/modules/fips.go.hide for explanation.
-$(shell ln -sf fips.go.hide tool/modules/fips.go)
-else
-# See the comment in tool/modules/fips.go.hide for explanation.
-$(shell rm -f tool/modules/fips.go)
 endif
 
 PAM_ENT_MESSAGE := without-PAM-support

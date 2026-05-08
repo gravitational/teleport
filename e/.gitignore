@@ -1,5 +1,4 @@
 build
-build-fips
 /teleport-ent
 test-logs/
 
@@ -30,8 +29,6 @@ tmp
 # macOS
 **/.DS_Store
 /macos/tshdev/tsh.app/Contents/MacOS/tsh
-
-/tool/modules/fips.go
 
 # Vite
 .swc
