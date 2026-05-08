@@ -187,5 +187,21 @@ func (s *Server) onDelete(ctx context.Context, app types.Application) error {
 }
 
 func (s *Server) matcher(app types.Application) bool {
-	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	matchesLabels := services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	if !matchesLabels {
+		return false
+	}
+
+	if s.c.IgnoreAppsWithCommandLabels {
+		if len(app.GetDynamicLabels()) > 0 {
+			s.log.WarnContext(
+				context.Background(),
+				"refusing to register app with dynamic labels",
+				"app_name", app.GetName(),
+			)
+			return false
+		}
+	}
+
+	return true
 }
