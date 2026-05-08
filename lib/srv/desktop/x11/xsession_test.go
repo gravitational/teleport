@@ -24,7 +24,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -53,8 +52,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetAvailableXSessions(t *testing.T) {
-	_, helperFile, _, _ := runtime.Caller(0)
-	fixtureDir := filepath.Join(filepath.Dir(helperFile), "testdata")
+	fixtureDir, err := filepath.Abs("testdata")
+	require.NoError(t, err)
 	t.Setenv("TELEPORT_XSESSIONS_PATH", fixtureDir)
 
 	entries, err := GetAvailableXSessions(nil, nil)
