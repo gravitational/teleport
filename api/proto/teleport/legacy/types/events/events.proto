@@ -5186,6 +5186,7 @@ message OneOf {
     events.AzureRun AzureRun = 253;
     events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
     events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
+    events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
   }
 }
 
@@ -6189,6 +6190,40 @@ message UpgradeWindowStartUpdate {
   ];
   // UpgradeWindowStartMetadata contains upgrade window related metadata.
   UpgradeWindowStartMetadata UpgradeWindowStart = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// EnvironmentProfileMetadata contains common environment profile information.
+message EnvironmentProfileMetadata {
+  // EnvironmentProfile is the environment profile.
+  string EnvironmentProfile = 1 [(gogoproto.jsontag) = "environment_profile,omitempty"];
+}
+
+// EnvironmentProfileUpdate is emitted when a user updates the cloud environment profile.
+message EnvironmentProfileUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // EnvironmentProfileMetadata contains environment profile related metadata.
+  EnvironmentProfileMetadata EnvironmentProfile = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -340,7 +340,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../enroll-resources/database-access/reference/configuration.mdx).
+#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/deployment/config.mdx#database-service).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
