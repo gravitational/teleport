@@ -514,6 +514,55 @@ Arguments:
 
 `,
 		},
+		{
+			name: "enum flag with default value",
+			makeApp: func() *kingpin.Application {
+				app := InitCLIParser("myapp", "This is the main CLI tool.")
+				var format string
+				app.Flag("format", "Output format").Default("text").EnumVar(&format, "text", "json", "yaml")
+				return app
+			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+			},
+			expectSubstring: `Global flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|@--format@|@text@ (valid: @text@, @json@, @yaml@)|Output format|
+
+`,
+		},
+		{
+			name: "enum flag in subcommand",
+			makeApp: func() *kingpin.Application {
+				app := InitCLIParser("myapp", "This is the main CLI tool.")
+				list := app.Command("list", "List resources.")
+				var mode string
+				list.Flag("mode", "List mode").Default("all").EnumVar(&mode, "all", "active", "inactive")
+				return app
+			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+			},
+			expectSubstring: `## myapp list
+
+List resources.
+
+Usage:
+
+@@@code
+$ myapp list [<flags>]
+@@@
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|@--mode@|@all@ (valid: @all@, @active@, @inactive@)|List mode|
+
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

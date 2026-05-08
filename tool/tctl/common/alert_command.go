@@ -80,12 +80,12 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertList = alert.Command("list", "List cluster alerts.").Alias("ls")
 	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts.").Short('v').BoolVar(&c.verbose)
 	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
-	c.alertList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, formats...)
+	c.alertList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
 	c.alertCreate = alert.Command("create", "Create cluster alerts.")
 	c.alertCreate.Arg("message", "Alert body message.").Required().StringVar(&c.message)
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires (default 24h).").DurationVar(&c.ttl)
-	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high).").Default("low").EnumVar(&c.severity, "low", "medium", "high")
+	c.alertCreate.Flag("severity", "Severity of the alert.").Default("low").EnumVar(&c.severity, "low", "medium", "high")
 	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2.").StringVar(&c.labels)
 
 	c.alertDelete = alert.Command("delete", "Deletes a cluster alert.").Alias("rm")
@@ -99,7 +99,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertAck.Flag("clear", "Clear the acknowledgment for the cluster alert.").BoolVar(&c.clear)
 	c.alertAck.Flag("reason", "The reason for acknowledging the cluster alert.").StringVar(&c.reason)
 	c.alertAck.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
-	c.alertAck.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, formats...)
+	c.alertAck.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
 	// We add "ack ls" as a command so kingpin shows it in the help dialog - as there is a space, `tctl ack xyz` will always be
 	// handled by the ack command above

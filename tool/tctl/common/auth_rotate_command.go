@@ -72,7 +72,7 @@ func (c *authRotateCommand) Initialize(authCmd *kingpin.CmdClause) {
 	c.cmd = authCmd.Command("rotate", "Rotate certificate authorities in the cluster. Starts in interactive mode by default, provide --type to manually send rotation requests.")
 	c.cmd.Flag("interactive", "Enable interactive mode").BoolVar(&c.interactiveMode)
 	c.cmd.Flag("manual", "Activate manual rotation, set rotation phases manually").BoolVar(&c.manualMode)
-	c.cmd.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).EnumVar(&c.caType, getCertAuthTypes()...)
+	c.cmd.Flag("type", "Certificate authority to rotate.").EnumVar(&c.caType, getCertAuthTypes()...)
 	c.cmd.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&c.targetPhase)
 	c.cmd.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
