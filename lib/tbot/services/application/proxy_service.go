@@ -326,6 +326,9 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 			InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
 		},
 	}
+
+	defer transport.CloseIdleConnections()
+
 	// Inject the ALPN upgrade dialer if required.
 	if s.alpnUpgradeRequired {
 		transport.DialContext = apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{

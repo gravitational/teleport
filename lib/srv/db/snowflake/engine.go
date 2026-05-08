@@ -63,6 +63,7 @@ func getDefaultHTTPClient() *http.Client {
 			},
 			// We don't want the http.Client to automatically decompress the data.
 			DisableCompression: true,
+			IdleConnTimeout:    defaults.HTTPIdleTimeout,
 		},
 	}
 }

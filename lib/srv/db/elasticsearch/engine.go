@@ -142,6 +142,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			TLSClientConfig: tlsConfig,
 		},
 	}
+	defer client.CloseIdleConnections()
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)

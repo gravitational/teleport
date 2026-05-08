@@ -291,6 +291,9 @@ func (c *kubeletClient) ListAllPods(ctx context.Context) (*v1.PodList, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "creating HTTP client")
 	}
+
+	defer client.CloseIdleConnections()
+
 	reqUrl.Path = "/pods"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl.String(), nil)
