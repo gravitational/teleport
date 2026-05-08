@@ -489,7 +489,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		disableOktaAppGroupSync:           config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus:                     serviceStatus,
 	}
-	s.tlsConfig = app.CopyAndConfigureTLS(s.logger, s.accessPoint, config.TLSConfig)
+	s.tlsConfig = app.CopyAndConfigureTLSForCluster(s.logger, s.accessPoint, config.ClusterName, config.TLSConfig)
 
 	if userSyncEnabled {
 		config.Logger.InfoContext(ctx, "User sync is enabled")
