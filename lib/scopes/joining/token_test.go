@@ -1355,3 +1355,24 @@ func TestValidateTokenUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateTokenForUse(t *testing.T) {
+	token := &joiningv1.ScopedToken{
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:         []string{types.RoleNode.String()},
+			JoinMethod:    string(types.JoinMethodToken),
+			AssignedScope: "/test",
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+	// we want to ensure that token validation before use is always the strongest
+	// available, so we confirm that the test token passes weak validation and then
+	// assert that StrongValidateToken and ValidateTokenForUse fail with the same error
+	assert.NoError(t, joining.WeakValidateToken(token))
+	strongValidateErr := joining.StrongValidateToken(token)
+	assert.Error(t, strongValidateErr)
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+}
