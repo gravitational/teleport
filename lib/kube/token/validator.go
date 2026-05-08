@@ -66,8 +66,8 @@ type ValidationResult struct {
 	// ServiceAccountName is the name of the service account extracted from the
 	// identity.
 	ServiceAccountName string `json:"service_account_name"`
-	// ServiceAccountNamespace is the name of the service account extracted from
-	// the identity
+	// ServiceAccountNamespace is the namespace of the service account extracted
+	// from the identity
 	ServiceAccountNamespace string `json:"service_account_namespace"`
 	attrs                   *workloadidentityv1pb.JoinAttrsKubernetes
 }

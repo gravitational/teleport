@@ -142,15 +142,19 @@ func CheckIDToken(
 func checkKubernetesAllowRules(allow []*types.ProvisionTokenSpecV2Kubernetes_Rule, got *ValidationResult) error {
 	// If a single rule passes, accept the token
 	for i, rule := range allow {
-		wantUsername := fmt.Sprintf("%s:%s", ServiceAccountNamePrefix, rule.ServiceAccount)
-		if rule.ServiceAccount != "" && wantUsername != got.Username {
-			continue
+		if rule.ServiceAccount != "" {
+			wantUsername := fmt.Sprintf(
+				"%s:%s", ServiceAccountNamePrefix, rule.ServiceAccount,
+			)
+			if wantUsername != got.Username {
+				continue
+			}
 		}
 		saMatch, err := joinutils.GlobMatchAllowEmptyPattern(
 			rule.ServiceAccountName, got.ServiceAccountName,
 		)
 		if err != nil {
-			return trace.Wrap(err, "evaluating rule (%d) sercice_account_name match", i)
+			return trace.Wrap(err, "evaluating rule (%d) service_account_name match", i)
 		}
 		if !saMatch {
 			continue
