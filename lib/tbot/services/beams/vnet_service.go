@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/db"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
@@ -283,6 +285,37 @@ type vnetOSConfiguration struct {
 	config *vnetv1.TargetOSConfiguration
 }
 
+// clusterAccess captures the per-cluster bits shared by AppInfo and
+// DatabaseInfo
+type clusterAccess struct {
+	profile     string
+	cluster     string
+	ipv4CIDR    string
+	dialOptions *vnetv1.DialOptions
+}
+
+func (v *vnetApplicationService) clusterAccess(osConfig *vnetOSConfiguration) (clusterAccess, error) {
+	cidrs := osConfig.config.GetIpv4CidrRanges()
+	if len(cidrs) == 0 {
+		return clusterAccess{}, trace.BadParameter("no ipv4 cidr ranges configured for VNet")
+	}
+	proxyAddr := osConfig.pong.GetProxyPublicAddr()
+	return clusterAccess{
+		profile:  proxyAddr,
+		cluster:  osConfig.pong.GetClusterName(),
+		ipv4CIDR: cidrs[0],
+		dialOptions: &vnetv1.DialOptions{
+			WebProxyAddr: proxyAddr,
+			// ALPN Upgrade is not required in Teleport Cloud. We might need
+			// to reevaluate this if we support Beams on-premise (or not? we
+			// could just draw a hard line and require sensible proxy
+			// configuration).
+			AlpnConnUpgradeRequired: false,
+			InsecureSkipVerify:      v.insecure,
+		},
+	}, nil
+}
+
 func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
 	osConfig, err := v.getOSConfiguration(ctx)
 	if err != nil {
@@ -310,6 +343,17 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 			"dns_zones", osConfig.config.GetDnsZones(),
 		)
 		return &vnetv1.ResolveFQDNResponse{}, nil
+	}
+
+	// Try DB resolution first. The DB FQDN form (<identifier>.db.<zone>) is
+	// more specific than the app public_addr space. If the DB FQDN is not
+	// parseable, errNoDBMatch is returned and we fall through to app resolution below.
+	dbResp, err := v.resolveDatabaseFQDN(ctx, fqdn, osConfig)
+	switch {
+	case err == nil:
+		return dbResp, nil
+	case !errors.Is(err, errNoDBMatch):
+		return nil, trace.Wrap(err)
 	}
 
 	expr := fmt.Sprintf(
@@ -377,29 +421,25 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 	//
 	// TODO(boxofrad): Replace this with HTTPS-in-mTLS once RFD 0035e is approved
 	// and implemented.
-	proxyAddr := osConfig.pong.GetProxyPublicAddr()
+	ca, err := v.clusterAccess(osConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	appInfo := &vnetv1.AppInfo{
+		AppKey: &vnetv1.AppKey{
+			Profile: ca.profile,
+			Name:    app.GetName(),
+		},
+		App:           app,
+		Ipv4CidrRange: ca.ipv4CIDR,
+		Cluster:       ca.cluster,
+		DialOptions:   ca.dialOptions,
+	}
+
 	return &vnetv1.ResolveFQDNResponse{
 		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
 			MatchedTcpApp: &vnetv1.MatchedTCPApp{
-				AppInfo: &vnetv1.AppInfo{
-					AppKey: &vnetv1.AppKey{
-						Profile: proxyAddr,
-						Name:    app.GetName(),
-					},
-					App:           app,
-					Ipv4CidrRange: osConfig.config.GetIpv4CidrRanges()[0],
-					Cluster:       osConfig.pong.GetClusterName(),
-					DialOptions: &vnetv1.DialOptions{
-						WebProxyAddr: proxyAddr,
-
-						// ALPN Upgrade is not required in Teleport Cloud we
-						// might need to reevaluate this if we support Beams
-						// on-premise (or not? we could just draw a hard line
-						// and require sensible proxy configuration).
-						AlpnConnUpgradeRequired: false,
-						InsecureSkipVerify:      v.insecure,
-					},
-				},
+				AppInfo: appInfo,
 			},
 		},
 	}, nil
@@ -421,6 +461,81 @@ func (v *vnetApplicationService) GetAppCert(ctx context.Context, key *vnetv1.App
 
 // GetAppSigner returns the private key for the given application's TLS certificate.
 func (v *vnetApplicationService) GetAppSigner(context.Context, *vnetv1.AppKey, uint16) (crypto.Signer, error) {
+	return v.privateKey, nil
+}
+
+// errNoDBMatch signals that the DB sub-resolver did not match the queried
+// FQDN, and ResolveFQDN should fall through to app resolution.
+var errNoDBMatch = errors.New("no DB match for queried FQDN")
+
+// resolveDatabaseFQDN attempts to resolve fqdn as a VNet database FQDN of the
+// form <identifier>.db.<zone>. Returns errNoDBMatch when fqdn is not DB-shaped,
+// no databases match the parsed identifier, or the matched database's protocol
+// isn't supported by VNet — so the caller can fall through to app resolution.
+func (v *vnetApplicationService) resolveDatabaseFQDN(
+	ctx context.Context,
+	fqdn string,
+	osConfig *vnetOSConfiguration,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	proxyHost := hostname(osConfig.pong.GetProxyPublicAddr())
+	identifier, ok := db.Parse(fqdn, proxyHost)
+	if !ok {
+		return nil, errNoDBMatch
+	}
+
+	log := v.logger.With("fqdn", fqdn, "identifier", identifier)
+	servers, err := db.ListServers(ctx, v.client, identifier)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to list database servers", "error", err)
+		return nil, trace.Wrap(err, "listing database servers")
+	}
+
+	dbResource, ok := db.PickMatch(ctx, log, identifier, servers)
+	if !ok {
+		return nil, errNoDBMatch
+	}
+
+	ca, err := v.clusterAccess(osConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+			MatchedDatabase: &vnetv1.MatchedDatabase{
+				DatabaseInfo: &vnetv1.DatabaseInfo{
+					DatabaseKey: &vnetv1.DatabaseKey{
+						Profile: ca.profile,
+						Name:    dbResource.GetName(),
+					},
+					Cluster:       ca.cluster,
+					Protocol:      dbResource.GetProtocol(),
+					Ipv4CidrRange: ca.ipv4CIDR,
+					DialOptions:   ca.dialOptions,
+				},
+			},
+		},
+	}, nil
+}
+
+// GetDBCert issues a TLS certificate for the given database via tbot's
+// identity generator, using the bot-bound private key and the configured
+// delegation session.
+func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (*tls.Certificate, error) {
+	id, err := v.identityGenerator.Generate(ctx,
+		identity.WithPrivateKey(v.privateKey),
+		identity.WithRouteToDatabase(*vnet.RouteToDatabase(dbInfo)),
+		identity.WithLifetime(v.credentialLifetime.TTL, v.credentialLifetime.RenewalInterval),
+		identity.WithDelegation(v.delegationSessionID),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return id.TLSCert, nil
+}
+
+// GetDBSigner returns the bot-bound private key. The same key is shared
+// across all VNet-issued database certificates in this service.
+func (v *vnetApplicationService) GetDBSigner(context.Context, *vnetv1.DatabaseKey) (crypto.Signer, error) {
 	return v.privateKey, nil
 }
 
