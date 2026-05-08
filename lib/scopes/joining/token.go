@@ -68,6 +68,7 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 		if !serviceAccountSet && !(serviceAccountNameSet && serviceAccountNamespaceSet) {
 			return trace.BadParameter(
 				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
+				i,
 			)
 		}
 
