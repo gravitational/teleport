@@ -69,8 +69,8 @@ type KeyAgentConfig struct {
 	AllowReissue bool `yaml:"allow_reissue,omitempty"`
 
 	// Destination is where the key agent socket, certificate, and identity file
-	// should be written. It must be a directory, and it is recommended to use
-	// `$TMPDIR/.Teleport-PIV` for seamless integration with tsh.
+	// should be written. Configure tsh and tctl to use the agent by setting the
+	// TELEPORT_KEY_AGENT_DIR environment variable to the given directory path.
 	Destination destination.Destination `yaml:"destination"`
 }
 
