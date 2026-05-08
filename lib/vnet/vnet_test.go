@@ -522,6 +522,10 @@ func (p *fakeClientApp) OnInvalidLocalPort(_ context.Context, _ *vnetv1.AppInfo,
 	p.onInvalidLocalPortCallCount.Add(1)
 }
 
+func (p *fakeClientApp) PerformSessionMFACeremony(_ context.Context, _, _ string, _ []byte) (string, error) {
+	return "", trace.NotImplemented("PerformSessionMFACeremony not implemented")
+}
+
 func (p *fakeClientApp) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
 	p.requestedRouteToDatabasesMu.Lock()
 	defer p.requestedRouteToDatabasesMu.Unlock()

@@ -556,6 +556,24 @@ func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, ta
 	}()
 }
 
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (p *clientApplication) PerformSessionMFACeremony(
+	ctx context.Context,
+	profileName string,
+	leafClusterName string,
+	sessionID []byte,
+) (string, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+
+	_, tc, err := p.daemonService.ResolveClusterURI(uri)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challengeName, err := tc.PerformSessionMFACeremony(ctx, sessionID)
+	return challengeName, trace.Wrap(err)
+}
+
 // OnNewAppConnection submits an app usage event once per clientApplication lifetime.
 // That is, if a user makes multiple connections to a single app, OnNewAppConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
