@@ -218,10 +218,17 @@ func newKubeletClient(cfg KubeletClientConfig) *kubeletClient {
 	}
 }
 
-type roundTripperFn func(req *http.Request) (*http.Response, error)
+type roundTripper struct {
+	fn func(req *http.Request) (*http.Response, error)
+	tr *http.Transport
+}
 
-func (f roundTripperFn) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
+func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r.fn(req)
+}
+
+func (r *roundTripper) CloseIdleConnections() {
+	r.tr.CloseIdleConnections()
 }
 
 func (c *kubeletClient) httpClient() (url.URL, *http.Client, error) {
@@ -274,10 +281,13 @@ func (c *kubeletClient) httpClient() (url.URL, *http.Client, error) {
 		if err != nil {
 			return url.URL{}, nil, trace.Wrap(err, "reading token file %q", tokenPath)
 		}
-		client.Transport = roundTripperFn(func(req *http.Request) (*http.Response, error) {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			return transport.RoundTrip(req)
-		})
+		client.Transport = &roundTripper{
+			tr: transport,
+			fn: func(req *http.Request) (*http.Response, error) {
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+				return transport.RoundTrip(req)
+			},
+		}
 	}
 
 	return url.URL{
