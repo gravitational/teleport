@@ -309,7 +309,7 @@ oracle: # [...]
 |mongo_atlas|Contains Atlas metadata about the database.|[Mongo Atlas](#mongo-atlas)|
 |mysql|An additional section with MySQL database options.|[MySQL Options](#mysql-options)|
 |oracle|An additional Oracle configuration options.|[Oracle Options](#oracle-options)|
-|protocol|The database protocol: postgres, mysql, mongodb, etc.|string|
+|protocol|The database protocol. Valid options are: "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb" "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake" "spanner" "sqlserver"|string|
 |tls|The TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|[Database TLS](#database-tls)|
 |uri|The database connection endpoint.|string|
 

@@ -649,7 +649,6 @@ func InitAuthCache(p AuthCacheParams) error {
 		Plugin:                  p.AuthServer.Services.Plugins,
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
-		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 		Summarizer:              p.AuthServer.Services.Summarizer,
 		SubCAService:            p.AuthServer.Services.SubCAService,
 	})

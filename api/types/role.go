@@ -268,6 +268,13 @@ type Role interface {
 	// resources.
 	SetPreviewAsRoles(RoleConditionType, []string)
 
+	// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
+	// to be used by teleport plugins submitting reviews on behalf of users.
+	GetSubmitForUsers(RoleConditionType) []string
+	// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
+	// to be used by teleport plugins submitting reviews on behalf of users.
+	SetSubmitForUsers(RoleConditionType, []string)
+
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
@@ -2085,6 +2092,29 @@ func (r *RoleV6) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
 	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }
 
+// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
+// to be used by teleport plugins submitting reviews on behalf of users.
+func (r *RoleV6) GetSubmitForUsers(rct RoleConditionType) []string {
+	roleConditions := r.GetRoleConditions(rct)
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.SubmitForUsers
+}
+
+// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
+// to be used by teleport plugins submitting reviews on behalf of users.
+func (r *RoleV6) SetSubmitForUsers(rct RoleConditionType, users []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.SubmitForUsers = users
+}
+
 // validateRoleSpecKubeResources validates the Allow/Deny Kubernetes Resources
 // entries.
 func validateRoleSpecKubeResources(version string, spec RoleSpecV6) error {
@@ -2253,7 +2283,8 @@ func (a AccessReviewConditions) IsEmpty() bool {
 	return len(a.ClaimsToRoles) == 0 &&
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
-		len(a.Where) == 0
+		len(a.Where) == 0 &&
+		len(a.SubmitForUsers) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are

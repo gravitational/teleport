@@ -271,7 +271,21 @@ message DatabaseV3 {
 
 // DatabaseSpecV3 is the database spec.
 message DatabaseSpecV3 {
-  // Protocol is the database protocol: postgres, mysql, mongodb, etc.
+  // Protocol is the database protocol. Valid options are:
+  // "cassandra"
+  // "clickhouse"
+  // "clickhouse-http"
+  // "cockroachdb"
+  // "dynamodb"
+  // "elasticsearch"
+  // "mongodb"
+  // "mysql"
+  // "oracle"
+  // "postgres"
+  // "redis"
+  // "snowflake"
+  // "spanner"
+  // "sqlserver"
   string Protocol = 1 [(gogoproto.jsontag) = "protocol"];
   // URI is the database connection endpoint.
   string URI = 2 [(gogoproto.jsontag) = "uri"];
@@ -3186,7 +3200,7 @@ message AccessRequestDryRunEnrichment {
 
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
-  // Author is the teleport username of the review author.
+  // Author is the Teleport username of the review author.
   string Author = 1 [(gogoproto.jsontag) = "author"];
   // Roles is a list used for role-subselection (not yet fully supported).
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -3225,6 +3239,11 @@ message AccessReview {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // SubmittedBy is the Teleport plugin identity that submitted this review request
+  // to the Auth Service on behalf of the Author.
+  // Author remains the actual Teleport human/bot user that performed the review.
+  string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -4432,6 +4451,12 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
+
+  // SubmitForUsers is used by Teleport plugins to indicate
+  // they can submit reviews on behalf of other users.
+  // Reviews submitted for a user are evaluated against that user's own RBAC permissions.
+  // Supports wildcard (*).
+  repeated string SubmitForUsers = 5 [(gogoproto.jsontag) = "submit_for_users,omitempty"];
 }
 
 // AccessRequestAllowedPromotion describes an allowed promotion to an Access List.

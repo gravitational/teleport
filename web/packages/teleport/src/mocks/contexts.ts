@@ -89,6 +89,7 @@ export const allAccessAcl: Acl = {
   inferencePolicy: fullAccess,
   inferenceModel: fullAccess,
   inferenceSecret: fullAccess,
+  beam: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
