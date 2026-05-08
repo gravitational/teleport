@@ -492,10 +492,6 @@ func (v *vnetApplicationService) resolveDatabaseFQDN(
 		log.ErrorContext(ctx, "Failed to list database servers", "error", err)
 		return nil, trace.Wrap(err, "listing database servers")
 	}
-	if len(rsp.Resources) == 0 {
-		log.DebugContext(ctx, "No matching database servers for FQDN")
-		return nil, errNoDBMatch
-	}
 
 	dbResource, ok := db.PickMatch(ctx, log, identifier, rsp.Resources)
 	if !ok {

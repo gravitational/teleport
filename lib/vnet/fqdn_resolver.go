@@ -404,10 +404,6 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		log.InfoContext(ctx, "Failed to list database servers", "error", err)
 		return nil, errNoMatch
 	}
-	if len(resp.Resources) == 0 {
-		log.DebugContext(ctx, "Found no matching database servers")
-		return nil, errNoMatch
-	}
 
 	dbResource, ok := db.PickMatch(ctx, log, identifier, resp.Resources)
 	if !ok {
