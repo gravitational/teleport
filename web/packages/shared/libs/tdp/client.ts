@@ -132,7 +132,7 @@ export enum LogType {
 export type DirectoryEntry = {
   name: string;
   id: number;
-}
+};
 
 export interface TdpTransport {
   /** Sends a message down the stream. */
@@ -183,14 +183,14 @@ export class TdpClient extends EventEmitter<EventMap> {
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
-    private policy: ConnectPolicy = { mode: 'tdp' }
+    private policy: ConnectPolicy = { mode: 'tdp' },
   ) {
     super();
     // Hardcode to a maximum of 10 shared directories per session.
     this.directoryManager = new SharedDirectoryManager(
       selectSharedDirectory,
       this.logger,
-      10
+      10,
     );
   }
 
@@ -209,7 +209,7 @@ export class TdpClient extends EventEmitter<EventMap> {
        * (desktop player doesn't allow this parameter).
        */
       screenSpec?: ClientScreenSpec;
-    } = {}
+    } = {},
   ) {
     // Initialize our codec according to the connection policy.
     switch (this.policy.mode) {
@@ -234,7 +234,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
     try {
       this.transport = await this.getTransport(
-        this.transportAbortController.signal
+        this.transportAbortController.signal,
       );
     } catch (error) {
       this.emit(TdpClientEvent.ERROR, ensureError(error));
@@ -246,33 +246,33 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.keyboardLayout = options.keyboardLayout;
     this.codec
       .encodeInitialMessages(options.screenSpec, options.keyboardLayout)
-      .forEach(msg => this.send(msg));
+      .forEach((msg) => this.send(msg));
     this.emit(TdpClientEvent.CONNECTION_OPEN);
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
       const subscribers = new Set<() => void>();
       const unsubscribe = () => {
-        subscribers.forEach(unsubscribe => unsubscribe());
+        subscribers.forEach((unsubscribe) => unsubscribe());
         resolve();
       };
 
       subscribers.add(
-        this.transport.onMessage(data => {
-          void this.processMessage(data).catch(error => {
+        this.transport.onMessage((data) => {
+          void this.processMessage(data).catch((error) => {
             processingError = ensureError(error);
             unsubscribe();
             // All errors are treated as fatal, close the connection.
             this.transportAbortController.abort();
           });
-        })
+        }),
       );
       subscribers.add(
-        this.transport.onError(error => {
+        this.transport.onError((error) => {
           connectionError = error;
           unsubscribe();
-        })
+        }),
       );
       subscribers.add(this.transport.onComplete(unsubscribe));
     });
@@ -366,7 +366,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   private async initWasm() {
     if (typeof WebAssembly === 'undefined') {
       throw new Error(
-        'WebAssembly is not supported in this browser. Desktop sessions and desktop session recordings require WebAssembly.'
+        'WebAssembly is not supported in this browser. Desktop sessions and desktop session recordings require WebAssembly.',
       );
     }
 
@@ -380,7 +380,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // load this directly which plays nicely with our current Content Security Policy.
     const wasmBytes = Uint8Array.from(
       atob(wasmUrl.slice(wasmUrl.indexOf(',') + 1)),
-      c => c.charCodeAt(0)
+      (c) => c.charCodeAt(0),
     );
 
     await init({ module_or_path: wasmBytes });
@@ -390,17 +390,17 @@ export class TdpClient extends EventEmitter<EventMap> {
   private initFastPathProcessor(
     ioChannelId: number,
     userChannelId: number,
-    spec: ClientScreenSpec
+    spec: ClientScreenSpec,
   ) {
     this.logger.debug(
-      `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
+      `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`,
     );
 
     this.fastPathProcessor = new FastPathProcessor(
       spec.width,
       spec.height,
       ioChannelId,
-      userChannelId
+      userChannelId,
     );
   }
 
@@ -408,7 +408,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   // so that its internal await-or-not logic is obeyed.
   async processMessage(
     buffer: ArrayBufferLike,
-    codecOverride?: Codec
+    codecOverride?: Codec,
   ): Promise<void> {
     let codec = this.codec;
     if (codecOverride) {
@@ -504,7 +504,7 @@ export class TdpClient extends EventEmitter<EventMap> {
         // Message types that we know about, but deliberately do no support on the client.
         // 'data' should be the unsupported message kind.
         this.logger.debug(
-          `received message type not supported by this client ${result.data}`
+          `received message type not supported by this client ${result.data}`,
         );
         break;
       default:
@@ -527,7 +527,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       tdpbCodec.encodeClientHello({
         keyboardLayout: this.keyboardLayout,
         screenSpec: this.screenSpec,
-      })
+      }),
     );
   }
 
@@ -587,7 +587,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       scale: 100,
     };
     this.logger.info(
-      `screen spec received from server ${spec.width} x ${spec.height}`
+      `screen spec received from server ${spec.width} x ${spec.height}`,
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
@@ -618,7 +618,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       },
       (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
         this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
-      }
+      },
     );
   }
 
@@ -632,14 +632,14 @@ export class TdpClient extends EventEmitter<EventMap> {
         'Multifactor authentication is required for accessing this desktop, \
       however the U2F API for hardware keys is not supported for desktop sessions. \
       Please notify your system administrator to update cluster settings \
-      to use WebAuthn as the second factor protocol.'
+      to use WebAuthn as the second factor protocol.',
       );
     }
   }
 
   handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge) {
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      ack.directoryId
+      ack.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -650,23 +650,22 @@ export class TdpClient extends EventEmitter<EventMap> {
       // share operation failed (likely due to server side configuration).
       // Since this is not a fatal error, we emit a warning but otherwise
       // keep the sesion alive.
-      console.log('handling directory acknowledge');
       this.handleWarning(
         `Failed to share directory '${sharedDirectory.getDirectoryName()}', drive redirection may be disabled on the RDP server.`,
-        TdpClientEvent.TDP_WARNING
+        TdpClientEvent.TDP_WARNING,
       );
       return;
     }
 
     this.logger.info(
-      `Started sharing directory: ${sharedDirectory.getDirectoryName()}`
+      `Started sharing directory: ${sharedDirectory.getDirectoryName()}`,
     );
   }
 
   async handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest) {
     const path = req.path;
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -700,7 +699,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest) {
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -732,7 +731,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest) {
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -755,7 +754,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest) {
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -763,7 +762,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     const readData = await sharedDirectory.read(
       req.path,
       req.offset,
-      req.length
+      req.length,
     );
     this.sendSharedDirectoryReadResponse({
       completionId: req.completionId,
@@ -775,7 +774,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest) {
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -784,7 +783,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     const bytesWritten = await sharedDirectory.write(
       req.path,
       req.offset,
-      req.writeData
+      req.writeData,
     );
 
     this.sendSharedDirectoryWriteResponse({
@@ -803,21 +802,21 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.handleWarning(
       'Moving files and directories within a shared \
         directory is not supported.',
-      TdpClientEvent.CLIENT_WARNING
+      TdpClientEvent.CLIENT_WARNING,
     );
   }
 
   async handleSharedDirectoryListRequest(req: SharedDirectoryListRequest) {
     const path = req.path;
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
     }
 
     const infoList = await sharedDirectory.readDir(path);
-    const fsoList = infoList.map(info => this.toFso(info));
+    const fsoList = infoList.map((info) => this.toFso(info));
 
     this.sendSharedDirectoryListResponse({
       completionId: req.completionId,
@@ -827,7 +826,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   async handleSharedDirectoryTruncateRequest(
-    req: SharedDirectoryTruncateRequest
+    req: SharedDirectoryTruncateRequest,
   ) {
     if (req.endOfFile > BigInt(Number.MAX_SAFE_INTEGER)) {
       this.handleWarning(
@@ -842,7 +841,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     const sharedDirectory = this.directoryManager.getSharedDirectory(
-      req.directoryId
+      req.directoryId,
     );
     if (!sharedDirectory) {
       return;
@@ -875,7 +874,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
     this.logger.info(
-      `requesting screen spec from client ${spec.width} x ${spec.height}`
+      `requesting screen spec from client ${spec.width} x ${spec.height}`,
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
@@ -893,7 +892,9 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    this.codec.encodeKeyboardInput(code, state).forEach(msg => this.send(msg));
+    this.codec
+      .encodeKeyboardInput(code, state)
+      .forEach((msg) => this.send(msg));
   }
 
   sendSyncKeys(syncKeys: SyncKeys) {
@@ -920,20 +921,17 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.sendRemoveSharedDirectory(directoryId);
   }
 
-  listSharedDirectories(): [string, number][] {
+  listSharedDirectories(): DirectoryEntry[] {
     return this.directoryManager.listSharedDirectories();
   }
 
   sendSharedDirectoryAnnounce(directoryId: number, name: string) {
-    //const name = this.sharedDirectory.getDirectoryName();
     this.send(
       this.codec.encodeSharedDirectoryAnnounce({
         discard: 0, // This is always the first request.
-        // Hardcode directoryId for now since we only support sharing 1 directory.
-        // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
         directoryId: directoryId,
         name,
-      })
+      }),
     );
   }
 
@@ -941,7 +939,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.send(
       this.codec.encodeSharedDirectoryRemoveRequest({
         directoryId,
-      })
+      }),
     );
   }
 
@@ -974,7 +972,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   sendSharedDirectoryTruncateResponse(
-    response: SharedDirectoryTruncateResponse
+    response: SharedDirectoryTruncateResponse,
   ) {
     this.send(this.codec.encodeSharedDirectoryTruncateResponse(response));
   }
@@ -990,7 +988,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   // Emits a warning event, but keeps the socket open.
   private handleWarning(
     warning: string,
-    warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING
+    warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING,
   ) {
     this.logger.warn(warning);
     this.emit(warnType, warning);
@@ -1017,7 +1015,7 @@ export type BitmapFrame = {
 
 export function useListener<T extends any[]>(
   emitter: (callback: (...args: T) => void) => () => void | undefined,
-  listener: ((...args: T) => void) | undefined
+  listener: ((...args: T) => void) | undefined,
 ) {
   useEffect(() => {
     if (!emitter) {
@@ -1045,14 +1043,18 @@ class SharedDirectoryManager {
   constructor(
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
     private logger: Logger,
-    private max_directories: number = 10
+    private maxDirectories: number = 10,
   ) {
     // The teleport RDP client uses deviceId '1' for its emulated smart card device.
     // Reserve enough device identifiers for double the number of allowed directories.
     // The identifier assignment algorithm assigns least recently used identifiers first.
     this.device_id = new Identifiers(
       2,
-      Math.min(2 + max_directories * 2, 0xffffffff /* max uint32 */)
+      // Ideally, our range of available identifiers exceeds the maximum number of allowed
+      // directories. The identifier implementation recycles least recently used identifiers
+      // first which allows time for in-flight requests for released identifiers to quiesce
+      // before they're re-used.
+      2 + maxDirectories * 2,
     );
     this.sharedDirectories = new Map<number, SharedDirectoryAccess>();
   }
@@ -1072,7 +1074,7 @@ class SharedDirectoryManager {
       // The directory may have been recently unshared while the server had
       // pending I/O requests.
       this.logger.warn(
-        `Attempted to get an invalid directory id: ${directoryId}`
+        `Attempted to get an invalid directory id: ${directoryId}`,
       );
     }
     return directoryAccess;
@@ -1091,9 +1093,9 @@ class SharedDirectoryManager {
 
     this.sharedDirectories.set(id, directory);
     this.logger.info(
-      `Sharing directory '${directory.getDirectoryName()}' with device_id '${id}'`
+      `Sharing directory '${directory.getDirectoryName()}' with device_id '${id}'`,
     );
-    return {name: directory.getDirectoryName(), id};
+    return { name: directory.getDirectoryName(), id };
   }
 
   unshareDirectory(directoryId: number): void {
@@ -1101,7 +1103,7 @@ class SharedDirectoryManager {
     const rel = this.device_id.release(directoryId);
     if (!(del && rel)) {
       this.logger.warn(
-        `Attempted to unshare invalid directory id: ${directoryId}`
+        `Attempted to unshare invalid directory id: ${directoryId}`,
       );
     }
   }
@@ -1129,7 +1131,7 @@ class Identifiers {
     this.leased = new Set();
     this.free = Array.from(
       { length: end - start + 1 },
-      (_, idx) => idx + start
+      (_, idx) => idx + start,
     );
   }
 
