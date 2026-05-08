@@ -33,6 +33,7 @@ func GetCloudFeatures(ctx context.Context, cloudClient cloud.Client) (*modules.F
 		Questionnaire:         resp.Questionnaire,
 		SupportType:           proto.SupportType(resp.SupportType),
 		CloudAnonymizationKey: resp.CloudAnonymizationKey,
+		BeamsUI:               resp.BeamsUi,
 		// Entitlements
 		Entitlements: GetCloudEntitlements(resp.Entitlements),
 

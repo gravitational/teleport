@@ -355,6 +355,48 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 	})
 }
 
+func TestRun_BeamsUI(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		mockCloudClient := &testClient{}
+		backend := newMemoryBackend(t)
+
+		cfg := Config{
+			Backend:        backend,
+			CloudClient:    mockCloudClient,
+			Interval:       500 * time.Millisecond,
+			RequestTimeout: 500 * time.Millisecond,
+			Modules:        modulestest.EnterpriseModules(),
+		}
+		service, err := NewService(cfg)
+		require.NoError(t, err)
+
+		mockCloudClient.setMockGetFeatures(
+			func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+				return &cloudapi.GetFeaturesResponse{
+					BeamsUi: true,
+				}, nil
+			},
+		)
+
+		// Run the service.
+		go service.Run(ctx)
+
+		// Advance time so the service fetches and stores features
+		time.Sleep(time.Second)
+		synctest.Wait()
+
+		// Check if the features are stored in the backend.
+		requireFeatures(t, backend, ctx, modules.Features{
+			BeamsUI:        true,
+			AccessControls: true,
+			Entitlements:   getPopulatedEntitlements(nil),
+		})
+	})
+}
+
 func newMemoryBackend(t *testing.T) backend.Backend {
 	b, err := memory.New(memory.Config{})
 	require.NoError(t, err)
