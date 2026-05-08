@@ -11,6 +11,7 @@ import {
   screen,
   server,
   testQueryClient,
+  userEvent,
   waitFor,
 } from 'design/utils/testing';
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
@@ -207,4 +208,34 @@ test(`should show access list if backend returns it, even if user lacks list and
   await waitFor(() => {
     expect(screen.getByText(/apple/i)).toBeInTheDocument();
   });
+});
+
+test('static access list with zero next audit date does not render review UI in list view', async () => {
+  jest.spyOn(accessManagementService, 'fetchAccessListsV2').mockResolvedValue({
+    agents: [
+      {
+        ...mockAccessListApple,
+        id: 'id-static-list',
+        metadata: {
+          ...mockAccessListApple.metadata,
+          name: 'id-static-list',
+        },
+        type: AccessListType.Static,
+        title: 'static list',
+        audit: {
+          ...mockAccessListApple.audit,
+          nextDate: new Date('0001-01-01T00:00:00Z'),
+        },
+      },
+    ],
+  });
+  jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue({} as Plugin);
+
+  renderComponent(createTeleportContextE());
+  await userEvent.click(screen.getByRole('radio', { name: 'List View' }));
+  act(mio.enterAll);
+
+  await screen.findByText('static list');
+  expect(screen.queryByText('0001-01-01')).not.toBeInTheDocument();
+  expect(screen.queryByText(/review now/i)).not.toBeInTheDocument();
 });

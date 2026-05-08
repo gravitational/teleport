@@ -23,7 +23,10 @@ import {
 } from 'e-teleport/services/accessmanagement';
 import type { Access } from 'teleport/services/user';
 
-import { accessListRequiresReview } from '../AccessListManagementContext';
+import {
+  accessListRequiresReview,
+  getReviewDate,
+} from '../AccessListManagementContext';
 import { TruncatingLabel, type MemberSelection } from '../Shared/Shared';
 
 export type AccessListRequiresWithTraitConvenience = AccessListRequires &
@@ -95,7 +98,7 @@ export const modifyAccessList = (acl: AccessList): AccessListModified => {
     },
     requiresReview: accessListRequiresReview({
       todayDate: new Date(),
-      reviewDate: acl.audit.nextDate,
+      reviewDate: getReviewDate(acl),
     }),
     members: [...acl.members],
   };

@@ -41,6 +41,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     origin: AccessListOrigin.Okta,
     owners: [],
     needsReviewBy: null,
+    auditNextDate: null,
     inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   },
   {
@@ -66,6 +67,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    auditNextDate: null,
     inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   },
   {
@@ -91,6 +93,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    auditNextDate: null,
     inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   },
   {
@@ -116,6 +119,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    auditNextDate: null,
     inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   },
   {
@@ -142,6 +146,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    auditNextDate: null,
     inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   },
   {
@@ -167,6 +172,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    auditNextDate: null,
     inheritedMemberGrants: { roles: [], traits: {}, scopedRoles: [] },
   },
 ];

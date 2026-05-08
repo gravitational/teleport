@@ -56,7 +56,7 @@ export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };
   ownerGrants: AccessListGrant & { traitList: string[] };
   needsReviewBy: Date | null;
-  auditNextDate?: Date;
+  auditNextDate: Date | null;
 };
 
 export function AccessLists() {
@@ -465,14 +465,8 @@ const AccessListTable = ({
         headerText: 'Next Review',
         key: 'auditNextDate',
         onSort: (a, b) => {
-          const aDate =
-            a.origin === AccessListOrigin.Okta && isOktaReadOnly
-              ? null
-              : a.audit?.nextDate;
-          const bDate =
-            b.origin === AccessListOrigin.Okta && isOktaReadOnly
-              ? null
-              : b.audit?.nextDate;
+          const aDate = getEffectiveAuditNextDate(a, isOktaReadOnly);
+          const bDate = getEffectiveAuditNextDate(b, isOktaReadOnly);
 
           if (!aDate && !bDate) {
             return 0;
@@ -539,20 +533,18 @@ const TableAuditNextDateCell = ({
   isOktaReadOnly?: boolean;
 }) => {
   const navigate = useNavigate();
+  const auditNextDate = getEffectiveAuditNextDate(accessList, isOktaReadOnly);
 
-  if (
-    (accessList.origin === AccessListOrigin.Okta && isOktaReadOnly) ||
-    !accessList.audit?.nextDate
-  ) {
+  if (!auditNextDate) {
     return <Cell></Cell>;
   }
 
   const requiresReview = accessListRequiresReview({
     todayDate: new Date(Date.now()),
-    reviewDate: accessList.audit.nextDate,
+    reviewDate: auditNextDate,
   });
-  const isOverdue = accessList.audit.nextDate < new Date();
-  const formatted = format(accessList.audit.nextDate, DATE_FORMAT);
+  const isOverdue = auditNextDate < new Date();
+  const formatted = format(auditNextDate, DATE_FORMAT);
 
   if (!requiresReview && !isOverdue) {
     return (
@@ -578,6 +570,17 @@ const TableAuditNextDateCell = ({
     </Cell>
   );
 };
+
+function getEffectiveAuditNextDate(
+  accessList: AccessListWithModifiedGrants,
+  isOktaReadOnly = false
+) {
+  if (accessList.origin === AccessListOrigin.Okta && isOktaReadOnly) {
+    return null;
+  }
+
+  return accessList.auditNextDate;
+}
 
 const AccessListContainer = styled(Flex)<{ viewMode?: ViewMode }>`
   display: ${p => (p.viewMode === ViewMode.LIST ? 'block' : 'grid')};

@@ -5,6 +5,10 @@ import { Alert } from 'design/Alert';
 import { DATE_FORMAT } from 'design/datetime/constants';
 import { ArrowForward, Info, ListMagnifyingGlass } from 'design/Icon';
 
+import {
+  accessListRequiresReview,
+  getReviewDate,
+} from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { isReviewable } from 'e-teleport/services/accessmanagement';
 
 import { AccessListModified, Perms } from './Shared';
@@ -23,9 +27,20 @@ export const ReviewBanner = ({
 
   const canReview = perms.isOwner || perms.adminWhoCanEdit;
   const requiresReview =
-    isReviewable(accessList.type) &&
     !isReadOnlyOktaList &&
-    (accessList.requiresReview || accessList.audit.nextDate < new Date());
+    accessListRequiresReview({
+      todayDate: new Date(),
+      reviewDate: getReviewDate(accessList),
+    });
+
+  if (!isReviewable(accessList.type) && location.hash === '#review') {
+    return (
+      <Alert kind="neutral" icon={Info}>
+        Static Access Lists do not support reviews because they are managed
+        outside the Web UI.
+      </Alert>
+    );
+  }
 
   if (!requiresReview && canReview && location.hash === '#review') {
     return (

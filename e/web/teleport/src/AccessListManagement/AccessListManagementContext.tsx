@@ -26,6 +26,7 @@ import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManageme
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import {
   accessManagementService,
+  isReviewable,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 import { pluginsService } from 'e-teleport/services/plugins';
@@ -469,17 +470,20 @@ const processTraits = (
       });
     }
 
+    const auditNextDate = getReviewDate(r);
+    const needsReviewBy = accessListRequiresReview({
+      todayDate,
+      reviewDate: auditNextDate,
+    })
+      ? auditNextDate
+      : null;
+
     return {
       ...r,
       grants: { ...r.grants, traitList: memberTraitList.sort() },
       ownerGrants: { ...r.ownerGrants, traitList: ownerTraitList.sort() },
-      needsReviewBy: accessListRequiresReview({
-        todayDate,
-        reviewDate: r.audit.nextDate,
-      })
-        ? r.audit.nextDate
-        : null,
-      auditNextDate: r.audit.nextDate,
+      needsReviewBy,
+      auditNextDate,
     };
   });
 
@@ -491,11 +495,15 @@ export function accessListRequiresReview({
   reviewDate,
 }: {
   todayDate: Date;
-  reviewDate: Date | undefined;
+  reviewDate: Date | null;
 }) {
   if (!reviewDate) {
     return false;
   }
 
   return todayDate >= subWeeks(reviewDate, 2);
+}
+
+export function getReviewDate(accessList: Pick<AccessList, 'type' | 'audit'>) {
+  return isReviewable(accessList.type) ? accessList.audit.nextDate : null;
 }

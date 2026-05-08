@@ -189,6 +189,36 @@ test('viewing a SCIM access list as admin', async () => {
   expect(button).toBeDisabled();
 });
 
+test('direct review navigation for a static access list shows a static message', async () => {
+  jest.spyOn(accessManagementService, 'fetchAccessList').mockResolvedValue({
+    ...accessList,
+    type: AccessListType.Static,
+    audit: {
+      ...accessList.audit,
+      nextDate: new Date('0001-01-01T00:00:00Z'),
+    },
+  });
+
+  render(
+    <Provider
+      initialEntries={[
+        `${cfg.getAccessListManagementRoute(accessList.id)}#review`,
+      ]}
+    />
+  );
+
+  await screen.findByText(/mocked title/i);
+
+  expect(screen.queryByText(/reviewing access list/i)).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/static access lists do not support reviews/i)
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/does not require review until/i)
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('0001-01-01')).not.toBeInTheDocument();
+});
+
 test('renders scoped role grants for members, owners, and inherited access', async () => {
   jest.spyOn(accessManagementService, 'fetchAccessList').mockResolvedValue({
     ...accessList,

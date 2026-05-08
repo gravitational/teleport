@@ -22,7 +22,11 @@ import { HoverTooltip } from 'design/Tooltip';
 import Validation from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import {
+  accessListRequiresReview,
+  getReviewDate,
+  useAccessListManagementContext,
+} from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
@@ -159,8 +163,10 @@ export function ViewEditAccessList() {
 
   showReview: if (location.hash === '#review' && !!accessList) {
     const canReview = perms.isOwner || perms.adminWhoCanEdit;
-    const requiresReview =
-      accessList.requiresReview || accessList.audit.nextDate < new Date();
+    const requiresReview = accessListRequiresReview({
+      todayDate: new Date(),
+      reviewDate: getReviewDate(accessList),
+    });
 
     if (!requiresReview || !canReview) {
       break showReview;
