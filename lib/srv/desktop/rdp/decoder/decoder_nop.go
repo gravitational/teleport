@@ -36,6 +36,14 @@ func (d *Decoder) Process([]byte)                    {}
 func (d *Decoder) Image() *image.RGBA                { return nil }
 func (d *Decoder) Thumbnail(w, h int) *image.RGBA    { return nil }
 func (d *Decoder) CursorState() CursorState          { return CursorState{} }
-func (d *Decoder) CursorBitmap() *CursorBitmapData   { return nil }
 func (d *Decoder) UpdatedRegions() []image.Rectangle { return nil }
 func (d *Decoder) ResetUpdatedRegions()              {}
+
+func (d *Decoder) ResizedImage(maxW, maxH uint16) *image.RGBA { return nil }
+func (d *Decoder) ResizedImageWithCursor(maxW, maxH, cursorX, cursorY uint16) *image.RGBA {
+	return nil
+}
+func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outW, outH uint16) *image.RGBA {
+	return nil
+}
+func (d *Decoder) Dimensions() (uint16, uint16) { return 0, 0 }

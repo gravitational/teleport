@@ -16,24 +16,36 @@
 
 package decoder
 
-import (
-	"image"
-)
+import "math"
 
 // This file contains types and functions that are shared between the nop decoder (built without RDP decoder flag) and
 // the decoder built with the RDP decoder flag.
+
+// fitDimensions returns srcW, srcH scaled to fit within maxW x maxH while preserving aspect ratio.
+// If the source already fits, it is returned unchanged (no upscaling). Mirrors RdpDecoder::fitted_dimensions.
+func fitDimensions(srcW, srcH, maxW, maxH uint16) (uint16, uint16) {
+	if srcW <= maxW && srcH <= maxH {
+		return srcW, srcH
+	}
+
+	scaleW := float64(maxW) / float64(srcW)
+	scaleH := float64(maxH) / float64(srcH)
+	scale := math.Min(scaleW, scaleH)
+
+	w := uint16(math.Round(float64(srcW) * scale))
+	h := uint16(math.Round(float64(srcH) * scale))
+
+	// Clamp: float rounding can push the non-scale-defining dimension one px past max.
+	w = max(1, min(w, maxW))
+	h = max(1, min(h, maxH))
+
+	return w, h
+}
 
 // CursorState represents the state of the mouse cursor, including its visibility and position.
 type CursorState struct {
 	Visible bool
 	X, Y    uint16
-}
-
-// CursorBitmapData holds the cursor bitmap image and hotspot offset.
-type CursorBitmapData struct {
-	Image    *image.RGBA
-	HotspotX int
-	HotspotY int
 }
 
 type decoderConfig struct {

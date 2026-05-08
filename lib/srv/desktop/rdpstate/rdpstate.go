@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"image"
-	"image/draw"
 	"io"
 	"math"
 
@@ -102,31 +101,28 @@ func (s *RDPState) Image() *image.RGBA {
 	return s.decoder.Image()
 }
 
-// Release frees any resources associated with the RDPState, including the decoder.
-func (s *RDPState) Release() {
-	if s.decoder != nil {
-		s.decoder.Release()
-		s.decoder = nil
+// ResizedImage returns the current screen image resized to fit within the specified maximum width and height while
+// preserving aspect ratio, as an RGBA bitmap. If the decoder has not been initialized yet, it returns nil.
+func (s *RDPState) ResizedImage(maxWidth, maxHeight uint16) *image.RGBA {
+	if s.decoder == nil {
+		return nil
 	}
+
+	return s.decoder.ResizedImage(maxWidth, maxHeight)
 }
 
-// ImageWithCursor returns the current screen image with the cursor composited at its current position, along with the
-// cursor state.
+// ResizedImageWithCursor returns the current screen image resized to fit within the specified maximum width and height while
+// preserving aspect ratio, with the cursor composited onto the image at its current position (if visible).
 // When MouseMove TDPB messages have set a position, that overrides the Rust decoder's internal cursor position for compositing.
-func (s *RDPState) ImageWithCursor() (*image.RGBA, decoder.CursorState) {
+// If the decoder has not been initialized yet, it returns nil and a default hidden cursor state.
+func (s *RDPState) ResizedImageWithCursor(maxWidth, maxHeight uint16) (*image.RGBA, decoder.CursorState) {
 	if s.decoder == nil {
 		return nil, decoder.CursorState{}
 	}
 
-	img := s.decoder.Image()
 	cs := s.CursorState()
-	if img == nil || !cs.Visible {
-		return img, cs
-	}
-
-	bmp := s.decoder.CursorBitmap()
-	if bmp == nil {
-		return img, cs
+	if !cs.Visible {
+		return s.decoder.ResizedImage(maxWidth, maxHeight), cs
 	}
 
 	cursorX, cursorY := cs.X, cs.Y
@@ -134,14 +130,36 @@ func (s *RDPState) ImageWithCursor() (*image.RGBA, decoder.CursorState) {
 		cursorX, cursorY = s.mouseX, s.mouseY
 	}
 
-	drawX := int(cursorX) - bmp.HotspotX
-	drawY := int(cursorY) - bmp.HotspotY
-	cb := bmp.Image.Bounds()
+	return s.decoder.ResizedImageWithCursor(maxWidth, maxHeight, cursorX, cursorY), cs
+}
 
-	dstRect := image.Rect(drawX, drawY, drawX+cb.Dx(), drawY+cb.Dy())
-	draw.Draw(img, dstRect, bmp.Image, image.Point{}, draw.Over)
+// ResizeCrop returns the source crop region of the current screen image scaled to exactly outWidth x outHeight using
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. Returns nil if the decoder
+// has not been initialized.
+func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) *image.RGBA {
+	if s.decoder == nil {
+		return nil
+	}
 
-	return img, cs
+	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight)
+}
+
+// Dimensions returns the current screen width and height in pixels. Returns (0, 0) if the decoder has not been
+// initialized.
+func (s *RDPState) Dimensions() (width, height uint16) {
+	if s.decoder == nil {
+		return 0, 0
+	}
+
+	return s.decoder.Dimensions()
+}
+
+// Release frees any resources associated with the RDPState, including the decoder.
+func (s *RDPState) Release() {
+	if s.decoder != nil {
+		s.decoder.Release()
+		s.decoder = nil
+	}
 }
 
 // UpdatedRegions returns the individual screen regions updated since the last call to ResetUpdatedRegions.
