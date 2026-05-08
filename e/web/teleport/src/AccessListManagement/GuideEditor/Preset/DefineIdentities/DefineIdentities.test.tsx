@@ -238,7 +238,9 @@ test('defining git access does not render any identity tabs (no requirement)', a
   await goToAccessTab('github_permissions', user);
 
   const reactSelectInput = screen.getByRole('combobox');
-  await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+  await act(async () => {
+    await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+  });
 
   expect(screen.getByText('GitServerTestRow')).toBeInTheDocument();
   spiedUnifiedResource.mockClear();
@@ -585,8 +587,11 @@ test('defining access to everything renders all the correct identity tabs', asyn
    */
   await goToAccessTab('github_permissions', user);
   const reactSelectInput = screen.getByRole('combobox');
-  await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+  await act(async () => {
+    await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+  });
   expect(screen.getByText('GitServerTestRow')).toBeInTheDocument();
+  spiedUnifiedResource.mockClear();
   addedAccess['github_permissions'] = true;
 
   spiedUnifiedResource.mockClear();
@@ -711,9 +716,13 @@ test('defining access to everything renders all the correct identity tabs', asyn
 }, 15000);
 
 async function startGuide(user: UserEvent) {
-  // Select any guide.
-  await screen.findByText(/Select the type of Access List/i);
-  await user.click(screen.getByText(/temporary access/i));
+  // Fill in required name and start the guide.
+  await screen.findByText(/Select a guide/i);
+  await user.type(
+    screen.getByPlaceholderText(/Access List name/i),
+    'Test Access List'
+  );
+  await user.click(screen.getByRole('button', { name: /start guide/i }));
 
   await screen.findByText(/define application access/i);
   act(mio.enterAll); // trigger the isIntersecting of IntersectionObserver

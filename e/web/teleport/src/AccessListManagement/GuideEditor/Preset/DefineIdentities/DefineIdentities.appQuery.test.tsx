@@ -141,8 +141,12 @@ test('queries for app types when identities are not pre-determined', async () =>
   );
 
   // Start the guide
-  await screen.findByText(/Select the type of Access List/i);
-  await user.click(screen.getByText(/temporary access/i));
+  await screen.findByText(/Select a guide/i);
+  await user.type(
+    screen.getByPlaceholderText(/Access List name/i),
+    'Test Access List'
+  );
+  await user.click(screen.getByRole('button', { name: /start guide/i }));
 
   await screen.findByText(/define application access/i);
   act(mio.enterAll); // trigger the isIntersecting of IntersectionObserver

@@ -370,7 +370,7 @@ describe('DefineAccess', () => {
     await screen.findByText(/no access defined/i);
     spiedUnifiedResource.mockClear();
 
-    // Table isn't rendered until user selects wildcard.
+    // Table isn't rendered until user selects an org or wildcard.
     expect(
       screen.queryByTestId('unified-resource-table')
     ).not.toBeInTheDocument();
@@ -384,18 +384,32 @@ describe('DefineAccess', () => {
      */
     const reactSelectInput = screen.getByRole('combobox');
 
-    await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+    await act(async () => {
+      await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+    });
 
     const inputWrapper = screen.getByTestId('git-server-dropdown');
     expect(
       within(inputWrapper).getByText(/GitServerTestRow/i)
     ).toBeInTheDocument();
     expect(screen.queryByText(/no access defined/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId('unified-resource-table')
-    ).not.toBeInTheDocument();
+    await screen.findByTestId('unified-resource-table');
+    act(mio.enterAll);
 
-    expect(spiedUnifiedResource).toHaveBeenCalledTimes(0);
+    expect(spiedUnifiedResource).toHaveBeenCalledTimes(1);
+    expect(spiedUnifiedResource).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        kinds: ['git_server'],
+        limit: 48,
+        query: 'search("GitServerTestRow")',
+        startKey: '',
+        sort: { dir: 'ASC', fieldName: 'name' },
+        search: undefined,
+      },
+      expect.anything()
+    );
+    spiedUnifiedResource.mockClear();
 
     /**
      * Selecting wildcard should clear previous selections

@@ -205,6 +205,14 @@ export function DefineAccess() {
     setResourceFilters({ ...resourceFilters, ...newFilters });
   }
 
+  const onGitServerTab = selectedResourceTab === 'github_permissions';
+  const showListResourceSection =
+    selectedResourceTab !== 'awsIc' &&
+    // If on git server tab, only render list resource section
+    // when access is defined, since git server is not matched
+    // by labels.
+    (!onGitServerTab || definedAccess('github_permissions'));
+
   let defineAccessContent: JSX.Element;
 
   switch (selectedResourceTab) {
@@ -217,40 +225,14 @@ export function DefineAccess() {
     case 'db_labels':
     case 'kubernetes_labels':
     case 'node_labels':
-    case 'windows_desktop_labels': {
-      defineAccessContent = (
-        <ListResourceSection
-          key={selectedResourceTab}
-          selectedResourceTab={selectedResourceTab}
-          resourceFilters={resourceFilters}
-          updateResourceFilters={updateResourceFilters}
-          fetchedResources={fetchedResources}
-        />
-      );
-      break;
-    }
-
+    case 'windows_desktop_labels':
     case 'github_permissions': {
       defineAccessContent = (
-        <GitServerSection updateResourceFilters={updateResourceFilters} />
-      );
-
-      const selectedWildcard = getGitHubOrgs(
-        standardRoleState.roleConditions.github_permissions
-      ).includes(wildcard);
-
-      if (selectedWildcard) {
-        // Unified resource table is not necessary since
-        // it's just repeat info (there is nothing for the user
-        // to interact with the list since git_server access
-        // is not controlled by labels).
-        //
-        // But if user selected a wildcard we render the table to
-        // scale better in terms of paging and better visibility of
-        // all available servers in the cluster.
-        defineAccessContent = (
-          <>
-            {defineAccessContent}
+        <>
+          {onGitServerTab && (
+            <GitServerSection updateResourceFilters={updateResourceFilters} />
+          )}
+          {showListResourceSection && (
             <ListResourceSection
               key={selectedResourceTab}
               selectedResourceTab={selectedResourceTab}
@@ -258,9 +240,9 @@ export function DefineAccess() {
               updateResourceFilters={updateResourceFilters}
               fetchedResources={fetchedResources}
             />
-          </>
-        );
-      }
+          )}
+        </>
+      );
       break;
     }
 

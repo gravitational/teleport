@@ -184,11 +184,23 @@ describe('going through different guides', () => {
     const ctx = createTeleportContextE();
     renderComponent(ctx);
 
-    await screen.findByText(/Select the type of Access List/i);
+    await screen.findByText(/Select a guide/i);
+    await screen.findByText(/Page Info/i);
 
-    // Click on custom tile
-    await user.click(screen.getByText(/custom/i));
+    // Fill in required name and click custom form
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(
+      screen.getByRole('button', { name: /use custom form instead/i })
+    );
+    // Wait for the custom form to render and flush react-select's useAsync
+    // default options loading (4 async selects mount with defaultOptions={true}).
     await screen.findByText(/basic information/i);
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     expect(emitEventSpy).toHaveBeenCalledTimes(1);
     expect(emitEventSpy).toHaveBeenCalledWith({
@@ -200,24 +212,26 @@ describe('going through different guides', () => {
     });
     emitEventSpy.mockClear();
 
-    // Test validation prevents going forward.
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText(/title is required/i);
-
     // Fill out required inputs:
 
-    // Basic
-    await user.type(screen.getByPlaceholderText(/Title/i), 'some title');
+    // Basic (title is pre-filled from the start form)
     await user.click(screen.getByText(/Select a Date/i));
     await user.click(screen.queryAllByText(/26/)[0]);
 
     // Owners
-    await selectEvent.select(
-      screen.getByLabelText('Add Access Lists as Owners'),
-      'All Employees'
-    );
-    await selectEvent.select(screen.getByLabelText('Add Owners'), 'alice');
-    await screen.findByText(/alice/i);
+    // act required otherwise react-select's useAsync triggers:
+    // An update to ForwardRef inside a test was not wrapped in act
+    await act(async () => {
+      await selectEvent.select(
+        screen.getByLabelText('Add Access Lists as Owners'),
+        'All Employees'
+      );
+      await jest.runAllTimersAsync();
+    });
+    await act(async () => {
+      await selectEvent.select(screen.getByLabelText('Add Owners'), 'alice');
+      await jest.runAllTimersAsync();
+    });
 
     // Finish
     await user.click(screen.getByRole('button', { name: 'Next' }));
@@ -289,10 +303,15 @@ describe('going through different guides', () => {
     const ctx = createTeleportContextE();
     renderComponent(ctx);
 
-    await screen.findByText(/Select the type of Access List/i);
+    await screen.findByText(/Select a guide/i);
+    await screen.findByText(/Page Info/i);
 
-    // Step 0: click on preset tile
-    await user.click(screen.getByText(/temporary access/i));
+    // Step 0: fill in name and start with short-term (default)
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(screen.getByRole('button', { name: /start guide/i }));
 
     expect(emitEventSpy).toHaveBeenCalledTimes(1);
     expect(emitEventSpy).toHaveBeenCalledWith({
@@ -333,14 +352,9 @@ describe('going through different guides', () => {
     });
     emitEventSpy.mockClear();
 
-    // Step 3: fill out required basic info
+    // Step 3: fill out required basic info (title pre-filled from start form)
     await screen.findByText(/step 3: basic information/i);
 
-    // Test validation prevents going next.
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText(/title is required/i);
-
-    await user.type(screen.getByPlaceholderText(/Title/i), 'some title');
     await user.click(screen.getByText(/select a date/i));
     await user.click(screen.queryAllByText(/26/)[0]);
 
@@ -507,10 +521,18 @@ describe('going through different guides', () => {
     const ctx = createTeleportContextE();
     renderComponent(ctx);
 
-    await screen.findByText(/Select the type of Access List/i);
+    await screen.findByText(/Select a guide/i);
+    await screen.findByText(/Page Info/i);
 
-    // Step 0: click on preset tile
-    await user.click(screen.getByText(/long-lived access/i));
+    // Step 0: fill in name and start with long-term (standing access)
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(
+      screen.getByRole('radio', { name: /standing access guide/i })
+    );
+    await user.click(screen.getByRole('button', { name: /start guide/i }));
 
     expect(emitEventSpy).toHaveBeenCalledTimes(1);
     expect(emitEventSpy).toHaveBeenCalledWith({
@@ -551,10 +573,9 @@ describe('going through different guides', () => {
     });
     emitEventSpy.mockClear();
 
-    // Step 3: fill out required basic info
+    // Step 3: fill out required basic info (title pre-filled from start form)
     await screen.findByText(/step 3: basic information/i);
 
-    await user.type(screen.getByPlaceholderText(/Title/i), 'some title');
     await user.click(screen.getByText(/select a date/i));
     await user.click(screen.queryAllByText(/26/)[0]);
 
@@ -716,10 +737,14 @@ describe('going through different guides', () => {
     const ctx = createTeleportContextE();
     renderComponent(ctx);
 
-    await screen.findByText(/Select the type of Access List/i);
+    await screen.findByText(/Select a guide/i);
 
-    // Step 0: click on preset tile
-    await user.click(screen.getByText(/temporary access/i));
+    // Step 0: fill in name and start with short-term (default)
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(screen.getByRole('button', { name: /start guide/i }));
 
     await goThroughPresetStepsToDeployment(user, 'short-term');
 
@@ -779,10 +804,17 @@ describe('going through different guides', () => {
     const ctx = createTeleportContextE();
     renderComponent(ctx);
 
-    await screen.findByText(/Select the type of Access List/i);
+    await screen.findByText(/Select a guide/i);
 
-    // Step 0: click on preset tile
-    await user.click(screen.getByText(/long-lived access/i));
+    // Step 0: fill in name, select standing access, and start
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(
+      screen.getByRole('radio', { name: /standing access guide/i })
+    );
+    await user.click(screen.getByRole('button', { name: /start guide/i }));
 
     await goThroughPresetStepsToDeployment(user, 'long-term');
 
@@ -843,9 +875,16 @@ describe('going through different guides', () => {
     const ctx = createTeleportContextE();
     renderComponent(ctx);
 
-    await screen.findByText(/Select the type of Access List/i);
+    await screen.findByText(/Select a guide/i);
 
-    await user.click(screen.getByText(/long-lived access/i));
+    await user.type(
+      screen.getByPlaceholderText(/Access List name/i),
+      'some title'
+    );
+    await user.click(
+      screen.getByRole('radio', { name: /standing access guide/i })
+    );
+    await user.click(screen.getByRole('button', { name: /start guide/i }));
 
     await goThroughPresetStepsToDeployment(user, 'long-term');
 
@@ -1141,9 +1180,8 @@ async function goThroughPresetStepsToDeployment(
   await screen.findByText(/define what identities/i);
   await user.click(screen.getByRole('button', { name: 'Next' }));
 
-  // Step 3: BasicInfo
+  // Step 3: BasicInfo (title pre-filled from start form)
   await screen.findByText(/step 3: basic information/i);
-  await user.type(screen.getByPlaceholderText(/Title/i), 'some title');
   await user.click(screen.getByText(/select a date/i));
   await user.click(screen.queryAllByText(/26/)[0]);
   await user.click(screen.getByText(/next/i));

@@ -25,6 +25,7 @@ import { wildcard } from '../role/role';
 import { EmptyList } from './EmptyList';
 import { EmptyAccess } from './ListResourceSection/EmptyAccess';
 import { getResourceKindName, getResourceRbacLink } from './shared';
+import { getPredicateExpression } from './unifiedResource';
 
 /**
  * Allows defining access to git_servers through a selector dropdown menu.
@@ -106,10 +107,21 @@ export function GitServerSection({
 
   function onGitServerSelectChange(values: Option[]) {
     let orgs: string[] = values.map(p => p.value);
+    // Trigger the unified resources table to re-render.
     if (orgs.includes(wildcard)) {
       orgs = orgs.filter(o => o === wildcard);
-      // This will trigger the unified resource table to render.
       updateResourceFilters({ query: undefined, kinds: ['git_server'] });
+    } else {
+      updateResourceFilters({
+        query: getPredicateExpression({
+          accessField: 'github_permissions',
+          roleConditions: {
+            ...standardRoleState.roleConditions,
+            github_permissions: orgs.length ? [{ orgs }] : [],
+          },
+        }),
+        kinds: ['git_server'],
+      });
     }
     standardRoleState.updateGitHubPermissions(orgs);
   }
