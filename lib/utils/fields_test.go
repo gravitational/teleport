@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -50,6 +51,55 @@ func TestFields(t *testing.T) {
 	require.Equal(t, sliceString, f.GetStrings("strings"))
 	require.Equal(t, sliceString, f.GetStrings("strings2"))
 	require.Nil(t, f.GetStrings("strings3"))
+}
+
+func TestFieldsGetStringIfPresent(t *testing.T) {
+	t.Parallel()
+
+	fields := Fields{
+		"name": "vincent",
+		"nil":  nil,
+		"int":  42,
+	}
+
+	got, err := fields.GetStringIfPresent("name")
+	require.NoError(t, err)
+	require.Equal(t, "vincent", got)
+
+	got, err = fields.GetStringIfPresent("missing")
+	require.NoError(t, err)
+	require.Empty(t, got)
+
+	got, err = fields.GetStringIfPresent("nil")
+	require.NoError(t, err)
+	require.Empty(t, got)
+
+	_, err = fields.GetStringIfPresent("int")
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "type drift must surface as BadParameter, got %T", err)
+}
+
+func TestFieldsGetStringMap(t *testing.T) {
+	t.Parallel()
+
+	fields := Fields{
+		"happy": map[string]any{"strKey": "value", "intKey": 42, "nilKey": nil},
+		"wrong": "not a map",
+	}
+
+	got, err := fields.GetStringMap("missing")
+	require.NoError(t, err)
+	require.Empty(t, got)
+
+	got, err = fields.GetStringMap("happy")
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"strKey": "value", "intKey": "42"}, got)
+	_, hasNil := got["nilKey"]
+	require.False(t, hasNil, "nil-valued inner entries must be dropped")
+
+	_, err = fields.GetStringMap("wrong")
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "outer-shape drift must surface as BadParameter, got %T", err)
 }
 
 func TestToFieldsCondition(t *testing.T) {

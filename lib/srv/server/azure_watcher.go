@@ -22,10 +22,8 @@ import (
 	"context"
 	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -39,7 +37,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
-const azureEventPrefix = "azure/"
+const (
+	azureEventPrefix        = "azure/"
+	azureScopeLogSampleSize = 10
+
+	azureARGStageClientInit = "resource_graph_client_init"
+	azureARGStageQuery      = "resource_graph_query"
+)
 
 // AzureInstances contains information about discovered Azure virtual machines.
 type AzureInstances struct {
@@ -58,7 +62,7 @@ type AzureInstances struct {
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
-	Instances []*armcompute.VirtualMachine
+	Instances []azure.DiscoveredVM
 }
 
 func (instances *AzureInstances) LogValue() slog.Value {
@@ -83,8 +87,8 @@ func (instances *AzureInstances) resourceType() string {
 }
 
 // MakeUsageEvent builds usage event for a single installation result.
-func (instances *AzureInstances) MakeUsageEvent(instance *armcompute.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
-	return azureEventPrefix + azure.StringVal(instance.ID), &usageeventsv1.ResourceCreateEvent{
+func (instances *AzureInstances) MakeUsageEvent(instance azure.DiscoveredVM) (string, *usageeventsv1.ResourceCreateEvent) {
+	return azureEventPrefix + instance.ID, &usageeventsv1.ResourceCreateEvent{
 		ResourceType:        instances.resourceType(),
 		ResourceOrigin:      types.OriginCloud,
 		CloudProvider:       types.CloudAzure,
@@ -100,15 +104,6 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 		eventCode = libevents.AzureRunFailCode
 	}
 
-	var vmID, vmName, resourceID string
-	if result.Instance != nil {
-		vmName = azure.StringVal(result.Instance.Name)
-		resourceID = azure.StringVal(result.Instance.ID)
-		if result.Instance.Properties != nil {
-			vmID = azure.StringVal(result.Instance.Properties.VMID)
-		}
-	}
-
 	evt := &apievents.AzureRun{
 		Metadata: apievents.Metadata{
 			Type: libevents.AzureRunEvent,
@@ -117,12 +112,12 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 		AzureMetadata: apievents.AzureMetadata{
 			SubscriptionID: instances.SubscriptionID,
 			ResourceGroup:  instances.ResourceGroup,
-			ResourceID:     resourceID,
+			ResourceID:     result.Instance.ID,
 			Region:         instances.Region,
 		},
 		AzureVMMetadata: apievents.AzureVMMetadata{
-			VMID:   vmID,
-			VMName: vmName,
+			VMID:   result.Instance.VMID,
+			VMName: result.Instance.Name,
 		},
 	}
 
@@ -163,12 +158,8 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 		}
 	}
 
-	instances.Instances = slices.DeleteFunc(instances.Instances, func(instance *armcompute.VirtualMachine) bool {
-		var vmID string
-		if instance.Properties != nil && instance.Properties.VMID != nil {
-			vmID = *instance.Properties.VMID
-		}
-		_, found := vmIDs[vmID]
+	instances.Instances = slices.DeleteFunc(instances.Instances, func(vm azure.DiscoveredVM) bool {
+		_, found := vmIDs[vm.VMID]
 		return found
 	})
 }
@@ -189,19 +180,18 @@ func MatchersToAzureInstanceFetchers(
 	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
 		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
-		for _, subscription := range matcher.Subscriptions {
-			for _, resourceGroup := range matcher.ResourceGroups {
-				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:             matcher,
-					Subscription:        subscription,
-					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   getClient,
-					DiscoveryConfigName: discoveryConfigName,
-					Logger:              logger,
-				})
-				ret = append(ret, fetcher)
-			}
+		if len(matcher.Subscriptions) == 0 {
+			continue
 		}
+		fetcher := newAzureInstanceFetcher(azureFetcherConfig{
+			Matcher:             matcher,
+			Subscriptions:       matcher.Subscriptions,
+			ResourceGroups:      matcher.ResourceGroups,
+			AzureClientGetter:   getClient,
+			DiscoveryConfigName: discoveryConfigName,
+			Logger:              logger,
+		})
+		ret = append(ret, fetcher)
 	}
 	return ret
 }
@@ -237,19 +227,20 @@ func expandAzureMatcherSubscriptions(
 
 type azureFetcherConfig struct {
 	Matcher             types.AzureMatcher
-	Subscription        string
-	ResourceGroup       string
+	Subscriptions       []string
+	ResourceGroups      []string
 	AzureClientGetter   azureClientGetter
 	DiscoveryConfigName string
 	Logger              *slog.Logger
 }
 
+// azureInstanceFetcher fetches Azure VMs matching a single Azure matcher.
 type azureInstanceFetcher struct {
 	InstallerParams     *types.InstallerParams
 	AzureClientGetter   azureClientGetter
 	Regions             []string
-	Subscription        string
-	ResourceGroup       string
+	Subscriptions       []string
+	ResourceGroups      []string
 	Labels              types.Labels
 	DiscoveryConfigName string
 	Integration         string
@@ -261,8 +252,8 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		InstallerParams:     cfg.Matcher.Params,
 		AzureClientGetter:   cfg.AzureClientGetter,
 		Regions:             cfg.Matcher.Regions,
-		Subscription:        cfg.Subscription,
-		ResourceGroup:       cfg.ResourceGroup,
+		Subscriptions:       cfg.Subscriptions,
+		ResourceGroups:      cfg.ResourceGroups,
 		Labels:              cfg.Matcher.ResourceTags,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 		Integration:         cfg.Matcher.Integration,
@@ -284,231 +275,347 @@ func (f *azureInstanceFetcher) IntegrationName() string {
 	return f.Integration
 }
 
-type resourceGroupLocation struct {
+// argBucketKey is the bucketing key for the ARG path. ARG returns rows
+// flat across all queried subscriptions, so subscription is part of the key.
+type argBucketKey struct {
+	subscription  string
 	resourceGroup string
 	location      string
 }
 
-// GetInstances fetches Azure virtual machines, applies configured discovery filters,
-// drops known non-Linux VMs, and applies best-effort power-state filtering.
+// armBucketKey is the bucketing key for the ARM fallback path. ARM
+// buckets per-subscription, so subscription is not part of the key.
+type armBucketKey struct {
+	resourceGroup string
+	location      string
+}
+
+// GetInstances fetches Azure virtual machines via Azure Resource Graph, applies label matching,
+// and emits one AzureInstances bucket per (subscription, resource group, region) tuple.
 //
-// OS filtering: VMs with a known non-Linux OS type (e.g. Windows) are excluded; VMs
-// with unknown OS type pass through.
-//
-// Power-state filtering is best-effort: VMs pass through unfiltered when the bulk
-// power-state fetch fails for non-cancellation reasons. Context cancellation
-// propagates as an error. Only VMs positively identified as non-running are excluded.
+// ARG filters out non-Linux and non-running VMs at query time. If ARG fails, GetInstances
+// falls back to ARM VM listing, which applies region and label filters only.
+
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
 	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
+	argClient, err := azureClients.GetResourceGraphClient(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return f.getInstancesARMFallback(ctx, azureClients,
+			azureARGStageClientInit,
+			"Azure Resource Graph client initialization failed",
+			err)
 	}
 
-	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	instances, err := f.getInstancesARG(ctx, argClient)
+	if err == nil {
+		return instances, nil
 	}
 
-	vms = f.filterEligible(ctx, vms)
-	vms = f.filterSupportedOS(ctx, vms)
-	vms, err = f.filterSupportedPowerState(ctx, client, vms)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return f.emit(ctx, vms), nil
+	return f.getInstancesARMFallback(ctx, azureClients,
+		azureARGStageQuery,
+		"Azure Resource Graph VM query failed",
+		err)
 }
 
-// filterEligible returns VMs that satisfy local discovery requirements: non-empty resource ID,
-// configured region, matching labels, and for wildcard-RG fetchers, a parseable resource ID.
-func (f *azureInstanceFetcher) filterEligible(
+func azureScopeLogFields(subscriptions, resourceGroups []string) []any {
+	return []any{
+		"subscription_count", len(subscriptions),
+		"subscription_sample", azureScopeLogSample(subscriptions),
+		"subscription_omitted", max(len(subscriptions)-azureScopeLogSampleSize, 0),
+		"resource_group_count", len(resourceGroups),
+		"resource_group_sample", azureScopeLogSample(resourceGroups),
+		"resource_group_omitted", max(len(resourceGroups)-azureScopeLogSampleSize, 0),
+	}
+}
+
+func azureScopeLogSample(values []string) []string {
+	return slices.Clone(values[:min(len(values), azureScopeLogSampleSize)])
+}
+
+func (f *azureInstanceFetcher) getInstancesARMFallback(ctx context.Context, azureClients azure.Clients, argStage, argFailure string, argErr error) ([]*AzureInstances, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	attrs := azureScopeLogFields(f.Subscriptions, f.ResourceGroups)
+	attrs = append(attrs,
+		"stage", argStage,
+		"integration", f.Integration,
+		"fallback", "arm_vm_listing",
+		"error", argErr,
+	)
+
+	switch argStage {
+	case azureARGStageClientInit:
+		f.Logger.WarnContext(ctx, "Azure Resource Graph client initialization failed; falling back to ARM VM listing", attrs...)
+	case azureARGStageQuery:
+		f.Logger.WarnContext(ctx, "Azure Resource Graph VM query failed; falling back to ARM VM listing", attrs...)
+	default:
+		f.Logger.WarnContext(ctx, "Azure Resource Graph VM discovery failed; falling back to ARM VM listing", attrs...)
+	}
+
+	instances, fallbackErr := f.getInstancesARM(ctx, azureClients.GetVirtualMachinesClient)
+	if fallbackErr != nil {
+		return nil, trace.NewAggregate(
+			trace.Wrap(argErr, "%s: %s", argStage, argFailure),
+			trace.Wrap(fallbackErr, "ARM VM listing fallback failed"),
+		)
+	}
+
+	return instances, nil
+}
+
+func (f *azureInstanceFetcher) getInstancesARG(ctx context.Context, client azure.ResourceGraphClient) ([]*AzureInstances, error) {
+	vms, err := client.QueryVMs(ctx, azure.QueryVMsParams{
+		SubscriptionIDs: f.Subscriptions,
+		Regions:         f.Regions,
+		ResourceGroups:  f.ResourceGroups,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "querying Azure Resource Graph for VMs")
+	}
+
+	queryMatched := len(vms)
+	vms = f.filterByLabels(ctx, vms)
+	if queryMatched == 0 || len(vms) == 0 {
+		attrs := azureScopeLogFields(f.Subscriptions, f.ResourceGroups)
+		attrs = append(attrs,
+			"regions", f.Regions,
+			"integration", f.Integration,
+			"arg_matched", queryMatched,
+			"label_matched", len(vms),
+		)
+
+		switch {
+		case queryMatched == 0 && azureLabelsMatchAll(f.Labels):
+			f.Logger.InfoContext(ctx, "Azure Resource Graph VM discovery returned no VMs for match-all Azure VM matcher", attrs...)
+		case queryMatched == 0:
+			f.Logger.DebugContext(ctx, "Azure Resource Graph VM discovery returned no VMs before label filtering", attrs...)
+		case len(vms) == 0:
+			f.Logger.DebugContext(ctx, "Azure Resource Graph VM discovery returned no VMs after label filtering", attrs...)
+		}
+	}
+
+	return f.bucket(vms), nil
+}
+
+func azureLabelsMatchAll(labels types.Labels) bool {
+	if len(labels) == 0 {
+		return true
+	}
+	values, ok := labels[types.Wildcard]
+	return ok && len(labels) == 1 && len(values) == 1 && values[0] == types.Wildcard
+}
+
+// getInstancesARM is the ARM fallback path used when ARG VM discovery fails. It best-effort
+// iterates over the configured (subscription, resource group) pairs, applies region and label
+// filters, and emits one AzureInstances bucket per (subscription, resource group, region) tuple.
+// Failures are isolated to the failing ARM scope.
+func (f *azureInstanceFetcher) getInstancesARM(
 	ctx context.Context,
-	vms []*armcompute.VirtualMachine,
-) []*armcompute.VirtualMachine {
-	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
-	allowAllRGs := f.ResourceGroup == types.Wildcard
+	getVMClient func(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error),
+) ([]*AzureInstances, error) {
+	resourceGroups := f.ResourceGroups
+	if len(resourceGroups) == 0 {
+		resourceGroups = []string{types.Wildcard}
+	}
 
-	kept := make([]*armcompute.VirtualMachine, 0, len(vms))
-	for _, vm := range vms {
-		resourceID := azure.StringVal(vm.ID)
-		if resourceID == "" {
-			f.Logger.WarnContext(ctx, "Skipping Azure VM with empty resource ID",
-				"subscription_id", f.Subscription,
-				"integration", f.Integration,
-			)
+	regions := f.Regions
+	if len(regions) == 0 {
+		regions = []string{types.Wildcard}
+	}
+
+	allowAllLocations := slices.Contains(regions, types.Wildcard)
+
+	var out []*AzureInstances
+	var errs []error
+	var clientInitErrs []struct {
+		subscription string
+		err          error
+	}
+	successfulScopes := 0
+	for _, subscription := range f.Subscriptions {
+		client, err := getVMClient(ctx, subscription)
+		if err != nil {
+			clientInitErrs = append(clientInitErrs, struct {
+				subscription string
+				err          error
+			}{subscription: subscription, err: err})
+			errs = append(errs, trace.Wrap(err, "getting Azure VM client for subscription %q", subscription))
 			continue
 		}
 
-		location := azure.StringVal(vm.Location)
-		if !allowAllRegions && !slices.Contains(f.Regions, location) {
-			continue
-		}
+		for _, configuredRG := range resourceGroups {
+			allowAllResourceGroups := configuredRG == types.Wildcard
 
-		vmTags := make(map[string]string, len(vm.Tags))
-		for key, value := range vm.Tags {
-			vmTags[key] = azure.StringVal(value)
-		}
-		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
-			continue
-		}
-
-		if allowAllRGs {
-			if _, err := arm.ParseResourceID(resourceID); err != nil {
-				f.Logger.WarnContext(ctx, "Skipping Azure VM because resource group could not be inferred from resource ID",
-					"subscription_id", f.Subscription,
-					"vm_id", azure.VMID(vm),
-					"resource_id", resourceID,
-					"error", err,
-				)
+			vms, err := client.ListVirtualMachines(ctx, configuredRG)
+			if err != nil {
+				errs = append(errs, trace.Wrap(err, "listing Azure VMs in subscription %q resource group %q", subscription, configuredRG))
 				continue
+			}
+			successfulScopes++
+
+			byGroup := map[armBucketKey][]azure.DiscoveredVM{}
+			for _, vm := range vms {
+				location := azure.StringVal(vm.Location)
+				if !slices.Contains(regions, location) && !allowAllLocations {
+					continue
+				}
+
+				vmTags := make(map[string]string, len(vm.Tags))
+				for key, value := range vm.Tags {
+					vmTags[key] = azure.StringVal(value)
+				}
+				match, _, err := services.MatchLabels(f.Labels, vmTags)
+				if err != nil {
+					f.Logger.DebugContext(ctx, "Skipping Azure VM due to malformed labels matcher",
+						"vm_name", azure.StringVal(vm.Name),
+						"resource_id", azure.StringVal(vm.ID),
+						"error", err,
+					)
+					continue
+				}
+				if !match {
+					continue
+				}
+
+				resourceGroup := configuredRG
+				if allowAllResourceGroups {
+					resourceMetadata, err := arm.ParseResourceID(azure.StringVal(vm.ID))
+					if err != nil {
+						f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
+							"subscription_id", subscription,
+							"vm_id", azure.VMID(vm),
+							"resource_id", azure.StringVal(vm.ID),
+							"error", err,
+						)
+						continue
+					}
+					resourceGroup = resourceMetadata.ResourceGroupName
+				}
+
+				key := armBucketKey{
+					resourceGroup: resourceGroup,
+					location:      location,
+				}
+				byGroup[key] = append(byGroup[key], azure.DiscoveredVM{
+					ID:             azure.StringVal(vm.ID),
+					SubscriptionID: subscription,
+					Name:           azure.StringVal(vm.Name),
+					VMID:           azure.VMID(vm),
+					Location:       location,
+					ResourceGroup:  resourceGroup,
+					Tags:           vmTags,
+				})
+			}
+
+			for key, bucket := range byGroup {
+				out = append(out, &AzureInstances{
+					SubscriptionID:      subscription,
+					Region:              key.location,
+					ResourceGroup:       key.resourceGroup,
+					Instances:           bucket,
+					Integration:         f.Integration,
+					InstallerParams:     f.InstallerParams,
+					DiscoveryConfigName: f.DiscoveryConfigName,
+				})
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		if successfulScopes == 0 && len(clientInitErrs) > 1 && len(clientInitErrs) == len(f.Subscriptions) {
+			firstErr := clientInitErrs[0].err
+			allSame := true
+			for _, clientErr := range clientInitErrs[1:] {
+				if clientErr.err.Error() != firstErr.Error() {
+					allSame = false
+					break
+				}
+			}
+			if allSame {
+				return nil, trace.Wrap(firstErr,
+					"getting Azure VM clients failed for all %d subscriptions (first subscription %q)",
+					len(clientInitErrs), clientInitErrs[0].subscription)
 			}
 		}
 
+		aggErr := trace.NewAggregate(errs...)
+		if successfulScopes == 0 {
+			return nil, trace.Wrap(aggErr)
+		}
+		attrs := azureScopeLogFields(f.Subscriptions, f.ResourceGroups)
+		attrs = append(attrs,
+			"integration", f.Integration,
+			"successful_scopes", successfulScopes,
+			"failed_scopes", len(errs),
+			"error", aggErr,
+		)
+		f.Logger.WarnContext(ctx, "Azure ARM VM listing fallback skipped some subscription/resource group scopes", attrs...)
+	}
+
+	return out, nil
+}
+
+// filterByLabels keeps only VMs whose tags satisfy the configured label matcher.
+func (f *azureInstanceFetcher) filterByLabels(ctx context.Context, vms []azure.DiscoveredVM) []azure.DiscoveredVM {
+	if len(f.Labels) == 0 {
+		return vms
+	}
+
+	kept := make([]azure.DiscoveredVM, 0, len(vms))
+	skipped := 0
+	for _, vm := range vms {
+		match, _, err := services.MatchLabels(f.Labels, vm.Tags)
+		if err != nil {
+			f.Logger.DebugContext(ctx, "Skipping Azure VM due to malformed labels matcher",
+				"vm_name", vm.Name,
+				"resource_id", vm.ID,
+				"error", err,
+			)
+			skipped++
+			continue
+		}
+		if !match {
+			skipped++
+			continue
+		}
 		kept = append(kept, vm)
 	}
 
-	return kept
-}
-
-// filterSupportedOS removes VMs with a known unsupported OS. VMs with unknown
-// OS type are kept to avoid dropping Linux VMs due to incomplete metadata.
-func (f *azureInstanceFetcher) filterSupportedOS(
-	ctx context.Context,
-	vms []*armcompute.VirtualMachine,
-) []*armcompute.VirtualMachine {
-	kept, skipped := azure.FilterLinuxVMs(vms)
-	if len(skipped) == 0 {
-		return kept
-	}
-
-	f.Logger.InfoContext(ctx,
-		"Skipping Azure VMs with non-Linux OS type",
-		"subscription_id", f.Subscription,
-		"resource_group", f.ResourceGroup,
-		"integration", f.Integration,
-		"matched_vms", len(skipped)+len(kept),
-		"non_linux_vms", len(skipped),
-	)
-
-	for _, vm := range skipped {
-		f.Logger.DebugContext(ctx,
-			"Skipping Azure VM with non-Linux OS type",
-			"vm_name", azure.StringVal(vm.Name),
-			"resource_id", azure.StringVal(vm.ID),
-			"os_type", azure.VMOSType(vm),
+	if skipped > 0 {
+		attrs := azureScopeLogFields(f.Subscriptions, f.ResourceGroups)
+		attrs = append(attrs,
+			"integration", f.Integration,
+			"matched", len(kept),
+			"skipped", skipped,
 		)
+		f.Logger.DebugContext(ctx, "Filtered Azure VMs by label matcher", attrs...)
 	}
 
 	return kept
 }
 
-// filterSupportedPowerState removes VMs positively identified as non-running.
-// On context cancellation it returns the cancellation error; any other lookup
-// failure fails open (all VMs kept).
-func (f *azureInstanceFetcher) filterSupportedPowerState(
-	ctx context.Context,
-	client azure.VirtualMachinesClient,
-	vms []*armcompute.VirtualMachine,
-) ([]*armcompute.VirtualMachine, error) {
-	if len(vms) == 0 {
-		return vms, nil
-	}
-
-	// ARM applies RBAC to the subscription-wide response. Scoped identities only
-	// see VMs within their scope; VMs omitted from the response are treated as
-	// running or indeterminate by the fail-open logic below.
-	rawNonRunning, err := client.ListNonRunningVirtualMachineStates(ctx)
-	if err != nil {
-		// This is the only step in GetInstances that swallows lookup errors
-		// (fail-open below). Surface ctx cancellation explicitly so a shutdown
-		// or deadline does not get reshaped into a successful "all VMs eligible"
-		// result and logged as a spurious power-fetch failure. Every other
-		// ctx-aware call in GetInstances propagates errors directly, so this
-		// guard is unique to this function, not a missing pattern elsewhere.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, trace.Wrap(ctxErr)
-		}
-		f.logPowerFetchFailure(ctx, err)
-
-		// Fail open: when power state cannot be determined, keep every VM so
-		// installation is still attempted. Skipping VMs here would silently
-		// drop legitimately running hosts on transient ARM errors or partial
-		// RBAC scopes.
-		return vms, nil
-	}
-
-	// Normalize keys for case-insensitive matching. ARM treats resource path segments as
-	// case-insensitive; implementations of VirtualMachinesClient may return any casing.
-	nonRunning := make(map[string]azure.PowerState, len(rawNonRunning))
-	for k, v := range rawNonRunning {
-		nonRunning[strings.ToLower(k)] = v
-	}
-
-	kept := make([]*armcompute.VirtualMachine, 0, len(vms))
+// bucket groups VMs by subscription, resource group, and location.
+func (f *azureInstanceFetcher) bucket(vms []azure.DiscoveredVM) []*AzureInstances {
+	byGroup := map[argBucketKey][]azure.DiscoveredVM{}
 	for _, vm := range vms {
-		// VMs not present in the non-running map pass through as running or
-		// indeterminate. The method's contract returns only non-running entries.
-		state, isNonRunning := nonRunning[strings.ToLower(azure.StringVal(vm.ID))]
-		if !isNonRunning {
-			kept = append(kept, vm)
-			continue
+		key := argBucketKey{
+			subscription:  vm.SubscriptionID,
+			resourceGroup: vm.ResourceGroup,
+			location:      vm.Location,
 		}
-
-		f.Logger.DebugContext(ctx, "Skipping Azure VM that is not running",
-			"vm_name", azure.StringVal(vm.Name),
-			"resource_id", azure.StringVal(vm.ID),
-			"power_state", string(state),
-		)
-	}
-
-	f.logPowerFilterSummary(ctx, len(vms), len(nonRunning), len(vms)-len(kept))
-	return kept, nil
-}
-
-// emit buckets the VM list by (resourceGroup, region) and produces one *AzureInstances
-// per non-empty bucket. For wildcard-RG fetchers, the resource group is parsed from each
-// VM's resource ID; VMs with unparseable IDs are skipped with a warn log.
-func (f *azureInstanceFetcher) emit(ctx context.Context, vms []*armcompute.VirtualMachine) []*AzureInstances {
-	if len(vms) == 0 {
-		return nil
-	}
-
-	byGroup := map[resourceGroupLocation][]*armcompute.VirtualMachine{}
-	for _, vm := range vms {
-		rg := f.ResourceGroup
-		if rg == types.Wildcard {
-			resourceID := azure.StringVal(vm.ID)
-			meta, err := arm.ParseResourceID(resourceID)
-			if err != nil {
-				f.Logger.WarnContext(ctx,
-					"Skipping Azure VM because resource group could not be inferred",
-					"subscription_id", f.Subscription,
-					"vm_id", azure.VMID(vm),
-					"resource_id", resourceID,
-					"error", err,
-				)
-				continue
-			}
-			rg = meta.ResourceGroupName
-		}
-
-		key := resourceGroupLocation{
-			resourceGroup: rg,
-			location:      azure.StringVal(vm.Location),
-		}
-
 		byGroup[key] = append(byGroup[key], vm)
 	}
 
 	out := make([]*AzureInstances, 0, len(byGroup))
 	for key, bucket := range byGroup {
 		out = append(out, &AzureInstances{
-			SubscriptionID:      f.Subscription,
+			SubscriptionID:      key.subscription,
 			Region:              key.location,
 			ResourceGroup:       key.resourceGroup,
 			Instances:           bucket,
@@ -521,44 +628,6 @@ func (f *azureInstanceFetcher) emit(ctx context.Context, vms []*armcompute.Virtu
 	return out
 }
 
-// logPowerFetchFailure emits a warn-level log signaling that power-state filtering was
-// skipped because the bulk ARM call failed. AccessDenied errors get an actionable remediation message.
-func (f *azureInstanceFetcher) logPowerFetchFailure(ctx context.Context, err error) {
-	attrs := []any{
-		"subscription_id", f.Subscription,
-		"resource_group", f.ResourceGroup,
-		"integration", f.Integration,
-		"error", err,
-	}
-	if trace.IsAccessDenied(err) {
-		f.Logger.WarnContext(ctx,
-			"Identity lacks permission to fetch VM power states; skipping power-state filtering. "+
-				"Grant Microsoft.Compute/virtualMachines/read at the subscription scope to enable filtering",
-			attrs...,
-		)
-		return
-	}
-	f.Logger.WarnContext(ctx, "Failed to fetch VM power states; skipping power-state filtering", attrs...)
-}
-
-// logPowerFilterSummary emits one per-iteration summary log after power-state filtering.
-// The level is info when VMs were skipped, debug otherwise.
-func (f *azureInstanceFetcher) logPowerFilterSummary(ctx context.Context, linuxEligible, powerStateLookupEntries, filtered int) {
-	attrs := []slog.Attr{
-		slog.String("subscription_id", f.Subscription),
-		slog.String("resource_group", f.ResourceGroup),
-		slog.String("integration", f.Integration),
-		slog.Int("linux_eligible_vms", linuxEligible),
-		slog.Int("power_state_lookup_entries", powerStateLookupEntries),
-		slog.Int("non_running_vms", filtered),
-	}
-	if filtered > 0 {
-		f.Logger.LogAttrs(ctx, slog.LevelInfo, "Skipped Azure VMs that are not running", attrs...)
-		return
-	}
-	f.Logger.LogAttrs(ctx, slog.LevelDebug, "Azure VM power-state filtering summary", attrs...)
-}
-
 // LogValue implements [slog.LogValuer].
 func (f *azureInstanceFetcher) LogValue() slog.Value {
 	return slog.GroupValue(
@@ -566,7 +635,7 @@ func (f *azureInstanceFetcher) LogValue() slog.Value {
 		slog.Any("regions", f.Regions),
 		slog.String("discovery_config", f.GetDiscoveryConfigName()),
 		slog.String("integration", f.IntegrationName()),
-		slog.String("resource_group", f.ResourceGroup),
-		slog.String("subscription_id", f.Subscription),
+		slog.Any("resource_groups", f.ResourceGroups),
+		slog.Any("subscriptions", f.Subscriptions),
 	)
 }

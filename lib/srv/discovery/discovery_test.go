@@ -3194,28 +3194,9 @@ func (m *mockAzureRunCommandClient) getAttempted() []string {
 	return elems
 }
 
-type mockAzureClient struct {
-	vms              []*armcompute.VirtualMachine
-	nonRunningStates map[string]azure.PowerState
-}
-
-func (m *mockAzureClient) Get(_ context.Context, _ string) (*azure.VirtualMachine, error) {
-	return nil, nil
-}
-
-func (m *mockAzureClient) GetByVMID(_ context.Context, _ string) (*azure.VirtualMachine, error) {
-	return nil, nil
-}
-
-func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*armcompute.VirtualMachine, error) {
-	return m.vms, nil
-}
-
-func (m *mockAzureClient) ListNonRunningVirtualMachineStates(_ context.Context) (map[string]azure.PowerState, error) {
-	if m.nonRunningStates == nil {
-		return map[string]azure.PowerState{}, nil
-	}
-	return maps.Clone(m.nonRunningStates), nil
+// mockAzureResourceGraphClient returns configured ARG VMs for discovery tests.
+type mockAzureResourceGraphClient struct {
+	*azure.ARMResourceGraphMock
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -3272,33 +3253,27 @@ func TestAzureVMDiscovery(t *testing.T) {
 		return cfg.Clone()
 	}
 
-	makeVM := func(name string, integration bool) *armcompute.VirtualMachine {
+	makeVM := func(name string, integration bool) azure.DiscoveredVM {
 		label := noIntegrationLabel
 		if integration {
 			label = integrationLabel
 		}
-		return &armcompute.VirtualMachine{
-			// Build the ARM resource ID via fmt.Sprintf rather than &arm.ResourceID{}.String():
-			// the SDK's ResourceID.String() returns its stringValue field, which is only
-			// populated by ParseResourceID — direct struct construction yields an empty
-			// string, which filterEligible (correctly) drops as malformed.
-			ID:       aws.String(fmt.Sprintf("/subscriptions/testsub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/%s", name)),
-			Name:     aws.String(name),
-			Location: aws.String("westcentralus"),
-			Tags: map[string]*string{
-				label: aws.String("yes"),
-			},
-			Properties: &armcompute.VirtualMachineProperties{
-				VMID: aws.String(name + "-vmid"),
-			},
+		return azure.DiscoveredVM{
+			ID:             fmt.Sprintf("/subscriptions/testsub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/%s", name),
+			SubscriptionID: "testsub",
+			Name:           name,
+			VMID:           name + "-vmid",
+			Location:       "westcentralus",
+			ResourceGroup:  "testrg",
+			Tags:           map[string]string{label: "yes"},
 		}
 	}
 
 	const testVMName = "testvm"
 	const testVMNameIntegration = "testvm-integration"
 
-	makeFaultyVM := func(apiError bool, count int) []*armcompute.VirtualMachine {
-		var out []*armcompute.VirtualMachine
+	makeFaultyVM := func(apiError bool, count int) []azure.DiscoveredVM {
+		out := make([]azure.DiscoveredVM, 0, count)
 		for index := range count {
 			if apiError {
 				out = append(out, makeVM(azureApiErrorPrefix+strconv.Itoa(index), true))
@@ -3309,37 +3284,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 		return out
 	}
 
-	foundAzureVMs := func() []*armcompute.VirtualMachine {
-		return []*armcompute.VirtualMachine{
+	foundAzureVMs := func() []azure.DiscoveredVM {
+		return []azure.DiscoveredVM{
 			makeVM(testVMName, false),
 			makeVM(testVMNameIntegration, true),
 		}
-	}
-
-	// mixedFleetAzureVMs returns a representative Azure subscription where
-	// power-state and OS-type filtering must work in combination with the
-	// rest of the discovery pipeline. The returned states map is the shape
-	// ListNonRunningVirtualMachineStates would produce for that fleet.
-	mixedFleetAzureVMs := func() ([]*armcompute.VirtualMachine, map[string]azure.PowerState) {
-		mkVM := func(name string, osType *armcompute.OperatingSystemTypes) *armcompute.VirtualMachine {
-			vm := makeVM(name, false)
-			if osType != nil {
-				vm.Properties.StorageProfile = &armcompute.StorageProfile{
-					OSDisk: &armcompute.OSDisk{OSType: osType},
-				}
-			}
-			return vm
-		}
-		runningLinux := mkVM("fleet-running-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
-		deallocatedLinux := mkVM("fleet-deallocated-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
-		stoppedLinux := mkVM("fleet-stopped-linux", to.Ptr(armcompute.OperatingSystemTypesLinux))
-		runningWindows := mkVM("fleet-running-windows", to.Ptr(armcompute.OperatingSystemTypesWindows))
-		vms := []*armcompute.VirtualMachine{runningLinux, deallocatedLinux, stoppedLinux, runningWindows}
-		nonRunningStates := map[string]azure.PowerState{
-			aws.ToString(deallocatedLinux.ID): azure.PowerStateDeallocated,
-			aws.ToString(stoppedLinux.ID):     azure.PowerStateStopped,
-		}
-		return vms, nonRunningStates
 	}
 
 	presentNode := &types.ServerV2{
@@ -3360,14 +3309,16 @@ func TestAzureVMDiscovery(t *testing.T) {
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
-		foundVMS                 []*armcompute.VirtualMachine
-		nonRunningStates         map[string]azure.PowerState
+		foundVMS                 []azure.DiscoveredVM
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
 		wantInstances            []string
 		wantResources            int
 		expectedIntegrationNames []string
 		userTasksCheck           func(*testing.T, UserTaskLister)
+		// checkARGParams asserts on params the fetcher passed to the mock
+		// ARG client. nil to skip.
+		checkARGParams func(*testing.T, *azure.ARMResourceGraphMock)
 	}{
 		{
 			name:           "no nodes present, 1 found",
@@ -3401,33 +3352,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 			foundVMS:        foundAzureVMs(),
 			wantInstances:   []string{testVMName, testVMNameIntegration},
 			wantResources:   2,
-		},
-		{
-			// Mixed fleet: running Linux + non-running Linux + running Windows.
-			// Power-state filter drops the deallocated/stopped Linux; OS filter
-			// drops the running Windows; only the running Linux VM is installed.
-			// Exercises the full discovery -> fetcher -> installer chain end-to-end.
-			name:       "mixed fleet wildcard matcher only installs running Linux",
-			presentVMs: []types.Server{},
-			staticMatchers: Matchers{Azure: []types.AzureMatcher{{
-				Types:          []string{"vm"},
-				Subscriptions:  []string{"testsub"},
-				ResourceGroups: []string{types.Wildcard},
-				Regions:        []string{"westcentralus"},
-				ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
-				Params:         &types.InstallerParams{},
-				Integration:    noIntegration,
-			}}},
-			foundVMS: func() []*armcompute.VirtualMachine {
-				vms, _ := mixedFleetAzureVMs()
-				return vms
-			}(),
-			nonRunningStates: func() map[string]azure.PowerState {
-				_, states := mixedFleetAzureVMs()
-				return states
-			}(),
-			wantInstances: []string{"fleet-running-linux"},
-			wantResources: 1,
 		},
 		{
 			name:            "multiple failures",
@@ -3508,6 +3432,33 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.Empty(t, tasks)
 			},
 		},
+		{
+			// Whitespace-variant selectors must reach ARG trimmed and deduped.
+			name:       "matcher selectors with whitespace are trimmed and deduped before reaching ARG",
+			presentVMs: []types.Server{},
+			foundVMS:   foundAzureVMs(),
+			staticMatchers: Matchers{
+				Azure: []types.AzureMatcher{
+					{
+						Types:          []string{"vm"},
+						Subscriptions:  []string{" testsub", "testsub"},
+						ResourceGroups: []string{"  testrg", "testrg"},
+						Regions:        []string{"westcentralus"},
+						ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
+						Params:         &types.InstallerParams{},
+						Integration:    noIntegration,
+					},
+				},
+			},
+			wantInstances: []string{testVMName},
+			wantResources: 1,
+			checkARGParams: func(t *testing.T, mock *azure.ARMResourceGraphMock) {
+				require.GreaterOrEqual(t, mock.Calls(), 1)
+				lastParams := mock.LastParams()
+				require.Equal(t, []string{"testsub"}, lastParams.SubscriptionIDs)
+				require.Equal(t, []string{"testrg"}, lastParams.ResourceGroups)
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -3518,11 +3469,12 @@ func TestAzureVMDiscovery(t *testing.T) {
 				attemptedVMs: make(map[string]struct{}),
 			}
 
+			mockARG := &azure.ARMResourceGraphMock{VMs: tc.foundVMS}
+
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
-					AzureVirtualMachines: &mockAzureClient{
-						vms:              tc.foundVMS,
-						nonRunningStates: tc.nonRunningStates,
+					AzureResourceGraph: &mockAzureResourceGraphClient{
+						ARMResourceGraphMock: mockARG,
 					},
 					AzureRunCommand: runClient,
 				}, nil
@@ -3620,6 +3572,10 @@ func TestAzureVMDiscovery(t *testing.T) {
 				// verify user tasks state
 				if tc.userTasksCheck != nil {
 					tc.userTasksCheck(t, tlsServer.Auth())
+				}
+
+				if tc.checkARGParams != nil {
+					tc.checkARGParams(t, mockARG)
 				}
 
 				// make sure azure client cache has expected entries

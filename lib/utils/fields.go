@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -38,6 +39,49 @@ func (f Fields) GetString(key string) string {
 		return ""
 	}
 	return val.(string)
+}
+
+// GetStringIfPresent returns the string value at key. Missing or nil values
+// return "", nil. Non-string values return BadParameter.
+func (f Fields) GetStringIfPresent(key string) (string, error) {
+	v, ok := f[key]
+	if !ok || v == nil {
+		return "", nil
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", trace.BadParameter("field %q has unexpected type %T (expected string)", key, v)
+	}
+
+	return s, nil
+}
+
+// GetStringMap returns the map[string]string value at key from a map[string]any.
+// Missing or nil values return an empty map. Non-map field values return BadParameter.
+// Nil map values are omitted; non-string map values are formatted.
+func (f Fields) GetStringMap(key string) (map[string]string, error) {
+	raw, ok := f[key]
+	if !ok || raw == nil {
+		return map[string]string{}, nil
+	}
+
+	asMap, ok := raw.(map[string]any)
+	if !ok {
+		return nil, trace.BadParameter("field %q has unexpected type %T (expected map[string]any)", key, raw)
+	}
+	out := make(map[string]string, len(asMap))
+	for k, v := range asMap {
+		if v == nil {
+			continue
+		}
+		if s, ok := v.(string); ok {
+			out[k] = s
+			continue
+		}
+		out[k] = fmt.Sprint(v)
+	}
+
+	return out, nil
 }
 
 // GetStrings returns a slice-of-strings representation of a field.
