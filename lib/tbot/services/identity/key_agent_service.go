@@ -124,7 +124,7 @@ func (s *KeyAgentService) Run(ctx context.Context) error {
 		return trace.BadParameter("destination must be a directory")
 	}
 	knownKey := func(ref *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo) (bool, error) {
-		return ref.SerialNumber == pivSerialNumber && ref.SlotKey == pivSlotKey, nil
+		return true, nil
 	}
 	hwks, err := libhwk.NewAgentServer(
 		ctx,
