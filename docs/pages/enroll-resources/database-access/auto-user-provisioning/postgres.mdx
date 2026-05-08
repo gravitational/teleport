@@ -46,8 +46,8 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 
 Note that the RDS database must have IAM authentication enabled.
 
-Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly.
-for more information.
+For details on configuring the `rds_iam` role, see the
+[AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL).
 
 If the admin user needs to grant the `rds_superuser` role to auto-provisioned
 users, the admin user must also be a `rds_superuser`:
@@ -195,8 +195,6 @@ See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-creater
 
 </TabItem>
 <TabItem label="Database Access Controls">
-
-Required Teleport version: v15.2 or above.
 
 Use `spec.allow.db_permissions` section in a user role to specify object permissions given user should have.
 
@@ -347,14 +345,8 @@ admin user through Teleport.
 
 ## Next steps
 
-- Connect using your [GUI database
-  client](../../../connect-your-client/third-party/gui-clients.mdx).
-- Learn about [role
-  templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
-- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
-- Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
-- The `internal.db_roles` traits we illustrated in this guide
-  are replaced with values from the Teleport local user database. For full
-  details on how variable expansion works in Teleport roles, see the [Teleport
-  Access Controls Reference](../../../reference/access-controls/roles.mdx).
+- Connect using your [GUI database client](../../../connect-your-client/third-party/gui-clients.mdx).
+- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
+- Read the automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- Read the database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 
