@@ -197,6 +197,7 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
+	t.Run("cert extension resource IDs", func(t *testing.T) { testCertExtensionResourceIDs(t, testPack) })
 }
 
 // waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
@@ -1825,4 +1826,148 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 		requesterUserName:             requesterUserName,
 		createdRequest:                createdReq,
 	}
+}
+
+// testCertExtensionResourceIDs verifies that both the legacy AllowedResourceIDs
+// and the new AllowedResourceAccessIDs cert extensions are correctly populated
+// for access requests with constrained resources only, unconstrained resources
+// only, and a mix of both.
+//
+// Plain (unconstrained) resources should appear in both extensions.
+// Constrained resources appear only in the new extension. When all resources
+// are constrained, the legacy extension receives a sentinel value to prevent
+// older agents from interpreting an empty extension as "unrestricted access".
+// When a mix of plain and constrained resources is requested, only the plain
+// resource IDs appear in the legacy extension (no sentinel).
+func testCertExtensionResourceIDs(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	username := "requester"
+
+	constrainedResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "staging",
+		},
+		Constraints: &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Ssh{
+				Ssh: &types.SSHResourceConstraints{Logins: []string{"root"}},
+			},
+		},
+	}}
+
+	plainResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "prod",
+		},
+	}}
+
+	mixedResourceIDs := append(plainResourceIDs, constrainedResourceIDs...)
+
+	constrainedRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, constrainedResourceIDs)
+	require.NoError(t, err)
+	plainRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, plainResourceIDs)
+	require.NoError(t, err)
+	mixedRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, mixedResourceIDs)
+	require.NoError(t, err)
+
+	for _, req := range []types.AccessRequest{constrainedRequest, plainRequest, mixedRequest} {
+		req.SetState(types.RequestState_APPROVED)
+		req.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+		require.NoError(t, testPack.tlsServer.Auth().UpsertAccessRequest(ctx, req))
+	}
+
+	requester := authtest.TestUser(username)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	generateCerts := func(t *testing.T, requestName string) *proto.Certs {
+		t.Helper()
+		certs, err := requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			SSHPublicKey:   testPack.sshPubKey,
+			TLSPublicKey:   testPack.tlsPubKey,
+			Username:       username,
+			Expires:        time.Now().Add(time.Hour).UTC(),
+			AccessRequests: []string{requestName},
+		})
+		require.NoError(t, err)
+		return certs
+	}
+
+	type certResources struct {
+		AllowedResourceIDs       []types.ResourceID
+		AllowedResourceAccessIDs []types.ResourceAccessID
+	}
+
+	parseCertResources := func(t *testing.T, certs *proto.Certs) (ssh, tls certResources) {
+		t.Helper()
+
+		sshCert, err := sshutils.ParseCertificate(certs.SSH)
+		require.NoError(t, err)
+		ssh.AllowedResourceIDs, err = types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+		require.NoError(t, err)
+		ssh.AllowedResourceAccessIDs, err = types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
+		require.NoError(t, err)
+
+		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		for _, attr := range tlsCert.Subject.Names {
+			switch {
+			case attr.Type.Equal(tlsca.AllowedResourcesASN1ExtensionOID):
+				tls.AllowedResourceIDs, err = types.ResourceIDsFromString(attr.Value.(string))
+				require.NoError(t, err)
+			case attr.Type.Equal(tlsca.AllowedResourceAccessIDsASN1ExtensionOID):
+				tls.AllowedResourceAccessIDs, err = types.ResourceAccessIDsFromString(attr.Value.(string))
+				require.NoError(t, err)
+			}
+		}
+
+		return ssh, tls
+	}
+
+	t.Run("constrained", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, constrainedRequest.GetName()))
+
+		// All resources are constrained, so the legacy extension gets the
+		// sentinel and the new extension carries the full access IDs.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{types.CreateSentinelResourceID()},
+			AllowedResourceAccessIDs: constrainedResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+
+	t.Run("without constraints", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, plainRequest.GetName()))
+
+		// No constraints, so the legacy extension carries the actual
+		// resource IDs and no sentinel is needed.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{plainResourceIDs[0].Id},
+			AllowedResourceAccessIDs: plainResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+
+	t.Run("mixed constrained and unconstrained", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, mixedRequest.GetName()))
+
+		// The legacy extension should contain only the plain resource IDs
+		// (no sentinel) because older agents can still enforce those.
+		// The new extension carries all resources including constrained ones.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{plainResourceIDs[0].Id},
+			AllowedResourceAccessIDs: mixedResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
 }
