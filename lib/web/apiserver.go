@@ -1115,8 +1115,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
 	// GET /webapi/sites/:site/linuxdesktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/linuxdesktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.linuxDesktopConnectHandle, WithSubprotocols(tdpb.ProtocolName)))
-	// GET /webapi/sites/:site/linuxdesktopplayback/:sid/ws
-	h.GET("/webapi/sites/:site/linuxdesktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
