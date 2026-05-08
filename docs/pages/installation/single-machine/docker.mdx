@@ -7,8 +7,7 @@ tags:
 - platform-wide
 ---
 
-This guide shows you how to install and run Teleport using the official Docker images. 
-It covers selecting an image, configuring the container, running Teleport services, and upgrading.
+This guide shows you how to install and run Teleport using the official Docker images, either directly with Docker or in Kubernetes pods. It covers selecting an image, configuring the container, running Teleport services, and upgrading.
 
 ## Images
 
@@ -73,7 +72,7 @@ For testing, we always recommend that you use the latest release version of Tele
 
 ### Machine & Workload Identity (tbot) image
 
-We also provide a slimmed-down distroless image that contains only the `tbot` binary for use with Teleport Machine & Workload Identity.
+We provide a slimmed-down distroless image that contains only the `tbot` binary for use with Teleport Machine & Workload Identity.
 
 | Image name | FIPS support | Image base |
 | - | - | - |
