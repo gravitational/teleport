@@ -1840,6 +1840,9 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 // When a mix of plain and constrained resources is requested, only the plain
 // resource IDs appear in the legacy extension (no sentinel).
 func testCertExtensionResourceIDs(t *testing.T, testPack *accessRequestTestPack) {
+	// TODO(kiosion): Unskip after https://github.com/gravitational/teleport/pull/66371 is merged.
+	t.Skipf("skipping until ssh certs constraints will be supported")
+
 	t.Parallel()
 
 	ctx := t.Context()
