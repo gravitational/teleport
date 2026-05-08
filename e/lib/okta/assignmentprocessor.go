@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	// processAssignmentTimeout is the maximum amount of time can be spent on processing
+	// processAssignmentTargetsTimeout is the maximum amount of time can be spent on processing
 	// okta_assignment targets.  It is long because short times don't make sense when the cache
 	// is cold. Listing a page of 500 users using the regular API (not Skinny Users Endpoints)
 	// may take minutes. For a group/application that has many users assigned we'll repeat the
@@ -41,7 +41,7 @@ const (
 	// At the same time this timeout means the watcher goroutine may be blocked on reconciling
 	// a single assignment blocking other okta_assignment events being processed by the
 	// watcher, so it shouldn't be unbound either.
-	processAssignmentTimeout time.Duration = 10 * time.Minute
+	processAssignmentTargetsTimeout time.Duration = 10 * time.Minute
 )
 
 type assignmentProcessorAccessPoint struct {
@@ -222,9 +222,6 @@ const (
 // eventually removed from the backend.
 // NOTE: This should not be used directly. [processTimerEvent] or [processWatcherEvent] should be used instead.
 func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment) processAssignmentResult {
-	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
-	defer cancel()
-
 	logger = logger.With(
 		"assignment", assignment.GetName(),
 		"user", assignment.GetUser(),
@@ -380,6 +377,9 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 // processTargets will try to provision/cleanup targets. It returns the updates assignment status
 // and errors that should be reported in the audit event if any.
 func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, op opType) []error {
+	ctx, cancel := context.WithTimeout(ctx, processAssignmentTargetsTimeout)
+	defer cancel()
+
 	// If we can't find the user in Okta, skip trying to process any of the targets.
 	if _, err := client.userID(ctx, userName(assignment.GetUser())); err != nil {
 		logger.WarnContext(ctx, "Okta user for the assignment not found (was the user deleted/deactivated in Okta?). Skipping")
@@ -387,7 +387,8 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 	}
 
 	var errs []error
-	for _, target := range assignment.GetTargets() {
+	targets := assignment.GetTargets()
+	for i, target := range targets {
 		logger := logger.With(
 			"target_type", target.GetTargetType(),
 			"target_id", target.GetID(),
@@ -395,6 +396,16 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 
 		if err := a.processTarget(ctx, logger, client, assignment, target, op); err != nil {
 			errs = append(errs, trace.Wrap(err))
+		}
+
+		// If context timed out, break the loop, otherwise we can log a lot of confusing
+		// "context deadline exceeded" errors for the remaining targets.
+		if ctx.Err() != nil {
+			// In case context is canceled just after a.processTarget call, we don't
+			// want the okta_assignment status to be marked as "successful".
+			logger.ErrorContext(ctx, "Assignment targets processing timed out")
+			errs = append(errs, trace.Errorf("assignment targets processing timed out after %s; processed %d of %d targets", processAssignmentTargetsTimeout, i+1, len(targets)))
+			return errs
 		}
 	}
 	return errs

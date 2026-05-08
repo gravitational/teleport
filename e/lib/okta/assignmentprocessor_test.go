@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -556,6 +557,76 @@ func TestProcessAssignments(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test_assignmentProcessor_targetProcessingTimeout ensures at most processAssignmentTargetsTimeout
+// can be spent processing okta_assignment's targets. It also makes sure the status is updated and
+// audit event emitted even if targets processing timed out.
+func Test_assignmentProcessor_targetProcessingTimeout(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clock := clockwork.NewRealClock()
+		ap := newTestAccessPoint(t, clock)
+		oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+		oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+		svc, emitter := newTestService(t, ap, oktaClient, withClock(clock))
+
+		const group1, group2 = "group1", "group2"
+		const user = "test-user@test.user"
+
+		oktaData.UpsertUserForId(user, "okta-user-id")
+		oktaData.UpsertGroupForId(group1)
+		oktaData.UpsertGroupForId(group2)
+
+		// Synchronize to populate newGroups.
+		require.NoError(t, svc.synchronize(ctx))
+		// Drain events.
+		collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+		// Simulate GetGroupAssignments timing out for group2.
+		getGroupAssignments := oktaClient.GetGroupAssignmentsFunc
+		oktaClient.GetGroupAssignmentsFunc = func(t *testing.T, ctx context.Context, groupID oktaapi.OktaGroupID) ([]oktaapi.OktaUserID, error) {
+			if groupID != group2 {
+				return getGroupAssignments(t, ctx, groupID)
+			}
+			<-ctx.Done() // we are inside synctest bubble so this will not block
+			return nil, ctx.Err()
+		}
+
+		processor := svc.assignmentReconciler.assignmentProcessor
+		assignment1 := assignment(t, "test_assignment_1", user, time.Time{}, constants.OktaAssignmentStatusPending, time.Now(), false,
+			target(types.OktaAssignmentTargetV1_GROUP, group1),
+			target(types.OktaAssignmentTargetV1_GROUP, group2),
+		)
+
+		assignment1, err := ap.CreateOktaAssignment(ctx, assignment1)
+		require.NoError(t, err)
+
+		timeBeforeProcessing := time.Now()
+
+		result := processor.processAssignment(ctx, processor.logger, assignment1)
+		require.Equal(t, processAssignmentProcessed, result)
+
+		timeAfterProcessing := time.Now()
+		require.Equal(t, timeBeforeProcessing.Add(processAssignmentTargetsTimeout), timeAfterProcessing)
+
+		// Verify the assignment is in "failed" state.
+		assignment1Updated, err := ap.GetOktaAssignment(ctx, assignment1.GetName())
+		require.NoError(t, err)
+		require.Equal(t, constants.OktaAssignmentStatusFailed, assignment1Updated.GetStatus())
+
+		// Verify the audit event for the assignment going from "pending" -> "failed" and
+		// has expected errors.
+		event := requireAuditEvent[*apievents.OktaAssignmentResult](t, emitter)
+		require.Equal(t, events.OktaAssignmentProcessEvent, event.GetType())
+		require.Equal(t, events.OktaAssignmentProcessFailureCode, event.GetCode())
+		require.Equal(t, assignment1.GetName(), event.ResourceMetadata.Name)
+		require.Equal(t, constants.OktaAssignmentStatusPending, event.StartingStatus)
+		require.Equal(t, constants.OktaAssignmentStatusFailed, event.EndingStatus)
+		require.Contains(t, event.Error, `failed to provision target "group:group2": context deadline exceeded`)
+		require.Contains(t, event.Error, "assignment targets processing timed out")
+	})
 }
 
 // This test checks if assignments are processed in order from the highest to lowest priority.
