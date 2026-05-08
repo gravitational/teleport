@@ -170,7 +170,7 @@ export class ClusterStore {
    * message to the sender.
    */
   registerSender(sender: AwaitableSender<ClusterStoreUpdate>): void {
-    this.logger.info('Sender registered');
+    this.logger.info('Sender registered', { senderId: sender.id });
     this.senders.add(sender);
     const send = this.withErrorHandling(update => sender.send(update));
     void send({
@@ -179,7 +179,7 @@ export class ClusterStore {
     });
     sender.whenDisposed().then(() => {
       this.senders.delete(sender);
-      this.logger.info('Sender unregistered');
+      this.logger.info('Sender unregistered', { senderId: sender.id });
     });
   }
 
