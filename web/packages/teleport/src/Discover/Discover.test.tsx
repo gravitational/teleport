@@ -326,3 +326,19 @@ test('update flow: agentMeta is prepopulated based on agentMeta', () => {
 
   expect(screen.getByText('saml2')).toBeInTheDocument();
 });
+
+test('Connect My Computer does not prompt when leaving the flow', async () => {
+  renderUpdate({
+    resourceSpec: resourceSpecConnectMyComputer,
+    agentMeta: { resourceName: '' },
+  });
+
+  const text = await screen.findByText('Sign In & Connect My Computer');
+  expect(text).toBeInTheDocument();
+
+  // Simulate closing the tab / opening a deep link.
+  const event = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+
+  expect(event.defaultPrevented).toBe(false);
+});
