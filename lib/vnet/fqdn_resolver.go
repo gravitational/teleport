@@ -393,10 +393,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
-		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: db.MatchExpr(identifier),
-	})
+	servers, err := db.ListServers(ctx, candidate.client.CurrentCluster(), identifier)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, trace.Wrap(err)
@@ -405,7 +402,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	dbResource, ok := db.PickMatch(ctx, log, identifier, resp.Resources)
+	dbResource, ok := db.PickMatch(ctx, log, identifier, servers)
 	if !ok {
 		return nil, errNoMatch
 	}

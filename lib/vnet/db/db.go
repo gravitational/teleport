@@ -22,6 +22,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/gravitational/trace"
+
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/vnet/dns"
@@ -63,6 +67,19 @@ func MatchExpr(identifier string) string {
 	return fmt.Sprintf(`resource.status.vnet_dns_name == %q || name == %q`, identifier, identifier)
 }
 
+// ListServers queries clt for db_servers matching the given VNet identifier
+// (status.vnet_dns_name or metadata.name).
+func ListServers(ctx context.Context, clt apiclient.GetResourcesClient, identifier string) ([]types.DatabaseServer, error) {
+	rsp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: MatchExpr(identifier),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp.Resources, nil
+}
+
 // IsUserOptional reports whether the database protocol's db_service extracts
 // the database username from the wire protocol
 func IsUserOptional(protocol string) bool {
@@ -83,6 +100,9 @@ func IsUserOptional(protocol string) bool {
 // identifier, and gates the chosen database on IsUserOptional.
 func PickMatch(ctx context.Context, log *slog.Logger, identifier string, servers []types.DatabaseServer) (types.Database, bool) {
 	if len(servers) == 0 {
+		log.DebugContext(ctx, "No matching database servers for VNet identifier",
+			"identifier", identifier,
+		)
 		return nil, false
 	}
 	databases := types.DatabaseServers(servers).ToDatabases()

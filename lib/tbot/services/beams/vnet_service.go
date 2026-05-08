@@ -484,16 +484,13 @@ func (v *vnetApplicationService) resolveDatabaseFQDN(
 	}
 
 	log := v.logger.With("fqdn", fqdn, "identifier", identifier)
-	rsp, err := client.GetResourcePage[types.DatabaseServer](ctx, v.client, &proto.ListResourcesRequest{
-		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: db.MatchExpr(identifier),
-	})
+	servers, err := db.ListServers(ctx, v.client, identifier)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to list database servers", "error", err)
 		return nil, trace.Wrap(err, "listing database servers")
 	}
 
-	dbResource, ok := db.PickMatch(ctx, log, identifier, rsp.Resources)
+	dbResource, ok := db.PickMatch(ctx, log, identifier, servers)
 	if !ok {
 		return nil, errNoDBMatch
 	}
