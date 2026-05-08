@@ -78,10 +78,10 @@ func (h *Handler) linuxDesktopConnectHandle(
 		"desktop_name", desktopName,
 		"cluster_name", cluster.GetName(),
 	)
-	log.DebugContext(r.Context(), "New Linux desktop websocket connection")
+	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToLinuxService, true); err != nil {
-		// createDesktopConnection makes a best effort attempt to send an error to the user
+	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToLinuxService, true); err != nil {
+		// createDesktopConnection makes a best-effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
 		// format, and this will fail since the HTTP connection has been upgraded to websockets.
@@ -111,8 +111,8 @@ func (h *Handler) desktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToWindowsService, false); err != nil {
-		// createDesktopConnection makes a best effort attempt to send an error to the user
+	if err := h.createDesktopConnection(r, desktopName, log, sctx, cluster, ws, desktop.ConnectToWindowsService, false); err != nil {
+		// createDesktopConnection makes a best-effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
 		// format, and this will fail since the HTTP connection has been upgraded to websockets.
@@ -185,14 +185,14 @@ func (t *tdpHandshaker) sendError(ctx context.Context, log *slog.Logger, err err
 		err = errors.New("an unknown error has occurred")
 	}
 
-	return trace.Wrap(t.connection.WriteMessage((&legacy.Alert{
+	return trace.Wrap(t.connection.WriteMessage(&legacy.Alert{
 		Message:  err.Error(),
 		Severity: legacy.SeverityError,
-	})))
+	}))
 }
 
 func (t *tdpHandshaker) getPromptBuilder(log *slog.Logger) mfaPromptBuilder {
-	return mfaPromptBuilder(legacy.NewTDPMFAPrompt(t.connection, &t.withheld, log))
+	return legacy.NewTDPMFAPrompt(t.connection, &t.withheld, log)
 }
 
 func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.Logger) error {
@@ -385,9 +385,22 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 
 type mfaPromptBuilder func(string) mfa.PromptFunc
 
-func (h *Handler) createDesktopConnection(r *http.Request, desktopName string, clusterName string, log *slog.Logger, sctx *SessionContext, cluster reversetunnelclient.Cluster, ws *websocket.Conn, connectFunc func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error), linuxDesktop bool) error {
+type connectorFunc func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
+
+func (h *Handler) createDesktopConnection(
+	r *http.Request,
+	desktopName string,
+	log *slog.Logger,
+	sctx *SessionContext,
+	cluster reversetunnelclient.Cluster,
+	ws *websocket.Conn,
+	connectFunc connectorFunc,
+	linuxDesktop bool,
+) error {
 	defer ws.Close()
 	ctx := r.Context()
+
+	clusterName := cluster.GetName()
 
 	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter.
 	// - If the 'tdpb' query parameter is present, then we'll need to send an upgrade message to the client
