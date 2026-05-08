@@ -231,7 +231,7 @@ export default class AppContext implements IAppContext {
           case 'did-add-cluster':
             return this.workspacesService.addWorkspace(uri);
           case 'did-change-access':
-            if (!this.clustersService.findCluster(uri).connected) {
+            if (!this.clustersService.findCluster(uri)?.connected) {
               // Only refresh resources when the cluster is connected.
               return;
             }
