@@ -105,10 +105,10 @@ func (a *Attestor) Attest(ctx context.Context, pid int) (*attrs.WorkloadAttrs, e
 	a.log.DebugContext(ctx, "Starting workload attestation", "pid", pid)
 	defer a.log.DebugContext(ctx, "Finished workload attestation", "pid", pid)
 
-	var err error
 	attrs := attrs.NewWorkloadAttrs()
 	// We always perform the unix attestation first
-	attrs.Unix, err = a.unix.Attest(ctx, pid)
+	unix, err := a.unix.Attest(ctx, pid)
+	attrs.SetUnix(unix)
 	if err != nil {
 		return attrs, err
 	}
@@ -117,25 +117,29 @@ func (a *Attestor) Attest(ctx context.Context, pid int) (*attrs.WorkloadAttrs, e
 	// For these, failure is soft. If it fails, we log, but still return the
 	// successfully attested data.
 	if a.kubernetes != nil {
-		attrs.Kubernetes, err = a.kubernetes.Attest(ctx, pid)
+		k8s, err := a.kubernetes.Attest(ctx, pid)
+		attrs.SetKubernetes(k8s)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Kubernetes workload attestation", "error", err)
 		}
 	}
 	if a.podman != nil {
-		attrs.Podman, err = a.podman.Attest(ctx, pid)
+		podman, err := a.podman.Attest(ctx, pid)
+		attrs.SetPodman(podman)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Podman workload attestation", "error", err)
 		}
 	}
 	if a.docker != nil {
-		attrs.Docker, err = a.docker.Attest(ctx, pid)
+		docker, err := a.docker.Attest(ctx, pid)
+		attrs.SetDocker(docker)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Docker workload attestation", "error", err)
 		}
 	}
 	if a.systemd != nil {
-		attrs.Systemd, err = a.systemd.Attest(ctx, pid)
+		systemd, err := a.systemd.Attest(ctx, pid)
+		attrs.SetSystemd(systemd)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Systemd workload attestation", "error", err)
 		}
@@ -143,7 +147,8 @@ func (a *Attestor) Attest(ctx context.Context, pid int) (*attrs.WorkloadAttrs, e
 
 	if a.sigstore != nil {
 		if ctr := a.containerAttributes(attrs); ctr != nil {
-			attrs.Sigstore, err = a.sigstore.Attest(ctx, ctr)
+			sig, err := a.sigstore.Attest(ctx, ctr)
+			attrs.SetSigstore(sig)
 			if err != nil {
 				a.log.WarnContext(ctx, "Failed to perform Sigstore workload attestation", "error", err)
 			}

@@ -220,17 +220,17 @@ func TestJoinAttributes(t *testing.T) {
 		BotInstanceID: "1234-5678",
 		BotInternal:   true,
 		Expires:       expires,
-		JoinAttributes: &workloadidentityv1pb.JoinAttrs{
-			Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
-				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+		JoinAttributes: workloadidentityv1pb.JoinAttrs_builder{
+			Kubernetes: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 					Namespace: "default",
 					Name:      "foo",
-				},
-				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				}.Build(),
+				Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 					Name: "bar",
-				},
-			},
-		},
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	}
 
 	subj, err := identity.Subject()

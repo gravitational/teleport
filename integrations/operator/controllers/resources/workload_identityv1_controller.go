@@ -44,7 +44,7 @@ func (l workloadIdentityClient) Get(
 	resp, err := l.teleportClient.
 		WorkloadIdentityResourceServiceClient().
 		GetWorkloadIdentity(
-			ctx, &workloadidentityv1.GetWorkloadIdentityRequest{Name: name},
+			ctx, workloadidentityv1.GetWorkloadIdentityRequest_builder{Name: name}.Build(),
 		)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -60,9 +60,9 @@ func (l workloadIdentityClient) Create(
 		WorkloadIdentityResourceServiceClient().
 		CreateWorkloadIdentity(
 			ctx,
-			&workloadidentityv1.CreateWorkloadIdentityRequest{
+			workloadidentityv1.CreateWorkloadIdentityRequest_builder{
 				WorkloadIdentity: resource,
-			},
+			}.Build(),
 		)
 	return trace.Wrap(err)
 }
@@ -75,9 +75,9 @@ func (l workloadIdentityClient) Update(
 		WorkloadIdentityResourceServiceClient().
 		UpsertWorkloadIdentity(
 			ctx,
-			&workloadidentityv1.UpsertWorkloadIdentityRequest{
+			workloadidentityv1.UpsertWorkloadIdentityRequest_builder{
 				WorkloadIdentity: resource,
-			},
+			}.Build(),
 		)
 	return trace.Wrap(err)
 }
@@ -87,7 +87,7 @@ func (l workloadIdentityClient) Delete(ctx context.Context, name string) error {
 	_, err := l.teleportClient.
 		WorkloadIdentityResourceServiceClient().
 		DeleteWorkloadIdentity(
-			ctx, &workloadidentityv1.DeleteWorkloadIdentityRequest{Name: name},
+			ctx, workloadidentityv1.DeleteWorkloadIdentityRequest_builder{Name: name}.Build(),
 		)
 	return trace.Wrap(err)
 }

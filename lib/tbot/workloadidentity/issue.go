@@ -42,18 +42,18 @@ func WorkloadIdentityLogValue(credential *workloadidentityv1pb.Credential) slog.
 		slog.String("spiffe_id", credential.GetSpiffeId()),
 		slog.String("serial_number", credential.GetX509Svid().GetSerialNumber()),
 	}
-	switch v := credential.GetCredential().(type) {
-	case *workloadidentityv1pb.Credential_X509Svid:
+	switch credential.WhichCredential() {
+	case workloadidentityv1pb.Credential_X509Svid_case:
 		attrs = append(
 			attrs,
 			slog.String("type", "x509"),
-			slog.String("serial_number", v.X509Svid.GetSerialNumber()),
+			slog.String("serial_number", credential.GetX509Svid().GetSerialNumber()),
 		)
-	case *workloadidentityv1pb.Credential_JwtSvid:
+	case workloadidentityv1pb.Credential_JwtSvid_case:
 		attrs = append(
 			attrs,
 			slog.String("type", "jwt"),
-			slog.String("jti", v.JwtSvid.GetJti()),
+			slog.String("jti", credential.GetJwtSvid().GetJti()),
 		)
 	}
 	return slog.GroupValue(attrs...)
@@ -111,17 +111,15 @@ func IssueX509WorkloadIdentity(
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
-			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
+			workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
 				Name: workloadIdentity.Name,
-				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey:          pubBytes,
-						UseIssuerOverrides: true,
-					},
-				},
+				X509SvidParams: workloadidentityv1pb.X509SVIDParams_builder{
+					PublicKey:          pubBytes,
+					UseIssuerOverrides: true,
+				}.Build(),
 				RequestedTtl:  durationpb.New(ttl),
 				WorkloadAttrs: attest.GetAttrs(),
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -129,9 +127,9 @@ func IssueX509WorkloadIdentity(
 		log.DebugContext(
 			ctx,
 			"Received X509 workload identity credential",
-			"credential", WorkloadIdentityLogValue(res.Credential),
+			"credential", WorkloadIdentityLogValue(res.GetCredential()),
 		)
-		return []*workloadidentityv1pb.Credential{res.Credential}, privateKey, nil
+		return []*workloadidentityv1pb.Credential{res.GetCredential()}, privateKey, nil
 	case len(workloadIdentity.Labels) > 0:
 		labelSelectors := labelsToSelectors(workloadIdentity.Labels)
 		log.DebugContext(
@@ -140,17 +138,15 @@ func IssueX509WorkloadIdentity(
 			"labels", labelSelectors,
 		)
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
-			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+			workloadidentityv1pb.IssueWorkloadIdentitiesRequest_builder{
 				LabelSelectors: labelSelectors,
-				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey:          pubBytes,
-						UseIssuerOverrides: true,
-					},
-				},
+				X509SvidParams: workloadidentityv1pb.X509SVIDParams_builder{
+					PublicKey:          pubBytes,
+					UseIssuerOverrides: true,
+				}.Build(),
 				RequestedTtl:  durationpb.New(ttl),
 				WorkloadAttrs: attest.GetAttrs(),
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -158,9 +154,9 @@ func IssueX509WorkloadIdentity(
 		log.DebugContext(
 			ctx,
 			"Received X509 workload identity credentials",
-			"credentials", WorkloadIdentitiesLogValue(res.Credentials),
+			"credentials", WorkloadIdentitiesLogValue(res.GetCredentials()),
 		)
-		return res.Credentials, privateKey, nil
+		return res.GetCredentials(), privateKey, nil
 	default:
 		return nil, nil, trace.BadParameter("no valid selector configured")
 	}
@@ -169,10 +165,10 @@ func IssueX509WorkloadIdentity(
 func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSelector {
 	selectors := make([]*workloadidentityv1pb.LabelSelector, 0, len(in))
 	for k, v := range in {
-		selectors = append(selectors, &workloadidentityv1pb.LabelSelector{
+		selectors = append(selectors, workloadidentityv1pb.LabelSelector_builder{
 			Key:    k,
 			Values: v,
-		})
+		}.Build())
 	}
 	return selectors
 }
@@ -208,16 +204,14 @@ func IssueJWTWorkloadIdentity(
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
-			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
+			workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
 				Name: workloadIdentity.Name,
-				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
-					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
-						Audiences: audiences,
-					},
-				},
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{
+					Audiences: audiences,
+				}.Build(),
 				RequestedTtl:  durationpb.New(ttl),
 				WorkloadAttrs: attest.GetAttrs(),
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -225,9 +219,9 @@ func IssueJWTWorkloadIdentity(
 		log.DebugContext(
 			ctx,
 			"Received JWT workload identity credential",
-			"credential", WorkloadIdentityLogValue(res.Credential),
+			"credential", WorkloadIdentityLogValue(res.GetCredential()),
 		)
-		return []*workloadidentityv1pb.Credential{res.Credential}, nil
+		return []*workloadidentityv1pb.Credential{res.GetCredential()}, nil
 	case len(workloadIdentity.Labels) > 0:
 		labelSelectors := labelsToSelectors(workloadIdentity.Labels)
 		log.DebugContext(
@@ -236,16 +230,14 @@ func IssueJWTWorkloadIdentity(
 			"labels", labelSelectors,
 		)
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
-			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+			workloadidentityv1pb.IssueWorkloadIdentitiesRequest_builder{
 				LabelSelectors: labelSelectors,
-				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams{
-					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
-						Audiences: audiences,
-					},
-				},
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{
+					Audiences: audiences,
+				}.Build(),
 				RequestedTtl:  durationpb.New(ttl),
 				WorkloadAttrs: attest.GetAttrs(),
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -253,9 +245,9 @@ func IssueJWTWorkloadIdentity(
 		log.DebugContext(
 			ctx,
 			"Received JWT workload identity credentials",
-			"credentials", WorkloadIdentitiesLogValue(res.Credentials),
+			"credentials", WorkloadIdentitiesLogValue(res.GetCredentials()),
 		)
-		return res.Credentials, nil
+		return res.GetCredentials(), nil
 	default:
 		return nil, trace.BadParameter("no valid selector configured")
 	}

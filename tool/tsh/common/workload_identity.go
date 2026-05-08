@@ -152,8 +152,8 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 				received = append(received,
 					fmt.Sprintf(
 						"%s:%s",
-						cred.WorkloadIdentityName,
-						cred.SpiffeId,
+						cred.GetWorkloadIdentityName(),
+						cred.GetSpiffeId(),
 					),
 				)
 			}
@@ -236,7 +236,7 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 		fmt.Fprintf(
 			cf.Stdout(),
 			"SVID %q issued. Files written to: \n - %s\n - %s\n - %s\n",
-			x509Credential.SpiffeId,
+			x509Credential.GetSpiffeId(),
 			keyPath,
 			svidPath,
 			trustBundlePath,

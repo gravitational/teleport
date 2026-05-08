@@ -1156,8 +1156,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 				// Make sure the JoinAttributes were set.
 				require.NotNil(t, identity.JoinAttributes)
-				require.NotNil(t, identity.JoinAttributes.Azure)
-				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.Azure.Subscription)
+				require.NotNil(t, identity.JoinAttributes.GetAzure())
+				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.GetAzure().GetSubscription())
 			})
 		})
 	}

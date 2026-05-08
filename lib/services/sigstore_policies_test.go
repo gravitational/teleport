@@ -27,6 +27,7 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestValidateSigstorePolicy(t *testing.T) {
@@ -38,173 +39,137 @@ func TestValidateSigstorePolicy(t *testing.T) {
 	}{
 		"no metadata": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Metadata = nil
+				p.ClearMetadata()
 			},
 			err: "metadata: is required",
 		},
 		"no name": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Metadata.Name = ""
+				p.GetMetadata().Name = ""
 			},
 			err: "metadata.name: is required",
 		},
 		"invalid version": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Version = "1000000"
+				p.SetVersion("1000000")
 			},
 			err: `version: only "v1" is supported`,
 		},
 		"invalid kind": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Kind = types.KindWorkloadIdentity
+				p.SetKind(types.KindWorkloadIdentity)
 			},
 			err: `kind: must be "sigstore_policy`,
 		},
 		"invalid sub_kind": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.SubKind = "hello world"
+				p.SetSubKind("hello world")
 			},
 			err: `sub_kind: must be empty`,
 		},
 		"no spec": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec = nil
+				p.ClearSpec()
 			},
 			err: "spec: is required",
 		},
 		"no authority": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = nil
-			},
-			err: "spec.authority: key or keyless authority is required",
-		},
-		"empty key authority": {
-			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Key{}
-			},
-			err: "spec.authority: key or keyless authority is required",
-		},
-		"empty keyless authority": {
-			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Keyless{}
+				p.GetSpec().ClearAuthority()
 			},
 			err: "spec.authority: key or keyless authority is required",
 		},
 		"no public key": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Key{
-					Key: &workloadidentityv1.SigstoreKeyAuthority{
-						Public: "",
-					},
-				}
+				p.GetSpec().SetKey(workloadidentityv1.SigstoreKeyAuthority_builder{
+					Public: "",
+				}.Build())
 			},
 			err: "spec.key.public: is required",
 		},
 		"public key is not PEM": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Key{
-					Key: &workloadidentityv1.SigstoreKeyAuthority{
-						Public: "NOT PEM",
-					},
-				}
+				p.GetSpec().SetKey(workloadidentityv1.SigstoreKeyAuthority_builder{
+					Public: "NOT PEM",
+				}.Build())
 			},
 			err: "spec.key.public: is not PEM encoded",
 		},
 		"public key is not a public key": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Key{
-					Key: &workloadidentityv1.SigstoreKeyAuthority{
-						Public: "\n-----BEGIN RSA PRIVATE KEY-----\n-----END RSA PRIVATE KEY-----\n",
-					},
-				}
+				p.GetSpec().SetKey(workloadidentityv1.SigstoreKeyAuthority_builder{
+					Public: "\n-----BEGIN RSA PRIVATE KEY-----\n-----END RSA PRIVATE KEY-----\n",
+				}.Build())
 			},
 			err: "spec.key.public: must contain a public key, not: 'RSA PRIVATE KEY'",
 		},
 		"public key contains more than one key": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Key{
-					Key: &workloadidentityv1.SigstoreKeyAuthority{
-						Public: strings.Repeat("\n-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n", 2),
-					},
-				}
+				p.GetSpec().SetKey(workloadidentityv1.SigstoreKeyAuthority_builder{
+					Public: strings.Repeat("\n-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n", 2),
+				}.Build())
 			},
 			err: "spec.key.public: must contain exactly one public key",
 		},
 		"public key is malformed": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Authority = &workloadidentityv1.SigstorePolicySpec_Key{
-					Key: &workloadidentityv1.SigstoreKeyAuthority{
-						Public: "\n-----BEGIN PUBLIC KEY-----\nYm9ndXMK\n-----END PUBLIC KEY-----\n",
-					},
-				}
+				p.GetSpec().SetKey(workloadidentityv1.SigstoreKeyAuthority_builder{
+					Public: "\n-----BEGIN PUBLIC KEY-----\nYm9ndXMK\n-----END PUBLIC KEY-----\n",
+				}.Build())
 			},
 			err: "spec.key.public: failed to parse public key: asn1: structure error",
 		},
 		"no keyless authorities": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.GetKeyless().Identities = nil
+				p.GetSpec().GetKeyless().SetIdentities(nil)
 			},
 			err: "spec.keyless.identities: at least one trusted identity is required",
 		},
 		"no keyless identity subject": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.GetKeyless().Identities = []*workloadidentityv1.SigstoreKeylessSigningIdentity{
-					{
-						SubjectMatcher: nil,
-						IssuerMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Issuer{
-							Issuer: "some issuer",
-						},
-					},
-				}
+				p.GetSpec().GetKeyless().SetIdentities([]*workloadidentityv1.SigstoreKeylessSigningIdentity{
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						Issuer: proto.String("some issuer"),
+					}.Build(),
+				})
 			},
 			err: "spec.keyless.identities[0].subject_matcher: subject or subject_regex is required",
 		},
 		"keyless identity subject_regex invalid": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.GetKeyless().Identities = []*workloadidentityv1.SigstoreKeylessSigningIdentity{
-					{
-						SubjectMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_SubjectRegex{
-							SubjectRegex: `(abc[def`,
-						},
-						IssuerMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Issuer{
-							Issuer: "some issuer",
-						},
-					},
-				}
+				p.GetSpec().GetKeyless().SetIdentities([]*workloadidentityv1.SigstoreKeylessSigningIdentity{
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						SubjectRegex: proto.String(`(abc[def`),
+						Issuer:       proto.String("some issuer"),
+					}.Build(),
+				})
 			},
 			err: "spec.keyless.identities[0].subject_regex: failed to parse regex",
 		},
 		"no keyless identity issuer": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.GetKeyless().Identities = []*workloadidentityv1.SigstoreKeylessSigningIdentity{
-					{
-						IssuerMatcher: nil,
-						SubjectMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Subject{
-							Subject: "some subject",
-						},
-					},
-				}
+				p.GetSpec().GetKeyless().SetIdentities([]*workloadidentityv1.SigstoreKeylessSigningIdentity{
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						Subject: proto.String("some subject"),
+					}.Build(),
+				})
 			},
 			err: "spec.keyless.identities[0].issuer_matcher: issuer or issuer_regex is required",
 		},
 		"keyless identity issuer_regex invalid": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.GetKeyless().Identities = []*workloadidentityv1.SigstoreKeylessSigningIdentity{
-					{
-						IssuerMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_IssuerRegex{
-							IssuerRegex: `(abc[def`,
-						},
-						SubjectMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Subject{
-							Subject: "some subject",
-						},
-					},
-				}
+				p.GetSpec().GetKeyless().SetIdentities([]*workloadidentityv1.SigstoreKeylessSigningIdentity{
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						IssuerRegex: proto.String(`(abc[def`),
+						Subject:     proto.String("some subject"),
+					}.Build(),
+				})
 			},
 			err: "spec.keyless.identities[0].issuer_regex: failed to parse regex",
 		},
 		"keyless invalid trusted_roots": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.GetKeyless().TrustedRoots = []string{`{}`}
+				p.GetSpec().GetKeyless().SetTrustedRoots([]string{`{}`})
 			},
 			err: "spec.keyless.trusted_roots[0]: failed to parse trusted root",
 		},
@@ -244,38 +209,38 @@ func TestValidateSigstorePolicy(t *testing.T) {
 				  "tlogs": []
 				}
 				`
-				p.Spec.GetKeyless().TrustedRoots = []string{root}
+				p.GetSpec().GetKeyless().SetTrustedRoots([]string{root})
 			},
 			err: "spec.keyless.trusted_roots: must configure at least one transparency log or timestamp authority",
 		},
 		"no requirements": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Requirements = nil
+				p.GetSpec().ClearRequirements()
 			},
 			err: "spec.requirements: is required",
 		},
 		"empty requirements": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Requirements = &workloadidentityv1.SigstorePolicyRequirements{}
+				p.GetSpec().SetRequirements(&workloadidentityv1.SigstorePolicyRequirements{})
 			},
 			err: "spec.requirements: either artifact_signature or attestations is required",
 		},
 		"required attestation empty predicate": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Requirements.Attestations = []*workloadidentityv1.InTotoAttestationMatcher{
-					{PredicateType: ""},
-				}
+				p.GetSpec().GetRequirements().SetAttestations([]*workloadidentityv1.InTotoAttestationMatcher{
+					workloadidentityv1.InTotoAttestationMatcher_builder{PredicateType: ""}.Build(),
+				})
 			},
 			err: "spec.requirements.attestations[0].predicate_type: is required",
 		},
 		"attestations and artifact signature": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
-				p.Spec.Requirements = &workloadidentityv1.SigstorePolicyRequirements{
+				p.GetSpec().SetRequirements(workloadidentityv1.SigstorePolicyRequirements_builder{
 					ArtifactSignature: true,
 					Attestations: []*workloadidentityv1.InTotoAttestationMatcher{
-						{PredicateType: "https://slsa.dev/provenance/v1"},
+						workloadidentityv1.InTotoAttestationMatcher_builder{PredicateType: "https://slsa.dev/provenance/v1"}.Build(),
 					},
-				}
+				}.Build())
 			},
 			err: "spec.requirements: artifact_signature and attestations are mutually exclusive",
 		},
@@ -293,32 +258,26 @@ func TestValidateSigstorePolicy(t *testing.T) {
 }
 
 func validSigstorePolicy() *workloadidentityv1.SigstorePolicy {
-	return &workloadidentityv1.SigstorePolicy{
+	return workloadidentityv1.SigstorePolicy_builder{
 		Kind:    types.KindSigstorePolicy,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: "github-provenance",
 		},
-		Spec: &workloadidentityv1.SigstorePolicySpec{
-			Authority: &workloadidentityv1.SigstorePolicySpec_Keyless{
-				Keyless: &workloadidentityv1.SigstoreKeylessAuthority{
-					Identities: []*workloadidentityv1.SigstoreKeylessSigningIdentity{
-						{
-							IssuerMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Issuer{
-								Issuer: "https://token.actions.githubusercontent.com",
-							},
-							SubjectMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_SubjectRegex{
-								SubjectRegex: `https://github.com/mycompany/.*/\.github/workflows/.*@.*`,
-							},
-						},
-					},
+		Spec: workloadidentityv1.SigstorePolicySpec_builder{
+			Keyless: workloadidentityv1.SigstoreKeylessAuthority_builder{
+				Identities: []*workloadidentityv1.SigstoreKeylessSigningIdentity{
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						Issuer:       proto.String("https://token.actions.githubusercontent.com"),
+						SubjectRegex: proto.String(`https://github.com/mycompany/.*/\.github/workflows/.*@.*`),
+					}.Build(),
 				},
-			},
-			Requirements: &workloadidentityv1.SigstorePolicyRequirements{
+			}.Build(),
+			Requirements: workloadidentityv1.SigstorePolicyRequirements_builder{
 				Attestations: []*workloadidentityv1.InTotoAttestationMatcher{
-					{PredicateType: "https://slsa.dev/provenance/v1"},
+					workloadidentityv1.InTotoAttestationMatcher_builder{PredicateType: "https://slsa.dev/provenance/v1"}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 }

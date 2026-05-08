@@ -213,10 +213,10 @@ type AWSIdentity struct {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *AWSIdentity) JoinAttrs() *workloadidentityv1pb.JoinAttrsAWSIAM {
-	attrs := &workloadidentityv1pb.JoinAttrsAWSIAM{
+	attrs := workloadidentityv1pb.JoinAttrsAWSIAM_builder{
 		Account: c.Account,
 		Arn:     c.Arn,
-	}
+	}.Build()
 
 	return attrs
 }

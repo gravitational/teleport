@@ -69,19 +69,19 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 
 	_, err = s.root.GetAuthServer().Services.UpsertWorkloadIdentity(
 		ctx,
-		&workloadidentityv1pb.WorkloadIdentity{
+		workloadidentityv1pb.WorkloadIdentity_builder{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name:   "my-workload-identity",
 				Labels: map[string]string{},
 			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 					Id: "/test",
-				},
-			},
-		},
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

@@ -31,8 +31,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"gopkg.in/yaml.v3"
-
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -76,8 +74,18 @@ spec:
   spiffe:
     id: /test
 `
-	var expected workloadidentityv1pb.WorkloadIdentity
-	require.NoError(t, yaml.Unmarshal([]byte(yamlData), &expected))
+	expected := workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    "workload_identity",
+		Version: "v1",
+		Metadata: &headerv1.Metadata{
+			Name: "test",
+		},
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: "/test",
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	t.Run("workload-identity ls empty", func(t *testing.T) {
 		buf, err := runWorkloadIdentityCommand(
@@ -102,7 +110,7 @@ spec:
 		)
 		require.NoError(t, err)
 
-		resources := mustDecodeJSON[[]*workloadidentityv1pb.WorkloadIdentity](t, buf)
+		resources := mustDecodeProtoJSONArray[*workloadidentityv1pb.WorkloadIdentity](t, buf)
 		require.Empty(t, resources)
 	})
 
@@ -137,10 +145,10 @@ spec:
 		)
 		require.NoError(t, err)
 
-		resources := mustDecodeJSON[[]*workloadidentityv1pb.WorkloadIdentity](t, buf)
+		resources := mustDecodeProtoJSONArray[*workloadidentityv1pb.WorkloadIdentity](t, buf)
 		require.NotEmpty(t, resources)
 		require.Empty(t, cmp.Diff(
-			[]*workloadidentityv1pb.WorkloadIdentity{&expected},
+			[]*workloadidentityv1pb.WorkloadIdentity{expected},
 			resources,
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -263,18 +271,18 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Empty(t, cmp.Diff(
-			&workloadidentityv1pb.WorkloadIdentityX509Revocation{
+			workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name:    "aabbccdd",
 					Expires: timestamppb.New(time.Date(2030, 2, 24, 15, 4, 0, 0, time.UTC)),
 				},
-				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.New(time.Date(2024, 2, 5, 15, 4, 0, 0, time.UTC)),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			resource,
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),

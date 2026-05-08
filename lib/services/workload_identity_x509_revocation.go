@@ -91,29 +91,29 @@ func ValidateWorkloadIdentityX509Revocation(s *workloadidentityv1pb.WorkloadIden
 	switch {
 	case s == nil:
 		return trace.BadParameter("object cannot be nil")
-	case s.Version != types.V1:
+	case s.GetVersion() != types.V1:
 		return trace.BadParameter("version: only %q is supported", types.V1)
-	case s.Kind != types.KindWorkloadIdentityX509Revocation:
+	case s.GetKind() != types.KindWorkloadIdentityX509Revocation:
 		return trace.BadParameter("kind: must be %q", types.KindWorkloadIdentityX509Revocation)
-	case s.Metadata == nil:
+	case !s.HasMetadata():
 		return trace.BadParameter("metadata: is required")
-	case s.Metadata.Name == "":
+	case s.GetMetadata().Name == "":
 		return trace.BadParameter("metadata.name: is required")
-	case s.Metadata.Expires == nil:
+	case s.GetMetadata().Expires == nil:
 		return trace.BadParameter("metadata.expires: is required")
-	case s.Metadata.Expires.IsValid() == false:
+	case s.GetMetadata().Expires.IsValid() == false:
 		return trace.BadParameter("metadata.expires: must be valid")
-	case s.Metadata.Expires.AsTime().IsZero():
+	case s.GetMetadata().Expires.AsTime().IsZero():
 		return trace.BadParameter("metadata.expires: must be non-zero")
-	case s.Spec == nil:
+	case !s.HasSpec():
 		return trace.BadParameter("spec: is required")
-	case s.Spec.Reason == "":
+	case s.GetSpec().GetReason() == "":
 		return trace.BadParameter("spec.reason: is required")
-	case s.Spec.RevokedAt == nil:
+	case !s.GetSpec().HasRevokedAt():
 		return trace.BadParameter("spec.revoked_at: is required")
-	case s.Spec.RevokedAt.IsValid() == false:
+	case s.GetSpec().GetRevokedAt().IsValid() == false:
 		return trace.BadParameter("spec.revoked_at: must be valid")
-	case s.Spec.RevokedAt.AsTime().IsZero():
+	case s.GetSpec().GetRevokedAt().AsTime().IsZero():
 		return trace.BadParameter("spec.revoked_at: must be non-zero")
 	}
 
@@ -121,7 +121,7 @@ func ValidateWorkloadIdentityX509Revocation(s *workloadidentityv1pb.WorkloadIden
 	// X509 cert. Whilst typically presented using a colon separated hex string,
 	// here we will remove the colons. We will also ensure it is encoded in
 	// lowercase, to ensure consistency.
-	if !validSerialRe.MatchString(s.Metadata.Name) {
+	if !validSerialRe.MatchString(s.GetMetadata().Name) {
 		return trace.BadParameter("metadata.name: must be a lower-case hex encoded integer without colons")
 	}
 

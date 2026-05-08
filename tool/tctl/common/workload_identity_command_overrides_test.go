@@ -358,7 +358,7 @@ func (s *csrServer) SignX509IssuerCSR(ctx context.Context, req *workloadidentity
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, signKeyNotFoundMessage)
 	}
-	return &workloadidentityv1.SignX509IssuerCSRResponse{Csr: csr}, nil
+	return workloadidentityv1.SignX509IssuerCSRResponse_builder{Csr: csr}.Build(), nil
 }
 
 func runFakeAPIServer(t *testing.T, register func(*grpc.Server)) *authclient.Client {

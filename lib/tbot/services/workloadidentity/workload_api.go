@@ -531,12 +531,12 @@ func (s *WorkloadAPIService) fetchX509SVIDs(
 	for i, cred := range creds {
 		var svid bytes.Buffer
 		svid.Write(cred.GetX509Svid().GetCert())
-		for _, c := range cred.GetX509Svid().Chain {
+		for _, c := range cred.GetX509Svid().GetChain() {
 			svid.Write(c)
 		}
 		svids[i] = &workloadpb.X509SVID{
 			// Required. The SPIFFE ID of the SVID in this entry
-			SpiffeId: cred.SpiffeId,
+			SpiffeId: cred.GetSpiffeId(),
 			// Required. ASN.1 DER encoded certificate chain. MAY include
 			// intermediates, the leaf certificate (or SVID itself) MUST come first.
 			X509Svid: svid.Bytes(),
@@ -544,7 +544,7 @@ func (s *WorkloadAPIService) fetchX509SVIDs(
 			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
 			Bundle: marshaledBundle,
-			Hint:   cred.Hint,
+			Hint:   cred.GetHint(),
 		}
 		// Log a message which correlates with the audit log entry and can
 		// provide additional metadata about the client.
@@ -552,13 +552,13 @@ func (s *WorkloadAPIService) fetchX509SVIDs(
 			"Issued Workload Identity Credential",
 			slog.Group("credential",
 				"type", "x509-svid",
-				"spiffe_id", cred.SpiffeId,
+				"spiffe_id", cred.GetSpiffeId(),
 				"serial_number", cred.GetX509Svid().GetSerialNumber(),
-				"hint", cred.Hint,
-				"expires_at", cred.ExpiresAt,
-				"ttl", cred.Ttl,
-				"workload_identity_name", cred.WorkloadIdentityName,
-				"workload_identity_revision", cred.WorkloadIdentityRevision,
+				"hint", cred.GetHint(),
+				"expires_at", cred.GetExpiresAt(),
+				"ttl", cred.GetTtl(),
+				"workload_identity_name", cred.GetWorkloadIdentityName(),
+				"workload_identity_revision", cred.GetWorkloadIdentityRevision(),
 			),
 		)
 	}
@@ -630,19 +630,19 @@ func (s *WorkloadAPIService) FetchJWTSVID(
 	svids := []*workloadpb.JWTSVID{}
 	for _, cred := range creds {
 		svids = append(svids, &workloadpb.JWTSVID{
-			SpiffeId: cred.SpiffeId,
+			SpiffeId: cred.GetSpiffeId(),
 			Svid:     cred.GetJwtSvid().GetJwt(),
-			Hint:     cred.Hint,
+			Hint:     cred.GetHint(),
 		})
 		log.InfoContext(ctx,
 			"Issued Workload Identity Credential",
 			slog.Group("credential",
 				"type", "jwt-svid",
-				"spiffe_id", cred.SpiffeId,
+				"spiffe_id", cred.GetSpiffeId(),
 				"jti", cred.GetJwtSvid().GetJti(),
-				"hint", cred.Hint,
-				"expires_at", cred.ExpiresAt,
-				"ttl", cred.Ttl,
+				"hint", cred.GetHint(),
+				"expires_at", cred.GetExpiresAt(),
+				"ttl", cred.GetTtl(),
 				"audiences", req.Audience,
 			),
 		)

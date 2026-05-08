@@ -68,11 +68,11 @@ type ValidatedTPM struct {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *ValidatedTPM) JoinAttrs() *workloadidentityv1pb.JoinAttrsTPM {
-	attrs := &workloadidentityv1pb.JoinAttrsTPM{
+	attrs := workloadidentityv1pb.JoinAttrsTPM_builder{
 		EkPubHash:      c.EKPubHash,
 		EkCertSerial:   c.EKCertSerial,
 		EkCertVerified: c.EKCertVerified,
-	}
+	}.Build()
 
 	return attrs
 }

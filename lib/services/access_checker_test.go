@@ -1185,13 +1185,13 @@ func (serverStub) GetKind() string {
 func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	localCluster := "cluster"
 
-	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
+	noLabelsWI := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind: types.KindWorkloadIdentity,
 		Metadata: &headerv1.Metadata{
 			Name: "no-labels",
 		},
-	}
-	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
+	}.Build()
+	fooLabeledWI := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind: types.KindWorkloadIdentity,
 		Metadata: &headerv1.Metadata{
 			Name: "foo-labeled",
@@ -1199,7 +1199,7 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 				"foo": "bar",
 			},
 		},
-	}
+	}.Build()
 
 	roleNoLabels := newRole(func(rv *types.RoleV6) {})
 	roleWildcard := newRole(func(rv *types.RoleV6) {

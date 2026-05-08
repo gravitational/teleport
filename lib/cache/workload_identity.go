@@ -61,13 +61,13 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
-			return &workloadidentityv1pb.WorkloadIdentity{
+			return workloadidentityv1pb.WorkloadIdentity_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
 				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
 				},
-			}
+			}.Build()
 		},
 		watch: w,
 	}, nil

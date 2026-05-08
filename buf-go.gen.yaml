@@ -35,6 +35,19 @@ plugins:
       # needed by proto/accessraph/v1alpha/access_graph_service.go because it imports it for
       # usage events
       - Mprehog/v1alpha/teleport.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
+      # Testing conversion to the Opaque API.
+      - apilevelMteleport/workloadidentity/v1/attrs.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/issuance_service.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/join_attrs.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/resource.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/resource_service.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/revocation_resource.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/revocation_service.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/sigstore.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/sigstore_policy_resource.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/sigstore_policy_service.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/x509_overrides.proto=API_HYBRID
+      - apilevelMteleport/workloadidentity/v1/x509_overrides_service.proto=API_HYBRID
     strategy: all
   - local:
       - go

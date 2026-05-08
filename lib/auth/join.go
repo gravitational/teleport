@@ -229,7 +229,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitHubJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Github = claims.JoinAttrs()
+			attrs.SetGithub(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -238,7 +238,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitLabJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Gitlab = claims.JoinAttrs()
+			attrs.SetGitlab(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -247,7 +247,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkCircleCIJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Circleci = claims.JoinAttrs()
+			attrs.SetCircleci(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -256,7 +256,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkKubernetesJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Kubernetes = claims.JoinAttrs()
+			attrs.SetKubernetes(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -265,7 +265,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGCPJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Gcp = claims.JoinAttrs()
+			attrs.SetGcp(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -274,7 +274,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkSpaceliftJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Spacelift = claims.JoinAttrs()
+			attrs.SetSpacelift(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -283,7 +283,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.TerraformCloud = claims.JoinAttrs()
+			attrs.SetTerraformCloud(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -292,7 +292,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Bitbucket = claims.JoinAttrs()
+			attrs.SetBitbucket(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -301,7 +301,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims.ForAudit()
-			attrs.AzureDevops = claims.JoinAttrs()
+			attrs.SetAzureDevops(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -420,11 +420,11 @@ func (a *Server) GenerateBotCertsForJoin(
 	if params.Attrs == nil {
 		params.Attrs = &workloadidentityv1pb.JoinAttrs{}
 	}
-	params.Attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
+	params.Attrs.SetMeta(workloadidentityv1pb.JoinAttrsMeta_builder{
 		JoinMethod: string(joinMethod),
-	}
+	}.Build())
 	if joinMethod != types.JoinMethodToken {
-		params.Attrs.Meta.JoinTokenName = token.GetName()
+		params.Attrs.GetMeta().SetJoinTokenName(token.GetName())
 	}
 
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{

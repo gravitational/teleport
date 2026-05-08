@@ -316,22 +316,22 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
-	wantAttrs := &workloadidentityv1pb.JoinAttrs{
-		Meta: &workloadidentityv1pb.JoinAttrsMeta{
+	wantAttrs := workloadidentityv1pb.JoinAttrs_builder{
+		Meta: workloadidentityv1pb.JoinAttrsMeta_builder{
 			JoinTokenName: tok.GetName(),
 			JoinMethod:    string(types.JoinMethodKubernetes),
-		},
-		Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
-			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+		}.Build(),
+		Kubernetes: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+			ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 				Namespace: "my-namespace",
 				Name:      "my-service-account",
-			},
-			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			}.Build(),
+			Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 				Name: "my-pod",
-			},
+			}.Build(),
 			Subject: "system:serviceaccount:my-namespace:my-service-account",
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.Empty(t, cmp.Diff(
 		ident.JoinAttributes,
 		wantAttrs,

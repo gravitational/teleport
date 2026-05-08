@@ -303,12 +303,12 @@ func TestJoinTPM(t *testing.T) {
 
 				id, err := tlsca.FromSubject(botCert.Subject, botCert.NotAfter)
 				require.NoError(t, err)
-				tpmAttrs := id.JoinAttributes.Tpm
+				tpmAttrs := id.JoinAttributes.GetTpm()
 				require.NotNil(t, tpmAttrs)
 				gotAttrs := verifiedAttrs{
-					ekPubHash:      tpmAttrs.EkPubHash,
-					ekCertSerial:   tpmAttrs.EkCertSerial,
-					ekCertVerified: tpmAttrs.EkCertVerified,
+					ekPubHash:      tpmAttrs.GetEkPubHash(),
+					ekCertSerial:   tpmAttrs.GetEkCertSerial(),
+					ekCertVerified: tpmAttrs.GetEkCertVerified(),
 				}
 				assert.Equal(t, tc.expectJoinAttrs, gotAttrs)
 			}

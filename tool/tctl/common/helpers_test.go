@@ -34,6 +34,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v2"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -172,6 +174,23 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
+}
+
+// mustDecodeProtoJSONArray decodes a JSON array of proto messages from r,
+// using protojson so it works with messages that use the Opaque API.
+func mustDecodeProtoJSONArray[T interface {
+	proto.Message
+	*U
+}, U any](t *testing.T, r io.Reader) []T {
+	var raws []json.RawMessage
+	require.NoError(t, json.NewDecoder(r).Decode(&raws))
+	out := make([]T, 0, len(raws))
+	for _, raw := range raws {
+		msg := T(new(U))
+		require.NoError(t, protojson.Unmarshal(raw, msg))
+		out = append(out, msg)
+	}
 	return out
 }
 

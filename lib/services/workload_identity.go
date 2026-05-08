@@ -108,45 +108,45 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("object cannot be nil")
-	case s.Version != types.V1:
+	case s.GetVersion() != types.V1:
 		return trace.BadParameter("version: only %q is supported", types.V1)
-	case s.Kind != types.KindWorkloadIdentity:
+	case s.GetKind() != types.KindWorkloadIdentity:
 		return trace.BadParameter("kind: must be %q", types.KindWorkloadIdentity)
-	case s.Metadata == nil:
+	case !s.HasMetadata():
 		return trace.BadParameter("metadata: is required")
-	case s.Metadata.Name == "":
+	case s.GetMetadata().Name == "":
 		return trace.BadParameter("metadata.name: is required")
-	case s.Spec == nil:
+	case !s.HasSpec():
 		return trace.BadParameter("spec: is required")
-	case s.Spec.Spiffe.Id == "":
+	case s.GetSpec().GetSpiffe().GetId() == "":
 		return trace.BadParameter("spec.spiffe.id: is required")
-	case !strings.HasPrefix(s.Spec.Spiffe.Id, "/"):
+	case !strings.HasPrefix(s.GetSpec().GetSpiffe().GetId(), "/"):
 		return trace.BadParameter("spec.spiffe.id: must start with a /")
-	case s.Spec.Spiffe.GetX509().GetMaximumTtl().AsDuration() > maxMaxX509SVIDTTL:
+	case s.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration() > maxMaxX509SVIDTTL:
 		return trace.BadParameter("spec.spiffe.x509.maximum_ttl: must be less than %s", maxMaxX509SVIDTTL)
-	case s.Spec.Spiffe.GetJwt().GetMaximumTtl().AsDuration() > maxMaxJWTSVIDTTL:
+	case s.GetSpec().GetSpiffe().GetJwt().GetMaximumTtl().AsDuration() > maxMaxJWTSVIDTTL:
 		return trace.BadParameter("spec.spiffe.jwt.maximum_ttl: must be less than %s", maxMaxJWTSVIDTTL)
 	}
 
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {
-		if rule.Expression == "" {
-			if len(rule.Conditions) == 0 {
+		if rule.GetExpression() == "" {
+			if len(rule.GetConditions()) == 0 {
 				return trace.BadParameter("spec.rules.allow[%d].conditions: must be non-empty", i)
 			}
 		} else {
-			if len(rule.Conditions) != 0 {
+			if len(rule.GetConditions()) != 0 {
 				return trace.BadParameter("spec.rules.allow[%d].conditions: is mutually exclusive with expression", i)
 			}
-			if err := expression.Validate(rule.Expression); err != nil {
+			if err := expression.Validate(rule.GetExpression()); err != nil {
 				return trace.BadParameter("spec.rules.allow[%d].expression: invalid expression: %s", i, err.Error())
 			}
 		}
 
-		for j, condition := range rule.Conditions {
-			if condition.Attribute == "" {
+		for j, condition := range rule.GetConditions() {
+			if condition.GetAttribute() == "" {
 				return trace.BadParameter("spec.rules.allow[%d].conditions[%d].attribute: must be non-empty", i, j)
 			}
-			if condition.Operator == nil {
+			if !condition.HasOperator() {
 				return trace.BadParameter("spec.rules.allow[%d].conditions[%d]: operator must be specified", i, j)
 			}
 		}
