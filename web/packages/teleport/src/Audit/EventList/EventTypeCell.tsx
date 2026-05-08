@@ -222,6 +222,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
   [eventCodes.UPGRADE_WINDOW_UPDATED]: Icons.Info,
   [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: Icons.Info,
+  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: Icons.Info,
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
   [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
   [eventCodes.SSMRUN_FAIL]: Icons.Warning,
