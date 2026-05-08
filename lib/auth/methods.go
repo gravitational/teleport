@@ -865,6 +865,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		}
 		certReq.MFAVerified = ha.MfaDevice.Metadata.Name
 		certReq.TTL = time.Minute
+		certReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
 	}
 
 	certs, err := a.GenerateUserCerts(ctx, certReq)

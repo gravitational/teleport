@@ -123,14 +123,14 @@ func build(ctx context.Context, config *e2eConfig) error {
 	if !config.isCI {
 		g.Go(func() error {
 			slog.Info("installing e2e dependencies")
-			if err := runInDir(ctx, config.e2eDir, "pnpm", "install"); err != nil {
+			if err := runInDir(ctx, config.sharedDir, "pnpm", "install"); err != nil {
 				return fmt.Errorf("pnpm install: %w", err)
 			}
 
 			slog.Info("installing playwright browsers")
 			args := []string{"exec", "playwright", "install", "--no-shell"}
 			args = append(args, config.browsers...)
-			if err := runInDir(ctx, config.e2eDir, "pnpm", args...); err != nil {
+			if err := runInDir(ctx, config.sharedDir, "pnpm", args...); err != nil {
 				return fmt.Errorf("playwright install: %w", err)
 			}
 
