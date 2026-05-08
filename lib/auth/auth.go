@@ -3821,7 +3821,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		// ResourceAccessIDs are swallowed; we already have them
 		// and only want the plain (unconstrained) ResourceIDs.
 		//
-		// TODO(kiosion): DELETE in 21.0.0
+		// TODO(kiosion): DELETE in 20.0.0
 		allowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 	}
 
