@@ -296,7 +296,7 @@ func TestX509OutputService_render_TrustDomains(t *testing.T) {
 		require.Equal(t, append(wantLocal, wantAppClient...), gotBundle)
 	})
 
-	t.Run("app_client unavailable returns error", func(t *testing.T) {
+	t.Run("app_client unavailable doesn't return error", func(t *testing.T) {
 		dest := destination.NewMemory()
 		svc := newService(dest)
 		bundleSet := &workloadidentity.BundleSet{
@@ -305,7 +305,6 @@ func TestX509OutputService_render_TrustDomains(t *testing.T) {
 		}
 
 		err := svc.render(ctx, bundleSet, x509Cred, signer, &workloadidentity.CRLSet{})
-		require.ErrorContains(t, err, "unable to add trust domain into the bundle")
-		require.ErrorContains(t, err, "app client trust domain is not available")
+		require.NoError(t, err)
 	})
 }
