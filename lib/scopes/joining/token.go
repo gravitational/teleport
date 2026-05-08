@@ -492,7 +492,7 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
-	if err := WeakValidateToken(token); err != nil {
+	if err := StrongValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
