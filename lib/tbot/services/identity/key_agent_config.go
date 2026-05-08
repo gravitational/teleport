@@ -27,11 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 )
 
-// PIVAgentServiceType is the service type for the PIV agent service.
-const PIVAgentServiceType = "identity/piv-agent"
+// KeyAgentServiceType is the service type for the key agent service.
+const KeyAgentServiceType = "identity/key-agent"
 
-// PIVAgentConfig contains configuration for the PIV agent service.
-type PIVAgentConfig struct {
+// KeyAgentConfig contains configuration for the key agent service.
+type KeyAgentConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 
@@ -68,19 +68,19 @@ type PIVAgentConfig struct {
 	// Defaults to false.
 	AllowReissue bool `yaml:"allow_reissue,omitempty"`
 
-	// Destination is where the PIV agent socket, certificate, and identity file
+	// Destination is where the key agent socket, certificate, and identity file
 	// should be written. It must be a directory, and it is recommended to use
 	// `$TMPDIR/.Teleport-PIV` for seamless integration with tsh.
 	Destination destination.Destination `yaml:"destination"`
 }
 
 // CheckAndSetDefaults satisfies the config.ServiceConfig interface.
-func (c *PIVAgentConfig) CheckAndSetDefaults(scoped bool) error {
+func (c *KeyAgentConfig) CheckAndSetDefaults(scoped bool) error {
 	// TODO(boxofrad): Add support for scopes (and support for the WithPrivateKey
 	// identity generator option to GenerateScoped). Scope support was omitted
 	// from the initial version because we do not need it in Beams yet.
 	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", PIVAgentServiceType)
+		return trace.BadParameter("service type %q is not supported in scoped mode", KeyAgentServiceType)
 	}
 
 	if c.Destination == nil {
@@ -98,36 +98,37 @@ func (c *PIVAgentConfig) CheckAndSetDefaults(scoped bool) error {
 }
 
 // GetCredentialLifetime satisfies the config.ServiceConfig interface.
-func (c *PIVAgentConfig) GetCredentialLifetime() bot.CredentialLifetime {
+func (c *KeyAgentConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return c.CredentialLifetime
 }
 
 // GetName satisfies the config.ServiceConfig interface.
-func (c *PIVAgentConfig) GetName() string {
+func (c *KeyAgentConfig) GetName() string {
 	return c.Name
 }
 
 // SetName satisfies the config.ServiceConfig interface.
-func (c *PIVAgentConfig) SetName(name string) {
+func (c *KeyAgentConfig) SetName(name string) {
 	c.Name = name
 }
 
 // Type satisfies the config.ServiceConfig interface.
-func (*PIVAgentConfig) Type() string { return PIVAgentServiceType }
+func (*KeyAgentConfig) Type() string { return KeyAgentServiceType }
 
 // UnmarshalYAML prevents incorrect YAML unmarshaling.
-func (c *PIVAgentConfig) UnmarshalYAML(*yaml.Node) error {
+func (c *KeyAgentConfig) UnmarshalYAML(*yaml.Node) error {
 	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", c)
 }
 
 // UnmarshalConfig unmarshals the service configuration from YAML.
-func (c *PIVAgentConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+func (c *KeyAgentConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
 	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
-	type raw PIVAgentConfig
+	// Alias type to remove UnmarshalYAML to avoid getting our "not
+	// implemented" error.
+	type raw KeyAgentConfig
 	if err := node.Decode((*raw)(c)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -135,12 +136,12 @@ func (c *PIVAgentConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *y
 	return nil
 }
 
-// PIVAgentOpt provides additional dependencies to the PIV agent service.
-type PIVAgentOpt func(*PIVAgentService)
+// KeyAgentOpt provides additional dependencies to the key agent service.
+type KeyAgentOpt func(*KeyAgentService)
 
 // WithDefaultCredentialLifetime sets the default credential lifetime.
-func WithDefaultCredentialLifetime(lifetime bot.CredentialLifetime) PIVAgentOpt {
-	return func(svc *PIVAgentService) {
+func WithDefaultCredentialLifetime(lifetime bot.CredentialLifetime) KeyAgentOpt {
+	return func(svc *KeyAgentService) {
 		svc.defaultCredentialLifetime = lifetime
 	}
 }

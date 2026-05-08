@@ -268,8 +268,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *identitysvc.OutputConfig:
 			services = append(services, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
-		case *identitysvc.PIVAgentConfig:
-			services = append(services, identitysvc.PIVAgentServiceBuilder(svcCfg, identitysvc.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
+		case *identitysvc.KeyAgentConfig:
+			services = append(services, identitysvc.KeyAgentServiceBuilder(svcCfg, identitysvc.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:

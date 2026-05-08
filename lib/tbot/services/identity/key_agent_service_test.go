@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
-func TestPIVAgentService(t *testing.T) {
+func TestKeyAgentService(t *testing.T) {
 	t.Parallel()
 
 	logger := logtest.NewLogger()
@@ -78,7 +78,7 @@ func TestPIVAgentService(t *testing.T) {
 		Onboarding: makeBot(t, rootClient, "test-bot", role.GetName()),
 		Logger:     logger,
 		Services: []bot.ServiceBuilder{
-			PIVAgentServiceBuilder(&PIVAgentConfig{
+			KeyAgentServiceBuilder(&KeyAgentConfig{
 				Destination: &destination.Directory{
 					Path: outputDir,
 				},
