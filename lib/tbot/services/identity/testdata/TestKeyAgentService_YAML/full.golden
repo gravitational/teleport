@@ -1,4 +1,4 @@
-name: piv-agent
+name: key-agent
 credential_ttl: 1m0s
 renewal_interval: 30s
 roles:

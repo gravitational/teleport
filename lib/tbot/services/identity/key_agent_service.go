@@ -42,11 +42,11 @@ import (
 )
 
 // pivSerialNumber is the serial number used in the fake hardware key reference
-// we encode in the identity file, for the PIV agent service.
+// we encode in the identity file, for the key agent service.
 const pivSerialNumber uint32 = 0xFFFFFFFF
 
 // pivSlotKey is the PIV slot used in the fake hardware key reference we encode
-// in the identity file, for the PIV agent service.
+// in the identity file, for the key agent service.
 var pivSlotKey = func() hardwarekey.PIVSlotKey {
 	key, err := hardwarekey.PIVSlotKeyFromProto(hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A)
 	if err != nil {
@@ -55,13 +55,13 @@ var pivSlotKey = func() hardwarekey.PIVSlotKey {
 	return key
 }()
 
-// PIVAgentServiceBuilder returns a service builder for the PIV agent service.
-func PIVAgentServiceBuilder(cfg *PIVAgentConfig, opts ...PIVAgentOpt) bot.ServiceBuilder {
+// KeyAgentServiceBuilder returns a service builder for the key agent service.
+func KeyAgentServiceBuilder(cfg *KeyAgentConfig, opts ...KeyAgentOpt) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		svc := &PIVAgentService{
+		svc := &KeyAgentService{
 			cfg:                       cfg,
 			botAuthClient:             deps.Client,
 			identityGenerator:         deps.IdentityGenerator,
@@ -76,10 +76,10 @@ func PIVAgentServiceBuilder(cfg *PIVAgentConfig, opts ...PIVAgentOpt) bot.Servic
 		}
 		return svc, nil
 	}
-	return bot.NewServiceBuilder(PIVAgentServiceType, cfg.Name, buildFn)
+	return bot.NewServiceBuilder(KeyAgentServiceType, cfg.Name, buildFn)
 }
 
-// PIVAgentService allows you to generate an identity file *without* private key
+// KeyAgentService allows you to generate an identity file *without* private key
 // material, in environments where exfiltration of the private key is a concern,
 // such as Beams.
 //
@@ -90,8 +90,8 @@ func PIVAgentServiceBuilder(cfg *PIVAgentConfig, opts ...PIVAgentOpt) bot.Servic
 //
 // The generated identity file will contain a nonsensical hardware key reference
 // with a fixed serial number and PIV slot.
-type PIVAgentService struct {
-	cfg                       *PIVAgentConfig
+type KeyAgentService struct {
+	cfg                       *KeyAgentConfig
 	botAuthClient             *apiclient.Client
 	identityGenerator         *identity.Generator
 	defaultCredentialLifetime bot.CredentialLifetime
@@ -101,8 +101,8 @@ type PIVAgentService struct {
 	logger                    *slog.Logger
 }
 
-// Run the PIV agent until the given context is canceled.
-func (s *PIVAgentService) Run(ctx context.Context) error {
+// Run the key agent until the given context is canceled.
+func (s *KeyAgentService) Run(ctx context.Context) error {
 	select {
 	case <-s.botIdentityReadyCh:
 	case <-ctx.Done():
@@ -153,7 +153,7 @@ func (s *PIVAgentService) Run(ctx context.Context) error {
 	return trace.Wrap(group.Wait())
 }
 
-func (s *PIVAgentService) identityRenewalLoop(ctx context.Context, privKey crypto.Signer) error {
+func (s *KeyAgentService) identityRenewalLoop(ctx context.Context, privKey crypto.Signer) error {
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service: s.String(),
 		Name:    "identity-renewal",
@@ -177,7 +177,7 @@ func (s *PIVAgentService) identityRenewalLoop(ctx context.Context, privKey crypt
 	return trace.Wrap(err, "running identity renewal loop")
 }
 
-func (s *PIVAgentService) renewIdentity(ctx context.Context, privKey crypto.Signer) (*identity.Identity, error) {
+func (s *KeyAgentService) renewIdentity(ctx context.Context, privKey crypto.Signer) (*identity.Identity, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 
 	generateOpts := []identity.GenerateOption{
@@ -203,7 +203,7 @@ func (s *PIVAgentService) renewIdentity(ctx context.Context, privKey crypto.Sign
 	return identity, nil
 }
 
-func (s *PIVAgentService) writeIdentityFile(ctx context.Context, identity *identity.Identity) error {
+func (s *KeyAgentService) writeIdentityFile(ctx context.Context, identity *identity.Identity) error {
 	privateKey, err := keys.NewPrivateKey(&hardwarekey.Signer{
 		Ref: &hardwarekey.PrivateKeyRef{
 			SerialNumber:         pivSerialNumber,
@@ -214,7 +214,7 @@ func (s *PIVAgentService) writeIdentityFile(ctx context.Context, identity *ident
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err, "building pseduo hardware key")
+		return trace.Wrap(err, "building pseudo hardware key")
 	}
 
 	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
@@ -242,7 +242,7 @@ func (s *PIVAgentService) writeIdentityFile(ctx context.Context, identity *ident
 }
 
 // String satisfies the bot.Service interface.
-func (s *PIVAgentService) String() string { return s.cfg.Name }
+func (s *KeyAgentService) String() string { return s.cfg.Name }
 
 type hardwareKeyService struct{ privateKey crypto.Signer }
 

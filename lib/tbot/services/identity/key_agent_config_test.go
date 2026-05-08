@@ -24,14 +24,14 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
-func TestPIVAgentService_YAML(t *testing.T) {
+func TestKeyAgentService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[PIVAgentConfig]{
+	tests := []testYAMLCase[KeyAgentConfig]{
 		{
 			name: "full",
-			in: PIVAgentConfig{
-				Name: "piv-agent",
+			in: KeyAgentConfig{
+				Name: "key-agent",
 				Destination: &destination.Directory{
 					Path: "/opt/machine-id",
 				},
@@ -46,7 +46,7 @@ func TestPIVAgentService_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: PIVAgentConfig{
+			in: KeyAgentConfig{
 				Destination: &destination.Directory{
 					Path: "/opt/machine-id",
 				},
@@ -57,14 +57,14 @@ func TestPIVAgentService_YAML(t *testing.T) {
 	testYAML(t, tests)
 }
 
-func TestPIVAgentService_CheckAndSetDefaults(t *testing.T) {
+func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*PIVAgentConfig]{
+	tests := []testCheckAndSetDefaultsCase[*KeyAgentConfig]{
 		{
 			name: "valid",
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{
 					Destination: &destination.Directory{
 						Path: "/opt/machine-id",
 					},
@@ -73,8 +73,8 @@ func TestPIVAgentService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "valid with roles",
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{
 					Destination: &destination.Directory{
 						Path: "/opt/machine-id",
 					},
@@ -84,8 +84,8 @@ func TestPIVAgentService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "valid with delegation session id",
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{
 					Destination: &destination.Directory{
 						Path: "/opt/machine-id",
 					},
@@ -95,15 +95,15 @@ func TestPIVAgentService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{}
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{}
 			},
 			wantErr: "destination: is required",
 		},
 		{
 			name: "wrong destination type",
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{
 					Destination: &destination.Memory{},
 				}
 			},
@@ -111,8 +111,8 @@ func TestPIVAgentService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "delegation session id conflicts with roles",
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{
 					Destination: &destination.Directory{
 						Path: "/opt/machine-id",
 					},
@@ -125,8 +125,8 @@ func TestPIVAgentService_CheckAndSetDefaults(t *testing.T) {
 		{
 			name:   "scoped",
 			scoped: true,
-			in: func() *PIVAgentConfig {
-				return &PIVAgentConfig{
+			in: func() *KeyAgentConfig {
+				return &KeyAgentConfig{
 					Destination: &destination.Directory{
 						Path: "/opt/machine-id",
 					},
