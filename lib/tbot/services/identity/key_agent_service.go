@@ -186,6 +186,10 @@ func (s *KeyAgentService) renewIdentity(ctx context.Context, privKey crypto.Sign
 		identity.WithLogger(s.logger),
 	}
 
+	if s.cfg.Cluster != "" {
+		generateOpts = append(generateOpts, identity.WithRouteToCluster(s.cfg.Cluster))
+	}
+
 	if privKey != nil {
 		generateOpts = append(generateOpts, identity.WithPrivateKey(privKey))
 	}
