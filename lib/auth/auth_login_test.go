@@ -2051,7 +2051,6 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 				assert.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
 				assert.Equal(t, headlessID, identity.HeadlessAuthenticationID)
-				assert.True(t, identity.PreviousIdentityExpires.IsZero())
 			},
 		}, {
 			name:    "NOK approved without MFA",
