@@ -168,6 +168,7 @@ export class AwaitableSender<T> implements IAwaitableSender<T> {
       this.logger.error('Renderer failed to process message', {
         messageId: message.id,
         messageType: message.type,
+        error: message.error,
       });
       item.reject(message.error);
       return;
