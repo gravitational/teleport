@@ -216,6 +216,13 @@ func (r resourceTeleportRetrievalModel) Update(ctx context.Context, req tfsdk.Up
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	retrievalModel.Kind = apitypes.KindRetrievalModel
+	if retrievalModel.GetMetadata() == nil {
+		retrievalModel.Metadata = &headerv1.Metadata{}
+	}
+	if retrievalModel.GetMetadata().GetName() == "" {
+		retrievalModel.Metadata.Name = apitypes.MetaNameRetrievalModel
+	}
 
 	retrievalModelBefore, err := r.p.Client.SummarizerClient().GetRetrievalModel(ctx)
 	if err != nil {
