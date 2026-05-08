@@ -118,7 +118,7 @@ export async function* watchProfiles({
         }
       }
     } catch (error) {
-      logger.warn('Profile watcher received an error', error);
+      logger.warn('Debounced watch received an error', error);
       // Check if the error is caused by removing the watched directory.
       // Removing that directory emits different events, depending on a platform:
       // - On macOS/Linux, it emits a 'rename' event.
@@ -223,10 +223,13 @@ async function* debounceWatch(
   let eventsToDebounce = 0;
   let uniqueFiles = new Set<string | null>();
   const scheduleYield = debounce(() => {
-    logger.info('Received debounced file system events', {
+    const toLog: { eventCount: number; files?: (string | null)[] } = {
       eventCount: eventsToDebounce,
-      files: Array.from(uniqueFiles.values()),
-    });
+    };
+    if (uniqueFiles.size > 0) {
+      toLog.files = Array.from(uniqueFiles.values());
+    }
+    logger.info('Received debounced file system events', toLog);
     uniqueFiles.clear();
     eventsToDebounce = 0;
     signal.resolve();
