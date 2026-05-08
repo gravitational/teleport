@@ -7,7 +7,8 @@ tags:
 - platform-wide
 ---
 
-This guide shows you how to install and run Teleport using the official Docker images, either directly with Docker or in Kubernetes pods. It covers selecting an image, configuring the container, running Teleport services, and upgrading.
+This guide shows you how to install and run Teleport using the official Docker images. 
+It covers selecting an image, configuring the container, running Teleport services, and upgrading.
 
 ## Images
 
@@ -70,22 +71,6 @@ For testing, we always recommend that you use the latest release version of Tele
 </TabItem>
 </Tabs>
 
-### Machine & Workload Identity (tbot) image
-
-We provide a slimmed-down distroless image that contains only the `tbot` binary for use with Teleport Machine & Workload Identity.
-
-| Image name | FIPS support | Image base |
-| - | - | - |
-| `public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
-| `public.ecr.aws/gravitational/tbot-fips-distroless:(=teleport.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
-
-The version tagging follows the same pattern as the main `teleport-distroless` image.
-
-While the `teleport-distroless` image also includes `tbot`, prefer the `tbot`-specific image for Machine & Workload Identity deployments. 
-This image is smaller, which improves pull times, and has a smaller attack surface. The image is also customized to improve the experience of running `tbot` in a container environment.
-
-To learn more, read the [Deploying Machine & Workload Identity on Kubernetes](../../machine-workload-identity/deployment/kubernetes.mdx) guide.
-
 ### Interacting with distroless images
 
 Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images. These images do not contain a shell.
@@ -119,6 +104,22 @@ Alternatively, you can use the debug variant of the image, which contains [busyb
 ```code
 $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
+
+### Machine & Workload Identity (tbot) image
+
+We also provide a slimmed-down distroless image that contains only the `tbot` binary for use with Teleport Machine & Workload Identity.
+
+| Image name | FIPS support | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/tbot-fips-distroless:(=teleport.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+The version tagging follows the same pattern as the main `teleport-distroless` image.
+
+While the `teleport-distroless` image also includes `tbot`, prefer the `tbot`-specific image for Machine & Workload Identity deployments. 
+This image is smaller, which improves pull times, and has a smaller attack surface. The image is also customized to improve the experience of running `tbot` in a container environment.
+
+To learn more, read the [Deploying Machine & Workload Identity on Kubernetes](../../machine-workload-identity/deployment/kubernetes.mdx) guide.
 
 ## Running Teleport on Docker
 
@@ -189,14 +190,6 @@ In this example, you will run the Teleport Auth Service and Proxy Service on a l
 Since this container uses a self-signed certificate, we do not recommend using this configuration to protect any infrastructure outside your workstation. 
 You can, however, join other local Docker containers to it using the [token method](../../installation/agents/join-token.mdx).
 
-1. Pull the Teleport image:
-
-   ```code
-   $ docker pull (=teleport.latest_oss_docker_image=)
-   ```
-
-   The output should indicate the image layers are being downloaded, ending with a success message like `Status: Downloaded newer image`.
-
 1. Create directories in your home directory to mount to the container. The Teleport container will write its configuration and data to these directories:
 
    ```code
@@ -212,14 +205,6 @@ You can, however, join other local Docker containers to it using the [token meth
      (=teleport.latest_oss_docker_image=) configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
    ```
 
-   Verify that the configuration file exists and contains valid content:
-
-   ```code
-   $ cat ~/teleport/config/teleport.yaml | head -20
-   ```
-
-   The command prints YAML configuration beginning with `version:` and `teleport:` sections.
-
 1. Start Teleport on your container. This container runs both the Auth Service and Proxy Service in a single process for local testing:
 
    ```code
@@ -230,59 +215,13 @@ You can, however, join other local Docker containers to it using the [token meth
      (=teleport.latest_oss_docker_image=)
    ```
 
-1. In a new terminal, verify that the container is running:
-
-   ```code
-   $ docker ps --filter name=teleport
-   ```
-
-   The `teleport` container should be listed with a status of `Up`.
-
-1. Confirm that the Teleport container's web API is functioning as intended:
+1. In a new terminal, confirm that the Teleport container's web API is functioning as intended:
 
    ```code
    $ curl --insecure https://localhost:3080/webapi/ping | jq
    ```
 
-   The command returns JSON similar to the following (the version values shown are illustrative):
-
-   ```json
-   {
-     "auth": {
-       "type": "local",
-       "second_factor": "otp",
-       "preferred_local_mfa": "otp",
-       "local": {
-         "name": ""
-       },
-       "private_key_policy": "none",
-       "device_trust_disabled": true,
-       "has_motd": false
-     },
-     "proxy": {
-       "kube": {
-         "enabled": true,
-         "listen_addr": "0.0.0.0:3080"
-       },
-       "ssh": {
-         "listen_addr": "0.0.0.0:3080",
-         "tunnel_listen_addr": "0.0.0.0:3080",
-         "web_listen_addr": "0.0.0.0:3080"
-       },
-       "db": {
-         "postgres_listen_addr": "0.0.0.0:3080",
-         "mysql_listen_addr": "0.0.0.0:3080"
-       },
-       "tls_routing_enabled": true
-     },
-     "server_version": "(=teleport.version=)",
-     "min_client_version": "(=teleport.major_version=).0.0",
-     "cluster_name": "localhost",
-     "automatic_upgrades": false
-   }
-   ```
-
-   The `--insecure` flag is required because Teleport is using a self-signed certificate. 
+   The command returns JSON describing the cluster, including `server_version`, `cluster_name`, and details for each service. The `--insecure` flag is required because Teleport is using a self-signed certificate. 
    In production, provision TLS credentials to the Proxy Service from a trusted CA, e.g., Let's Encrypt.
 
    <Checkpoint
@@ -301,33 +240,18 @@ You can, however, join other local Docker containers to it using the [token meth
 
 To upgrade a Teleport container running on Docker:
 
-1. Check the current version before upgrading:
-
-   ```code
-   $ docker exec teleport teleport version
-   ```
-
 1. Leave the container's data directory in place.
-
-1. Stop the container:
-
-   ```code
-   $ docker stop teleport
-   ```
-
+1. Stop the container with `docker stop teleport`.
 1. Run a new container with an image based on a newer Teleport version, mounting the data directory as you did when running the container initially. As long as the data directory contains the same content as before the upgrade, the Teleport container does not need to re-join the cluster.
-
 1. Verify the upgraded version:
 
    ```code
    $ curl --insecure https://localhost:3080/webapi/ping | jq '.server_version'
    ```
 
-   The output displays the new version number.
-
 If the upgrade fails or the container doesn't start, see [Container fails to start after upgrade](#container-fails-to-start-after-upgrade) below.
 
-## Troubleshooting Docker
+## Troubleshooting
 
 The sections below cover common issues when running Teleport on Docker. Each section names a specific symptom so you can scan for what you are seeing.
 
@@ -354,70 +278,3 @@ To diagnose, run `tctl auth sign` without the `--tar` flag and confirm that the 
 If the container fails to start after upgrading to a newer Teleport version, check the logs with `docker logs teleport` for migration or compatibility errors. Confirm that you did not skip a major version: Teleport supports upgrades from one major version to the next, and skipping versions is not supported.
 
 To roll back, stop the new container and start a container using the previous image version with the same data directory.
-
-## Verifying Teleport on Kubernetes
-
-When running Teleport in a Kubernetes pod, you can use the same images described above. 
-The verification steps and troubleshooting differ from a standalone Docker container.
-
-### Verify pod status
-
-Check pod status:
-
-```code
-$ kubectl get pods -l app=teleport -o wide
-$ kubectl describe pod <Var name="pod-name"/>
-```
-
-The pod will be listed with a status of `Running` and no recent restarts.
-
-### Verify Teleport is responding
-
-Check Teleport cluster status from inside the pod:
-
-```code
-$ kubectl exec -i <Var name="pod-name"/> -- tctl status
-```
-
-The output will show the cluster name, version, and CA pin.
-
-To test the web API locally, port-forward and query the endpoint:
-
-```code
-$ kubectl port-forward <Var name="pod-name"/> 3080:3080
-$ curl --insecure https://localhost:3080/webapi/ping
-```
-
-The endpoint should return JSON containing cluster and proxy information.
-
-### Verify deployment and upgrades
-
-Check rollout status during an upgrade:
-
-```code
-$ kubectl rollout status deployment/teleport
-```
-
-A message will indicate the rollout completed successfully.
-
-Verify the running image version:
-
-```code
-$ kubectl get pod <Var name="pod-name"/> -o jsonpath='{.spec.containers[0].image}'
-```
-
-The output displays the expected image tag matching the version you deployed.
-
-## Troubleshooting Kubernetes
-
-The sections below cover common issues specific to running Teleport in a Kubernetes pod.
-
-### Pod in CrashLoopBackOff
-
-If the Teleport pod enters `CrashLoopBackOff`, the container is starting and exiting repeatedly. View logs from the previous crash with `kubectl logs <Var name="pod-name"/> --previous`, and check `kubectl describe pod <Var name="pod-name"/>` for events and the `lastState` reason.
-
-Common causes include configuration errors, missing license files for Enterprise deployments, permission issues on the data directory volume (set `runAsUser` and `fsGroup` in the pod's `securityContext` so the volume is writable by the Teleport process), and migration errors after skipping a major version. Teleport supports upgrades from one major version to the next; skipping versions is not supported.
-
-### Pod in ImagePullBackOff
-
-If the pod enters `ImagePullBackOff`, the cluster cannot pull the Teleport image. Verify the image name and tag are correct, that your cluster has network access to `public.ecr.aws`, and that any required pull secrets are configured on the namespace or service account.
