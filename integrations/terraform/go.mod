@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.25.9
+go 1.25.10
 
 // TF provider dependencies
 require (
