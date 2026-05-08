@@ -139,6 +139,22 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 func (p *vnetClientApplication) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
 }
 
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (p *vnetClientApplication) PerformSessionMFACeremony(
+	ctx context.Context,
+	profileName string,
+	leafClusterName string,
+	sshSessionID []byte,
+) (string, error) {
+	tc, err := p.newTeleportClient(ctx, profileName, leafClusterName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challengeName, err := tc.PerformSessionMFACeremony(ctx, sshSessionID)
+	return challengeName, trace.Wrap(err)
+}
+
 // OnNewAppConnection gets called before each VNet app connection. It's a noop as tsh doesn't need to do
 // anything extra here.
 func (p *vnetClientApplication) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
