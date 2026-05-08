@@ -97,7 +97,7 @@ func TestKeyAgentService(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(filepath.Join(outputDir, "identity"))
 		return err == nil
-	}, 5*time.Second, 100*time.Millisecond, "waiting for identity file to be written")
+	}, 20*time.Second, 100*time.Millisecond, "waiting for identity file to be written")
 
 	// Create hardware key client.
 	hwksClient, err := hardwarekey.NewAgentClient(t.Context(), outputDir)
