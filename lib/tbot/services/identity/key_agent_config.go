@@ -86,6 +86,9 @@ func (c *KeyAgentConfig) CheckAndSetDefaults(scoped bool) error {
 	if c.Destination == nil {
 		return trace.BadParameter("destination: is required")
 	}
+	if err := c.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
+	}
 	if _, isDir := c.Destination.(*destination.Directory); !isDir {
 		return trace.BadParameter("destination: must be a filesystem directory")
 	}
