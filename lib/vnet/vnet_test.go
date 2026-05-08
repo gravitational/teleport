@@ -48,6 +48,7 @@ import (
 	grpccredentials "google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -72,8 +73,7 @@ import (
 )
 
 const (
-	appCertLifetime      = time.Hour
-	testMFACertExtension = "teleport-test-mfa-cert"
+	appCertLifetime = time.Hour
 )
 
 func TestMain(m *testing.M) {
@@ -640,9 +640,17 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 		ValidAfter:      uint64(now.Add(-1 * time.Minute).Unix()),
 		ValidBefore:     uint64(now.Add(time.Minute).Unix()),
 	}
-	if target.MFACheck == nil || target.MFACheck.Required {
+
+	// We treat fallbackLegacyMFAUser as having completed MFA if the target
+	// requires MFA checks or doesn't specify them at all. This allows us to
+	// test both MFA and non-MFA scenarios without needing to implement a fake
+	// MFA service and ceremony.
+	mfaVerified := user == fallbackLegacyMFAUser &&
+		(target.MFACheck == nil || target.MFACheck.Required)
+
+	if mfaVerified {
 		cert.Extensions = map[string]string{
-			testMFACertExtension: "true",
+			teleport.CertExtensionMFAVerified: mfaDeviceID,
 		}
 	}
 	if err := cert.SignCert(rand.Reader, c.teleportUserCA); err != nil {
@@ -659,7 +667,7 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 			},
 		},
 	}
-	return k, false, nil
+	return k, mfaVerified, nil
 }
 
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
@@ -1429,6 +1437,9 @@ const (
 
 	// fallbackLegacyMFAUser is the username used for testing fallback to legacy MFA certs.
 	fallbackLegacyMFAUser = "fallback-legacy-mfa-user"
+
+	// mfaDeviceID is the MFA device ID encoded in fake legacy MFA certs.
+	mfaDeviceID = "mfa-device-id"
 )
 
 // TestSSH tests basic VNet SSH functionality.
@@ -1612,8 +1623,9 @@ func TestSSH(t *testing.T) {
 			expectMFACeremonies:      1,
 		},
 		{
-			// If direct auth fails because the target requires an MFA cert,
-			// VNet should retry with the MFA cert credential mode.
+			// If direct auth fails because the target doesn't support in-band
+			// MFA, or if the client does not support in-band MFA, then VNet
+			// should retry with the legacy MFA cert credential mode.
 			dialAddr:                 "node.root1.example.com",
 			dialPort:                 22,
 			expectCIDR:               root1CIDR,
@@ -2164,14 +2176,14 @@ func mustStartFakeWebProxy(
 				switch conn.User() {
 				case fallbackLegacyMFAUser:
 					cert, ok := pubKey.(*ssh.Certificate)
-					if !ok || cert.Extensions[testMFACertExtension] != "true" {
-						return nil, trace.AccessDenied("MFA cert required")
+					if !ok || cert.Extensions[teleport.CertExtensionMFAVerified] != mfaDeviceID {
+						return nil, trace.AccessDenied("expected legacy MFA cert, got %T", pubKey)
 					}
 
 				case inbandMFAUser:
 					return nil, &ssh.PartialSuccessError{
 						Next: ssh.ServerAuthCallbacks{
-							KeyboardInteractiveCallback: handleTestSSHKeyboardInteractive,
+							KeyboardInteractiveCallback: handleSSHKeyboardInteractive,
 						},
 					}
 				}
@@ -2264,21 +2276,6 @@ func mustStartFakeWebProxy(
 	return dialOpts
 }
 
-func handleTestSSHKeyboardInteractive(_ ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-	prompt := &sshpb.AuthPrompt{
-		Prompt: &sshpb.AuthPrompt_MfaPrompt{
-			MfaPrompt: &sshpb.MFAPrompt{},
-		},
-	}
-	promptBytes, err := protojson.Marshal(prompt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = client("", "", []string{string(promptBytes)}, []bool{false})
-	return nil, trace.Wrap(err)
-}
-
 // fakeWebProxyALPNProtocols returns the list of ALPN protocols the fake web
 // proxy should advertise. This includes TCP app, SSH, and all database protocols.
 func fakeWebProxyALPNProtocols() []string {
@@ -2322,4 +2319,19 @@ func (a *forwardedAgents) forwarded(key ssh.PublicKey) bool {
 		}
 	}
 	return false
+}
+
+func handleSSHKeyboardInteractive(_ ssh.ConnMetadata, clt ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	prompt := &sshpb.AuthPrompt{
+		Prompt: &sshpb.AuthPrompt_MfaPrompt{
+			MfaPrompt: &sshpb.MFAPrompt{},
+		},
+	}
+	promptBytes, err := protojson.Marshal(prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt("", "", []string{string(promptBytes)}, []bool{false})
+	return nil, trace.Wrap(err)
 }
