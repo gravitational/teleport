@@ -65,7 +65,7 @@ import (
 	"github.com/gravitational/teleport/session/reexec"
 )
 
-// LinuxService implements the RDP-based Linux desktop access service.
+// LinuxService implements the Linux desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
 // connections to Linux hosts and translates RDP into Teleport's desktop
