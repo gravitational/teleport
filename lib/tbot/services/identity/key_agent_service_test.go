@@ -94,10 +94,24 @@ func TestKeyAgentService(t *testing.T) {
 	go func() { errCh <- b.Run(ctx) }()
 
 	// Wait for the identity file to be written.
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(filepath.Join(outputDir, "identity"))
-		return err == nil
-	}, 20*time.Second, 100*time.Millisecond, "waiting for identity file to be written")
+	checkTicker := time.NewTicker(250 * time.Millisecond)
+	t.Cleanup(checkTicker.Stop)
+
+	checkTimeout := time.NewTimer(20 * time.Second)
+	t.Cleanup(func() { _ = checkTimeout.Stop() })
+waitLoop:
+	for {
+		select {
+		case <-checkTicker.C:
+			if _, err := os.Stat(filepath.Join(outputDir, "identity")); err == nil {
+				break waitLoop
+			}
+		case err := <-errCh:
+			require.NoError(t, err, "bot exited with an error")
+		case <-checkTimeout.C:
+			t.Fatal("timeout waiting for identity file to be written")
+		}
+	}
 
 	// Create hardware key client.
 	hwksClient, err := hardwarekey.NewAgentClient(t.Context(), outputDir)
