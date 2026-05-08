@@ -336,6 +336,7 @@ export function ActivityTab({
               }
               return { cursor: 'pointer' };
             },
+            getKey: row => row.name,
           }}
           columns={[
             {

@@ -18,7 +18,7 @@ This guide explains how to connect to Teleport Kubernetes Clusters with MCP clie
 (!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 - Kubernetes Clusters enrolled with Teleport. See our [guides](../../enroll-resources/kubernetes-access/getting-started.mdx).
 
-## Step 1/2. Configure MCP clients
+## Step 1/2. List available MCP servers
 
 First, sign in into your Teleport cluster using `tsh login`:
 
@@ -41,7 +41,9 @@ Logged into Kubernetes cluster "minikube". Try 'kubectl version' to test the con
 ```
 This command also updates your default Kubernetes config.
 
-Next, configure your MCP clients to use the
+## Step 2/2. Configure MCP clients
+
+Configure your MCP clients to use the
 [`kubernetes-mcp-server`](https://github.com/containers/kubernetes-mcp-server)
 MCP server.
 
@@ -93,8 +95,6 @@ code-insiders --add-mcp '{"name":"kubernetes","command":"npx","args":["kubernete
 ```
 </TabItem>
 </Tabs>
-
-## Step 2/2. Access Teleport-protected resources over MCP
 
 After configuring your MCP client, you will find Kubernetes and Helm tools from
 `kubernetes-mcp-server`.

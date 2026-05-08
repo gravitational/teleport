@@ -2816,6 +2816,19 @@ export const events = [
     upgrade_window_start: '23:00',
   },
   {
+    code: 'TCAGC003I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'access_graph_settings.update',
+  },
+  {
+    code: 'TEP01I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'environmentprofile.update',
+    environment_profile: 'staging',
+  },
+  {
     code: 'T2012I',
     event: 'session.recording.access',
     sid: '44c6cea8-362f-11ea-83aa-125400432324',
