@@ -15,9 +15,14 @@ Teleport supports a wide range of resource types, including Linux servers, MCP s
 
 ## Demo: Enroll an Ubuntu server
 
-To help you understand the enrollment process, let's walk through enrolling an Ubuntu Linux server as a hands-on example.
+To help you understand the enrollment process, let's walk through enrolling an
+Ubuntu Linux server as a hands-on example. 
 
-**What you'll need for this demo:**
+While this step focuses on Ubuntu servers for demonstration purposes, you can
+enroll other resource types through the same workflow, including web
+applications, databases, Kubernetes clusters, and Windows desktops.
+
+### What you'll need for this demo
 
 - An Ubuntu Linux server that you can SSH into (physical server, VM or cloud instance like EC2, or homelab server), OR
 - Docker installed on your workstation (to create a temporary demo server)
@@ -99,21 +104,110 @@ Teleport handles all the PKI complexity behind the scenes with automatic certifi
 
 </details>
 
-### Alternative: Enroll using the CLI
+## Follow guided enrollment flows
 
-{/* vale messaging.protocol-products = NO */}
-While the Web UI provides a guided experience, you can also enroll servers using the Teleport CLI as demonstrated in the [Server Access Getting Started Guide](../enroll-resources/server-access/getting-started.mdx).
-{/* vale messaging.protocol-products = YES */}
+In this guide, you enrolled an Ubuntu Linux server. Teleport supports many other
+resource types. You can follow guided, step-by-step flows in the Web UI to
+enroll additional resources.
 
-## Enroll other resource types
+To follow a guided enrollment flow, click **Enroll New Resource** in the Web UI
+and search for the name of the resource you want to enroll.
 
-While this step focuses on Ubuntu servers for demonstration purposes, you can enroll many other resource types through the same Web UI or CLI workflow:
+(!docs/pages/includes/ui-guided-resources.mdx!)
 
-- **Applications** - Internal web apps and cloud provider APIs
-- **Databases** - PostgreSQL, MySQL, MongoDB, and more
-- **Kubernetes clusters** - EKS, GKE, AKS, or self-hosted
-- **Windows Desktops** - RDP access to Windows machines
-- **And more** - See detailed enrollment guides for all resource types at the end of this guide
+## [Advanced] Manually configure Teleport Agents
+
+In addition to following guided enrollment flows in the Web UI, you can deploy
+one or more Teleport Agents and configure them to protect resources in your
+infrastructure. There are two methods you can use:
+
+- **Auto-Discovery:** a Teleport Agent queries a service discovery API, such as
+  that of your cloud provider, and updates your Teleport configuration
+  automatically to enroll resources.
+- **Individual resource configuration:** You create configuration documents that instruct
+  Teleport Agents to connect to individual resources in your infrastructure.
+
+We recommend setting up Auto-Discovery first because it is more scalable and
+prevents you from deploying infrastructure without a Teleport-managed identity.
+
+### Auto-Discovery
+
+Set up Auto-Discovery for your resource type:
+
+<TileGrid
+  tiles={[
+  {
+    icon: <Icon name="databases" size="xl" />,
+    to: "../enroll-resources/auto-discovery/databases/databases/",
+    name: "Databases",
+  },
+  {
+    icon: <Icon name="applications" size="xl" />,
+    to: "../enroll-resources/auto-discovery/kubernetes-applications/kubernetes-applications/",
+    name: "Kubernetes Applications",
+  },
+  {
+    icon: <Icon name="kubernetesClusters" size="xl" />,
+    to: "../enroll-resources/auto-discovery/kubernetes/kubernetes/",
+    name: "Kubernetes Clusters",
+  },
+  {
+    icon: <Icon name="linuxServers" size="xl" />,
+    to: "../enroll-resources/auto-discovery/servers/servers/",
+    name: "Servers",
+  },
+  ]}
+/>
+<br/>
+Windows desktops differ from other resources in that the Windows Desktop Service
+is responsible for discovering them. Get started with [enrolling
+desktops](../enroll-resources/desktop-access/desktop-access.mdx).
+
+### Individual resource configuration
+
+If there is a resource in your infrastructure that Teleport cannot discover
+automatically, you must configure Teleport to enroll that specific resource.
+Browse all supported resource types by category:
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="applications" size="xl" />,
+      to: "../../enroll-resources/application-access/",
+      name: "Applications",
+    },
+    {
+      icon: <Icon name="linuxServers" size="xl" />,
+      to: "../../enroll-resources/server-access/",
+      name: "Linux Servers",
+    },
+    {
+      icon: <Icon name="databases" size="xl" />,
+      to: "../../enroll-resources/database-access/",
+      name: "Databases",
+    },
+    {
+      icon: <Icon name="kubernetesClusters" size="xl" />,
+      to: "../../enroll-resources/kubernetes-access/",
+      name: "Kubernetes Clusters",
+    },
+    {
+      icon: <Icon name="windowsDesktops" size="xl" />,
+      to: "../../enroll-resources/desktop-access/",
+      name: "Windows Desktops",
+    },
+    {
+      icon: <Icon name="cloudProviders" size="xl" />,
+      to: "../../enroll-resources/application-access/cloud-apis/",
+      name: "Cloud Providers",
+    },
+    {
+      icon: <Icon name="mcpAndAi" size="xl" />,
+      to: "../../enroll-resources/mcp-access/",
+      name: "MCP and AI Agents",
+    },
+  ]}
+/>
 
 ## Next step: Set up access controls
 
