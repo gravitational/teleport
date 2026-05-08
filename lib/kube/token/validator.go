@@ -387,9 +387,11 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	}
 
 	return &ValidationResult{
-		Raw:      claims,
-		Type:     types.KubernetesJoinTypeOIDC,
-		Username: claims.GetSubject(),
+		Raw:                     claims,
+		Type:                    types.KubernetesJoinTypeOIDC,
+		Username:                claims.GetSubject(),
+		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
+		ServiceAccountNamespace: claims.Kubernetes.Namespace,
 		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 			Subject: claims.GetSubject(),
 			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
