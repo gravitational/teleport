@@ -83,10 +83,10 @@ func KeyAgentServiceBuilder(cfg *KeyAgentConfig, opts ...KeyAgentOpt) bot.Servic
 // material, in environments where exfiltration of the private key is a concern,
 // such as Beams.
 //
-// It works by implementing the same gRPC API as the Hardware Key Agent. If you
-// configure the service's destination to `$TMPDIR/.Teleport-PIV`, tsh will
-// seamlessly forward signing requests to tbot, as if the user had a YubiKey,
-// without any client-side configuration.
+// It works by implementing the same gRPC API as the Hardware Key Agent. You can
+// configure tsh to use the agent using the TELEPORT_KEY_AGENT_DIR environment
+// variable, or for older client, by setting `$TMPDIR/.Teleport-PIV` as the
+// service destination.
 //
 // The generated identity file will contain a nonsensical hardware key reference
 // with a fixed serial number and PIV slot.

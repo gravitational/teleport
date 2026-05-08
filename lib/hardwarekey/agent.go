@@ -41,7 +41,18 @@ const (
 	dirName      = ".Teleport-PIV"
 	sockName     = "agent.sock"
 	certFileName = "cert.pem"
+	agentDirEnv  = "TELEPORT_KEY_AGENT_DIR"
 )
+
+// AgentDirFromEnv returns the directory for the hardware key agent's socket and
+// certificate files from $TELEPORT_KEY_AGENT_DIR, or defaultDir if the environment
+// variable was not set.
+func AgentDirFromEnv(defaultDir string) string {
+	if dir := os.Getenv(agentDirEnv); dir != "" {
+		return dir
+	}
+	return defaultDir
+}
 
 // DefaultAgentDir is the default dir for the hardware key agent's socket and certificate files.
 func DefaultAgentDir() string {
