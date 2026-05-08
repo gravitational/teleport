@@ -46,6 +46,7 @@ export { ArrowUp } from './Icons/ArrowUp';
 export { ArrowUpRight } from './Icons/ArrowUpRight';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
+export { Beams } from './Icons/Beams';
 export { BedrockLogo } from './Icons/BedrockLogo';
 export { BellRinging } from './Icons/BellRinging';
 export { BookOpenText } from './Icons/BookOpenText';
