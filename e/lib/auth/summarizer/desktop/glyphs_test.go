@@ -10,7 +10,7 @@ import (
 func TestNewGlyphCache(t *testing.T) {
 	t.Parallel()
 
-	cache := newGlyphCache()
+	cache := NewGlyphCache()
 
 	require.Equal(t, 7*timestampFontScale, cache.glyphW)
 	require.Equal(t, 13*timestampFontScale, cache.glyphH)
@@ -30,7 +30,7 @@ func TestNewGlyphCache(t *testing.T) {
 func TestGlyphCache_StampLabel(t *testing.T) {
 	t.Parallel()
 
-	cache := newGlyphCache()
+	cache := NewGlyphCache()
 
 	t.Run("draws centered label inside the timestamp bar", func(t *testing.T) {
 		t.Parallel()

@@ -20,17 +20,17 @@ const (
 	timestampBarHeight = 30
 )
 
-// glyphCache holds pre-rendered glyph images for fast timestamp blitting. Only printable ASCII bytes (32..126) have
+// GlyphCache holds pre-rendered glyph images for fast timestamp blitting. Only printable ASCII bytes (32..126) have
 // glyphs; all other indices are nil.
-type glyphCache struct {
+type GlyphCache struct {
 	glyphs [128]*image.RGBA
 	// glyphW and glyphH are the dimensions of each glyph at the rendered scale (basicfont 7x13 * timestampFontScale).
 	glyphW int
 	glyphH int
 }
 
-// newGlyphCache pre-renders the glyphs needed for timestamp strings (digits, colon, space) at timestampFontScale.
-func newGlyphCache() *glyphCache {
+// NewGlyphCache pre-renders the glyphs needed for timestamp strings (digits, colon, space) at timestampFontScale.
+func NewGlyphCache() *GlyphCache {
 	const (
 		baseW = 7
 		baseH = 13
@@ -39,7 +39,7 @@ func newGlyphCache() *glyphCache {
 	scaledH := baseH * timestampFontScale
 
 	face := basicfont.Face7x13
-	cache := &glyphCache{
+	cache := &GlyphCache{
 		glyphW: scaledW,
 		glyphH: scaledH,
 	}
@@ -66,7 +66,7 @@ func newGlyphCache() *glyphCache {
 // stampLabel draws the given label string onto the provided image using the pre-rendered glyphs in the cache.
 // The label is centered horizontally within the timestamp bar at the top of the image. label must contain only
 // single-byte (ASCII) characters; non-ASCII bytes and non-printable bytes are skipped (their slot is left blank).
-func (g *glyphCache) stampLabel(img *image.RGBA, label string) {
+func (g *GlyphCache) stampLabel(img *image.RGBA, label string) {
 	textW := len(label) * g.glyphW
 	barW := img.Bounds().Dx()
 	x := (barW - textW) / 2
