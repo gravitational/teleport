@@ -124,6 +124,8 @@ type UserACL struct {
 	Contact ResourceAccess `json:"contact"`
 	// FileTransferAccess defines the ability to perform remote file operations via SCP or SFTP
 	FileTransferAccess bool `json:"fileTransferAccess"`
+	// WebTerminalClipboardMode defines whether copying from the Web UI terminal is enabled.
+	WebTerminalClipboardMode string `json:"webTerminalClipboardMode,omitempty"`
 	// GitServers defines access to Git servers.
 	GitServers ResourceAccess `json:"gitServers"`
 	// WorkloadIdentity defines access to Workload Identity
@@ -242,6 +244,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
 	fileTransferAccess := userRoles.CanCopyFiles()
+	webTerminalClipboardMode := webTerminalClipboardModeValue(userRoles.GetWebTerminalClipboardMode())
 	workloadIdentity := newAccess(userRoles, ctx, types.KindWorkloadIdentity)
 
 	var auditQuery ResourceAccess
@@ -270,59 +273,71 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	return UserACL{
-		AccessRequests:          requestAccess,
-		AppServers:              appServerAccess,
-		DBServers:               dbServerAccess,
-		DB:                      dbAccess,
-		ReviewRequests:          reviewRequests,
-		KubeServers:             kubeServerAccess,
-		Desktops:                desktopAccess,
-		AuthConnectors:          authConnectors,
-		TrustedClusters:         trustedClusterAccess,
-		RecordedSessions:        recordedSessionAccess,
-		ActiveSessions:          activeSessionAccess,
-		Roles:                   roleAccess,
-		Events:                  eventAccess,
-		Users:                   userAccess,
-		Tokens:                  tokenAccess,
-		Nodes:                   nodeAccess,
-		Billing:                 billingAccess,
-		ConnectionDiagnostic:    cnDiagnosticAccess,
-		Clipboard:               clipboard,
-		DesktopSessionRecording: desktopSessionRecording,
-		DirectorySharing:        directorySharing,
-		Download:                download,
-		License:                 license,
-		Plugins:                 pluginsAccess,
-		Integrations:            integrationsAccess,
-		UserTasks:               userTasksAccess,
-		DiscoveryConfig:         discoveryConfigsAccess,
-		DeviceTrust:             deviceTrust,
-		Locks:                   lockAccess,
-		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
-		AccessList:              accessListAccess,
-		AuditQuery:              auditQuery,
-		SecurityReport:          securityReports,
-		ExternalAuditStorage:    externalAuditStorage,
-		AccessGraph:             accessGraphAccess,
-		Bots:                    bots,
-		BotInstances:            botInstances,
-		Instances:               instances,
-		AccessMonitoringRule:    accessMonitoringRules,
-		CrownJewel:              crownJewelAccess,
-		AccessGraphSettings:     accessGraphSettings,
-		Contact:                 contact,
-		FileTransferAccess:      fileTransferAccess,
-		GitServers:              gitServersAccess,
-		WorkloadIdentity:        workloadIdentity,
-		ClientIPRestriction:     clientIPRestrictions,
-		InferenceModel:          newAccess(userRoles, ctx, types.KindInferenceModel),
-		InferencePolicy:         newAccess(userRoles, ctx, types.KindInferencePolicy),
-		InferenceSecret:         newAccess(userRoles, ctx, types.KindInferenceSecret),
-		AutoUpdateConfig:        autoUpdateConfig,
-		AutoUpdateVersion:       autoUpdateVersion,
-		AutoUpdateAgentRollout:  autoUpdateAgentRollout,
-		AutoUpdateAgentReport:   autoUpdateAgentReport,
-		Beam:                    beam,
+		AccessRequests:           requestAccess,
+		AppServers:               appServerAccess,
+		DBServers:                dbServerAccess,
+		DB:                       dbAccess,
+		ReviewRequests:           reviewRequests,
+		KubeServers:              kubeServerAccess,
+		Desktops:                 desktopAccess,
+		AuthConnectors:           authConnectors,
+		TrustedClusters:          trustedClusterAccess,
+		RecordedSessions:         recordedSessionAccess,
+		ActiveSessions:           activeSessionAccess,
+		Roles:                    roleAccess,
+		Events:                   eventAccess,
+		Users:                    userAccess,
+		Tokens:                   tokenAccess,
+		Nodes:                    nodeAccess,
+		Billing:                  billingAccess,
+		ConnectionDiagnostic:     cnDiagnosticAccess,
+		Clipboard:                clipboard,
+		DesktopSessionRecording:  desktopSessionRecording,
+		DirectorySharing:         directorySharing,
+		Download:                 download,
+		License:                  license,
+		Plugins:                  pluginsAccess,
+		Integrations:             integrationsAccess,
+		UserTasks:                userTasksAccess,
+		DiscoveryConfig:          discoveryConfigsAccess,
+		DeviceTrust:              deviceTrust,
+		Locks:                    lockAccess,
+		SAMLIdpServiceProvider:   samlIdpServiceProviderAccess,
+		AccessList:               accessListAccess,
+		AuditQuery:               auditQuery,
+		SecurityReport:           securityReports,
+		ExternalAuditStorage:     externalAuditStorage,
+		AccessGraph:              accessGraphAccess,
+		Bots:                     bots,
+		BotInstances:             botInstances,
+		Instances:                instances,
+		AccessMonitoringRule:     accessMonitoringRules,
+		CrownJewel:               crownJewelAccess,
+		AccessGraphSettings:      accessGraphSettings,
+		Contact:                  contact,
+		FileTransferAccess:       fileTransferAccess,
+		WebTerminalClipboardMode: webTerminalClipboardMode,
+		GitServers:               gitServersAccess,
+		WorkloadIdentity:         workloadIdentity,
+		ClientIPRestriction:      clientIPRestrictions,
+		InferenceModel:           newAccess(userRoles, ctx, types.KindInferenceModel),
+		InferencePolicy:          newAccess(userRoles, ctx, types.KindInferencePolicy),
+		InferenceSecret:          newAccess(userRoles, ctx, types.KindInferenceSecret),
+		AutoUpdateConfig:         autoUpdateConfig,
+		AutoUpdateVersion:        autoUpdateVersion,
+		AutoUpdateAgentRollout:   autoUpdateAgentRollout,
+		AutoUpdateAgentReport:    autoUpdateAgentReport,
+		Beam:                     beam,
+	}
+}
+
+func webTerminalClipboardModeValue(mode types.WebTerminalClipboardMode) string {
+	switch mode {
+	case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
+		return "unrestricted"
+	case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
+		return "no-copy"
+	default:
+		return ""
 	}
 }
