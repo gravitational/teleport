@@ -78,7 +78,7 @@ func (h *Handler) linuxDesktopConnectHandle(
 		"desktop_name", desktopName,
 		"cluster_name", cluster.GetName(),
 	)
-	log.DebugContext(r.Context(), "New desktop access websocket connection")
+	log.DebugContext(r.Context(), "New Linux desktop websocket connection")
 
 	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToLinuxService, true); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
