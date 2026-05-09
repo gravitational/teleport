@@ -6490,7 +6490,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usertaskv1pb.RegisterUserTaskServiceServer(server, userTask)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
-		Authorizer:    cfg.Authorizer,
+		Authorizer:    cfg.ScopedAuthorizer,
 		Backend:       cfg.AuthServer.Services,
 		Clock:         cfg.AuthServer.clock,
 		Emitter:       cfg.Emitter,

@@ -29,6 +29,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -37,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -343,6 +348,54 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	}
 }
 
+func TestScopePinnedIdentityCannotReadUnscopedDiscoveryConfig(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx, localClient, resourceSvc := initSvc(t, "test-cluster")
+	dcName := uuid.NewString()
+	dc, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcName},
+		discoveryconfig.Spec{DiscoveryGroup: "some-group"},
+	)
+	require.NoError(t, err)
+	_, err = localClient.CreateDiscoveryConfig(ctx, dc)
+	require.NoError(t, err)
+
+	localCtx := authorizerForScopePinnedDummyUser(t, ctx, localClient)
+
+	_, err = resourceSvc.GetDiscoveryConfig(localCtx, &discoveryconfigpb.GetDiscoveryConfigRequest{
+		Name: dcName,
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	listResp, err := resourceSvc.ListDiscoveryConfigs(localCtx, &discoveryconfigpb.ListDiscoveryConfigsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, listResp.GetDiscoveryConfigs())
+
+	_, err = resourceSvc.CreateDiscoveryConfig(localCtx, &discoveryconfigpb.CreateDiscoveryConfigRequest{
+		DiscoveryConfig: convert.ToProto(dc),
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = resourceSvc.UpdateDiscoveryConfig(localCtx, &discoveryconfigpb.UpdateDiscoveryConfigRequest{
+		DiscoveryConfig: convert.ToProto(dc),
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = resourceSvc.UpsertDiscoveryConfig(localCtx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
+		DiscoveryConfig: convert.ToProto(dc),
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = resourceSvc.DeleteDiscoveryConfig(localCtx, &discoveryconfigpb.DeleteDiscoveryConfigRequest{
+		Name: dcName,
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = resourceSvc.DeleteAllDiscoveryConfigs(localCtx, &discoveryconfigpb.DeleteAllDiscoveryConfigsRequest{})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+}
+
 func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	clusterName := "test-cluster"
 
@@ -469,6 +522,48 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 	})
 }
 
+func authorizerForScopePinnedDummyUser(t *testing.T, ctx context.Context, localClient localClient) context.Context {
+	t.Helper()
+
+	user, err := types.NewUser("user-" + uuid.NewString())
+	require.NoError(t, err)
+	user, err = localClient.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	const testscope = "/testscope"
+
+	role := &scopedaccessv1.ScopedRole{
+		Kind:    scopedaccess.KindScopedRole,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: uuid.NewString(),
+		},
+		Scope: testscope,
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{testscope},
+		},
+	}
+	_, err = localClient.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: role,
+	})
+	require.NoError(t, err)
+
+	return authz.ContextWithUser(ctx, authz.LocalUser{
+		Username: user.GetName(),
+		Identity: tlsca.Identity{
+			Username: user.GetName(),
+			ScopePin: &scopesv1.Pin{
+				Scope: testscope,
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					testscope: {
+						testscope: {role.GetMetadata().GetName()},
+					},
+				}),
+			},
+		},
+	})
+}
+
 func authorizerForSystemRole(ctx context.Context, systemRole string) context.Context {
 	return authz.ContextWithUser(ctx, authz.BuiltinRole{
 		Username: uuid.NewString(),
@@ -484,6 +579,7 @@ type localClient interface {
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	CreateDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+	CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error)
 }
 
 type testClient struct {
@@ -532,10 +628,12 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 	})
 	require.NoError(t, err)
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
+	scopedAccessSvc := local.NewScopedAccessService(backend)
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      accessPoint,
+		ScopedRoleReader: scopedAccessSvc,
+		LockWatcher:      lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -556,10 +654,12 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		*local.AccessService
 		*local.IdentityService
 		*local.DiscoveryConfigService
+		*local.ScopedAccessService
 	}{
 		AccessService:          roleSvc,
 		IdentityService:        userSvc,
 		DiscoveryConfigService: localResourceService,
+		ScopedAccessService:    scopedAccessSvc,
 	}, resourceSvc
 }
 
