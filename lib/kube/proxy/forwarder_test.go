@@ -1975,8 +1975,9 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	require.NoError(t, err)
 
 	forwarderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL, err = url.Parse(gs.URL())
+		u, err := url.Parse(gs.URL())
 		require.NoError(t, err)
+		r.URL = u
 		fwd.ServeHTTP(w, r)
 	}))
 	t.Cleanup(forwarderServer.Close)
