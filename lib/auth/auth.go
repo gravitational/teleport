@@ -705,7 +705,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ConnectionsDiagnostic:           cfg.ConnectionsDiagnostic,
 		Integrations:                    cfg.Integrations,
 		UserTasks:                       cfg.UserTasks,
-		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		DiscoveryConfigsWithFilter:      cfg.DiscoveryConfigs,
 		Okta:                            cfg.Okta,
 		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,

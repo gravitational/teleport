@@ -56,7 +56,7 @@ type Services struct {
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
-	services.DiscoveryConfigs
+	services.DiscoveryConfigsWithFilter
 	services.Okta
 	services.AccessListsInternal
 	services.DatabaseObjectImportRules

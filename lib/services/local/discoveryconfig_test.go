@@ -87,6 +87,23 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	require.Len(t, paginatedOut, 2)
 	require.Empty(t, cmp.Diff([]*discoveryconfig.DiscoveryConfig{discoveryConfig1, discoveryConfig2}, paginatedOut, cmpOpts...))
 
+	// Fetch a paginated list of discovery configs with a filter.
+	paginatedOut = paginatedOut[:0]
+	for {
+		out, nextToken, err = service.ListDiscoveryConfigsWithFilter(ctx, 1, nextToken, func(dc *discoveryconfig.DiscoveryConfig) bool {
+			return dc.GetName() == discoveryConfig2.GetName()
+		})
+		require.NoError(t, err)
+
+		paginatedOut = append(paginatedOut, out...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	require.Len(t, paginatedOut, 1)
+	require.Empty(t, cmp.Diff([]*discoveryconfig.DiscoveryConfig{discoveryConfig2}, paginatedOut, cmpOpts...))
+
 	// Fetch a specific discovery config.
 	discoveryConfig, err = service.GetDiscoveryConfig(ctx, discoveryConfig2.GetName())
 	require.NoError(t, err)

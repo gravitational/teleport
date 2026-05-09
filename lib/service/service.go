@@ -3094,7 +3094,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.DatabaseServices = services.DatabaseServices
 	cfg.Databases = services.Databases
 	cfg.DelegationSessions = services.DelegationSessions
-	cfg.DiscoveryConfigs = services.DiscoveryConfigs
+	cfg.DiscoveryConfigs = services.DiscoveryConfigsWithFilter
 	cfg.DynamicAccess = services.DynamicAccessExt
 	cfg.Events = services.Events
 	cfg.Integrations = services.Integrations

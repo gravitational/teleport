@@ -611,7 +611,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
 		Databases:               p.AuthServer.Services.Databases,
 		DelegationSessions:      p.AuthServer.Services.DelegationSessions,
-		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
+		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigsWithFilter,
 		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
 		Events:                  p.AuthServer.Services.Events,
 		Integrations:            p.AuthServer.Services.Integrations,

@@ -69,6 +69,22 @@ func (s *DiscoveryConfigService) ListDiscoveryConfigs(ctx context.Context, pageS
 	return dcs, nextKey, nil
 }
 
+// ListDiscoveryConfigsWithFilter returns a paginated list of DiscoveryConfig
+// resources that match a given filter.
+func (s *DiscoveryConfigService) ListDiscoveryConfigsWithFilter(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+	matcher func(*discoveryconfig.DiscoveryConfig) bool,
+) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	dcs, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken, matcher)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return dcs, nextKey, nil
+}
+
 // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
 func (s *DiscoveryConfigService) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
 	dc, err := s.svc.GetResource(ctx, name)

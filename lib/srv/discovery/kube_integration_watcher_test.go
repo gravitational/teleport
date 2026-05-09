@@ -437,7 +437,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 				if tc.discoveryConfig != nil {
 					dc := tc.discoveryConfig(t)
-					_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
+					_, err := tlsServer.Auth().CreateDiscoveryConfig(ctx, dc)
 					require.NoError(t, err)
 				}
 				synctest.Wait()

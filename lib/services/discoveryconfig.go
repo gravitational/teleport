@@ -45,6 +45,16 @@ type DiscoveryConfigs interface {
 	DeleteAllDiscoveryConfigs(context.Context) error
 }
 
+// DiscoveryConfigsWithFilter defines an interface for managing DiscoveryConfigs
+// with server-side list filtering. This is only implemented by local backends;
+// the gRPC client intentionally does not implement this interface.
+type DiscoveryConfigsWithFilter interface {
+	DiscoveryConfigs
+	// ListDiscoveryConfigsWithFilter returns a paginated list of DiscoveryConfig
+	// resources that match the given filter.
+	ListDiscoveryConfigsWithFilter(ctx context.Context, pageSize int, nextToken string, matcher func(*discoveryconfig.DiscoveryConfig) bool) ([]*discoveryconfig.DiscoveryConfig, string, error)
+}
+
 // DiscoveryConfigWithStatusUpdater defines an interface for managing DiscoveryConfig resources including updating their status.
 type DiscoveryConfigWithStatusUpdater interface {
 	DiscoveryConfigs
