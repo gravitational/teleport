@@ -63,4 +63,26 @@ describe('localStorage', () => {
     expect(ls.getParsedJSONValue('key2', null)).toBe(true);
     expect(ls.getParsedJSONValue('not-a-key', 'default')).toBe('default');
   });
+
+  describe('Beams first visit expanded flag', () => {
+    test('returns false when not set', () => {
+      expect(ls.getBeamsFirstVisitExpanded()).toBe(false);
+    });
+
+    test('round-trips through set + get', () => {
+      ls.setBeamsFirstVisitExpanded();
+      expect(ls.getBeamsFirstVisitExpanded()).toBe(true);
+      expect(localStorage.getItem(KeysEnum.BEAMS_FIRST_VISIT_EXPANDED)).toBe(
+        'true'
+      );
+    });
+
+    test('returns false for non-"true" values', () => {
+      localStorage.setItem(KeysEnum.BEAMS_FIRST_VISIT_EXPANDED, 'false');
+      expect(ls.getBeamsFirstVisitExpanded()).toBe(false);
+
+      localStorage.setItem(KeysEnum.BEAMS_FIRST_VISIT_EXPANDED, '1');
+      expect(ls.getBeamsFirstVisitExpanded()).toBe(false);
+    });
+  });
 });

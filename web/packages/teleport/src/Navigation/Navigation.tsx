@@ -39,13 +39,14 @@ import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/side
 
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
+import { storageService } from 'teleport/services/storageService';
 import type { TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
-  BEAMS_NAVIGATION_CATEGORIES,
   CustomNavigationSubcategory,
+  NavigationCategory,
   NAVIGATION_CATEGORIES,
   SidenavCategory,
 } from './categories';
@@ -124,11 +125,7 @@ export type NavigationSubsection = {
 function getNavigationSections(
   features: TeleportFeature[]
 ): NavigationSection[] {
-  // Override the order for beams UI
-  const categories = cfg.beamsUi
-    ? BEAMS_NAVIGATION_CATEGORIES
-    : NAVIGATION_CATEGORIES;
-  const navigationSections = categories.map(category => ({
+  const navigationSections = NAVIGATION_CATEGORIES.map(category => ({
     category,
     subsections: getSubsectionsForCategory(category, features),
   }));
@@ -403,6 +400,27 @@ export function Navigation({
     () => [resourcesSection, ...navSections],
     [resourcesSection, navSections]
   );
+
+  // When Beams lite UI is enabled, render Beams above Resources as the first
+  // nav category. Otherwise leave navSections in its default order.
+  const beamsSection = useMemo(
+    () =>
+      cfg.beamsUi
+        ? navSections.find(
+            section => section.category === NavigationCategory.Beams
+          )
+        : undefined,
+    [navSections]
+  );
+  const otherNavSections = useMemo(
+    () =>
+      cfg.beamsUi
+        ? navSections.filter(
+            section => section.category !== NavigationCategory.Beams
+          )
+        : navSections,
+    [navSections]
+  );
   const currentPageSection = useMemo(() => {
     return combinedSideNavSections.find(
       section => section.category === currentView?.category
@@ -441,6 +459,24 @@ export function Navigation({
     }
   }, [currentPageSection]);
 
+  // First-time Beams page landing: flip sideNavDrawerMode to STICKY globally
+  // so the panel pushes content and keeps side panel expanded. This becomes the user's
+  // ongoing preference — they can toggle it off via the collapse button.
+  useEffect(() => {
+    if (storageService.getBeamsFirstVisitExpanded()) {
+      return;
+    }
+    if (currentView?.category !== NavigationCategory.Beams) {
+      return;
+    }
+    storageService.setBeamsFirstVisitExpanded();
+    if (!stickyMode) {
+      updatePreferences({
+        sideNavDrawerMode: SideNavDrawerMode.STICKY,
+      });
+    }
+  }, [currentView, stickyMode, updatePreferences]);
+
   // Handler for clicking nav items.
   const onNavigationItemClick = useCallback(() => {
     // Clear any existing timeout
@@ -454,7 +490,7 @@ export function Navigation({
         collapseDrawer(false);
       }, 150);
     }
-  }, [collapseDrawer]);
+  }, [collapseDrawer, stickyMode]);
 
   // Hide the nav if the current feature has hideNavigation set to true.
   const hideNav = features.find(
@@ -469,6 +505,47 @@ export function Navigation({
   if (hideNav) {
     return null;
   }
+
+  const renderNavSection = (section: NavigationSection) => {
+    if (section.standalone) {
+      return (
+        <StandaloneSection
+          key={section.standalone.route}
+          title={section.standalone.title}
+          route={section.standalone.route}
+          Icon={section.standalone.Icon}
+          $active={section.standalone.route === currentView?.route}
+        />
+      );
+    }
+
+    const isExpanded =
+      !!debouncedSection &&
+      !debouncedSection.standalone &&
+      section.category === debouncedSection?.category;
+
+    return (
+      <React.Fragment key={section.category}>
+        {section.category === 'Add New' && <Divider />}
+        <DefaultSection
+          key={section.category}
+          section={section}
+          currentView={currentView}
+          previousExpandedSection={previousExpandedSection}
+          onExpandSection={() => handleSetExpandedSection(section)}
+          currentPageSection={currentPageSection}
+          stickyMode={stickyMode}
+          toggleStickyMode={toggleStickyMode}
+          $active={section.category === currentView?.category}
+          aria-controls={`panel-${debouncedSection?.category}`}
+          onNavigationItemClick={onNavigationItemClick}
+          isExpanded={isExpanded}
+          showPoweredByLogo={showPoweredByLogo}
+        />
+      </React.Fragment>
+    );
+  };
+
   return (
     <Container
       as="nav"
@@ -502,6 +579,7 @@ export function Navigation({
               toggleStickyMode={toggleStickyMode}
               canToggleStickyMode={!!currentPageSection}
             />
+            {beamsSection && renderNavSection(beamsSection)}
             <ResourcesSection
               expandedSection={debouncedSection}
               previousExpandedSection={previousExpandedSection}
@@ -514,45 +592,7 @@ export function Navigation({
             />
           </>
         )}
-        {navSections.map(section => {
-          if (section.standalone) {
-            return (
-              <StandaloneSection
-                key={section.standalone.route}
-                title={section.standalone.title}
-                route={section.standalone.route}
-                Icon={section.standalone.Icon}
-                $active={section.standalone.route === currentView?.route}
-              />
-            );
-          }
-
-          const isExpanded =
-            !!debouncedSection &&
-            !debouncedSection.standalone &&
-            section.category === debouncedSection?.category;
-
-          return (
-            <React.Fragment key={section.category}>
-              {section.category === 'Add New' && <Divider />}
-              <DefaultSection
-                key={section.category}
-                section={section}
-                currentView={currentView}
-                previousExpandedSection={previousExpandedSection}
-                onExpandSection={() => handleSetExpandedSection(section)}
-                currentPageSection={currentPageSection}
-                stickyMode={stickyMode}
-                toggleStickyMode={toggleStickyMode}
-                $active={section.category === currentView?.category}
-                aria-controls={`panel-${debouncedSection?.category}`}
-                onNavigationItemClick={onNavigationItemClick}
-                isExpanded={isExpanded}
-                showPoweredByLogo={showPoweredByLogo}
-              />
-            </React.Fragment>
-          );
-        })}
+        {otherNavSections.map(renderNavSection)}
       </SideNavContainer>
     </Container>
   );
