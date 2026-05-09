@@ -747,11 +747,19 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
-	// standard library, see https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694.
+	// standard library, so we have to match on the error message. The two error strings come from:
+	//   - golang.org/x/net/http2 when its internal retry path cannot replay the body:
+	//     https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694
+	//   - net/http (errCannotRewind) when, after the http2 conn pool is drained, the http1 retry
+	//     path tries to rewind the body and fails because Request.GetBody is unset:
+	//     https://github.com/golang/go/blob/go1.26.2/src/net/http/transport.go#L759
 	// When a failed request is found, we return a response that indicates  to clients that they
 	// should retry the request themselves.
-	if errString := respErr.Error(); strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`) &&
-		strings.Contains(errString, `http2: Transport: cannot retry err`) {
+	errString := respErr.Error()
+	isHTTP2RetryErr := strings.Contains(errString, `http2: Transport: cannot retry err`) &&
+		strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`)
+	isHTTP1RewindErr := errString == `net/http: cannot rewind body after connection loss`
+	if isHTTP2RetryErr || isHTTP1RewindErr {
 
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
 		if err != nil {
