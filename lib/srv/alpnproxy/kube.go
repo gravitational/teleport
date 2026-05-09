@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -181,22 +180,10 @@ func (m *KubeMiddleware) ClearCerts() {
 	clear(m.certs)
 }
 
-// resolveClusterKey extracts the (teleport, kube) cluster pair for req.
-// It parses the /v1/teleport/<b64>/<b64> prefix from the URL path,
-// falling back to the legacy <hex(kube)>.<teleport> SNI shape used by older tsh kubeconfigs.
-//
-// TODO(jakealti): DELETE the SNI fallback IN v20.0.0.
+// resolveClusterKey extracts the (teleport, kube) cluster pair for req
+// from the /v1/teleport/<b64>/<b64> prefix of the URL path.
 func (m *KubeMiddleware) resolveClusterKey(req *http.Request) (teleportCluster, kubeCluster string, err error) {
-	tc, kc, err := common.ClustersFromKubeLocalProxyPath(req.URL.Path)
-	if err == nil {
-		return tc, kc, nil
-	}
-	if req.TLS != nil {
-		if ltc, lkc, lerr := common.ClustersFromLegacyKubeLocalProxySNI(req.TLS.ServerName); lerr == nil {
-			return ltc, lkc, nil
-		}
-	}
-	return "", "", trace.Wrap(err)
+	return common.ClustersFromKubeLocalProxyPath(req.URL.Path)
 }
 
 // HandleRequest checks if middleware has valid certificate for this request and
@@ -382,17 +369,6 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 			if config, ok := configs[sni]; ok {
 				return config, nil
 			}
-			// TODO(jakealti): DELETE IN v20.0.0.
-			// Tolerate the legacy SNI shape (<x>.<teleport-cluster>) used by kubeconfigs from older tsh,
-			// so the request reaches the HTTP middleware and surfaces a clear "regenerate your kubeconfig"
-			// error instead of failing opaquely at TLS.
-			// By v20 every kubeconfig in the wild will have been regenerated past the v19 cert TTL window,
-			// so this branch can go.
-			if _, suffix, ok := strings.Cut(sni, "."); ok {
-				if config, ok := configs[suffix]; ok {
-					return config, nil
-				}
-			}
 			return nil, trace.BadParameter("unknown Teleport cluster or invalid TLS server name %v", sni)
 		},
 	})
@@ -459,12 +435,7 @@ func NewKubeForwardProxy(config KubeForwardProxyConfig) (*ForwardProxy, error) {
 func CreateKubeLocalCAs(key *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
 	cas := make(map[string]tls.Certificate)
 	for _, teleportCluster := range teleportClusters {
-		// TODO(jakealti): DELETE IN v20.0.0.
-		// The wildcard SAN is here only so kubeconfigs from older tsh (with SNI <hex>.<teleport>)
-		// can still complete a TLS handshake against the new local proxy and reach the HTTP middleware
-		// that returns the "regenerate your kubeconfig" error.
-		// New kubeconfigs use the bare <teleport> SNI, which is what this code path lands on otherwise.
-		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), teleportCluster, "*."+teleportCluster)
+		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), teleportCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
