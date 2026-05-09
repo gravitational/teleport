@@ -737,7 +737,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	errString := respErr.Error()
 	isHTTP2RetryErr := strings.Contains(errString, `http2: Transport: cannot retry err`) &&
 		strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`)
-	isHTTP1RewindErr := errString == `net/http: cannot rewind body after connection loss`
+	isHTTP1RewindErr := strings.Contains(errString, `net/http: cannot rewind body after connection loss`)
 	if isHTTP2RetryErr || isHTTP1RewindErr {
 
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
