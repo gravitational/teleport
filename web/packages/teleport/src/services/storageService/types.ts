@@ -60,6 +60,8 @@ export const KeysEnum = {
   SESSION_RECORDING_TIMELINE_SHOW_ABSOLUTE_TIME:
     'grv_teleport_session_recording_timeline_show_absolute_time',
 
+  BEAMS_FIRST_VISIT_EXPANDED: 'grv_teleport_beams_first_visit_expanded',
+
   // TODO(bl-nero): Remove once the new role editor is in acceptable state.
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',
   //TODO(rudream): Remove once sidenav implementation is complete.
