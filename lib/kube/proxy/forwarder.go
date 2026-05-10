@@ -1281,8 +1281,10 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 
 		defer func() {
-			if _, err := session.leave(req.Context(), party.ID); err != nil {
-				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the websocket closes.
+			leaveCtx := context.WithoutCancel(req.Context())
+			if _, err := session.leave(leaveCtx, party.ID); err != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", err,
