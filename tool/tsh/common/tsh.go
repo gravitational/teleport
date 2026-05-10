@@ -2178,7 +2178,7 @@ func initializeTracing(cf *CLIConf) func() {
 		return func() {}
 	}
 
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+	if err := retryWithRelogin(cf.Context, tc, func() error {
 		clt, err := tc.NewTracingClient(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2925,7 +2925,7 @@ func onListNodes(cf *CLIConf) error {
 
 	// Get list of all nodes in backend and sort by "Node Name".
 	var nodes []types.Server
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+	err = retryWithRelogin(cf.Context, tc, func() error {
 		nodes, err = tc.ListNodesWithFilters(cf.Context)
 		return err
 	})
@@ -3914,7 +3914,7 @@ func onListClusters(cf *CLIConf) error {
 
 	var rootClusterName string
 	var leafClusters []types.RemoteCluster
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+	err = retryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return err
@@ -4465,7 +4465,7 @@ func onResolve(cf *CLIConf) error {
 	// Only enable the re-authentication behavior if not invoked with `-q`. When
 	// in quiet mode, this command is likely being invoked via ssh and
 	// the login prompt will not be able to be presented to users anyway.
-	executor := client.RetryWithRelogin
+	executor := retryWithRelogin
 	if cf.Quiet {
 		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
 			return f()
@@ -4605,7 +4605,7 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 		if !cf.Relogin {
 			err = sshFunc()
 		} else {
-			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
+			err = retryWithRelogin(cf.Context, tc, sshFunc)
 		}
 		if err != nil {
 			if errors.Is(err, teleport.ErrNodeIsAmbiguous) ||
@@ -4730,7 +4730,7 @@ func onJoin(cf *CLIConf) error {
 	if err != nil {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+	err = retryWithRelogin(cf.Context, tc, func() error {
 		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), *sid, nil)
 	})
 	if err != nil {
@@ -4757,7 +4757,7 @@ func onSCP(cf *CLIConf) error {
 	cf.Context = ctx
 	defer cancel()
 
-	executor := client.RetryWithRelogin
+	executor := retryWithRelogin
 	if !cf.Relogin {
 		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
 			return f()
@@ -6093,7 +6093,7 @@ func onApps(cf *CLIConf) error {
 
 	// Get a list of all applications.
 	var apps []types.Application
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+	err = retryWithRelogin(cf.Context, tc, func() error {
 		apps, err = tc.ListApps(cf.Context, nil /* custom filter */)
 		return err
 	})
@@ -6286,7 +6286,7 @@ func onRecordings(cf *CLIConf) error {
 	}
 
 	var sessions []apievents.AuditEvent
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+	if err := retryWithRelogin(cf.Context, tc, func() error {
 		sessions, err = tc.SearchSessionEvents(cf.Context,
 			fromUTC, toUTC, apidefaults.DefaultChunkSize,
 			types.EventOrderDescending, cf.maxRecordingsToShow)
@@ -6473,7 +6473,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 	}
 
 	tc.Stdin = os.Stdin
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+	err = retryWithRelogin(cf.Context, tc, func() error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)

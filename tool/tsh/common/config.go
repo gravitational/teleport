@@ -21,6 +21,7 @@ package common
 import (
 	"io"
 	"net"
+	"os"
 
 	"github.com/gravitational/trace"
 
@@ -64,17 +65,13 @@ func onConfig(cf *CLIConf) error {
 	// destination (possibly their ssh config file) may get polluted with
 	// invalid output. Instead, rely on the normal error messages (which are
 	// sent to stderr) and expect the user to log in manually.
-	var clusterClient *client.ClusterClient
 
-	if isOutputPiped() {
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
-	} else {
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			var errConn error
-			clusterClient, errConn = tc.ConnectToCluster(cf.Context)
-			return errConn
-		})
-	}
+	var clusterClient *client.ClusterClient
+	err = retryWithRelogin(cf.Context, tc, func() error {
+		var errConn error
+		clusterClient, errConn = tc.ConnectToCluster(cf.Context)
+		return errConn
+	})
 	if err != nil {
 		if utils.IsCertExpiredError(err) {
 			return trace.Errorf("authentication failed: your certificate has expired. Please run 'tsh login' to refresh your credentials")
