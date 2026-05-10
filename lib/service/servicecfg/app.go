@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	netutils "github.com/gravitational/teleport/api/utils/net"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 )
@@ -49,7 +50,10 @@ type AppsConfig struct {
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 
-	// ResourceMatchers match cluster database resources.
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
+
+	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []services.ResourceMatcher
 
 	// MonitorCloseChannel will be signaled when a monitor closes a connection.
@@ -114,6 +118,12 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *types.MCP
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *types.LLM
+
+	// TLS contains the app TLS configuration.
+	TLS *types.AppTLS
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -157,6 +167,9 @@ type PortRange struct {
 }
 
 // CheckAndSetDefaults validates an application.
+//
+// Note: full app validation happens after conversion to `types.AppV3` so static
+// and dynamic registration share the same validation rules.
 func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
@@ -167,6 +180,8 @@ func (a *App) CheckAndSetDefaults() error {
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
 		case a.MCP != nil && a.MCP.Command != "":
 			a.URI = types.SchemeMCPStdio + "://"
+		case a.LLM != nil:
+			a.URI = types.SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}

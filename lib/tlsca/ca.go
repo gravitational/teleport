@@ -201,12 +201,22 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken contains the name of the join token used when a Machine ID bot
-	// joins. It is empty for other identity types.
+	// or agent joins. Note that agents using the `token` join method will
+	// include a censored token name.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
+	//
+	// Deprecated: Use [Identity.AllowedResourceAccessIDs].
 	AllowedResourceIDs []types.ResourceID
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with ResourceConstraints or additional information.
+	AllowedResourceAccessIDs []types.ResourceAccessID
 	// PrivateKeyPolicy is the private key policy supported by this identity.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
@@ -226,6 +236,17 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash string
+
+	// WebSessionID is the session ID of the web session associated with this identity, if any.
+	WebSessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -394,12 +415,15 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		GCPServiceAccounts:      id.GCPServiceAccounts,
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
-		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
-		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
-		DeviceExtensions:        devExts,
-		BotName:                 id.BotName,
-		BotInstanceID:           id.BotInstanceID,
-		JoinToken:               id.JoinToken,
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		AllowedResourceIDs:       events.ResourceIDs(id.AllowedResourceIDs),
+		AllowedResourceAccessIDs: events.ToEventResourceAccessIDs(id.AllowedResourceAccessIDs),
+		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
+		DeviceExtensions:         devExts,
+		BotName:                  id.BotName,
+		BotInstanceID:            id.BotInstanceID,
+		BotInternal:              id.BotInternal,
+		JoinToken:                id.JoinToken,
 	}
 }
 
@@ -607,15 +631,47 @@ var (
 	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
 
 	// JoinTokenOID is an extension OID that contains the name of the join token
-	// used when a bot joins.
+	// used when a bot or agent joins. It is censored for agents joining with
+	// the `token` join method.
 	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
 
 	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
 	// used to tie the certificate to a specific scope and set of scoped roles.
 	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
+
 	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
 	// used to tie the certificate to a spec
 	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
+
+	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
+	// ResourceAccessIDs which the certificate should be able to grant access to
+	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+
+	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
+	// web session ID associated with this identity, if any.
+	WebSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
+
+	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
+	// are for a bot internal identity, rather than an output certificate.
+	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
+
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 30}
+
+	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
+	// certificate.
+	//
+	// Historically the cluster name is recorded in the certificate's "O=" field.
+	// This OID makes it possible to customize O= and still record the cluster
+	// name.
+	//
+	// Takes precedence, as the cluster name, over the O= field if both are
+	// present.
+	CAClusterNameExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 4, 1}
 )
 
 // Device Trust OIDs.
@@ -922,6 +978,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotInternal {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInternalASN1ExtensionOID,
+				Value: types.True,
+			},
+		)
+	}
+
 	if id.JoinToken != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -931,7 +996,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	if id.ScopePin != nil {
-		pin, err := protojson.Marshal(id.ScopePin)
+		pin, err := pinning.Encode(id.ScopePin)
 		if err != nil {
 			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
 		}
@@ -939,7 +1004,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  ScopePinASN1ExtensionOID,
-				Value: string(pin),
+				Value: pin,
 			})
 	}
 
@@ -948,6 +1013,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AgentScopeASN1ExtensionOID,
 				Value: id.AgentScope,
+			})
+	}
+
+	if id.DelegationSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DelegationSessionIDASN1ExtensionOID,
+				Value: id.DelegationSessionID,
 			})
 	}
 
@@ -960,7 +1033,9 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 	if len(id.AllowedResourceIDs) > 0 {
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
 			return pkix.Name{}, trace.Wrap(err)
@@ -969,6 +1044,36 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AllowedResourcesASN1ExtensionOID,
 				Value: allowedResourcesStr,
+			},
+		)
+	} else if len(id.AllowedResourceAccessIDs) > 0 {
+		// If an identity is resource-constrained exclusively via AllowedResourceAccessIDs,
+		// we add a non-matching sentinel ResourceID into AllowedResourceIDs.
+		// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
+		// (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
+		// "no resource-specific restrictions".
+		// TODO(kiosion): DELETE in 21.0.0
+		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourcesASN1ExtensionOID,
+				Value: sentinelResourceIDStr,
+			},
+		)
+	}
+
+	if len(id.AllowedResourceAccessIDs) > 0 {
+		allowedResourceAccessIDsStr, err := types.ResourceAccessIDsToString(id.AllowedResourceAccessIDs)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourceAccessIDsASN1ExtensionOID,
+				Value: allowedResourceAccessIDsStr,
 			},
 		)
 	}
@@ -1029,6 +1134,22 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
+	if id.ImmutableLabelHash != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: id.ImmutableLabelHash,
+			})
+	}
+
+	if id.WebSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  WebSessionIDASN1ExtensionOID,
+				Value: id.WebSessionID,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1050,6 +1171,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	var (
+		allowedResourceIDs       []types.ResourceID
+		allowedResourceAccessIDs []types.ResourceAccessID
+	)
 
 	for _, attr := range subject.Names {
 		switch {
@@ -1238,6 +1364,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(BotInternalASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInternal = val == types.True
+			}
 		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1246,23 +1377,49 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(ScopePinASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				var pin scopesv1.Pin
-				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
-					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
+				pin, err := pinning.Decode(val)
+				if err != nil {
+					return nil, trace.Errorf("failed to decode scope pin: %w", err)
 				}
-				id.ScopePin = &pin
+				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
-			id.AgentScope = attr.Value.(string)
-
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AgentScope = val
+			}
+		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DelegationSessionID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
-				allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+				resourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				id.AllowedResourceIDs = allowedResourceIDs
+				filteredAllowedResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
+				for _, rid := range resourceIDs {
+					// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
+					// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
+					// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
+					//
+					// It should be filtered out at decoding here, as it's not a real "requested resource".
+					if !types.IsSentinelResourceID(rid) {
+						filteredAllowedResourceIDs = append(filteredAllowedResourceIDs, rid)
+					}
+				}
+				allowedResourceIDs = filteredAllowedResourceIDs
+			}
+		case attr.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				resourceAccessIDs, err := types.ResourceAccessIDsFromString(val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				allowedResourceAccessIDs = resourceAccessIDs
 			}
 		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1307,7 +1464,24 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 					return nil, trace.Wrap(err)
 				}
 			}
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.ImmutableLabelHash = val
+			}
+		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.WebSessionID = val
+			}
 		}
+	}
+
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present, old extension is redundant
+		// (exists for backward-compat with older agents/proxies).
+		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older auth servers that don't write the new extension.
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {
@@ -1378,6 +1552,11 @@ func (id *Identity) IsBot() bool {
 	return id.BotName != ""
 }
 
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
+}
+
 // CertificateRequest is a X.509 signing certificate request
 type CertificateRequest struct {
 	// Clock is a clock used to get current or test time
@@ -1446,6 +1625,13 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"common_name", req.Subject.CommonName,
 		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
+
+	// Go deserializes extra names into Names field, but it uses ExtraNames for serialization,
+	// if we have any then we have to copy them over, or they will get lost during another
+	// serialization in x509.CreateCertificate
+	if len(req.Subject.Names) > 0 {
+		req.Subject.ExtraNames = req.Subject.Names
+	}
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

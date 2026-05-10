@@ -81,6 +81,9 @@ type Integration interface {
 	// CanChangeStateTo checks if the current Integration can be updated for the provided integration.
 	CanChangeStateTo(Integration) error
 
+	// SupportsDiscoveryResources returns whether this integration can have associated DiscoverConfigs.
+	SupportsDiscoveryResources() bool
+
 	// GetAWSOIDCIntegrationSpec returns the `aws-oidc` spec fields.
 	GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1
 	// SetAWSOIDCIntegrationSpec sets the `aws-oidc` spec fields.
@@ -206,6 +209,17 @@ func NewIntegrationAWSRA(md Metadata, spec *AWSRAIntegrationSpecV1) (*Integratio
 		return nil, trace.Wrap(err)
 	}
 	return ig, nil
+}
+
+// SupportsDiscoveryResources specifies if this integration subkind may have associated discovery configs.
+func (ig *IntegrationV1) SupportsDiscoveryResources() bool {
+	switch ig.GetSubKind() {
+	case IntegrationSubKindAWSOIDC,
+		IntegrationSubKindAzureOIDC:
+		return true
+	default:
+		return false
+	}
 }
 
 // String returns the integration string representation.

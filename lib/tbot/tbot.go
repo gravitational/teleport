@@ -39,11 +39,13 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
@@ -242,7 +244,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *database.TunnelConfig:
-			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *example.Config:
 			services = append(services, example.ServiceBuilder(svcCfg))
 		case *ssh.MultiplexerConfig:
@@ -269,7 +271,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
-			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *application.ProxyServiceConfig:
 			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
 		case *workloadidentitysvc.X509OutputConfig:
@@ -280,6 +282,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
+		case *beams.VNetServiceConfig:
+			services = append(services, beams.VNetServiceBuilder(
+				svcCfg,
+				beams.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+			))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -291,11 +298,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
 		CredentialLifetime: b.cfg.CredentialLifetime,
+		Leeway:             b.cfg.Leeway,
 		FIPS:               b.cfg.FIPS,
 		Logger:             b.log,
 		ReloadCh:           b.cfg.ReloadCh,
 		Services:           services,
 		ClientMetrics:      clientMetrics,
+		Scoped:             b.cfg.Scoped,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -316,12 +325,12 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 
 	if b.cfg.JoinURI != "" {
-		parsed, err := config.ParseJoinURI(b.cfg.JoinURI)
+		parsed, err := joinuri.Parse(b.cfg.JoinURI)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing joining URI")
 		}
 
-		if err := parsed.ApplyToConfig(b.cfg); err != nil {
+		if err := config.ApplyJoinURIToConfig(parsed, b.cfg); err != nil {
 			return nil, trace.Wrap(err, "applying joining URI to bot config")
 		}
 	}
@@ -340,9 +349,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	}
 
 	if b.cfg.FIPS {
-		if !b.modules.IsBoringBinary() {
+		if !b.modules.IsFIPSBuild() {
 			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
-			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled in FIPS140 mode")
 		}
 		b.log.InfoContext(ctx, "Bot is running in FIPS compliant mode.")
 	}

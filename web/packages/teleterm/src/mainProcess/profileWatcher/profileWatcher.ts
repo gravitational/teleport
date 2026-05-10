@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { watch } from 'node:fs';
+import { watch, type WatchEventType } from 'node:fs';
 import { access } from 'node:fs/promises';
 
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { debounce } from 'shared/utils/highbar';
 import { wait } from 'shared/utils/wait';
 
+import Logger from 'teleterm/logger';
 import { isTshdRpcError } from 'teleterm/services/tshd';
 import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -35,6 +36,24 @@ interface ClusterStore {
   getRootClusters(): Cluster[];
 }
 
+export interface FsWatcher {
+  on(event: 'close', listener: () => void): this;
+  on(event: 'error', listener: (error: Error) => void): this;
+  off(event: 'close', listener: () => void): this;
+  off(event: 'error', listener: (error: Error) => void): this;
+  close(): void;
+}
+
+export type CreateFsWatcher = (options: {
+  path: string;
+  signal?: AbortSignal;
+  onEvent(event: WatchEventType, filename: string | null): void;
+}) => FsWatcher;
+
+const createNodeFsWatcher: CreateFsWatcher = ({ path, signal, onEvent }) =>
+  watch(path, { signal, recursive: true }, onEvent);
+
+const logger = new Logger('ProfileWatcher');
 /**
  * Watches the specified `tshDirectory` for profile changes.
  * File system events are debounced with a default 200 ms delay.
@@ -51,6 +70,7 @@ export async function* watchProfiles({
   debounceMs = 200,
   maxFileSystemEvents = 4096,
   signal,
+  createFsWatcher = createNodeFsWatcher,
 }: {
   tshDirectory: string;
   tshClient: TshClient;
@@ -66,15 +86,22 @@ export async function* watchProfiles({
    * */
   maxFileSystemEvents?: number;
   signal?: AbortSignal;
+  createFsWatcher?: CreateFsWatcher;
 }): AsyncGenerator<ProfileChangeSet, void, void> {
+  logger.info('Starting profile watcher', {
+    tshDirectory,
+    debounceMs,
+    maxFileSystemEvents,
+  });
+
   while (!signal?.aborted) {
     try {
-      // eslint-disable-next-line unused-imports/no-unused-vars
       for await (const _ of debounceWatch(
         tshDirectory,
         debounceMs,
         maxFileSystemEvents,
-        signal
+        signal,
+        createFsWatcher
       )) {
         const clusters = await tshClient.listRootClusters();
         const newClusters = new Map(clusters.map(c => [c.uri, c]));
@@ -84,10 +111,14 @@ export async function* watchProfiles({
 
         const changes = detectChanges(oldClusters, newClusters);
         if (changes.length > 0) {
+          logger.info('Detected profile changes', changes);
           yield changes;
+        } else {
+          logger.info('No profile changes detected');
         }
       }
     } catch (error) {
+      logger.warn('Debounced watch received an error', error);
       // Check if the error is caused by removing the watched directory.
       // Removing that directory emits different events, depending on a platform:
       // - On macOS/Linux, it emits a 'rename' event.
@@ -102,10 +133,13 @@ export async function* watchProfiles({
       ) {
         const ok = await pathExists(tshDirectory);
         if (!ok) {
+          logger.info('Watched directory was removed');
           yield clusterStore
             .getRootClusters()
             .map(cluster => ({ op: 'removed', cluster }));
+          logger.info('Waiting for watched directory to reappear');
           await waitForPath(tshDirectory, signal);
+          logger.info('Watched directory reappeared');
           continue;
         }
       }
@@ -181,16 +215,26 @@ async function* debounceWatch(
   path: string,
   debounceMs: number,
   maxFileSystemEvents: number,
-  abortSignal: AbortSignal | undefined
+  abortSignal: AbortSignal | undefined,
+  createFsWatcher: CreateFsWatcher
 ): AsyncGenerator<void> {
   let signal = Promise.withResolvers<void>();
   let closed = false;
   let eventsToDebounce = 0;
+  let uniqueFiles = new Set<string | null>();
   const scheduleYield = debounce(() => {
+    const toLog: { eventCount: number; files?: (string | null)[] } = {
+      eventCount: eventsToDebounce,
+    };
+    if (uniqueFiles.size > 0) {
+      toLog.files = Array.from(uniqueFiles.values());
+    }
+    logger.info('Received debounced file system events', toLog);
+    uniqueFiles.clear();
     eventsToDebounce = 0;
     signal.resolve();
   }, debounceMs);
-  const onEvent = () => {
+  const queueFileSystemEvent = () => {
     ++eventsToDebounce;
     if (eventsToDebounce > maxFileSystemEvents) {
       signal.reject(
@@ -201,11 +245,14 @@ async function* debounceWatch(
     scheduleYield();
   };
 
-  const watcher = watch(
+  const watcher = createFsWatcher({
     path,
-    { signal: abortSignal, recursive: true },
-    onEvent
-  );
+    signal: abortSignal,
+    onEvent: (event: WatchEventType, filename: string | null) => {
+      uniqueFiles.add(filename);
+      queueFileSystemEvent();
+    },
+  });
 
   const closeHandler = () => {
     closed = true;
@@ -217,7 +264,8 @@ async function* debounceWatch(
 
   // The watcher might be restarted if the path disappears and then reappears.
   // Begin by checking for any changes immediately.
-  onEvent();
+  logger.info('Scheduling initial profile scan');
+  queueFileSystemEvent();
 
   try {
     while (true) {

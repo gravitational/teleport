@@ -22,110 +22,91 @@
 package cgroup
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"golang.org/x/sys/unix"
 )
 
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
+// mountCgroup mounts the cgroup2 filesystem.
+func mountCgroup(s *Service) error {
+	// Make sure path to cgroup2 mount point exists.
+	err := os.MkdirAll(s.MountPath, fileMode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check if the Teleport root cgroup exists, if it does the cgroup filesystem
+	// is already mounted, return right away.
+	files, err := os.ReadDir(s.MountPath)
+	if err == nil && len(files) > 0 {
+		// Create cgroup that will hold Teleport sessions.
+		err = os.MkdirAll(s.teleportRoot, fileMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
+	// Mount the cgroup2 filesystem. Even if the cgroup filesystem is already
+	// mounted, it is safe to re-mount it at another location, both will have
+	// the exact same view of the hierarchy. From "man cgroups":
+	//
+	//   It is not possible to mount the same controller against multiple
+	//   cgroup hierarchies.  For example, it is not possible to mount both
+	//   the cpu and cpuacct controllers against one hierarchy, and to mount
+	//   the cpu controller alone against another hierarchy.  It is possible
+	//   to create multiple mount points with exactly the same set of
+	//   comounted controllers.  However, in this case all that results is
+	//   multiple mount points providing a view of the same hierarchy.
+	//
+	// The exact args to the mount syscall come strace of mount(8). From the
+	// docs: https://www.kernel.org/doc/Documentation/cgroup-v2.txt:
+	//
+	//    Unlike v1, cgroup v2 has only single hierarchy.  The cgroup v2
+	//    hierarchy can be mounted with the following mount command:
+	//
+	//       # mount -t cgroup2 none $MOUNT_POINT
+	//
+	// The output of the strace looks like the following:
+	//
+	//    mount("none", "/cgroup3", "cgroup2", MS_MGC_VAL, NULL) = 0
+	//
+	// Where MS_MGC_VAL can be dropped. From mount(2) because we only support
+	// kernels 4.18 and above for this feature.
+	//
+	//   The mountflags argument may have the magic number 0xC0ED (MS_MGC_VAL)
+	//   in the top 16 bits.  (All of the other flags discussed in DESCRIPTION
+	//   occupy the low order 16 bits of mountflags.)  Specifying MS_MGC_VAL
+	//   was required in kernel versions prior to 2.4, but since Linux 2.4 is
+	//   no longer required and is ignored if specified.
+	err = unix.Mount("none", s.MountPath, "cgroup2", 0, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.DebugContext(context.Background(), "Mounted cgroup filesystem.", "mount_path", s.MountPath)
+
+	// Create cgroup that will hold Teleport sessions.
+	err = os.MkdirAll(s.teleportRoot, fileMode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
-// TestRootCreate tests creating and removing cgroups as well as shutting down
-// the service and unmounting the cgroup hierarchy.
-func TestRootCreate(t *testing.T) {
-	// This test must be run as root. Only root can create cgroups.
-	if !isRoot() {
-		t.Skip("Tests for package cgroup can only be run as root.")
+// createCgroup will create a cgroup for a given session.
+func createCgroup(s *Service, sessionID string) error {
+	err := os.Mkdir(filepath.Join(s.teleportRoot, sessionID), fileMode)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	t.Parallel()
-
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir := t.TempDir()
-
-	// Start cgroup service.
-	service, err := New(&Config{
-		MountPath: dir,
-	})
-	require.NoError(t, err)
-
-	// Create fake session ID and cgroup.
-	sessionID := uuid.New().String()
-	err = service.Create(sessionID)
-	require.NoError(t, err)
-
-	// Make sure that it exists.
-	cgroupPath := filepath.Join(service.teleportRoot, sessionID)
-	require.DirExists(t, cgroupPath)
-
-	// Remove cgroup.
-	err = service.Remove(sessionID)
-	require.NoError(t, err)
-
-	// Make sure cgroup is gone.
-	require.NoDirExists(t, cgroupPath)
-
-	// Close the cgroup service, this should unmound the cgroup filesystem.
-	const skipUnmount = false
-	err = service.Close(skipUnmount)
-	require.NoError(t, err)
-
-	// Make sure the cgroup filesystem has been unmounted.
-	require.NoDirExists(t, service.teleportRoot)
-}
-
-// TestRootCreateCustomRootPath given a service configured with a custom root
-// path, cgroups must be placed on the correct path.
-func TestRootCreateCustomRootPath(t *testing.T) {
-	// This test must be run as root. Only root can create cgroups.
-	if !isRoot() {
-		t.Skip("Tests for package cgroup can only be run as root.")
-	}
-
-	t.Parallel()
-
-	for _, rootPath := range []string{
-		"custom",
-		"/custom",
-		"nested/custom",
-		"/deep/nested/custom",
-	} {
-		rootPath := rootPath
-		t.Run(rootPath, func(t *testing.T) {
-			t.Parallel()
-			dir := t.TempDir()
-			service, err := New(&Config{
-				MountPath: dir,
-				RootPath:  rootPath,
-			})
-			require.NoError(t, err)
-			defer service.Close(false)
-
-			sessionID := uuid.New().String()
-			err = service.Create(sessionID)
-			require.NoError(t, err)
-
-			cgroupPath := filepath.Join(service.teleportRoot, sessionID)
-			require.DirExists(t, cgroupPath)
-			require.Contains(t, cgroupPath, rootPath)
-
-			err = service.Remove(sessionID)
-			require.NoError(t, err)
-			require.NoDirExists(t, cgroupPath)
-
-			// Teardown
-			err = service.Close(false)
-			require.NoError(t, err)
-			require.NoDirExists(t, service.teleportRoot)
-		})
-	}
+	return nil
 }
 
 // TestRootCleanup tests the ability for Teleport to remove and cleanup all
@@ -146,12 +127,13 @@ func TestRootCleanup(t *testing.T) {
 		MountPath: dir,
 	})
 	require.NoError(t, err)
-	const skipUnmount = false
-	defer service.Close(skipUnmount)
+	defer service.Close(true)
+
+	require.NoError(t, mountCgroup(service))
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()
-	err = service.Create(sessionID)
+	err = createCgroup(service, sessionID)
 	require.NoError(t, err)
 
 	// Cleanup hierarchy to remove all cgroups.
@@ -161,12 +143,13 @@ func TestRootCleanup(t *testing.T) {
 	// Make sure the cgroup no longer exists.
 	cgroupPath := filepath.Join(service.teleportRoot, sessionID)
 	require.NoDirExists(t, cgroupPath)
+
+	require.NoError(t, service.unmount())
 }
 
-// TestRootSkipUnmount checks that closing the service with skipUnmount set to
-// true works correctly; i.e. it cleans up the cgroups we're responsible for but
-// doesn't unmount the cgroup2 file system.
-func TestRootSkipUnmount(t *testing.T) {
+// TestNoopCleanup tests that attempting to cleanup a hierarchy that does
+// not exist does not cause an error.
+func TestNoopCleanup(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		t.Skip("Tests for package cgroup can only be run as root.")
@@ -174,27 +157,18 @@ func TestRootSkipUnmount(t *testing.T) {
 
 	t.Parallel()
 
-	// Start a cgroup service with a temporary directory as the mount path.
+	// Start cgroup service.
 	service, err := New(&Config{
 		MountPath: t.TempDir(),
 	})
 	require.NoError(t, err)
+	defer service.Close(true)
 
-	sessionID := uuid.NewString()
-	sessionPath := filepath.Join(service.teleportRoot, sessionID)
-	require.NoError(t, service.Create(sessionID))
-
-	require.DirExists(t, sessionPath)
-
-	const skipUnmount = true
-	require.NoError(t, service.Close(skipUnmount))
-
-	require.DirExists(t, service.teleportRoot)
-	require.NoDirExists(t, filepath.Join(service.teleportRoot, sessionID))
+	// Cleanup hierarchy to remove all cgroups.
+	err = service.cleanupHierarchy()
+	require.NoError(t, err)
 
 	require.NoError(t, service.unmount())
-
-	require.NoDirExists(t, service.teleportRoot)
 }
 
 // isRoot returns a boolean if the test is being run as root or not. Tests

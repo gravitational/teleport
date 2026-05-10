@@ -229,6 +229,7 @@ Config to enable reconnect behavior:
         }
     }
 }
+```
 
 This configuration is then exposed by the service defined below for discovery.
 

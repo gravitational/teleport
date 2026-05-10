@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -79,7 +81,7 @@ type TestContext struct {
 	TLSServer          *authtest.TLSServer
 	AuthServer         *auth.Server
 	AuthClient         *authclient.Client
-	Authz              authz.Authorizer
+	ScopedAuthz        authz.ScopedAuthorizer
 	KubeServer         *TLSServer
 	KubeProxy          *TLSServer
 	Emitter            *eventstest.ChannelEmitter
@@ -103,6 +105,7 @@ type KubeClusterConfig struct {
 
 // TestConfig defines the suite options.
 type TestConfig struct {
+	Modules              *modulestest.Modules
 	Clusters             []KubeClusterConfig
 	ResourceMatchers     []services.ResourceMatcher
 	OnReconcile          func(types.KubeClusters)
@@ -143,6 +146,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		Streamer:      streamer,
 		UploadHandler: testCtx.UploadHandler,
 		Dir:           t.TempDir(),
+		Modules:       cmp.Or(cfg.Modules, modulestest.OSSModules()),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -195,10 +199,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
 	})
-	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: testCtx.ClusterName,
-		AccessPoint: proxyAuthClient,
-		LockWatcher: testCtx.lockWatcher,
+	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      testCtx.ClusterName,
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      testCtx.lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -279,7 +284,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -363,7 +368,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -555,9 +560,9 @@ func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
 type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
 
 // WithResourceAccessRequests adds resource access requests to the identity.
-func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+func WithResourceAccessRequests(r ...types.ResourceAccessID) GenTestKubeClientTLSCertOptions {
 	return func(identity *tlsca.Identity) {
-		identity.AllowedResourceIDs = r
+		identity.AllowedResourceAccessIDs = r
 	}
 }
 
@@ -587,7 +592,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 // GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
 func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.

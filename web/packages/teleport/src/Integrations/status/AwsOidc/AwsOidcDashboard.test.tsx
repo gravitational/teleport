@@ -26,6 +26,7 @@ import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 import { ContextProvider } from 'teleport/index';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
+import { Status } from 'teleport/Integrations/types';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationAwsOidc,
@@ -89,6 +90,15 @@ test('renders header and stats cards', async () => {
               ecsDatabaseServiceCount: 0, // irrelevant
               unresolvedUserTasks: 0,
             },
+            azurevm: {
+              rulesCount: 0,
+              resourcesFound: 0,
+              resourcesEnrollmentFailed: 0,
+              resourcesEnrollmentSuccess: 0,
+              discoverLastSync: 0,
+              ecsDatabaseServiceCount: 0,
+              unresolvedUserTasks: 0,
+            },
           }),
         }}
         path=""
@@ -100,7 +110,7 @@ test('renders header and stats cards', async () => {
     </ContextProvider>
   );
 
-  await screen.findByText('Running');
+  await screen.findByText(Status.Healthy);
   const breadcrumbs = screen.getByTestId('aws-oidc-header');
   expect(within(breadcrumbs).getByText('integration-one')).toBeInTheDocument();
 
@@ -109,11 +119,9 @@ test('renders header and stats cards', async () => {
     'href',
     '/web/integrations'
   );
-  expect(within(title).getByLabelText('status')).toHaveAttribute(
-    'kind',
-    'success'
+  expect(within(title).getByLabelText('status')).toHaveTextContent(
+    Status.Healthy
   );
-  expect(within(title).getByLabelText('status')).toHaveTextContent('Running');
   expect(within(title).getByText('integration-one')).toBeInTheDocument();
 
   const ec2 = screen.getByTestId('ec2-stats');
@@ -198,6 +206,7 @@ test('renders enroll cards', () => {
             awsec2: zeroCount,
             awsrds: zeroCount,
             awseks: zeroCount,
+            azurevm: zeroCount,
           }),
         }}
         path=""

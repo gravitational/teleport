@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"maps"
 	"testing"
 
@@ -144,4 +145,113 @@ func TestFormatLabels(t *testing.T) {
 			require.Equal(t, test.want, got)
 		})
 	}
+}
+
+func TestFormatResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+
+	const (
+		ARN1 = "arn:aws:iam::123456789012:role/Role1"
+		ARN2 = "arn:aws:iam::123456789012:role/Role2"
+	)
+
+	rids := []types.ResourceAccessID{
+		{
+			Id: types.ResourceID{
+				Kind:        types.KindApp,
+				Name:        "aws_console",
+				ClusterName: "cluster",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{ARN1, ARN2},
+					},
+				},
+			},
+		},
+		{
+			Id: types.ResourceID{
+				Kind:        types.KindNode,
+				Name:        "ssh_server",
+				ClusterName: "cluster",
+			},
+			Constraints: nil,
+		},
+	}
+
+	t.Run("with aws_console constraints", func(t *testing.T) {
+		t.Parallel()
+
+		out, err := FormatResourceAccessIDs(rids)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("[\"/cluster/app/aws_console (role_arns=%s,%s)\",\"/cluster/node/ssh_server\"]", ARN1, ARN2), out)
+	})
+
+	t.Run("with empty aws_console constraints", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[0].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{},
+					},
+				},
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/app/aws_console (role_arns=)\"]", out)
+	})
+
+	t.Run("with empty or nil list", func(t *testing.T) {
+		t.Parallel()
+
+		out, err := FormatResourceAccessIDs(nil)
+		require.NoError(t, err)
+		require.Empty(t, out)
+
+		out, err = FormatResourceAccessIDs([]types.ResourceAccessID{})
+		require.NoError(t, err)
+		require.Empty(t, out)
+	})
+
+	t.Run("with namespace resource with SubResourceName", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     "cluster",
+				Kind:            types.KindKubeNamespace,
+				Name:            "my-kube-cluster",
+				SubResourceName: "production",
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/namespace/my-kube-cluster/production\"]", out)
+	})
+
+	t.Run("with kube pod resource with SubResourceName", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     "cluster",
+				Kind:            types.AccessRequestPrefixKindKubeNamespaced + "pods",
+				Name:            "my-kube-cluster",
+				SubResourceName: "default/nginx",
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/kube:ns:pods/my-kube-cluster/default/nginx\"]", out)
+	})
 }

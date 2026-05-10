@@ -142,8 +142,24 @@ function Buttons(props: StoryProps) {
         <Server />
       </Box>
       <Box>
-        <Text>Database</Text>
-        <Database />
+        <Text>Database (no users, disabled)</Text>
+        <DatabaseNoUsers />
+      </Box>
+      <Box>
+        <Text>Database (known users, filter mode)</Text>
+        <DatabaseWithKnownUsers />
+      </Box>
+      <Box>
+        <Text>Database (wildcard, no known users)</Text>
+        <DatabaseWithWildcardNoUsers />
+      </Box>
+      <Box>
+        <Text>Database (wildcard + known users, input mode)</Text>
+        <DatabaseWithWildcardUsers />
+      </Box>
+      <Box>
+        <Text>Database (auto-user provisioning)</Text>
+        <DatabaseAutoUserProvisioning />
       </Box>
       <Box>
         <Text>Kube</Text>
@@ -180,7 +196,6 @@ function prepareAppContext(appContext: MockAppContext): void {
   appContext.clustersService.setState(d => {
     d.clusters.set(testCluster.uri, testCluster);
   });
-  appContext.resourcesService.getDbUsers = async () => ['postgres-user'];
 }
 
 function TcpApp() {
@@ -238,12 +253,14 @@ function AwsConsole() {
             display: 'foo',
             name: 'foo',
             accountId: '123456789012',
+            requiresRequest: false,
           },
           {
             arn: 'bar',
             display: 'bar',
             name: 'bar',
             accountId: '123456789012',
+            requiresRequest: false,
           },
         ],
         uri: `${testCluster.uri}/apps/bar`,
@@ -316,11 +333,59 @@ function Server() {
   );
 }
 
-function Database() {
+function DatabaseNoUsers() {
   return (
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
+        wildcardUserAllowed: false,
+      })}
+    />
+  );
+}
+
+function DatabaseWithKnownUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        databaseUsers: ['alice', 'bob', 'charlie'],
+        wildcardUserAllowed: false,
+      })}
+    />
+  );
+}
+
+function DatabaseWithWildcardNoUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        wildcardUserAllowed: true,
+      })}
+    />
+  );
+}
+
+function DatabaseWithWildcardUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        databaseUsers: ['alice', 'bob'],
+        wildcardUserAllowed: true,
+      })}
+    />
+  );
+}
+
+function DatabaseAutoUserProvisioning() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        autoUserProvisioning: { databaseRoles: ['reader', 'writer'] },
+        wildcardUserAllowed: false,
       })}
     />
   );

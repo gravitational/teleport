@@ -15,6 +15,8 @@
 package types
 
 import (
+	"cmp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,9 +26,10 @@ import (
 
 func TestOIDCValidate(t *testing.T) {
 	tests := []struct {
-		name         string
-		entra        *EntraIDGroupsProvider
-		errAssertion require.ErrorAssertionFunc
+		name          string
+		connectorName string
+		entra         *EntraIDGroupsProvider
+		errAssertion  require.ErrorAssertionFunc
 	}{
 		{
 			name: "invalid group type",
@@ -47,6 +50,11 @@ func TestOIDCValidate(t *testing.T) {
 			name:         "empty entra_id_groups_provider",
 			entra:        nil,
 			errAssertion: require.NoError,
+		},
+		{
+			name:          "name too long",
+			connectorName: strings.Repeat("abc", 300),
+			errAssertion:  require.Error,
 		},
 		{
 			name: "disabled state should not skip invalid configuration",
@@ -70,21 +78,24 @@ func TestOIDCValidate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			connector, err := NewOIDCConnector("test-connector", OIDCConnectorSpecV3{
-				ClientID:     "testid",
-				ClientSecret: "secret",
-				ClaimsToRoles: []ClaimMapping{
-					{
-						Claim: "groups",
-						Value: "*",
-						Roles: []string{"requester"},
+			connector, err := NewOIDCConnector(
+				cmp.Or(test.connectorName, "test-connector"),
+				OIDCConnectorSpecV3{
+					ClientID:     "testid",
+					ClientSecret: "secret",
+					ClaimsToRoles: []ClaimMapping{
+						{
+							Claim: "groups",
+							Value: "*",
+							Roles: []string{"requester"},
+						},
 					},
+					RedirectURLs: wrappers.Strings{
+						"https://example.com/proxy/oidc/callback",
+					},
+					EntraIdGroupsProvider: test.entra,
 				},
-				RedirectURLs: wrappers.Strings{
-					"https://example.com/proxy/oidc/callback",
-				},
-				EntraIdGroupsProvider: test.entra,
-			})
+			)
 			require.NoError(t, err)
 
 			test.errAssertion(t, connector.Validate())

@@ -58,6 +58,7 @@ type AlertCommand struct {
 
 	alertList   *kingpin.CmdClause
 	alertCreate *kingpin.CmdClause
+	alertDelete *kingpin.CmdClause
 
 	alertAck *kingpin.CmdClause
 
@@ -79,13 +80,16 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertList = alert.Command("list", "List cluster alerts.").Alias("ls")
 	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts.").Short('v').BoolVar(&c.verbose)
 	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
-	c.alertList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, formats...)
+	c.alertList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
 	c.alertCreate = alert.Command("create", "Create cluster alerts.")
 	c.alertCreate.Arg("message", "Alert body message.").Required().StringVar(&c.message)
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires (default 24h).").DurationVar(&c.ttl)
-	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high).").Default("low").EnumVar(&c.severity, "low", "medium", "high")
+	c.alertCreate.Flag("severity", "Severity of the alert.").Default("low").EnumVar(&c.severity, "low", "medium", "high")
 	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2.").StringVar(&c.labels)
+
+	c.alertDelete = alert.Command("delete", "Deletes a cluster alert.").Alias("rm")
+	c.alertDelete.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
 
 	c.alertAck = alert.Command("ack", "Acknowledge cluster alerts.")
 	// Be wary of making any of these flags required. Because `tctl alerts ack ls` is not an actual
@@ -95,7 +99,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertAck.Flag("clear", "Clear the acknowledgment for the cluster alert.").BoolVar(&c.clear)
 	c.alertAck.Flag("reason", "The reason for acknowledging the cluster alert.").StringVar(&c.reason)
 	c.alertAck.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
-	c.alertAck.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, formats...)
+	c.alertAck.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
 	// We add "ack ls" as a command so kingpin shows it in the help dialog - as there is a space, `tctl ack xyz` will always be
 	// handled by the ack command above
@@ -117,6 +121,8 @@ func (c *AlertCommand) TryRun(ctx context.Context, cmd string, clientFunc common
 		commandFunc = c.Create
 	case c.alertAck.FullCommand():
 		commandFunc = c.Ack
+	case c.alertDelete.FullCommand():
+		commandFunc = c.Delete
 	default:
 		return false, nil
 	}
@@ -324,4 +330,13 @@ func (c *AlertCommand) Create(ctx context.Context, client *authclient.Client) er
 	}
 
 	return trace.Wrap(client.UpsertClusterAlert(ctx, alert))
+}
+
+func (c *AlertCommand) Delete(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteClusterAlert(ctx, c.alertID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(c.stdout, "Successfully deleted alert %q.\n", c.alertID)
+	return nil
 }

@@ -56,6 +56,7 @@ export function DesktopSession() {
                 .replace(':clusterId', clusterId)
                 .replace(':desktopName', desktopName)
                 .replace(':username', username)
+                .replace(':version', 'teleport-tdpb-1.0')
             ),
             abortSignal
           ),
@@ -114,7 +115,7 @@ export function DesktopSession() {
           return (
             <DisconnectedState
               message={{
-                title: 'This session requires multi factor authentication',
+                title: 'This session requires multi-factor authentication',
                 details: mfa.attempt.statusText,
               }}
               desktopName={desktopName}

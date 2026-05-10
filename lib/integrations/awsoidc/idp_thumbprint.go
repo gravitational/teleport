@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
@@ -36,7 +35,7 @@ import (
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
 // Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
 // In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
-func ThumbprintIdP(ctx context.Context, publicAddress string) (string, error) {
+func ThumbprintIdP(ctx context.Context, publicAddress string, insecureMode bool) (string, error) {
 	issuer, err := oidc.IssuerFromPublicAddress(publicAddress, "")
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -54,7 +53,7 @@ func ThumbprintIdP(ctx context.Context, publicAddress string) (string, error) {
 
 	d := tls.Dialer{
 		Config: &tls.Config{
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
+			InsecureSkipVerify: insecureMode,
 		},
 	}
 	conn, err := d.DialContext(ctx, "tcp", addrURL.Host)

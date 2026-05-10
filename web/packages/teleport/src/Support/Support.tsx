@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Card, Flex, H2, H3, Text } from 'design';

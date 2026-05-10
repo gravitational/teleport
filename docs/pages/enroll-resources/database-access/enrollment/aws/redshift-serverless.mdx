@@ -11,11 +11,6 @@ tags:
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon Redshift Serverless" dbConfigure="with IAM authentication"!)
 
-This guide will help you to:
-
-- Set up Teleport to access your Amazon Redshift Serverless workgroups.
-- Connect to your databases through Teleport.
-
 ## How it works
 
 (!docs/pages/includes/database-access/how-it-works/iam.mdx db="Redshift Serverless" cloud="AWS"!)
@@ -227,6 +222,8 @@ Type "help" for help.
 dev=>
 ```
 
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="my-redshift" dbArgs="--db-user=teleport-redshift-serverless-access --db-name=dev"!)
+
 (!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
@@ -265,7 +262,5 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
 
 - Learn more about [using IAM authentication to generate database user
   credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
-- Learn how to [restrict access](../../rbac.mdx) to certain users and databases.
-- View the [High Availability (HA)](../../guides/ha.mdx) guide.
-- Take a look at the YAML configuration [reference](../../reference/configuration.mdx).
 
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)

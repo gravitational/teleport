@@ -18,12 +18,12 @@ import (
 	"archive/zip"
 	"embed"
 	"fmt"
-	"html/template"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )

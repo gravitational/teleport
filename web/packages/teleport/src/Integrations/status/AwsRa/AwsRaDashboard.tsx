@@ -17,11 +17,10 @@
  */
 
 import { useQueries } from '@tanstack/react-query';
-import { useHistory, useParams } from 'react-router';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink, useNavigate, useParams } from 'react-router';
 import { useTheme } from 'styled-components';
 
-import { ButtonIcon, Flex, Label, Link, MenuItem, Text } from 'design';
+import { ButtonIcon, Flex, Link, MenuItem, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import * as Icons from 'design/Icon';
 import { ArrowLeft } from 'design/Icon';
@@ -33,12 +32,12 @@ import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import { Guide } from 'teleport/Integrations/Enroll/AwsConsole/Guide';
-import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import {
   IntegrationOperations,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations';
 import type { EditableIntegrationFields } from 'teleport/Integrations/Operations/useIntegrationOperation';
+import { StatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { ConsoleCardEnrolled } from 'teleport/Integrations/status/AwsOidc/Cards/ConsoleCard';
 import {
@@ -115,9 +114,8 @@ export function AwsRaDashboard() {
 
 function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   const theme = useTheme();
-  const history = useHistory();
+  const navigate = useNavigate();
   const integrationOps = useIntegrationOperation();
-  const { status, labelKind } = getStatusAndLabel(integration);
 
   const anchorIdReg = new RegExp('[^\\/]+$');
   const trustAnchorId = integration?.spec?.trustAnchorARN?.match(anchorIdReg);
@@ -125,7 +123,7 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   async function removeIntegration() {
     await integrationOps.remove();
     integrationOps.clear();
-    history.push(cfg.routes.integrations);
+    navigate(cfg.routes.integrations);
   }
 
   async function editIntegration(req: EditableIntegrationFields) {
@@ -150,9 +148,7 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
             <Text bold fontSize={6}>
               {integration.name}
             </Text>
-            <Label kind={labelKind} aria-label="status" px={3}>
-              {status}
-            </Label>
+            <StatusLabel integration={integration} />
           </Flex>
           <Flex gap={1}>
             Trust Anchor ARN:{' '}
@@ -185,14 +181,17 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
         <MenuButton icon={<Icons.Cog size="small" />}>
           <MenuItem
             onClick={() =>
-              history.push(
+              navigate(
                 cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
                 {
-                  integrationName: integration.name,
-                  trustAnchorArn: integration.spec.trustAnchorARN,
-                  syncProfileArn: integration.spec.profileSyncConfig.profileArn,
-                  syncRoleArn: integration.spec.profileSyncConfig.roleArn,
-                  edit: true,
+                  state: {
+                    integrationName: integration.name,
+                    trustAnchorArn: integration.spec.trustAnchorARN,
+                    syncProfileArn:
+                      integration.spec.profileSyncConfig.profileArn,
+                    syncRoleArn: integration.spec.profileSyncConfig.roleArn,
+                    edit: true,
+                  },
                 }
               )
             }

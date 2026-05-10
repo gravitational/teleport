@@ -45,19 +45,6 @@ func NewKeygen(buildType string, now func() time.Time) (*Keygen, error) {
 	return &Keygen{Keygen: inner}, nil
 }
 
-// New creates a new key generator with defaults
-// Deprecated: Use NewKeygen instead.
-//
-// TODO(tross): Remove when all callers are converted to NewKeyGen
-func New() *Keygen {
-	kg, err := NewKeygen(modules.GetModules().BuildType(), time.Now)
-	if err != nil {
-		panic(err)
-	}
-
-	return kg
-}
-
 // GenerateKeyPair returns a new private key in PEM format and an ssh
 // public key in authorized_key format.
 func GenerateKeyPair() (priv, pub []byte, err error) {

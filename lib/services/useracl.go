@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type ResourceAccess struct {
@@ -128,6 +130,22 @@ type UserACL struct {
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 	// ClientIPRestriction defines access to Cloud IP Restrictions
 	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
+	// InferenceModel defines access to session summaries inference model.
+	InferenceModel ResourceAccess `json:"inferenceModel"`
+	// InferencePolicy defines access to session summaries inference policy.
+	InferencePolicy ResourceAccess `json:"inferencePolicy"`
+	// InferenceSecret defines access to session summaries inference secret.
+	InferenceSecret ResourceAccess `json:"inferenceSecret"`
+	// AutoUpdateConfig defines access to autoupdate config.
+	AutoUpdateConfig ResourceAccess `json:"autoUpdateConfig"`
+	// AutoUpdateVersion defines access to autoupdate version.
+	AutoUpdateVersion ResourceAccess `json:"autoUpdateVersion"`
+	// AutoUpdateAgentRollout defines access to autoupdate agent rollout.
+	AutoUpdateAgentRollout ResourceAccess `json:"autoUpdateAgentRollout"`
+	// AutoUpdateAgentReport defines access to autoupdate agent reports.
+	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
+	// Beam defines access to Beams
+	Beam ResourceAccess `json:"beam"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -240,6 +258,17 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
 	}
 
+	autoUpdateConfig := newAccess(userRoles, ctx, types.KindAutoUpdateConfig)
+	autoUpdateVersion := newAccess(userRoles, ctx, types.KindAutoUpdateVersion)
+	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
+	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
+
+	beamsEntitlement := modules.GetProtoEntitlement(&features, entitlements.Beams)
+	var beam ResourceAccess
+	if beamsEntitlement.Enabled {
+		beam = newAccess(userRoles, ctx, types.KindBeam)
+	}
+
 	return UserACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
@@ -287,5 +316,13 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		GitServers:              gitServersAccess,
 		WorkloadIdentity:        workloadIdentity,
 		ClientIPRestriction:     clientIPRestrictions,
+		InferenceModel:          newAccess(userRoles, ctx, types.KindInferenceModel),
+		InferencePolicy:         newAccess(userRoles, ctx, types.KindInferencePolicy),
+		InferenceSecret:         newAccess(userRoles, ctx, types.KindInferenceSecret),
+		AutoUpdateConfig:        autoUpdateConfig,
+		AutoUpdateVersion:       autoUpdateVersion,
+		AutoUpdateAgentRollout:  autoUpdateAgentRollout,
+		AutoUpdateAgentReport:   autoUpdateAgentReport,
+		Beam:                    beam,
 	}
 }

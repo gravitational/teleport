@@ -80,15 +80,16 @@ type Modules struct {
 	TestBuildType string
 	// TestFeatures is returned from the Features function.
 	TestFeatures modules.Features
-	// FIPS is returned from the IsBoringBinary function.
+	// FIPS is returned from the IsFIPSBuild function.
 	FIPS bool
 	// MockAttestationData is fake attestation data to return
 	// during tests when hardware key support is enabled. This
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn  func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateLongTermResourceGroupingFn func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
+	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) ([]string, error)
+	GenerateLongTermResourceGroupingFn        func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -137,13 +138,21 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
+// GenerateAccessRequestSuggestedReviewers implements modules.Modules.
+func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) ([]string, error) {
+	if m.GenerateAccessRequestSuggestedReviewersFn != nil {
+		return m.GenerateAccessRequestSuggestedReviewersFn(ctx, getter, request)
+	}
+	return []string{}, nil
+}
+
 // GetSuggestedAccessLists implements modules.Modules.
 func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient, accessListGetter modules.AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 
-// IsBoringBinary implements modules.Modules.
-func (m *Modules) IsBoringBinary() bool {
+// IsFIPSBuild implements modules.Modules.
+func (m *Modules) IsFIPSBuild() bool {
 	return m.FIPS
 }
 

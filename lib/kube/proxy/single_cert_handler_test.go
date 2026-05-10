@@ -155,7 +155,7 @@ func TestSingleCertRouting(t *testing.T) {
 			assert: func(t *testing.T, restConfig *rest.Config) {
 				client := pathRoutedKubeClient(t, restConfig, clusterName, "a")
 				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
-				require.ErrorContains(t, err, "kubernetes cluster \"a\" not found")
+				require.ErrorContains(t, err, "[00] access denied")
 			},
 		},
 		{

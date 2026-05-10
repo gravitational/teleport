@@ -35,9 +35,12 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -169,6 +172,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindUser, nil
 	case types.KindCertAuthority, "cert_authorities", "cas":
 		return types.KindCertAuthority, nil
+	case types.KindCertAuthorityOverride, "cert_authority_overrides", "ca_override", "ca_overrides":
+		return types.KindCertAuthorityOverride, nil
 	case types.KindReverseTunnel, "reverse_tunnels", "rts":
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
@@ -291,7 +296,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindHealthCheckConfig, nil
 	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
 		return scopedaccess.KindScopedRole, nil
-	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments":
+	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments", "sra":
 		return scopedaccess.KindScopedRoleAssignment, nil
 	case types.KindInferenceModel, "inference_models":
 		return types.KindInferenceModel, nil
@@ -299,10 +304,16 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferenceSecret, nil
 	case types.KindInferencePolicy, "inference_policies":
 		return types.KindInferencePolicy, nil
+	case types.KindRetrievalModel:
+		return types.KindRetrievalModel, nil
 	case types.KindRelayServer, types.KindRelayServer + "s":
 		return types.KindRelayServer, nil
 	case types.KindAppAuthConfig, types.KindAppAuthConfig + "s", "aac":
 		return types.KindAppAuthConfig, nil
+	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
+		return types.KindWorkloadCluster, nil
+	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
+		return scopedaccess.KindScopedToken, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -805,6 +816,51 @@ func init() {
 		}
 		return types.Resource153ToLegacy(cfg), nil
 	})
+	RegisterResourceUnmarshaler(types.KindWorkloadIdentity, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
+		wid := &workloadidentityv1.WorkloadIdentity{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, wid); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(wid), nil
+	})
+
+	// Gate these behind the feature flag, as they have an effect on user-visible product surface
+	// (ie, "tctl get all").
+	if subca.Enabled() {
+		initSubCA()
+	}
+}
+
+func initSubCA() {
+	// TODO(codingllama): Remove this method and inline calls on init() once the
+	//  feature flag is no more.
+
+	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
+		if !ok {
+			return nil, trace.BadParameter("expected wrapped CertAuthorityOverride resource, got %T", resource)
+		}
+		caOverride := unwrapper.UnwrapT()
+		if caOverride == nil {
+			return nil, trace.BadParameter("nil CertAuthorityOverride resource")
+		}
+		bytes, err := MarshalCertAuthorityOverride(caOverride, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindCertAuthorityOverride, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		caOverride, err := UnmarshalCertAuthorityOverride(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(caOverride), nil
+	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -1053,17 +1109,4 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return resource, nil
-}
-
-// convertResource is a generic helper func that converts a [types.Resource] by
-// direct type assertion or assertion to an [types.Resource153UnwrapperT].
-func convertResource[T any](resource types.Resource) (T, error) {
-	switch resource := resource.(type) {
-	case T:
-		return resource, nil
-	case interface{ UnwrapT() T }:
-		return resource.UnwrapT(), nil
-	}
-	var zero T
-	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }

@@ -136,8 +136,15 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state }) =>
-      `Access request [${id}] has been created and is ${state}`,
+    format: ({ id, state, RequestedResourceAccessIDs }) => {
+      if (RequestedResourceAccessIDs?.length) {
+        const resources = RequestedResourceAccessIDs.map(
+          r => `${r.id.kind}/${r.id.name}`
+        ).join(', ');
+        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
+      }
+      return `Access request [${id}] has been created and is ${state}`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
@@ -611,6 +618,14 @@ export const formatters: Formatters = {
         return `User [${user}] has connected to AWS console [${app_name}]`;
       }
       return `User [${user}] has connected to application [${app_name}]`;
+    },
+  },
+  [eventCodes.APP_SESSION_START_FAILURE]: {
+    type: 'app.session.start',
+    desc: 'App Session Start Failed',
+    format: event => {
+      const { user, app_name, message } = event;
+      return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
     },
   },
   [eventCodes.APP_SESSION_END]: {
@@ -1211,7 +1226,7 @@ export const formatters: Formatters = {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
     format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
-      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
+      let message = `User [${user}] started session [${sid}] on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` with domain [${windows_domain}]`;
       }
@@ -1237,7 +1252,7 @@ export const formatters: Formatters = {
       if (windows_domain) {
         desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session [${sid}] for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
@@ -1442,6 +1457,13 @@ export const formatters: Formatters = {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
     },
   },
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: {
+    type: 'environmentprofile.update',
+    desc: 'Environment Profile Updated',
+    format: ({ user, environment_profile }) => {
+      return `Environment profile updated to [${environment_profile}] by user [${user}]`;
+    },
+  },
   [eventCodes.SESSION_RECORDING_ACCESS]: {
     type: 'session.recording.access',
     desc: 'Session Recording Accessed',
@@ -1461,6 +1483,20 @@ export const formatters: Formatters = {
     desc: 'SSM Command Execution Failed',
     format: ({ account_id, instance_id, region, command_id }) => {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
+    },
+  },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
     },
   },
   [eventCodes.BOT_JOIN]: {
@@ -1760,7 +1796,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return `User [${updated_by}] failed to to review access list [${access_list_title || name}]`;
+      return `User [${updated_by}] failed to review access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
@@ -1901,6 +1937,11 @@ export const formatters: Formatters = {
       affected_resource_source,
     }) =>
       `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
+  },
+  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: {
+    type: 'access_graph_settings.update',
+    desc: 'Access Graph Settings Updated',
+    format: ({ user }) => `User [${user}] updated the access graph settings`,
   },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
@@ -2477,6 +2518,162 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Created',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was created by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Create Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] create failed by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Updated',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Update Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] update failed by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Deleted',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Delete Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] delete failed by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_CREATE]: {
+    type: 'inference_model.create',
+    desc: 'Inference Model Created',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_UPDATE]: {
+    type: 'inference_model.update',
+    desc: 'Inference Model Updated',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_DELETE]: {
+    type: 'inference_model.delete',
+    desc: 'Inference Model Deleted',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_CREATE]: {
+    type: 'inference_secret.create',
+    desc: 'Inference Secret Created',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_UPDATE]: {
+    type: 'inference_secret.update',
+    desc: 'Inference Secret Updated',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_DELETE]: {
+    type: 'inference_secret.delete',
+    desc: 'Inference Secret Deleted',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_CREATE]: {
+    type: 'inference_policy.create',
+    desc: 'Inference Policy Created',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_UPDATE]: {
+    type: 'inference_policy.update',
+    desc: 'Inference Policy Updated',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_DELETE]: {
+    type: 'inference_policy.delete',
+    desc: 'Inference Policy Deleted',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: {
+    type: 'retrieval_model.create',
+    desc: 'Retrieval Model Created',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: {
+    type: 'retrieval_model.update',
+    desc: 'Retrieval Model Updated',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: {
+    type: 'retrieval_model.delete',
+    desc: 'Retrieval Model Deleted',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.SESSION_SUMMARIZED]: {
+    type: 'session.summarized',
+    desc: 'Session Summarized',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] was summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: {
+    type: 'session.summarized',
+    desc: 'Session Summarization Failed',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: {
+    type: 'cert_auth_override.create',
+    desc: 'Certificate Authority Override Created',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] created a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to create a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: {
+    type: 'cert_auth_override.update',
+    desc: 'Certificate Authority Override Updated',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] updated a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to update a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: {
+    type: 'cert_auth_override.upsert',
+    desc: 'Certificate Authority Override Upserted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] upserted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to upsert a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: {
+    type: 'cert_auth_override.delete',
+    desc: 'Certificate Authority Override Deleted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] deleted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
+    },
+  },
 };
 
 const unknownFormatter = {
@@ -2484,9 +2681,35 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
+// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
+const mfaFlowTypeLabels: Record<number, string> = {
+  0: 'UNSPECIFIED',
+  1: 'PER_SESSION_CERTIFICATE',
+  2: 'IN_BAND',
+};
+
+// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
+function formatRawEventForUI(json: any): any {
+  // For MFA events, convert the flow_type from a number to a human readable string.
+  if (
+    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
+    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
+  ) {
+    return {
+      ...json,
+      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
+    };
+  }
+
+  return json;
+}
+
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
+
+  const raw = formatRawEventForUI(json);
+
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2497,7 +2720,7 @@ export default function makeEvent(json: any): Event {
     code: json.code,
     user: json.user,
     time: new Date(json.time),
-    raw: json,
+    raw: raw,
   };
 }
 

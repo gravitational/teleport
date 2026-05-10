@@ -17,7 +17,6 @@
  */
 
 import 'whatwg-fetch';
-
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 

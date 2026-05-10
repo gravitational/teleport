@@ -116,6 +116,14 @@ export interface Acl {
   instances: Access;
   workloadIdentity: Access;
   clientIpRestriction: Access;
+  autoUpdateConfig: Access;
+  autoUpdateVersion: Access;
+  autoUpdateAgentRollout: Access;
+  autoUpdateAgentReport: Access;
+  inferencePolicy: Access;
+  inferenceModel: Access;
+  inferenceSecret: Access;
+  beam: Access;
 }
 
 // AllTraits represent all the traits defined for a user.

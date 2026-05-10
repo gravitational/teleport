@@ -49,14 +49,6 @@ export interface AuthSettings {
      */
     authProviders: AuthProvider[];
     /**
-     * has_message_of_the_day is a flag indicating that the cluster has MOTD
-     * banner text that must be retrieved, displayed and acknowledged by
-     * the user.
-     *
-     * @generated from protobuf field: bool has_message_of_the_day = 5;
-     */
-    hasMessageOfTheDay: boolean;
-    /**
      * auth_type is the authentication type e.g. "local", "github", "saml", "oidc"
      *
      * @generated from protobuf field: string auth_type = 6;
@@ -85,6 +77,12 @@ export interface AuthSettings {
      * @generated from protobuf field: teleport.lib.teleterm.v1.Versions versions = 10;
      */
     versions?: Versions;
+    /**
+     * message_of_the_day is a message shown before login that the user must acknowledge.
+     *
+     * @generated from protobuf field: string message_of_the_day = 11;
+     */
+    messageOfTheDay: string;
 }
 /**
  * AuthProvider describes a way of authentication that is supported by the server. Auth provider is
@@ -178,23 +176,23 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         super("teleport.lib.teleterm.v1.AuthSettings", [
             { no: 1, name: "local_auth_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "auth_providers", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AuthProvider },
-            { no: 5, name: "has_message_of_the_day", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "allow_passwordless", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 8, name: "local_connector_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 9, name: "client_version_status", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ClientVersionStatus", ClientVersionStatus, "CLIENT_VERSION_STATUS_"] },
-            { no: 10, name: "versions", kind: "message", T: () => Versions }
+            { no: 10, name: "versions", kind: "message", T: () => Versions },
+            { no: 11, name: "message_of_the_day", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AuthSettings>): AuthSettings {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.localAuthEnabled = false;
         message.authProviders = [];
-        message.hasMessageOfTheDay = false;
         message.authType = "";
         message.allowPasswordless = false;
         message.localConnectorName = "";
         message.clientVersionStatus = 0;
+        message.messageOfTheDay = "";
         if (value !== undefined)
             reflectionMergePartial<AuthSettings>(this, message, value);
         return message;
@@ -210,9 +208,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
                 case /* repeated teleport.lib.teleterm.v1.AuthProvider auth_providers */ 4:
                     message.authProviders.push(AuthProvider.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* bool has_message_of_the_day */ 5:
-                    message.hasMessageOfTheDay = reader.bool();
-                    break;
                 case /* string auth_type */ 6:
                     message.authType = reader.string();
                     break;
@@ -227,6 +222,9 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
                     break;
                 case /* teleport.lib.teleterm.v1.Versions versions */ 10:
                     message.versions = Versions.internalBinaryRead(reader, reader.uint32(), options, message.versions);
+                    break;
+                case /* string message_of_the_day */ 11:
+                    message.messageOfTheDay = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -246,9 +244,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         /* repeated teleport.lib.teleterm.v1.AuthProvider auth_providers = 4; */
         for (let i = 0; i < message.authProviders.length; i++)
             AuthProvider.internalBinaryWrite(message.authProviders[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* bool has_message_of_the_day = 5; */
-        if (message.hasMessageOfTheDay !== false)
-            writer.tag(5, WireType.Varint).bool(message.hasMessageOfTheDay);
         /* string auth_type = 6; */
         if (message.authType !== "")
             writer.tag(6, WireType.LengthDelimited).string(message.authType);
@@ -264,6 +259,9 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         /* teleport.lib.teleterm.v1.Versions versions = 10; */
         if (message.versions)
             Versions.internalBinaryWrite(message.versions, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* string message_of_the_day = 11; */
+        if (message.messageOfTheDay !== "")
+            writer.tag(11, WireType.LengthDelimited).string(message.messageOfTheDay);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

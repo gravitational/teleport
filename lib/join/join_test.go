@@ -18,6 +18,7 @@ package join_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"slices"
 	"testing"
@@ -378,6 +379,98 @@ func TestJoinToken(t *testing.T) {
 		)
 		require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
 	})
+
+	for i, tc := range []struct {
+		name string
+		// updateTokenFunc modifies the token after the initial join.
+		updateTokenFunc func(token *joiningv1.ScopedToken)
+		// assertRejoinExpectation is used at the end to assert whether rejoining has failed or not
+		assertRejoinExpectation func(t *testing.T, identity *state.Identity, err error)
+	}{
+		{
+			name: "join after upsert modifies assigned scope",
+			updateTokenFunc: func(token *joiningv1.ScopedToken) {
+				token.Spec.AssignedScope = "/aa/cc"
+			},
+			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
+				require.Error(t, err)
+			},
+		},
+		{
+			name: "join after upsert preserves assigned scope",
+			updateTokenFunc: func(token *joiningv1.ScopedToken) {
+				token.Metadata.Labels = map[string]string{"env": "updated"}
+			},
+			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
+				require.NoError(t, err)
+				require.Equal(t, "/aa/bb", identity.AgentScope)
+				require.Equal(t, identity.ID.HostUUID, identity.ID.HostUUID)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			token := &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Scope:   "/aa",
+				Metadata: &headerv1.Metadata{
+					Name: fmt.Sprintf("upsertcheck%d", i),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+				Status: &joiningv1.ScopedTokenStatus{
+					Secret: "somesecret",
+				},
+			}
+			_, err := authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: token,
+			})
+			require.NoError(t, err)
+
+			// Join with the original assigned scope.
+			identity, err := joinViaProxyWithSecret(
+				t.Context(),
+				token.GetMetadata().GetName(),
+				token.GetStatus().GetSecret(),
+				proxyListener.Addr(),
+			)
+			require.NoError(t, err)
+			require.Equal(t, "/aa/bb", identity.AgentScope)
+
+			// Change and upsert token
+			fetchedRes, err := authService.Auth().GetScopedToken(t.Context(), &joiningv1.GetScopedTokenRequest{
+				Name:       token.GetMetadata().GetName(),
+				WithSecret: true,
+			})
+			require.NoError(t, err)
+			updatedToken := proto.CloneOf(fetchedRes.GetToken())
+			tc.updateTokenFunc(updatedToken)
+
+			_, err = authService.Auth().UpsertScopedToken(t.Context(), &joiningv1.UpsertScopedTokenRequest{
+				Token: updatedToken,
+			})
+			require.NoError(t, err)
+
+			// Attempt to rejoin using the identity from the first join.
+			tlsConfig, err := identity.TLSConfig(nil)
+			require.NoError(t, err)
+			authClient, err := authService.TLS.NewClientWithCert(tlsConfig.Certificates[0])
+			require.NoError(t, err)
+
+			newIdentity, err := rejoinViaAuthClientWithSecret(
+				t.Context(),
+				token.GetMetadata().GetName(),
+				token.GetStatus().GetSecret(),
+				authClient,
+			)
+			tc.assertRejoinExpectation(t, newIdentity, err)
+		})
+	}
 }
 
 // TestJoinError asserts that attempts to join with an invalid token return an
@@ -435,7 +528,7 @@ func TestJoinError(t *testing.T) {
 		{
 			desc: "auth direct",
 			joinParams: joinclient.JoinParams{
-				AuthServers: []utils.NetAddr{utils.FromAddr(authService.TLS.Listener.Addr())},
+				AuthServers: []utils.NetAddr{utils.FromAddr(authService.TLS.Addr())},
 			},
 			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				// Should get AccessDenied and should not fall back to joining
@@ -587,7 +680,7 @@ func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
 
 	grpcCreds := credentials.NewTLS(tlsConfig)
 
-	authenticatedAuthClientConn, err := grpc.NewClient(p.auth.TLS.Listener.Addr().String(),
+	authenticatedAuthClientConn, err := grpc.NewClient(p.auth.TLS.Addr().String(),
 		grpc.WithTransportCredentials(grpcCreds),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)

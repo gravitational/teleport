@@ -130,7 +130,7 @@ func TestGetKubeCreds(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")

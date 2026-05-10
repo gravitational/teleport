@@ -32,7 +32,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
 
-import { SortOrder } from '../Controls/SortMenuV2';
+import { SortOrder } from '../Controls/SortMenu';
 
 // "mixed" indicates the resource has a mix of health
 // statuses. This can happen when multiple agents proxy the same resource.
@@ -113,6 +113,7 @@ export interface UnifiedResourceNode {
   tunnel: boolean;
   subKind: NodeSubKind;
   requiresRequest?: boolean;
+  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export interface UnifiedResourceKube {
@@ -124,7 +125,7 @@ export interface UnifiedResourceKube {
 }
 
 export type UnifiedResourceDesktop = {
-  kind: 'windows_desktop';
+  kind: 'windows_desktop' | 'linux_desktop';
   os: 'windows' | 'linux' | 'darwin';
   name: string;
   addr: string;

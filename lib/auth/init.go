@@ -45,14 +45,15 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
@@ -102,6 +104,9 @@ type RecordingEncryptionManager interface {
 
 // InitConfig is auth server init config
 type InitConfig struct {
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
+
 	// Backend is auth backend to use
 	Backend backend.Backend
 
@@ -163,13 +168,13 @@ type InitConfig struct {
 	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is service controlling access to resources
-	Access services.Access
+	Access services.AccessInternal
 
 	// DynamicAccessExt is a service that manages dynamic RBAC.
 	DynamicAccessExt services.DynamicAccessExt
@@ -187,7 +192,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Applications
+	Apps services.ApplicationsInternal
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -195,8 +200,11 @@ type InitConfig struct {
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
 
+	// DelegationSessions is a service that manages delegation sessions.
+	DelegationSessions services.DelegationSessions
+
 	// Status is a service that manages cluster status info.
-	Status services.StatusInternal
+	Status services.Status
 
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
@@ -207,6 +215,10 @@ type InitConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticTokens are pre-defined, scoped host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor passed in from a configuration file.
@@ -241,8 +253,11 @@ type InitConfig struct {
 	// WindowsDesktops is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
-	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
+	// DynamicWindowsDesktops is a service that manages dynamic Windows desktop resources.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+
+	// LinuxDesktops is a service that manages Linux desktop resources.
+	LinuxDesktops services.LinuxDesktops
 
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
@@ -433,6 +448,33 @@ type InitConfig struct {
 
 	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
+
+	// WorkloadClusterService is the service that manages WorkloadClusters.
+	WorkloadClusterService services.WorkloadClusterService
+
+	// Beams is the service for reading and writing beams.
+	Beams services.Beams
+
+	// SubCAService manages CertAuthorityOverride resources.
+	SubCAService services.SubCAService
+
+	// FakePasswordHash is the password hash given to all users without a password.
+	// This helps eliminate timing attacks by ensuring that all authentication attempts
+	// with a password do a bcrypt comparison.
+	FakePasswordHash []byte
+	// FakeRecoveryCodeHash is the recovery code hash given to all users without codes.
+	// This helps eliminate timing attacks by ensuring that all recovery attempts
+	// with codes do a bcrypt comparison.
+	FakeRecoveryCodeHash []byte
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
+
+	// RemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	RemoteClusterRefreshLimit int
+	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
+	RemoteClusterRefreshBuckets int
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -447,10 +489,31 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
+	// TODO(tross): return an error once modules are injected everywhere.
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
+	}
+
 	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Initialize the unified resource cache before running period checks that rely on it.
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Logger:       cfg.Logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
+			Client:       asrv.Cache,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: asrv,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	asrv.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	domainName := cfg.ClusterName.GetClusterName()
 	if err := backend.RunWhileLocked(ctx,
@@ -496,7 +559,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.BootstrapResources) > 0 {
 		if firstStart {
 			asrv.logger.InfoContext(ctx, "Applying bootstrap resources (first initialization)", "resource_count", len(cfg.BootstrapResources))
-			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
+			if err := checkResourceConsistency(ctx, cfg.Modules, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
@@ -511,7 +574,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.ApplyOnStartupResources) > 0 {
 		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
-		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features()); err != nil {
 			return trace.Wrap(err, "applying resources failed")
 		}
 	}
@@ -602,6 +665,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		defer span.End()
+		if cfg.StaticScopedTokens != nil {
+			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
+		}
+		return nil
+	})
+
 	var cn types.ClusterName
 	g.Go(func() error {
 		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
@@ -674,7 +746,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if lib.IsInsecureDevMode() {
+	if cfg.InsecureMode {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
@@ -695,15 +767,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	span.AddEvent("completed checking certificate authority cluster names")
 
 	// Create presets - convenience and example resources.
-	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+	if !services.IsDashboard(*cfg.Modules.Features().ToProto()) {
 		span.AddEvent("creating preset roles")
-		if err := createPresetRoles(ctx, modules.GetModules().BuildType(), asrv); err != nil {
+		if err := createPresetRoles(ctx, asrv.modules.BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
-		if err := createPresetUsers(ctx, modules.GetModules().BuildType(), asrv); err != nil {
+		if err := createPresetUsers(ctx, asrv.modules.BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
@@ -735,7 +807,7 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	)
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	g, gctx := errgroup.WithContext(ctx)
-	for _, caType := range types.CertAuthTypesExtended {
+	for _, caType := range types.CertAuthTypes {
 		g.Go(func() error {
 			tctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
 			defer span.End()
@@ -1098,7 +1170,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 				FIPS:          asrv.fips,
 				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-				Cloud:         modules.GetModules().Features().Cloud,
+				Cloud:         asrv.modules.Features().Cloud,
 			})
 		case newAuthPref.Origin() == types.OriginDefaults:
 			// There is a stored auth preference which we are overwriting with a
@@ -1340,18 +1412,7 @@ type PresetRoleManager interface {
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
-func GetPresetRoles(buildTypes ...string) []types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func GetPresetRoles(buildType string) []types.Role {
 	presets := []types.Role{
 		services.NewPresetGroupAccessRole(buildType),
 		services.NewPresetEditorRole(),
@@ -1490,26 +1551,8 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	if err != nil {
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
+	// If there are existing rules, don't create a preset.
 	if len(importRules) > 0 {
-		// If the single rule is the old preset, we assume the user hasn't used
-		// DB DAC feature yet since the old preset alone is usually not enough
-		// to make things work. Replace it with the new preset.
-		//
-		// Creating and updating the database object import rule is handled on
-		// a best-effort basis, so it’s not included in backend migrations.
-		//
-		// TODO(greedy52) DELETE in 18.0
-		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
-			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
-			if rule == nil {
-				return nil
-			}
-
-			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
-			if err != nil {
-				return trace.Wrap(err, "failed to update the default database object import rule")
-			}
-		}
 		return nil
 	}
 
@@ -1547,7 +1590,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -1559,11 +1602,22 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA, types.OpenSSHCA:
+			case types.HostCA,
+				types.UserCA,
+				types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+			case types.DatabaseCA,
+				types.DatabaseClientCA,
+				types.SAMLIDPCA,
+				types.SPIFFECA,
+				types.AWSRACA,
+				types.WindowsCA,
+				types.AppClientCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
+			case types.JWTSigner,
+				types.OIDCIdPCA,
+				types.OktaCA,
+				types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1592,7 +1646,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			}
 		case types.Role:
 			// Some options are only available with enterprise subscription
-			if err := checkRoleFeatureSupport(r); err != nil {
+			if err := checkRoleFeatureSupport(mod, r); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -1619,8 +1673,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := a.GenerateHostCerts(context.Background(), HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
 			Role:                 id.Role,
@@ -1628,7 +1682,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1733,21 +1788,28 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:                    1,
-	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindRole:            1,
+	types.KindInferenceSecret: 1,
+
+	types.KindUser:           2, // Users must be applied after Roles
+	types.KindInferenceModel: 2,
+
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
+	types.KindWorkloadIdentity:        3,
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
-	types.KindBot: 3,
+	types.KindBot:             3,
+	types.KindInferencePolicy: 3,
+	types.KindRetrievalModel:  3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
 // This means consistency is checked. This function support applying resources
 // with dependencies (like a user referring to a role).
-func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
+func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
@@ -1766,15 +1828,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
-			err = service.Provisioner.UpsertToken(ctx, r)
+			err = service.UpsertToken(ctx, r)
 		case types.User:
-			err = services.ValidateUserRoles(ctx, r, service.Access)
+			err = services.ValidateUserRoles(ctx, r, service)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			_, err = service.Identity.UpsertUser(ctx, r)
+			_, err = service.UpsertUser(ctx, r)
 		case types.Role:
-			_, err = service.Access.UpsertRole(ctx, r)
+			_, err = service.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
@@ -1782,11 +1844,19 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
 			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
-			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT(), features)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferencePolicy]:
+			_, err = service.Summarizer.UpsertInferencePolicy(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceSecret]:
+			_, err = service.Summarizer.UpsertInferenceSecret(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.RetrievalModel]:
+			_, err = service.Summarizer.UpsertRetrievalModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
+			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

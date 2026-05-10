@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
@@ -50,6 +50,11 @@ var (
 type UnstableConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
+
+	// DelegationSessionID identifies the delegation session the generated
+	// credentials will be associated with, enabling the bot to act on a (human)
+	// user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	mu     sync.Mutex
 	facade *identity.Facade
@@ -101,11 +106,11 @@ func (o *UnstableConfig) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig implements the client.Credential interface and return the
 // ssh.ClientConfig from the underlying identity.Facade.
-func (o *UnstableConfig) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (o *UnstableConfig) SSHClientConfig() (ssh.ClientConfig, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.facade == nil {
-		return nil, trace.BadParameter("credentials not yet ready")
+		return ssh.ClientConfig{}, trace.BadParameter("credentials not yet ready")
 	}
 	return o.facade.SSHClientConfig()
 }
@@ -146,7 +151,10 @@ func (o *UnstableConfig) SetOrUpdateFacade(id *identity.Identity) {
 }
 
 // CheckAndSetDefaults checks and sets default values for the configuration.
-func (o *UnstableConfig) CheckAndSetDefaults() error {
+func (o *UnstableConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", ServiceType)
+	}
 	return nil
 }
 

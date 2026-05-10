@@ -20,7 +20,8 @@ package systemd
 
 import (
 	_ "embed"
-	"text/template"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 var (
@@ -47,4 +48,6 @@ type TemplateParams struct {
 	TBotPath string
 	// DiagSocketForUpdater is the path to the diag socket for the updater.
 	DiagSocketForUpdater string
+	// PIDFile is the path to the PID file.
+	PIDFile string
 }

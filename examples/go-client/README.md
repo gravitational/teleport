@@ -40,9 +40,9 @@ $ go run main.go
 
 To see more information on the Go Client and how to use it, visit our API documentation:
 
-- [Introduction](https:/goteleport.com/docs/reference/api/introduction)
-- [Getting Started](https:/goteleport.com/docs/reference/api/getting-started)
-- [Architecture](https:/goteleport.com/docs/reference/api/architecture)
+- [Introduction](https://goteleport.com/docs/zero-trust-access/api/)
+- [Getting Started](https://goteleport.com/docs/zero-trust-access/api/getting-started/)
+- [Architecture](https://goteleport.com/docs/reference/architecture/api-architecture/)
 - [pkg.go.dev](https://pkg.go.dev/github.com/gravitational/teleport/api/client)
   - [Client type](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Client)
   - [Credentials type](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Credentials)

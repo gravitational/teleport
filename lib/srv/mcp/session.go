@@ -20,7 +20,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
@@ -291,8 +290,8 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return resp
 	}
 
-	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal(resp.Result, &listResult); err != nil {
+	listResult, err := resp.GetListToolResult()
+	if err != nil {
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 
@@ -314,7 +313,7 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 }
 
 func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
-	jwt, traits, err := s.generateJWTAndTraits(r.Context())
+	jwt, rewriteTraits, err := s.generateJWTAndTraits(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -328,7 +327,7 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	r.Header.Set(teleport.AppJWTHeader, jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, traits, s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, rewriteTraits, s.logger)
 	return nil
 }
 

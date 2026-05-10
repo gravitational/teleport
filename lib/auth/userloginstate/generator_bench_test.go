@@ -45,7 +45,7 @@ func BenchmarkGenerate(b *testing.B) {
 	sizes := []int{100, 1_000, 10_000}
 	for _, n := range sizes {
 		b.Run(fmt.Sprintf("members=%d", n), func(b *testing.B) {
-			svc, backendSvc, err := initGeneratorSvc()
+			svc, backendSvc, err := initGeneratorSvc(false)
 			if err != nil {
 				b.Fatalf("initGeneratorSvc: %v", err)
 			}
@@ -63,7 +63,6 @@ func BenchmarkGenerate(b *testing.B) {
 			}
 
 			b.ReportAllocs()
-			b.ResetTimer()
 
 			for b.Loop() {
 				_, err := svc.generate(b.Context(), user, backendSvc, false /* pure */)

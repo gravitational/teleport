@@ -144,7 +144,13 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
-			return services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp)
+			if !services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp) {
+				return false
+			}
+			if fn := options.GetFilterFn(); fn != nil {
+				return fn(b)
+			}
+			return true
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
 			return keyFn(b)

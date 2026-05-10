@@ -42,6 +42,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write # required for AWS credentials
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -54,7 +55,7 @@ jobs:
 
     services:
       etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
         options: >-
           --health-interval 10s
           --health-timeout 5s
@@ -82,3 +83,8 @@ jobs:
       - name: Run tests
         timeout-minutes: 40
         run: runuser -u ci -g ci make integration RDPCLIENT_SKIP_BUILD=1
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics

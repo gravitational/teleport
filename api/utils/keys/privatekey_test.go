@@ -56,7 +56,7 @@ func TestMarshalAndParseKey(t *testing.T) {
 		ClusterName: "billy.io",
 	}
 	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{
+	hwPriv, err := s.NewPrivateKey(t.Context(), hardwarekey.PrivateKeyConfig{
 		ContextualKeyInfo: contextualKeyInfo,
 	})
 	require.NoError(t, err)

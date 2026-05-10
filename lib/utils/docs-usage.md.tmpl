@@ -30,7 +30,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-{{- .Flags|FlagsToRows|FormatThreeColMarkdownTable }}
+{{- (ReplaceFlagDefaults (printf "%v %v" $appName .FullCommand) .Flags)|FlagsToRows|FormatThreeColMarkdownTable }}
 
 {{end -}}
 {{ if .Args -}}
@@ -38,7 +38,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-{{- .Args|ArgsToRows|FormatThreeColMarkdownTable }}
+{{- (ReplaceArgDefaults (printf "%v %v" $appName .FullCommand) .Args)|ArgsToRows|FormatThreeColMarkdownTable }}
 
 {{end -}}
 {{end -}}
@@ -59,6 +59,8 @@ tags:
   - reference
   - {{if eq .App.Name "tbot"}}mwi{{else}}platform-wide{{end}}
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-{{.App.Name}}*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -71,7 +73,7 @@ Global flags:
 
 |Flag|Default|Description|
 |---|---|---|
-{{- .Context.Flags|FlagsToRows|FormatThreeColMarkdownTable}}
+{{- (ReplaceFlagDefaults .App.Name .Context.Flags)|FlagsToRows|FormatThreeColMarkdownTable}}
 
 {{end -}}
 {{if AnyEnvVarsForCmd .Context.Args .Context.Flags -}}
@@ -87,7 +89,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-{{- .Context.Args|ArgsToRows|FormatThreeColMarkdownTable}}
+{{- (ReplaceArgDefaults .App.Name .Context.Args)|ArgsToRows|FormatThreeColMarkdownTable}}
 
 {{end -}}
 {{if .App.Commands -}}

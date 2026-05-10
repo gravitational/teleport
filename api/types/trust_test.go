@@ -21,7 +21,7 @@ import (
 // TODO(codingllama): DELETE IN 20. This won't matter once the migration doesn't exist.
 func TestCertAuthTypes_WindowsBeforeUser(t *testing.T) {
 	var foundUser bool
-	for _, caType := range CertAuthTypesExtended {
+	for _, caType := range CertAuthTypes {
 		switch caType {
 		case UserCA:
 			foundUser = true

@@ -34,6 +34,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DocsMode is true when building with -tags docs.
+const DocsMode = true
+
 var nonLetters = regexp.MustCompile(`\W`)
 
 // lowerWordChars returns only the word characters (\w) from in, in lowercase,
@@ -183,22 +186,37 @@ func sortCommandsByName(cmds []*kingpin.CmdModel) []*kingpin.CmdModel {
 	return cmds
 }
 
+const noDefaultSet = "*no default*"
+
 // formatDefaultFlagValue returns the default value of flag to display in a
 // table of flags. Assumes that a Boolean flag is false unless it is true by
-// default.
+// default. If the flag is an enum, includes the valid enum options.
 func formatDefaultFlagValue(flag *kingpin.FlagModel) string {
+	var defaultValue string
+
 	switch {
 	case len(flag.Default) == 0 && flag.IsBoolFlag():
-		return "`false`"
+		defaultValue = "`false`"
 	case len(flag.Default) > 0:
 		ret := make([]string, len(flag.Default))
 		for i, v := range flag.Default {
 			ret[i] = fmt.Sprintf("`%v`", v)
 		}
-		return strings.Join(ret, ",")
+		defaultValue = strings.Join(ret, ",")
 	default:
-		return "none"
+		defaultValue = noDefaultSet
 	}
+
+	// If this is an enum flag, append the valid options
+	if prefix, options := getEnumOptions(flag.Value); len(options) > 0 {
+		optionsFormatted := make([]string, len(options))
+		for i, opt := range options {
+			optionsFormatted[i] = fmt.Sprintf("`%s`", opt)
+		}
+		defaultValue += fmt.Sprintf(" (%s: %s)", prefix, strings.Join(optionsFormatted, ", "))
+	}
+
+	return defaultValue
 }
 
 // formatDefaultArgValue returns the default value of arg to display in a table
@@ -212,7 +230,7 @@ func formatDefaultArgValue(arg *kingpin.ArgModel) string {
 		}
 		ret = strings.Join(def, ",")
 	} else {
-		ret = "none"
+		ret = noDefaultSet
 	}
 	if arg.Required {
 		ret += " (required)"
@@ -227,6 +245,45 @@ func formatDefaultArgValue(arg *kingpin.ArgModel) string {
 // type in github.com/alecthomas/kingpin/v2.
 type repeatableFlag interface {
 	IsCumulative() bool
+}
+
+// enumFlag is an interface for flags that have enum values. We use reflection
+// to access the options field since kingpin doesn't export an interface for this.
+type enumFlag interface {
+	String() string
+	Set(string) error
+}
+
+// Optional interface for flags that can be repeated.
+type repeatable interface {
+	IsCumulative() bool
+}
+
+// Optional interface for enum values that have a set of valid options.
+type enumOptions interface {
+	EnumOptions() []string
+}
+
+// getEnumOptions extracts the enum options from a kingpin Value using reflection.
+// Returns nil if the value is not an enum type or if options cannot be extracted.
+func getEnumOptions(value kingpin.Value) (string, []string) {
+	if value == nil {
+		return "", nil
+	}
+
+	prefix := "one of"
+	if e, ok := value.(repeatable); ok && e.IsCumulative() {
+		prefix = "any of (repeatable)"
+	}
+
+	var options []string
+	if e, ok := value.(enumOptions); ok {
+		options = e.EnumOptions()
+	}
+	if len(options) > 0 {
+		return prefix, options
+	}
+	return "", nil
 }
 
 // formatUsageArg prints a command argument to include in a usage snippet.
@@ -306,6 +363,9 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		}
 	}
 
+	replaceFlagDefaults := makeDefaultFlagValueOverrider(config.FlagDefaultOverrides)
+	replaceArgDefaults := makeDefaultArgValueOverrider(config.ArgDefaultOverrides)
+
 	// We override the default app description with a custom description
 	// that is better suited to the docs.
 	app.Help = config.Introduction
@@ -318,6 +378,8 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		"FlagsToRows":                 flagsToRows,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,
 		"FormatUsageArg":              formatUsageArg,
+		"ReplaceFlagDefaults":         replaceFlagDefaults,
+		"ReplaceArgDefaults":          replaceArgDefaults,
 		"SortCommandsByName":          sortCommandsByName,
 	})
 	app.UsageTemplate(buf.String())
@@ -331,8 +393,22 @@ type envVarDefault struct {
 }
 
 type generatorConfig struct {
-	Introduction string                   `yaml:"introduction"`
-	EnvVars      map[string]envVarDefault `yaml:"env_vars"`
+	Introduction         string                   `yaml:"introduction"`
+	EnvVars              map[string]envVarDefault `yaml:"env_vars"`
+	FlagDefaultOverrides []flagDefaultOverride    `yaml:"flag_default_overrides"`
+	ArgDefaultOverrides  []argDefaultOverride     `yaml:"arg_default_overrides"`
+}
+
+type flagDefaultOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Flag        string `yaml:"flag"`
+	Value       string `yaml:"value"`
+}
+
+type argDefaultOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Arg         string `yaml:"arg"`
+	Value       string `yaml:"value"`
 }
 
 // loadConfig loads possible default environment variables defined in a YAML file
@@ -362,12 +438,78 @@ func loadConfig(appName string) (generatorConfig, error) {
 	return conf, nil
 }
 
+// makeDefaultFlagValueOverrider returns a template function that overrides the
+// configured default values in kingpin flag models.
+func makeDefaultFlagValueOverrider(overrides []flagDefaultOverride) func(fullCommand string, f []*kingpin.FlagModel) []*kingpin.FlagModel {
+	// maps full commands to flags to new default values
+	cmdToOverride := make(map[string]map[string]string)
+	for _, o := range overrides {
+		if _, ok := cmdToOverride[o.FullCommand]; !ok {
+			cmdToOverride[o.FullCommand] = make(map[string]string)
+		}
+		cmdToOverride[o.FullCommand][o.Flag] = o.Value
+	}
+
+	return func(fullCommand string, allFlags []*kingpin.FlagModel) []*kingpin.FlagModel {
+		if allFlags == nil || len(allFlags) == 0 {
+			return allFlags
+		}
+
+		flagsToDefaults, ok := cmdToOverride[fullCommand]
+		if !ok {
+			return allFlags
+		}
+
+		for _, fl := range allFlags {
+			d, ok := flagsToDefaults[fl.Name]
+			if !ok {
+				continue
+			}
+			fl.Default = []string{d}
+		}
+		return allFlags
+	}
+}
+
+// makeDefaultArgValueOverrider returns a template function that overrides the
+// configured default values in kingpin arg models.
+func makeDefaultArgValueOverrider(overrides []argDefaultOverride) func(fullCommand string, f []*kingpin.ArgModel) []*kingpin.ArgModel {
+	// maps full commands to args to new default values
+	cmdToOverride := make(map[string]map[string]string)
+	for _, o := range overrides {
+		if _, ok := cmdToOverride[o.FullCommand]; !ok {
+			cmdToOverride[o.FullCommand] = make(map[string]string)
+		}
+		cmdToOverride[o.FullCommand][o.Arg] = o.Value
+	}
+
+	return func(fullCommand string, allArgs []*kingpin.ArgModel) []*kingpin.ArgModel {
+		if allArgs == nil || len(allArgs) == 0 {
+			return allArgs
+		}
+
+		argsToDefaults, ok := cmdToOverride[fullCommand]
+		if !ok {
+			return allArgs
+		}
+
+		for _, fl := range allArgs {
+			d, ok := argsToDefaults[fl.Name]
+			if !ok {
+				continue
+			}
+			fl.Default = []string{d}
+		}
+		return allArgs
+	}
+}
+
 // UpdateAppUsageTemplate updates the app usage template to print a reference
 // guide for the CLI application. Exits on errors since we need to keep the
 // signature of UpdateAppUsageTemplate consistent with the one included without
 // build tags, i.e., with no return value. Writes error messages to stdout to
 // separate them from the help text, which kingpin writes to stderr.
-func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
+func UpdateAppUsageTemplate(app *kingpin.Application) {
 	config, err := loadConfig(app.Name)
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "Unable to load the docs generator configuration for %v: %v", app.Name, err)

@@ -56,9 +56,11 @@ export function Integrations() {
     // TODO(lisa): handle paginating as a follow up polish.
     // Default fetch is 1k of integrations, which is plenty for beginning.
     run(() =>
-      integrationService.fetchIntegrations().then(resp => setItems(resp.items))
+      integrationService
+        .fetchIntegrations(true)
+        .then(resp => setItems(resp.items))
     );
-  }, []);
+  }, [run]);
 
   function removeIntegration() {
     return integrationOps.remove().then(() => {

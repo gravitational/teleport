@@ -28,7 +28,7 @@ Teleport.
   - [MCP Access with Stdio MCP Server](../../enroll-resources/mcp-access/enrolling-mcp-servers/stdio.mdx)
   </details>
   
-## Step 1/2. Configure MCP clients
+## Step 1/2. List available MCP servers
 
 First, sign in into your Teleport cluster using `tsh login`, assigning 
 <Var name="teleport.example.com" /> to the web address of the Teleport Proxy
@@ -47,6 +47,8 @@ Name           Description                                Type  Labels
 fs             Filesystem MCP Server                      stdio env=prod
 mcp-everything This MCP server attempts to exercise al... stdio env=dev,sandbox=true
 ```
+
+## Step 2/2. Configure MCP clients
 
 The MCP client configuration can be created using the `tsh mcp config` command.
 You can choose which servers to configure by using the `--labels` flag to filter
@@ -81,7 +83,7 @@ restart your client after logging in a new tsh session.
 
 You can also provide a custom path for your Claude Desktop MCPs configuration:
 ```code
-$ tsh mcp config --all --config-client=/path/to/config.json
+$ tsh mcp config --all --client-config=/path/to/config.json
 ```
 
 After updating the configuration, you need to restart the Claude Desktop app
@@ -93,7 +95,7 @@ before using the newly added MCPs.
 Teleport's configuration:
 
 ```code
-$ tsh mcp config --all --config-client=cursor
+$ tsh mcp config --all --client-config=cursor
 Found MCP servers:
 fs
 mcp-everything
@@ -112,7 +114,7 @@ restart your client after logging in a new tsh session.
 You can also update a Cursor project MCP servers by providing the path to the
 file:
 ```code
-$ tsh mcp config --all --config-client=/path/to/project/.cursor/mcp.json
+$ tsh mcp config --all --client-config=/path/to/project/.cursor/mcp.json
 ```
 </TabItem>
 
@@ -144,8 +146,6 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
 ```
 </TabItem>
 </Tabs>
-
-## Step 2/2. Use Teleport-protected MCP servers
 
 After configuring your MCP client, the MCP tools and resources should be
 available.

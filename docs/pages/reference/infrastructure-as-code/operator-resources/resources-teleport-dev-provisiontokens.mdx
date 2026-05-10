@@ -47,8 +47,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
 |roles|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
 |spacelift|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
-|suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
-|suggested_labels|object|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
+|suggested_agent_matcher_labels|[object](#specsuggested_agent_matcher_labels)|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
+|suggested_labels|[object](#specsuggested_labels)|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
 |terraform_cloud|[object](#specterraform_cloud)|TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.|
 |tpm|[object](#spectpm)|TPM allows the configuration of options specific to the "tpm" join method.|
 
@@ -59,8 +59,16 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |aws_account|string|AWSAccount is the AWS account ID.|
 |aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
 |aws_organization_id|string|AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.|
+|aws_organizational_units|[object](#specallow-itemsaws_organizational_units)|AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units. Requires AWS Organization ID to be specified. The account's root ID is considered an Organizational Unit when validating the rule.|
 |aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
 |aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.|
+
+### spec.allow items.aws_organizational_units
+
+|Field|Type|Description|
+|---|---|---|
+|exclude|[]string|Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.|
+|include|[]string|Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.|
 
 ### spec.azure
 
@@ -74,6 +82,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |resource_groups|[]string||
 |subscription|string||
+|tenant|string||
 
 ### spec.azure_devops
 
@@ -199,6 +208,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |actor|string||
+|enterprise|string||
+|enterprise_id|string||
 |environment|string||
 |ref|string||
 |ref_type|string||
@@ -295,6 +306,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |caller_type|string||
 |scope|string||
 |space_id|string||
+
+### spec.suggested_agent_matcher_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.suggested_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.terraform_cloud
 

@@ -24,7 +24,9 @@
 package proto
 
 import (
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -531,9 +533,12 @@ type UpstreamInventoryHello struct {
 	UpdaterInfo *types.UpdaterV2Info `protobuf:"bytes,8,opt,name=UpdaterInfo,proto3" json:"UpdaterInfo,omitempty"`
 	// The advertized scope of the instance. An instance's scope can not change once assigned, so future
 	// heartbeats must include a scope value matching the one declared in the hello message.
-	Scope         string `protobuf:"bytes,9,opt,name=scope,proto3" json:"scope,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Scope string `protobuf:"bytes,9,opt,name=scope,proto3" json:"scope,omitempty"`
+	// The immutable labels reported by the instance. The hash of these labels is expected to match
+	// the hash included in the instance's certificate.
+	ImmutableLabels *v1.ImmutableLabels `protobuf:"bytes,10,opt,name=immutable_labels,json=immutableLabels,proto3" json:"immutable_labels,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpstreamInventoryHello) Reset() {
@@ -620,6 +625,13 @@ func (x *UpstreamInventoryHello) GetScope() string {
 		return x.Scope
 	}
 	return ""
+}
+
+func (x *UpstreamInventoryHello) GetImmutableLabels() *v1.ImmutableLabels {
+	if x != nil {
+		return x.ImmutableLabels
+	}
+	return nil
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
@@ -933,7 +945,9 @@ type InventoryHeartbeat struct {
 	// KubeServer is a complete kube server spec to be heartbeated.
 	KubernetesServer *types.KubernetesServerV3 `protobuf:"bytes,4,opt,name=KubernetesServer,proto3" json:"KubernetesServer,omitempty"`
 	// A relay_server to be heartbeated.
-	RelayServer   *v1.RelayServer `protobuf:"bytes,5,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
+	RelayServer *v11.RelayServer `protobuf:"bytes,5,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
+	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
+	LinuxDesktop  *v12.LinuxDesktop `protobuf:"bytes,6,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -996,9 +1010,16 @@ func (x *InventoryHeartbeat) GetKubernetesServer() *types.KubernetesServerV3 {
 	return nil
 }
 
-func (x *InventoryHeartbeat) GetRelayServer() *v1.RelayServer {
+func (x *InventoryHeartbeat) GetRelayServer() *v11.RelayServer {
 	if x != nil {
 		return x.RelayServer
+	}
+	return nil
+}
+
+func (x *InventoryHeartbeat) GetLinuxDesktop() *v12.LinuxDesktop {
+	if x != nil {
+		return x.LinuxDesktop
 	}
 	return nil
 }
@@ -1292,8 +1313,12 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 	RelayServerHeartbeatsCleanup bool `protobuf:"varint,19,opt,name=relay_server_heartbeats_cleanup,json=relayServerHeartbeatsCleanup,proto3" json:"relay_server_heartbeats_cleanup,omitempty"`
 	// DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
 	DatabaseHeartbeatGracefulStop bool `protobuf:"varint,20,opt,name=database_heartbeat_graceful_stop,json=databaseHeartbeatGracefulStop,proto3" json:"database_heartbeat_graceful_stop,omitempty"`
-	unknownFields                 protoimpl.UnknownFields
-	sizeCache                     protoimpl.SizeCache
+	// LinuxDesktopHeartbeats indicates the ICS supports heartbeating linux desktops.
+	LinuxDesktopHeartbeats bool `protobuf:"varint,21,opt,name=linux_desktop_heartbeats,json=linuxDesktopHeartbeats,proto3" json:"linux_desktop_heartbeats,omitempty"`
+	// LinuxDesktopCleanup indicates the ICS supports deleting linux desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+	LinuxDesktopCleanup bool `protobuf:"varint,22,opt,name=linux_desktop_cleanup,json=linuxDesktopCleanup,proto3" json:"linux_desktop_cleanup,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) Reset() {
@@ -1466,11 +1491,25 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) GetDatabaseHeartbeatGra
 	return false
 }
 
+func (x *DownstreamInventoryHello_SupportedCapabilities) GetLinuxDesktopHeartbeats() bool {
+	if x != nil {
+		return x.LinuxDesktopHeartbeats
+	}
+	return false
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) GetLinuxDesktopCleanup() bool {
+	if x != nil {
+		return x.LinuxDesktopCleanup
+	}
+	return false
+}
+
 var File_teleport_legacy_client_proto_inventory_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\n" +
-	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\"\xa1\x03\n" +
+	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a'teleport/presence/v1/relay_server.proto\x1a&teleport/scopes/joining/v1/token.proto\"\xa1\x03\n" +
 	"\x16UpstreamInventoryOneOf\x125\n" +
 	"\x05Hello\x18\x01 \x01(\v2\x1d.proto.UpstreamInventoryHelloH\x00R\x05Hello\x129\n" +
 	"\tHeartbeat\x18\x02 \x01(\v2\x19.proto.InventoryHeartbeatH\x00R\tHeartbeat\x122\n" +
@@ -1488,7 +1527,7 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x02ID\x18\x01 \x01(\x04R\x02ID\"e\n" +
 	"\x15UpstreamInventoryPong\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\x04R\x02ID\x12<\n" +
-	"\vSystemClock\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vSystemClock\"\xcf\x02\n" +
+	"\vSystemClock\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vSystemClock\"\xa7\x03\n" +
 	"\x16UpstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12\x1a\n" +
@@ -1497,7 +1536,9 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x10ExternalUpgrader\x18\x05 \x01(\tR\x10ExternalUpgrader\x128\n" +
 	"\x17ExternalUpgraderVersion\x18\x06 \x01(\tR\x17ExternalUpgraderVersion\x126\n" +
 	"\vUpdaterInfo\x18\b \x01(\v2\x14.types.UpdaterV2InfoR\vUpdaterInfo\x12\x14\n" +
-	"\x05scope\x18\t \x01(\tR\x05scopeJ\x04\b\a\x10\bR\rUpdaterV2Info\"\xd4\x02\n" +
+	"\x05scope\x18\t \x01(\tR\x05scope\x12V\n" +
+	"\x10immutable_labels\x18\n" +
+	" \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabelsJ\x04\b\a\x10\bR\rUpdaterV2Info\"\xd4\x02\n" +
 	"\x1eUpstreamInventoryAgentMetadata\x12\x0e\n" +
 	"\x02OS\x18\x01 \x01(\tR\x02OS\x12\x1c\n" +
 	"\tOSVersion\x18\x02 \x01(\tR\tOSVersion\x12*\n" +
@@ -1506,11 +1547,12 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x0eInstallMethods\x18\x05 \x03(\tR\x0eInstallMethods\x12*\n" +
 	"\x10ContainerRuntime\x18\x06 \x01(\tR\x10ContainerRuntime\x124\n" +
 	"\x15ContainerOrchestrator\x18\a \x01(\tR\x15ContainerOrchestrator\x12*\n" +
-	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\xaf\t\n" +
+	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\x9d\n" +
+	"\n" +
 	"\x18DownstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12Y\n" +
-	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\x81\b\n" +
+	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\xef\b\n" +
 	"\x15SupportedCapabilities\x12(\n" +
 	"\x0fProxyHeartbeats\x18\x01 \x01(\bR\x0fProxyHeartbeats\x12\"\n" +
 	"\fProxyCleanup\x18\x02 \x01(\bR\fProxyCleanup\x12&\n" +
@@ -1534,7 +1576,9 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x14KubernetesHeartbeats\x18\x11 \x01(\bR\x14KubernetesHeartbeats\x12,\n" +
 	"\x11KubernetesCleanup\x18\x12 \x01(\bR\x11KubernetesCleanup\x12E\n" +
 	"\x1frelay_server_heartbeats_cleanup\x18\x13 \x01(\bR\x1crelayServerHeartbeatsCleanup\x12G\n" +
-	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\"\xea\x01\n" +
+	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\x128\n" +
+	"\x18linux_desktop_heartbeats\x18\x15 \x01(\bR\x16linuxDesktopHeartbeats\x122\n" +
+	"\x15linux_desktop_cleanup\x18\x16 \x01(\bR\x13linuxDesktopCleanup\"\xea\x01\n" +
 	"\x1cInventoryUpdateLabelsRequest\x12\x1a\n" +
 	"\bServerID\x18\x01 \x01(\tR\bServerID\x12*\n" +
 	"\x04Kind\x18\x02 \x01(\x0e2\x16.proto.LabelUpdateKindR\x04Kind\x12G\n" +
@@ -1547,13 +1591,14 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x06Labels\x18\x02 \x03(\v22.proto.DownstreamInventoryUpdateLabels.LabelsEntryR\x06Labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc3\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x03\n" +
 	"\x12InventoryHeartbeat\x12-\n" +
 	"\tSSHServer\x18\x01 \x01(\v2\x0f.types.ServerV2R\tSSHServer\x120\n" +
 	"\tAppServer\x18\x02 \x01(\v2\x12.types.AppServerV3R\tAppServer\x12?\n" +
 	"\x0eDatabaseServer\x18\x03 \x01(\v2\x17.types.DatabaseServerV3R\x0eDatabaseServer\x12E\n" +
 	"\x10KubernetesServer\x18\x04 \x01(\v2\x19.types.KubernetesServerV3R\x10KubernetesServer\x12D\n" +
-	"\frelay_server\x18\x05 \x01(\v2!.teleport.presence.v1.RelayServerR\vrelayServer\"d\n" +
+	"\frelay_server\x18\x05 \x01(\v2!.teleport.presence.v1.RelayServerR\vrelayServer\x12K\n" +
+	"\rlinux_desktop\x18\x06 \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\flinuxDesktop\"d\n" +
 	"\x18UpstreamInventoryGoodbye\x12(\n" +
 	"\x0fDeleteResources\x18\x01 \x01(\bR\x0fDeleteResources\x12\x1e\n" +
 	"\n" +
@@ -1625,11 +1670,13 @@ var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	nil,                              // 21: proto.InventoryStatusSummary.ServiceCountsEntry
 	(*timestamppb.Timestamp)(nil),    // 22: google.protobuf.Timestamp
 	(*types.UpdaterV2Info)(nil),      // 23: types.UpdaterV2Info
-	(*types.ServerV2)(nil),           // 24: types.ServerV2
-	(*types.AppServerV3)(nil),        // 25: types.AppServerV3
-	(*types.DatabaseServerV3)(nil),   // 26: types.DatabaseServerV3
-	(*types.KubernetesServerV3)(nil), // 27: types.KubernetesServerV3
-	(*v1.RelayServer)(nil),           // 28: teleport.presence.v1.RelayServer
+	(*v1.ImmutableLabels)(nil),       // 24: teleport.scopes.joining.v1.ImmutableLabels
+	(*types.ServerV2)(nil),           // 25: types.ServerV2
+	(*types.AppServerV3)(nil),        // 26: types.AppServerV3
+	(*types.DatabaseServerV3)(nil),   // 27: types.DatabaseServerV3
+	(*types.KubernetesServerV3)(nil), // 28: types.KubernetesServerV3
+	(*v11.RelayServer)(nil),          // 29: teleport.presence.v1.RelayServer
+	(*v12.LinuxDesktop)(nil),         // 30: teleport.linuxdesktop.v1.LinuxDesktop
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
@@ -1643,26 +1690,28 @@ var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	10, // 8: proto.DownstreamInventoryOneOf.UpdateLabels:type_name -> proto.DownstreamInventoryUpdateLabels
 	22, // 9: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
 	23, // 10: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
-	16, // 11: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
-	0,  // 12: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
-	17, // 13: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
-	0,  // 14: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
-	18, // 15: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	24, // 16: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
-	25, // 17: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
-	26, // 18: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
-	27, // 19: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
-	28, // 20: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
-	6,  // 21: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	19, // 22: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	20, // 23: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	21, // 24: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	1,  // 25: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	24, // 11: proto.UpstreamInventoryHello.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
+	16, // 12: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
+	0,  // 13: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
+	17, // 14: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
+	0,  // 15: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
+	18, // 16: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	25, // 17: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
+	26, // 18: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
+	27, // 19: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
+	28, // 20: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
+	29, // 21: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
+	30, // 22: proto.InventoryHeartbeat.linux_desktop:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
+	6,  // 23: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	19, // 24: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	20, // 25: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	21, // 26: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 27: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }

@@ -29,14 +29,14 @@ import (
 	"encoding/pem"
 	"fmt"
 	"strconv"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -45,7 +45,7 @@ import (
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
 func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Desktop).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.Desktop).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
 	}
@@ -63,14 +63,28 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+	caID := types.CertAuthID{
+		Type:       types.WindowsCA,
 		DomainName: clusterName.GetClusterName(),
-	}, true)
+	}
+	if !req.SupportsWindowsCA {
+		var callerID string
+		if ig, err := authz.UserFromContext(ctx); err == nil {
+			callerID = ig.GetIdentity().Username
+		}
+		a.logger.WarnContext(ctx,
+			""+
+				"Windows Desktop Service caller does not support the WindowsCA. "+
+				"Issuing certificates using the UserCA.",
+			"caller_id", callerID,
+		)
+		caID.Type = types.UserCA
+	}
+	ca, err := a.GetCertAuthority(ctx, caID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
+	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,7 +112,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// by the client because the CDP is based on the identity of the issuer, which is
 	// necessary in order to support clusters with multiple issuing certs (HSMs).
 	if req.CRLDomain != "" {
-		cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
+		cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, caID.Type, tlsCA, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -112,7 +126,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
-		Value: []byte(modules.GetModules().BuildType()),
+		Value: []byte(a.modules.BuildType()),
 	}, pkix.Extension{
 		Id:    tlsca.DesktopsLimitExceededOID,
 		Value: []byte(strconv.FormatBool(limitExceeded)),
@@ -141,7 +155,7 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopB
 
 	certAuthority, err := a.GetCertAuthority(
 		ctx,
-		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+		types.CertAuthID{Type: types.WindowsCA, DomainName: clusterName},
 		false,
 	)
 	if err != nil {

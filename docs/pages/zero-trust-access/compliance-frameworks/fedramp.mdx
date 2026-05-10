@@ -10,7 +10,7 @@ enterprise: FedRAMP compliance
 ---
 
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure.
-This includes support for the [Federal Information Processing Standard [FIPS 140](https://en.wikipedia.org/wiki/FIPS_140).
+This includes support for the [Federal Information Processing Standard FIPS 140](https://en.wikipedia.org/wiki/FIPS_140).
 This standard is the US government approved standard for cryptographic modules. This document explains how
 Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
 
@@ -36,7 +36,7 @@ Teleport includes FedRAMP and FIPS features to support companies that sell into 
 | [AC-10 Concurrent Session Control]((=fedramp.control_url=)AC-10) | Teleport administrators can define concurrent session limits using Teleport's RBAC. Supports both a maximum number of connections and maximum number of simultaneously connected users. |
 | [AC-12 Session Termination]((=fedramp.control_url=)AC-12) | Teleport can be configured to terminate active sessions as soon as the user's certificate expires. Users can exit a Teleport interactive session at any time by typing exit or sending an interrupt signal to the process for remote execution of a program. Administrators can apply [locks](../../identity-governance/locking.mdx) to forcibly terminate active sessions based on a variety of criteria. |
 | [AC-17 Remote Access]((=fedramp.control_url=)AC-17) | Teleport administrators create users with configurable roles that can be used to allow or deny access to system resources. |
-| [AC-20 Use of External Information Systems]((=fedramp.control_url=)AC-20) | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../deploy-a-cluster/trustedclusters.mdx). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access. |
+| [AC-20 Use of External Information Systems]((=fedramp.control_url=)AC-20) | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../management/trustedclusters.mdx). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access. |
 
 ### Audit and accountability
 
@@ -91,7 +91,7 @@ In FIPS builds, Teleport uses a FIPS 140 validated networking stack for all prot
 
 For a detailed list of cryptographic algorithms used in FIPS mode please consult [Teleport FIPS documentation](#default-cryptographic-algorithms).
 
-You also can follow the [Installation instructions](../../installation/installation.mdx) for
+You also can follow the [Installation instructions](../../installation/single-machine/single-machine.mdx) for
 Teleport Enterprise edition to download and install the appropriate FIPS  binaries for
 your operating environment and package manager or from compressed archive (tarball).
 
@@ -140,7 +140,7 @@ teleport:
   auth_token: xxxx-token-xxxx
   # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
   # the role a new node will be allowed to assume. The more secure way to
-  # add nodes is to use `ttl node add --ttl` command to generate auto-expiring
+  # add nodes is to use `tctl nodes add --ttl=30m` command to generate auto-expiring
   # tokens.
   #
   # We recommend to use tools like `pwgen` to generate sufficiently random
@@ -166,7 +166,7 @@ auth_service:
     type: saml
 
   # If using Proxy Mode, Teleport requires host key checks.
-  # This setting needs is required to start in Teleport in FIPS mode
+  # This setting is required to start Teleport in FIPS mode
   proxy_checks_host_keys: true
 
   # SSH is also enabled on this node:

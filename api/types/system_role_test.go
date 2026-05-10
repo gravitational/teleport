@@ -28,9 +28,9 @@ func TestRolesCheck(t *testing.T) {
 	}{
 		{roles: []SystemRole{}, wantErr: false},
 		{roles: []SystemRole{RoleAuth}, wantErr: false},
-		{roles: []SystemRole{RoleAuth, RoleNode, RoleProxy, RoleAdmin, RoleProvisionToken, RoleTrustedCluster, RoleSignup, RoleNop}, wantErr: false},
+		{roles: []SystemRole{RoleAuth, RoleNode, RoleProxy, RoleAdmin, RoleProvisionToken, RoleTrustedCluster, RoleSignup}, wantErr: false},
 		{roles: []SystemRole{RoleAuth, RoleNode, RoleAuth}, wantErr: true},
-		{roles: []SystemRole{SystemRole("unknown")}, wantErr: true},
+		{roles: []SystemRole{SystemRole("unknown"), SystemRole(RoleNop)}, wantErr: true},
 	}
 
 	for _, tt := range tests {

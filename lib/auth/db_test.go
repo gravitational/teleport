@@ -39,6 +39,7 @@ import (
 )
 
 func Test_getSnowflakeJWTParams(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		accountName string
 		userName    string
@@ -246,6 +247,7 @@ func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, cdps []string, keyUsa
 }
 
 func TestFilterExtensions(t *testing.T) {
+	t.Parallel()
 	oidA := asn1.ObjectIdentifier{1, 2, 3, 4}
 	oidB := asn1.ObjectIdentifier{1, 2, 3, 5}
 	extA := pkix.Extension{Id: oidA, Value: []byte("a")}

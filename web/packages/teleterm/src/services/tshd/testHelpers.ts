@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { RpcError } from '@protobuf-ts/runtime-rpc';
+
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
@@ -30,7 +32,6 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
-import { TshdRpcError } from './cloneableClient';
 import * as tsh from './types';
 
 export const rootClusterUri = '/clusters/teleport-local.com';
@@ -65,6 +66,8 @@ export const makeDatabase = (
   addr: '',
   labels: [],
   gcpProjectId: '',
+  databaseUsers: [],
+  wildcardUserAllowed: false,
   ...props,
 });
 
@@ -90,6 +93,7 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   tcpPorts: [],
   permissionSets: [],
   subKind: '',
+  supportedFeatureIds: [],
   ...props,
 });
 
@@ -328,11 +332,11 @@ export const makeAppGateway = (
   ...props,
 });
 
-export const makeRetryableError = (): TshdRpcError => ({
-  name: 'TshdRpcError',
-  isResolvableWithRelogin: true,
+export const makeRetryableError = (): RpcError => ({
+  name: 'RpcError',
   code: 'UNKNOWN',
   message: 'ssh: handshake failed',
+  meta: { 'is-resolvable-with-relogin': '1' },
 });
 
 export const makeAccessRequest = (
@@ -374,7 +378,7 @@ export const makeAuthSettings = (
 ): AuthSettings => ({
   localAuthEnabled: true,
   authProviders: [],
-  hasMessageOfTheDay: false,
+  messageOfTheDay: '',
   authType: 'local',
   allowPasswordless: false,
   localConnectorName: '',

@@ -24,7 +24,7 @@ import (
 	"log/slog"
 	"syscall"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // errorWithExitStatus defines an interface that provides an ExitStatus
@@ -48,7 +48,7 @@ type execExitError interface {
 func ExitCodeFromExecError(err error) int {
 	// If no error occurred, return 0 (success).
 	if err == nil {
-		return teleport.RemoteCommandSuccess
+		return reexecconstants.RemoteCommandSuccess
 	}
 
 	var execExitErr execExitError
@@ -57,7 +57,7 @@ func ExitCodeFromExecError(err error) int {
 	case errors.As(err, &execExitErr):
 		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
 		if !ok {
-			return teleport.RemoteCommandFailure
+			return reexecconstants.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
 	case errors.As(err, &exitErr):
@@ -65,6 +65,6 @@ func ExitCodeFromExecError(err error) int {
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
 		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
-		return teleport.RemoteCommandFailure
+		return reexecconstants.RemoteCommandFailure
 	}
 }

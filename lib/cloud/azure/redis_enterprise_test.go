@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -72,7 +71,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 				t.Parallel()
 
 				c := NewRedisEnterpriseClientByAPI(nil, test.mockDatabaseAPI)
-				token, err := c.GetToken(context.TODO(), test.resourceID)
+				token, err := c.GetToken(t.Context(), test.resourceID)
 
 				if test.expectError {
 					require.Error(t, err)
@@ -112,7 +111,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 			}
 
 			c := NewRedisEnterpriseClientByAPI(mockClusterAPI, mockDatabaseAPI)
-			clusters, err := c.ListAll(context.TODO())
+			clusters, err := c.ListAll(t.Context())
 			require.NoError(t, err)
 			requireClusterDatabases(t, expectClusterDatabases, clusters)
 		})
@@ -125,7 +124,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 			}
 
 			c := NewRedisEnterpriseClientByAPI(mockClusterAPI, mockDatabaseAPI)
-			clusters, err := c.ListWithinGroup(context.TODO(), "group-prod")
+			clusters, err := c.ListWithinGroup(t.Context(), "group-prod")
 			require.NoError(t, err)
 			requireClusterDatabases(t, expectClusterDatabases, clusters)
 		})

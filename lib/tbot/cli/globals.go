@@ -33,7 +33,7 @@ import (
 type GlobalArgs struct {
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
-	// - Refuse to run if not compiled with boringcrypto
+	// - Refuse to run if not compiled in FIPS140 mode
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - RSA2048 or ECDSA with NIST-P256 curve should be used for private key generation
@@ -74,10 +74,10 @@ type GlobalArgs struct {
 func NewGlobalArgs(app *kingpin.Application) *GlobalArgs {
 	g := &GlobalArgs{}
 
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').Envar(TBotDebugEnvVar).IsSetByUser(&g.debugSetByUser).BoolVar(&g.Debug)
+	app.Flag("debug", "Enables verbose logging to stdout.").Short('d').Envar(TBotDebugEnvVar).IsSetByUser(&g.debugSetByUser).BoolVar(&g.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').Envar(TBotConfigPathEnvVar).StringVar(&g.ConfigPath)
 	app.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(TBotConfigEnvVar).StringVar(&g.ConfigString)
-	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").IsSetByUser(&g.fipsSetByUser).BoolVar(&g.FIPS)
+	app.Flag("fips", "Enables FIPS compliance mode. This requires the FIPS binary is in use.").IsSetByUser(&g.fipsSetByUser).BoolVar(&g.FIPS)
 	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&g.Trace)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&g.TraceExporter)
 	app.Flag(

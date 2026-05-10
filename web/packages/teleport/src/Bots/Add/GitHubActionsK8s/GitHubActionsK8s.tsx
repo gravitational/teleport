@@ -42,7 +42,7 @@ const views: View[] = [
     component: ConfigureAccess,
   },
   {
-    name: 'Setup workflow',
+    name: 'Set Up Workflow',
     component: Finish,
   },
 ];

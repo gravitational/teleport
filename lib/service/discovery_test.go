@@ -66,12 +66,14 @@ func TestTeleportProcessIntegrationsOnly(t *testing.T) {
 					Auth: servicecfg.AuthConfig{
 						Enabled: tt.inputAuthEnabled,
 					},
+					Modules: &modulestest.Modules{
+						TestBuildType: modules.BuildEnterprise,
+						TestFeatures: modules.Features{
+							Cloud: tt.inputFeatureCloud,
+						},
+					},
 				},
 			}
-
-			modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
-				Cloud: tt.inputFeatureCloud,
-			}})
 
 			require.Equal(t, tt.integrationOnly, p.integrationOnlyCredentials())
 		})

@@ -271,6 +271,7 @@ const makeConnections = (index = 0) => {
       port: '22',
       gatewayUri: '/gateways/empty',
       clusterName: 'teleport.example.sh',
+      autoUserProvisioning: undefined,
     },
     {
       connected: false,
@@ -292,6 +293,7 @@ const makeConnections = (index = 0) => {
       gatewayUri: '/gateways/some-web-app',
       clusterName: 'teleport.example.sh',
       targetProtocol: 'HTTP',
+      autoUserProvisioning: undefined,
     },
     {
       connected: true,
@@ -304,6 +306,7 @@ const makeConnections = (index = 0) => {
       gatewayUri: '/gateways/some-mcp-server',
       clusterName: 'teleport.example.sh',
       targetProtocol: 'MCP',
+      autoUserProvisioning: undefined,
     },
   ];
 };

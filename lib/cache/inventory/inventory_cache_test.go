@@ -128,6 +128,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	databaseServices := local.NewDatabaseServicesService(bkWrapper)
 	windowsDesktops := local.NewWindowsDesktopService(bkWrapper)
 
+	linuxDesktops, err := local.NewLinuxDesktopService(bkWrapper)
+	require.NoError(t, err)
+
 	samlIDPServiceProviders, err := local.NewSAMLIdPServiceProviderService(bkWrapper)
 	require.NoError(t, err)
 
@@ -168,6 +171,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	require.NoError(t, err)
 
 	workloadIdentitySvc, err := local.NewWorkloadIdentityService(bkWrapper)
+	require.NoError(t, err)
+
+	beamService, err := local.NewBeamService(bkWrapper)
 	require.NoError(t, err)
 
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(bkWrapper)
@@ -213,6 +219,16 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	appAuthConfig, err := local.NewAppAuthConfigService(bkWrapper)
 	require.NoError(t, err)
 
+	summaries, err := local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend: bkWrapper,
+	})
+	require.NoError(t, err)
+
+	subCA, err := local.NewSubCAService(local.SubCAServiceParams{
+		Backend: bkWrapper,
+	})
+	require.NoError(t, err)
+
 	c, err := cache.New(setupConfig(cache.Config{
 		Context:                 ctx,
 		Events:                  eventsS,
@@ -226,6 +242,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		AppSession:              idService,
 		WebSession:              idService.WebSessions(),
 		WebToken:                idService,
+		Beams:                   beamService,
 		SnowflakeSession:        idService,
 		Restrictions:            restrictions,
 		Apps:                    apps,
@@ -234,6 +251,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Databases:               databases,
 		WindowsDesktops:         windowsDesktops,
 		DynamicWindowsDesktops:  dynamicWindowsDesktopService,
+		LinuxDesktops:           linuxDesktops,
 		SAMLIdPServiceProviders: samlIDPServiceProviders,
 		UserGroups:              userGroups,
 		Okta:                    oktaSvc,
@@ -261,8 +279,11 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		RecordingEncryption:     recordingEncryption,
 		Plugin:                  plugin,
 		AppAuthConfig:           appAuthConfig,
+		StaticScopedToken:       clusterConfig,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
+		Summarizer:              summaries,
+		SubCAService:            subCA,
 	}))
 	require.NoError(t, err)
 
@@ -896,6 +917,18 @@ func TestInventoryCacheFiltering(t *testing.T) {
 					ExternalUpgrader: "kube",
 				},
 			},
+			{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "node-no-upgrader",
+					},
+				},
+				Spec: types.InstanceSpecV1{
+					Hostname: "no-upgrader.example.com",
+					Version:  "18.3.0",
+					Services: []types.SystemRole{types.RoleNode},
+				},
+			},
 		}
 
 		bots := []*machineidv1.BotInstance{
@@ -1037,7 +1070,7 @@ func TestInventoryCacheFiltering(t *testing.T) {
 		require.Equal(t, "18.1.0", resp.Items[0].GetInstance().Spec.Version)
 
 		// Test predicate query filtering by version (greater than) for both instance types.
-		// This should return 2 instances and 1 bot instance.
+		// This should return 3 instances and 1 bot instance.
 		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
 			PageSize: 100,
 			Filter: &inventoryv1.ListUnifiedInstancesFilter{
@@ -1046,7 +1079,7 @@ func TestInventoryCacheFiltering(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 3)
+		require.Len(t, resp.Items, 4)
 
 		// Test predicate query filtering by version (between)
 		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
@@ -1057,7 +1090,7 @@ func TestInventoryCacheFiltering(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 2)
+		require.Len(t, resp.Items, 3)
 
 		// Test predicate query filtering by hostname
 		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
@@ -1116,6 +1149,30 @@ func TestInventoryCacheFiltering(t *testing.T) {
 		}
 		require.True(t, upgraders["kube"])
 		require.Len(t, upgraders, 1)
+
+		// Test filtering for no upgrader works
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+			PageSize: 100,
+			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+				Upgraders:     []string{""},
+				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Items, 1)
+		require.Equal(t, "no-upgrader.example.com", resp.Items[0].GetInstance().Spec.Hostname)
+		require.Empty(t, resp.Items[0].GetInstance().Spec.ExternalUpgrader)
+
+		// Test filtering for no upgrader or kube upgrader
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+			PageSize: 100,
+			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+				Upgraders:     []string{"", "kube"},
+				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Items, 3) // 2 with kube upgrader + 1 with no upgrader
 	})
 }
 
@@ -1294,8 +1351,19 @@ func TestInventoryCacheSorting(t *testing.T) {
 		synctest.Wait()
 		require.True(t, inventoryCache.IsHealthy())
 
-		// Test sort by name ascending
+		// Version predicate filter should work whether the instance's version has "v" prefix or not
 		resp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+			PageSize: 100,
+			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+				PredicateExpression: `version == "18.0.0"`,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Items, 2)
+		require.ElementsMatch(t, []string{"v18.0.0", "18.0.0"}, libslices.Map(resp.Items, getItemVersion))
+
+		// Test sort by name ascending
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_NAME,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
@@ -1618,8 +1686,10 @@ func TestGetVersionKeyOrdering(t *testing.T) {
 	// Sort with semver.Compare
 	semverSorted := slices.Clone(versions)
 	slices.SortFunc(semverSorted, func(a, b string) int {
-		semverA := semver.New(strings.TrimPrefix(a, "v"))
-		semverB := semver.New(strings.TrimPrefix(b, "v"))
+		semverA, err := semver.NewVersion(strings.TrimPrefix(a, "v"))
+		require.NoError(t, err)
+		semverB, err := semver.NewVersion(strings.TrimPrefix(b, "v"))
+		require.NoError(t, err)
 		return semverA.Compare(*semverB)
 	})
 

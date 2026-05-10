@@ -18,8 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -58,7 +57,12 @@ export const Loaded: Story = {
 export const CacheInitializing: Story = {
   parameters: {
     msw: {
-      handlers: [listInstancesError(503, 'inventory cache is not yet healthy')],
+      handlers: [
+        listInstancesError(
+          503,
+          'inventory cache is not yet healthy, please try again in a few minutes'
+        ),
+      ],
     },
   },
 };
@@ -139,10 +143,6 @@ function Wrapper(props?: {
     hasBotInstanceReadPermission = true,
   } = props ?? {};
 
-  const history = createMemoryHistory({
-    initialEntries: [cfg.routes.instances],
-  });
-
   const customAcl = makeAcl({
     instances: {
       ...defaultAccess,
@@ -164,13 +164,11 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[cfg.routes.instances]}>
         <TeleportProviderBasic teleportCtx={ctx}>
-          <Router history={history}>
-            <Route path={cfg.routes.instances}>
-              <Instances />
-            </Route>
-          </Router>
+          <Routes>
+            <Route path={cfg.routes.instances} element={<Instances />} />
+          </Routes>
         </TeleportProviderBasic>
       </MemoryRouter>
     </QueryClientProvider>

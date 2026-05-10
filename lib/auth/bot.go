@@ -36,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,7 +52,7 @@ import (
 // TODO(timothyb89): In v18, we should explicitly remove generation counters
 // labels from the bot user.
 // REMOVE IN V18: Use bot instance generation counters instead.
-func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
+func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username string, certReq *cert.Request, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
 	user, err := a.Services.GetUser(ctx, username, false)
@@ -70,19 +71,19 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 
 	// If there is no existing generation on any of the user, identity, or
 	// cert request, we have nothing to do here.
-	if currentUserGeneration == 0 && currentIdentityGeneration == 0 && certReq.generation == 0 {
+	if currentUserGeneration == 0 && currentIdentityGeneration == 0 && certReq.Generation == 0 {
 		return nil
 	}
 
 	// By now, we know a generation counter is in play _somewhere_ and this is a
 	// bot certs. Bot certs should include the host CA so that they can make
 	// Teleport API calls.
-	certReq.includeHostCA = true
+	certReq.IncludeHostCA = true
 
 	// If the certReq already has generation set, it was explicitly requested
 	// (presumably this is the initial set of renewable certs). We'll want to
 	// commit that value to the User object.
-	if certReq.generation > 0 {
+	if certReq.Generation > 0 {
 		// ...however, if the user already has a stored generation, bail.
 		// (bots should be deleted and recreated if their certs expire)
 		if currentUserGeneration > 0 {
@@ -93,8 +94,8 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 		}
 
 		// Sanity check that the requested generation is 1.
-		if certReq.generation != 1 {
-			return trace.BadParameter("explicitly requested generation %d is not equal to 1, this is a logic error", certReq.generation)
+		if certReq.Generation != 1 {
+			return trace.BadParameter("explicitly requested generation %d is not equal to 1, this is a logic error", certReq.Generation)
 		}
 
 		userV2, ok := user.(*types.UserV2)
@@ -103,7 +104,7 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 		}
 		newUser := apiutils.CloneProtoMsg(userV2)
 		metadata := newUser.GetMetadata()
-		generation := fmt.Sprint(certReq.generation)
+		generation := fmt.Sprint(certReq.Generation)
 		metadata.Labels[types.BotGenerationLabel] = generation
 		newUser.SetMetadata(metadata)
 
@@ -123,10 +124,10 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 	if currentIdentityGeneration != currentUserGeneration {
 		if err := a.tryLockBotDueToGenerationMismatch(
 			ctx,
-			certReq.botName,
-			certReq.botInstanceID,
-			certReq.joinToken,
-			certReq.renewable,
+			certReq.BotName,
+			certReq.BotInstanceID,
+			certReq.JoinToken,
+			certReq.Renewable,
 		); err != nil {
 			a.logger.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected",
 				"error", err,
@@ -160,7 +161,7 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 	}
 
 	// And lastly, set the generation on the cert request.
-	certReq.generation = newGeneration
+	certReq.Generation = newGeneration
 
 	return nil
 }
@@ -313,10 +314,11 @@ func shouldEnforceGenerationCounter(renewable bool, joinMethod string) bool {
 // identity, if any. If the optional `templateAuthRecord` is provided, various
 // metadata fields will be copied into the newly generated auth record.
 func (a *Server) updateBotInstance(
-	ctx context.Context, req *certRequest,
+	ctx context.Context, req *cert.Request,
 	username, botName, botInstanceID string,
 	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
 	currentIdentityGeneration int32,
+	scope string,
 ) error {
 	if botName == "" {
 		// Only applies to bot identities
@@ -344,12 +346,12 @@ func (a *Server) updateBotInstance(
 	}
 
 	var publicKeyPEM []byte
-	if req.tlsPublicKey != nil {
-		publicKeyPEM = req.tlsPublicKey
+	if req.TLSPublicKey != nil {
+		publicKeyPEM = req.TLSPublicKey
 	} else {
 		// At least one of tlsPublicKey or sshPublicKey will be set, this is validated by [req.check].
 		var err error
-		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.sshPublicKey)
+		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.SSHPublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -401,10 +403,10 @@ func (a *Server) updateBotInstance(
 			}
 
 			// Copy the value from the request into the auth record.
-			authRecord.Generation = int32(req.generation)
+			authRecord.Generation = int32(req.Generation)
 		} else {
 			// Otherwise, just set it to 1.
-			req.generation = 1
+			req.Generation = 1
 			authRecord.Generation = 1
 		}
 
@@ -414,19 +416,20 @@ func (a *Server) updateBotInstance(
 			"new_instance_id", logutils.StringerAttr(instanceID),
 		)
 
-		expires := a.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin)
+		expires := a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)
 
 		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
 			BotName:    botName,
 			InstanceId: instanceID.String(),
 		}, authRecord, expires)
+		bi.Scope = scope
 
 		if _, err := a.BotInstance.CreateBotInstance(ctx, bi); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Add the new ID to the cert request
-		req.botInstanceID = instanceID.String()
+		req.BotInstanceID = instanceID.String()
 
 		return nil
 	}
@@ -444,8 +447,8 @@ func (a *Server) updateBotInstance(
 	} else if currentIdentityGeneration > 0 && currentIdentityGeneration != instanceGeneration {
 		// Generation counter enforcement depends on the type of cert and join
 		// method (if any - token renewals technically have no join method.)
-		if shouldEnforceGenerationCounter(req.renewable, authRecord.JoinMethod) {
-			if err := a.tryLockBotDueToGenerationMismatch(ctx, botName, botInstanceID, req.joinToken, req.renewable); err != nil {
+		if shouldEnforceGenerationCounter(req.Renewable, authRecord.JoinMethod) {
+			if err := a.tryLockBotDueToGenerationMismatch(ctx, botName, botInstanceID, req.JoinToken, req.Renewable); err != nil {
 				log.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected", "error", err)
 			}
 
@@ -472,7 +475,7 @@ func (a *Server) updateBotInstance(
 	// should be incremented and stored even if it is not validated above.
 	newGeneration := instanceGeneration + 1
 	authRecord.Generation = newGeneration
-	req.generation = uint64(newGeneration)
+	req.Generation = uint64(newGeneration)
 
 	// Commit the generation counter to the bot user for downgrade
 	// compatibility, but only if this is a renewable identity. Previous
@@ -480,7 +483,7 @@ func (a *Server) updateBotInstance(
 	// setting this for other methods will break compatibility.
 	// Note: new join methods that enforce generation counter checks will not
 	// write a generation counter to user labels (e.g. bound keypair).
-	if req.renewable {
+	if req.Renewable {
 		if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
 			log.WarnContext(ctx, "unable to commit legacy generation counter to bot user", "error", err)
 		}
@@ -493,7 +496,7 @@ func (a *Server) updateBotInstance(
 
 		// Update the record's expiration timestamp based on the request TTL
 		// plus an expiry margin.
-		bi.Metadata.Expires = timestamppb.New(a.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin))
+		bi.Metadata.Expires = timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin))
 
 		// If we're at or above the limit, remove enough of the front elements
 		// to make room for the new one at the end.
@@ -584,28 +587,32 @@ func (a *Server) generateInitialBotCerts(
 
 	// Inherit the user's roles and traits verbatim.
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName(ctx)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+
+	botScope, _ := userState.GetLabel(types.BotScopeLabel)
+	scopeAwareChecker, err := a.AccessCheckerForScope(
+		ctx,
+		botScope, // treated as unscoped when empty
+		userState,
+		[]types.ResourceAccessID{}, // bots do not support access requests
+	)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// Generate certificate
-	certReq := certRequest{
-		user:           userState,
-		ttl:            expires.Sub(a.GetClock().Now()),
-		sshPublicKey:   sshPubKey,
-		tlsPublicKey:   tlsPubKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
-		traits:         accessInfo.Traits,
-		renewable:      renewable,
-		includeHostCA:  true,
-		loginIP:        loginIP,
-		botName:        botName,
-		joinAttributes: joinAttrs,
+	certReq := cert.Request{
+		User:           userState,
+		TTL:            expires.Sub(a.GetClock().Now()),
+		SSHPublicKey:   sshPubKey,
+		TLSPublicKey:   tlsPubKey,
+		CheckerContext: scopeAwareChecker,
+		Traits:         accessInfo.Traits,
+		Renewable:      renewable,
+		IncludeHostCA:  true,
+		LoginIP:        loginIP,
+		BotName:        botName,
+		BotInternal:    true,
+		JoinAttributes: joinAttrs,
 	}
 
 	// Set the join token cert field for non-renewable identities. This is used
@@ -613,7 +620,7 @@ func (a *Server) generateInitialBotCerts(
 	// token-joined bots and it's a secret value, so we don't bother setting it.
 	// (The renewable flag implies token joining.)
 	if !renewable {
-		certReq.joinToken = initialAuth.JoinToken
+		certReq.JoinToken = initialAuth.JoinToken
 	}
 
 	if existingInstanceID == "" {
@@ -630,14 +637,15 @@ func (a *Server) generateInitialBotCerts(
 			InstanceId:         uuid.String(),
 			PreviousInstanceId: previousInstanceID,
 		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+		bi.Scope = botScope
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		certReq.botInstanceID = uuid.String()
-		certReq.generation = 1
+		certReq.BotInstanceID = uuid.String()
+		certReq.Generation = 1
 	} else {
 		// Otherwise, reuse the existing instance ID, and pass the
 		// initialAuth along.
@@ -646,22 +654,22 @@ func (a *Server) generateInitialBotCerts(
 		// value sent by the client, so we can trust it.
 		if err := a.updateBotInstance(
 			ctx, &certReq, username, botName, existingInstanceID,
-			initialAuth, currentIdentityGeneration,
+			initialAuth, currentIdentityGeneration, botScope,
 		); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
 		// Only set the bot instance ID if it's empty; `updateBotInstance()`
 		// may set it if a new instance is created.
-		if certReq.botInstanceID == "" {
-			certReq.botInstanceID = existingInstanceID
+		if certReq.BotInstanceID == "" {
+			certReq.BotInstanceID = existingInstanceID
 		}
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return certs, certReq.botInstanceID, nil
+	return certs, certReq.BotInstanceID, nil
 }

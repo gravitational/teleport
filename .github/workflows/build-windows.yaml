@@ -3,16 +3,18 @@ run-name: Build on Windows
 
 on:
   merge_group:
-    # We only build tsh and tctl on Windows so only consider Go code
-    # (tsh and tctl don't run any Rust)
     paths:
-      - '.github/workflows/build-windows.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+      - ".github/workflows/build-windows.yaml"
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "build.assets/Makefile"
+      - "build.assets/Dockerfile*"
+      - "Makefile"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "lib/srv/desktop/rdp/decoder/Cargo.toml"
+      - "lib/srv/desktop/rdp/decoder/src/**.rs"
 
 jobs:
   build:
@@ -27,16 +29,11 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v6
 
-      - name: Get Go version
-        id: go-version
-        shell: bash
-        run: echo "go-version=$(make -s print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
-
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version: ${{ steps.go-version.outputs.go-version }}
+          go-version-file: go.mod
 
       - name: Build
         shell: bash

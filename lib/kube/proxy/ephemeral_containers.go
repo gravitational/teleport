@@ -248,7 +248,7 @@ func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.He
 		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
 	restConfig := details.getKubeRestConfig()
-	kubeUser, kubeGroups, err := computeImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), headers)
+	kubeUser, kubeGroups, err := computeAndValidateImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), headers)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -349,6 +349,12 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 // getUserEphemeralContainersForPod returns a list of ephemeral containers
 // created by the username and are waiting to be created for a given pod.
 func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, username, kubeCluster, namespace, pod string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	if f.cfg.Scope != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return without error to prevent
+		// interactive exec from failing
+		return nil, nil
+	}
 	var (
 		list      []*kubewaitingcontainerpb.KubernetesWaitingContainer
 		startPage string

@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/term"
 
+	"github.com/gravitational/teleport/api"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -71,7 +72,7 @@ func (c *authRotateCommand) Initialize(authCmd *kingpin.CmdClause) {
 	c.cmd = authCmd.Command("rotate", "Rotate certificate authorities in the cluster. Starts in interactive mode by default, provide --type to manually send rotation requests.")
 	c.cmd.Flag("interactive", "Enable interactive mode").BoolVar(&c.interactiveMode)
 	c.cmd.Flag("manual", "Activate manual rotation, set rotation phases manually").BoolVar(&c.manualMode)
-	c.cmd.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).EnumVar(&c.caType, getCertAuthTypes()...)
+	c.cmd.Flag("type", "Certificate authority to rotate.").EnumVar(&c.caType, getCertAuthTypes()...)
 	c.cmd.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&c.targetPhase)
 	c.cmd.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
@@ -1102,10 +1103,12 @@ func updateClientsPhaseHelpText(sb *strings.Builder, caType types.CertAuthType) 
 		sb.WriteString("\nDuring this phase, all Teleport services will automatically retrieve new certificates issued by the new CA.")
 	case types.OpenSSHCA:
 		sb.WriteString("\nAll new connections to OpenSSH hosts will begin to use certificates issued by the new CA keys.")
-	case types.UserCA:
-		sb.WriteString("\nAll new connections to Windows desktops will begin to use certificates issued by the new CA certificate. ")
 	case types.DatabaseClientCA:
 		sb.WriteString("\nAll new database connections will begin to use certificates issued by the new CA certificate.")
+	case types.WindowsCA:
+		sb.WriteString("\nAll new connections to Windows desktops will begin to use certificates issued by the new CA certificate. ")
+	case types.AppClientCA:
+		sb.WriteString("\nAll new applications with client certificates connections will begin to use certificates issued by the new CA certificate. ")
 	default:
 		sb.WriteString("\nAll client certificates issued by this CA must be re-issued before proceeding to the update_servers phase.")
 	}
@@ -1195,7 +1198,6 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 		switch phase {
 		case "init":
 			return []string{
-				"All Windows desktops must be updated to trust both the new and old CA certificates.",
 				trustedClusterStep,
 			}
 		case "update_clients":
@@ -1208,12 +1210,10 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 			}
 		case "rollback":
 			return []string{
-				"Any Windows desktops updated to trust the new CA certificate during the update_servers phase should be reverted to only trust the original CA certificate.",
 				trustedClusterStep,
 			}
 		case "standby":
 			return []string{
-				"All Windows desktops should be updated to stop trusting the CA certificates that have now been rotated out.",
 				trustedClusterStep,
 			}
 		}
@@ -1247,6 +1247,38 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 	case types.OIDCIdPCA:
 		// No manual steps required.
 		return nil
+	case types.WindowsCA:
+		switch phase {
+		case "init":
+			return []string{
+				// TODO(codingllama): DELETE IN 20. Obsolete by then.
+				fmt.Sprintf(""+
+					"All Windows Desktop Service instances must be updated to the current Teleport version (%s) prior to rotating WindowsCA. Outdated agents are unable to use the rotated CA.",
+					api.Version),
+				"All Windows desktops must be updated to trust both the new and old CA certificates.",
+			}
+		case "rollback":
+			return []string{
+				"Any Windows desktops updated to trust the new CA certificate during the update_servers phase should be reverted to only trust the original CA certificate.",
+			}
+		case "standby":
+			return []string{
+				"All Windows desktops should be updated to stop trusting the CA certificates that have now been rotated out.",
+			}
+		}
+	case types.AppClientCA:
+		switch phase {
+		case "init":
+			return []string{
+				"All applications using client certificates must be updated to trust both the new and old CA certificates.",
+			}
+		case "rollback":
+			return []string{
+				"All applications using client certificates updated to trust the new CA certificates during the update_servers phase should be reverted to only trust the original CA certificate.",
+			}
+		case "standby":
+			return []string{"All applications using client certificates should be updated to stop trusting the CA certificates that have now been rotated out."}
+		}
 	case types.SPIFFECA:
 		// TODO(strideynet): populate any known manual steps during SPIFFE CA rotation.
 		fallthrough

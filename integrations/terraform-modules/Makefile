@@ -15,13 +15,21 @@ MODULE_DIRS := $(shell find . -type f -name '*.tf' -exec dirname {} \; 2>/dev/nu
 README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
 .PHONY: docs
-docs: $(README_FILES) ;
+docs: $(README_FILES)
+	./gen/docs.sh $(VERSION) $(PUBLISHED_TF_MODULES)
 
 %/README.md: force
 	terraform-docs markdown table --config .terraform-docs.yml $*
 
+.PHONY: test
+test:
+	@for dir in $(PUBLISHED_TF_MODULES); do \
+		terraform -chdir=$$dir init -upgrade && \
+		terraform -chdir=$$dir test || exit 1; \
+	done
+
 .PHONY: check
-check:
+check: clean
 	git ls-files -- . \
 	| xargs pre-commit run --hook-stage=manual --verbose --files
 
@@ -53,10 +61,11 @@ release: build
 
 PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
-PUBLISHED_TF_MODULES := $(subst /,_, \
+PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
-)
-MODULE_TARBALLS:=$(addsuffix .tar.gz, $(PUBLISHED_TF_MODULES))
+	teleport/discovery/azure \
+
+MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))
 
 .PHONY: build
@@ -76,7 +85,7 @@ build: $(BUILD_TARGETS) ;
 # https://developer.hashicorp.com/terraform/internals/module-registry-protocol
 $(BUILD_DIR)/$(PLUGIN_TYPE)_%.tar.gz: clean
 	@mkdir -p $(dir $@)
-	tar -czf $@ $(subst _,/,$*)
+	tar -C $(subst _,/,$*) -czf $@ . # change dirs to make the tarball because Terraform expects the tarball to only contain module source files, i.e., not nested in subdirectories.
 
 .PHONY: clean
 clean: tfclean

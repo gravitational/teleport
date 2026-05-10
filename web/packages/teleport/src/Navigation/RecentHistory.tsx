@@ -17,8 +17,7 @@
  */
 
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { matchPath } from 'react-router';
-import { NavLink } from 'react-router-dom';
+import { matchPath, NavLink } from 'react-router';
 import styled from 'styled-components';
 
 import { ButtonIcon, Flex, H4, P3, Text } from 'design';
@@ -45,12 +44,11 @@ function getIconForRoute(
   features: TeleportFeature[],
   route: string
 ): (props) => ReactNode {
-  const feature = features.find(feature =>
-    matchPath(route, {
-      path: feature?.route?.path,
-      exact: false,
-    })
-  );
+  const feature = features.find(feature => {
+    const path = feature?.route?.path;
+    if (!path) return false;
+    return matchPath({ path, end: false }, route);
+  });
 
   const icon = feature?.navigationItem?.icon || feature?.topMenuItem?.icon;
   if (!icon) {
@@ -173,12 +171,14 @@ function AnimatedHistoryItem({
   const itemRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let rafId: number;
+
     if (item.animationState === 'exiting' && itemRef.current) {
       const height = item.category ? 60 : 40;
       itemRef.current.style.height = `${height}px`;
       itemRef.current.style.opacity = '1';
       void itemRef.current.offsetHeight; // Force reflow
-      requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
         if (itemRef.current) {
           itemRef.current.style.height = '0px';
           itemRef.current.style.opacity = '0';
@@ -191,13 +191,15 @@ function AnimatedHistoryItem({
       itemRef.current.style.height = `0px`;
       itemRef.current.style.opacity = '0';
       void itemRef.current.offsetHeight; // Force reflow
-      requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
         if (itemRef.current) {
           itemRef.current.style.height = `${height}px`;
           itemRef.current.style.opacity = '1';
         }
       });
     }
+
+    return () => cancelAnimationFrame(rafId);
   }, [item.animationState]);
 
   return (

@@ -30,7 +30,7 @@ Keycloak groups. You can choose to configure other options.
 Before you get started, you’ll need:
 
 
-- An administrative account for the Keycloak Admin Console to manage realms 
+- An administrative account for the Keycloak Admin Console to manage realms
   and perform administrative tasks.
 - To be in a realm other than the master realm.
 - To register one or more users in the realm directory.
@@ -49,7 +49,7 @@ Before you get started, you’ll need:
 
 1. Select the Realm to be used for your SAML integration. Click **Clients** in the menu.
 
-1. Click **Create client** 
+1. Click **Create client**
 
    ![Create client](../../../../img/sso/keycloak/create_client.png)
 
@@ -84,7 +84,7 @@ Before you get started, you’ll need:
    ![Edit client scope](../../../../img/sso/keycloak/client_scope.png)
 
 1. On the Mappers tab, Click **Configure a new mapper**.
-   
+
    ![Configure mapper](../../../../img/sso/keycloak/configure_mapper.png)
 
 1. Select **Groups list** from the list of attribute mappings
@@ -148,8 +148,13 @@ spec:
   attributes_to_roles:
   - name: groups
     roles:
-    - dev
-    value: /devops
+    - editor
+    - auditor
+    value: /admins
+  - name: groups
+    roles:
+    - access
+    value: /devs
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: ""
@@ -159,18 +164,18 @@ spec:
   service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   sso: ""
 version: v2
-``` 
+```
 
-To optionally test the auth connector, 
+To optionally test the auth connector,
 temporarily disable the **Client signature required** option
-by navigating to the **Keys** tab of the SAML client. 
-This will be enabled at a later step as you proceed through the guide. 
+by navigating to the **Keys** tab of the SAML client.
+This will be enabled at a later step as you proceed through the guide.
 
 ![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
 
 ### Test the connector
 
-With the connector in place on the cluster, you can test it with `tctl`: 
+With the connector in place on the cluster, you can test it with `tctl`:
 
 ```code
 $ cat keycloak-connector.yaml | tctl sso test
@@ -192,31 +197,31 @@ $ tctl create -f keycloak-connector.yaml
 
 ## Client Certificate Signature validation (Recommended)
 
-If Client Signature Required is enabled, 
-documents coming from the client are expected to be signed. 
-Keycloak will validate this signature using the client public key 
+If Client Signature Required is enabled,
+documents coming from the client are expected to be signed.
+Keycloak will validate this signature using the client public key
 or cert set up in the **Keys** tab.
 
 To have Keycloak require client signature validation from Teleport,
-you must configure the signing keys by generating and importing keys to Keycloak, 
+you must configure the signing keys by generating and importing keys to Keycloak,
 The client will sign their saml requests and responses and the signature will be validated.
 
 
 ### Create private keys for signing
 
-- Start by generating a private key and certificate. 
+- Start by generating a private key and certificate.
 
 ```code
 $ openssl genrsa -out priv.pem 2048
 $ openssl req -new -x509 -key priv.pem -out cert.pem
 ```
 
-- Convert the just generated certificate (in PEM format) to the PKCS#12 format 
+- Convert the just generated certificate (in PEM format) to the PKCS#12 format
 
 ```code
 openssl pkcs12 -in cert.pem -name teleport -export -out cert.pkcs12
 ```
-Take note of the **name** and the defined **export password** 
+Take note of the **name** and the defined **export password**
 as it will be used when importing the cert to Keycloak.
 
 ```code
@@ -231,14 +236,7 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
-  attributes_to_roles:
-  - name: groups
-    roles:
-    - editor
-    - access
-    - auditor
-    value: '*'
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: Keycloak
@@ -276,14 +274,17 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   attributes_to_roles:
   - name: groups
     roles:
     - editor
-    - access
     - auditor
-    value: '*'
+    value: /admins
+  - name: groups
+    roles:
+    - access
+    value: /devs
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: Keycloak
@@ -317,7 +318,7 @@ Update the connector by saving and closing the file in your editor.
 
 ### Activate client signature validation
 
-- Navigate to **Clients** in left sidebar 
+- Navigate to **Clients** in left sidebar
 
 - Select your Teleport SAML client
 
@@ -346,7 +347,7 @@ If the SSO login with this connector is successful, the client signature validat
 
 ### Signature validation incompatibility
 
-When "Client signature required" is enabled with the appropriate signing keys, 
+When "Client signature required" is enabled with the appropriate signing keys,
 it results in an invalid requester error as shown in the image below.
 
 ![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
@@ -358,8 +359,8 @@ This occurs when Keycloak receives a SAML request that does not meet its signatu
 which causes Keycloak to fail when attempting to verify the SAML signature.
 
 To resolve the issue:
-- Refer to the **Client Certificate Signature validation** section 
-  to review the certificate configuration. Ensure the certificate is up-to-date 
-  and the private key is properly paired with it. 
-- Once the above has been verified, temporarily add the `spec.provider: ping` parameter 
+- Refer to the **Client Certificate Signature validation** section
+  to review the certificate configuration. Ensure the certificate is up-to-date
+  and the private key is properly paired with it.
+- Once the above has been verified, temporarily add the `spec.provider: ping` parameter
   to the Keycloak auth connector to match Keycloak strict signature requirements.

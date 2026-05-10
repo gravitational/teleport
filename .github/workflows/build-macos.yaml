@@ -36,7 +36,6 @@ jobs:
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
-          echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
           echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
           echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
 
@@ -44,7 +43,6 @@ jobs:
         run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
-          echo "go: ${GOLANG_VERSION}"
           echo "rust: ${RUST_VERSION}"
 
       - name: Install Node Toolchain
@@ -61,7 +59,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version: ${{ env.GOLANG_VERSION }}
+          go-version-file: go.mod
 
       - name: Install wasm-deps
         run: make ensure-wasm-deps

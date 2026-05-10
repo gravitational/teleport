@@ -448,6 +448,91 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	})
 }
 
+// TestBotInstanceCacheFilterFn tests that FilterFn is applied during cache
+// iteration and that pages are filled correctly even when some items are
+// filtered out.
+func TestBotInstanceCacheFilterFn(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	// Create 10 instances across two bots: bot-0 and bot-1.
+	for n := range 10 {
+		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    "bot-" + strconv.Itoa(n%2),
+				InstanceId: "instance-" + strconv.Itoa(n),
+			},
+			Status: &machineidv1.BotInstanceStatus{},
+		})
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 10)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// FilterFn that only accepts even-numbered instances.
+	filterFn := func(b *machineidv1.BotInstance) bool {
+		id := b.GetSpec().GetInstanceId()
+		n := id[len(id)-1]
+		return n == '0' || n == '2' || n == '4' || n == '6' || n == '8'
+	}
+
+	// FilterFn alone: all even instances across both bots.
+	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterFn: filterFn,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 5)
+
+	// Pages should be full: request 3 items with a filter that accepts half.
+	results, nextPageToken, err := p.cache.ListBotInstances(ctx, 3, "", &services.ListBotInstancesRequestOptions{
+		FilterFn: filterFn,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+	require.NotEmpty(t, nextPageToken)
+
+	// Next page should contain the remaining 2 items.
+	results, nextPageToken, err = p.cache.ListBotInstances(ctx, 3, nextPageToken, &services.ListBotInstancesRequestOptions{
+		FilterFn: filterFn,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	require.Empty(t, nextPageToken)
+
+	// FilterFn composed with FilterBotName: bot-0 has instances 0,2,4,6,8
+	// (even-numbered), all of which pass the FilterFn. bot-1 has instances
+	// 1,3,5,7,9 (odd-numbered), none of which pass the FilterFn.
+	results, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterBotName: "bot-0",
+		FilterFn:      filterFn,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 5)
+	for _, b := range results {
+		require.Equal(t, "bot-0", b.GetSpec().GetBotName())
+	}
+
+	// bot-1 instances are all odd-numbered, so FilterFn rejects them all.
+	results, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterBotName: "bot-1",
+		FilterFn:      filterFn,
+	})
+	require.NoError(t, err)
+	require.Empty(t, results)
+}
+
 // TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
 func TestBotInstanceCacheFallback(t *testing.T) {
 	t.Parallel()

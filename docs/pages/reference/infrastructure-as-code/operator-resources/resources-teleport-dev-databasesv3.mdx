@@ -39,7 +39,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |mongo_atlas|[object](#specmongo_atlas)|MongoAtlas contains Atlas metadata about the database.|
 |mysql|[object](#specmysql)|MySQL is an additional section with MySQL database options.|
 |oracle|[object](#specoracle)|Oracle is an additional Oracle configuration options.|
-|protocol|string|Protocol is the database protocol: postgres, mysql, mongodb, etc.|
+|protocol|string|Protocol is the database protocol. Valid options are: "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb" "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake" "spanner" "sqlserver"|
 |tls|[object](#spectls)|TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|
 |uri|string|URI is the database connection endpoint.|
 
@@ -79,7 +79,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |rds|[object](#specawsrds)|RDS contains RDS specific metadata.|
 |rdsproxy|[object](#specawsrdsproxy)|RDSProxy contains AWS Proxy specific metadata.|
 |redshift|[object](#specawsredshift)|Redshift contains Redshift specific metadata.|
-|redshift_serverless|[object](#specawsredshift_serverless)|RedshiftServerless contains Amazon Redshift Serverless-specific metadata.|
+|redshift_serverless|[object](#specawsredshift_serverless)|RedshiftServerless contains metatada specific to Amazon Redshift Serverless.|
 |region|string|Region is a AWS cloud region.|
 |secret_store|[object](#specawssecret_store)|SecretStore contains secret store configurations.|
 |session_tags|[object](#specawssession_tags)|SessionTags is a list of AWS STS session tags.|

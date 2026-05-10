@@ -163,7 +163,7 @@ func (m *Status) nonEmptyStrs() int {
 }
 
 func (m *Status) trimToMaxFieldSize(maxFieldSize int) Status {
-	var out Status
+	out := *m
 	out.Error = trimStr(m.Error, maxFieldSize)
 	out.UserMessage = trimStr(m.UserMessage, maxFieldSize)
 	return out
@@ -1459,6 +1459,60 @@ func (m *WindowsDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *LinuxDesktopSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.LinuxUser = ""
+	out.DesktopLabels = nil
+	out.DesktopName = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Status.nonEmptyStrs() +
+		nonEmptyStrs(m.LinuxUser, m.DesktopName) +
+		nonEmptyStrsInMap(m.DesktopLabels)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
+	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
+	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+
+	return out
+}
+
+func (m *LinuxDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.LinuxUser = ""
+	out.DesktopLabels = nil
+	out.DesktopName = ""
+	out.Participants = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.LinuxUser, m.DesktopName) +
+		nonEmptyStrsInMap(m.DesktopLabels) +
+		nonEmptyStrsInSlice(m.Participants)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
+	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+	out.Participants = trimStrSlice(m.Participants, maxFieldsSize)
+
+	return out
+}
+
 func (m *DesktopClipboardSend) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -1534,6 +1588,10 @@ func (m *UpgradeWindowStartUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *EnvironmentProfileUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *SessionRecordingAccess) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -1559,6 +1617,29 @@ func (m *SSMRun) TrimToMaxSize(maxSize int) AuditEvent {
 	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
 	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
 	out.InvocationURL = trimStr(m.InvocationURL, maxFieldsSize)
+
+	return out
+}
+
+func (m *AzureRun) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.StandardOutput = ""
+	out.StandardError = ""
+	out.APIError = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.StandardOutput, m.StandardError, m.APIError)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
+	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
+	out.APIError = trimStr(m.APIError, maxFieldsSize)
 
 	return out
 }
@@ -2677,32 +2758,44 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	return out
 }
 
+func placeholder[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	var empty T
+	return &empty
+}
+
 func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	if m.Size() <= maxSize {
 		return m
 	}
+
 	trimmed := utils.CloneProtoMsg(m)
-	if trimmed.Request != nil {
-		trimmed.Request.Body = nil
+	trimmed.Status = Status{}
+	trimmed.SCIMCommonData = SCIMCommonData{
+		Request:  placeholder(m.Request),
+		Response: placeholder(m.Response),
 	}
-	if trimmed.Size() <= maxSize {
-		return trimmed
-	}
+	trimmed.TeleportID = ""
+	trimmed.ExternalID = ""
+	trimmed.Display = ""
 
 	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := trimmed.Status.nonEmptyStrs() + nonEmptyStrs(
-		trimmed.Integration,
-		trimmed.ResourceType,
-		trimmed.TeleportID,
-		trimmed.ExternalID,
-		trimmed.Display)
+
+	trimmableFieldCount := m.Status.nonEmptyStrs() +
+		m.SCIMCommonData.nonEmptyFields() +
+		nonEmptyStrs(
+			m.TeleportID,
+			m.ExternalID,
+			m.Display)
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
-	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
+	trimmed.SCIMCommonData = m.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
+	trimmed.TeleportID = trimStr(m.TeleportID, maxFieldsSize)
+	trimmed.ExternalID = trimStr(m.ExternalID, maxFieldsSize)
+	trimmed.Display = trimStr(m.Display, maxFieldsSize)
 
 	return trimmed
 }
@@ -2711,25 +2804,63 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	if m.Size() <= maxSize {
 		return m
 	}
-	trimmed := utils.CloneProtoMsg(m)
 
-	if trimmed.Request != nil {
-		trimmed.Request.Body = nil
+	trimmed := utils.CloneProtoMsg(m)
+	trimmed.Status = Status{}
+	trimmed.SCIMCommonData = SCIMCommonData{
+		Request:  placeholder(m.Request),
+		Response: placeholder(m.Response),
 	}
-	if trimmed.Size() <= maxSize {
-		return trimmed
-	}
+	trimmed.Filter = ""
 
 	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := m.Status.nonEmptyStrs() + nonEmptyStrs(
-		trimmed.Integration,
-		trimmed.ResourceType,
-		m.Filter)
+	trimmableFieldCount := m.Status.nonEmptyStrs() +
+		m.SCIMCommonData.nonEmptyFields() +
+		nonEmptyStrs(m.Filter)
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
-	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+	trimmed.SCIMCommonData = m.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
+	trimmed.Filter = trimStr(m.Filter, maxFieldsSize)
+
+	return trimmed
+}
+
+func (c *SCIMCommonData) nonEmptyFields() int {
+	acc := nonEmptyStrs(c.Integration, c.ResourceType)
+	if req := c.Request; req != nil {
+		acc += nonEmptyStrs(req.ID, req.SourceAddress, req.Method, req.Path, req.Query, req.UserAgent)
+		acc += req.Body.nonEmptyStrs()
+	}
+
+	if resp := c.Response; resp != nil {
+		acc += resp.Body.nonEmptyStrs()
+	}
+	return acc
+}
+
+func (c *SCIMCommonData) trimToMaxFieldSize(maxFieldSize int) SCIMCommonData {
+	if c == nil {
+		return SCIMCommonData{}
+	}
+
+	trimmed := *utils.CloneProtoMsg(c)
+	trimmed.ResourceType = trimStr(c.ResourceType, maxFieldSize)
+	trimmed.Integration = trimStr(c.Integration, maxFieldSize)
+
+	if r := trimmed.Request; r != nil {
+		r.ID = trimStr(r.ID, maxFieldSize)
+		r.SourceAddress = trimStr(r.SourceAddress, maxFieldSize)
+		r.UserAgent = trimStr(r.UserAgent, maxFieldSize)
+		r.Method = trimStr(r.Method, maxFieldSize)
+		r.Path = trimStr(r.Path, maxFieldSize)
+		r.Query = trimStr(r.Query, maxFieldSize)
+		r.Body = r.Body.trimToMaxFieldSize(maxFieldSize)
+	}
+
+	if resp := trimmed.Response; resp != nil {
+		resp.Body = resp.Body.trimToMaxFieldSize(maxFieldSize)
+	}
 
 	return trimmed
 }
@@ -2768,4 +2899,127 @@ func (m *VnetConfigUpdate) TrimToMaxSize(int) AuditEvent {
 
 func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
+}
+
+func (m *WorkloadClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Payload = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Payload.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Payload = m.Payload.trimToMaxFieldSize(maxFieldsSize)
+
+	return out
+}
+
+func (m *WorkloadClusterUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Payload = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Payload.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Payload = m.Payload.trimToMaxFieldSize(maxFieldsSize)
+
+	return out
+}
+
+func (m *WorkloadClusterDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceSecretCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceSecretUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceSecretDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferencePolicyCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferencePolicyUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *CertAuthorityOverrideEvent) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Status.Error, &out.Status.Error),
+			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
+		}
+	})
+}
+
+func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
+		}
+	})
 }

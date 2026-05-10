@@ -1,0 +1,394 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: teleportscopedtokensv1.resources.teleport.dev
+spec:
+  group: resources.teleport.dev
+  names:
+    kind: TeleportScopedTokenV1
+    listKind: TeleportScopedTokenV1List
+    plural: teleportscopedtokensv1
+    shortNames:
+    - scopedtokenv1
+    - scopedtokensv1
+    singular: teleportscopedtokenv1
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: ScopedTokenV1 is the Schema for the scopedtokensv1 API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          scope:
+            description: Scope is the scope of the token resource.
+            type: string
+          spec:
+            description: ScopedToken resource definition v1 from Teleport
+            properties:
+              assigned_scope:
+                description: The scope to which this token is assigned.  Must be equivalent
+                  or descendent to the scope of the token itself.
+                type: string
+              aws:
+                description: The AWS-specific configuration used with the "ec2" and
+                  "iam" join methods.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        aws_account:
+                          type: string
+                        aws_arn:
+                          type: string
+                        aws_organization_id:
+                          type: string
+                        aws_regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        aws_role:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  iid_ttl:
+                    description: The TTL to use for AWS EC2 Instance Identity Documents
+                      used to join the cluster with this token. This should be a duration
+                      string such as "8h" or "6mo".
+                    type: string
+                  integration:
+                    description: Integration name which provides credentials for validating
+                      join attempts. Currently only in use for validating the AWS
+                      Organization ID in the IAM Join method.
+                    type: string
+                type: object
+              azure:
+                description: The Azure-specific configuration used with the "azure"
+                  join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        resource_groups:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        subscription:
+                          type: string
+                        tenant:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
+              azure_devops:
+                description: The Azure Devops-specific configuration used with the
+                  "azure_devops" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        definition_id:
+                          type: string
+                        pipeline_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        repository_ref:
+                          type: string
+                        repository_uri:
+                          type: string
+                        repository_version:
+                          type: string
+                        sub:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  organization_id:
+                    description: The UUID of the Azure DevOps organization that this
+                      join token will grant access to. This is used to identify the
+                      correct issuer verification of the ID token. This is a required
+                      field.
+                    type: string
+                type: object
+              bot_name:
+                description: Name of the bot associated with this join token, if any.
+                type: string
+              bot_scope:
+                description: Scope of the bot associated with this join token. Required
+                  if bot_name is set, and mutually exclusive with assigned_scope.
+                type: string
+              bound_keypair:
+                description: Configuration specific to the "bound_keypair" join method.
+                nullable: true
+                properties:
+                  onboarding:
+                    description: Parameters related to initial onboarding and keypair
+                      registration.
+                    nullable: true
+                    properties:
+                      initial_public_key:
+                        type: string
+                      must_register_before:
+                        format: date-time
+                        type: string
+                      registration_secret:
+                        type: string
+                    type: object
+                  recovery:
+                    description: Parameters related to recovery after identity expiration,
+                      including the initial join.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: An optional timestamp that forces clients to perform
+                      a keypair rotation on the next join or recovery attempt after
+                      the given date. If `LastRotatedAt` is unset or before this timestamp,
+                      a rotation will be requested. It is recommended to set this
+                      value to the current timestamp if a rotation should be triggered
+                      on the next join attempt.
+                    format: date-time
+                    type: string
+                type: object
+              gcp:
+                description: The GCP-specific configuration used with the "gcp" join
+                  method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        locations:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        project_ids:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        service_accounts:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
+              immutable_labels:
+                description: Immutable labels that should be applied to any resulting
+                  resources provisioned using this token.
+                nullable: true
+                properties:
+                  ssh:
+                    additionalProperties:
+                      type: string
+                    description: Labels that should be applied to SSH nodes.
+                    nullable: true
+                    type: object
+                type: object
+              join_method:
+                description: The joining method required in order to use this token.
+                  Note that not all join methods support joining with scoped tokens.
+                type: string
+              kubernetes:
+                description: The Kubernetes-specific configuration used with the "kubernetes"
+                  join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        service_account:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  oidc:
+                    description: The configuration specific to the `oidc` type.
+                    nullable: true
+                    properties:
+                      insecure_allow_http_issuer:
+                        type: boolean
+                      issuer:
+                        type: string
+                    type: object
+                  static_jwks:
+                    description: The configuration specific to the `static_jwks` type.
+                    nullable: true
+                    properties:
+                      jwks:
+                        type: string
+                    type: object
+                  type:
+                    description: 'Controls which behavior should be used for validating
+                      the Kubernetes Service Account token. Supported values: - `in_cluster`
+                      - `static_jwks` - `oidc`'
+                    type: string
+                type: object
+              oracle:
+                description: The Oracle-specific configuration used with the "oracle"
+                  join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        instances:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        parent_compartments:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        tenancy:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
+              roles:
+                description: The list of roles associated with the token. They will
+                  be converted to metadata in the SSH and X509 certificates issued
+                  to the user of the token.
+                items:
+                  type: string
+                nullable: true
+                type: array
+              usage_mode:
+                description: The usage mode of the token. Can be "single_use" or "unlimited".
+                  Single use tokens can only be used to provision a single resource.
+                  Unlimited tokens can be be used to provision any number of resources
+                  until it expires.
+                type: string
+            type: object
+          status:
+            description: Status defines the observed state of the Teleport resource
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of an object's state
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              teleportResourceID:
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
