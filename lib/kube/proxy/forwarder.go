@@ -1756,8 +1756,10 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 			err = <-party.closeC
 
-			if _, errLeave := session.leave(ctx, party.ID); errLeave != nil {
-				f.log.DebugContext(ctx, "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the client disconnects.
+			leaveCtx := context.WithoutCancel(ctx)
+			if _, errLeave := session.leave(leaveCtx, party.ID); errLeave != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", errLeave,
