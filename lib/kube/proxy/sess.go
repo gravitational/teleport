@@ -1073,7 +1073,10 @@ func (s *session) join(ctx context.Context, p *party, emitJoinEvent bool) error 
 		}()
 	}
 
-	canStart, _, err := s.canStart(ctx)
+	// Detach cancellation: the participant is already registered above, so a
+	// canceled request context here would leak them in s.parties/partiesWg
+	// because the caller treats this error as fatal and never calls leave.
+	canStart, _, err := s.canStart(context.WithoutCancel(ctx))
 	if err != nil {
 		return trace.Wrap(err)
 	}
