@@ -59,6 +59,14 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+- `session_recording` (Attributes) SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode. (see [below for nested schema](#nested-schema-for-specdefaultssession_recording))
+
+### Nested Schema for `spec.defaults.session_recording`
+
+Optional:
+
+- `mode` (String) Mode sets the session recording mode. Allowed values: strict | best_effort.
+
 
 
 ### Nested Schema for `spec.kube`
@@ -92,6 +100,7 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
+- `enhanced_recording` (Attributes) EnhancedRecording is the set of BPF events to record for enhanced session recording. (see [below for nested schema](#nested-schema-for-specsshenhanced_recording))
 - `file_copy` (Boolean) FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.
 - `forward_agent` (Boolean) ForwardAgent enables SSH agent forwarding.
 - `host_sudoers` (List of String) Sudoers is a list of entries to include in a users sudoer file
@@ -101,6 +110,16 @@ Optional:
 - `max_sessions` (Number) MaxSessions defines the maximum number of concurrent sessions per connection.
 - `permit_x11_forwarding` (Boolean) PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.
 - `port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specsshport_forwarding))
+- `session_recording` (Attributes) SessionRecording configures the session recording strategy for SSH sessions. (see [below for nested schema](#nested-schema-for-specsshsession_recording))
+
+### Nested Schema for `spec.ssh.enhanced_recording`
+
+Optional:
+
+- `command` (Boolean) Command enables session.command in audit logs
+- `disk` (Boolean) Disk enables session.disk in audit logs
+- `network` (Boolean) Network enables session.network in audit logs
+
 
 ### Nested Schema for `spec.ssh.host_user_creation`
 
@@ -138,4 +157,12 @@ Optional:
 Optional:
 
 - `enabled` (Boolean)
+
+
+
+### Nested Schema for `spec.ssh.session_recording`
+
+Optional:
+
+- `mode` (String) Mode sets the session recording mode. Allowed values: strict | best_effort.
 

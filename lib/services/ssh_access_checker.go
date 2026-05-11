@@ -88,11 +88,19 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 }
 
 // SessionRecordingMode returns the session recording mode for SSH sessions.
+// SSH recording mode takes precedence over the defaults
 func (c *SSHAccessChecker) SessionRecordingMode() constants.SessionRecordingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
 	}
-	return c.checker.scopedCompatChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
+	sr := c.checker.role.GetSpec().GetSsh().GetSessionRecording()
+	if sr == nil {
+		sr = c.checker.role.GetSpec().GetDefaults().GetSessionRecording()
+	}
+	if sr.GetMode() != "" {
+		return constants.SessionRecordingMode(sr.GetMode())
+	}
+	return constants.SessionRecordingModeBestEffort
 }
 
 // CanPortForward returns true if port forwarding is permitted.
@@ -162,7 +170,18 @@ func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.EnhancedRecordingSet()
 	}
-	return c.checker.scopedCompatChecker.EnhancedRecordingSet()
+	events := c.checker.role.GetSpec().GetSsh().GetEnhancedRecording()
+	m := make(map[string]bool)
+	if events.GetCommand() {
+		m[constants.EnhancedRecordingCommand] = true
+	}
+	if events.GetDisk() {
+		m[constants.EnhancedRecordingDisk] = true
+	}
+	if events.GetNetwork() {
+		m[constants.EnhancedRecordingNetwork] = true
+	}
+	return m
 }
 
 // HostUsers returns host user creation information for the server, or nil if host user creation is disabled.
