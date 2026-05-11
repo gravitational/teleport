@@ -183,9 +183,9 @@ const OpenIdentityPopover = (props: {
   props.clusters.forEach(c => {
     ctx.addRootCluster(c);
   });
-  ctx.workspacesService.addWorkspace(clusterGreen.uri);
-  ctx.workspacesService.addWorkspace(clusterViolet.uri);
-  ctx.workspacesService.addWorkspace(clusterOrange.uri);
+  ctx.workspacesService.addWorkspace(clusterGreen);
+  ctx.workspacesService.addWorkspace(clusterViolet);
+  ctx.workspacesService.addWorkspace(clusterOrange);
   ctx.workspacesService.setState(draftState => {
     draftState.rootClusterUri = props.activeClusterUri;
     draftState.workspaces[clusterGreen.uri].color = 'green';

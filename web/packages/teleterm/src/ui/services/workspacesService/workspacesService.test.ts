@@ -420,6 +420,7 @@ describe('setActiveWorkspace', () => {
       cluster,
       persistedWorkspaces: {},
     });
+    workspacesService.addWorkspace(cluster);
 
     // Resolve the modal immediately.
     jest
@@ -550,6 +551,7 @@ describe('setActiveWorkspace', () => {
       cluster: rootCluster,
       persistedWorkspaces: {},
     });
+    workspacesService.addWorkspace(rootCluster);
 
     jest.spyOn(notificationsService, 'notifyError');
 

@@ -158,7 +158,10 @@ test('shows each identity row with the correct profile status and action', async
   appContext.addRootCluster(connectedCluster, { noActivate: true });
   appContext.addRootCluster(expiredCluster, { noActivate: true });
   appContext.addRootCluster(disconnectedCluster, { noActivate: true });
-  appContext.workspacesService.addWorkspace('/clusters/orphan');
+  appContext.workspacesService.addWorkspace({
+    uri: '/clusters/orphan',
+    proxyHost: 'this-is-orphaned-cluster.com',
+  });
 
   render(
     <MockAppContextProvider appContext={appContext}>

@@ -229,7 +229,14 @@ export default class AppContext implements IAppContext {
       const task = processingQueue.then(async () => {
         switch (op) {
           case 'did-add-cluster':
-            return this.workspacesService.addWorkspace(uri);
+            const cluster = this.clustersService.findCluster(uri);
+            if (!cluster) {
+              throw new Error(`Cluster ${uri} does not exist`);
+            }
+            return this.workspacesService.addWorkspace({
+              uri,
+              proxyHost: cluster.uri,
+            });
           case 'did-change-access':
             if (!this.clustersService.findCluster(uri).connected) {
               // Only refresh resources when the cluster is connected.
