@@ -232,11 +232,12 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
 	params := backend.ItemsParams{
 		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(startKey)),
-		// Defaults to end of range if not specified.
-		EndKey: backend.RangeEnd(s.backendPrefix.ExactKey()),
 	}
 	if endKey != "" {
 		params.EndKey = s.backendPrefix.AppendKey(backend.KeyFromString(endKey)).ExactKey()
+	} else {
+		// Defaults to end of range if not specified.
+		params.EndKey = backend.RangeEnd(s.backendPrefix.ExactKey())
 	}
 
 	mapFn := func(item backend.Item) (T, bool) {
