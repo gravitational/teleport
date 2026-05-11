@@ -20,6 +20,8 @@ package services
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 func TestParserForIdentifierSubcondition(t *testing.T) {
@@ -405,20 +408,142 @@ func TestResourceParserLabelExpansion(t *testing.T) {
 	}
 }
 
-func BenchmarkContains(b *testing.B) {
+func BenchmarkSplitContains(b *testing.B) {
+	parser, err := newResourceExpressionParser(func(ps *typical.ParserSpec[types.ResourceWithLabels]) {
+		// this avoids the AST optimizations on the exact function name of
+		// contains but otherwise has the same behavior
+		ps.Functions["contains_unoptimized"] = ps.Functions["contains"]
+		// this forces the slice to be created eagerly in memory
+		ps.Functions["contains_naive"] = typical.BinaryFunction[types.ResourceWithLabels](func(list []string, value string) (bool, error) {
+			return slices.Contains(list, value), nil
+		})
+	})
+	require.NoError(b, err)
+
 	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",
-	}, map[string]string{"ip": "1.2.3.11|1.2.3.101|1.2.3.1"})
+	}, map[string]string{
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", 200),
+		"target_ip": "1.2.3.6",
+	})
 	require.NoError(b, err)
 
-	expression, err := NewResourceExpression(`contains(split(labels["ip"], "|"), "1.2.3.1")`)
+	server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.5" + strings.Repeat("|2.3.4.5", 200),
+		"target_ip": "1.2.3.6",
+	})
 	require.NoError(b, err)
 
-	for b.Loop() {
-		match, err := expression.Evaluate(server)
-		require.NoError(b, err)
-		require.True(b, match)
+	for name, expr := range map[string]string{
+		// the happiest path
+		"optimized": `contains(split(labels["ip"], "|"), "1.2.3.6")`,
+		// these two should be equivalent after AST transformations, not as fast
+		// as the happy path when matching against a literal but still zero
+		// allocations
+		"auto_combined":   `contains(split(labels["ip"], "|"), labels.target_ip)`,
+		"manual_combined": `__split_contains(labels["ip"], "|", labels.target_ip)`,
+		// this uses lazy evaluation of slices so it should be about as fast as
+		// the combined version but with some object passing involved
+		"unoptimized": `contains_unoptimized(split(labels["ip"], "|"), "1.2.3.6")`,
+		// this will eagerly split the string into a slice and then checks items
+		// in the slice one by one, mimicking the legacy behavior
+		"legacy_naive": `contains_naive(split(labels["ip"], "|"), "1.2.3.6")`,
+	} {
+		b.Run(name, func(b *testing.B) {
+			expression, err := newResourceExpression(expr, parser)
+			require.NoError(b, err)
+
+			for b.Loop() {
+				match, err := expression.Evaluate(server)
+				require.NoError(b, err)
+				require.True(b, match)
+				match, err = expression.Evaluate(server2)
+				require.NoError(b, err)
+				require.False(b, match)
+			}
+		})
 	}
+}
+
+func TestSplitContainsZeroAlloc(t *testing.T) {
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", 200),
+		"target_ip": "1.2.3.6",
+	})
+	require.NoError(t, err)
+
+	server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.5" + strings.Repeat("|2.3.4.5", 200),
+		"target_ip": "1.2.3.6",
+	})
+	require.NoError(t, err)
+
+	for name, expr := range map[string]string{
+		"optimized":       `contains(split(labels["ip"], "|"), "1.2.3.6")`,
+		"auto_combined":   `contains(split(labels["ip"], "|"), labels.target_ip)`,
+		"manual_combined": `__split_contains(labels["ip"], "|", labels.target_ip)`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			expression, err := NewResourceExpression(expr)
+			require.NoError(t, err)
+
+			allocs := testing.AllocsPerRun(1000, func() {
+				match, err := expression.Evaluate(server)
+				require.NoError(t, err)
+				require.True(t, match)
+				match, err = expression.Evaluate(server2)
+				require.NoError(t, err)
+				require.False(t, match)
+			})
+			require.Zero(t, allocs)
+		})
+	}
+}
+
+func TestSplitContainsOptimizations(t *testing.T) {
+	var splitContainsCalled, splitContainsSinglebyteAffixCalled bool
+	parser, err := newResourceExpressionParser(func(ps *typical.ParserSpec[types.ResourceWithLabels]) {
+		ps.Functions["__split_contains"] = typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimiter string, target string) (bool, error) {
+			splitContainsCalled = true
+			return splitContains(value, delimiter, target), nil
+		})
+		ps.Functions["__split_contains_singlebyte_affix"] = typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string) (bool, error) {
+			splitContainsSinglebyteAffixCalled = true
+			return splitContainsSinglebyteAffix(value, delimTargetDelim), nil
+		})
+	})
+	require.NoError(t, err)
+
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, map[string]string{
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", 200),
+		"target_ip": "1.2.3.6",
+	})
+	require.NoError(t, err)
+
+	expr, err := newResourceExpression(`contains(split(labels["ip"], "|"), "1.2.3.6")`, parser)
+	require.NoError(t, err)
+	match, err := expr.Evaluate(server)
+	require.NoError(t, err)
+	require.True(t, match)
+	require.False(t, splitContainsCalled)
+	require.True(t, splitContainsSinglebyteAffixCalled)
+	splitContainsSinglebyteAffixCalled = false
+
+	expr, err = newResourceExpression(`contains(split(labels["ip"], "|"), labels.target_ip)`, parser)
+	require.NoError(t, err)
+	match, err = expr.Evaluate(server)
+	require.NoError(t, err)
+	require.True(t, match)
+	require.True(t, splitContainsCalled)
+	require.False(t, splitContainsSinglebyteAffixCalled)
 }
 
 // TestParserHostCertContext tests set functions with a custom host cert

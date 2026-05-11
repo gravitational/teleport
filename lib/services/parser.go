@@ -21,14 +21,19 @@ package services
 import (
 	"context"
 	"fmt"
+	"go/ast"
+	goparser "go/parser"
+	"go/token"
 	"log/slog"
-	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
+	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -954,18 +959,58 @@ func predicateContainsAny(a, b any) predicate.BoolPredicate {
 	}
 }
 
-// NewResourceExpression returns a [typical.Expression] that is to be evaluated against a
-// [types.ResourceWithLabels]. It is customized to allow short identifiers common in all
-// resources:
-//   - shorthand `name` refers to `resource.spec.hostname` for node resources, or it refers
-//     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
-//   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
-//     eg: `labels.env == "prod"`
-//
-// All other fields can be referenced by starting expression with identifier `resource`
-// followed by the names of the json fields ie: `resource.spec.public_addr`.
-func NewResourceExpression(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
-	parser, err := typical.NewParser[types.ResourceWithLabels, bool](typical.ParserSpec[types.ResourceWithLabels]{
+type lazyStringSplit struct {
+	value, delimiter string
+}
+
+func (s *lazyStringSplit) Slice() []string {
+	return strings.Split(s.value, s.delimiter)
+}
+
+func (s *lazyStringSplit) Contains(target string) bool {
+	return splitContains(s.value, s.delimiter, target)
+}
+
+func splitContains(value, delimiter, target string) bool {
+	if strings.Contains(target, delimiter) || !strings.Contains(value, target) {
+		return false
+	}
+
+	for v := range strings.SplitSeq(value, delimiter) {
+		if target == v {
+			return true
+		}
+	}
+	return false
+}
+
+func splitContainsSinglebyteAffix(value, delimTargetDelim string) bool {
+	// the delimiter is one byte and it's at the head and tail of
+	// delimTargetDelim, so if we don't have two bytes we can't do some of the
+	// slicing; this is an internal-use function so we're not really concerned
+	// with sanity checks - if called incorrectly, this function will return a
+	// useless value but it will not crash
+	if len(delimTargetDelim) < 2 {
+		return false
+	}
+	if value == delimTargetDelim[1:len(delimTargetDelim)-1] {
+		// ("foo", ",foo,")
+		return true
+	}
+	if strings.HasPrefix(value, delimTargetDelim[1:]) {
+		// ("foo,bar", ",foo,")
+		return true
+	}
+	if strings.HasSuffix(value, delimTargetDelim[:len(delimTargetDelim)-1]) {
+		// ("bar,foo", ",foo,")
+		return true
+	}
+	// ("bar,qux,foo,baz", ",foo,")
+	return strings.Contains(value, delimTargetDelim)
+}
+
+func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.ResourceWithLabels])) (*typical.Parser[types.ResourceWithLabels, bool], error) {
+	spec := typical.ParserSpec[types.ResourceWithLabels]{
 		Variables: map[string]typical.Variable{
 			"resource.metadata.labels": typical.DynamicVariable(func(r types.ResourceWithLabels) (map[string]string, error) {
 				return r.GetStaticLabels(), nil
@@ -1007,11 +1052,17 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			"exists": typical.UnaryFunction[types.ResourceWithLabels](func(value string) (bool, error) {
 				return value != "", nil
 			}),
-			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) ([]string, error) {
-				return strings.Split(value, delimiter), nil
+			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) (typical.LazyStringSlice, error) {
+				return &lazyStringSplit{value: value, delimiter: delimiter}, nil
 			}),
-			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list []string, value string) (bool, error) {
-				return slices.Contains(list, value), nil
+			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list typical.LazyStringSlice, value string) (bool, error) {
+				return list.Contains(value), nil
+			}),
+			"__split_contains": typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimiter string, target string) (bool, error) {
+				return splitContains(value, delimiter, target), nil
+			}),
+			"__split_contains_singlebyte_affix": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string) (bool, error) {
+				return splitContainsSinglebyteAffix(value, delimTargetDelim), nil
 			}),
 		},
 		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
@@ -1024,11 +1075,195 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			identifier := strings.Join(fields, ".")
 			return nil, trace.BadParameter("identifier %s is not defined", identifier)
 		},
+	}
+	for _, opt := range opts {
+		opt(&spec)
+	}
+	parser, err := typical.NewParser[types.ResourceWithLabels, bool](spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return parser, nil
+}
+
+var resourceExpressionParserOnce sync.Once
+var resourceExpressionParser *typical.Parser[types.ResourceWithLabels, bool]
+
+func getResourceExpressionParser() (*typical.Parser[types.ResourceWithLabels, bool], error) {
+	resourceExpressionParserOnce.Do(func() {
+		p, err := newResourceExpressionParser()
+		if err != nil {
+			return
+		}
+		resourceExpressionParser = p
 	})
+	if resourceExpressionParser != nil {
+		return resourceExpressionParser, nil
+	}
+	// if there was an error creating the parser, which is impossible at the
+	// time of writing, just try again on every call so we can forward the error
+	// to the caller
+	return newResourceExpressionParser()
+}
+
+// NewResourceExpression returns a [typical.Expression] that is to be evaluated against a
+// [types.ResourceWithLabels]. It is customized to allow short identifiers common in all
+// resources:
+//   - shorthand `name` refers to `resource.spec.hostname` for node resources, or it refers
+//     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
+//   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
+//     eg: `labels.env == "prod"`
+//
+// All other fields can be referenced by starting expression with identifier `resource`
+// followed by the names of the json fields ie: `resource.spec.public_addr`.
+func NewResourceExpression(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
+	parser, err := getResourceExpressionParser()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newResourceExpression(expression, parser)
+}
+
+func newResourceExpression(expression string, parser *typical.Parser[types.ResourceWithLabels, bool]) (typical.Expression[types.ResourceWithLabels, bool], error) {
+	astExpr, err := goparser.ParseExpr(expression)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	expr, err := parser.Parse(expression)
+	astExpr = astutil.Apply(astExpr, nil, combineSplitContains).(ast.Expr)
+	astExpr = astutil.Apply(astExpr, nil, optimizeSplitContains).(ast.Expr)
+
+	expr, err := parser.ParseAST(astExpr)
 	return expr, trace.Wrap(err)
+}
+
+// combineSplitContains is an [astutil.ApplyFunc] that replaces the combination
+// of calls of "contains(split(value, delimiter), target)" into a single call to
+// "__split_contains(value, delimiter, target)".
+func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
+	cont = true
+
+	containsCall := getIdentCall(cursor.Node(), "contains")
+	if containsCall == nil {
+		return
+	}
+	if len(containsCall.Args) != 2 {
+		return
+	}
+
+	splitCall := getIdentCall(ast.Unparen(containsCall.Args[0]), "split")
+	if splitCall == nil {
+		return
+	}
+	if len(splitCall.Args) != 2 {
+		return
+	}
+
+	// contains(split(value, delim), target) -> __split_contains(slice, delim, target)
+	cursor.Replace(&ast.CallExpr{
+		Fun: &ast.Ident{Name: "__split_contains"},
+		Args: []ast.Expr{
+			ast.Unparen(splitCall.Args[0]),
+			ast.Unparen(splitCall.Args[1]),
+			ast.Unparen(containsCall.Args[1]),
+		},
+	})
+	return
+}
+
+// optimizeSplitContains is an [astutil.ApplyFunc] that replaces calls to
+// __split_contains where the delimiter is a one byte literal and the target is
+// a literal into calls to __split_contains_singlebyte_affix, by combining the
+// delimiter and literal strings into a new literal string that can be more
+// efficiently matched.
+func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
+	cont = true
+
+	splitContainsCall := getIdentCall(cursor.Node(), "__split_contains")
+	if splitContainsCall == nil {
+		return
+	}
+	if len(splitContainsCall.Args) != 3 {
+		return
+	}
+
+	delimiter := getLiteralString(ast.Unparen(splitContainsCall.Args[1]))
+	target := getLiteralString(ast.Unparen(splitContainsCall.Args[2]))
+	if delimiter == nil || target == nil {
+		return
+	}
+
+	if strings.Contains(*target, *delimiter) {
+		// impossible match, turn it into a function call that unconditionally
+		// returns false very quickly
+
+		// TODO(espadolini): figure out if adding a "false" or "__false"
+		// variable has the potential to break things
+
+		// __split_contains(sliceExpr, ",", "contains,delimiter") -> __split_contains_singlebyte_affix("", "")
+		cursor.Replace(&ast.CallExpr{
+			Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
+			Args: []ast.Expr{
+				&ast.BasicLit{Kind: token.STRING, Value: `""`},
+				&ast.BasicLit{Kind: token.STRING, Value: `""`},
+			},
+		})
+		return
+	}
+
+	if len(*delimiter) != 1 {
+		return
+	}
+
+	// the delimiter is a one byte literal string and the target is a literal
+	// string, so we affix the delimiter to the head and tail of the target
+	// string so we can just call [strings.Contains] which is almost surely much
+	// more efficient than anything else we could do; the delimiter has to be
+	// single byte because __split_contains_singlebyte_affix must be able to
+	// skip it when checking for the target being at the very beginning or the
+	// very end of the string, and we don't want to copy every string in the
+	// slice just to add the delimiter at the beginning and end for that
+
+	// __split_contains(sliceExpr, ",", "literal") -> __split_contains_singlebyte_affix(sliceExpr, ",literal,")
+	cursor.Replace(&ast.CallExpr{
+		Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
+		Args: []ast.Expr{
+			ast.Unparen(splitContainsCall.Args[0]),
+			&ast.BasicLit{
+				Kind:  token.STRING,
+				Value: strconv.Quote(*delimiter + *target + *delimiter),
+			},
+		},
+	})
+
+	return
+}
+
+func getIdentCall(n ast.Node, ident string) *ast.CallExpr {
+	c, _ := n.(*ast.CallExpr)
+	if c == nil {
+		return nil
+	}
+	// predicate doesn't handle function expressions, not even to unparen them,
+	// so `(foo)(1, 2, 3)` is not valid and we only need to check for
+	// [*ast.Ident]
+	if i, _ := c.Fun.(*ast.Ident); i == nil || i.Name != ident {
+		return nil
+	}
+	return c
+}
+
+func getLiteralString(n ast.Node) *string {
+	l, _ := n.(*ast.BasicLit)
+	if l == nil {
+		return nil
+	}
+	if l.Kind != token.STRING {
+		return nil
+	}
+	s, err := strconv.Unquote(l.Value)
+	if err != nil {
+		return nil
+	}
+	return &s
 }

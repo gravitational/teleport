@@ -40,7 +40,9 @@ package typical
 
 import (
 	"fmt"
+	"go/ast"
 	"reflect"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
@@ -98,7 +100,7 @@ type Function interface {
 // specific expression language.
 type Parser[TEnv, TResult any] struct {
 	spec    ParserSpec[TEnv]
-	pred    predicate.Parser
+	pred    predicate.ASTParser
 	options parserOptions
 }
 
@@ -157,7 +159,7 @@ func NewParser[TEnv, TResult any](spec ParserSpec[TEnv], opts ...ParserOption) (
 		}
 	}
 
-	pred, err := predicate.NewParser(def)
+	pred, err := predicate.NewASTParser(def)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating predicate parser")
 	}
@@ -173,6 +175,21 @@ func (p *Parser[TEnv, TResult]) Parse(expression string) (Expression[TEnv, TResu
 		return nil, trace.BadParameter("empty expression")
 	}
 	result, err := p.pred.Parse(expression)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing expression")
+	}
+	expr, err := coerce[TEnv, TResult](result)
+	if err != nil {
+		return nil, trace.Wrap(err, "expression evaluated to unexpected type")
+	}
+	return expr, nil
+}
+
+func (p *Parser[TEnv, TResult]) ParseAST(expression ast.Expr) (Expression[TEnv, TResult], error) {
+	if expression == nil {
+		return nil, trace.BadParameter("nil expression")
+	}
+	result, err := p.pred.ParseAST(expression)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing expression")
 	}
@@ -1029,6 +1046,31 @@ func (l LiteralExpr[TEnv, T]) Evaluate(TEnv) (T, error) {
 	return l.Value, nil
 }
 
+type LazyStringSlice interface {
+	Slice() []string
+	Contains(target string) bool
+}
+
+type stringSliceAsLazyStringSlice []string
+
+func (s stringSliceAsLazyStringSlice) Slice() []string {
+	return s
+}
+
+func (s stringSliceAsLazyStringSlice) Contains(target string) bool {
+	return slices.Contains(s, target)
+}
+
+type stringAsLazyStringSlice string
+
+func (s stringAsLazyStringSlice) Slice() []string {
+	return []string{string(s)}
+}
+
+func (s stringAsLazyStringSlice) Contains(target string) bool {
+	return string(s) == target
+}
+
 // coerce is called at parse time to attempt to convert arg to an
 // Expression[TEnv, TArg]. In most cases (for valid expressions) we can convert
 // all arguments to known types at parse time so that reflection is not
@@ -1040,38 +1082,86 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 		return typedArgExpr, nil
 	}
 
-	// any(*new(TArg)) is a trick to create an interface wrapping an instance of
-	// the generic type TArg so that we can do a type assertion on TArg.
-	if _, ok := any(*new(TArg)).([]string); ok {
-		// If we are expecting a []string and given a string, wrap it in a slice.
-		// This happens at parse time without reflection during evaluation.
-		// It's probably possible to do this for any slice type with heavy use
-		// of reflect, but for now []string is sufficient.
-		//
-		// This enables functions like strings.upper(str) to accept lists or
-		// single strings, which is common in existing predicate expressions.
-		var sliceExpr Expression[TEnv, []string]
-		switch typedArg := arg.(type) {
-		case string:
-			sliceExpr = LiteralExpr[TEnv, []string]{[]string{typedArg}}
-		case []string:
-			// This case will be necessary if we caught a slice literal.
-			sliceExpr = LiteralExpr[TEnv, []string]{typedArg}
-		case Expression[TEnv, string]:
-			sliceExpr = dynamicVariable[TEnv, []string]{
-				func(env TEnv) ([]string, error) {
-					str, err := typedArg.Evaluate(env)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					return []string{str}, nil
-				},
+	{
+		var expr Expression[TEnv, TArg]
+		typedExpr, ok := any(&expr).(*Expression[TEnv, []string])
+		if ok {
+			// If we are expecting a []string and given a string, wrap it in a slice.
+			// This happens at parse time without reflection during evaluation.
+			// It's probably possible to do this for any slice type with heavy use
+			// of reflect, but for now []string is sufficient.
+			//
+			// This enables functions like strings.upper(str) to accept lists or
+			// single strings, which is common in existing predicate expressions.
+			switch arg := arg.(type) {
+			case string:
+				*typedExpr = LiteralExpr[TEnv, []string]{[]string{arg}}
+			case []string:
+				// This case will be necessary if we caught a slice literal.
+				*typedExpr = LiteralExpr[TEnv, []string]{arg}
+			case Expression[TEnv, string]:
+				*typedExpr = dynamicVariable[TEnv, []string]{
+					func(env TEnv) ([]string, error) {
+						str, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return []string{str}, nil
+					},
+				}
+			case Expression[TEnv, LazyStringSlice]:
+				*typedExpr = dynamicVariable[TEnv, []string]{
+					accessor: func(env TEnv) ([]string, error) {
+						lss, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return lss.Slice(), nil
+					},
+				}
+			default:
+				return nil, unexpectedTypeError[TArg](arg)
 			}
-		default:
-			return nil, unexpectedTypeError[TArg](arg)
+
+			return expr, nil
 		}
-		// We know TArg is []string so this assertion is safe.
-		return sliceExpr.(Expression[TEnv, TArg]), nil
+	}
+
+	{
+		var expr Expression[TEnv, TArg]
+		typedExpr, ok := any(&expr).(*Expression[TEnv, LazyStringSlice])
+		if ok {
+			switch arg := arg.(type) {
+			case string:
+				*typedExpr = LiteralExpr[TEnv, LazyStringSlice]{stringAsLazyStringSlice(arg)}
+			case []string:
+				*typedExpr = LiteralExpr[TEnv, LazyStringSlice]{stringSliceAsLazyStringSlice(arg)}
+			case Expression[TEnv, string]:
+				*typedExpr = dynamicVariable[TEnv, LazyStringSlice]{
+					accessor: func(env TEnv) (LazyStringSlice, error) {
+						str, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return stringAsLazyStringSlice(str), nil
+					},
+				}
+			case Expression[TEnv, []string]:
+				*typedExpr = dynamicVariable[TEnv, LazyStringSlice]{
+					accessor: func(env TEnv) (LazyStringSlice, error) {
+						ss, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return stringSliceAsLazyStringSlice(ss), nil
+					},
+				}
+			default:
+				return nil, unexpectedTypeError[TArg](arg)
+			}
+
+			return expr, nil
+		}
 	}
 
 	if anyExpr, ok := arg.(Expression[TEnv, any]); ok {
